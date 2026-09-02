@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/lock.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "channel", "components"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "channel": { "enum": ["stable", "candidate", "pinned"] },
+    "components": { "type": "object" }
+  },
+  "additionalProperties": true
+}

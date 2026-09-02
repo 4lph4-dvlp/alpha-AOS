@@ -1,0 +1,49 @@
+name: Dependency candidate
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Resolve registry versions into the unverified candidate
+        run: node dist/src/cli.js update --stage --apply
+      - name: Open or refresh candidate pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          if git diff --quiet -- catalog/candidate.lock.json; then
+            echo "No dependency version changes."
+            exit 0
+          fi
+          branch=automation/dependency-candidate
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git checkout -B "$branch"
+          git add catalog/candidate.lock.json
+          git commit -m "chore: stage dependency candidate"
+          git push --force origin "HEAD:$branch"
+          if gh pr view "$branch" >/dev/null 2>&1; then
+            echo "Candidate pull request already exists."
+          else
+            gh pr create \
+              --base main \
+              --head "$branch" \
+              --title "chore: validate dependency candidate" \
+              --body "Automated discovery only. This candidate is unverified and must not be promoted until package-integrity, renderer-hash, and Windows/macOS/Linux fixture gates pass."
+          fi

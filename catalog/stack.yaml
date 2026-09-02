@@ -1,0 +1,66 @@
+schemaVersion: 1
+name: alpha-aos
+defaultChannel: stable
+
+channels:
+  stable:
+    lock: catalog/stack.lock.json
+    description: Verified versions for normal user-wide installation.
+  candidate:
+    lock: catalog/candidate.lock.json
+    description: Newly discovered upstream versions awaiting matrix validation.
+  pinned:
+    description: An explicit immutable lock supplied by the user.
+
+harnesses:
+  claude:
+    displayName: Claude Code
+    gsdTarget: claude
+    eccTarget: claude
+  codex:
+    displayName: Codex
+    gsdTarget: codex
+    eccTarget: codex
+  antigravity:
+    displayName: Antigravity GUI/CLI/IDE
+    gsdTarget: antigravity
+    eccTarget: antigravity
+  pi:
+    displayName: Pi Agent
+    gsdTarget: pi
+    eccStrategy: bridge
+  hermes:
+    displayName: Hermes Agent
+    gsdStrategy: worker-only
+    eccTarget: hermes
+
+components:
+  gsd:
+    package: "@opengsd/gsd-core"
+    profile: standard
+    targets: [claude, codex, antigravity, pi]
+  ecc:
+    package: ecc-universal
+    globalSkills: [unified-memory, documentation-lookup, deep-research]
+    profileInstallAllowed: false
+  mcp:
+    rolloutOrder: [context7, exa, firecrawl]
+    targets: [claude, codex, antigravity, pi, hermes]
+  ownedSkills:
+    - id: alpha-aos-ship
+      source: skills/alpha-aos-ship/SKILL.md
+      targets: [claude]
+      invocation: explicit
+      argumentHint: "<phase-number> [--draft] [--text] [--ws <name>]"
+      requires:
+        component: gsd
+        workflow: gsd-core/workflows/ship.md
+
+policy:
+  mutationDefault: dry-run
+  requireSnapshot: true
+  requireCanary: true
+  canaryHarness: claude
+  forbidManagedFilePatches: true
+  autoApplyMarkdownOnly: true
+  requireApprovalFor: [hooks, mcp, rules, executables, config-merge]

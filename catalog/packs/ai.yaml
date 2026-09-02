@@ -1,0 +1,14 @@
+schemaVersion: 1
+packs:
+  - id: MCP_SERVER
+    evidence:
+      any: [mcp-sdk-dependency, mcp-server-manifest]
+    skills: [mcp-server-patterns]
+  - id: AGENT_RUNTIME
+    evidence:
+      any: [agent-sdk-dependency, agent-runtime-config]
+    skills: [agent-harness-construction]
+  - id: AI_EVAL
+    evidence:
+      all: [model-sdk, eval-assets]
+    skills: [ai-regression-testing, eval-harness]

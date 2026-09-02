@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Machine-local state and rollback material
+.alpha-aos/install-state.json
+.alpha-aos/journal/
+.alpha-aos/snapshots/
+.alpha-aos/evidence/

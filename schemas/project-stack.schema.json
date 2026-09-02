@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/project-stack.schema.json",
+  "type": "object",
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "trusted": { "type": "boolean", "default": false },
+    "packs": { "type": "array", "items": { "type": "string" } },
+    "criticalUserFlows": { "type": "array", "items": { "type": "string" } },
+    "scientificResearch": { "type": "boolean", "default": false },
+    "isolation": {
+      "type": "object",
+      "required": ["mode", "allowedHarnesses", "exclusive", "inherit", "allowedSkills", "allowedMcp", "execution"],
+      "properties": {
+        "mode": { "enum": ["managed", "project-only", "sealed"] },
+        "allowedHarnesses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] }
+        },
+        "exclusive": { "type": "boolean" },
+        "inherit": {
+          "type": "object",
+          "required": ["globalConfig", "globalSkills", "globalMcp", "globalMemory", "globalHooks"],
+          "properties": {
+            "globalConfig": { "type": "boolean" },
+            "globalSkills": { "type": "boolean" },
+            "globalMcp": { "type": "boolean" },
+            "globalMemory": { "type": "boolean" },
+            "globalHooks": { "type": "boolean" }
+          },
+          "additionalProperties": false
+        },
+        "allowedSkills": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "allowedMcp": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "execution": {
+          "type": "object",
+          "required": ["isolation", "network", "environment"],
+          "properties": {
+            "isolation": { "enum": ["process", "container"] },
+            "network": { "enum": ["inherited", "disabled", "allowlist"] },
+            "environment": { "enum": ["inherited", "allowlist"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

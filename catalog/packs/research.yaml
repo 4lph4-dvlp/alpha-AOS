@@ -1,0 +1,10 @@
+schemaVersion: 1
+packs:
+  - id: RESEARCH_SCIENTIFIC
+    evidence:
+      manifestOptIn: scientificResearch
+    skills:
+      - scientific-db-pubmed-database
+      - scientific-db-uspto-database
+      - scientific-thinking-literature-review
+      - scientific-thinking-scholar-evaluation

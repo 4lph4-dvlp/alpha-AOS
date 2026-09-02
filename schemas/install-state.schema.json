@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/install-state.schema.json",
+  "type": "object",
+  "required": ["schemaVersion", "machineId", "operations"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "machineId": { "type": "string" },
+    "operations": { "type": "array" }
+  },
+  "additionalProperties": true
+}

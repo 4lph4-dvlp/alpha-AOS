@@ -1,0 +1,14 @@
+schemaVersion: 1
+packs:
+  - id: WEB_BASE
+    evidence:
+      all: [web-framework, browser-entrypoint]
+    skills: [browser-qa, accessibility]
+  - id: WEB_REACT
+    evidence:
+      anyDependencies: [react, next]
+    skills: [frontend-a11y]
+  - id: WEB_FLOW_AUDIT
+    evidence:
+      manifestOptIn: criticalUserFlows
+    skills: [click-path-audit]

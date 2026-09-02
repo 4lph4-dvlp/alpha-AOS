@@ -1,0 +1,7 @@
+schemaVersion: 1
+packs:
+  - id: SECURITY_REVIEW
+    evidence:
+      any: [auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api]
+    selectionPolicy: prefer-native-single-engine
+    skills: [security-review]

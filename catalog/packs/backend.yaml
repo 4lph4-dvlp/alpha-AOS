@@ -1,0 +1,18 @@
+schemaVersion: 1
+packs:
+  - id: API
+    evidence:
+      any: [server-framework, openapi, route-controller]
+    skills: []
+  - id: DB_MIGRATION
+    evidence:
+      any: [migration-directory, orm-migration-config]
+    skills: [database-migrations]
+  - id: DB_POSTGRES
+    evidence:
+      any: [postgres-driver, postgres-dsn]
+    skills: [postgres-patterns]
+  - id: CACHE_REDIS
+    evidence:
+      any: [redis-client, redis-dsn]
+    skills: [redis-patterns]

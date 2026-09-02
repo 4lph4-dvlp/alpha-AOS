@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "components": {
+    "gsd": {
+      "package": "@opengsd/gsd-core",
+      "version": "1.12.0",
+      "integrity": "sha512-fMjtqWQLJooD9HrkRLsfwmVmKwLN96Lea3TKTPhFl0CZ9ZFsv4Dr5f/vB0TxIgR1Hm2MgzkeMynS0MQy382N5A==",
+      "profile": "standard"
+    },
+    "ecc": {
+      "package": "ecc-universal",
+      "version": "2.2.0",
+      "integrity": "sha512-jk3Zedc7iiOdMj9x0jkOb8EgCgGSGV7jLjKyF0k0xmi0WeXYKz+gkljE0xQzmpZEJE9uGb7EY20DqtDNRnqVFw==",
+      "skills": [
+        "unified-memory",
+        "documentation-lookup",
+        "deep-research"
+      ],
+      "sourceSha256": {
+        "unified-memory": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+        "documentation-lookup": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+        "deep-research": "f85e06874ffd0fcfea6051b4292f45fc2b7e4cd47586659817ddbafd6bea3ede"
+      },
+      "targetSha256": {
+        "unified-memory": {
+          "claude": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+          "codex": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+          "antigravity": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+          "pi": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+          "hermes": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0"
+        },
+        "documentation-lookup": {
+          "claude": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+          "codex": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+          "antigravity": "93c880e4c6b18e508d8a9c79e08e192a9d3d1bbf5885f0b855d0243fc20e7143",
+          "pi": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+          "hermes": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1"
+        },
+        "deep-research": {
+          "claude": "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74",
+          "codex": "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74",
+          "antigravity": "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74",
+          "pi": "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74",
+          "hermes": "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74"
+        }
+      }
+    },
+    "mcp": {
+      "context7": {
+        "package": "@upstash/context7-mcp",
+        "version": "4.0.4",
+        "integrity": "sha512-7SO1no1tabPvC8OK8j1BBrUTysoCoUP/wHhzBTD53CDqJFKuPBxWH5MBl708vX1UwY3Ymd183SM4zLgJmwqYag=="
+      },
+      "exa": {
+        "package": "exa-mcp-server",
+        "version": "3.4.1",
+        "integrity": "sha512-X6g4J9LXLJZ0uK52G8KE/KCaxpaD+wkEHzjkoDTYkC+afxfm5xqWgih3i0hgTfyufl6PggkLeR0L6rDAxW6ETg=="
+      },
+      "firecrawl": {
+        "package": "firecrawl-mcp",
+        "version": "3.24.0",
+        "integrity": "sha512-GJdI37XWXWK+Hu/LnITH9KSoUgzWxPBNrS+ixrNILukRieKYypL5LskACjPlmtbH9290HtpK/lkHWW6052V3rg=="
+      }
+    },
+    "mcpBridges": {
+      "pi": {
+        "package": "pi-mcp-adapter",
+        "version": "2.31.0",
+        "integrity": "sha512-yKPgHWFLQY6FT7ukCgEp5KvkAZ4ZC1pl7+8Tdq+j4evfTtjhHXPuIpi0joNN7lIIKuJD1cjlTb+hu6IxRpseoA=="
+      }
+    },
+    "ownedSkills": {
+      "alpha-aos-ship": {
+        "sourceSha256": "0b9d85550717d43ac07d36ba0a6400e49d2e035eb1600f6a73d922345b91947a",
+        "targetSha256": {
+          "claude": "808cc67dbd6c8ba2574f1325cd5c4b32218ddad99bc3cc4e6e03c141872b2a48"
+        },
+        "upstreamWorkflow": "gsd-core/workflows/ship.md"
+      }
+    }
+  }
+}

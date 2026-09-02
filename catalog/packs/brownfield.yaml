@@ -1,0 +1,7 @@
+schemaVersion: 1
+packs:
+  - id: BROWNFIELD_INIT
+    evidence:
+      all: [existing-source, missing-conventions-document]
+    lifecycle: one-shot-remove-after-output
+    skills: [inherit-legacy-style]

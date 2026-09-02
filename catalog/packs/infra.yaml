@@ -1,0 +1,10 @@
+schemaVersion: 1
+packs:
+  - id: CONTAINER
+    evidence:
+      anyFiles: [Dockerfile, docker-compose.yml, docker-compose.yaml, compose.yml, compose.yaml]
+    skills: [docker-patterns]
+  - id: DEPLOYMENT
+    evidence:
+      any: [deploy-workflow, release-workflow, kubernetes, terraform]
+    skills: [deployment-patterns]

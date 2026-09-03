@@ -1,0 +1,85 @@
+---
+phase: "01"
+slug: "safe-operation-boundary"
+status: draft
+nyquist_compliant: false
+wave_0_complete: false
+created: "2026-09-03"
+---
+
+# Phase 01 — Validation Strategy
+
+> Per-phase validation contract for feedback sampling during execution.
+
+---
+
+## Test Infrastructure
+
+| Property | Value |
+|----------|-------|
+| **Framework** | Node.js 24 built-in `node:test` + `node:assert/strict` |
+| **Config file** | `package.json`, `tsconfig.json` |
+| **Quick run command** | `npm run check` plus the focused compiled test file |
+| **Full suite command** | `npm test` |
+| **Estimated runtime** | ~15 seconds locally before the Phase 1 matrix is added |
+
+---
+
+## Sampling Rate
+
+- **After every task commit:** Run `npm run check` and the focused compiled test file named by the task.
+- **After every plan wave:** Run `npm test`.
+- **Before `$gsd-verify-work`:** The full Windows, macOS, and Linux CI suite must be green.
+- **Max feedback latency:** 60 seconds for focused checks; 5 minutes for the cross-platform phase gate.
+
+---
+
+## Per-Task Verification Map
+
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 01-W0-01 | TBD | 0 | SAFE-01 | T-01 | Every dry-run entry point leaves checkout, package, config, state, and harness digests unchanged | cross-platform integration | `npm run build && node --test dist/test/preview.test.js` | ❌ W0 | ⬜ pending |
+| 01-W0-02 | TBD | 0 | SAFE-02 | Escaping or unprovable symlink, junction, reparse, alias, and parent-swap paths never touch the outside sentinel | filesystem integration | `npm run build && node --test dist/test/path-boundary.test.js` | ❌ W0 | ⬜ pending |
+| 01-W0-03 | TBD | 0 | SAFE-03 | A competing writer fails fast and interrupted writes remain hash-checkable and explicitly repairable | subprocess + filesystem integration | `npm run build && node --test dist/test/transaction-crash.test.js` | ❌ W0 | ⬜ pending |
+| 01-W0-04 | TBD | 0 | SAFE-04 | Secret values and secret-bearing URLs are absent from all observable output and persisted evidence | unit + CLI integration | `npm run build && node --test dist/test/redaction.test.js` | ❌ W0 | ⬜ pending |
+| 01-W0-05 | TBD | 0 | SAFE-05 | Malformed, duplicate, ambiguous, unsupported, and newer-version documents are rejected before mutation | table-driven unit | `npm run build && node --test dist/test/validation.test.js` | ❌ W0 | ⬜ pending |
+| 01-W0-06 | TBD | 0 | SAFE-06 | External commands use no shell, receive only approved environment names, and produce bounded timeout-aware evidence | subprocess integration | `npm run build && node --test dist/test/process.test.js` | ❌ W0 | ⬜ pending |
+
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+
+---
+
+## Wave 0 Requirements
+
+- [ ] `test/preview.test.ts` — byte-for-byte dry-run matrix for the CLI and four wrapper families.
+- [ ] `test/path-boundary.test.ts` — symlink, junction, reparse, alias, and parent-swap controls with an outside sentinel.
+- [ ] `test/transaction-crash.test.ts` — writer contention and deterministic interruption stages; extend `test/transaction.test.ts` where appropriate.
+- [ ] `test/redaction.test.ts` — exact credential, URL, PEM, JWT, API-key, chunk-boundary, and path-alias corpus across surfaces.
+- [ ] `test/validation.test.ts` — every managed document type, duplicate keys, extensions, old/new versions, and bounded deterministic errors; extend `test/catalog.test.ts` where appropriate.
+- [ ] `test/process.test.ts` — argument injection, executable normalization, timeout, byte cap, and environment-name case collisions.
+- [ ] `.github/workflows/ci.yml` — execute wrapper behavior tests on Windows, macOS, and Linux instead of syntax checks alone.
+
+---
+
+## Manual-Only Verifications
+
+| Behavior | Requirement | Why Manual | Test Instructions |
+|----------|-------------|------------|-------------------|
+| Native Windows unknown-reparse refusal on a host fixture unavailable to ordinary CI | SAFE-02 | Some reparse tags require Windows privileges or host facilities not guaranteed on CI runners | Create the documented fixture on a Windows canary, run dry-run and apply attempts, confirm the stable refusal code, and verify the outside sentinel hash is unchanged |
+
+All other Phase 1 behaviors require automated verification. An unavailable privileged fixture is reported as not-run, never as passed.
+
+---
+
+## Validation Sign-Off
+
+- [ ] All tasks have `<automated>` verify commands or explicit Wave 0 dependencies.
+- [ ] Every runnable `<automated>` command has an adjacent observable `<fails_when>` direction in its PLAN task.
+- [ ] Sampling continuity: no 3 consecutive tasks without automated verification.
+- [ ] Wave 0 covers all missing test references.
+- [ ] No watch-mode flags are used.
+- [ ] Focused feedback latency stays below 60 seconds.
+- [ ] Cross-platform wrapper behavior is executed, not syntax-checked only.
+- [ ] `nyquist_compliant: true` and `wave_0_complete: true` are set only after the corresponding evidence exists.
+
+**Approval:** pending

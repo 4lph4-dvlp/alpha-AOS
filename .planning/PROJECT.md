@@ -28,7 +28,7 @@ A user can enter any supported project on any supported operating system and get
 - [ ] Preserve native implicit invocation for globally installed, low-risk ECC capabilities and MCP tools, and verify that each supported harness uses them naturally when task intent matches
 - [ ] Add deterministic project evidence detection and transactional project sync so matched ECC capability packs are installed only in the intended project scope, discovered natively, used during relevant work, and removable without disturbing user files
 - [ ] Add explicit GSD quality-gate integration for capabilities that must run rather than relying on probabilistic model selection, including security- and migration-sensitive checks
-- [ ] Make directory-level alpha-AOS opt-out verifiable: a launched harness must not inherit alpha-AOS-managed skills, MCP servers, hooks, or workflow guidance, and unrelated environment secrets must not leak into `project-only` runs
+- [ ] Make directory-tree alpha-AOS opt-out persistent and verifiable: after one setup action, normal supported harness entrypoints must start from a clean user baseline, inherit only local project resources, and avoid unrelated environment-secret leakage without requiring `alpha-aos project run`
 - [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack
 - [ ] Expand the repository-owned workflow surface beyond its current Claude-only implementation wherever native invocation semantics are proven, while reporting unsupported targets explicitly
 - [ ] Harden filesystem boundaries, subprocess-output redaction, native configuration merging, and external-package recovery before public release
@@ -51,7 +51,7 @@ The project began from `docs/alpha-vibe-stack-codex.md`, which defined GSD Core 
 
 Current behavior demonstrates the desired native path on Codex: alpha-AOS installs `documentation-lookup` in the user skill root and registers Context7 in Codex configuration; Codex can then implicitly select the skill from its description and follow it into an MCP call without a user explicitly naming either one. This is the preferred path for low-risk global capabilities. alpha-AOS should not proxy every capability invocation.
 
-The missing product layer is policy and scope completion. Transactional `project sync --apply` is still a stub, repository-owned skill distribution is Claude-only, uninstall is incomplete, project-only processes inherit too much of the ambient environment, and several filesystem/configuration edge cases require hardening. The v0.1.0 milestone closes these gaps and proves the behavior through user-flow tests rather than treating file presence as success.
+The missing product layer is policy and scope completion. Transactional `project sync --apply` is still a stub, repository-owned skill distribution is Claude-only, uninstall is incomplete, project-only processes inherit too much of the ambient environment, and several filesystem/configuration edge cases require hardening. The v0.1.0 milestone closes these gaps and proves the behavior through user-flow tests rather than treating file presence as success. For opt-out repositories, alpha-AOS must configure a persistent tree policy and use either native project suppression or a transparent pre-launch guard so the user can later invoke the ordinary supported harness entrypoint. Detection after an agent has already loaded global context cannot count as isolation; that path must record the decision and restart cleanly.
 
 The authority boundaries are:
 
@@ -85,6 +85,7 @@ The authority boundaries are:
 | Keep Hermes worker-only for GSD state | A single state writer avoids conflicting `.planning/` transitions while retaining Hermes as a capable worker and handoff consumer | ✓ Good |
 | Use stable exact versions and source/file integrity locks | Cross-harness user configuration is supply-chain-sensitive and must be reproducible | ✓ Good |
 | Treat `project-only` as configuration isolation, not a security boundary | Process-level isolation cannot honestly guarantee filesystem, network, or host-secret containment | ✓ Good |
+| Configure opt-out once and enforce it before normal harness startup | Directory-specific global exclusion cannot be applied reliably after skills, instructions, and MCP schemas have entered a running agent context | — Pending |
 | Defer true `sealed` isolation until after v0.1.0 | A real OS/container adapter is substantial and must not delay proving the core workflow and scoping model | — Pending |
 
 ## Evolution

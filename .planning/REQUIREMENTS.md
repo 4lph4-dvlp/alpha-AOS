@@ -124,16 +124,62 @@
 
 ## Traceability
 
-Roadmap phase mappings are populated during roadmap creation.
-
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| SAFE-01 | Phase 1 | Pending |
+| SAFE-02 | Phase 1 | Pending |
+| SAFE-03 | Phase 1 | Pending |
+| SAFE-04 | Phase 1 | Pending |
+| SAFE-05 | Phase 1 | Pending |
+| SAFE-06 | Phase 1 | Pending |
+| DETC-01 | Phase 2 | Pending |
+| DETC-02 | Phase 2 | Pending |
+| DETC-03 | Phase 2 | Pending |
+| DETC-04 | Phase 2 | Pending |
+| DETC-05 | Phase 2 | Pending |
+| DETC-06 | Phase 2 | Pending |
+| CAPA-01 | Phase 3 | Pending |
+| CAPA-02 | Phase 3 | Pending |
+| CAPA-03 | Phase 3 | Pending |
+| CAPA-04 | Phase 3 | Pending |
+| CAPA-05 | Phase 3 | Pending |
+| CAPA-06 | Phase 3 | Pending |
+| CAPA-07 | Phase 3 | Pending |
+| CAPA-08 | Phase 3 | Pending |
+| GATE-01 | Phase 4 | Pending |
+| GATE-02 | Phase 4 | Pending |
+| GATE-03 | Phase 4 | Pending |
+| GATE-04 | Phase 4 | Pending |
+| GATE-05 | Phase 4 | Pending |
+| OPTO-01 | Phase 5 | Pending |
+| OPTO-02 | Phase 5 | Pending |
+| OPTO-03 | Phase 5 | Pending |
+| OPTO-04 | Phase 5 | Pending |
+| OPTO-05 | Phase 5 | Pending |
+| OPTO-06 | Phase 5 | Pending |
+| OPTO-07 | Phase 5 | Pending |
+| OPTO-08 | Phase 5 | Pending |
+| OPTO-09 | Phase 5 | Pending |
+| LIFE-01 | Phase 6 | Pending |
+| LIFE-02 | Phase 6 | Pending |
+| LIFE-03 | Phase 6 | Pending |
+| LIFE-04 | Phase 6 | Pending |
+| LIFE-05 | Phase 6 | Pending |
+| LIFE-06 | Phase 6 | Pending |
+| LIFE-07 | Phase 6 | Pending |
+| LIFE-08 | Phase 6 | Pending |
+| REL-01 | Phase 7 | Pending |
+| REL-02 | Phase 7 | Pending |
+| REL-03 | Phase 7 | Pending |
+| REL-04 | Phase 7 | Pending |
+| REL-05 | Phase 7 | Pending |
+| REL-06 | Phase 7 | Pending |
 
 **Coverage:**
 - v1 requirements: 48 total
-- Mapped to phases: 0
-- Unmapped: 48 ⚠️
+- Mapped to phases: 48
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-09-03*
-*Last updated: 2026-09-03 after initial definition*
+*Last updated: 2026-09-03 after roadmap creation*

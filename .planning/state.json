@@ -1,0 +1,48 @@
+{
+  "contract": "1.0.0",
+  "flavor": "core",
+  "milestone": "v0.1.0",
+  "phases": [
+    {
+      "number": "1",
+      "name": "Safe Operation Boundary",
+      "status": "pending"
+    },
+    {
+      "number": "2",
+      "name": "Evidence-Bound Project Planning",
+      "status": "pending"
+    },
+    {
+      "number": "3",
+      "name": "Transactional Project Packs and Native Optional Use",
+      "status": "pending"
+    },
+    {
+      "number": "4",
+      "name": "Mandatory GSD Gates",
+      "status": "pending"
+    },
+    {
+      "number": "5",
+      "name": "Persistent Tree-Off Preload Isolation",
+      "status": "pending"
+    },
+    {
+      "number": "6",
+      "name": "Managed Lifecycle, Uninstall, and Recovery",
+      "status": "pending"
+    },
+    {
+      "number": "7",
+      "name": "Cross-Platform Release Proof",
+      "status": "pending"
+    }
+  ],
+  "next": {
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 1 of 7 · 0% · executing"
+  },
+  "updated_at": "2026-09-03T23:43:51.065Z"
+}

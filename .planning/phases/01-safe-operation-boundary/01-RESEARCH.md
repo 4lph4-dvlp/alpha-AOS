@@ -382,20 +382,23 @@ Phase 1의 `repair --apply`는 writer/journal 안전 경계를 해제하거나 e
 | A4 | parent-directory sync is supportable with the required durability semantics on each OS/filesystem | Transaction | Windows/filesystem-specific refusal or adapter required |
 | A5 | `smol-toml@1.8.0` is acceptable after human review despite seam SUS verdict | Standard Stack | dependency must be replaced or TOML mutation kept unsupported |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Can Node-only pathname APIs close the tested parent-swap race on all claimed filesystems?**
+   - **Status: RESOLVED** — alpha-AOS does not claim a universal Node-only guarantee. A filesystem is mutation-capable only when component identity, configured+canonical containment, immediate parent recheck, and the adversarial swap fixture are all proven for that host/filesystem. Any unclassified reparse kind, failed capability probe, or unproven swap resistance returns a stable unsupported refusal under D-01 with inspection/dry-run still available and no override.
    - What we know: `realpath` resolves links and Windows exposes reparse/final-path concepts. [CITED: Node/Microsoft docs above]
    - What's unclear: Node does not provide a verified cross-platform handle-relative rename contract in the researched API surface. [ASSUMED]
-   - Recommendation: make a Wave 0 adversarial swap test a hard planning gate; if it fails, implement a narrow platform helper or mark that filesystem mutation unsupported rather than weaken D-01.
+   - Locked outcome: Wave 0 adversarial swap evidence gates support; a proven narrow platform helper may satisfy the same contract, otherwise mutation remains unsupported rather than weakening D-01.
 
 2. **Which TOML parser is approved?**
+   - **Status: RESOLVED** — `smol-toml@1.8.0` remains `[SUS]` and is decided only by Plan 01-04's blocking human legitimacy gate. Approval binds the exact registry/source/integrity evidence consumed by Plan 01-05. Rejection halts Plan 01-05's TOML dependency path and keeps TOML mutation unsupported; no regex or unreviewed parser fallback is permitted.
    - What we know: `smol-toml` is widely downloaded and official docs claim TOML 1.1 support, but the legitimacy seam returned SUS because the selected release is new.
-   - Recommendation: planner inserts `checkpoint:human-verify`; no custom regex fallback.
+   - Locked outcome: the checkpoint verdict is authoritative and no package mutation occurs before explicit approval.
 
 3. **What durability level can be proven per filesystem?**
+   - **Status: RESOLVED** — support is capability-based, not assumed. File sync, atomic same-directory replacement/removal ordering, parent-directory sync (or an equally proven platform primitive), and crash-failpoint evidence must all pass before mutation support is advertised. If any required durability semantic cannot be proven, apply fails closed under D-01; diagnostics record unsupported/not-run evidence without counting it as pass.
    - What we know: Node exposes file sync; directory-sync behavior must be probed across CI/fixture filesystems. [CITED: Node fs docs]
-   - Recommendation: document support as a capability result and fail closed where operation ordering cannot be proven.
+   - Locked outcome: journals and support reporting expose the exact proven capability; no unsupported filesystem can be promoted by an override.
 
 ## Environment Availability
 

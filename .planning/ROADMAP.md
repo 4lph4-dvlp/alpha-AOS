@@ -27,7 +27,25 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   3. Concurrent or interrupted managed writes serialize safely and leave hash-checked journal evidence from which alpha-AOS reports the real operation state instead of silently losing data.
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
-**Plans**: TBD
+**Plans**: 16 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Wave 0 preview, redaction, and strict-validation contracts
+- [ ] 01-02-PLAN.md — Wave 0 path, writer/crash, and process contracts
+- [ ] 01-03-PLAN.md — Central redaction, path aliases, and immutable support-bundle planning
+- [ ] 01-04-PLAN.md — smol-toml legitimacy checkpoint
+- [ ] 01-05-PLAN.md — Strict multi-format validation engine
+- [ ] 01-06-PLAN.md — Strict catalog, lock, and project-manifest loaders
+- [ ] 01-07-PLAN.md — Canonical PathProof and immediate recheck
+- [ ] 01-08-PLAN.md — Shell-free bounded process adapter and probe migration
+- [ ] 01-09-PLAN.md — MutationSession and durable transaction/repair state
+- [ ] 01-10-PLAN.md — Strict operational/native schemas and consumers
+- [ ] 01-11-PLAN.md — Fixture and installer subprocess migration
+- [ ] 01-12-PLAN.md — Session-aware GSD/ECC component mutators
+- [ ] 01-13-PLAN.md — Session-aware MCP/skill/policy/isolation/update mutators
+- [ ] 01-14-PLAN.md — Ordered install caller and core bootstrap/update safe apply
+- [ ] 01-15-PLAN.md — Session-bound support bundle and CLI/output closure
+- [ ] 01-16-PLAN.md — Thin wrappers and three-OS behavioral gate
 
 ### Phase 2: Evidence-Bound Project Planning
 **Goal**: Users receive reproducible project-pack decisions and reviewed plans that are bound to one canonical repository state and explain both matches and non-matches.
@@ -117,7 +135,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 0/TBD | Not started | - |
+| 1. Safe Operation Boundary | 0/16 | Not started | - |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

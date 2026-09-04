@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
 import { loadLock } from "../src/core/catalog.js";
-import { applyMcpSync, NativeConfigError, planMcpSync, renderMcpConfig, validateNativeConfig } from "../src/core/mcp.js";
+import { applyMcpSync, NativeConfigError, planMcpOperation, planMcpSync, renderMcpConfig, validateNativeConfig } from "../src/core/mcp.js";
+import { ComponentPlanError } from "../src/core/component-session.js";
+import { acquireMutationSession, inspectWriterState, WriterConflictError, writerLockPath } from "../src/core/writer-lock.js";
 import { allowedMcpTools } from "../src/core/mcp-proxy.js";
 import { packageRoot } from "../src/core/paths.js";
 import type { HarnessId } from "../src/types.js";
@@ -262,4 +265,111 @@ test("planMcpSync refuses ambiguous native input before it can mutate", async (c
   );
 
   assert.equal(await readFile(configPath, "utf8"), ambiguous, "a refused plan must leave the file untouched");
+});
+
+test("the reviewed MCP plan names every path role and binds the rendered hash without emitting it", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-mcp-plan-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const configPath = join(root, "home", ".claude.json");
+  const stateRoot = join(root, "state");
+  await mkdir(dirname(configPath), { recursive: true });
+  const lock = await loadLock(packageRoot());
+
+  const plan = await planMcpOperation("claude", lock, { configPath, stateRoot, env: {} });
+  assert.equal(plan.proofs.proven, true);
+  for (const role of ["target", "state", "journal", "snapshot", "source", "package-root"] as const) {
+    assert.ok(plan.proofs.get(role), `plan must declare the ${role} role`);
+  }
+  assert.deepEqual(plan.packages.map((entry) => entry.server), ["context7", "exa", "firecrawl"]);
+  assert.equal(plan.packages.every((entry) => entry.integrity.startsWith("sha512-")), true);
+  assert.equal(plan.renderedHash.length, 64);
+  assert.equal(plan.digest.length, 64);
+  // The rendered document can carry unrelated user configuration, so the plan
+  // records its hash and the digest binds that, not the text.
+  assert.equal(JSON.stringify(plan).includes("mcpServers"), false);
+
+  assert.equal(existsSync(configPath), false, "planning writes nothing");
+  assert.equal(existsSync(writerLockPath(stateRoot)), false, "planning takes no writer");
+});
+
+test("a nested MCP apply consumes the caller session and takes no second writer lock", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-mcp-nested-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const configPath = join(root, "home", ".claude.json");
+  const stateRoot = join(root, "state");
+  await mkdir(dirname(configPath), { recursive: true });
+  const lock = await loadLock(packageRoot());
+
+  const plan = await planMcpOperation("claude", lock, { configPath, stateRoot, env: {} });
+  const session = await acquireMutationSession({ stateRoot, proofs: plan.proofs, planDigest: plan.digest });
+  let closed = false;
+  context.after(async () => {
+    if (!closed) await session.close();
+  });
+
+  // The writer lock is exclusive-create, so a second acquisition would fail here.
+  const result = await applyMcpSync("claude", lock, { plan, session, configPath, stateRoot, env: {} });
+  assert.equal(result.operationId, session.operationId);
+  const parsed = JSON.parse(await readFile(configPath, "utf8")) as { mcpServers?: Record<string, unknown> };
+  assert.deepEqual(Object.keys(parsed.mcpServers ?? {}), ["context7", "exa", "firecrawl"]);
+
+  assert.equal((await inspectWriterState(stateRoot)).status, "active", "the callee must not release the caller's writer");
+  await session.close();
+  closed = true;
+  assert.equal(existsSync(writerLockPath(stateRoot)), false);
+});
+
+test("an active writer blocks an MCP apply while the plan stays readable", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-mcp-contended-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const configPath = join(root, "home", ".claude.json");
+  const stateRoot = join(root, "state");
+  await mkdir(dirname(configPath), { recursive: true });
+  await writeFile(configPath, `${JSON.stringify({ untouched: true }, null, 2)}\n`, "utf8");
+  const before = await readFile(configPath, "utf8");
+  const lock = await loadLock(packageRoot());
+
+  const plan = await planMcpOperation("claude", lock, { configPath, stateRoot, env: {} });
+  const holder = await acquireMutationSession({ stateRoot, proofs: plan.proofs, planDigest: "another-operation" });
+  context.after(async () => holder.close());
+
+  // A reader still gets a complete plan while another writer holds the root.
+  const readable = await planMcpOperation("claude", lock, { configPath, stateRoot, env: {} });
+  assert.equal(readable.digest, plan.digest);
+  assert.equal(readable.sync.action, "update");
+
+  await assert.rejects(
+    () => applyMcpSync("claude", lock, { configPath, stateRoot, env: {} }),
+    (error: unknown) => {
+      assert.ok(error instanceof WriterConflictError);
+      assert.equal(error.code, "ACTIVE_WRITER");
+      return true;
+    },
+  );
+  assert.equal(await readFile(configPath, "utf8"), before, "a blocked apply changes no byte");
+});
+
+test("an MCP plan reviewed before the native config changed refuses and writes nothing", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-mcp-drift-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const configPath = join(root, "home", ".claude.json");
+  const stateRoot = join(root, "state");
+  await mkdir(dirname(configPath), { recursive: true });
+  await writeFile(configPath, `${JSON.stringify({ untouched: true }, null, 2)}\n`, "utf8");
+  const lock = await loadLock(packageRoot());
+
+  const plan = await planMcpOperation("claude", lock, { configPath, stateRoot, env: {} });
+  const edited = `${JSON.stringify({ untouched: true, userAdded: "later" }, null, 2)}\n`;
+  await writeFile(configPath, edited, "utf8");
+
+  await assert.rejects(
+    () => applyMcpSync("claude", lock, { plan, configPath, stateRoot, env: {} }),
+    (error: unknown) => {
+      assert.ok(error instanceof ComponentPlanError);
+      assert.equal(error.code, "plan-drift");
+      return true;
+    },
+  );
+  assert.equal(await readFile(configPath, "utf8"), edited, "a refused plan leaves the user's edit alone");
+  assert.equal(existsSync(writerLockPath(stateRoot)), false);
 });

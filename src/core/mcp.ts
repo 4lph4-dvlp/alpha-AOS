@@ -2,13 +2,22 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
 import type { HarnessId, LockedPackage, McpServerId, StackLock } from "../types.js";
 import { resolveNodePackageCli } from "./process.js";
-import { aliasPath, createPathAliases, userStateRoot } from "./paths.js";
+import { aliasPath, createPathAliases, packageRoot, userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  assertUnchangedSincePlan,
+  plannedProof,
+  reviewedDigest,
+  withComponentSession,
+} from "./component-session.js";
 import {
   parseManagedDocument,
   validateAgainstSchema,
@@ -103,11 +112,19 @@ export function globalMcpConfigPath(harness: HarnessId, env: NodeJS.ProcessEnv =
   }
 }
 
+/**
+ * The alpha-AOS entrypoint a rendered filtering proxy command names. It is a
+ * source this operation depends on, so it is declared and proven like one.
+ */
+export function mcpProxyEntrypoint(): string {
+  return fileURLToPath(new URL("../cli.js", import.meta.url));
+}
+
 export function mcpStdioCommand(server: McpServerId, locked: LockedPackage): StdioCommand {
   if (server === "firecrawl") {
     return {
       command: process.execPath,
-      args: [fileURLToPath(new URL("../cli.js", import.meta.url)), "mcp-proxy", "firecrawl"],
+      args: [mcpProxyEntrypoint(), "mcp-proxy", "firecrawl"],
     };
   }
   const npx = resolveNodePackageCli("npx");
@@ -401,6 +418,11 @@ export function validateNativeConfig(harness: HarnessId, text: string): Validati
   return issues;
 }
 
+/** Where the separately pinned Pi bridge must already be installed. */
+function piBridgeManifestPath(configPath: string, bridge: LockedPackage): string {
+  return join(dirname(configPath), "npm", "node_modules", bridge.package, "package.json");
+}
+
 export async function planMcpSync(harness: HarnessId, lock: StackLock, options: {
   configPath?: string;
   selected?: McpServerId[];
@@ -437,7 +459,7 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
   if (harness === "pi" && !piBridge) throw new Error("Stable lock has no Pi MCP bridge");
   let piBridgeCurrent = false;
   if (harness === "pi" && piBridge) {
-    const manifestPath = join(dirname(configPath), "npm", "node_modules", piBridge.package, "package.json");
+    const manifestPath = piBridgeManifestPath(configPath, piBridge);
     if (existsSync(manifestPath)) {
       try {
         const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
@@ -474,21 +496,160 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
   return plan;
 }
 
-export async function applyMcpSync(harness: HarnessId, lock: StackLock, options: {
+// ---------------------------------------------------------------------------
+// Complete operation plan
+// ---------------------------------------------------------------------------
+
+export interface McpOperationPlan {
+  kind: "mcp-sync";
+  harness: HarnessId;
+  configPath: string;
+  stateRoot: string;
+  allowedRoots: readonly string[];
+  selected: readonly McpServerId[];
+  /** The locked identity of every server this plan would register. */
+  packages: ReadonlyArray<{ server: McpServerId; package: string; version: string; integrity: string }>;
+  /** This tool's own root, which a rendered proxy command points into. */
+  packageRoot: string;
+  /** Files this operation reads but never writes. */
+  sources: readonly string[];
+  currentHash: string | null;
+  /** Hash of the document that would be written. The text itself is not recorded. */
+  renderedHash: string;
+  proofs: OperationPathProofSet;
+  digest: string;
+  /** The narrow shape existing callers and the CLI already render. */
+  sync: McpSyncPlan;
+}
+
+export interface McpPlanOptions {
   configPath?: string;
   selected?: McpServerId[];
   env?: NodeJS.ProcessEnv;
   stateRoot?: string;
-} = {}): Promise<{ operationId: string | null; plan: McpSyncPlan }> {
-  const plan = await planMcpSync(harness, lock, options);
-  if (plan.action === "current") return { operationId: null, plan };
-  if (harness === "pi" && !plan.piBridgeCurrent) throw new Error(`Pi MCP bridge ${plan.piBridge?.package}@${plan.piBridge?.version} must be installed and fixture-verified before applying MCP config`);
-  const journal = await applyFileTransaction({
-    stateRoot: options.stateRoot ?? userStateRoot(),
-    allowedRoots: [dirname(plan.configPath)],
-    operations: [{ target: plan.configPath, content: plan.rendered }],
+}
+
+/**
+ * Enumerates every path role, package identity and hash this sync may touch.
+ * Strict native validation happens inside `planMcpSync`, so a malformed
+ * config refuses here — before any writer is acquired.
+ */
+export async function planMcpOperation(harness: HarnessId, lock: StackLock, options: McpPlanOptions = {}): Promise<McpOperationPlan> {
+  const configPath = resolve(options.configPath ?? globalMcpConfigPath(harness));
+  const stateRoot = resolve(options.stateRoot ?? userStateRoot());
+  const selected = options.selected ?? serverOrder;
+  const sync = await planMcpSync(harness, lock, { ...options, configPath });
+
+  const locks = lockedServers(lock, selected);
+  const ownRoot = resolve(packageRoot());
+  const sources = [mcpProxyEntrypoint()];
+  if (harness === "pi" && sync.piBridge) sources.push(piBridgeManifestPath(configPath, sync.piBridge));
+
+  const inputs: OperationPathInput[] = [
+    { role: "target", path: configPath },
+    { role: "state", path: stateRoot },
+    { role: "journal", path: join(stateRoot, "journal") },
+    { role: "snapshot", path: join(stateRoot, "snapshots") },
+    { role: "package-root", path: ownRoot },
+    ...sources.map((path): OperationPathInput => ({ role: "source", path })),
+  ];
+  const allowedRoots = [dirname(configPath), stateRoot, ownRoot];
+  const proofs = await proveOperationPaths({
+    inputs,
+    allowedRoots,
+    requiredRoles: ["target", "state", "journal", "snapshot", "source", "package-root"],
   });
-  return { operationId: journal.id, plan: await planMcpSync(harness, lock, options) };
+
+  const packages = selected.map((server) => ({
+    server,
+    package: locks[server].package,
+    version: locks[server].version,
+    integrity: locks[server].integrity,
+  }));
+  // The rendered document can contain unrelated user-owned configuration, so
+  // the digest binds its hash rather than its text.
+  const renderedHash = sha256(sync.rendered);
+  const digest = reviewedDigest("mcp-sync", {
+    harness,
+    configPath,
+    stateRoot,
+    allowedRoots,
+    selected,
+    packages,
+    packageRoot: ownRoot,
+    sources,
+    action: sync.action,
+    currentHash: sync.currentHash,
+    expectedHash: sync.expectedHash,
+    renderedHash,
+    piBridge: sync.piBridge,
+    piBridgeCurrent: sync.piBridgeCurrent,
+    entries: sync.entries,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "mcp-sync",
+    harness,
+    configPath,
+    stateRoot,
+    allowedRoots,
+    selected,
+    packages,
+    packageRoot: ownRoot,
+    sources,
+    currentHash: sync.currentHash,
+    renderedHash,
+    proofs,
+    digest,
+    sync,
+  };
+}
+
+export interface McpApplyOptions extends McpPlanOptions {
+  /** A plan reviewed earlier; apply refuses if re-reading no longer matches it. */
+  plan?: McpOperationPlan;
+  /** A writer already held by the caller; apply then takes no lock of its own. */
+  session?: MutationSession;
+}
+
+export async function applyMcpSync(harness: HarnessId, lock: StackLock, options: McpApplyOptions = {}): Promise<{
+  operationId: string | null;
+  plan: McpSyncPlan;
+  digest: string;
+}> {
+  const reviewed = options.plan ?? await planMcpOperation(harness, lock, options);
+  if (reviewed.sync.action === "current") return { operationId: null, plan: reviewed.sync, digest: reviewed.digest };
+  if (harness === "pi" && !reviewed.sync.piBridgeCurrent) {
+    throw new Error(`Pi MCP bridge ${reviewed.sync.piBridge?.package}@${reviewed.sync.piBridge?.version} must be installed and fixture-verified before applying MCP config`);
+  }
+
+  // Complete read-only revalidation, including the strict native parse, before
+  // anything is acquired.
+  const revalidation: McpPlanOptions = {
+    configPath: reviewed.configPath,
+    stateRoot: reviewed.stateRoot,
+    selected: [...reviewed.selected],
+  };
+  if (options.env !== undefined) revalidation.env = options.env;
+  const revalidated = await planMcpOperation(harness, lock, revalidation);
+  assertPlanUnchanged(reviewed, revalidated);
+
+  return withComponentSession(reviewed, options.session, async (session) => {
+    const proof = plannedProof(reviewed, "target", reviewed.configPath);
+    await assertUnchangedSincePlan(reviewed, proof);
+    const journal = await applyFileTransaction({
+      stateRoot: reviewed.stateRoot,
+      allowedRoots: [dirname(reviewed.configPath)],
+      operations: [{ target: reviewed.configPath, content: revalidated.sync.rendered }],
+      session,
+    });
+    return {
+      operationId: journal.id,
+      plan: await planMcpSync(harness, lock, { ...revalidation, ...(options.env === undefined ? {} : { env: options.env }) }),
+      digest: reviewed.digest,
+    };
+  });
 }
 
 export function mcpServerIds(): McpServerId[] {

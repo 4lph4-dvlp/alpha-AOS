@@ -1,6 +1,20 @@
-import { writeFile, rename } from "node:fs/promises";
-import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
 import type { LockedPackage, StackLock } from "../types.js";
+import { userStateRoot } from "./paths.js";
+import { applyFileTransaction } from "./transaction.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  assertUnchangedSincePlan,
+  ComponentPlanError,
+  plannedProof,
+  reviewedDigest,
+  withComponentSession,
+} from "./component-session.js";
 
 interface RegistryDocument {
   version: string;
@@ -60,11 +74,128 @@ export async function resolveCandidate(current: StackLock): Promise<StackLock> {
   };
 }
 
-export async function writeCandidate(root: string, candidate: StackLock): Promise<void> {
-  const target = join(root, "catalog", "candidate.lock.json");
-  const temporary = `${target}.tmp`;
-  await writeFile(temporary, `${JSON.stringify(candidate, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
-  await rename(temporary, target);
+function sha256(content: string | Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+/** The document a candidate stage would write, byte for byte. */
+export function renderCandidate(candidate: StackLock): string {
+  return `${JSON.stringify(candidate, null, 2)}\n`;
+}
+
+export function candidateLockPath(root: string): string {
+  return join(resolve(root), "catalog", "candidate.lock.json");
+}
+
+export interface CandidateStagePlan {
+  kind: "candidate-stage";
+  root: string;
+  target: string;
+  stateRoot: string;
+  allowedRoots: readonly string[];
+  currentHash: string | null;
+  renderedHash: string;
+  action: "create" | "update" | "current";
+  proofs: OperationPathProofSet;
+  digest: string;
+}
+
+export interface CandidateStageOptions {
+  stateRoot?: string;
+}
+
+/**
+ * Enumerates the paths a candidate stage would touch and binds the current and
+ * rendered hashes. Reads only — a preview compares without writing.
+ */
+export async function planCandidateStage(
+  root: string,
+  candidate: StackLock,
+  options: CandidateStageOptions = {},
+): Promise<CandidateStagePlan> {
+  const target = candidateLockPath(root);
+  const stateRoot = resolve(options.stateRoot ?? userStateRoot());
+  const rendered = renderCandidate(candidate);
+  const renderedHash = sha256(rendered);
+  const currentHash = existsSync(target) ? sha256(await readFile(target)) : null;
+
+  const allowedRoots = [dirname(target), stateRoot];
+  const proofs = await proveOperationPaths({
+    inputs: [
+      { role: "target", path: target },
+      { role: "package-root", path: resolve(root) },
+      { role: "state", path: stateRoot },
+      { role: "journal", path: join(stateRoot, "journal") },
+      { role: "snapshot", path: join(stateRoot, "snapshots") },
+    ],
+    allowedRoots: [...allowedRoots, resolve(root)],
+    requiredRoles: ["target", "state", "journal", "snapshot", "package-root"],
+  });
+
+  const action = currentHash === renderedHash ? "current" : currentHash === null ? "create" : "update";
+  const digest = reviewedDigest("candidate-stage", {
+    root: resolve(root),
+    target,
+    stateRoot,
+    allowedRoots,
+    currentHash,
+    renderedHash,
+    action,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "candidate-stage",
+    root: resolve(root),
+    target,
+    stateRoot,
+    allowedRoots,
+    currentHash,
+    renderedHash,
+    action,
+    proofs,
+    digest,
+  };
+}
+
+export interface CandidateStageApplyOptions extends CandidateStageOptions {
+  /** A plan reviewed earlier; apply refuses if re-reading no longer matches it. */
+  plan?: CandidateStagePlan;
+  /** A writer already held by the caller; apply then takes no lock of its own. */
+  session?: MutationSession;
+}
+
+/**
+ * Stages a candidate lock through the shared transaction, so the previous
+ * candidate is snapshotted and the write is journaled rather than renamed
+ * over whatever was there.
+ */
+export async function writeCandidate(
+  root: string,
+  candidate: StackLock,
+  options: CandidateStageApplyOptions = {},
+): Promise<string | null> {
+  const reviewed = options.plan ?? await planCandidateStage(root, candidate, options);
+  if (reviewed.action === "current") return null;
+
+  const revalidated = await planCandidateStage(reviewed.root, candidate, { stateRoot: reviewed.stateRoot });
+  assertPlanUnchanged(reviewed, revalidated);
+
+  return withComponentSession(reviewed, options.session, async (session) => {
+    const proof = plannedProof(reviewed, "target", reviewed.target);
+    await assertUnchangedSincePlan(reviewed, proof);
+    const rendered = renderCandidate(candidate);
+    if (sha256(rendered) !== reviewed.renderedHash) {
+      throw new ComponentPlanError("plan-drift", `Candidate lock changed between review and apply: ${reviewed.target}`);
+    }
+    const journal = await applyFileTransaction({
+      stateRoot: reviewed.stateRoot,
+      allowedRoots: [dirname(reviewed.target)],
+      operations: [{ target: reviewed.target, content: rendered }],
+      session,
+    });
+    return journal.id;
+  });
 }
 
 export function hasVersionChanges(current: StackLock, candidate: StackLock): boolean {

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rmdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { parse, stringify } from "yaml";
@@ -16,6 +16,16 @@ import type {
 } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  assertUnchangedSincePlan,
+  ComponentPlanError,
+  plannedProof,
+  reviewedDigest,
+  withComponentSession,
+} from "./component-session.js";
 import {
   createMigrationPlan,
   validateManagedDocument,
@@ -241,30 +251,239 @@ export async function createIsolationPlan(projectRootInput: string, stateRoot = 
   };
 }
 
-export async function applyIsolationManifest(options: {
+// ---------------------------------------------------------------------------
+// Complete operation plans
+// ---------------------------------------------------------------------------
+
+function sha256(content: Uint8Array | string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+/** Every path role a state-root mutation must declare. */
+function stateRoles(stateRoot: string): OperationPathInput[] {
+  return [
+    { role: "state", path: stateRoot },
+    { role: "journal", path: join(stateRoot, "journal") },
+    { role: "snapshot", path: join(stateRoot, "snapshots") },
+  ];
+}
+
+export interface IsolationManifestOperationPlan {
+  kind: "isolation-manifest";
+  projectRoot: string;
+  manifestPath: string;
+  stateRoot: string;
+  allowedRoots: readonly string[];
+  mode: IsolationMode;
+  allowedHarnesses: readonly HarnessId[];
+  trust: boolean;
+  currentHash: string | null;
+  /** Hash of the manifest that would be written; the text is not recorded. */
+  renderedHash: string;
+  action: "create" | "update" | "current";
+  proofs: OperationPathProofSet;
+  digest: string;
+}
+
+export interface IsolationManifestOptions {
   projectRoot: string;
   mode: IsolationMode;
   allowedHarnesses: HarnessId[];
   trust?: boolean;
   stateRoot?: string;
-}): Promise<string> {
-  const projectRoot = resolve(options.projectRoot);
-  const stateRoot = options.stateRoot ?? userStateRoot();
-  const journal = await applyFileTransaction({
-    stateRoot,
-    allowedRoots: [projectRoot],
-    operations: [{ target: isolationManifestPath(projectRoot), content: await renderIsolationManifest(projectRoot, options.mode, options.allowedHarnesses, options.trust ?? false) }],
-  });
-  return journal.id;
 }
 
-export async function syncIsolationRuntime(projectRoot: string, stateRoot = userStateRoot()): Promise<string | null> {
-  const plan = await createIsolationPlan(projectRoot, stateRoot);
-  const files = runtimeFiles(plan.runtimeRoot, plan.policy);
-  const current = await Promise.all(files.map(async (file) => existsSync(file.target) && await readFile(file.target, "utf8") === file.content));
-  if (current.every(Boolean)) return null;
-  const journal = await applyFileTransaction({ stateRoot, allowedRoots: [plan.runtimeRoot], operations: files });
-  return journal.id;
+/**
+ * Renders the manifest and enumerates the paths writing it would touch,
+ * without writing anything. Invalid existing manifests refuse here.
+ */
+export async function planIsolationManifestOperation(options: IsolationManifestOptions): Promise<IsolationManifestOperationPlan> {
+  const projectRoot = resolve(options.projectRoot);
+  const stateRoot = resolve(options.stateRoot ?? userStateRoot());
+  const manifestPath = isolationManifestPath(projectRoot);
+  const trust = options.trust ?? false;
+  const rendered = await renderIsolationManifest(projectRoot, options.mode, options.allowedHarnesses, trust);
+  const currentHash = existsSync(manifestPath) ? sha256(await readFile(manifestPath)) : null;
+  const renderedHash = sha256(rendered);
+
+  const allowedRoots = [projectRoot, stateRoot];
+  const proofs = await proveOperationPaths({
+    inputs: [
+      { role: "target", path: manifestPath },
+      { role: "source", path: manifestPath },
+      ...stateRoles(stateRoot),
+    ],
+    allowedRoots,
+    requiredRoles: ["target", "state", "journal", "snapshot"],
+  });
+
+  const action = currentHash === renderedHash ? "current" : currentHash === null ? "create" : "update";
+  const digest = reviewedDigest("isolation-manifest", {
+    projectRoot,
+    manifestPath,
+    stateRoot,
+    allowedRoots,
+    mode: options.mode,
+    allowedHarnesses: options.allowedHarnesses,
+    trust,
+    currentHash,
+    renderedHash,
+    action,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "isolation-manifest",
+    projectRoot,
+    manifestPath,
+    stateRoot,
+    allowedRoots,
+    mode: options.mode,
+    allowedHarnesses: [...options.allowedHarnesses],
+    trust,
+    currentHash,
+    renderedHash,
+    action,
+    proofs,
+    digest,
+  };
+}
+
+export interface SessionAwareOptions<Plan> {
+  /** A plan reviewed earlier; apply refuses if re-reading no longer matches it. */
+  plan?: Plan;
+  /** A writer already held by the caller; apply then takes no lock of its own. */
+  session?: MutationSession;
+}
+
+export async function applyIsolationManifest(
+  options: IsolationManifestOptions & SessionAwareOptions<IsolationManifestOperationPlan>,
+): Promise<string> {
+  const reviewed = options.plan ?? await planIsolationManifestOperation(options);
+  const revalidated = await planIsolationManifestOperation({
+    projectRoot: reviewed.projectRoot,
+    mode: reviewed.mode,
+    allowedHarnesses: [...reviewed.allowedHarnesses],
+    trust: reviewed.trust,
+    stateRoot: reviewed.stateRoot,
+  });
+  assertPlanUnchanged(reviewed, revalidated);
+
+  return withComponentSession(reviewed, options.session, async (session) => {
+    const proof = plannedProof(reviewed, "target", reviewed.manifestPath);
+    await assertUnchangedSincePlan(reviewed, proof);
+    const rendered = await renderIsolationManifest(reviewed.projectRoot, reviewed.mode, [...reviewed.allowedHarnesses], reviewed.trust);
+    if (sha256(rendered) !== reviewed.renderedHash) {
+      throw new ComponentPlanError("plan-drift", `Isolation manifest changed between review and apply: ${reviewed.manifestPath}`);
+    }
+    const journal = await applyFileTransaction({
+      stateRoot: reviewed.stateRoot,
+      allowedRoots: [reviewed.projectRoot],
+      operations: [{ target: reviewed.manifestPath, content: rendered }],
+      session,
+    });
+    return journal.id;
+  });
+}
+
+export interface IsolationRuntimeOperationPlan {
+  kind: "isolation-runtime-sync";
+  projectRoot: string;
+  runtimeRoot: string;
+  stateRoot: string;
+  allowedRoots: readonly string[];
+  manifestPath: string;
+  files: ReadonlyArray<{ target: string; expectedHash: string; currentHash: string | null; action: "create" | "update" | "current" }>;
+  proofs: OperationPathProofSet;
+  digest: string;
+  /** The plan the CLI and doctor already render. */
+  isolation: IsolationPlan;
+}
+
+/** Enumerates the runtime files a sync would write, and reads nothing else. */
+export async function planIsolationRuntimeOperation(projectRoot: string, stateRootInput = userStateRoot()): Promise<IsolationRuntimeOperationPlan> {
+  const stateRoot = resolve(stateRootInput);
+  const isolation = await createIsolationPlan(projectRoot, stateRoot);
+  const rendered = runtimeFiles(isolation.runtimeRoot, isolation.policy);
+  const files = await Promise.all(rendered.map(async (file) => {
+    const currentHash = existsSync(file.target) ? sha256(await readFile(file.target)) : null;
+    const expectedHash = sha256(file.content);
+    return {
+      target: file.target,
+      expectedHash,
+      currentHash,
+      action: currentHash === expectedHash ? "current" as const : currentHash === null ? "create" as const : "update" as const,
+    };
+  }));
+
+  const allowedRoots = [isolation.runtimeRoot, stateRoot];
+  const proofs = await proveOperationPaths({
+    inputs: [
+      ...files.map((file): OperationPathInput => ({ role: "target", path: file.target })),
+      ...stateRoles(stateRoot),
+      { role: "source", path: isolation.manifestPath },
+    ],
+    allowedRoots: [...allowedRoots, resolve(isolation.projectRoot)],
+    requiredRoles: ["target", "state", "journal", "snapshot", "source"],
+  });
+
+  const digest = reviewedDigest("isolation-runtime-sync", {
+    projectRoot: isolation.projectRoot,
+    projectId: isolation.projectId,
+    runtimeRoot: isolation.runtimeRoot,
+    stateRoot,
+    allowedRoots,
+    manifestPath: isolation.manifestPath,
+    policy: isolation.policy,
+    files,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "isolation-runtime-sync",
+    projectRoot: isolation.projectRoot,
+    runtimeRoot: isolation.runtimeRoot,
+    stateRoot,
+    allowedRoots,
+    manifestPath: isolation.manifestPath,
+    files,
+    proofs,
+    digest,
+    isolation,
+  };
+}
+
+export async function syncIsolationRuntime(
+  projectRoot: string,
+  stateRoot = userStateRoot(),
+  options: SessionAwareOptions<IsolationRuntimeOperationPlan> = {},
+): Promise<string | null> {
+  const reviewed = options.plan ?? await planIsolationRuntimeOperation(projectRoot, stateRoot);
+  if (reviewed.files.every((file) => file.action === "current")) return null;
+
+  const revalidated = await planIsolationRuntimeOperation(reviewed.projectRoot, reviewed.stateRoot);
+  assertPlanUnchanged(reviewed, revalidated);
+
+  return withComponentSession(reviewed, options.session, async (session) => {
+    const contents = runtimeFiles(reviewed.runtimeRoot, revalidated.isolation.policy);
+    const operations: Array<{ target: string; content: string }> = [];
+    for (const file of reviewed.files) {
+      const content = contents.find((candidate) => candidate.target === file.target);
+      if (content === undefined || sha256(content.content) !== file.expectedHash) {
+        throw new ComponentPlanError("plan-drift", `Isolated runtime content changed since it was reviewed: ${file.target}`);
+      }
+      const proof = plannedProof(reviewed, "target", file.target);
+      await assertUnchangedSincePlan(reviewed, proof);
+      operations.push({ target: file.target, content: content.content });
+    }
+    const journal = await applyFileTransaction({
+      stateRoot: reviewed.stateRoot,
+      allowedRoots: [reviewed.runtimeRoot],
+      operations,
+      session,
+    });
+    return journal.id;
+  });
 }
 
 export async function doctorIsolation(projectRoot: string, stateRoot = userStateRoot()): Promise<DoctorFinding[]> {
@@ -302,13 +521,89 @@ export function selectIsolationLaunch(plan: IsolationPlan, harness: HarnessId): 
   return launch;
 }
 
-export async function cleanIsolationRuntime(projectRoot: string, stateRoot = userStateRoot()): Promise<string> {
+export interface IsolationCleanOperationPlan {
+  kind: "isolation-clean";
+  projectRoot: string;
+  projectId: string;
+  runtimeRoot: string;
+  stateRoot: string;
+  allowedRoots: readonly string[];
+  status: "already-absent" | "removable";
+  markerPath: string;
+  markerHash: string | null;
+  /** Every regular file to remove, deepest first. */
+  files: ReadonlyArray<{ target: string; hash: string }>;
+  /** Every directory to remove once its files are gone, deepest first. */
+  directories: readonly string[];
+  proofs: OperationPathProofSet;
+  digest: string;
+}
+
+/**
+ * Walks a generated runtime, deepest entry first. Anything that is neither a
+ * plain file nor a directory — a symlink or a device node — refuses: this
+ * tool only removes what it generated, and it generated neither.
+ */
+async function walkRuntime(root: string): Promise<{ files: string[]; directories: string[] }> {
+  const files: string[] = [];
+  const directories: string[] = [];
+  async function visit(directory: string): Promise<void> {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(path);
+        directories.push(path);
+      } else if (entry.isFile()) {
+        files.push(path);
+      } else {
+        throw new Error(`Refusing to clean a runtime containing an entry this tool did not generate: ${path}`);
+      }
+    }
+  }
+  await visit(root);
+  directories.push(root);
+  return { files, directories };
+}
+
+/**
+ * Proves a generated runtime is alpha-AOS's to remove and enumerates every
+ * entry the removal would touch. Reads only; every refusal happens here,
+ * before a writer exists.
+ */
+export async function planIsolationClean(projectRoot: string, stateRootInput = userStateRoot()): Promise<IsolationCleanOperationPlan> {
   const projectId = isolationProjectId(projectRoot);
+  const stateRoot = resolve(stateRootInput);
   const isolatedRoot = resolve(stateRoot, "isolated");
   const target = resolve(isolatedRoot, projectId);
   if (!inside(isolatedRoot, target) || target === isolatedRoot) throw new Error("Refusing to clean an unsafe isolation path");
   const marker = join(target, "runtime.json");
-  if (!existsSync(target)) return "already absent";
+
+  const base = {
+    kind: "isolation-clean" as const,
+    projectRoot: resolve(projectRoot),
+    projectId,
+    runtimeRoot: target,
+    stateRoot,
+  };
+
+  if (!existsSync(target)) {
+    const proofs = await proveOperationPaths({
+      inputs: stateRoles(stateRoot),
+      allowedRoots: [stateRoot],
+      requiredRoles: ["state", "journal", "snapshot"],
+    });
+    return {
+      ...base,
+      allowedRoots: [stateRoot],
+      status: "already-absent",
+      markerPath: marker,
+      markerHash: null,
+      files: [],
+      directories: [],
+      proofs,
+      digest: reviewedDigest("isolation-clean", { ...base, status: "already-absent" }),
+    };
+  }
   if (!existsSync(marker)) throw new Error(`Refusing to clean an unmarked directory: ${target}`);
 
   // The marker is the only evidence that this directory is alpha-AOS's to
@@ -325,8 +620,73 @@ export async function cleanIsolationRuntime(projectRoot: string, stateRoot = use
   if (inspection.value.projectId !== projectId) {
     throw new Error(`Refusing to clean a runtime with a mismatched project marker: ${target}`);
   }
-  await rm(target, { recursive: true, force: false });
-  return target.replace(resolve(homedir()), "~");
+
+  const walked = await walkRuntime(target);
+  const files = await Promise.all(walked.files.map(async (path) => ({ target: path, hash: sha256(await readFile(path)) })));
+  const allowedRoots = [target, stateRoot];
+  const proofs = await proveOperationPaths({
+    inputs: [
+      ...files.map((file): OperationPathInput => ({ role: "target", path: file.target })),
+      ...stateRoles(stateRoot),
+      { role: "source", path: marker },
+    ],
+    allowedRoots,
+    requiredRoles: ["target", "state", "journal", "snapshot", "source"],
+  });
+
+  const digest = reviewedDigest("isolation-clean", {
+    ...base,
+    allowedRoots,
+    status: "removable",
+    markerPath: marker,
+    marker: inspection.value,
+    files,
+    directories: walked.directories,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    ...base,
+    allowedRoots,
+    status: "removable",
+    markerPath: marker,
+    markerHash: files.find((file) => file.target === marker)?.hash ?? null,
+    files,
+    directories: walked.directories,
+    proofs,
+    digest,
+  };
+}
+
+export async function cleanIsolationRuntime(
+  projectRoot: string,
+  stateRoot = userStateRoot(),
+  options: SessionAwareOptions<IsolationCleanOperationPlan> = {},
+): Promise<string> {
+  const reviewed = options.plan ?? await planIsolationClean(projectRoot, stateRoot);
+  if (reviewed.status === "already-absent") return "already absent";
+
+  const revalidated = await planIsolationClean(reviewed.projectRoot, reviewed.stateRoot);
+  assertPlanUnchanged(reviewed, revalidated);
+
+  return withComponentSession(reviewed, options.session, async (session) => {
+    for (const file of reviewed.files) {
+      const proof = plannedProof(reviewed, "target", file.target);
+      await assertUnchangedSincePlan(reviewed, proof);
+    }
+    // Each removal is snapshotted and journaled, so an interrupted clean is
+    // recoverable rather than a half-deleted directory.
+    await applyFileTransaction({
+      stateRoot: reviewed.stateRoot,
+      allowedRoots: [reviewed.runtimeRoot],
+      operations: reviewed.files.map((file) => ({ target: file.target, content: null })),
+      session,
+    });
+    // Only the now-empty directories the plan enumerated are removed, deepest
+    // first, so an entry that appeared meanwhile blocks with ENOTEMPTY.
+    for (const directory of reviewed.directories) await rmdir(directory);
+    return reviewed.runtimeRoot.replace(resolve(homedir()), "~");
+  });
 }
 
 export interface RuntimeMarker {

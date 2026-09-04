@@ -16,9 +16,15 @@ import {
   inspectRuntimeMarker,
   isolationProjectId,
   readProjectManifest,
+  planIsolationClean,
+  planIsolationManifestOperation,
+  planIsolationRuntimeOperation,
   selectIsolationLaunch,
   syncIsolationRuntime,
 } from "../src/core/isolation.js";
+import { ComponentPlanError } from "../src/core/component-session.js";
+import { listManagedTransactions } from "../src/core/transaction.js";
+import { acquireMutationSession, inspectWriterState, WriterConflictError, writerLockPath } from "../src/core/writer-lock.js";
 
 async function fixture(context: test.TestContext): Promise<{ root: string; project: string; state: string }> {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-isolation-"));
@@ -298,4 +304,147 @@ test("a supported older runtime marker is readable but is not acted on", async (
 
   await assert.rejects(() => cleanIsolationRuntime(projectRoot, stateRoot), /Refusing to clean/u);
   assert.equal(existsSync(marker), true);
+});
+
+test("the reviewed isolation plans name their path roles and write nothing", async (context) => {
+  const { project, state } = await fixture(context);
+
+  const manifestPlan = await planIsolationManifestOperation({
+    projectRoot: project,
+    stateRoot: state,
+    mode: "project-only",
+    allowedHarnesses: ["pi"],
+  });
+  assert.equal(manifestPlan.proofs.proven, true);
+  for (const role of ["target", "state", "journal", "snapshot"] as const) {
+    assert.ok(manifestPlan.proofs.get(role), `manifest plan must declare the ${role} role`);
+  }
+  assert.equal(manifestPlan.action, "create");
+  assert.equal(manifestPlan.renderedHash.length, 64);
+  assert.equal(existsSync(manifestPlan.manifestPath), false, "planning writes nothing");
+
+  await applyIsolationManifest({ projectRoot: project, stateRoot: state, mode: "project-only", allowedHarnesses: ["pi"] });
+
+  const runtimePlan = await planIsolationRuntimeOperation(project, state);
+  for (const role of ["target", "state", "journal", "snapshot", "source"] as const) {
+    assert.ok(runtimePlan.proofs.get(role), `runtime plan must declare the ${role} role`);
+  }
+  assert.equal(runtimePlan.files.length > 0, true);
+  assert.equal(runtimePlan.files.every((file) => file.action === "create"), true);
+  assert.equal(existsSync(runtimePlan.runtimeRoot), false);
+
+  await syncIsolationRuntime(project, state);
+
+  const cleanPlan = await planIsolationClean(project, state);
+  assert.equal(cleanPlan.status, "removable");
+  assert.deepEqual(
+    cleanPlan.files.map((file) => file.target).includes(join(cleanPlan.runtimeRoot, "runtime.json")),
+    true,
+    "the marker is one of the files the clean removes",
+  );
+  assert.equal(cleanPlan.directories.at(-1), cleanPlan.runtimeRoot, "the runtime root is removed last");
+  assert.equal(existsSync(cleanPlan.markerPath), true, "planning a clean removes nothing");
+});
+
+test("nested isolation applies consume the caller session and take no second writer lock", async (context) => {
+  const { project, state } = await fixture(context);
+
+  const manifestPlan = await planIsolationManifestOperation({
+    projectRoot: project,
+    stateRoot: state,
+    mode: "project-only",
+    allowedHarnesses: ["pi"],
+  });
+  const session = await acquireMutationSession({
+    stateRoot: state,
+    proofs: manifestPlan.proofs,
+    planDigest: manifestPlan.digest,
+  });
+  let closed = false;
+  context.after(async () => {
+    if (!closed) await session.close();
+  });
+
+  // The writer lock is exclusive-create, so a second acquisition would fail here.
+  const manifestOperation = await applyIsolationManifest({
+    plan: manifestPlan,
+    session,
+    projectRoot: project,
+    stateRoot: state,
+    mode: "project-only",
+    allowedHarnesses: ["pi"],
+  });
+  assert.equal(manifestOperation, session.operationId);
+  assert.equal((await readProjectManifest(project)).isolation?.mode, "project-only");
+  assert.equal((await inspectWriterState(state)).status, "active", "the callee must not release the caller's writer");
+
+  await session.close();
+  closed = true;
+  assert.equal(existsSync(writerLockPath(state)), false);
+});
+
+test("an active writer blocks isolation mutations while plans and doctor stay readable", async (context) => {
+  const { project, state } = await fixture(context);
+  await applyIsolationManifest({ projectRoot: project, stateRoot: state, mode: "project-only", allowedHarnesses: ["pi"] });
+  await syncIsolationRuntime(project, state);
+
+  const runtimePlan = await planIsolationRuntimeOperation(project, state);
+  const holder = await acquireMutationSession({
+    stateRoot: state,
+    proofs: runtimePlan.proofs,
+    planDigest: "another-operation",
+  });
+  context.after(async () => holder.close());
+
+  // Reading stays available while another writer owns the root.
+  assert.equal((await planIsolationClean(project, state)).status, "removable");
+  assert.equal((await doctorIsolation(project, state)).some((finding) => finding.code === "ISOLATION_RUNTIME"), true);
+
+  await assert.rejects(
+    () => cleanIsolationRuntime(project, state),
+    (error: unknown) => {
+      assert.ok(error instanceof WriterConflictError);
+      assert.equal(error.code, "ACTIVE_WRITER");
+      return true;
+    },
+  );
+  assert.equal(existsSync(join(runtimePlan.runtimeRoot, "runtime.json")), true, "a blocked clean removes nothing");
+});
+
+test("a clean journals every removal instead of deleting the tree outright", async (context) => {
+  const { project, state } = await fixture(context);
+  await applyIsolationManifest({ projectRoot: project, stateRoot: state, mode: "project-only", allowedHarnesses: ["claude"] });
+  await syncIsolationRuntime(project, state);
+  const plan = await planIsolationClean(project, state);
+  assert.equal(plan.files.length >= 2, true, "a claude runtime has a marker and a settings file");
+
+  await cleanIsolationRuntime(project, state);
+  assert.equal(existsSync(plan.runtimeRoot), false);
+
+  const journals = await listManagedTransactions(state);
+  const removal = journals.find((journal) => journal.files.some((file) => file.target === plan.files[0]?.target));
+  assert.ok(removal, "the removal is recorded in a journal");
+  assert.equal(removal.files.length, plan.files.length);
+  assert.equal(removal.files.every((file) => file.afterHash === null), true, "every recorded intent is a removal");
+  assert.equal(removal.files.every((file) => file.snapshot !== null), true, "every removed file was snapshotted first");
+});
+
+test("an isolation plan reviewed before the runtime changed refuses and writes nothing", async (context) => {
+  const { project, state } = await fixture(context);
+  await applyIsolationManifest({ projectRoot: project, stateRoot: state, mode: "project-only", allowedHarnesses: ["pi"] });
+  const plan = await planIsolationRuntimeOperation(project, state);
+
+  // The policy changes after review, so the reviewed file set is stale.
+  await applyIsolationManifest({ projectRoot: project, stateRoot: state, mode: "project-only", allowedHarnesses: ["claude"] });
+
+  await assert.rejects(
+    () => syncIsolationRuntime(project, state, { plan }),
+    (error: unknown) => {
+      assert.ok(error instanceof ComponentPlanError);
+      assert.equal(error.code, "plan-drift");
+      return true;
+    },
+  );
+  assert.equal(existsSync(plan.runtimeRoot), false, "a refused sync creates nothing");
+  assert.equal(existsSync(writerLockPath(state)), false);
 });

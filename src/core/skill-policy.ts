@@ -2,9 +2,18 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  assertUnchangedSincePlan,
+  plannedProof,
+  reviewedDigest,
+  withComponentSession,
+} from "./component-session.js";
 
 const managedSkills = ["unified-memory", "documentation-lookup", "deep-research"] as const;
 const desiredMode = "user-invocable-only" as const;
@@ -76,16 +85,114 @@ export async function planClaudeSkillPolicy(options: {
   return plan;
 }
 
-export async function applyClaudeSkillPolicy(options: {
+// ---------------------------------------------------------------------------
+// Complete operation plan
+// ---------------------------------------------------------------------------
+
+export interface ClaudeSkillPolicyOperationPlan {
+  kind: "claude-skill-policy";
+  settingsPath: string;
+  stateRoot: string;
+  allowedRoots: readonly string[];
+  currentHash: string | null;
+  /** Hash of the document that would be written; the text is never recorded. */
+  renderedHash: string;
+  proofs: OperationPathProofSet;
+  digest: string;
+  /** The narrow shape existing callers and the CLI already render. */
+  policy: ClaudeSkillPolicyPlan;
+}
+
+export interface ClaudeSkillPolicyPlanOptions {
   settingsPath?: string;
   stateRoot?: string;
-} = {}): Promise<{ operationId: string | null; plan: ClaudeSkillPolicyPlan }> {
-  const plan = await planClaudeSkillPolicy(options);
-  if (plan.action === "current") return { operationId: null, plan };
-  const journal = await applyFileTransaction({
-    stateRoot: options.stateRoot ?? userStateRoot(),
-    allowedRoots: [dirname(plan.settingsPath)],
-    operations: [{ target: plan.settingsPath, content: plan.rendered }],
+}
+
+/**
+ * Enumerates the settings file and state paths this policy write may touch and
+ * binds the current and rendered hashes. Reads only; parses strictly, so a
+ * settings file this tool cannot understand refuses before any writer exists.
+ */
+export async function planClaudeSkillPolicyOperation(
+  options: ClaudeSkillPolicyPlanOptions = {},
+): Promise<ClaudeSkillPolicyOperationPlan> {
+  const settingsPath = resolve(options.settingsPath ?? globalClaudeSettingsPath());
+  const stateRoot = resolve(options.stateRoot ?? userStateRoot());
+  const policy = await planClaudeSkillPolicy({ settingsPath });
+
+  const inputs: OperationPathInput[] = [
+    { role: "target", path: settingsPath },
+    { role: "state", path: stateRoot },
+    { role: "journal", path: join(stateRoot, "journal") },
+    { role: "snapshot", path: join(stateRoot, "snapshots") },
+  ];
+  const allowedRoots = [dirname(settingsPath), stateRoot];
+  const proofs = await proveOperationPaths({
+    inputs,
+    allowedRoots,
+    requiredRoles: ["target", "state", "journal", "snapshot"],
   });
-  return { operationId: journal.id, plan: await planClaudeSkillPolicy(options) };
+
+  // The settings file carries unrelated user-owned configuration, so the
+  // digest binds the rendered hash rather than the rendered text.
+  const renderedHash = sha256(policy.rendered);
+  const digest = reviewedDigest("claude-skill-policy", {
+    settingsPath,
+    stateRoot,
+    allowedRoots,
+    action: policy.action,
+    currentHash: policy.currentHash,
+    expectedHash: policy.expectedHash,
+    renderedHash,
+    entries: policy.entries,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "claude-skill-policy",
+    settingsPath,
+    stateRoot,
+    allowedRoots,
+    currentHash: policy.currentHash,
+    renderedHash,
+    proofs,
+    digest,
+    policy,
+  };
+}
+
+export interface ClaudeSkillPolicyApplyOptions extends ClaudeSkillPolicyPlanOptions {
+  /** A plan reviewed earlier; apply refuses if re-reading no longer matches it. */
+  plan?: ClaudeSkillPolicyOperationPlan;
+  /** A writer already held by the caller; apply then takes no lock of its own. */
+  session?: MutationSession;
+}
+
+export async function applyClaudeSkillPolicy(options: ClaudeSkillPolicyApplyOptions = {}): Promise<{
+  operationId: string | null;
+  plan: ClaudeSkillPolicyPlan;
+  digest: string;
+}> {
+  const reviewed = options.plan ?? await planClaudeSkillPolicyOperation(options);
+  if (reviewed.policy.action === "current") return { operationId: null, plan: reviewed.policy, digest: reviewed.digest };
+
+  const planOptions: ClaudeSkillPolicyPlanOptions = { settingsPath: reviewed.settingsPath, stateRoot: reviewed.stateRoot };
+  const revalidated = await planClaudeSkillPolicyOperation(planOptions);
+  assertPlanUnchanged(reviewed, revalidated);
+
+  return withComponentSession(reviewed, options.session, async (session) => {
+    const proof = plannedProof(reviewed, "target", reviewed.settingsPath);
+    await assertUnchangedSincePlan(reviewed, proof);
+    const journal = await applyFileTransaction({
+      stateRoot: reviewed.stateRoot,
+      allowedRoots: [dirname(reviewed.settingsPath)],
+      operations: [{ target: reviewed.settingsPath, content: revalidated.policy.rendered }],
+      session,
+    });
+    return {
+      operationId: journal.id,
+      plan: await planClaudeSkillPolicy(planOptions),
+      digest: reviewed.digest,
+    };
+  });
 }

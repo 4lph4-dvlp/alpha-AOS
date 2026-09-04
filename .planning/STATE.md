@@ -1,14 +1,14 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1.0
-current_phase: 1
+current_phase: 01
 current_phase_name: Safe Operation Boundary
-status: complete
-stopped_at: Phase 1 complete (16/16 plans); ready for verification
-last_updated: "2026-09-04T17:05:00.000Z"
-last_activity: 2026-09-04
-last_activity_desc: "Completed wave 7: the four wrappers are thin launchers over a verified build artifact. The suite has no failing test and no todo."
-state_head: 02df6b6
+status: executing
+stopped_at: Verification returned gaps_found; one must-have artifact (openProtocolProcess) is undelivered
+last_updated: "2026-09-04T15:36:00.188Z"
+last_activity: 2026-09-05
+last_activity_desc: "Verification returned gaps_found: 4/5 must-haves verified; openProtocolProcess is undelivered."
+state_head: 6c8e3e68a5257eb325e74463519ae722fa365001
 progress:
   total_phases: 7
   completed_phases: 0
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-03)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 1 — Safe Operation Boundary
+**Current focus:** Phase 01 — Safe Operation Boundary
 
 ## Current Position
 
-Phase: 1 (Safe Operation Boundary) — COMPLETE
-Plan: 16 of 16 in current phase
-Status: All 16 plans executed; ready for verification
-Last activity: 2026-09-04 — Completed wave 7: build-artifact.mjs records build provenance, all four wrappers verify it and delegate to the core bootstrap service, and CI runs the safety boundary on three operating systems.
+Phase: 01 (Safe Operation Boundary) — VERIFIED WITH GAPS
+Plan: 16 of 16 executed
+Status: All 16 plans summarized and verified; 1 gap blocks completion
+Last activity: 2026-09-05 — Reconstructed the missing 01-10 summary at the safe_resume_gate, then ran phase verification: 174/174 tests pass, all 18 flagged prohibitions hold, one must-have artifact (openProtocolProcess) is undelivered.
 
 Progress: [████░░░░░░] 33%
 
@@ -93,7 +93,9 @@ None yet.
 - Open from 01-14: no end-to-end managed install test exists, because running one would install GSD and ECC globally on the test machine. One session spanning every callee is structurally verified and each callee is separately proven.
 - Resolved by 01-15 (2026-09-04): every CLI surface serializes through the redaction seam and doctor states the placeholder contract, so the last open todo in the suite is closed. The suite now has zero todos.
 - Open from 01-15: no CLI-level bootstrap apply test exists, because the route runs `npm ci`, `npm run build` and `npm link` against a real checkout. The same apply path is covered directly in `test/install.test.ts` against a fixture repository.
-- Open after phase 1 (2026-09-04): the macOS and Linux CI legs are asserted by the workflow definition but were only observed on Windows locally. First CI run confirms them.
+- Superseded 2026-09-05: the macOS/Linux CI leg gap is now formally deferred to Phase 7 by 01-VERIFICATION.md.
+- Open from 01-VERIFICATION (2026-09-05): `openProtocolProcess` is an undelivered must-have export of 01-08 and the mechanism behind two of its key links. Two MCP protocol paths sit outside the bounded adapter: `src/core/mcp-fixture.ts` spawns directly and accumulates stdout with no byte cap (stderr is capped, shell off, env allowlisted, 60s deadline), and `src/core/mcp-proxy.ts` still uses the SDK StdioClientTransport. No later roadmap phase names this work, so it is not deferrable on current evidence.
+- Deferred to Phase 7 by 01-VERIFICATION (2026-09-05): the end-to-end managed install test and the observed macOS/Linux CI legs, both covered by Phase 7 success criterion 1 (three-OS fixture matrix).
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 
 ## Deferred Items
@@ -105,5 +107,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-09-04T17:05:00.000Z
-Stopped at: Phase 1 complete (16/16 plans); ready for verification
-Resume file: none — phase 1 is complete; run verification next
+Stopped at: Verification returned gaps_found; run /gsd-plan-phase 01 --gaps
+Resume file: .planning/phases/01-safe-operation-boundary/01-VERIFICATION.md

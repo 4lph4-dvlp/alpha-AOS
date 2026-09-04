@@ -6,7 +6,7 @@
     {
       "number": "1",
       "name": "Safe Operation Boundary",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "2",
@@ -44,5 +44,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 1 of 7 · 0% · executing"
   },
-  "updated_at": "2026-09-03T23:43:51.065Z"
+  "updated_at": "2026-09-04T15:36:00.275Z"
 }

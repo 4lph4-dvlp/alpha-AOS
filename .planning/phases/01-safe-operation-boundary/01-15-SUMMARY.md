@@ -37,6 +37,8 @@ key-files:
     - src/core/doctor.ts
     - test/redaction.test.ts
     - test/preview.test.ts
+  declared_but_unchanged:
+    - src/format.ts
 
 key-decisions:
   - "collectSupportSources lives in support-bundle.ts rather than a new module, so the plan file list holds"
@@ -150,6 +152,7 @@ The one failure is `preview.test.ts#install and update wrappers preview without 
 ## Deviations from Plan
 
 - **`collectSupportSources` lives in `src/core/support-bundle.ts`.** A separate `support-sources.ts` would have been cleaner to read but is not in this plan's file list, and the function is small.
+- **`src/format.ts` was in the plan's file list but needed no change.** The formatters return text, and `print()` in `cli.ts` passes that text through `redactString` with the shared context — so the human surface redacts without the formatters knowing about redaction at all. Touching them would have duplicated the seam.
 - **The bootstrap CLI route passes the managed inputs twice.** `createBootstrapOperationPlan` embeds the managed plan and `applyBootstrapOperation` needs the same catalog, lock and inventory to run it. Threading them through the plan object instead would mean serializing a catalog into a digest; passing them alongside is the smaller seam.
 
 ## Open Gaps

@@ -1,12 +1,213 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://alpha-aos.local/schemas/lock.schema.json",
+  "title": "alpha-AOS stack lock",
+  "description": "Closed-world contract shared by the stable and candidate channels. Passing this schema makes a lock well-formed, never authoritative: the channel a lock declares is an input the caller must honour, not a promotion.",
   "type": "object",
-  "required": ["schemaVersion", "channel", "components"],
-  "properties": {
-    "schemaVersion": { "const": 1 },
-    "channel": { "enum": ["stable", "candidate", "pinned"] },
-    "components": { "type": "object" }
+  "required": [
+    "schemaVersion",
+    "channel",
+    "components"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "lockedPackage": {
+      "type": "object",
+      "required": [
+        "package",
+        "version",
+        "integrity"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "package": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "$ref": "#/$defs/exactVersion"
+        },
+        "integrity": {
+          "$ref": "#/$defs/integrity"
+        }
+      }
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "harnessShaMap": {
+      "type": "object",
+      "propertyNames": {
+        "enum": [
+          "claude",
+          "codex",
+          "antigravity",
+          "pi",
+          "hermes"
+        ]
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/sha256"
+      }
+    },
+    "exactVersion": {
+      "description": "An exact version. Ranges are not a lock.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][0-9A-Za-z.-]+)*$"
+    },
+    "integrity": {
+      "type": "string",
+      "pattern": "^sha(?:256|512)-[A-Za-z0-9+/]+={0,2}$"
+    }
   },
-  "additionalProperties": true
+  "properties": {
+    "schemaVersion": {
+      "type": "integer"
+    },
+    "channel": {
+      "enum": [
+        "stable",
+        "candidate",
+        "pinned"
+      ]
+    },
+    "generatedAt": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string"
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "gsd": {
+          "type": "object",
+          "required": [
+            "package",
+            "version",
+            "integrity",
+            "profile"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "package": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "$ref": "#/$defs/exactVersion"
+            },
+            "integrity": {
+              "$ref": "#/$defs/integrity"
+            },
+            "profile": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "ecc": {
+          "type": "object",
+          "required": [
+            "package",
+            "version",
+            "integrity",
+            "skills",
+            "sourceSha256"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "package": {
+              "type": "string",
+              "minLength": 1
+            },
+            "version": {
+              "$ref": "#/$defs/exactVersion"
+            },
+            "integrity": {
+              "$ref": "#/$defs/integrity"
+            },
+            "skills": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "sourceSha256": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/sha256"
+              }
+            },
+            "targetSha256": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/harnessShaMap"
+              }
+            }
+          }
+        },
+        "mcp": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "context7",
+              "exa",
+              "firecrawl"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/lockedPackage"
+          }
+        },
+        "mcpBridges": {
+          "type": "object",
+          "propertyNames": {
+            "enum": [
+              "claude",
+              "codex",
+              "antigravity",
+              "pi",
+              "hermes"
+            ]
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/lockedPackage"
+          }
+        },
+        "ownedSkills": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "sourceSha256",
+              "targetSha256",
+              "upstreamWorkflow"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "sourceSha256": {
+                "$ref": "#/$defs/sha256"
+              },
+              "targetSha256": {
+                "$ref": "#/$defs/harnessShaMap"
+              },
+              "upstreamWorkflow": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 }

@@ -1,15 +1,155 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://alpha-aos.local/schemas/stack.schema.json",
+  "title": "alpha-AOS stack catalog",
+  "description": "Closed-world contract for the alpha-AOS-owned stack catalog. Namespaced x-* extensions are split out before validation, so every object described here is exhaustive.",
   "type": "object",
-  "required": ["schemaVersion", "name", "defaultChannel", "harnesses", "components", "policy"],
+  "required": ["schemaVersion", "name", "defaultChannel", "channels", "harnesses", "components", "policy"],
+  "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 1 },
+    "schemaVersion": { "type": "integer" },
     "name": { "const": "alpha-aos" },
     "defaultChannel": { "enum": ["stable", "candidate", "pinned"] },
-    "harnesses": { "type": "object", "minProperties": 1 },
-    "components": { "type": "object" },
-    "policy": { "type": "object" }
-  },
-  "additionalProperties": true
+    "channels": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": ["description"],
+        "additionalProperties": false,
+        "properties": {
+          "lock": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "harnesses": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["displayName"],
+        "additionalProperties": false,
+        "properties": {
+          "displayName": { "type": "string", "minLength": 1 },
+          "gsdTarget": { "type": "string", "minLength": 1 },
+          "gsdStrategy": { "type": "string", "minLength": 1 },
+          "eccTarget": { "type": "string", "minLength": 1 },
+          "eccStrategy": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "required": ["gsd", "ecc", "mcp", "ownedSkills"],
+      "additionalProperties": false,
+      "properties": {
+        "gsd": {
+          "type": "object",
+          "required": ["package", "profile", "targets"],
+          "additionalProperties": false,
+          "properties": {
+            "package": { "type": "string", "minLength": 1 },
+            "profile": { "type": "string", "minLength": 1 },
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] }
+            }
+          }
+        },
+        "ecc": {
+          "type": "object",
+          "required": ["package", "globalSkills", "profileInstallAllowed"],
+          "additionalProperties": false,
+          "properties": {
+            "package": { "type": "string", "minLength": 1 },
+            "globalSkills": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1 }
+            },
+            "profileInstallAllowed": { "type": "boolean" }
+          }
+        },
+        "mcp": {
+          "type": "object",
+          "required": ["rolloutOrder", "targets"],
+          "additionalProperties": false,
+          "properties": {
+            "rolloutOrder": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["context7", "exa", "firecrawl"] }
+            },
+            "targets": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] }
+            }
+          }
+        },
+        "ownedSkills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["id", "source", "targets", "invocation", "requires"],
+            "additionalProperties": false,
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "source": { "type": "string", "minLength": 1 },
+              "targets": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] }
+              },
+              "invocation": { "enum": ["explicit", "automatic"] },
+              "argumentHint": { "type": "string" },
+              "requires": {
+                "type": "object",
+                "required": ["component", "workflow"],
+                "additionalProperties": false,
+                "properties": {
+                  "component": { "const": "gsd" },
+                  "workflow": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "required": [
+        "mutationDefault",
+        "requireSnapshot",
+        "requireCanary",
+        "canaryHarness",
+        "forbidManagedFilePatches",
+        "autoApplyMarkdownOnly",
+        "requireApprovalFor"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "mutationDefault": { "const": "dry-run" },
+        "requireSnapshot": { "type": "boolean" },
+        "requireCanary": { "type": "boolean" },
+        "canaryHarness": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] },
+        "forbidManagedFilePatches": { "type": "boolean" },
+        "autoApplyMarkdownOnly": { "type": "boolean" },
+        "requireApprovalFor": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
 }

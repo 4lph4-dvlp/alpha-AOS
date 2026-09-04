@@ -374,8 +374,18 @@ const ajv = new Ajv2020({
 });
 
 const compiled = new Map<string, ValidateFunction>();
+const externalValidators = new WeakMap<Record<string, unknown>, ValidateFunction>();
 
-function validatorFor(kind: ManagedDocumentKind): ValidateFunction {
+function validatorFor(kind: ManagedDocumentKind, schema?: Record<string, unknown>): ValidateFunction {
+  if (schema !== undefined) {
+    // Caller-supplied schemas are keyed by identity so a repository contract
+    // read from schemas/*.json compiles once rather than on every document.
+    const cached = externalValidators.get(schema);
+    if (cached !== undefined) return cached;
+    const external = ajv.compile(schema);
+    externalValidators.set(schema, external);
+    return external;
+  }
   const existing = compiled.get(kind);
   if (existing !== undefined) return existing;
   const validate = ajv.compile(CORE_SCHEMAS[kind]);
@@ -479,6 +489,12 @@ export function validateManagedDocument<T = unknown>(options: {
   text: string;
   format: ManagedFormat;
   kind: ManagedDocumentKind;
+  /**
+   * The closed contract to validate against. Omit to use the engine's built-in
+   * core schema; supply the repository's own schemas/*.json to make that file
+   * the single source of truth for a kind.
+   */
+  schema?: Record<string, unknown>;
   domain?: (value: unknown) => ValidationIssue[];
 }): ValidationResult<T> {
   const base = {
@@ -571,7 +587,7 @@ export function validateManagedDocument<T = unknown>(options: {
     };
   }
 
-  const validate = validatorFor(options.kind);
+  const validate = validatorFor(options.kind, options.schema);
   const schemaOk = validate(core);
   const issues: ValidationIssue[] = schemaOk ? [] : ajvIssues(validate.errors, core);
 

@@ -1,8 +1,16 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
-import { parse } from "yaml";
-import type { ProjectDetection } from "../types.js";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { ProjectDetection, ProjectStackManifest } from "../types.js";
+import { findPackageRoot } from "./paths.js";
+import {
+  createMigrationPlan,
+  validateManagedDocument,
+  type MigrationPlan,
+  type ValidationIssue,
+  type ValidationResult,
+} from "./validation.js";
 
 const webFrameworks = ["react", "next", "vue", "nuxt", "svelte", "@sveltejs/kit"];
 const postgresPackages = ["pg", "postgres", "psycopg", "psycopg2", "asyncpg"];
@@ -68,9 +76,12 @@ export async function detectProject(inputRoot: string): Promise<ProjectDetection
     packs.add("AI_EVAL");
   }
 
-  const manifestPath = join(root, ".alpha-aos", "stack.yaml");
-  if (existsSync(manifestPath)) {
-    const manifest = parse(await readFile(manifestPath, "utf8")) as Record<string, unknown>;
+  const inspection = await inspectProjectManifest(root);
+  // Only a current, valid manifest contributes detection evidence. A migratable
+  // one is readable but is not consumed as current, and an invalid one adds
+  // nothing rather than partially applying whatever happened to parse.
+  const manifest = inspection?.status === "current" ? inspection.value : null;
+  if (manifest !== null) {
     if (manifest.scientificResearch === true) {
       evidence.add("manifest:scientificResearch");
       packs.add("RESEARCH_SCIENTIFIC");
@@ -82,4 +93,81 @@ export async function detectProject(inputRoot: string): Promise<ProjectDetection
   }
 
   return { root, evidence: [...evidence].sort(), packs: [...packs].sort() };
+}
+
+const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+let manifestSchema: Record<string, unknown> | null = null;
+
+async function loadManifestSchema(): Promise<Record<string, unknown>> {
+  if (manifestSchema !== null) return manifestSchema;
+  const packageDirectory = findPackageRoot(moduleDirectory) ?? findPackageRoot(process.cwd());
+  if (packageDirectory === null) throw new Error("Could not locate the alpha-AOS package root");
+  manifestSchema = JSON.parse(
+    await readFile(join(packageDirectory, "schemas", "project-stack.schema.json"), "utf8"),
+  ) as Record<string, unknown>;
+  return manifestSchema;
+}
+
+function manifestInvariants(value: unknown): ValidationIssue[] {
+  const manifest = value as ProjectStackManifest;
+  const issues: ValidationIssue[] = [];
+  const isolation = manifest.isolation;
+  if (isolation === undefined) return issues;
+
+  if (isolation.mode === "sealed") {
+    // `sealed` has no OS/container adapter yet and must fail closed rather
+    // than be silently treated as `project-only`.
+    issues.push({
+      code: "domain.sealed-unsupported",
+      documentPath: "/isolation/mode",
+      expected: "a mode with an available adapter (managed or project-only)",
+      actualShape: "string(length=6)",
+    });
+  }
+  if (isolation.execution.isolation === "container") {
+    issues.push({
+      code: "domain.container-unsupported",
+      documentPath: "/isolation/execution/isolation",
+      expected: "process isolation until a container adapter exists",
+      actualShape: "string(length=9)",
+    });
+  }
+  return issues;
+}
+
+export interface ProjectManifestInspection {
+  status: ValidationResult["status"];
+  /** Populated only for a current, valid manifest. */
+  value: ProjectStackManifest | null;
+  /** Populated only for a supported older version. */
+  readOnlyValue: unknown;
+  migration: MigrationPlan | null;
+  extensions: Record<string, unknown>;
+  issues: readonly ValidationIssue[];
+}
+
+/**
+ * Reads a project manifest through the strict route and reports what it is,
+ * without acting on it. Returns null when no manifest exists.
+ */
+export async function inspectProjectManifest(inputRoot: string): Promise<ProjectManifestInspection | null> {
+  const manifestPath = join(resolve(inputRoot), ".alpha-aos", "stack.yaml");
+  if (!existsSync(manifestPath)) return null;
+
+  const result = validateManagedDocument<ProjectStackManifest>({
+    text: await readFile(manifestPath, "utf8"),
+    format: "yaml",
+    kind: "project-manifest",
+    schema: await loadManifestSchema(),
+    domain: manifestInvariants,
+  });
+
+  return {
+    status: result.status,
+    value: result.status === "current" ? result.value : null,
+    readOnlyValue: result.readOnlyValue,
+    migration: createMigrationPlan(result),
+    extensions: result.extensions,
+    issues: result.issues,
+  };
 }

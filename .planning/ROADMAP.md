@@ -42,7 +42,7 @@ Plans:
 - [x] 01-10-PLAN.md — Strict operational/native schemas and consumers
 - [x] 01-11-PLAN.md — Fixture and installer subprocess migration
 - [x] 01-12-PLAN.md — Session-aware GSD/ECC component mutators
-- [ ] 01-13-PLAN.md — Session-aware MCP/skill/policy/isolation/update mutators
+- [x] 01-13-PLAN.md — Session-aware MCP/skill/policy/isolation/update mutators
 - [ ] 01-14-PLAN.md — Ordered install caller and core bootstrap/update safe apply
 - [ ] 01-15-PLAN.md — Session-bound support bundle and CLI/output closure
 - [ ] 01-16-PLAN.md — Thin wrappers and three-OS behavioral gate

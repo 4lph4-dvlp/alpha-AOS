@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: 01-12 complete; wave 4 continues with 01-13
-last_updated: "2026-09-04T11:20:00.000Z"
+stopped_at: Wave 4 complete (01-12, 01-13); wave 5 ready
+last_updated: "2026-09-04T12:45:00.000Z"
 last_activity: 2026-09-04
-last_activity_desc: "Completed 01-12: GSD and ECC mutators now publish complete plans and run under one standalone-or-caller MutationSession."
-state_head: e2a1087
+last_activity_desc: "Completed wave 4: every existing mutation caller publishes a complete plan and runs under one standalone-or-caller MutationSession."
+state_head: fd28c87
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 12
+  completed_plans: 13
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 12 of 16 in current phase
+Plan: 13 of 16 in current phase
 Status: Ready to execute
-Last activity: 2026-09-04 — Completed 01-12: both component mutators publish a complete reviewed plan and consume exactly one writer, standalone or nested.
+Last activity: 2026-09-04 — Completed wave 4: MCP, skill, policy, isolation and update mutations joined the GSD/ECC contract; clean and candidate staging are journaled transactions.
 
-Progress: [███░░░░░░░] 25%
+Progress: [███░░░░░░░] 27%
 
 ## Performance Metrics
 
@@ -85,8 +85,10 @@ None yet.
 - Open from 01-08 and 01-11: `openProtocolProcess` is unbuilt. The MCP filter proxy still uses the SDK's own StdioClientTransport, and `mcp-fixture.ts` still spawns its JSON-RPC child directly (named as an asserted exception in test/process.test.ts). Belongs with plan 01-14.
 - Open from 01-11: fixtures still call `mkdtemp` during apply and let `applyFileTransaction` acquire their session, instead of the plan/execute split with precomputed paths and a caller-supplied MutationSession. Belongs with plan 01-14.
 - Resolved by 01-12 (2026-09-04): `src/core/gsd-compat.ts` and `src/core/ecc-skills.ts` publish complete reviewed plans and consume a standalone or caller-supplied `MutationSession`; the shared contract is `src/core/component-session.ts`, which 01-13 should import rather than restate.
-- Open from 01-12: `applyFileTransaction` derives its journal id from `session.operationId`, so two component applies under one caller session would collide on the same journal path. Plan 01-14 aggregates several applies under one session and must resolve this first.
+- Open from 01-12 and 01-13: `applyFileTransaction` derives its journal id from `session.operationId`, so two component applies under one caller session collide on the same journal path. Eight session-aware callees now exist, so plan 01-14 must resolve this before it aggregates any two of them.
 - Open from 01-12: the ECC no-`verifiedSourceRoot` branch still lets `runEccFixture` name its own temp directory; apply proves containment and locked hashes but not a precomputed path. Same gap as 01-11's fixture split; belongs to 01-14.
+- Resolved by 01-13 (2026-09-04): MCP sync, owned skills, the Claude skill policy, the isolation manifest and runtime, the isolated-runtime clean and candidate staging all publish complete plans and consume a standalone or caller `MutationSession` through `src/core/component-session.ts`.
+- Open from 01-13: `cleanIsolationRuntime` journals and snapshots every file removal, but the trailing `rmdir` calls are not journaled intents. An interruption between the transaction and the last `rmdir` leaves empty directories behind a completed journal.
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 
 ## Deferred Items
@@ -97,6 +99,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T11:20:00.000Z
-Stopped at: 01-12 complete; wave 4 continues with 01-13
-Resume file: .planning/phases/01-safe-operation-boundary/01-13-PLAN.md
+Last session: 2026-09-04T12:45:00.000Z
+Stopped at: Wave 4 complete (01-12, 01-13); wave 5 ready
+Resume file: .planning/phases/01-safe-operation-boundary/01-14-PLAN.md

@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Wave 4 complete (01-12, 01-13); wave 5 ready
-last_updated: "2026-09-04T12:45:00.000Z"
+stopped_at: Wave 5 complete (01-14); wave 6 ready
+last_updated: "2026-09-04T14:40:00.000Z"
 last_activity: 2026-09-04
-last_activity_desc: "Completed wave 4: every existing mutation caller publishes a complete plan and runs under one standalone-or-caller MutationSession."
-state_head: fd28c87
+last_activity_desc: "Completed wave 5: one aggregate plan and one session span every fixture, component and external step; the bootstrap service replaces the wrapper mutations."
+state_head: 94f6b1e
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 13
+  completed_plans: 14
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 13 of 16 in current phase
+Plan: 14 of 16 in current phase
 Status: Ready to execute
-Last activity: 2026-09-04 — Completed wave 4: MCP, skill, policy, isolation and update mutations joined the GSD/ECC contract; clean and candidate staging are journaled transactions.
+Last activity: 2026-09-04 — Completed wave 5: fixtures no longer call mkdtemp, managed install runs under one aggregate plan and one session, and src/core/bootstrap.ts holds the reviewed wrapper operation.
 
-Progress: [███░░░░░░░] 27%
+Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
 
@@ -76,19 +76,21 @@ None yet.
 - Full uninstall, external-package compensation, and interrupted-operation recovery are absent.
 - Ordinary-entrypoint tree-off suppression remains version- and surface-sensitive and must report unsupported unless exclusion is proven before load.
 - `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected.
-- Confirmed by Wave 0 (2026-09-04): `scripts/install.{sh,ps1}` run `npm ci`, `npm run build` and `npm link` before printing a plan, with no `--apply` — a live SAFE-01 violation.
+- Confirmed by Wave 0 (2026-09-04): `scripts/install.{sh,ps1}` run `npm ci`, `npm run build` and `npm link` before printing a plan, with no `--apply` — a live SAFE-01 violation. Its replacement (`src/core/bootstrap.ts`) exists as of 01-14; plan 01-16 rewrites the four wrapper scripts to call it.
 - Resolved by 01-09 (2026-09-04): `src/core/transaction.ts` now proves every path role and rechecks the ancestor chain immediately before each mutation.
 - Resolved 2026-09-04: `smol-toml@1.8.0` approved at the 01-04 gate, bound to `sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==`; plan 01-05 must verify that integrity before writing the lock.
 - Resolved by 01-08 (2026-09-04): `src/core/process.ts` is shell-free, allowlisted, deadline-bound and output-capped; interpreted shims without a proven direct equivalent are reported unsupported.
 - Phases 3–6 require targeted exact-version research for harness discovery, GSD gate contracts, preload isolation, and package recovery.
 - Resolved by 01-06 (2026-09-04): the stack, lock and project-manifest schemas are closed and are now the loaders' source of truth. The remaining operational and native schemas are plan 01-10.
-- Open from 01-08 and 01-11: `openProtocolProcess` is unbuilt. The MCP filter proxy still uses the SDK's own StdioClientTransport, and `mcp-fixture.ts` still spawns its JSON-RPC child directly (named as an asserted exception in test/process.test.ts). Belongs with plan 01-14.
-- Open from 01-11: fixtures still call `mkdtemp` during apply and let `applyFileTransaction` acquire their session, instead of the plan/execute split with precomputed paths and a caller-supplied MutationSession. Belongs with plan 01-14.
+- Open from 01-08, 01-11 and 01-14: `openProtocolProcess` is unbuilt. The MCP filter proxy still uses the SDK's own StdioClientTransport, and `mcp-fixture.ts` still spawns its JSON-RPC child directly (named as an asserted exception in test/process.test.ts). No plan in phase 1 now owns it.
+- Resolved by 01-14 (2026-09-04): the fixture plan/execute split exists; a fixture asserts the authorizing session is open before it touches the disk, and writes only inside the root its plan named.
 - Resolved by 01-12 (2026-09-04): `src/core/gsd-compat.ts` and `src/core/ecc-skills.ts` publish complete reviewed plans and consume a standalone or caller-supplied `MutationSession`; the shared contract is `src/core/component-session.ts`, which 01-13 should import rather than restate.
-- Open from 01-12 and 01-13: `applyFileTransaction` derives its journal id from `session.operationId`, so two component applies under one caller session collide on the same journal path. Eight session-aware callees now exist, so plan 01-14 must resolve this before it aggregates any two of them.
-- Open from 01-12: the ECC no-`verifiedSourceRoot` branch still lets `runEccFixture` name its own temp directory; apply proves containment and locked hashes but not a precomputed path. Same gap as 01-11's fixture split; belongs to 01-14.
+- Resolved by 01-14 (2026-09-04): a session allocates a journal id per transaction, and `planWriterRepair` reads every journal an operation wrote.
+- Resolved by 01-14 (2026-09-04): all three fixtures publish a plan that names their root before it exists, so no fixture calls `mkdtemp` and ECC skill sync binds its source paths at review time.
 - Resolved by 01-13 (2026-09-04): MCP sync, owned skills, the Claude skill policy, the isolation manifest and runtime, the isolated-runtime clean and candidate staging all publish complete plans and consume a standalone or caller `MutationSession` through `src/core/component-session.ts`.
 - Open from 01-13: `cleanIsolationRuntime` journals and snapshots every file removal, but the trailing `rmdir` calls are not journaled intents. An interruption between the transaction and the last `rmdir` leaves empty directories behind a completed journal.
+- Open from 01-14: `scripts/build-artifact.mjs` does not exist, so `inspectBuildArtifact` finds no manifest and every real bootstrap plan blocks fail-closed. Plan 01-16 writes the producer.
+- Open from 01-14: no end-to-end managed install test exists, because running one would install GSD and ECC globally on the test machine. One session spanning every callee is structurally verified and each callee is separately proven.
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 
 ## Deferred Items
@@ -99,6 +101,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T12:45:00.000Z
-Stopped at: Wave 4 complete (01-12, 01-13); wave 5 ready
-Resume file: .planning/phases/01-safe-operation-boundary/01-14-PLAN.md
+Last session: 2026-09-04T14:40:00.000Z
+Stopped at: Wave 5 complete (01-14); wave 6 ready
+Resume file: .planning/phases/01-safe-operation-boundary/01-15-PLAN.md

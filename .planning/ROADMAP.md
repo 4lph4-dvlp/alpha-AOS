@@ -27,7 +27,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   3. Concurrent or interrupted managed writes serialize safely and leave hash-checked journal evidence from which alpha-AOS reports the real operation state instead of silently losing data.
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
-**Plans**: 16 plans
+**Plans**: 18 plans (16 executed, 2 gap closure)
 
 Plans:
 - [x] 01-01-PLAN.md — Wave 0 preview, redaction, and strict-validation contracts
@@ -46,6 +46,8 @@ Plans:
 - [x] 01-14-PLAN.md — Ordered install caller and core bootstrap/update safe apply
 - [x] 01-15-PLAN.md — Session-bound support bundle and CLI/output closure
 - [x] 01-16-PLAN.md — Thin wrappers and three-OS behavioral gate
+- [ ] 01-17-PLAN.md — Gap closure: bounded `openProtocolProcess` session and MCP fixture migration
+- [ ] 01-18-PLAN.md — Gap closure: MCP SDK transport over the bounded protocol session
 
 ### Phase 2: Evidence-Bound Project Planning
 **Goal**: Users receive reproducible project-pack decisions and reviewed plans that are bound to one canonical repository state and explain both matches and non-matches.

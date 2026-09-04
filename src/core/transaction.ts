@@ -156,7 +156,9 @@ export async function applyFileTransaction(options: FileTransactionOptions): Pro
     (await acquireMutationSession({ stateRoot: options.stateRoot, proofs, planDigest }));
   session.assertOwned();
 
-  const id = session.operationId;
+  // One session may run several transactions; each gets its own journal so a
+  // later component cannot overwrite an earlier one's recorded intent.
+  const id = session.allocateTransactionId();
   const snapshotRoot = join(options.stateRoot, "snapshots", id);
   const journalPath = join(options.stateRoot, "journal", `${id}.json`);
   const journal: TransactionJournal = {

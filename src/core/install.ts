@@ -2,15 +2,45 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { HarnessId, Inventory, McpServerId, StackCatalog, StackLock } from "../types.js";
-import { globalEccSkillRoot, applyEccSkillSync, planEccSkillSync } from "./ecc-skills.js";
-import { runEccFixture } from "./ecc-fixture.js";
-import { applyCodexGsdHookCompatibility, codexConfigRoot } from "./gsd-compat.js";
-import { runGsdFixture, type GsdFixtureHarness } from "./gsd-fixture.js";
-import { applyMcpSync, mcpServerIds, planMcpSync } from "./mcp.js";
-import { runMcpFixture } from "./mcp-fixture.js";
-import { applyOwnedSkillSync, planOwnedSkillSync } from "./owned-skills.js";
-import { userStateRoot } from "./paths.js";
+import type { HarnessId, Inventory, StackCatalog, StackLock } from "../types.js";
+import {
+  applyEccSkillSync,
+  globalEccSkillRoot,
+  planEccSkillOperation,
+  planEccSkillSync,
+  type EccSkillOperationPlan,
+} from "./ecc-skills.js";
+import { createEccFixtureOperationPlan, runEccFixture, type EccFixtureOperationPlan } from "./ecc-fixture.js";
+import {
+  applyCodexGsdHookCompatibility,
+  codexConfigRoot,
+  planCodexGsdHookCompatibilityOperation,
+  type GsdCompatibilityOperationPlan,
+} from "./gsd-compat.js";
+import {
+  createGsdFixtureOperationPlan,
+  runGsdFixture,
+  type GsdFixtureHarness,
+  type GsdFixtureOperationPlan,
+} from "./gsd-fixture.js";
+import { applyMcpSync, mcpServerIds, planMcpOperation, planMcpSync, type McpOperationPlan } from "./mcp.js";
+import { createMcpFixtureOperationPlan, runMcpFixture, type McpFixtureOperationPlan } from "./mcp-fixture.js";
+import {
+  applyOwnedSkillSync,
+  planOwnedSkillOperation,
+  planOwnedSkillSync,
+  type OwnedSkillOperationPlan,
+} from "./owned-skills.js";
+import { packageRoot, userStateRoot } from "./paths.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  declaredEnvironmentNames,
+  declaredProcessSpec,
+  reviewedDigest,
+  withComponentSession,
+} from "./component-session.js";
 import {
   PLATFORM_FLOOR_ENVIRONMENT,
   resolveCommand,
@@ -18,8 +48,15 @@ import {
   runProcess,
   type EnvironmentPolicy,
   type ProcessResult,
+  type ProcessSpec,
 } from "./process.js";
-import { applyClaudeSkillPolicy, globalClaudeSettingsPath, planClaudeSkillPolicy } from "./skill-policy.js";
+import {
+  applyClaudeSkillPolicy,
+  globalClaudeSettingsPath,
+  planClaudeSkillPolicy,
+  planClaudeSkillPolicyOperation,
+  type ClaudeSkillPolicyOperationPlan,
+} from "./skill-policy.js";
 import { rollbackFileTransaction } from "./transaction.js";
 
 const allHarnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
@@ -194,13 +231,22 @@ async function globalNpmPackageVersion(packageName: string): Promise<string | nu
   }
 }
 
-export async function createManagedInstallPlan(options: {
+export interface ManagedInstallOptions {
   root: string;
   catalog: StackCatalog;
   lock: StackLock;
   inventory: Inventory;
   requestedTargets?: HarnessId[];
-}): Promise<ManagedInstallPlan> {
+  /** Defaults to the user state root; named explicitly by the bootstrap service. */
+  stateRoot?: string;
+  /**
+   * Reuses reviewed fixture locations, keyed by fixture id, so re-reading the
+   * plan produces the same digest instead of naming fresh temp directories.
+   */
+  fixtureRoots?: Readonly<Record<string, string>>;
+}
+
+export async function createManagedInstallPlan(options: ManagedInstallOptions): Promise<ManagedInstallPlan> {
   requirePreflight(options.inventory);
   const selection = selectInstallTargets(options.inventory, options.requestedTargets);
   const steps: ManagedInstallStep[] = [];
@@ -220,7 +266,7 @@ export async function createManagedInstallPlan(options: {
   if (selection.targets.includes("claude")) {
     for (const skill of options.catalog.components.ownedSkills) {
       if (!skill.targets.includes("claude")) continue;
-      const plan = await planOwnedSkillSync(options.root, options.catalog, options.lock, skill.id, "claude");
+      const plan = await planOwnedSkillSync(options.root, options.catalog, options.lock, skill.id, "claude", installStateOptions(options));
       const action = plan.action === "replace" ? "update" : plan.action;
       steps.push({ id: `owned-skill:${skill.id}:claude`, component: "owned-skill", target: "claude", action, external: false, note: plan.destination });
     }
@@ -270,81 +316,311 @@ export async function createManagedInstallPlan(options: {
   };
 }
 
-async function runChecked(executable: string, args: string[], label: string, timeout = 300_000): Promise<void> {
-  const result = await runProcess({
-    executable,
-    args,
-    cwd: process.cwd(),
-    timeoutMs: timeout,
-    maxOutputBytes: 256 * 1024,
-    environment: nodeRuntimeEnvironment(),
-  });
+/** Runs a child exactly as the reviewed plan declared it. */
+async function runDeclared(spec: ProcessSpec, label: string): Promise<void> {
+  const result = await runProcess({ ...spec, environment: nodeRuntimeEnvironment() });
   if (result.code !== "ok") throw new Error(describeProcessFailure(label, result));
 }
 
-async function installGsd(target: GsdFixtureHarness, catalog: StackCatalog, lock: StackLock): Promise<boolean> {
+async function installGsd(
+  target: GsdFixtureHarness,
+  catalog: StackCatalog,
+  lock: StackLock,
+  fixture: GsdFixtureOperationPlan,
+  spec: ProcessSpec,
+  session: MutationSession,
+): Promise<boolean> {
   const before = await inspectGsdInstall(target, lock);
   if (before.current) return false;
   const gsd = lock.components.gsd;
   const adapter = catalog.harnesses[target];
   if (!gsd || !adapter.gsdTarget) throw new Error(`GSD target metadata is missing for ${target}`);
-  await runGsdFixture({ harness: target, gsd });
-  const npx = resolveNodePackageCli("npx");
-  await runChecked(npx.executable, [
-    ...npx.argsPrefix,
-    "--yes",
-    `${gsd.package}@${gsd.version}`,
-    `--${adapter.gsdTarget}`,
-    "--global",
-    `--profile=${gsd.profile}`,
-    "--no-legacy-cleanup",
-  ], `GSD install for ${target}`);
+  await runGsdFixture({ harness: target, gsd, plan: fixture, session });
+  await runDeclared(spec, `GSD install for ${target}`);
   const after = await inspectGsdInstall(target, lock);
   if (!after.current) throw new Error(`GSD verification failed for ${target}: ${after.version ?? "missing"}/${after.profile ?? "missing"}/${after.runtime ?? "missing"}`);
   return true;
 }
 
-async function installEccRuntime(lock: StackLock): Promise<boolean> {
+async function installEccRuntime(
+  lock: StackLock,
+  fixture: EccFixtureOperationPlan,
+  spec: ProcessSpec,
+  session: MutationSession,
+): Promise<boolean> {
   const ecc = lock.components.ecc;
   if (!ecc) throw new Error("Stable lock has no ECC component");
   if (await globalNpmPackageVersion(ecc.package) === ecc.version) return false;
   // Exact skill extraction verifies the tarball before the global CLI runtime is needed.
-  await runEccFixture({ harness: "claude", ecc });
-  const npm = resolveNodePackageCli("npm");
-  await runChecked(npm.executable, [
-    ...npm.argsPrefix, "install", "--global", "--ignore-scripts", "--no-audit", "--no-fund", `${ecc.package}@${ecc.version}`,
-  ], "ECC Memory Vault runtime install");
+  await runEccFixture({ harness: "claude", ecc, plan: fixture, session });
+  await runDeclared(spec, "ECC Memory Vault runtime install");
   const actual = await globalNpmPackageVersion(ecc.package);
   if (actual !== ecc.version) throw new Error(`ECC runtime verification failed: expected ${ecc.version}, got ${actual ?? "missing"}`);
   return true;
 }
 
-async function installPiBridge(lock: StackLock): Promise<boolean> {
+async function installPiBridge(
+  lock: StackLock,
+  fixture: McpFixtureOperationPlan,
+  spec: ProcessSpec,
+  session: MutationSession,
+): Promise<boolean> {
   const plan = await planMcpSync("pi", lock);
   if (!plan.piBridge || plan.piBridgeCurrent) return false;
-  await runMcpFixture({ server: "context7", harness: "pi", lock });
-  const pi = resolveCommand("pi");
-  if (!pi) throw new Error("Pi CLI is required to install its MCP bridge");
-  await runChecked(pi, ["install", `npm:${plan.piBridge.package}@${plan.piBridge.version}`], "Pi MCP bridge install");
+  await runMcpFixture({ server: "context7", harness: "pi", lock, plan: fixture, session });
+  await runDeclared(spec, "Pi MCP bridge install");
   const after = await planMcpSync("pi", lock);
   if (!after.piBridgeCurrent) throw new Error(`Pi MCP bridge verification failed for ${plan.piBridge.package}@${plan.piBridge.version}`);
   return true;
 }
 
-export async function applyManagedInstall(options: {
+// ---------------------------------------------------------------------------
+// Complete managed-install operation plan
+// ---------------------------------------------------------------------------
+
+export interface ExternalInstallStep {
+  id: string;
+  /** Declared before it runs, so review sees the exact child and its arguments. */
+  spec: ProcessSpec;
+}
+
+export interface ManagedInstallOperationPlan {
+  kind: "managed-install";
   root: string;
-  catalog: StackCatalog;
-  lock: StackLock;
-  inventory: Inventory;
-  requestedTargets?: HarnessId[];
-}): Promise<ManagedInstallResult> {
-  const plan = await createManagedInstallPlan(options);
+  stateRoot: string;
+  targets: readonly HarnessId[];
+  /** Every fixture this operation may run, each with its own reviewed plan. */
+  fixtures: {
+    gsd: readonly GsdFixtureOperationPlan[];
+    eccRuntime: EccFixtureOperationPlan | null;
+    eccSkills: readonly EccFixtureOperationPlan[];
+    mcpBridge: McpFixtureOperationPlan | null;
+    mcpCanary: readonly McpFixtureOperationPlan[];
+  };
+  /** Every managed component apply, each with its own complete plan. */
+  components: {
+    gsdCompatibility: GsdCompatibilityOperationPlan | null;
+    ownedSkills: readonly OwnedSkillOperationPlan[];
+    eccSkills: readonly EccSkillOperationPlan[];
+    mcp: readonly McpOperationPlan[];
+    policy: ClaudeSkillPolicyOperationPlan | null;
+  };
+  external: readonly ExternalInstallStep[];
+  /** Every fixture location this plan named, so revalidation reproduces it. */
+  fixtureRoots: Readonly<Record<string, string>>;
+  environmentNames: readonly string[];
+  proofs: OperationPathProofSet;
+  digest: string;
+  /** The narrow shape the CLI already renders. */
+  install: ManagedInstallPlan;
+}
+
+function installStateOptions(options: ManagedInstallOptions): { stateRoot: string } {
+  return { stateRoot: resolve(options.stateRoot ?? userStateRoot()) };
+}
+
+function externalSpec(executable: string, args: string[], timeoutMs = 300_000): ProcessSpec {
+  return declaredProcessSpec({
+    executable,
+    args,
+    cwd: process.cwd(),
+    timeoutMs,
+    maxOutputBytes: 256 * 1024,
+    environment: nodeRuntimeEnvironment(),
+  });
+}
+
+/**
+ * Aggregates every fixture, component and external step this install may
+ * perform into one reviewable plan. Nothing here mutates: the fixture roots
+ * are named but not created, and the external children are declared but not
+ * run.
+ */
+export async function createManagedInstallOperationPlan(options: ManagedInstallOptions): Promise<ManagedInstallOperationPlan> {
+  const install = await createManagedInstallPlan(options);
+  const stateRoot = installStateOptions(options).stateRoot;
+  const gsd = options.lock.components.gsd;
+  const ecc = options.lock.components.ecc;
+  if (!gsd || !ecc) throw new Error("Stable lock is missing GSD or ECC");
+
+  const named = options.fixtureRoots ?? {};
+  const reuse = (id: string): { fixtureRoot?: string } => {
+    const root = named[id];
+    return root === undefined ? {} : { fixtureRoot: root };
+  };
+  const gsdTargets = install.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness));
+  const external: ExternalInstallStep[] = [];
+  const gsdFixtures: GsdFixtureOperationPlan[] = [];
+  for (const target of gsdTargets) {
+    const adapter = options.catalog.harnesses[target];
+    if (!adapter.gsdTarget) throw new Error(`GSD target metadata is missing for ${target}`);
+    gsdFixtures.push(await createGsdFixtureOperationPlan({ harness: target, gsd, ...reuse(`gsd:${target}`) }));
+    const npx = resolveNodePackageCli("npx");
+    external.push({
+      id: `gsd:${target}`,
+      spec: externalSpec(npx.executable, [
+        ...npx.argsPrefix,
+        "--yes",
+        `${gsd.package}@${gsd.version}`,
+        `--${adapter.gsdTarget}`,
+        "--global",
+        `--profile=${gsd.profile}`,
+        "--no-legacy-cleanup",
+      ]),
+    });
+  }
+
+  const eccRuntimeFixture = await createEccFixtureOperationPlan({ harness: "claude", ecc, ...reuse("ecc:runtime") });
+  const npm = resolveNodePackageCli("npm");
+  external.push({
+    id: "ecc:runtime",
+    spec: externalSpec(npm.executable, [
+      ...npm.argsPrefix, "install", "--global", "--ignore-scripts", "--no-audit", "--no-fund", `${ecc.package}@${ecc.version}`,
+    ]),
+  });
+
+  const piStep = install.steps.find((step) => step.id === "mcp-bridge:pi");
+  const piBridge = options.lock.components.mcpBridges?.pi ?? null;
+  let mcpBridgeFixture: McpFixtureOperationPlan | null = null;
+  if (piStep && piBridge) {
+    mcpBridgeFixture = await createMcpFixtureOperationPlan({ server: "context7", harness: "pi", lock: options.lock, ...reuse("mcp-bridge:pi") });
+    const pi = resolveCommand("pi");
+    if (!pi) throw new Error("Pi CLI is required to install its MCP bridge");
+    external.push({
+      id: "mcp-bridge:pi",
+      spec: externalSpec(pi, ["install", `npm:${piBridge.package}@${piBridge.version}`]),
+    });
+  }
+
+  const gsdCompatibility = install.targets.includes("codex")
+    ? await planCodexGsdHookCompatibilityOperation(options.lock, { ...installStateOptions(options), ...reuse("gsd-compat:codex") })
+    : null;
+
+  const ownedSkills: OwnedSkillOperationPlan[] = [];
+  if (install.targets.includes("claude")) {
+    for (const skill of options.catalog.components.ownedSkills) {
+      if (!skill.targets.includes("claude")) continue;
+      ownedSkills.push(await planOwnedSkillOperation(options.root, options.catalog, options.lock, skill.id, "claude", installStateOptions(options)));
+    }
+  }
+
+  const eccSkills: EccSkillOperationPlan[] = [];
+  for (const target of install.targets) {
+    eccSkills.push(await planEccSkillOperation(target, options.lock, { ...installStateOptions(options), ...reuse(`ecc-skills:${target}`) }));
+  }
+
+  const changedMcpTargets = new Set(install.steps.filter((step) => step.component === "mcp" && step.action !== "current").map((step) => step.target as HarnessId));
+  const mcpCanary: McpFixtureOperationPlan[] = [];
+  if (changedMcpTargets.size > 0) {
+    const canary = install.targets.includes(options.catalog.policy.canaryHarness) ? options.catalog.policy.canaryHarness : install.targets[0];
+    if (!canary) throw new Error("No MCP canary harness is available");
+    for (const server of mcpServerIds()) {
+      mcpCanary.push(await createMcpFixtureOperationPlan({ server, harness: canary, lock: options.lock, ...reuse(`mcp-canary:${server}`) }));
+    }
+  }
+
+  const mcp: McpOperationPlan[] = [];
+  for (const target of install.targets) {
+    mcp.push(await planMcpOperation(target, options.lock, installStateOptions(options)));
+  }
+
+  const policy = install.targets.includes("claude")
+    ? await planClaudeSkillPolicyOperation(installStateOptions(options))
+    : null;
+
+  const ownRoot = resolve(packageRoot());
+  const inputs: OperationPathInput[] = [
+    { role: "state", path: stateRoot },
+    { role: "journal", path: join(stateRoot, "journal") },
+    { role: "snapshot", path: join(stateRoot, "snapshots") },
+    { role: "package-root", path: ownRoot },
+  ];
+  const proofs = await proveOperationPaths({
+    inputs,
+    allowedRoots: [stateRoot, ownRoot],
+    requiredRoles: ["state", "journal", "snapshot", "package-root"],
+  });
+
+  const fixtureRoots: Record<string, string> = {};
+  for (const fixture of gsdFixtures) fixtureRoots[`gsd:${fixture.harness}`] = fixture.fixtureRoot;
+  fixtureRoots["ecc:runtime"] = eccRuntimeFixture.fixtureRoot;
+  for (const plan of eccSkills) {
+    if (plan.fixture !== null) fixtureRoots[`ecc-skills:${plan.harness}`] = plan.fixture.fixtureRoot;
+  }
+  if (mcpBridgeFixture !== null) fixtureRoots["mcp-bridge:pi"] = mcpBridgeFixture.fixtureRoot;
+  if (gsdCompatibility?.fixtureRoot) fixtureRoots["gsd-compat:codex"] = gsdCompatibility.fixtureRoot;
+  for (const fixture of mcpCanary) fixtureRoots[`mcp-canary:${fixture.server}`] = fixture.fixtureRoot;
+
+  const environmentNames = declaredEnvironmentNames(nodeRuntimeEnvironment());
+  const digest = reviewedDigest("managed-install", {
+    root: resolve(options.root),
+    stateRoot,
+    targets: install.targets,
+    selection: install.selection,
+    steps: install.steps,
+    fixtures: {
+      gsd: gsdFixtures.map((fixture) => fixture.digest),
+      eccRuntime: eccRuntimeFixture.digest,
+      eccSkills: eccSkills.map((plan) => plan.fixture?.digest ?? null),
+      mcpBridge: mcpBridgeFixture?.digest ?? null,
+      mcpCanary: mcpCanary.map((fixture) => fixture.digest),
+    },
+    components: {
+      gsdCompatibility: gsdCompatibility?.digest ?? null,
+      ownedSkills: ownedSkills.map((plan) => plan.digest),
+      eccSkills: eccSkills.map((plan) => plan.digest),
+      mcp: mcp.map((plan) => plan.digest),
+      policy: policy?.digest ?? null,
+    },
+    external,
+    environmentNames,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "managed-install",
+    root: resolve(options.root),
+    stateRoot,
+    targets: install.targets,
+    fixtures: {
+      gsd: gsdFixtures,
+      eccRuntime: eccRuntimeFixture,
+      eccSkills: eccSkills.map((plan) => plan.fixture).filter((plan): plan is EccFixtureOperationPlan => plan !== null),
+      mcpBridge: mcpBridgeFixture,
+      mcpCanary,
+    },
+    components: { gsdCompatibility, ownedSkills, eccSkills, mcp, policy },
+    external,
+    fixtureRoots,
+    environmentNames,
+    proofs,
+    digest,
+    install,
+  };
+}
+
+export interface ManagedInstallApplyOptions extends ManagedInstallOptions {
+  /** A plan reviewed earlier; apply refuses if re-reading no longer matches it. */
+  plan?: ManagedInstallOperationPlan;
+  /** A writer already held by the caller; apply then takes no lock of its own. */
+  session?: MutationSession;
+}
+
+export async function applyManagedInstall(options: ManagedInstallApplyOptions): Promise<ManagedInstallResult> {
+  const reviewed = options.plan ?? await createManagedInstallOperationPlan(options);
+  const plan = reviewed.install;
   const applied: string[] = [];
   const current: string[] = [];
   const operationIds: string[] = [];
   const externalChanges: string[] = [];
   const rollback: RollbackEntry[] = [];
-  const stateRoot = userStateRoot();
+  const stateRoot = reviewed.stateRoot;
+
+  const step = (id: string): ProcessSpec => {
+    const found = reviewed.external.find((entry) => entry.id === id);
+    if (!found) throw new Error(`Managed install did not plan the external step: ${id}`);
+    return found.spec;
+  };
 
   const remember = (id: string, operationId: string | null, allowedRoot: string): void => {
     if (!operationId) {
@@ -356,54 +632,66 @@ export async function applyManagedInstall(options: {
     rollback.push({ id: operationId, allowedRoot });
   };
 
+  // The whole aggregate is re-read before anything is acquired or run.
+  assertPlanUnchanged(reviewed, await createManagedInstallOperationPlan({
+    root: reviewed.root,
+    catalog: options.catalog,
+    lock: options.lock,
+    inventory: options.inventory,
+    stateRoot: reviewed.stateRoot,
+    fixtureRoots: reviewed.fixtureRoots,
+    ...(options.requestedTargets === undefined ? {} : { requestedTargets: options.requestedTargets }),
+  }));
+
+  return withComponentSession({ kind: "managed-install", stateRoot, proofs: reviewed.proofs, digest: reviewed.digest }, options.session, async (session) => {
   try {
     // External installers run first. If a later managed write fails, their exact
     // verified versions remain installed and are reported instead of guessed-at rollback.
-    for (const target of plan.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness))) {
-      if (await installGsd(target, options.catalog, options.lock)) {
+    for (const [index, target] of plan.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness)).entries()) {
+      const fixture = reviewed.fixtures.gsd[index];
+      if (!fixture || fixture.harness !== target) throw new Error(`Managed install did not plan the GSD fixture for ${target}`);
+      if (await installGsd(target, options.catalog, options.lock, fixture, step(`gsd:${target}`), session)) {
         applied.push(`gsd:${target}`);
         externalChanges.push(`gsd:${target}`);
       } else current.push(`gsd:${target}`);
     }
-    if (await installEccRuntime(options.lock)) {
+    const eccRuntimeFixture = reviewed.fixtures.eccRuntime;
+    if (!eccRuntimeFixture) throw new Error("Managed install did not plan the ECC runtime fixture");
+    if (await installEccRuntime(options.lock, eccRuntimeFixture, step("ecc:runtime"), session)) {
       applied.push("ecc:runtime");
       externalChanges.push("ecc:runtime");
     } else current.push("ecc:runtime");
     if (plan.targets.includes("pi")) {
-      if (await installPiBridge(options.lock)) {
+      const bridgeFixture = reviewed.fixtures.mcpBridge;
+      if (bridgeFixture === null) current.push("mcp-bridge:pi");
+      else if (await installPiBridge(options.lock, bridgeFixture, step("mcp-bridge:pi"), session)) {
         applied.push("mcp-bridge:pi");
         externalChanges.push("mcp-bridge:pi");
       } else current.push("mcp-bridge:pi");
     }
 
-    if (plan.targets.includes("codex")) {
-      const result = await applyCodexGsdHookCompatibility(options.lock);
+    if (reviewed.components.gsdCompatibility) {
+      const result = await applyCodexGsdHookCompatibility(options.lock, { plan: reviewed.components.gsdCompatibility, session });
       remember("gsd:codex:hook-compat", result.operationId, join(codexConfigRoot(), "hooks", "lib"));
     }
-    if (plan.targets.includes("claude")) {
-      for (const skill of options.catalog.components.ownedSkills) {
-        if (!skill.targets.includes("claude")) continue;
-        const result = await applyOwnedSkillSync(options.root, options.catalog, options.lock, skill.id, "claude");
-        remember(`owned-skill:${skill.id}:claude`, result.operationId, dirname(result.plan.destination));
-      }
+    for (const component of reviewed.components.ownedSkills) {
+      const result = await applyOwnedSkillSync(options.root, options.catalog, options.lock, component.id, "claude", { plan: component, session });
+      remember(`owned-skill:${component.id}:claude`, result.operationId, dirname(result.plan.destination));
     }
-    for (const target of plan.targets) {
-      const result = await applyEccSkillSync(target, options.lock);
-      remember(`ecc:${target}`, result.operationId, globalEccSkillRoot(target));
+    for (const component of reviewed.components.eccSkills) {
+      const result = await applyEccSkillSync(component.harness, options.lock, { plan: component, session });
+      remember(`ecc:${component.harness}`, result.operationId, globalEccSkillRoot(component.harness));
     }
 
-    const changedMcpTargets = new Set(plan.steps.filter((step) => step.component === "mcp" && step.action !== "current").map((step) => step.target as HarnessId));
-    if (changedMcpTargets.size > 0) {
-      const canary = plan.targets.includes(options.catalog.policy.canaryHarness) ? options.catalog.policy.canaryHarness : plan.targets[0];
-      if (!canary) throw new Error("No MCP canary harness is available");
-      for (const server of mcpServerIds()) await runMcpFixture({ server: server as McpServerId, harness: canary, lock: options.lock });
+    for (const fixture of reviewed.fixtures.mcpCanary) {
+      await runMcpFixture({ server: fixture.server, harness: fixture.harness, lock: options.lock, plan: fixture, session });
     }
-    for (const target of plan.targets) {
-      const result = await applyMcpSync(target, options.lock);
-      remember(`mcp:${target}`, result.operationId, dirname(result.plan.configPath));
+    for (const component of reviewed.components.mcp) {
+      const result = await applyMcpSync(component.harness, options.lock, { plan: component, session });
+      remember(`mcp:${component.harness}`, result.operationId, dirname(result.plan.configPath));
     }
-    if (plan.targets.includes("claude")) {
-      const result = await applyClaudeSkillPolicy();
+    if (reviewed.components.policy) {
+      const result = await applyClaudeSkillPolicy({ plan: reviewed.components.policy, session });
       remember("policy:claude-ecc", result.operationId, dirname(globalClaudeSettingsPath()));
     }
 
@@ -422,4 +710,5 @@ export async function applyManagedInstall(options: {
     const rollbackNote = rollbackErrors.length > 0 ? ` Rollback errors: ${rollbackErrors.join("; ")}.` : "";
     throw new Error(`${message}.${external}${rollbackNote}`);
   }
+  });
 }

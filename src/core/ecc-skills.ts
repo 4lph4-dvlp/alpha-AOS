@@ -4,7 +4,12 @@ import { readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, StackLock } from "../types.js";
-import { eccSkillRoot, runEccFixture, type SelectedEccSkill } from "./ecc-fixture.js";
+import {
+  createEccFixtureOperationPlan,
+  runEccFixture,
+  type EccFixtureOperationPlan,
+  type SelectedEccSkill,
+} from "./ecc-fixture.js";
 import { userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
@@ -93,22 +98,24 @@ export async function planEccSkillSync(harness: HarnessId, lock: StackLock, targ
 
 export interface EccSkillOperationSource {
   skill: SelectedEccSkill;
-  /** Absolute path the rendered bytes are read from, when it is known now. */
-  source: string | null;
+  /** Absolute path the rendered bytes are read from. */
+  source: string;
   /** Hash of those bytes, bound at review time when a source tree was supplied. */
   sourceHash: string | null;
 }
 
 export interface EccSkillOperationPlan {
   kind: "ecc-skill-sync";
+  /** The fixture that will produce the sources, when no tree was supplied. */
+  fixture: EccFixtureOperationPlan | null;
   harness: HarnessId;
   targetRoot: string;
   stateRoot: string;
   allowedRoots: readonly string[];
   /** Identity binding a source tree this plan has not seen. */
   package: { name: string; version: string; integrity: string } | null;
-  /** Root the rendered skills are read from. Null when a fixture must produce one. */
-  sourceRoot: string | null;
+  /** Root the rendered skills are read from, supplied or fixture-produced. */
+  sourceRoot: string;
   /** Root inside which a fixture-produced source tree must land. */
   tempRoot: string | null;
   sources: readonly EccSkillOperationSource[];
@@ -121,6 +128,8 @@ export interface EccSkillOperationPlan {
 export interface EccSkillPlanOptions {
   targetRoot?: string;
   stateRoot?: string;
+  /** Reuses a reviewed fixture location so revalidation compares the same plan. */
+  fixtureRoot?: string;
   /**
    * An already-rendered, already-verified skill tree laid out as
    * `<root>/<skill>/SKILL.md`. Supplying one skips the fixture entirely and
@@ -141,22 +150,30 @@ export async function planEccSkillOperation(
   const ecc = requireEccLock(lock);
   const targetRoot = resolve(options.targetRoot ?? globalEccSkillRoot(harness));
   const stateRoot = resolve(options.stateRoot ?? userStateRoot());
-  const sourceRoot = options.verifiedSourceRoot ? resolve(options.verifiedSourceRoot) : null;
-  const tempRoot = sourceRoot === null ? resolve(tmpdir()) : null;
+  const supplied = options.verifiedSourceRoot ? resolve(options.verifiedSourceRoot) : null;
+  // Without a supplied tree the fixture produces one, and its plan names every
+  // path in advance — so the sources are addressable at review time either way.
+  const fixture = supplied === null
+    ? await createEccFixtureOperationPlan({
+      harness,
+      ecc,
+      ...(options.fixtureRoot === undefined ? {} : { fixtureRoot: options.fixtureRoot }),
+    })
+    : null;
+  const sourceRoot = supplied ?? (fixture as EccFixtureOperationPlan).targetRoot;
+  const tempRoot = fixture === null ? null : fixture.fixtureRoot;
   const sync = await planEccSkillSync(harness, lock, targetRoot);
 
   const sources: EccSkillOperationSource[] = [];
   for (const skill of selectedSkills) {
-    if (sourceRoot === null) {
-      sources.push({ skill, source: null, sourceHash: null });
-      continue;
-    }
     const source = skillFile(sourceRoot, skill);
     if (!inside(sourceRoot, source)) throw new Error(`Unsafe ECC source: ${source}`);
     sources.push({
       skill,
       source,
-      sourceHash: existsSync(source) ? sha256(await readFile(source)) : null,
+      // A supplied tree exists now, so its bytes are bound now. A fixture tree
+      // does not exist yet; the locked rendered hash binds it instead.
+      sourceHash: supplied !== null && existsSync(source) ? sha256(await readFile(source)) : null,
     });
   }
 
@@ -165,22 +182,19 @@ export async function planEccSkillOperation(
     { role: "state", path: stateRoot },
     { role: "journal", path: join(stateRoot, "journal") },
     { role: "snapshot", path: join(stateRoot, "snapshots") },
+    { role: "package-root", path: supplied ?? (fixture as EccFixtureOperationPlan).extractionRoot },
+    { role: "source", path: sourceRoot },
+    ...sources.map((source): OperationPathInput => ({ role: "source", path: source.source as string })),
   ];
-  if (sourceRoot !== null) {
-    inputs.push({ role: "package-root", path: sourceRoot }, { role: "source", path: sourceRoot });
-    for (const source of sources) {
-      if (source.source !== null) inputs.push({ role: "source", path: source.source });
-    }
-  }
   if (tempRoot !== null) inputs.push({ role: "temp", path: tempRoot });
 
-  const allowedRoots = [targetRoot, stateRoot, ...(sourceRoot === null ? [tempRoot as string] : [sourceRoot])];
+  const allowedRoots = [targetRoot, stateRoot, supplied ?? (tempRoot as string)];
   const proofs = await proveOperationPaths({
     inputs,
     allowedRoots,
-    requiredRoles: sourceRoot === null
-      ? ["target", "state", "journal", "snapshot", "temp"]
-      : ["target", "state", "journal", "snapshot", "source", "package-root"],
+    requiredRoles: tempRoot === null
+      ? ["target", "state", "journal", "snapshot", "source", "package-root"]
+      : ["target", "state", "journal", "snapshot", "temp", "source", "package-root"],
   });
 
   const digest = reviewedDigest("ecc-skill-sync", {
@@ -191,6 +205,7 @@ export async function planEccSkillOperation(
     package: { name: ecc.package, version: ecc.version, integrity: ecc.integrity },
     sourceRoot,
     tempRoot,
+    fixture: fixture?.digest ?? null,
     sources,
     entries: sync.entries,
     boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
@@ -198,11 +213,12 @@ export async function planEccSkillOperation(
 
   return {
     kind: "ecc-skill-sync",
+    fixture,
     harness,
     targetRoot,
     stateRoot,
     allowedRoots,
-    package: sourceRoot === null ? { name: ecc.package, version: ecc.version, integrity: ecc.integrity } : null,
+    package: supplied === null ? { name: ecc.package, version: ecc.version, integrity: ecc.integrity } : null,
     sourceRoot,
     tempRoot,
     sources,
@@ -232,22 +248,18 @@ interface RenderedSource {
 }
 
 /**
- * Runs the fixture and proves its output landed inside the temp root the plan
- * declared. The fixture still names its own directory, so this is a
- * containment check rather than a precomputed path — see the plan summary.
+ * Produces the rendered skill tree the plan named. A supplied tree belongs to
+ * the caller. Otherwise the plan carries the fixture plan, so the fixture
+ * writes to the exact location review authorized rather than one it picks.
  */
-async function renderEccSkills(plan: EccSkillOperationPlan, lock: StackLock): Promise<RenderedSource> {
-  if (plan.sourceRoot !== null) return { root: plan.sourceRoot, cleanup: null };
-  const tempRoot = plan.tempRoot as string;
-  await assertUnchangedSincePlan(plan, plannedProof(plan, "temp", tempRoot));
-
+async function renderEccSkills(plan: EccSkillOperationPlan, lock: StackLock, session?: MutationSession): Promise<RenderedSource> {
+  if (plan.fixture === null) return { root: plan.sourceRoot, cleanup: null };
   const ecc = requireEccLock(lock);
-  const fixture = await runEccFixture({ harness: plan.harness, ecc, keep: true });
+  const fixture = await runEccFixture({ harness: plan.harness, ecc, keep: true, plan: plan.fixture, ...(session === undefined ? {} : { session }) });
   const retained = fixture.retainedFixture;
   if (retained === null) throw new Error("ECC fixture did not retain its verified source tree");
-  const root = resolve(retained);
-  if (!inside(tempRoot, root) || root === resolve(tempRoot)) {
-    throw new ComponentPlanError("unplanned-path", `ECC fixture landed outside the planned temp root: ${root}`);
+  if (resolve(retained) !== plan.fixture.fixtureRoot || resolve(fixture.targetRoot) !== plan.sourceRoot) {
+    throw new ComponentPlanError("unplanned-path", `ECC fixture wrote outside the reviewed location: ${fixture.targetRoot}`);
   }
   for (const skill of selectedSkills) {
     if (fixture.sourceHashes[skill] !== ecc.sourceSha256[skill]) {
@@ -257,10 +269,7 @@ async function renderEccSkills(plan: EccSkillOperationPlan, lock: StackLock): Pr
       throw new ComponentPlanError("source-drift", `ECC rendered hash mismatch for ${skill}:${plan.harness}`);
     }
   }
-  if (!inside(root, fixture.targetRoot)) {
-    throw new ComponentPlanError("unplanned-path", `ECC fixture target root escaped its fixture: ${fixture.targetRoot}`);
-  }
-  return { root: resolve(fixture.targetRoot), cleanup: root };
+  return { root: plan.sourceRoot, cleanup: plan.fixture.fixtureRoot };
 }
 
 export async function applyEccSkillSync(harness: HarnessId, lock: StackLock, options: EccSkillApplyOptions = {}): Promise<{
@@ -272,7 +281,8 @@ export async function applyEccSkillSync(harness: HarnessId, lock: StackLock, opt
 
   // Complete read-only revalidation before anything is acquired or run.
   const revalidation: EccSkillPlanOptions = { targetRoot: reviewed.targetRoot, stateRoot: reviewed.stateRoot };
-  if (reviewed.sourceRoot !== null) revalidation.verifiedSourceRoot = reviewed.sourceRoot;
+  if (reviewed.fixture === null) revalidation.verifiedSourceRoot = reviewed.sourceRoot;
+  else revalidation.fixtureRoot = reviewed.fixture.fixtureRoot;
   const revalidated = await planEccSkillOperation(harness, lock, revalidation);
   assertPlanUnchanged(reviewed, revalidated);
 
@@ -281,7 +291,7 @@ export async function applyEccSkillSync(harness: HarnessId, lock: StackLock, opt
   }
 
   return withComponentSession(reviewed, options.session, async (session) => {
-    const rendered = await renderEccSkills(reviewed, lock);
+    const rendered = await renderEccSkills(reviewed, lock, session);
     try {
       const operations: Array<{ target: string; content: Uint8Array }> = [];
       for (const entry of reviewed.sync.entries) {
@@ -290,10 +300,8 @@ export async function applyEccSkillSync(harness: HarnessId, lock: StackLock, opt
         if (!inside(rendered.root, source)) {
           throw new ComponentPlanError("unplanned-path", `ECC source escaped its verified root: ${source}`);
         }
-        if (reviewed.sourceRoot !== null) {
-          const sourceProof = plannedProof(reviewed, "source", source);
-          await assertUnchangedSincePlan(reviewed, sourceProof);
-        }
+        const sourceProof = plannedProof(reviewed, "source", source);
+        await assertUnchangedSincePlan(reviewed, sourceProof);
         if (!existsSync(source)) {
           throw new ComponentPlanError("source-drift", `ECC rendered skill is missing: ${entry.skill}`);
         }

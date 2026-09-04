@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { spawn } from "node:child_process";
@@ -8,6 +8,15 @@ import { mcpStdioCommand, planMcpSync } from "./mcp.js";
 import { allowedMcpTools } from "./mcp-proxy.js";
 import { materializeEnvironment, resolveCommand, resolveNodePackageCli, runProcess } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  beginFixture,
+  plannedFixtureRoot,
+  plannedProof,
+  reviewedDigest,
+} from "./component-session.js";
 
 interface PackResult {
   filename: string;
@@ -187,19 +196,114 @@ function fixtureConfigPath(root: string, harness: HarnessId): string {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Complete fixture operation plan
+// ---------------------------------------------------------------------------
+
+export interface McpFixtureOperationPlan {
+  kind: "mcp-fixture";
+  harness: HarnessId;
+  server: McpServerId;
+  /** Named before it exists, so the location is reviewed rather than discovered. */
+  fixtureRoot: string;
+  packRoot: string;
+  configPath: string;
+  /** The Pi agent root the bridge fixture writes into; null for other harnesses. */
+  piAgentRoot: string | null;
+  package: { name: string; version: string; integrity: string };
+  piBridge: { name: string; version: string; integrity: string } | null;
+  proofs: OperationPathProofSet;
+  digest: string;
+}
+
+/**
+ * Enumerates every path this fixture may use, before it creates anything.
+ *
+ * The protocol probe itself is a long-lived bidirectional stdio session, which
+ * the one-shot process adapter cannot express; that child is still spawned
+ * directly and is named as an asserted exception in test/process.test.ts.
+ */
+export async function createMcpFixtureOperationPlan(options: {
+  harness: HarnessId;
+  server: McpServerId;
+  lock: StackLock;
+  fixtureRoot?: string;
+}): Promise<McpFixtureOperationPlan> {
+  const locked = options.lock.components.mcp?.[options.server];
+  if (!locked) throw new Error(`Stable lock has no MCP component: ${options.server}`);
+  const fixtureRoot = resolve(options.fixtureRoot ?? plannedFixtureRoot(`alpha-aos-mcp-${options.server}-${options.harness}`));
+  const packRoot = join(fixtureRoot, "packs", options.server);
+  const configPath = fixtureConfigPath(fixtureRoot, options.harness);
+  const bridge = options.harness === "pi" ? options.lock.components.mcpBridges?.pi ?? null : null;
+  if (options.harness === "pi" && !bridge) throw new Error("Stable lock has no Pi MCP bridge");
+  const piAgentRoot = options.harness === "pi" ? join(fixtureRoot, "home", ".pi", "agent") : null;
+
+  const inputs: OperationPathInput[] = [
+    { role: "temp", path: fixtureRoot },
+    { role: "temp", path: packRoot },
+    { role: "target", path: configPath },
+  ];
+  if (piAgentRoot !== null) inputs.push({ role: "temp", path: piAgentRoot }, { role: "temp", path: join(fixtureRoot, "packs", "pi-mcp-adapter") });
+  const proofs = await proveOperationPaths({
+    inputs,
+    allowedRoots: [fixtureRoot],
+    requiredRoles: ["temp", "target"],
+  });
+
+  const digest = reviewedDigest("mcp-fixture", {
+    harness: options.harness,
+    server: options.server,
+    fixtureRoot,
+    packRoot,
+    configPath,
+    piAgentRoot,
+    package: { name: locked.package, version: locked.version, integrity: locked.integrity },
+    piBridge: bridge === null ? null : { name: bridge.package, version: bridge.version, integrity: bridge.integrity },
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "mcp-fixture",
+    harness: options.harness,
+    server: options.server,
+    fixtureRoot,
+    packRoot,
+    configPath,
+    piAgentRoot,
+    package: { name: locked.package, version: locked.version, integrity: locked.integrity },
+    piBridge: bridge === null ? null : { name: bridge.package, version: bridge.version, integrity: bridge.integrity },
+    proofs,
+    digest,
+  };
+}
+
 export async function runMcpFixture(options: {
   harness: HarnessId;
   server: McpServerId;
   lock: StackLock;
   keep?: boolean;
+  /** A fixture plan reviewed by the operation that authorized this run. */
+  plan?: McpFixtureOperationPlan;
+  /** The operation writer; the fixture refuses to start before it exists. */
+  session?: MutationSession;
 }): Promise<McpFixtureResult> {
   const locked = options.lock.components.mcp?.[options.server];
   if (!locked) throw new Error(`Stable lock has no MCP component: ${options.server}`);
-  const fixtureRoot = await mkdtemp(join(tmpdir(), `alpha-aos-mcp-${options.server}-${options.harness}-`));
+  const reviewed = options.plan ?? await createMcpFixtureOperationPlan(options);
+  assertPlanUnchanged(reviewed, await createMcpFixtureOperationPlan({
+    harness: reviewed.harness,
+    server: reviewed.server,
+    lock: options.lock,
+    fixtureRoot: reviewed.fixtureRoot,
+  }));
+
+  const fixtureRoot = reviewed.fixtureRoot;
+  await beginFixture(reviewed, options.session);
   let retain = true;
   try {
     await verifyPackage(fixtureRoot, locked, options.server);
-    const configPath = fixtureConfigPath(fixtureRoot, options.harness);
+    const configPath = reviewed.configPath;
+    plannedProof(reviewed, "target", configPath);
     const plan = await planMcpSync(options.harness, options.lock, {
       configPath,
       selected: [options.server],
@@ -217,6 +321,7 @@ export async function runMcpFixture(options: {
     if (options.harness === "pi") {
       const bridge = options.lock.components.mcpBridges?.pi;
       if (!bridge) throw new Error("Stable lock has no Pi MCP bridge");
+      plannedProof(reviewed, "temp", reviewed.piAgentRoot as string);
       piBridgeVersion = await installPiBridge(fixtureRoot, bridge);
     }
     retain = options.keep ?? false;

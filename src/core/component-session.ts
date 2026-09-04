@@ -1,5 +1,7 @@
-import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import {
   recheckPathProof,
   type OperationPathProofSet,
@@ -33,14 +35,27 @@ export class ComponentPlanError extends Error {
   }
 }
 
-/** The part of a component plan this contract needs to reason about. */
-export interface ReviewedComponentPlan {
-  /** Names the component, so a refusal says which plan refused. */
+/** The part of any reviewed plan that path lookups and rechecks need. */
+export interface ReviewedPlanBoundary {
+  /** Names the operation, so a refusal says which plan refused. */
   readonly kind: string;
-  readonly stateRoot: string;
   readonly proofs: OperationPathProofSet;
   /** Stable over the plan's reviewable content, so review can be rechecked. */
   readonly digest: string;
+}
+
+/** The part of a component plan this contract needs to reason about. */
+export interface ReviewedComponentPlan extends ReviewedPlanBoundary {
+  readonly stateRoot: string;
+}
+
+/**
+ * A fixture writes only inside a throwaway root it names in advance, so it
+ * needs no state root — but it must not touch the disk before the operation
+ * that authorized it owns a writer.
+ */
+export interface ReviewedFixturePlan extends ReviewedPlanBoundary {
+  readonly fixtureRoot: string;
 }
 
 /**
@@ -78,7 +93,7 @@ export function declaredEnvironmentNames(policy: EnvironmentPolicy): string[] {
  * Returns the proof that authorized a path. An apply step that reaches for a
  * path the plan never proved is refused here rather than proving it late.
  */
-export function plannedProof(plan: ReviewedComponentPlan, role: OperationPathRole, path: string): PathProof {
+export function plannedProof(plan: ReviewedPlanBoundary, role: OperationPathRole, path: string): PathProof {
   const configured = resolve(path);
   const proof = plan.proofs.proofs.find((entry) => entry.role === role && entry.configured === configured);
   if (proof === undefined || !proof.proven) {
@@ -88,7 +103,7 @@ export function plannedProof(plan: ReviewedComponentPlan, role: OperationPathRol
 }
 
 /** Re-reads the ancestor chain immediately before the path is read or written. */
-export async function assertUnchangedSincePlan(plan: ReviewedComponentPlan, proof: PathProof): Promise<void> {
+export async function assertUnchangedSincePlan(plan: ReviewedPlanBoundary, proof: PathProof): Promise<void> {
   const recheck = await recheckPathProof(proof);
   if (!recheck.ok) {
     throw new ComponentPlanError(
@@ -99,7 +114,7 @@ export async function assertUnchangedSincePlan(plan: ReviewedComponentPlan, proo
 }
 
 /** Refuses when a re-read of the same inputs no longer produces the reviewed plan. */
-export function assertPlanUnchanged(reviewed: ReviewedComponentPlan, revalidated: ReviewedComponentPlan): void {
+export function assertPlanUnchanged(reviewed: ReviewedPlanBoundary, revalidated: ReviewedPlanBoundary): void {
   if (revalidated.digest !== reviewed.digest) {
     throw new ComponentPlanError(
       "plan-drift",
@@ -149,4 +164,31 @@ export async function withComponentSession<T>(
   } finally {
     await session.close();
   }
+}
+
+/**
+ * Takes the fixture root a plan named, refusing a squatted location.
+ *
+ * The directory is created non-recursively, so `EEXIST` is the same
+ * exclusive-create guarantee `mkdtemp` gave — with the path reviewed in
+ * advance instead of discovered here. When the operation that authorized this
+ * fixture holds a writer, that writer must already be open: no fixture may
+ * touch the disk before the session that authorized it exists.
+ */
+export async function beginFixture(plan: ReviewedFixturePlan, session?: MutationSession): Promise<void> {
+  if (!plan.proofs.proven) {
+    throw new ComponentPlanError(
+      "plan-incomplete",
+      `${plan.kind} path proof is incomplete: ${plan.proofs.code} — ${plan.proofs.detail ?? "no detail"}`,
+    );
+  }
+  session?.assertOwned();
+  const proof = plannedProof(plan, "temp", plan.fixtureRoot);
+  await assertUnchangedSincePlan(plan, proof);
+  await mkdir(plan.fixtureRoot, { recursive: false, mode: 0o700 });
+}
+
+/** A reviewed, unique location under the system temp root for a fixture. */
+export function plannedFixtureRoot(prefix: string): string {
+  return resolve(join(tmpdir(), `${prefix}-${randomUUID()}`));
 }

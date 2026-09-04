@@ -71,7 +71,18 @@ export interface MutationSession {
   readonly planDigest: string;
   /** Throws once the session has been closed, so a stale handle cannot write. */
   assertOwned(): void;
+  /**
+   * Names the next transaction in this operation. The first is the operation
+   * id itself; later ones carry a sequence suffix, so an operation that writes
+   * several times leaves several journals rather than overwriting one.
+   */
+  allocateTransactionId(): string;
   close(): Promise<void>;
+}
+
+/** True for a journal that belongs to this operation, first or subsequent. */
+export function isOperationJournalName(operationId: string, name: string): boolean {
+  return name === `${operationId}.json` || name.startsWith(`${operationId}--`);
 }
 
 export function writerLockPath(stateRoot: string): string {
@@ -200,6 +211,7 @@ export async function acquireMutationSession(options: {
   await syncDirectory(dirname(lockPath));
 
   let open_ = true;
+  let transactions = 0;
   return {
     operationId,
     token: record.token,
@@ -209,6 +221,11 @@ export async function acquireMutationSession(options: {
     planDigest: options.planDigest,
     assertOwned(): void {
       if (!open_) throw new Error(`Mutation session ${operationId} is already closed`);
+    },
+    allocateTransactionId(): string {
+      if (!open_) throw new Error(`Mutation session ${operationId} is already closed`);
+      transactions += 1;
+      return transactions === 1 ? operationId : `${operationId}--${transactions}`;
     },
     async close(): Promise<void> {
       if (!open_) return;
@@ -256,6 +273,22 @@ async function hashFile(path: string): Promise<string | null> {
   return createHash("sha256").update(await readFile(path)).digest("hex");
 }
 
+/** Every journal an operation wrote, in the order its transactions ran. */
+async function operationJournalPaths(stateRoot: string, operationId: string): Promise<string[]> {
+  const journalRoot = join(stateRoot, "journal");
+  if (!existsSync(journalRoot)) return [];
+  const names = (await readdir(journalRoot).catch(() => [] as string[]))
+    .filter((name) => name.endsWith(".json") && isOperationJournalName(operationId, name))
+    .sort();
+  // The unsuffixed journal is the first transaction, so it leads regardless of
+  // where a plain lexical sort would place it.
+  const first = `${operationId}.json`;
+  return [
+    ...(names.includes(first) ? [join(journalRoot, first)] : []),
+    ...names.filter((name) => name !== first).map((name) => join(journalRoot, name)),
+  ];
+}
+
 interface JournalShape {
   id?: string;
   status?: string;
@@ -282,36 +315,44 @@ export async function planWriterRepair(stateRoot: string): Promise<WriterRepairP
   }
 
   const journalPath = state.record?.journalPath ?? null;
-  if (journalPath === null || !existsSync(journalPath)) {
+  // One operation may write several transactions under its session, each with
+  // its own journal. Every one of them is evidence, so repair reads them all.
+  const operationId = state.record?.operationId ?? null;
+  const journalPaths = operationId === null
+    ? []
+    : await operationJournalPaths(stateRoot, operationId);
+  if (journalPath === null || journalPaths.length === 0) {
     // The lock is durable but the intent is not: nothing can be proven, so the
     // only honest answer is that a human must look.
     blockedReasons.push("no journal evidence exists for the interrupted operation");
     return finish(stateRoot, state, journalPath, targets, "none", blockedReasons);
   }
 
-  let journal: JournalShape;
-  try {
-    journal = JSON.parse(await readFile(journalPath, "utf8")) as JournalShape;
-  } catch {
-    blockedReasons.push("the journal is unreadable or malformed");
-    return finish(stateRoot, state, journalPath, targets, "none", blockedReasons);
-  }
-
-  for (const file of journal.files ?? []) {
-    if (typeof file.target !== "string") {
-      blockedReasons.push("a journal entry does not name its target");
-      continue;
+  for (const path of journalPaths) {
+    let journal: JournalShape;
+    try {
+      journal = JSON.parse(await readFile(path, "utf8")) as JournalShape;
+    } catch {
+      blockedReasons.push("the journal is unreadable or malformed");
+      return finish(stateRoot, state, journalPath, targets, "none", blockedReasons);
     }
-    const currentHash = await hashFile(file.target);
-    const beforeHash = file.beforeHash ?? null;
-    const afterHash = file.afterHash ?? null;
-    const classification: TargetClassification =
-      currentHash === null && afterHash === null ? "after"
-        : currentHash === null ? "missing"
-          : currentHash === afterHash ? "after"
-            : currentHash === beforeHash ? "before"
-              : "neither";
-    targets.push({ target: file.target, classification, beforeHash, afterHash, currentHash });
+
+    for (const file of journal.files ?? []) {
+      if (typeof file.target !== "string") {
+        blockedReasons.push("a journal entry does not name its target");
+        continue;
+      }
+      const currentHash = await hashFile(file.target);
+      const beforeHash = file.beforeHash ?? null;
+      const afterHash = file.afterHash ?? null;
+      const classification: TargetClassification =
+        currentHash === null && afterHash === null ? "after"
+          : currentHash === null ? "missing"
+            : currentHash === afterHash ? "after"
+              : currentHash === beforeHash ? "before"
+                : "neither";
+      targets.push({ target: file.target, classification, beforeHash, afterHash, currentHash });
+    }
   }
 
   const classifications = new Set(targets.map((entry) => entry.classification));

@@ -1,12 +1,24 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
-import { resolveNodePackageCli, runProcess } from "./process.js";
+import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
 import { applyCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  assertUnchangedSincePlan,
+  beginFixture,
+  declaredEnvironmentNames,
+  declaredProcessSpec,
+  plannedFixtureRoot,
+  plannedProof,
+  reviewedDigest,
+} from "./component-session.js";
 
 export type GsdFixtureHarness = Exclude<HarnessId, "hermes">;
 
@@ -115,25 +127,127 @@ async function countFiles(root: string, predicate: (path: string) => boolean = (
   return count;
 }
 
+// ---------------------------------------------------------------------------
+// Complete fixture operation plan
+// ---------------------------------------------------------------------------
+
+export interface GsdFixtureOperationPlan {
+  kind: "gsd-fixture";
+  harness: GsdFixtureHarness;
+  /** Named before it exists, so the location is reviewed rather than discovered. */
+  fixtureRoot: string;
+  syntheticHome: string;
+  configRoot: string;
+  /** The throwaway state root the fixture's own Codex hook sync writes under. */
+  fixtureStateRoot: string;
+  package: { name: string; version: string; integrity: string; profile: string };
+  /** The one child this fixture runs, declared before it runs. */
+  spec: ProcessSpec;
+  environmentNames: readonly string[];
+  /** Real-home paths that must be byte-identical after the fixture runs. */
+  sentinels: readonly string[];
+  proofs: OperationPathProofSet;
+  digest: string;
+}
+
+/**
+ * Enumerates every path and child this fixture may use, before it creates
+ * anything. The fixture root is named here rather than by `mkdtemp` during
+ * apply, so a caller can review the exact location it will write to.
+ */
+export async function createGsdFixtureOperationPlan(options: {
+  harness: GsdFixtureHarness;
+  gsd: LockedPackage & { profile: string };
+  fixtureRoot?: string;
+}): Promise<GsdFixtureOperationPlan> {
+  const fixtureRoot = resolve(options.fixtureRoot ?? plannedFixtureRoot(`alpha-aos-gsd-${options.harness}`));
+  const spec = createGsdFixtureSpec({ harness: options.harness, fixtureRoot, gsd: options.gsd });
+  const fixtureStateRoot = join(fixtureRoot, "state");
+  const realHome = homedir();
+  const sentinels = [join(realHome, ".agents"), join(realHome, ".gsd")];
+  const environment = nodeRuntimeEnvironment({ literal: spec.fixtureEnvironment });
+
+  const declared = declaredProcessSpec({
+    executable: spec.executable,
+    args: spec.args,
+    cwd: fixtureRoot,
+    timeoutMs: 180_000,
+    maxOutputBytes: 256 * 1024,
+    environment,
+  });
+
+  const inputs: OperationPathInput[] = [
+    { role: "temp", path: fixtureRoot },
+    { role: "temp", path: spec.syntheticHome },
+    { role: "temp", path: spec.configRoot },
+    { role: "temp", path: fixtureStateRoot },
+  ];
+  const proofs = await proveOperationPaths({
+    inputs,
+    allowedRoots: [fixtureRoot],
+    requiredRoles: ["temp"],
+  });
+
+  const digest = reviewedDigest("gsd-fixture", {
+    harness: options.harness,
+    fixtureRoot,
+    syntheticHome: spec.syntheticHome,
+    configRoot: spec.configRoot,
+    fixtureStateRoot,
+    package: { name: options.gsd.package, version: options.gsd.version, integrity: options.gsd.integrity, profile: options.gsd.profile },
+    spec: declared,
+    environmentNames: declaredEnvironmentNames(environment),
+    sentinels,
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "gsd-fixture",
+    harness: options.harness,
+    fixtureRoot,
+    syntheticHome: spec.syntheticHome,
+    configRoot: spec.configRoot,
+    fixtureStateRoot,
+    package: { name: options.gsd.package, version: options.gsd.version, integrity: options.gsd.integrity, profile: options.gsd.profile },
+    spec: declared,
+    environmentNames: declaredEnvironmentNames(environment),
+    sentinels,
+    proofs,
+    digest,
+  };
+}
+
 export async function runGsdFixture(options: {
   harness: GsdFixtureHarness;
   gsd: LockedPackage & { profile: string };
   keep?: boolean;
+  /** A fixture plan reviewed by the operation that authorized this run. */
+  plan?: GsdFixtureOperationPlan;
+  /**
+   * The operation's writer. A fixture writes only inside its own throwaway
+   * root, so it never consumes this session — but it refuses to touch the disk
+   * before the session that authorized it exists.
+   */
+  session?: MutationSession;
 }): Promise<GsdFixtureResult> {
-  const realHome = homedir();
-  const sentinels = [join(realHome, ".agents"), join(realHome, ".gsd")];
+  const reviewed = options.plan ?? await createGsdFixtureOperationPlan(options);
+  assertPlanUnchanged(reviewed, await createGsdFixtureOperationPlan({
+    harness: reviewed.harness,
+    gsd: options.gsd,
+    fixtureRoot: reviewed.fixtureRoot,
+  }));
+
+  const sentinels = [...reviewed.sentinels];
   const before = await Promise.all(sentinels.map(hashTree));
-  const fixtureRoot = await mkdtemp(join(tmpdir(), `alpha-aos-gsd-${options.harness}-`));
-  const spec = createGsdFixtureSpec({ harness: options.harness, fixtureRoot, gsd: options.gsd });
+  const fixtureRoot = reviewed.fixtureRoot;
+  const spec = createGsdFixtureSpec({ harness: reviewed.harness, fixtureRoot, gsd: options.gsd });
+  await beginFixture(reviewed, options.session);
   await mkdir(spec.syntheticHome, { recursive: true });
   let retain = true;
   try {
+    await assertUnchangedSincePlan(reviewed, plannedProof(reviewed, "temp", spec.configRoot));
     const command = await runProcess({
-      executable: spec.executable,
-      args: spec.args,
-      cwd: fixtureRoot,
-      timeoutMs: 180_000,
-      maxOutputBytes: 256 * 1024,
+      ...reviewed.spec,
       // The fixture redirects every harness root at its synthetic home, so
       // the child cannot reach the real one even by accident.
       environment: nodeRuntimeEnvironment({ literal: spec.fixtureEnvironment }),
@@ -147,8 +261,10 @@ export async function runGsdFixture(options: {
         generatedAt: null,
         components: { gsd: options.gsd },
       }, {
+        // A throwaway state root of its own: one session owns one state root,
+        // and this is not the user's.
         configRoot: spec.configRoot,
-        stateRoot: join(fixtureRoot, "state"),
+        stateRoot: reviewed.fixtureStateRoot,
       });
       codexStopHookSmokePassed = (await smokeTestCodexGsdStopHook(spec.configRoot)).ok;
       if (!codexStopHookSmokePassed) throw new Error("GSD fixture Codex Stop hook smoke test failed");
@@ -163,7 +279,7 @@ export async function runGsdFixture(options: {
     const fileCount = await countFiles(fixtureRoot);
     retain = options.keep ?? false;
     return {
-      harness: options.harness,
+      harness: reviewed.harness,
       version,
       profile,
       runtime,

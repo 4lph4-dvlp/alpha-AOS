@@ -1,11 +1,24 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
-import { resolveNodePackageCli, runProcess } from "./process.js";
+import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
+import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
+import type { MutationSession } from "./writer-lock.js";
+import {
+  assertPlanUnchanged,
+  assertUnchangedSincePlan,
+  beginFixture,
+  ComponentPlanError,
+  declaredEnvironmentNames,
+  declaredProcessSpec,
+  plannedFixtureRoot,
+  plannedProof,
+  reviewedDigest,
+} from "./component-session.js";
 
 const selectedSkills = ["unified-memory", "documentation-lookup", "deep-research"] as const;
 export type SelectedEccSkill = typeof selectedSkills[number];
@@ -101,76 +114,209 @@ function parsePackResult(stdout: string): PackResult {
   return { filename: value.filename, integrity: value.integrity };
 }
 
-export async function runEccFixture(options: {
+// ---------------------------------------------------------------------------
+// Complete fixture operation plan
+// ---------------------------------------------------------------------------
+
+export interface EccFixtureProcessStep {
+  step: "pack" | "extract";
+  spec: ProcessSpec;
+  /**
+   * An argument only the previous step can produce. Apply may substitute it,
+   * but only with a path inside `withinRoot`, which the plan proved.
+   */
+  deferredArgument: { index: number; kind: "archive"; withinRoot: string } | null;
+}
+
+export interface EccFixtureOperationPlan {
+  kind: "ecc-fixture";
+  harness: HarnessId;
+  /** Named before it exists, so the location is reviewed rather than discovered. */
+  fixtureRoot: string;
+  packRoot: string;
+  extractionRoot: string;
+  syntheticHome: string;
+  /** Where the rendered skills land: `<targetRoot>/<skill>/SKILL.md`. */
+  targetRoot: string;
+  sourceRoot: string;
+  package: { name: string; version: string; integrity: string };
+  skills: readonly SelectedEccSkill[];
+  processes: readonly EccFixtureProcessStep[];
+  environmentNames: readonly string[];
+  proofs: OperationPathProofSet;
+  digest: string;
+}
+
+/**
+ * Enumerates every path and child this fixture may use, before it creates
+ * anything. The rendered skill files are therefore addressable by a caller
+ * that wants to copy them, rather than discovered once a temp directory
+ * happens to exist.
+ */
+export async function createEccFixtureOperationPlan(options: {
   harness: HarnessId;
   ecc: LockedPackage & { skills: string[] };
-  keep?: boolean;
-}): Promise<EccFixtureResult> {
+  fixtureRoot?: string;
+}): Promise<EccFixtureOperationPlan> {
   if (selectedSkills.some((skill) => !options.ecc.skills.includes(skill))) throw new Error("ECC lock does not contain all selected logical skills");
-  const fixtureRoot = await mkdtemp(join(tmpdir(), `alpha-aos-ecc-${options.harness}-`));
+  const fixtureRoot = resolve(options.fixtureRoot ?? plannedFixtureRoot(`alpha-aos-ecc-${options.harness}`));
   const packRoot = join(fixtureRoot, "pack");
   const extractionRoot = join(fixtureRoot, "extract");
   const syntheticHome = join(fixtureRoot, "home");
   const targetRoot = eccSkillRoot(options.harness, syntheticHome);
-  await mkdir(packRoot, { recursive: true });
+  const sourceRoot = join(extractionRoot, "node_modules", "ecc-universal", "skills");
   const npm = resolveNodePackageCli("npm");
+  const environment = nodeRuntimeEnvironment();
+
+  const extractArgs = [
+    ...npm.argsPrefix,
+    "install",
+    "--prefix",
+    extractionRoot,
+    "",
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+    "--package-lock=false",
+  ];
+  const processes: EccFixtureProcessStep[] = [
+    {
+      step: "pack",
+      spec: declaredProcessSpec({
+        executable: npm.executable,
+        args: [...npm.argsPrefix, "pack", `${options.ecc.package}@${options.ecc.version}`, "--json", "--pack-destination", packRoot],
+        cwd: fixtureRoot,
+        timeoutMs: 180_000,
+        maxOutputBytes: 256 * 1024,
+        environment,
+      }),
+      deferredArgument: null,
+    },
+    {
+      step: "extract",
+      spec: declaredProcessSpec({
+        executable: npm.executable,
+        args: extractArgs,
+        cwd: fixtureRoot,
+        timeoutMs: 180_000,
+        maxOutputBytes: 256 * 1024,
+        environment,
+      }),
+      deferredArgument: { index: extractArgs.indexOf(""), kind: "archive", withinRoot: packRoot },
+    },
+  ];
+
+  const inputs: OperationPathInput[] = [
+    { role: "temp", path: fixtureRoot },
+    { role: "temp", path: packRoot },
+    { role: "temp", path: extractionRoot },
+    { role: "temp", path: syntheticHome },
+    { role: "temp", path: targetRoot },
+    { role: "package-root", path: join(extractionRoot, "node_modules", "ecc-universal") },
+    { role: "source", path: sourceRoot },
+    ...selectedSkills.map((skill): OperationPathInput => ({ role: "target", path: join(targetRoot, skill, "SKILL.md") })),
+  ];
+  const proofs = await proveOperationPaths({
+    inputs,
+    allowedRoots: [fixtureRoot],
+    requiredRoles: ["temp", "target", "source", "package-root"],
+  });
+
+  const digest = reviewedDigest("ecc-fixture", {
+    harness: options.harness,
+    fixtureRoot,
+    packRoot,
+    extractionRoot,
+    syntheticHome,
+    targetRoot,
+    sourceRoot,
+    package: { name: options.ecc.package, version: options.ecc.version, integrity: options.ecc.integrity },
+    skills: selectedSkills,
+    processes,
+    environmentNames: declaredEnvironmentNames(environment),
+    boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
+  });
+
+  return {
+    kind: "ecc-fixture",
+    harness: options.harness,
+    fixtureRoot,
+    packRoot,
+    extractionRoot,
+    syntheticHome,
+    targetRoot,
+    sourceRoot,
+    package: { name: options.ecc.package, version: options.ecc.version, integrity: options.ecc.integrity },
+    skills: selectedSkills,
+    processes,
+    environmentNames: declaredEnvironmentNames(environment),
+    proofs,
+    digest,
+  };
+}
+
+export async function runEccFixture(options: {
+  harness: HarnessId;
+  ecc: LockedPackage & { skills: string[] };
+  keep?: boolean;
+  /** A fixture plan reviewed by the operation that authorized this run. */
+  plan?: EccFixtureOperationPlan;
+  /** The operation writer; the fixture refuses to start before it exists. */
+  session?: MutationSession;
+}): Promise<EccFixtureResult> {
+  const reviewed = options.plan ?? await createEccFixtureOperationPlan(options);
+  assertPlanUnchanged(reviewed, await createEccFixtureOperationPlan({
+    harness: reviewed.harness,
+    ecc: options.ecc,
+    fixtureRoot: reviewed.fixtureRoot,
+  }));
+
+  const fixtureRoot = reviewed.fixtureRoot;
+  const targetRoot = reviewed.targetRoot;
+  const sourceRoot = reviewed.sourceRoot;
+  await beginFixture(reviewed, options.session);
+  await mkdir(reviewed.packRoot, { mode: 0o700 });
   let retain = true;
   try {
-    const packed = await runProcess({
-      executable: npm.executable,
-      args: [
-        ...npm.argsPrefix,
-        "pack",
-        `${options.ecc.package}@${options.ecc.version}`,
-        "--json",
-        "--pack-destination",
-        packRoot,
-      ],
-      cwd: fixtureRoot,
-      timeoutMs: 180_000,
-      maxOutputBytes: 256 * 1024,
-      environment: nodeRuntimeEnvironment(),
-    });
+    const packStep = reviewed.processes.find((step) => step.step === "pack");
+    const extractStep = reviewed.processes.find((step) => step.step === "extract");
+    if (!packStep || !extractStep?.deferredArgument) {
+      throw new ComponentPlanError("unplanned-path", "ECC fixture package steps were not planned");
+    }
+    const packed = await runProcess({ ...packStep.spec, environment: nodeRuntimeEnvironment() });
     if (packed.code !== "ok") throw new Error(describeProcessFailure("npm pack", packed));
     const pack = parsePackResult(packed.stdout.excerpt);
     if (pack.integrity !== options.ecc.integrity) throw new Error(`ECC tarball integrity mismatch: expected ${options.ecc.integrity}, got ${pack.integrity}`);
-    const archive = join(packRoot, basename(pack.filename));
-    if (!existsSync(archive)) throw new Error(`npm pack archive is missing: ${archive}`);
-    const installed = await runProcess({
-      executable: npm.executable,
-      args: [
-        ...npm.argsPrefix,
-        "install",
-        "--prefix",
-        extractionRoot,
-        archive,
-        "--ignore-scripts",
-        "--no-audit",
-        "--no-fund",
-        "--package-lock=false",
-      ],
-      cwd: fixtureRoot,
-      timeoutMs: 180_000,
-      maxOutputBytes: 256 * 1024,
-      environment: nodeRuntimeEnvironment(),
-    });
+    const deferred = extractStep.deferredArgument;
+    const archive = join(deferred.withinRoot, basename(pack.filename));
+    // The archive name comes from a child, so it is only accepted inside the
+    // root the plan proved for it.
+    if (!inside(deferred.withinRoot, archive) || !existsSync(archive)) {
+      throw new ComponentPlanError("unplanned-path", `npm pack archive is not inside the planned pack root: ${archive}`);
+    }
+    const extractArguments = [...extractStep.spec.args];
+    extractArguments[deferred.index] = archive;
+    const installed = await runProcess({ ...extractStep.spec, args: extractArguments, environment: nodeRuntimeEnvironment() });
     if (installed.code !== "ok") throw new Error(describeProcessFailure("ECC tarball extraction", installed));
-    const sourceRoot = join(extractionRoot, "node_modules", "ecc-universal", "skills");
+    await assertUnchangedSincePlan(reviewed, plannedProof(reviewed, "source", sourceRoot));
     const sourceHashes = {} as Record<SelectedEccSkill, string>;
     const targetHashes = {} as Record<SelectedEccSkill, string>;
     for (const skill of selectedSkills) {
       const source = await readFile(join(sourceRoot, skill, "SKILL.md"), "utf8");
-      const rendered = renderEccSkill(skill, source, options.harness);
+      const rendered = renderEccSkill(skill, source, reviewed.harness);
       sourceHashes[skill] = sha256(source);
       targetHashes[skill] = sha256(rendered);
       const destination = join(targetRoot, skill, "SKILL.md");
       if (!inside(targetRoot, destination)) throw new Error(`Unsafe ECC fixture destination: ${destination}`);
+      // The destination was proven at review time; apply looks it up rather
+      // than proving a path it just computed.
+      plannedProof(reviewed, "target", destination);
       await mkdir(join(targetRoot, skill), { recursive: true });
       await writeFile(destination, rendered, { encoding: "utf8", mode: 0o600 });
     }
     retain = options.keep ?? false;
     return {
-      harness: options.harness,
+      harness: reviewed.harness,
       version: options.ecc.version,
       integrity: pack.integrity,
       operationCount: selectedSkills.length,

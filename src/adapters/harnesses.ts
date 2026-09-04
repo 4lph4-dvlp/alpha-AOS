@@ -3,7 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { HarnessId, HarnessInventory, StackCatalog } from "../types.js";
 import { redactHome } from "../core/paths.js";
-import { readCommandVersion, resolveCommand } from "../core/process.js";
+import { probeCommand } from "../core/process.js";
 
 interface ProbeDefinition {
   commands: string[];
@@ -46,17 +46,21 @@ const probes: Record<HarnessId, ProbeDefinition> = {
 
 export function probeHarness(id: HarnessId, catalog: StackCatalog): HarnessInventory {
   const definition = probes[id];
-  const command = definition.commands.map(resolveCommand).find((value) => value !== null) ?? null;
+  const probe = definition.commands.map(probeCommand).find((value) => value.command !== null)
+    ?? { command: null, version: null, unsupportedReason: null };
+  const command = probe.command;
   const roots = definition.configRoots().filter(existsSync);
   const notes: string[] = [];
   if (!command && roots.length > 0) notes.push("config detected, CLI command not found");
+  // An unreadable version is reported as unsupported, never simulated.
+  if (probe.unsupportedReason !== null) notes.push(`version unavailable: ${probe.unsupportedReason}`);
   if (id === "hermes") notes.push("worker-only by stack policy; not a GSD state writer");
   if (id === "pi") notes.push("Pi 0.84.4+ discovers Agent Skills from the shared ~/.agents/skills root; extensions remain separate");
   return {
     id,
     displayName: catalog.harnesses[id].displayName,
     command: command ? redactHome(command) : null,
-    version: command ? readCommandVersion(command) : null,
+    version: probe.version,
     configRoots: roots.map(redactHome),
     detected: command !== null || roots.length > 0,
     notes,

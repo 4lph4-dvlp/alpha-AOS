@@ -1,11 +1,10 @@
 import type { Inventory, StackCatalog } from "../types.js";
 import { harnessIds, probeHarness } from "../adapters/harnesses.js";
-import { readCommandVersion, resolveCommand } from "./process.js";
+import { probeCommand } from "./process.js";
 
 function toolVersion(command: string): { version: string | null; command: string | null } {
-  const path = resolveCommand(command);
-  if (!path) return { version: null, command: null };
-  return { version: readCommandVersion(path), command: path };
+  const probe = probeCommand(command);
+  return { version: probe.version, command: probe.command };
 }
 
 export function collectInventory(catalog: StackCatalog): Inventory {

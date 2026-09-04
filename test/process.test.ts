@@ -1,4 +1,4 @@
-// Wave 0 corpus for SAFE-06 (D-12).
+// Contract for SAFE-06 (D-12).
 //
 // External commands must run without a shell, receive only an explicitly
 // approved environment, terminate on a timeout or an output cap, and return
@@ -11,7 +11,17 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { readCommandVersion, resolveCommand, resolveNodePackageCli, runCommandCapture } from "../src/core/process.js";
+import {
+  isDirectlyExecutable,
+  materializeEnvironment,
+  normalizeProcessSpec,
+  PLATFORM_FLOOR_ENVIRONMENT,
+  ProcessPolicyError,
+  readCommandVersion,
+  resolveCommand,
+  resolveNodePackageCli,
+  runProcess,
+} from "../src/core/process.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -41,13 +51,7 @@ async function createProcessFixture(context: { after: (fn: () => Promise<unknown
   // crossed the process boundary.
   await writeFile(
     echoScript,
-    [
-      "process.stdout.write(JSON.stringify({",
-      "  argv: process.argv.slice(2),",
-      "  env: process.env,",
-      "}));",
-      "",
-    ].join("\n"),
+    "process.stdout.write(JSON.stringify({ argv: process.argv.slice(2), env: process.env }));\n",
     "utf8",
   );
 
@@ -78,14 +82,6 @@ async function createProcessFixture(context: { after: (fn: () => Promise<unknown
   return { root, echoScript, floodScript, sleepScript, spawnerScript, sideEffect };
 }
 
-function capture(fixture: ProcessFixture, args: string[], env: NodeJS.ProcessEnv, timeout?: number) {
-  return runCommandCapture(process.execPath, args, {
-    cwd: fixture.root,
-    env,
-    ...(timeout === undefined ? {} : { timeout }),
-  });
-}
-
 test("shell metacharacters in an argument stay data and never execute", async (context) => {
   const fixture = await createProcessFixture(context);
 
@@ -102,9 +98,13 @@ test("shell metacharacters in an argument stay data and never execute", async (c
   ];
 
   for (const injection of injections) {
-    const result = capture(fixture, [fixture.echoScript, injection], { ...process.env });
-    assert.equal(result.status, 0, `the child failed for injection: ${injection}`);
-    const reported = JSON.parse(result.stdout) as { argv: string[] };
+    const result = await runProcess({
+      executable: process.execPath,
+      args: [fixture.echoScript, injection],
+      cwd: fixture.root,
+    });
+    assert.equal(result.code, "ok", `the child failed for injection: ${injection}`);
+    const reported = JSON.parse(result.stdout.excerpt) as { argv: string[] };
     assert.deepEqual(reported.argv, [injection], "the argument must arrive verbatim as a single argv entry");
     assert.equal(existsSync(fixture.sideEffect), false, `injection executed a side effect: ${injection}`);
   }
@@ -113,92 +113,154 @@ test("shell metacharacters in an argument stay data and never execute", async (c
 test("only operation-approved environment names reach the child", async (context) => {
   const fixture = await createProcessFixture(context);
 
-  const result = capture(fixture, [fixture.echoScript], {
-    // A caller passes an allowlist. Anything the parent happens to hold must
-    // not arrive on its own.
-    ALPHA_AOS_ALLOWED: "yes",
-    PATH: process.env.PATH ?? "",
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.echoScript],
+    cwd: fixture.root,
+    environment: {
+      optional: ["ALPHA_AOS_ALLOWED"],
+      // The ambient environment is offered as a source, but only the declared
+      // names may cross the boundary.
+      source: { ...process.env, ALPHA_AOS_ALLOWED: "yes", ALPHA_AOS_TOKEN: ENV_SECRET },
+    },
   });
-  const reported = JSON.parse(result.stdout) as { env: Record<string, string> };
+  const reported = JSON.parse(result.stdout.excerpt) as { env: Record<string, string> };
 
   assert.equal(reported.env.ALPHA_AOS_ALLOWED, "yes", "an approved name must be delivered");
   for (const forbidden of ["ALPHA_AOS_TOKEN", "AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN", "npm_config__auth"]) {
     assert.equal(
       Object.hasOwn(reported.env, forbidden),
       false,
-      `the ambient name ${forbidden} leaked into the child environment`,
+      `the undeclared name ${forbidden} leaked into the child environment`,
     );
   }
+
+  // Nothing beyond the declared names and the documented platform floor may
+  // cross the boundary. Widening that floor silently is the regression here.
+  const unexpected = Object.keys(reported.env).filter(
+    (name) => name !== "ALPHA_AOS_ALLOWED" && !PLATFORM_FLOOR_ENVIRONMENT.includes(name),
+  );
+  assert.deepEqual(unexpected, [], `undeclared names crossed the process boundary: ${unexpected.join(", ")}`);
 });
 
-test("environment names that collide only by case are rejected deterministically", async (context) => {
+test("the platform environment floor is declared rather than discovered at runtime", async (context) => {
   const fixture = await createProcessFixture(context);
 
+  // Windows injects system variables no allowlist can suppress. The adapter
+  // must name them so callers can reason about what a child really sees.
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.echoScript],
+    cwd: fixture.root,
+    environment: { source: {} },
+  });
+  const reported = JSON.parse(result.stdout.excerpt) as { env: Record<string, string> };
+  const observed = Object.keys(reported.env).sort();
+
+  assert.deepEqual(
+    observed,
+    [...PLATFORM_FLOOR_ENVIRONMENT].sort(),
+    "the declared platform floor must match what the OS actually delivers",
+  );
+});
+
+test("a required environment name that is absent refuses before spawning", async (context) => {
+  const fixture = await createProcessFixture(context);
+
+  await assert.rejects(
+    () =>
+      runProcess({
+        executable: process.execPath,
+        args: [fixture.echoScript],
+        cwd: fixture.root,
+        environment: { required: ["ALPHA_AOS_ABSENT"], source: {} },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProcessPolicyError);
+      assert.equal(error.code, "missing-required-environment");
+      return true;
+    },
+  );
+});
+
+test("environment names that collide only by case are rejected deterministically", () => {
   // On Windows the environment is case-insensitive, so two names differing
   // only in case are an ambiguous request and must not be resolved silently.
   assert.throws(
     () =>
-      capture(fixture, [fixture.echoScript], {
-        ALPHA_AOS_MODE: "one",
-        alpha_aos_mode: "two",
-        PATH: process.env.PATH ?? "",
+      materializeEnvironment({
+        optional: ["ALPHA_AOS_MODE", "alpha_aos_mode"],
+        source: { ALPHA_AOS_MODE: "one", alpha_aos_mode: "two" },
       }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProcessPolicyError);
+      assert.equal(error.code, "environment-conflict");
+      return true;
+    },
     "a case-colliding environment allowlist must be refused rather than silently resolved",
+  );
+
+  // The same name twice is not a collision.
+  assert.deepEqual(
+    materializeEnvironment({ optional: ["ALPHA_AOS_MODE", "ALPHA_AOS_MODE"], source: { ALPHA_AOS_MODE: "one" } }),
+    { ALPHA_AOS_MODE: "one" },
   );
 });
 
-test("a timeout terminates the child and reports the timeout as evidence", async (context) => {
+test("a timeout terminates the child and reports the timeout as typed evidence", async (context) => {
   const fixture = await createProcessFixture(context);
 
   const startedAt = Date.now();
-  let timedOut = false;
-  let evidence: unknown;
-  try {
-    evidence = capture(fixture, [fixture.sleepScript], { ...process.env }, 1500);
-  } catch (error) {
-    timedOut = true;
-    evidence = error;
-  }
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.sleepScript],
+    cwd: fixture.root,
+    timeoutMs: 1500,
+  });
   const elapsed = Date.now() - startedAt;
 
   assert.ok(elapsed < 10_000, `the timeout did not terminate the child (${elapsed}ms elapsed)`);
-  const serialized = JSON.stringify(evidence ?? {});
-  assert.ok(
-    timedOut || serialized.includes("timedOut") || serialized.includes("timeout"),
-    "a timed-out command must report the timeout as a typed field rather than an ordinary failure",
-  );
+  assert.equal(result.code, "timeout", "a timed-out command must report a typed timeout code");
+  assert.equal(result.timedOut, true);
+  assert.ok(result.durationMs >= 1000, "the observed duration must be reported");
 });
 
 test("unbounded child output is capped and reported as capped", async (context) => {
   const fixture = await createProcessFixture(context);
 
-  const result = capture(fixture, [fixture.floodScript], { ...process.env }, 30_000);
-  const total = result.stdout.length + result.stderr.length;
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.floodScript],
+    cwd: fixture.root,
+    timeoutMs: 30_000,
+    maxOutputBytes: 64 * 1024,
+  });
 
   assert.ok(
-    total <= 1_000_000,
-    `child output was not capped: captured ${total} bytes, so a hostile child can exhaust memory`,
+    result.stdout.excerpt.length <= 64 * 1024,
+    `child output was not capped: retained ${result.stdout.excerpt.length} bytes`,
   );
-  const serialized = JSON.stringify(result);
+  assert.equal(result.stdout.capped, true, "a capped capture must say it was capped");
+  assert.equal(result.outputCapped, true);
+  assert.equal(result.stdout.sha256.length, 64, "the complete stream must still be fingerprinted");
   assert.ok(
-    serialized.includes("truncated") || serialized.includes("capped") || serialized.includes("outputHash"),
-    "a capped capture must say it was capped and carry a whole-output fingerprint",
+    result.stdout.totalBytes > result.stdout.excerpt.length,
+    "the untruncated size must stay observable after capping",
   );
 });
 
 test("a timed-out command leaves no descendant process behind", async (context) => {
   const fixture = await createProcessFixture(context);
 
-  let descendantPid: number | null = null;
-  try {
-    const result = capture(fixture, [fixture.spawnerScript, fixture.sleepScript], { ...process.env }, 1500);
-    const parsed = Number.parseInt(result.stdout.trim(), 10);
-    descendantPid = Number.isFinite(parsed) ? parsed : null;
-  } catch {
-    descendantPid = null;
-  }
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.spawnerScript, fixture.sleepScript],
+    cwd: fixture.root,
+    timeoutMs: 1500,
+  });
 
-  if (descendantPid === null) {
+  const descendantPid = Number.parseInt(result.stdout.excerpt.trim(), 10);
+  if (!Number.isFinite(descendantPid)) {
     context.diagnostic("descendant pid was not observable; the process tree assertion could not be evaluated");
     return;
   }
@@ -213,19 +275,23 @@ test("a timed-out command leaves no descendant process behind", async (context) 
   assert.equal(alive, false, "a timed-out command left a descendant process running");
 });
 
-test("a captured result carries no raw bytes and no shell trace", async (context) => {
+test("a captured result carries no raw secret and no shell trace", async (context) => {
   const fixture = await createProcessFixture(context);
 
-  // A minimal environment: anything the result mentions came from the adapter,
-  // not from the child echoing an inherited environment back.
-  const result = capture(fixture, [fixture.echoScript, `--token=${ENV_SECRET}`], {
-    ALPHA_AOS_TOKEN: ENV_SECRET,
-    PATH: process.env.PATH ?? "",
+  // The child echoes the environment it was given, including a secret-bearing
+  // name. The adapter handed that value over, so it must also redact it back.
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.echoScript, `--token=${ENV_SECRET}`],
+    cwd: fixture.root,
+    environment: { literal: { ALPHA_AOS_TOKEN: ENV_SECRET }, source: {} },
   });
   const serialized = JSON.stringify(result);
 
   assert.equal(serialized.includes(ENV_SECRET), false, "the captured result carried a secret verbatim");
-  assert.ok(Object.hasOwn(result, "status"), "a captured result must expose typed exit metadata");
+  assert.match(result.stdout.excerpt, /\[redacted:secret:/u, "the withheld value must leave a typed placeholder");
+  assert.equal(result.stdout.sha256.length, 64, "typed exit metadata must include a stream fingerprint");
+  assert.equal(result.code, "ok");
 });
 
 test("the adapter never routes a command through a shell interpreter", async (context) => {
@@ -236,12 +302,25 @@ test("the adapter never routes a command through a shell interpreter", async (co
   const argvOnly = join(fixture.root, "argv-only.mjs");
   await writeFile(argvOnly, "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n", "utf8");
 
-  const result = capture(fixture, [argvOnly, "plain-argument"], { PATH: process.env.PATH ?? "" });
+  const result = await runProcess({ executable: process.execPath, args: [argvOnly, "plain-argument"], cwd: fixture.root });
   const serialized = JSON.stringify(result).toLowerCase();
 
   for (const shellTrace of ["cmd.exe", "/bin/sh", "powershell.exe", "comspec"]) {
     assert.equal(serialized.includes(shellTrace), false, `the execution path shows a shell: ${shellTrace}`);
   }
+});
+
+test("a relative executable is refused rather than resolved through a PATH search", async (context) => {
+  const fixture = await createProcessFixture(context);
+
+  await assert.rejects(
+    () => runProcess({ executable: "node", args: ["--version"], cwd: fixture.root }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProcessPolicyError);
+      assert.equal(error.code, "unsupported-executable");
+      return true;
+    },
+  );
 });
 
 test("known npm and npx shims normalize to node plus an exact CLI script", () => {
@@ -272,18 +351,17 @@ test("an arbitrary cmd or bat input is unsupported rather than routed through a 
   const batch = join(fixture.root, "payload.bat");
   await writeFile(batch, `@echo off\r\necho pwned > "${fixture.sideEffect}"\r\n`, "utf8");
 
-  // Reading a version from an arbitrary batch file must be refused, not run
-  // through cmd.exe. `readCommandVersion` currently does the opposite.
-  let refused = false;
-  try {
-    const version = readCommandVersion(batch);
-    refused = version === null;
-  } catch {
-    refused = true;
-  }
-
+  assert.equal(isDirectlyExecutable(batch), false, "a batch file is not directly executable");
+  assert.equal(readCommandVersion(batch), null, "an arbitrary batch input must be reported unsupported");
+  assert.throws(
+    () => normalizeProcessSpec({ executable: batch, args: [], cwd: fixture.root }),
+    (error: unknown) => {
+      assert.ok(error instanceof ProcessPolicyError);
+      assert.equal(error.code, "unsupported-executable");
+      return true;
+    },
+  );
   assert.equal(existsSync(fixture.sideEffect), false, "an arbitrary batch file was executed through a shell");
-  assert.equal(refused, true, "an arbitrary batch input must be reported unsupported rather than executed");
 });
 
 test("the repository ships no shell-enabled spawn in its process adapter", async () => {
@@ -300,4 +378,27 @@ test("the repository ships no shell-enabled spawn in its process adapter", async
     false,
     "the process adapter must not route commands through a shell interpreter",
   );
+});
+
+test("the MCP filter proxy inherits neither the ambient environment nor stderr", async () => {
+  const proxy = await readFile(join(repositoryRoot, "src", "core", "mcp-proxy.ts"), "utf8");
+
+  // Match a call or an import, not a comment explaining why it is avoided.
+  assert.equal(
+    /getDefaultEnvironment\s*\(/u.test(proxy),
+    false,
+    "getDefaultEnvironment copies ambient environment into the upstream child",
+  );
+  assert.equal(
+    /import[^;]*getDefaultEnvironment[^;]*from/su.test(proxy),
+    false,
+    "getDefaultEnvironment must not be imported at all",
+  );
+  assert.equal(
+    /stderr\s*:\s*["']inherit["']/u.test(proxy),
+    false,
+    "an inherited stderr handle bypasses the redaction and byte-cap policy",
+  );
+  // The upstream environment must come from an explicit allowlist.
+  assert.match(proxy, /materializeEnvironment/u, "the proxy must build its child environment from a declared allowlist");
 });

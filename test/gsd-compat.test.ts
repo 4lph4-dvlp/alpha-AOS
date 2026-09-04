@@ -35,7 +35,7 @@ test("Codex GSD compatibility installs missing helper closure and smoke-tests St
   assert.equal(before.entries.every((entry) => entry.action === "create"), true);
   const result = await applyCodexGsdHookCompatibility(lock, { configRoot, stateRoot, verifiedSourceRoot: sourceRoot });
   assert.ok(result.operationId);
-  assert.equal(smokeTestCodexGsdStopHook(configRoot).ok, true);
+  assert.equal((await smokeTestCodexGsdStopHook(configRoot)).ok, true);
   const after = await planCodexGsdHookCompatibility(configRoot);
   assert.equal(after.entries.every((entry) => entry.action === "verify"), true);
 });

@@ -11,7 +11,14 @@ import { applyMcpSync, mcpServerIds, planMcpSync } from "./mcp.js";
 import { runMcpFixture } from "./mcp-fixture.js";
 import { applyOwnedSkillSync, planOwnedSkillSync } from "./owned-skills.js";
 import { userStateRoot } from "./paths.js";
-import { resolveCommand, resolveNodePackageCli, runCommandCapture } from "./process.js";
+import {
+  PLATFORM_FLOOR_ENVIRONMENT,
+  resolveCommand,
+  resolveNodePackageCli,
+  runProcess,
+  type EnvironmentPolicy,
+  type ProcessResult,
+} from "./process.js";
 import { applyClaudeSkillPolicy, globalClaudeSettingsPath, planClaudeSkillPolicy } from "./skill-policy.js";
 import { rollbackFileTransaction } from "./transaction.js";
 
@@ -113,13 +120,71 @@ export function selectInstallTargets(inventory: Inventory, requested?: HarnessId
   return { targets, selection: "detected" };
 }
 
+/**
+ * The environment names a Node or npm child legitimately needs to locate the
+ * system, its cache and its temp space. Everything else an operation requires
+ * is named by that operation, so no child inherits the ambient environment.
+ *
+ * `PLATFORM_FLOOR_ENVIRONMENT` is included because the OS delivers those names
+ * regardless; listing them keeps the allowlist honest rather than implying a
+ * control the platform does not give.
+ */
+export const NODE_RUNTIME_ENVIRONMENT_NAMES: readonly string[] = [
+  ...PLATFORM_FLOOR_ENVIRONMENT,
+  "PATH",
+  "HOME",
+  "USERPROFILE",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "TMPDIR",
+  "TEMP",
+  "TMP",
+  "npm_config_cache",
+  "npm_config_prefix",
+  "npm_config_registry",
+  "npm_config_userconfig",
+  "NODE_EXTRA_CA_CERTS",
+];
+
+/** An environment policy for a Node/npm child plus operation-specific names. */
+export function nodeRuntimeEnvironment(options: {
+  extraNames?: readonly string[];
+  literal?: Readonly<Record<string, string>>;
+  source?: NodeJS.ProcessEnv;
+} = {}): EnvironmentPolicy {
+  return {
+    optional: [...NODE_RUNTIME_ENVIRONMENT_NAMES, ...(options.extraNames ?? [])],
+    literal: options.literal ?? {},
+    source: options.source ?? process.env,
+  };
+}
+
+/**
+ * Formats a failed child into a message safe to surface. Only the coded
+ * outcome, exit metadata and stream fingerprints appear — never raw output.
+ */
+export function describeProcessFailure(label: string, result: ProcessResult): string {
+  return (
+    `${label} failed (${result.code}, exit ${String(result.exitCode)}` +
+    `${result.signal === null ? "" : `, signal ${result.signal}`}` +
+    `${result.timedOut ? ", timed out" : ""}${result.outputCapped ? ", output capped" : ""}). ` +
+    `stdout sha256 ${result.stdout.sha256.slice(0, 12)}, stderr sha256 ${result.stderr.sha256.slice(0, 12)}. ` +
+    `stderr: ${result.stderr.excerpt.slice(0, 400)}`
+  );
+}
+
 async function globalNpmPackageVersion(packageName: string): Promise<string | null> {
   const npm = resolveNodePackageCli("npm");
-  const result = runCommandCapture(npm.executable, [...npm.argsPrefix, "root", "--global"], {
-    cwd: process.cwd(), env: process.env, timeout: 30_000,
+  const result = await runProcess({
+    executable: npm.executable,
+    args: [...npm.argsPrefix, "root", "--global"],
+    cwd: process.cwd(),
+    timeoutMs: 30_000,
+    maxOutputBytes: 64 * 1024,
+    environment: nodeRuntimeEnvironment(),
   });
-  if (result.status !== 0) throw new Error(`npm root --global failed (${result.status}): ${result.stderr || result.stdout}`);
-  const manifest = join(result.stdout.trim(), ...packageName.split("/"), "package.json");
+  if (result.code !== "ok") throw new Error(describeProcessFailure("npm root --global", result));
+  const manifest = join(result.stdout.excerpt.trim(), ...packageName.split("/"), "package.json");
   if (!existsSync(manifest)) return null;
   try {
     const value = JSON.parse(await readFile(manifest, "utf8")) as Record<string, unknown>;
@@ -205,9 +270,16 @@ export async function createManagedInstallPlan(options: {
   };
 }
 
-function runChecked(executable: string, args: string[], label: string, timeout = 300_000): void {
-  const result = runCommandCapture(executable, args, { cwd: process.cwd(), env: process.env, timeout });
-  if (result.status !== 0) throw new Error(`${label} failed (${result.status}): ${result.stderr || result.stdout}`);
+async function runChecked(executable: string, args: string[], label: string, timeout = 300_000): Promise<void> {
+  const result = await runProcess({
+    executable,
+    args,
+    cwd: process.cwd(),
+    timeoutMs: timeout,
+    maxOutputBytes: 256 * 1024,
+    environment: nodeRuntimeEnvironment(),
+  });
+  if (result.code !== "ok") throw new Error(describeProcessFailure(label, result));
 }
 
 async function installGsd(target: GsdFixtureHarness, catalog: StackCatalog, lock: StackLock): Promise<boolean> {
@@ -218,7 +290,7 @@ async function installGsd(target: GsdFixtureHarness, catalog: StackCatalog, lock
   if (!gsd || !adapter.gsdTarget) throw new Error(`GSD target metadata is missing for ${target}`);
   await runGsdFixture({ harness: target, gsd });
   const npx = resolveNodePackageCli("npx");
-  runChecked(npx.executable, [
+  await runChecked(npx.executable, [
     ...npx.argsPrefix,
     "--yes",
     `${gsd.package}@${gsd.version}`,
@@ -239,7 +311,7 @@ async function installEccRuntime(lock: StackLock): Promise<boolean> {
   // Exact skill extraction verifies the tarball before the global CLI runtime is needed.
   await runEccFixture({ harness: "claude", ecc });
   const npm = resolveNodePackageCli("npm");
-  runChecked(npm.executable, [
+  await runChecked(npm.executable, [
     ...npm.argsPrefix, "install", "--global", "--ignore-scripts", "--no-audit", "--no-fund", `${ecc.package}@${ecc.version}`,
   ], "ECC Memory Vault runtime install");
   const actual = await globalNpmPackageVersion(ecc.package);
@@ -253,7 +325,7 @@ async function installPiBridge(lock: StackLock): Promise<boolean> {
   await runMcpFixture({ server: "context7", harness: "pi", lock });
   const pi = resolveCommand("pi");
   if (!pi) throw new Error("Pi CLI is required to install its MCP bridge");
-  runChecked(pi, ["install", `npm:${plan.piBridge.package}@${plan.piBridge.version}`], "Pi MCP bridge install");
+  await runChecked(pi, ["install", `npm:${plan.piBridge.package}@${plan.piBridge.version}`], "Pi MCP bridge install");
   const after = await planMcpSync("pi", lock);
   if (!after.piBridgeCurrent) throw new Error(`Pi MCP bridge verification failed for ${plan.piBridge.package}@${plan.piBridge.version}`);
   return true;

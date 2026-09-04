@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -22,6 +22,7 @@ import {
   resolveNodePackageCli,
   runProcess,
 } from "../src/core/process.js";
+import { describeProcessFailure, nodeRuntimeEnvironment } from "../src/core/install.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -401,4 +402,121 @@ test("the MCP filter proxy inherits neither the ambient environment nor stderr",
   );
   // The upstream environment must come from an explicit allowlist.
   assert.match(proxy, /materializeEnvironment/u, "the proxy must build its child environment from a declared allowlist");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-11: the fixture and installer boundary
+// ---------------------------------------------------------------------------
+
+test("no source module spawns a child outside the process adapter", async () => {
+  const sources = await readdir(join(repositoryRoot, "src", "core"));
+  const files = [
+    ...sources.filter((name) => name.endsWith(".ts")).map((name) => join("src", "core", name)),
+    join("src", "cli.ts"),
+    join("src", "adapters", "harnesses.ts"),
+    join("src", "adapters", "isolation.ts"),
+  ];
+
+  // The MCP fixture drives a long-lived JSON-RPC session over stdio, which the
+  // one-shot adapter cannot express. The protocol-session mode that would
+  // replace it (`openProtocolProcess`) is an open phase-1 gap, recorded in the
+  // 01-08 and 01-11 summaries. It is named here so the exception stays visible
+  // rather than quietly widening.
+  const protocolSessionExceptions = new Set([join("src", "core", "mcp-fixture.ts")]);
+
+  for (const relativePath of files) {
+    if (relativePath === join("src", "core", "process.ts")) continue;
+    const source = await readFile(join(repositoryRoot, relativePath), "utf8");
+
+    assert.equal(
+      /\bspawnSync\s*\(|\bspawn\s*\(/u.test(source) && !protocolSessionExceptions.has(relativePath),
+      false,
+      `${relativePath} spawns a child directly instead of going through the process adapter`,
+    );
+    // Spreading process.env hands a child every credential this process holds.
+    assert.equal(
+      /\.\.\.process\.env\b/u.test(source),
+      false,
+      `${relativePath} spreads the ambient environment into a child environment`,
+    );
+  }
+});
+
+test("the environment policy for a node child names what it passes", () => {
+  const policy = nodeRuntimeEnvironment({
+    extraNames: ["ALPHA_AOS_FIXTURE_NAME"],
+    literal: { ALPHA_AOS_FIXTURE_LITERAL: "value" },
+    source: {
+      PATH: "/usr/bin",
+      ALPHA_AOS_FIXTURE_NAME: "named",
+      ALPHA_AOS_SECRET_TOKEN: "must-not-cross",
+    },
+  });
+  const materialized = materializeEnvironment(policy);
+
+  assert.equal(materialized.ALPHA_AOS_FIXTURE_NAME, "named", "an operation-named variable must be delivered");
+  assert.equal(materialized.ALPHA_AOS_FIXTURE_LITERAL, "value", "a literal the operation sets must be delivered");
+  assert.equal(materialized.PATH, "/usr/bin", "a declared runtime name must be delivered");
+  assert.equal(
+    Object.hasOwn(materialized, "ALPHA_AOS_SECRET_TOKEN"),
+    false,
+    "an undeclared name from the source must not cross the boundary",
+  );
+});
+
+test("a failed child is described by fingerprints, never by its raw output", async (context) => {
+  const fixture = await createProcessFixture(context);
+  const noisy = join(fixture.root, "noisy-failure.mjs");
+  const sentinel = "alphaAOSfailureSentinel0009";
+  await writeFile(
+    noisy,
+    [
+      `process.stdout.write(${JSON.stringify(sentinel)});`,
+      `process.stderr.write(${JSON.stringify(sentinel)});`,
+      "process.exit(3);",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [noisy],
+    cwd: fixture.root,
+    environment: { literal: { ALPHA_AOS_TOKEN: sentinel }, source: {} },
+  });
+  assert.equal(result.code, "non-zero-exit");
+
+  const described = describeProcessFailure("fixture step", result);
+  assert.equal(described.includes(sentinel), false, "a failure description must not quote a secret it was given");
+  assert.match(described, /non-zero-exit/u, "the description must carry the coded outcome");
+  assert.match(described, /exit 3/u, "the description must carry the exit status");
+  assert.match(described, /sha256/u, "the description must carry a stream fingerprint");
+});
+
+test("stdin is delivered to a child that expects an event on it", async (context) => {
+  const fixture = await createProcessFixture(context);
+  const reader = join(fixture.root, "reader.mjs");
+  await writeFile(
+    reader,
+    [
+      "let input = '';",
+      "process.stdin.setEncoding('utf8');",
+      "for await (const chunk of process.stdin) input += chunk;",
+      "process.stdout.write(JSON.stringify({ received: input }));",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [reader],
+    cwd: fixture.root,
+    stdin: JSON.stringify({ hook_event_name: "Stop" }),
+  });
+
+  assert.equal(result.code, "ok");
+  const reported = JSON.parse(result.stdout.excerpt) as { received: string };
+  assert.deepEqual(JSON.parse(reported.received), { hook_event_name: "Stop" });
 });

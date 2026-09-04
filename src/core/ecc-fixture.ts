@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
-import { resolveNodePackageCli, runCommandCapture } from "./process.js";
+import { resolveNodePackageCli, runProcess } from "./process.js";
+import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
 
 const selectedSkills = ["unified-memory", "documentation-lookup", "deep-research"] as const;
 export type SelectedEccSkill = typeof selectedSkills[number];
@@ -115,31 +116,45 @@ export async function runEccFixture(options: {
   const npm = resolveNodePackageCli("npm");
   let retain = true;
   try {
-    const packed = runCommandCapture(npm.executable, [
-      ...npm.argsPrefix,
-      "pack",
-      `${options.ecc.package}@${options.ecc.version}`,
-      "--json",
-      "--pack-destination",
-      packRoot,
-    ], { cwd: fixtureRoot, env: process.env, timeout: 180_000 });
-    if (packed.status !== 0) throw new Error(`npm pack failed (${packed.status}): ${packed.stderr || packed.stdout}`);
-    const pack = parsePackResult(packed.stdout);
+    const packed = await runProcess({
+      executable: npm.executable,
+      args: [
+        ...npm.argsPrefix,
+        "pack",
+        `${options.ecc.package}@${options.ecc.version}`,
+        "--json",
+        "--pack-destination",
+        packRoot,
+      ],
+      cwd: fixtureRoot,
+      timeoutMs: 180_000,
+      maxOutputBytes: 256 * 1024,
+      environment: nodeRuntimeEnvironment(),
+    });
+    if (packed.code !== "ok") throw new Error(describeProcessFailure("npm pack", packed));
+    const pack = parsePackResult(packed.stdout.excerpt);
     if (pack.integrity !== options.ecc.integrity) throw new Error(`ECC tarball integrity mismatch: expected ${options.ecc.integrity}, got ${pack.integrity}`);
     const archive = join(packRoot, basename(pack.filename));
     if (!existsSync(archive)) throw new Error(`npm pack archive is missing: ${archive}`);
-    const installed = runCommandCapture(npm.executable, [
-      ...npm.argsPrefix,
-      "install",
-      "--prefix",
-      extractionRoot,
-      archive,
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      "--package-lock=false",
-    ], { cwd: fixtureRoot, env: process.env, timeout: 180_000 });
-    if (installed.status !== 0) throw new Error(`ECC tarball extraction failed (${installed.status}): ${installed.stderr || installed.stdout}`);
+    const installed = await runProcess({
+      executable: npm.executable,
+      args: [
+        ...npm.argsPrefix,
+        "install",
+        "--prefix",
+        extractionRoot,
+        archive,
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+        "--package-lock=false",
+      ],
+      cwd: fixtureRoot,
+      timeoutMs: 180_000,
+      maxOutputBytes: 256 * 1024,
+      environment: nodeRuntimeEnvironment(),
+    });
+    if (installed.code !== "ok") throw new Error(describeProcessFailure("ECC tarball extraction", installed));
     const sourceRoot = join(extractionRoot, "node_modules", "ecc-universal", "skills");
     const sourceHashes = {} as Record<SelectedEccSkill, string>;
     const targetHashes = {} as Record<SelectedEccSkill, string>;

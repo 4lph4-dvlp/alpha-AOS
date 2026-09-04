@@ -10,7 +10,7 @@ function major(version: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
-export function runDoctor(catalog: StackCatalog, lock: StackLock, inventory: Inventory): DoctorFinding[] {
+export async function runDoctor(catalog: StackCatalog, lock: StackLock, inventory: Inventory): Promise<DoctorFinding[]> {
   const findings: DoctorFinding[] = [];
   const nodeTool = inventory.tools.node ?? { version: null, command: null };
   const npmTool = inventory.tools.npm ?? { version: null, command: null };
@@ -66,10 +66,17 @@ export function runDoctor(catalog: StackCatalog, lock: StackLock, inventory: Inv
 
   const codexHook = join(codexConfigRoot(), "hooks", "gsd-context-monitor.js");
   if (existsSync(codexHook)) {
-    const smoke = smokeTestCodexGsdStopHook();
+    const smoke = await smokeTestCodexGsdStopHook();
     findings.push(smoke.ok
       ? { level: "ok", code: "gsd.codex-stop-hook", message: "Codex GSD Stop hook exits silently with valid protocol behavior" }
-      : { level: "error", code: "gsd.codex-stop-hook", message: `Codex GSD Stop hook failed (${smoke.status}): ${smoke.stderr || smoke.stdout}` });
+      : {
+          level: "error",
+          code: "gsd.codex-stop-hook",
+          // Only coded outcome and fingerprints; the hook's bytes stay unquoted.
+          message: `Codex GSD Stop hook failed (${smoke.code}, exit ${String(smoke.exitCode)}, `
+            + `stdout ${smoke.stdout.totalBytes}B/${smoke.stdout.sha256.slice(0, 12)}, `
+            + `stderr ${smoke.stderr.totalBytes}B/${smoke.stderr.sha256.slice(0, 12)})`,
+        });
   }
 
   if (catalog.components.ecc.profileInstallAllowed) {

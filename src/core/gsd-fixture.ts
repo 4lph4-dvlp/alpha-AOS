@@ -4,7 +4,8 @@ import { mkdir, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
-import { resolveNodePackageCli, runCommandCapture } from "./process.js";
+import { resolveNodePackageCli, runProcess } from "./process.js";
+import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
 import { applyCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
 
 export type GsdFixtureHarness = Exclude<HarnessId, "hermes">;
@@ -17,6 +18,8 @@ export interface GsdFixtureSpec {
   executable: string;
   args: string[];
   env: NodeJS.ProcessEnv;
+  /** Names this fixture sets itself, kept separate from any inherited ones. */
+  fixtureEnvironment: Record<string, string>;
 }
 
 export interface GsdFixtureResult {
@@ -63,8 +66,9 @@ export function createGsdFixtureSpec(options: {
   const fixtureRoot = resolve(options.fixtureRoot);
   const syntheticHome = join(fixtureRoot, "home");
   const configRoot = join(fixtureRoot, "config");
-  const env: NodeJS.ProcessEnv = {
-    ...(options.baseEnv ?? process.env),
+  // Names this fixture sets itself. The ambient environment is not spread in;
+  // runtime names are added by the caller's environment policy.
+  const fixtureEnvironment: Record<string, string> = {
     HOME: syntheticHome,
     USERPROFILE: syntheticHome,
     XDG_CONFIG_HOME: join(syntheticHome, ".config"),
@@ -74,12 +78,14 @@ export function createGsdFixtureSpec(options: {
     PI_CODING_AGENT_DIR: configRoot,
     HERMES_HOME: configRoot,
   };
+  const env: NodeJS.ProcessEnv = { ...(options.baseEnv ?? {}), ...fixtureEnvironment };
   return {
     harness: options.harness,
     fixtureRoot,
     syntheticHome,
     configRoot,
     executable: invocation.executable,
+    fixtureEnvironment,
     args: [
       ...invocation.argsPrefix,
       "--yes",
@@ -122,8 +128,17 @@ export async function runGsdFixture(options: {
   await mkdir(spec.syntheticHome, { recursive: true });
   let retain = true;
   try {
-    const command = runCommandCapture(spec.executable, spec.args, { cwd: fixtureRoot, env: spec.env, timeout: 180_000 });
-    if (command.status !== 0) throw new Error(`GSD fixture install failed (${command.status}): ${command.stderr || command.stdout}`);
+    const command = await runProcess({
+      executable: spec.executable,
+      args: spec.args,
+      cwd: fixtureRoot,
+      timeoutMs: 180_000,
+      maxOutputBytes: 256 * 1024,
+      // The fixture redirects every harness root at its synthetic home, so
+      // the child cannot reach the real one even by accident.
+      environment: nodeRuntimeEnvironment({ literal: spec.fixtureEnvironment }),
+    });
+    if (command.code !== "ok") throw new Error(describeProcessFailure("GSD fixture install", command));
     let codexStopHookSmokePassed: boolean | null = null;
     if (options.harness === "codex") {
       await applyCodexGsdHookCompatibility({
@@ -135,7 +150,7 @@ export async function runGsdFixture(options: {
         configRoot: spec.configRoot,
         stateRoot: join(fixtureRoot, "state"),
       });
-      codexStopHookSmokePassed = smokeTestCodexGsdStopHook(spec.configRoot).ok;
+      codexStopHookSmokePassed = (await smokeTestCodexGsdStopHook(spec.configRoot)).ok;
       if (!codexStopHookSmokePassed) throw new Error("GSD fixture Codex Stop hook smoke test failed");
     }
     const after = await Promise.all(sentinels.map(hashTree));

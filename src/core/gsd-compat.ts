@@ -3,10 +3,14 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
 import type { StackLock } from "../types.js";
 import { userStateRoot } from "./paths.js";
-import { resolveNodePackageCli, runCommandCapture } from "./process.js";
+import { resolveNodePackageCli, runProcess } from "./process.js";
+import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
+import type { RedactedExcerpt } from "../types.js";
+
+/** SHA-256 of an empty stream, so an absent probe still reports a fingerprint. */
+const EMPTY_STREAM_SHA256 = createHash("sha256").update("").digest("hex");
 import { applyFileTransaction, rollbackFileTransaction } from "./transaction.js";
 
 const CODEX_HOOK_HELPERS = ["hook-exit.js", "cli-exit.js", "exit-code-registry.js"] as const;
@@ -74,24 +78,59 @@ export async function planCodexGsdHookCompatibility(configRoot = codexConfigRoot
   };
 }
 
-export function smokeTestCodexGsdStopHook(configRoot = codexConfigRoot()): { ok: boolean; status: number; stdout: string; stderr: string } {
+export interface CodexHookSmokeResult {
+  ok: boolean;
+  code: string;
+  exitCode: number | null;
+  /** Bounded, redacted evidence plus a fingerprint of the complete stream. */
+  stdout: RedactedExcerpt;
+  stderr: RedactedExcerpt;
+}
+
+/**
+ * Drives the Codex Stop hook the way Codex would: one JSON event on stdin,
+ * and silence plus a zero exit as the pass condition.
+ *
+ * The child receives only the declared runtime environment, is bounded by a
+ * deadline and an output cap, and its output is returned as fingerprinted
+ * excerpts rather than raw bytes.
+ */
+export async function smokeTestCodexGsdStopHook(configRoot = codexConfigRoot()): Promise<CodexHookSmokeResult> {
   const monitor = join(resolve(configRoot), "hooks", "gsd-context-monitor.js");
-  if (!existsSync(monitor)) return { ok: true, status: 0, stdout: "", stderr: "" };
-  const input = JSON.stringify({
-    session_id: `alpha-aos-smoke-${process.pid}`,
+  const absent: RedactedExcerpt = { excerpt: "", capped: false, totalBytes: 0, sha256: EMPTY_STREAM_SHA256 };
+  if (!existsSync(monitor)) return { ok: true, code: "not-applicable", exitCode: 0, stdout: absent, stderr: absent };
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [monitor],
     cwd: tmpdir(),
-    hook_event_name: "Stop",
+    timeoutMs: 15_000,
+    maxOutputBytes: 64 * 1024,
+    environment: nodeRuntimeEnvironment(),
+    stdin: JSON.stringify({
+      session_id: `alpha-aos-smoke-${process.pid}`,
+      cwd: tmpdir(),
+      hook_event_name: "Stop",
+    }),
   });
-  const result = spawnSync(process.execPath, [monitor], {
-    input,
-    encoding: "utf8",
-    timeout: 15_000,
-    windowsHide: true,
-  });
-  const stdout = result.stdout ?? "";
-  const stderr = result.stderr ?? "";
-  const status = result.status ?? 1;
-  return { ok: status === 0 && stdout.length === 0 && stderr.length === 0, status, stdout, stderr };
+
+  return {
+    // The hook protocol is silence on success; anything written is a failure.
+    ok: result.code === "ok" && result.stdout.totalBytes === 0 && result.stderr.totalBytes === 0,
+    code: result.code,
+    exitCode: result.exitCode,
+    stdout: result.stdout,
+    stderr: result.stderr,
+  };
+}
+
+/** Describes a failed smoke run without quoting the hook's own output. */
+function describeSmokeFailure(label: string, smoke: CodexHookSmokeResult): string {
+  return (
+    `${label} failed (${smoke.code}, exit ${String(smoke.exitCode)}). ` +
+    `stdout ${smoke.stdout.totalBytes}B sha256 ${smoke.stdout.sha256.slice(0, 12)}, ` +
+    `stderr ${smoke.stderr.totalBytes}B sha256 ${smoke.stderr.sha256.slice(0, 12)}.`
+  );
 }
 
 export async function applyCodexGsdHookCompatibility(lock: StackLock, options: {
@@ -114,33 +153,47 @@ export async function applyCodexGsdHookCompatibility(lock: StackLock, options: {
       const extractionRoot = join(fixtureRoot, "extract");
       await mkdir(packRoot, { recursive: true });
       const npm = resolveNodePackageCli("npm");
-      const packed = runCommandCapture(npm.executable, [
-        ...npm.argsPrefix,
-        "pack",
-        `${gsd.package}@${gsd.version}`,
-        "--json",
-        "--pack-destination",
-        packRoot,
-      ], { cwd: fixtureRoot, env: process.env, timeout: 180_000 });
-      if (packed.status !== 0) throw new Error(`npm pack failed (${packed.status}): ${packed.stderr || packed.stdout}`);
-      const pack = parsePackResult(packed.stdout);
+      const packed = await runProcess({
+        executable: npm.executable,
+        args: [
+          ...npm.argsPrefix,
+          "pack",
+          `${gsd.package}@${gsd.version}`,
+          "--json",
+          "--pack-destination",
+          packRoot,
+        ],
+        cwd: fixtureRoot,
+        timeoutMs: 180_000,
+        maxOutputBytes: 256 * 1024,
+        environment: nodeRuntimeEnvironment(),
+      });
+      if (packed.code !== "ok") throw new Error(describeProcessFailure("npm pack", packed));
+      const pack = parsePackResult(packed.stdout.excerpt);
       if (pack.integrity !== gsd.integrity) {
         throw new Error(`GSD tarball integrity mismatch: expected ${gsd.integrity}, got ${pack.integrity}`);
       }
       const archive = join(packRoot, basename(pack.filename));
       if (!existsSync(archive)) throw new Error(`npm pack archive is missing: ${archive}`);
-      const installed = runCommandCapture(npm.executable, [
-        ...npm.argsPrefix,
-        "install",
-        "--prefix",
-        extractionRoot,
-        archive,
-        "--ignore-scripts",
-        "--no-audit",
-        "--no-fund",
-        "--package-lock=false",
-      ], { cwd: fixtureRoot, env: process.env, timeout: 180_000 });
-      if (installed.status !== 0) throw new Error(`GSD tarball extraction failed (${installed.status}): ${installed.stderr || installed.stdout}`);
+      const installed = await runProcess({
+        executable: npm.executable,
+        args: [
+          ...npm.argsPrefix,
+          "install",
+          "--prefix",
+          extractionRoot,
+          archive,
+          "--ignore-scripts",
+          "--no-audit",
+          "--no-fund",
+          "--package-lock=false",
+        ],
+        cwd: fixtureRoot,
+        timeoutMs: 180_000,
+        maxOutputBytes: 256 * 1024,
+        environment: nodeRuntimeEnvironment(),
+      });
+      if (installed.code !== "ok") throw new Error(describeProcessFailure("GSD tarball extraction", installed));
       sourceRoot = join(packageInstallPath(extractionRoot, gsd.package), "hooks", "lib");
     }
 
@@ -154,8 +207,8 @@ export async function applyCodexGsdHookCompatibility(lock: StackLock, options: {
     }
 
     if (operations.length === 0) {
-      const smoke = smokeTestCodexGsdStopHook(configRoot);
-      if (!smoke.ok) throw new Error(`Codex GSD Stop hook smoke test failed (${smoke.status}): ${smoke.stderr || smoke.stdout}`);
+      const smoke = await smokeTestCodexGsdStopHook(configRoot);
+      if (!smoke.ok) throw new Error(describeSmokeFailure("Codex GSD Stop hook smoke test", smoke));
       return { operationId: null, plan: await planCodexGsdHookCompatibility(configRoot) };
     }
 
@@ -164,10 +217,10 @@ export async function applyCodexGsdHookCompatibility(lock: StackLock, options: {
       allowedRoots: [join(resolve(configRoot), "hooks", "lib")],
       operations,
     });
-    const smoke = smokeTestCodexGsdStopHook(configRoot);
+    const smoke = await smokeTestCodexGsdStopHook(configRoot);
     if (!smoke.ok) {
       await rollbackFileTransaction(options.stateRoot ?? userStateRoot(), journal.id, [join(resolve(configRoot), "hooks", "lib")]);
-      throw new Error(`Codex GSD Stop hook smoke test failed after compatibility sync (${smoke.status}): ${smoke.stderr || smoke.stdout}`);
+      throw new Error(describeSmokeFailure("Codex GSD Stop hook smoke test after compatibility sync", smoke));
     }
     return { operationId: journal.id, plan: await planCodexGsdHookCompatibility(configRoot) };
   } finally {

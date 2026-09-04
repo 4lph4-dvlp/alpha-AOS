@@ -49,6 +49,8 @@ export interface ProcessSpec {
   timeoutMs?: number;
   maxOutputBytes?: number;
   environment?: EnvironmentPolicy;
+  /** Written to the child's stdin, which is then closed. Omit for no input. */
+  stdin?: string;
 }
 
 export interface ProcessResult {
@@ -248,8 +250,14 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       shell: false,
       windowsHide: true,
       detached: process.platform !== "win32",
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [spec.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });
+
+    if (spec.stdin !== undefined) {
+      child.stdin?.end(spec.stdin, "utf8");
+      // A child that never reads its input must not fail the whole call.
+      child.stdin?.on("error", () => undefined);
+    }
 
     let settled = false;
     let timedOut = false;
@@ -401,38 +409,6 @@ export function runCommandInteractive(commandPath: string, args: string[], optio
   });
   if (result.error) throw result.error;
   return result.status ?? 1;
-}
-
-/**
- * Compatibility wrapper retained for callers not yet migrated to `runProcess`
- * (plan 01-11). It is shell-free and rejects case-colliding environment names,
- * but still returns text output for those callers to parse.
- */
-export function runCommandCapture(commandPath: string, args: string[], options: {
-  cwd: string;
-  env: NodeJS.ProcessEnv;
-  timeout?: number;
-}): { status: number; stdout: string; stderr: string } {
-  if (!isDirectlyExecutable(commandPath)) {
-    throw new ProcessPolicyError(
-      "unsupported-executable",
-      `Capturing output from ${extname(commandPath)} files is unsupported: ${commandPath}`,
-    );
-  }
-  // Reuse the same case-collision rule the safe path enforces.
-  materializeEnvironment({ optional: Object.keys(options.env), source: options.env });
-
-  const result = spawnSync(commandPath, args, {
-    cwd: options.cwd,
-    env: options.env,
-    encoding: "utf8",
-    timeout: options.timeout ?? DEFAULT_TIMEOUT_MS,
-    windowsHide: true,
-    shell: false,
-    maxBuffer: DEFAULT_MAX_OUTPUT_BYTES * 8,
-  });
-  if (result.error) throw result.error;
-  return { status: result.status ?? 1, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
 export interface CommandProbe {

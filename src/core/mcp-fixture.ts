@@ -6,7 +6,8 @@ import { spawn } from "node:child_process";
 import type { HarnessId, LockedPackage, McpServerId, StackLock } from "../types.js";
 import { mcpStdioCommand, planMcpSync } from "./mcp.js";
 import { allowedMcpTools } from "./mcp-proxy.js";
-import { resolveCommand, resolveNodePackageCli, runCommandCapture } from "./process.js";
+import { materializeEnvironment, resolveCommand, resolveNodePackageCli, runProcess } from "./process.js";
+import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
 
 interface PackResult {
   filename: string;
@@ -46,16 +47,16 @@ async function verifyPackage(fixtureRoot: string, locked: LockedPackage, label: 
   const packRoot = join(fixtureRoot, "packs", label);
   await mkdir(packRoot, { recursive: true });
   const npm = resolveNodePackageCli("npm");
-  const result = runCommandCapture(npm.executable, [
-    ...npm.argsPrefix,
-    "pack",
-    `${locked.package}@${locked.version}`,
-    "--json",
-    "--pack-destination",
-    packRoot,
-  ], { cwd: fixtureRoot, env: process.env, timeout: 180_000 });
-  if (result.status !== 0) throw new Error(`npm pack failed for ${label}: ${result.stderr || result.stdout}`);
-  const packed = parsePackResult(result.stdout);
+  const result = await runProcess({
+    executable: npm.executable,
+    args: [...npm.argsPrefix, "pack", `${locked.package}@${locked.version}`, "--json", "--pack-destination", packRoot],
+    cwd: fixtureRoot,
+    timeoutMs: 180_000,
+    maxOutputBytes: 256 * 1024,
+    environment: nodeRuntimeEnvironment(),
+  });
+  if (result.code !== "ok") throw new Error(describeProcessFailure(`npm pack for ${label}`, result));
+  const packed = parsePackResult(result.stdout.excerpt);
   if (packed.integrity !== locked.integrity) throw new Error(`${label} integrity mismatch: expected ${locked.integrity}, got ${packed.integrity}`);
   if (!existsSync(join(packRoot, basename(packed.filename)))) throw new Error(`${label} archive is missing after npm pack`);
 }
@@ -70,14 +71,19 @@ function expectedTool(server: McpServerId, name: string): boolean {
 
 async function discoverTools(locked: LockedPackage, server: McpServerId): Promise<string[]> {
   const command = mcpStdioCommand(server, locked);
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    CONTEXT7_API_KEY: "alpha-aos-fixture-not-a-real-key",
-    EXA_API_KEY: "alpha-aos-fixture-not-a-real-key",
-    FIRECRAWL_API_KEY: "alpha-aos-fixture-not-a-real-key",
-    FIRECRAWL_NO_SEARCH_FEEDBACK: "1",
-    FIRECRAWL_NO_ENDPOINT_FEEDBACK: "1",
-  };
+  // Fixture credentials are deliberate non-secrets, and no real credential
+  // from the ambient environment is offered to the probe child.
+  const env = materializeEnvironment(
+    nodeRuntimeEnvironment({
+      literal: {
+        CONTEXT7_API_KEY: "alpha-aos-fixture-not-a-real-key",
+        EXA_API_KEY: "alpha-aos-fixture-not-a-real-key",
+        FIRECRAWL_API_KEY: "alpha-aos-fixture-not-a-real-key",
+        FIRECRAWL_NO_SEARCH_FEEDBACK: "1",
+        FIRECRAWL_NO_ENDPOINT_FEEDBACK: "1",
+      },
+    }),
+  );
   const child = spawn(command.command, command.args, {
     env,
     stdio: ["pipe", "pipe", "pipe"],
@@ -153,9 +159,15 @@ async function installPiBridge(fixtureRoot: string, bridge: LockedPackage): Prom
   if (!pi) throw new Error("Pi executable is required for the Pi MCP bridge fixture");
   const agentRoot = join(fixtureRoot, "home", ".pi", "agent");
   await mkdir(agentRoot, { recursive: true });
-  const env = { ...process.env, PI_CODING_AGENT_DIR: agentRoot };
-  const installed = runCommandCapture(pi, ["install", `npm:${bridge.package}@${bridge.version}`], { cwd: fixtureRoot, env, timeout: 180_000 });
-  if (installed.status !== 0) throw new Error(`Pi MCP bridge install failed: ${installed.stderr || installed.stdout}`);
+  const installed = await runProcess({
+    executable: pi,
+    args: ["install", `npm:${bridge.package}@${bridge.version}`],
+    cwd: fixtureRoot,
+    timeoutMs: 180_000,
+    maxOutputBytes: 256 * 1024,
+    environment: nodeRuntimeEnvironment({ literal: { PI_CODING_AGENT_DIR: agentRoot } }),
+  });
+  if (installed.code !== "ok") throw new Error(describeProcessFailure("Pi MCP bridge install", installed));
   const packageJson = join(agentRoot, "npm", "node_modules", bridge.package, "package.json");
   const manifest = JSON.parse(await readFile(packageJson, "utf8")) as Record<string, unknown>;
   if (manifest.version !== bridge.version) throw new Error(`Pi MCP bridge version mismatch: ${String(manifest.version)}`);

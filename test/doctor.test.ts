@@ -25,7 +25,7 @@ test("doctor treats missing optional harness commands as warnings", async () => 
     ],
   };
   const root = packageRoot();
-  const findings = runDoctor(await loadCatalog(root), await loadLock(root), inventory);
+  const findings = await runDoctor(await loadCatalog(root), await loadLock(root), inventory);
   assert.equal(findings.some((finding) => finding.level === "error"), false);
   assert.equal(findings.find((finding) => finding.code === "harness.codex")?.level, "warning");
 });

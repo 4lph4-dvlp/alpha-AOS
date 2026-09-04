@@ -15,7 +15,7 @@ import {
   selectIsolationLaunch,
   syncIsolationRuntime,
 } from "./core/isolation.js";
-import { runCommandInteractive } from "./core/process.js";
+import { materializeEnvironment, runCommandInteractive } from "./core/process.js";
 import { createGsdFixtureSpec, runGsdFixture, type GsdFixtureHarness } from "./core/gsd-fixture.js";
 import { applyCodexGsdHookCompatibility, planCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } from "./core/gsd-compat.js";
 import { runEccFixture } from "./core/ecc-fixture.js";
@@ -25,7 +25,7 @@ import { applyMcpSync, mcpServerIds, planMcpSync } from "./core/mcp.js";
 import { applyClaudeSkillPolicy, planClaudeSkillPolicy } from "./core/skill-policy.js";
 import { runMcpFilterProxy } from "./core/mcp-proxy.js";
 import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/update.js";
-import { applyManagedInstall, createManagedInstallPlan } from "./core/install.js";
+import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProject, formatUpdate } from "./format.js";
@@ -133,7 +133,7 @@ async function main(): Promise<void> {
     }
     if (!hasFlag(args, "--apply")) {
       const plan = await planCodexGsdHookCompatibility();
-      const smoke = smokeTestCodexGsdStopHook();
+      const smoke = await smokeTestCodexGsdStopHook();
       print({ plan, smoke }, json, [
         `Codex GSD hook compatibility: ${plan.required ? "required" : "not required"}`,
         ...plan.entries.map((entry) => `${entry.action.toUpperCase()} ${entry.destination}`),
@@ -413,7 +413,7 @@ async function main(): Promise<void> {
 
   if (command === "doctor") {
     const inventory = collectInventory(catalog);
-    const findings = runDoctor(catalog, lock, inventory);
+    const findings = await runDoctor(catalog, lock, inventory);
     print(findings, json, formatDoctor(findings));
     if (findings.some((finding) => finding.level === "error")) process.exitCode = 2;
     return;
@@ -512,9 +512,13 @@ async function main(): Promise<void> {
       if (!hasFlag(args, "--apply")) {
         print(launch, json, `${formatIsolationLaunch(launch)}\n\nDry-run only. Pass --apply to launch.`);
       } else {
+        // An isolated launch declares the names it needs rather than
+        // inheriting the ambient environment. On Windows the OS still
+        // delivers PLATFORM_FLOOR_ENVIRONMENT whatever this list says;
+        // narrowing that floor is phase 5's isolation work.
         const status = runCommandInteractive(launch.executable as string, launch.args, {
           cwd: launch.projectRoot,
-          env: { ...process.env, ...launch.env },
+          env: materializeEnvironment(nodeRuntimeEnvironment({ literal: launch.env })),
         });
         process.exitCode = status;
       }

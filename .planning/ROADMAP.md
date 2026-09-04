@@ -39,8 +39,8 @@ Plans:
 - [x] 01-07-PLAN.md — Canonical PathProof and immediate recheck
 - [x] 01-08-PLAN.md — Shell-free bounded process adapter and probe migration
 - [x] 01-09-PLAN.md — MutationSession and durable transaction/repair state
-- [ ] 01-10-PLAN.md — Strict operational/native schemas and consumers
-- [ ] 01-11-PLAN.md — Fixture and installer subprocess migration
+- [x] 01-10-PLAN.md — Strict operational/native schemas and consumers
+- [x] 01-11-PLAN.md — Fixture and installer subprocess migration
 - [ ] 01-12-PLAN.md — Session-aware GSD/ECC component mutators
 - [ ] 01-13-PLAN.md — Session-aware MCP/skill/policy/isolation/update mutators
 - [ ] 01-14-PLAN.md — Ordered install caller and core bootstrap/update safe apply
@@ -135,7 +135,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 9/16 | In progress | - |
+| 1. Safe Operation Boundary | 11/16 | In progress | - |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

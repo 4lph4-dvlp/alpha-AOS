@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Wave 2 complete (01-06, 01-08, 01-09); wave 3 ready
-last_updated: "2026-09-04T08:21:06.367Z"
+stopped_at: Wave 3 complete (01-10, 01-11); wave 4 ready
+last_updated: "2026-09-04T09:54:29.589Z"
 last_activity: 2026-09-04
-last_activity_desc: "Completed wave 2: strict policy-document loaders, shell-free process adapter, MutationSession."
-state_head: c43682f05a8a23b73f86b1f532f32ac0276a9e19
+last_activity_desc: "Completed wave 3: closed operational/native document boundaries and migrated fixture/installer subprocesses."
+state_head: 53170f2cbc6a5111c325e374a06cfd793bbbef18
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 9
+  completed_plans: 11
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 9 of 16 in current phase
+Plan: 11 of 16 in current phase
 Status: Ready to execute
-Last activity: 2026-09-04 — Completed wave 2: strict policy-document loaders, the shell-free process adapter, and MutationSession with durable transaction state.
+Last activity: 2026-09-04 — Completed wave 3: closed operational/native document boundaries and routed every fixture and installer child through the process adapter.
 
-Progress: [███░░░░░░░] 19%
+Progress: [███░░░░░░░] 23%
 
 ## Performance Metrics
 
@@ -82,7 +82,8 @@ None yet.
 - Resolved by 01-08 (2026-09-04): `src/core/process.ts` is shell-free, allowlisted, deadline-bound and output-capped; interpreted shims without a proven direct equivalent are reported unsupported.
 - Phases 3–6 require targeted exact-version research for harness discovery, GSD gate contracts, preload isolation, and package recovery.
 - Resolved by 01-06 (2026-09-04): the stack, lock and project-manifest schemas are closed and are now the loaders' source of truth. The remaining operational and native schemas are plan 01-10.
-- Open from 01-08: the MCP filter proxy still uses the SDK's own StdioClientTransport rather than a transport built on the process adapter; the protocol-session mode and its fake-server test remain unbuilt.
+- Open from 01-08 and 01-11: `openProtocolProcess` is unbuilt. The MCP filter proxy still uses the SDK's own StdioClientTransport, and `mcp-fixture.ts` still spawns its JSON-RPC child directly (named as an asserted exception in test/process.test.ts). Belongs with plan 01-14.
+- Open from 01-11: fixtures still call `mkdtemp` during apply and let `applyFileTransaction` acquire their session, instead of the plan/execute split with precomputed paths and a caller-supplied MutationSession. Belongs with plan 01-14.
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 
 ## Deferred Items
@@ -94,5 +95,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-09-03T23:44:02.536Z
-Stopped at: Wave 2 complete (01-06, 01-08, 01-09); wave 3 ready
-Resume file: .planning/phases/01-safe-operation-boundary/01-10-PLAN.md
+Stopped at: Wave 3 complete (01-10, 01-11); wave 4 ready
+Resume file: .planning/phases/01-safe-operation-boundary/01-12-PLAN.md

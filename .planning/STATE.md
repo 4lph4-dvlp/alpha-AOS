@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Wave 5 complete (01-14); wave 6 ready
-last_updated: "2026-09-04T14:40:00.000Z"
+stopped_at: Wave 6 complete (01-15); wave 7 ready
+last_updated: "2026-09-04T15:55:00.000Z"
 last_activity: 2026-09-04
-last_activity_desc: "Completed wave 5: one aggregate plan and one session span every fixture, component and external step; the bootstrap service replaces the wrapper mutations."
-state_head: 94f6b1e
+last_activity_desc: "Completed wave 6: the support bundle is session-bound and every CLI surface leaves through one redaction seam. The suite has zero todos."
+state_head: a6586c8
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 14 of 16 in current phase
+Plan: 15 of 16 in current phase
 Status: Ready to execute
-Last activity: 2026-09-04 — Completed wave 5: fixtures no longer call mkdtemp, managed install runs under one aggregate plan and one session, and src/core/bootstrap.ts holds the reviewed wrapper operation.
+Last activity: 2026-09-04 — Completed wave 6: support-bundle apply is proof-bound and journaled, repair/support-bundle/bootstrap joined the preview-first CLI, and one seam redacts every human, JSON and error surface.
 
-Progress: [███░░░░░░░] 29%
+Progress: [███░░░░░░░] 31%
 
 ## Performance Metrics
 
@@ -91,6 +91,8 @@ None yet.
 - Open from 01-13: `cleanIsolationRuntime` journals and snapshots every file removal, but the trailing `rmdir` calls are not journaled intents. An interruption between the transaction and the last `rmdir` leaves empty directories behind a completed journal.
 - Open from 01-14: `scripts/build-artifact.mjs` does not exist, so `inspectBuildArtifact` finds no manifest and every real bootstrap plan blocks fail-closed. Plan 01-16 writes the producer.
 - Open from 01-14: no end-to-end managed install test exists, because running one would install GSD and ECC globally on the test machine. One session spanning every callee is structurally verified and each callee is separately proven.
+- Resolved by 01-15 (2026-09-04): every CLI surface serializes through the redaction seam and doctor states the placeholder contract, so the last open todo in the suite is closed. The suite now has zero todos.
+- Open from 01-15: no CLI-level bootstrap apply test exists, because the route runs `npm ci`, `npm run build` and `npm link` against a real checkout. The same apply path is covered directly in `test/install.test.ts` against a fixture repository.
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 
 ## Deferred Items
@@ -101,6 +103,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T14:40:00.000Z
-Stopped at: Wave 5 complete (01-14); wave 6 ready
-Resume file: .planning/phases/01-safe-operation-boundary/01-15-PLAN.md
+Last session: 2026-09-04T15:55:00.000Z
+Stopped at: Wave 6 complete (01-15); wave 7 ready
+Resume file: .planning/phases/01-safe-operation-boundary/01-16-PLAN.md

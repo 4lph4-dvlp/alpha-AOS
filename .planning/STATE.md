@@ -4,7 +4,7 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Wave 1 automated plans done; plan 01-04 awaits a human supply-chain verdict
+stopped_at: smol-toml@1.8.0 approved; plan 01-05 unblocked
 last_updated: "2026-09-04T07:35:41.501Z"
 last_activity: 2026-09-04
 last_activity_desc: Executed plans 01-03 and 01-07; plan 01-04 awaits a human supply-chain verdict.
@@ -13,7 +13,7 @@ progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 4 of 16 in current phase
+Plan: 5 of 16 in current phase
 Status: Ready to execute
 Last activity: 2026-09-04 — Executed plans 01-03 and 01-07: central redactor, segment-aware path aliases, support-bundle planning, and canonical PathProof.
 
@@ -78,7 +78,7 @@ None yet.
 - `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected.
 - Confirmed by Wave 0 (2026-09-04): `scripts/install.{sh,ps1}` run `npm ci`, `npm run build` and `npm link` before printing a plan, with no `--apply` — a live SAFE-01 violation.
 - Confirmed by Wave 0 (2026-09-04): `src/core/transaction.ts` checks containment lexically via `path.relative`, so a link canonically resolving outside an allowed root is accepted. PathProof exists as of 01-07; wiring the transaction to it is plan 01-09.
-- Plan 01-04 is a blocking human gate: `smol-toml@1.8.0` cannot be installed and plan 01-05 cannot start until the user approves or rejects it.
+- Resolved 2026-09-04: `smol-toml@1.8.0` approved at the 01-04 gate, bound to `sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==`; plan 01-05 must verify that integrity before writing the lock.
 - Confirmed by Wave 0 (2026-09-04): `src/core/process.ts` routes `.cmd` through `cmd.exe` with `windowsVerbatimArguments` and `.ps1` through `powershell.exe`, applies no output cap, and returns raw stdout.
 - Phases 3–6 require targeted exact-version research for harness discovery, GSD gate contracts, preload isolation, and package recovery.
 
@@ -91,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-09-03T23:44:02.536Z
-Stopped at: Wave 1 automated plans done; plan 01-04 awaits a human supply-chain verdict
-Resume file: .planning/phases/01-safe-operation-boundary/01-04-PLAN.md
+Stopped at: smol-toml@1.8.0 approved; plan 01-05 unblocked
+Resume file: .planning/phases/01-safe-operation-boundary/01-05-PLAN.md

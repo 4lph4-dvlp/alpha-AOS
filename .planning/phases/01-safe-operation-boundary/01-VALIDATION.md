@@ -1,7 +1,7 @@
 ---
 phase: "01"
 slug: "safe-operation-boundary"
-status: draft
+status: active
 nyquist_compliant: false
 wave_0_complete: false
 created: "2026-09-03"
@@ -38,12 +38,12 @@ created: "2026-09-03"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 01-W0-01 | TBD | 0 | SAFE-01 | T-01 | Every dry-run entry point leaves checkout, package, config, state, and harness digests unchanged | cross-platform integration | `npm run build && node --test dist/test/preview.test.js` | ❌ W0 | ⬜ pending |
-| 01-W0-02 | TBD | 0 | SAFE-02 | Escaping or unprovable symlink, junction, reparse, alias, and parent-swap paths never touch the outside sentinel | filesystem integration | `npm run build && node --test dist/test/path-boundary.test.js` | ❌ W0 | ⬜ pending |
-| 01-W0-03 | TBD | 0 | SAFE-03 | A competing writer fails fast and interrupted writes remain hash-checkable and explicitly repairable | subprocess + filesystem integration | `npm run build && node --test dist/test/transaction-crash.test.js` | ❌ W0 | ⬜ pending |
-| 01-W0-04 | TBD | 0 | SAFE-04 | Secret values and secret-bearing URLs are absent from all observable output and persisted evidence | unit + CLI integration | `npm run build && node --test dist/test/redaction.test.js` | ❌ W0 | ⬜ pending |
-| 01-W0-05 | TBD | 0 | SAFE-05 | Malformed, duplicate, ambiguous, unsupported, and newer-version documents are rejected before mutation | table-driven unit | `npm run build && node --test dist/test/validation.test.js` | ❌ W0 | ⬜ pending |
-| 01-W0-06 | TBD | 0 | SAFE-06 | External commands use no shell, receive only approved environment names, and produce bounded timeout-aware evidence | subprocess integration | `npm run build && node --test dist/test/process.test.js` | ❌ W0 | ⬜ pending |
+| 01-W0-01 | 01-01 | 0 | SAFE-01 | T-01 | Every dry-run entry point leaves checkout, package, config, state, and harness digests unchanged | cross-platform integration | `npm run build && node --test dist/test/preview.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-02 | 01-02 | 0 | SAFE-02 | Escaping or unprovable symlink, junction, reparse, alias, and parent-swap paths never touch the outside sentinel | filesystem integration | `npm run build && node --test dist/test/path-boundary.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-03 | 01-02 | 0 | SAFE-03 | A competing writer fails fast and interrupted writes remain hash-checkable and explicitly repairable | subprocess + filesystem integration | `npm run build && node --test dist/test/transaction-crash.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-04 | 01-01 | 0 | SAFE-04 | Secret values and secret-bearing URLs are absent from all observable output and persisted evidence | unit + CLI integration | `npm run build && node --test dist/test/redaction.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-05 | 01-01 | 0 | SAFE-05 | Malformed, duplicate, ambiguous, unsupported, and newer-version documents are rejected before mutation | table-driven unit | `npm run build && node --test dist/test/validation.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-06 | 01-02 | 0 | SAFE-06 | External commands use no shell, receive only approved environment names, and produce bounded timeout-aware evidence | subprocess integration | `npm run build && node --test dist/test/process.test.js` | ✅ | ❌ red (by design) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
@@ -51,12 +51,12 @@ created: "2026-09-03"
 
 ## Wave 0 Requirements
 
-- [ ] `test/preview.test.ts` — byte-for-byte dry-run matrix for the CLI and four wrapper families.
-- [ ] `test/path-boundary.test.ts` — symlink, junction, reparse, alias, and parent-swap controls with an outside sentinel.
-- [ ] `test/transaction-crash.test.ts` — writer contention and deterministic interruption stages; extend `test/transaction.test.ts` where appropriate.
-- [ ] `test/redaction.test.ts` — exact credential, URL, PEM, JWT, API-key, chunk-boundary, and path-alias corpus across surfaces.
-- [ ] `test/validation.test.ts` — every managed document type, duplicate keys, extensions, old/new versions, and bounded deterministic errors; extend `test/catalog.test.ts` where appropriate.
-- [ ] `test/process.test.ts` — argument injection, executable normalization, timeout, byte cap, and environment-name case collisions.
+- [x] `test/preview.test.ts` — byte-for-byte dry-run matrix for the CLI and four wrapper families.
+- [x] `test/path-boundary.test.ts` — symlink, junction, reparse, alias, and parent-swap controls with an outside sentinel.
+- [x] `test/transaction-crash.test.ts` — writer contention and deterministic interruption stages; extend `test/transaction.test.ts` where appropriate.
+- [x] `test/redaction.test.ts` — exact credential, URL, PEM, JWT, API-key, chunk-boundary, and path-alias corpus across surfaces.
+- [x] `test/validation.test.ts` — every managed document type, duplicate keys, extensions, old/new versions, and bounded deterministic errors; extend `test/catalog.test.ts` where appropriate.
+- [x] `test/process.test.ts` — argument injection, executable normalization, timeout, byte cap, and environment-name case collisions.
 - [ ] `.github/workflows/ci.yml` — execute wrapper behavior tests on Windows, macOS, and Linux instead of syntax checks alone.
 
 ---

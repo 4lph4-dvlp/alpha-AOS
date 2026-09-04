@@ -30,8 +30,8 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
 **Plans**: 16 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Wave 0 preview, redaction, and strict-validation contracts
-- [ ] 01-02-PLAN.md — Wave 0 path, writer/crash, and process contracts
+- [x] 01-01-PLAN.md — Wave 0 preview, redaction, and strict-validation contracts
+- [x] 01-02-PLAN.md — Wave 0 path, writer/crash, and process contracts
 - [ ] 01-03-PLAN.md — Central redaction, path aliases, and immutable support-bundle planning
 - [ ] 01-04-PLAN.md — smol-toml legitimacy checkpoint
 - [ ] 01-05-PLAN.md — Strict multi-format validation engine
@@ -135,7 +135,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 0/16 | Not started | - |
+| 1. Safe Operation Boundary | 2/16 | In progress | - |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

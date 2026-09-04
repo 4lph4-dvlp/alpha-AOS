@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/evidence.schema.json",
+  "title": "alpha-AOS project evidence envelope",
+  "description": "Closed contract for the record that will carry deterministic project evidence. This phase defines and validates the envelope only; collecting evidence and acting on it is phase 2.",
+  "type": "object",
+  "required": ["schemaVersion", "projectId", "producer", "createdAt", "sourceHash", "facts"],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "projectId": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "createdAt": { "type": "string", "minLength": 1 },
+    "sourceHash": {
+      "description": "Digest of the canonical repository state this evidence was derived from.",
+      "$ref": "#/$defs/sha256"
+    },
+    "facts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "detected"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "kind": { "type": "string", "minLength": 1 },
+          "detected": { "type": "boolean" },
+          "path": { "type": "string", "minLength": 1 },
+          "version": { "type": "string", "minLength": 1 },
+          "hash": { "$ref": "#/$defs/sha256" },
+          "reason": {
+            "description": "Why a near-match failed. Present on negative evidence.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

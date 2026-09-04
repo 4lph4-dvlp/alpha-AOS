@@ -13,6 +13,8 @@ import {
   createIsolationPlan,
   defaultIsolationPolicy,
   doctorIsolation,
+  inspectRuntimeMarker,
+  isolationProjectId,
   readProjectManifest,
   selectIsolationLaunch,
   syncIsolationRuntime,
@@ -220,4 +222,80 @@ test("Antigravity documentation lookup names GUI tools and the IDE MCP gateway w
   assert.match(rendered, /Do not replace a required Context7 call with native web search/u);
   assert.match(rendered, /stop instead of searching the web/u);
   assert.equal(renderEccSkill("documentation-lookup", source, "codex"), source);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-10: strict runtime marker
+// ---------------------------------------------------------------------------
+
+test("a runtime marker is read strictly before a directory is removed", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-marker-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  const stateRoot = join(root, "state");
+  const projectRoot = join(root, "project");
+  await mkdir(projectRoot, { recursive: true });
+  const projectId = isolationProjectId(projectRoot);
+  const target = join(stateRoot, "isolated", projectId);
+  const marker = join(target, "runtime.json");
+
+  const valid = {
+    schemaVersion: 1,
+    managedBy: "alpha-aos",
+    projectId,
+    mode: "project-only",
+    policyHash: "e".repeat(64),
+  };
+
+  const cases: ReadonlyArray<{ name: string; marker: string }> = [
+    { name: "an unknown core field", marker: JSON.stringify({ ...valid, unknownCoreField: true }) },
+    { name: "an unknown newer version", marker: JSON.stringify({ ...valid, schemaVersion: 9 }) },
+    { name: "a missing ownership marker", marker: JSON.stringify({ ...valid, managedBy: "someone-else" }) },
+    { name: "a duplicate key", marker: `{"schemaVersion":1,"schemaVersion":1,"managedBy":"alpha-aos","projectId":"${projectId}","mode":"project-only","policyHash":"${"e".repeat(64)}"}` },
+    { name: "a malformed policy hash", marker: JSON.stringify({ ...valid, policyHash: "too-short" }) },
+  ];
+
+  for (const entry of cases) {
+    await mkdir(target, { recursive: true });
+    await writeFile(marker, entry.marker, "utf8");
+    await assert.rejects(
+      () => cleanIsolationRuntime(projectRoot, stateRoot),
+      /Refusing to clean/u,
+      `${entry.name} should have blocked the removal`,
+    );
+    assert.equal(existsSync(marker), true, `${entry.name}: a refused clean must leave the runtime in place`);
+    await rm(target, { recursive: true, force: true });
+  }
+
+  // A current, valid, matching marker is removable.
+  await mkdir(target, { recursive: true });
+  await writeFile(marker, JSON.stringify(valid), "utf8");
+  await cleanIsolationRuntime(projectRoot, stateRoot);
+  assert.equal(existsSync(target), false, "a proven runtime is removed");
+});
+
+test("a supported older runtime marker is readable but is not acted on", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-marker-old-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  const stateRoot = join(root, "state");
+  const projectRoot = join(root, "project");
+  await mkdir(projectRoot, { recursive: true });
+  const projectId = isolationProjectId(projectRoot);
+  const target = join(stateRoot, "isolated", projectId);
+  const marker = join(target, "runtime.json");
+  await mkdir(target, { recursive: true });
+  await writeFile(
+    marker,
+    JSON.stringify({ schemaVersion: 0, managedBy: "alpha-aos", projectId, mode: "project-only", policyHash: "f".repeat(64) }),
+    "utf8",
+  );
+
+  const inspection = await inspectRuntimeMarker(marker);
+  assert.equal(inspection.status, "migratable");
+  assert.equal(inspection.value, null, "a migratable marker is not consumed as current");
+  assert.equal(inspection.migration?.fromVersion, 0);
+
+  await assert.rejects(() => cleanIsolationRuntime(projectRoot, stateRoot), /Refusing to clean/u);
+  assert.equal(existsSync(marker), true);
 });

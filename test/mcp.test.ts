@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
 import { loadLock } from "../src/core/catalog.js";
-import { applyMcpSync, planMcpSync, renderMcpConfig } from "../src/core/mcp.js";
+import { applyMcpSync, NativeConfigError, planMcpSync, renderMcpConfig, validateNativeConfig } from "../src/core/mcp.js";
 import { allowedMcpTools } from "../src/core/mcp-proxy.js";
 import { packageRoot } from "../src/core/paths.js";
 import type { HarnessId } from "../src/types.js";
@@ -146,4 +146,120 @@ test("Pi MCP config apply fails closed until the pinned bridge is installed", as
     applyMcpSync("pi", await loadLock(packageRoot()), { configPath, stateRoot: join(root, "state"), env: {} }),
     /Pi MCP bridge .* must be installed/u,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-10: strict native configuration handling
+// ---------------------------------------------------------------------------
+
+test("ambiguous native configuration is rejected before anything is rendered", () => {
+  const cases: ReadonlyArray<{ harness: HarnessId; name: string; text: string; code: string }> = [
+    {
+      harness: "claude",
+      name: "duplicate JSON key",
+      text: '{"mcpServers":{},"mcpServers":{"exa":{}}}',
+      code: "syntax.duplicate-key",
+    },
+    {
+      harness: "claude",
+      name: "malformed JSON",
+      text: '{"mcpServers":{',
+      code: "syntax.malformed",
+    },
+    {
+      harness: "hermes",
+      name: "multi-document YAML stream",
+      text: "mcpServers: {}\n---\nmcpServers: {exa: {}}\n",
+      code: "syntax.multiple-documents",
+    },
+    {
+      harness: "hermes",
+      name: "duplicate YAML key",
+      text: "mcpServers: {}\nmcpServers: {exa: {}}\n",
+      code: "syntax.duplicate-key",
+    },
+    {
+      harness: "codex",
+      name: "TOML dotted/quoted key collision",
+      text: 'mcp_servers.exa.command = "a"\n[mcp_servers.exa]\n"command" = "b"\n',
+      code: "syntax.malformed",
+    },
+  ];
+
+  for (const entry of cases) {
+    const issues = validateNativeConfig(entry.harness, entry.text);
+    assert.ok(issues.length > 0, `${entry.name} should have been rejected`);
+    assert.equal(issues[0]?.code, entry.code, `${entry.name} produced ${issues[0]?.code}`);
+  }
+});
+
+test("a malformed alpha-AOS-owned entry is refused with a stable redacted issue", () => {
+  const issues = validateNativeConfig(
+    "claude",
+    JSON.stringify({ mcpServers: { exa: { command: "", args: "not-an-array" } } }),
+  );
+
+  assert.ok(issues.length > 0);
+  assert.ok(issues[0]?.documentPath.startsWith("/mcpServers/exa"), `got ${issues[0]?.documentPath}`);
+  // Two runs of the same input produce the same issues.
+  assert.deepEqual(
+    validateNativeConfig("claude", JSON.stringify({ mcpServers: { exa: { command: "", args: "not-an-array" } } })),
+    issues,
+  );
+});
+
+test("validation claims only the fields alpha-AOS writes, not the whole entry", () => {
+  // Codex sets startup_timeout_sec on its own server entries. Claiming the
+  // whole object would mean rejecting a field that is not this tool's to own.
+  const codex = validateNativeConfig(
+    "codex",
+    [
+      "[mcp_servers.context7]",
+      'command = "node"',
+      'args = ["cli.js"]',
+      "startup_timeout_sec = 30",
+      "",
+    ].join("\n"),
+  );
+  assert.deepEqual(codex, [], `a harness-owned field must not be refused: ${JSON.stringify(codex)}`);
+
+  // The same holds for unrelated top-level sections and for servers this tool
+  // does not manage.
+  const mixed = validateNativeConfig(
+    "claude",
+    JSON.stringify({
+      mcpServers: {
+        exa: { type: "stdio", command: "node", args: ["cli.js"] },
+        "user-owned-server": { anything: "at all" },
+      },
+      unrelatedUserSection: { keep: true },
+    }),
+  );
+  assert.deepEqual(mixed, []);
+});
+
+test("a native config with no managed servers is accepted untouched", () => {
+  assert.deepEqual(validateNativeConfig("claude", ""), []);
+  assert.deepEqual(validateNativeConfig("claude", JSON.stringify({ unrelatedUserSection: { keep: true } })), []);
+  assert.deepEqual(validateNativeConfig("hermes", "unrelated: true\n"), []);
+});
+
+test("planMcpSync refuses ambiguous native input before it can mutate", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-mcp-strict-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const configPath = join(root, "settings.json");
+  const ambiguous = '{"mcpServers":{},"mcpServers":{"exa":{"command":"x","args":[]}}}';
+  await writeFile(configPath, ambiguous, "utf8");
+
+  const lock = await loadLock(packageRoot());
+  await assert.rejects(
+    () => planMcpSync("claude", lock, { configPath, env: {} }),
+    (error: unknown) => {
+      assert.ok(error instanceof NativeConfigError, `expected NativeConfigError, got ${String(error)}`);
+      assert.equal(error.issues[0]?.code, "syntax.duplicate-key");
+      return true;
+    },
+  );
+
+  assert.equal(await readFile(configPath, "utf8"), ambiguous, "a refused plan must leave the file untouched");
 });

@@ -14,8 +14,15 @@ import type {
   ProjectIsolationPolicy,
   ProjectStackManifest,
 } from "../types.js";
-import { userStateRoot } from "./paths.js";
+import { packageRoot, userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
+import {
+  createMigrationPlan,
+  validateManagedDocument,
+  type MigrationPlan,
+  type ValidationIssue,
+  type ValidationResult,
+} from "./validation.js";
 
 const harnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
 
@@ -303,11 +310,74 @@ export async function cleanIsolationRuntime(projectRoot: string, stateRoot = use
   const marker = join(target, "runtime.json");
   if (!existsSync(target)) return "already absent";
   if (!existsSync(marker)) throw new Error(`Refusing to clean an unmarked directory: ${target}`);
-  const parsed = JSON.parse(await readFile(marker, "utf8")) as Record<string, unknown>;
-  if (parsed.managedBy !== "alpha-aos") {
-    throw new Error(`Refusing to clean a runtime without an alpha-AOS marker: ${target}`);
+
+  // The marker is the only evidence that this directory is alpha-AOS's to
+  // remove, so it is read strictly. A malformed, extended or unknown-version
+  // marker leaves the directory alone rather than being partially trusted.
+  const inspection = await inspectRuntimeMarker(marker);
+  if (inspection.status !== "current" || inspection.value === null) {
+    const detail = inspection.issues[0];
+    throw new Error(
+      `Refusing to clean a runtime whose marker is not a valid current record (${inspection.status}` +
+        `${detail ? `: ${detail.code} at ${detail.documentPath}` : ""}): ${target}`,
+    );
   }
-  if (parsed.projectId !== projectId) throw new Error(`Refusing to clean a runtime with a mismatched project marker: ${target}`);
+  if (inspection.value.projectId !== projectId) {
+    throw new Error(`Refusing to clean a runtime with a mismatched project marker: ${target}`);
+  }
   await rm(target, { recursive: true, force: false });
   return target.replace(resolve(homedir()), "~");
+}
+
+export interface RuntimeMarker {
+  schemaVersion: number;
+  managedBy: "alpha-aos";
+  projectId: string;
+  mode: IsolationMode;
+  policyHash: string;
+}
+
+export interface RuntimeMarkerInspection {
+  status: ValidationResult["status"];
+  /** Populated only for a current, valid marker. */
+  value: RuntimeMarker | null;
+  /** Populated only for a supported older version. */
+  readOnlyValue: unknown;
+  migration: MigrationPlan | null;
+  extensions: Record<string, unknown>;
+  issues: readonly ValidationIssue[];
+}
+
+let installStateSchema: Record<string, unknown> | null = null;
+
+async function loadInstallStateSchema(): Promise<Record<string, unknown>> {
+  if (installStateSchema !== null) return installStateSchema;
+  const packageDirectory = packageRoot();
+  installStateSchema = JSON.parse(
+    await readFile(join(packageDirectory, "schemas", "install-state.schema.json"), "utf8"),
+  ) as Record<string, unknown>;
+  return installStateSchema;
+}
+
+/**
+ * Reads a runtime marker through the strict route without acting on it. An
+ * older supported version is readable and yields a migration plan; an unknown
+ * newer one refuses, because a marker this tool does not understand is not
+ * evidence that the directory is safe to remove.
+ */
+export async function inspectRuntimeMarker(markerPath: string): Promise<RuntimeMarkerInspection> {
+  const result = validateManagedDocument<RuntimeMarker>({
+    text: await readFile(markerPath, "utf8"),
+    format: "json",
+    kind: "install-state",
+    schema: await loadInstallStateSchema(),
+  });
+  return {
+    status: result.status,
+    value: result.status === "current" ? result.value : null,
+    readOnlyValue: result.readOnlyValue,
+    migration: createMigrationPlan(result),
+    extensions: result.extensions,
+    issues: result.issues,
+  };
 }

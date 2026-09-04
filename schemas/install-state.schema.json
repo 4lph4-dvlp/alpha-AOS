@@ -1,12 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://alpha-aos.local/schemas/install-state.schema.json",
+  "title": "alpha-AOS managed runtime state",
+  "description": "Closed contract for the operational state alpha-AOS writes and later reads back. The marker is what proves a directory is alpha-AOS's to touch, so nothing in it may be inferred or defaulted.",
   "type": "object",
-  "required": ["schemaVersion", "machineId", "operations"],
+  "required": ["schemaVersion", "managedBy", "projectId", "mode", "policyHash"],
+  "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "const": 1 },
-    "machineId": { "type": "string" },
-    "operations": { "type": "array" }
-  },
-  "additionalProperties": true
+    "schemaVersion": { "type": "integer" },
+    "managedBy": {
+      "description": "Ownership marker. A runtime without it is never removed.",
+      "const": "alpha-aos"
+    },
+    "projectId": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+    "mode": { "enum": ["managed", "project-only", "sealed"] },
+    "policyHash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
 }

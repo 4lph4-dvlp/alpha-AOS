@@ -375,15 +375,28 @@ const ajv = new Ajv2020({
 
 const compiled = new Map<string, ValidateFunction>();
 const externalValidators = new WeakMap<Record<string, unknown>, ValidateFunction>();
+// Ajv refuses to compile two schemas sharing a $id, and a caller that re-reads
+// schemas/*.json produces a fresh object each time, so identity alone is not a
+// sufficient cache key.
+const validatorsById = new Map<string, ValidateFunction>();
 
 function validatorFor(kind: ManagedDocumentKind, schema?: Record<string, unknown>): ValidateFunction {
   if (schema !== undefined) {
-    // Caller-supplied schemas are keyed by identity so a repository contract
-    // read from schemas/*.json compiles once rather than on every document.
     const cached = externalValidators.get(schema);
     if (cached !== undefined) return cached;
+
+    // A schema carrying a $id is cached by that id, so re-reading the same
+    // repository contract reuses the compiled validator instead of colliding.
+    const id = typeof schema.$id === "string" ? schema.$id : null;
+    const byId = id === null ? undefined : validatorsById.get(id);
+    if (byId !== undefined) {
+      externalValidators.set(schema, byId);
+      return byId;
+    }
+
     const external = ajv.compile(schema);
     externalValidators.set(schema, external);
+    if (id !== null) validatorsById.set(id, external);
     return external;
   }
   const existing = compiled.get(kind);
@@ -662,4 +675,76 @@ export function createMigrationPlan(result: ValidationResult): MigrationPlan | n
     sourceHash: stableHash(source),
     targetHash: stableHash(target),
   };
+}
+
+/**
+ * Validates one value against a schema and returns bounded, sorted issues
+ * rooted at `basePath`. Used where alpha-AOS owns a subtree of a document it
+ * does not own as a whole — a native harness configuration, for example.
+ */
+export function validateAgainstSchema(
+  value: unknown,
+  schema: Record<string, unknown>,
+  basePath = "",
+): ValidationIssue[] {
+  const validate = validatorFor("native-config", schema);
+  if (validate(value)) return [];
+  const issues = ajvIssues(validate.errors, value).map((entry) => ({
+    ...entry,
+    documentPath: entry.documentPath === "/" ? (basePath === "" ? "/" : basePath) : `${basePath}${entry.documentPath}`,
+  }));
+  return finalizeIssues(issues).issues;
+}
+
+/**
+ * Patterns a credential leaves behind in a string. This is deliberately
+ * narrower than the redactor's rule set in `redaction.ts`: an envelope's
+ * fields are closed, so the question is only whether an allowed string field
+ * carries a secret it should never have been given.
+ */
+const RAW_CREDENTIAL_PATTERNS: ReadonlyArray<{ readonly kind: string; readonly pattern: RegExp }> = [
+  { kind: "pem", pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/u },
+  { kind: "jwt", pattern: /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{4,}\b/u },
+  { kind: "api-key", pattern: /\b(?:sk-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{12,}|gh[pousr]_[A-Za-z0-9]{16,})\b/u },
+  { kind: "url-userinfo", pattern: /\b[a-z][a-z0-9+.-]*:\/\/[^\s/@]+:[^\s/@]+@/iu },
+];
+
+/**
+ * Domain check for records that describe a repository rather than hold
+ * secrets. An evidence or receipt envelope that carries a raw credential is
+ * refused rather than stored and later echoed.
+ */
+export function rejectRawCredentials(value: unknown): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+
+  function walk(current: unknown, path: string, depth: number): void {
+    if (depth > 12 || issues.length >= ISSUE_CAP) return;
+    if (typeof current === "string") {
+      for (const rule of RAW_CREDENTIAL_PATTERNS) {
+        if (!rule.pattern.test(current)) continue;
+        issues.push(
+          issue(
+            "domain.raw-credential",
+            path === "" ? "/" : path,
+            "a record that describes a repository, not one that carries a credential",
+            `string(length=${current.length}, looks-like=${rule.kind})`,
+          ),
+        );
+        return;
+      }
+      return;
+    }
+    if (Array.isArray(current)) {
+      for (const [index, entry] of current.entries()) walk(entry, `${path}/${index}`, depth + 1);
+      return;
+    }
+    if (typeof current === "object" && current !== null) {
+      for (const [key, entry] of Object.entries(current as Record<string, unknown>)) {
+        walk(entry, `${path}/${key}`, depth + 1);
+      }
+    }
+  }
+
+  walk(value, "", 0);
+  return finalizeIssues(issues).issues;
 }

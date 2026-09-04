@@ -7,8 +7,14 @@ import { fileURLToPath } from "node:url";
 import { parseDocument } from "yaml";
 import type { HarnessId, LockedPackage, McpServerId, StackLock } from "../types.js";
 import { resolveNodePackageCli } from "./process.js";
-import { userStateRoot } from "./paths.js";
+import { aliasPath, createPathAliases, userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
+import {
+  parseManagedDocument,
+  validateAgainstSchema,
+  type ManagedFormat,
+  type ValidationIssue,
+} from "./validation.js";
 
 const serverOrder: McpServerId[] = ["context7", "exa", "firecrawl"];
 
@@ -302,6 +308,99 @@ function assertNoCredentialValue(rendered: string, env: NodeJS.ProcessEnv): void
   }
 }
 
+/** The syntax each harness writes its native configuration in. */
+export function nativeConfigFormat(harness: HarnessId): ManagedFormat {
+  if (harness === "codex") return "toml";
+  if (harness === "hermes") return "yaml";
+  return "json";
+}
+
+export class NativeConfigError extends Error {
+  readonly issues: readonly ValidationIssue[];
+  constructor(harness: HarnessId, configPath: string, issues: readonly ValidationIssue[]) {
+    const first = issues[0];
+    super(
+      `Native ${harness} configuration at ${aliasPath(configPath, createPathAliases())} was rejected` +
+        `${first ? `: ${first.code} at ${first.documentPath} (${first.expected})` : ""}`,
+    );
+    this.name = "NativeConfigError";
+    this.issues = issues;
+  }
+}
+
+/**
+ * The fields alpha-AOS writes on a managed MCP server entry.
+ *
+ * `additionalProperties` stays open on purpose. A harness owns the rest of its
+ * own entry — Codex writes `startup_timeout_sec`, for example — and claiming
+ * the whole object would mean rejecting or discarding fields that are not this
+ * tool's to manage. Only the fields alpha-AOS renders are checked.
+ */
+const OWNED_SERVER_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  required: ["command", "args"],
+  properties: {
+    type: { const: "stdio" },
+    command: { type: "string", minLength: 1 },
+    args: { type: "array", items: { type: "string" } },
+    env: { type: "object", additionalProperties: { type: "string" } },
+    lifecycle: { enum: ["lazy", "eager"] },
+    directTools: { type: "boolean" },
+  },
+  additionalProperties: true,
+};
+
+/**
+ * Validates a native configuration file before anything is rendered or
+ * applied. Syntax ambiguity — a duplicate key, a multi-document YAML stream,
+ * a colliding TOML key — is rejected here, and each alpha-AOS-owned entry is
+ * checked against the managed shape.
+ *
+ * User-owned keys are deliberately not validated, defaulted, or removed: this
+ * tool owns its own entries and nothing else in the file.
+ */
+export function validateNativeConfig(harness: HarnessId, text: string): ValidationIssue[] {
+  if (!text.trim()) return [];
+  const format = nativeConfigFormat(harness);
+  const parsed = parseManagedDocument({ text, format });
+  if (!parsed.ok) return parsed.issues;
+
+  const root = parsed.value;
+  if (typeof root !== "object" || root === null || Array.isArray(root)) {
+    return [
+      {
+        code: "schema.not-an-object",
+        documentPath: "/",
+        expected: "an object at the configuration root",
+        actualShape: Array.isArray(root) ? `array(length=${root.length})` : typeof root,
+      },
+    ];
+  }
+
+  const record = root as Record<string, unknown>;
+  const serversKey = harness === "codex" ? "mcp_servers" : "mcpServers";
+  const servers = record[serversKey];
+  if (servers === undefined) return [];
+  if (typeof servers !== "object" || servers === null || Array.isArray(servers)) {
+    return [
+      {
+        code: "schema.type",
+        documentPath: `/${serversKey}`,
+        expected: "an object mapping server ids to definitions",
+        actualShape: Array.isArray(servers) ? `array(length=${servers.length})` : typeof servers,
+      },
+    ];
+  }
+
+  const issues: ValidationIssue[] = [];
+  for (const id of serverOrder) {
+    const entry = (servers as Record<string, unknown>)[id];
+    if (entry === undefined) continue;
+    issues.push(...validateAgainstSchema(entry, OWNED_SERVER_SCHEMA, `/${serversKey}/${id}`));
+  }
+  return issues;
+}
+
 export async function planMcpSync(harness: HarnessId, lock: StackLock, options: {
   configPath?: string;
   selected?: McpServerId[];
@@ -311,6 +410,10 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
   const selected = options.selected ?? serverOrder;
   const env = options.env ?? process.env;
   const existing = existsSync(configPath) ? await readFile(configPath, "utf8") : "";
+  // Ambiguous or malformed native input ends here, before a renderer is asked
+  // to reason about it and long before anything is written.
+  const issues = validateNativeConfig(harness, existing);
+  if (issues.length > 0) throw new NativeConfigError(harness, configPath, issues);
   const rendered = renderMcpConfig(harness, existing, lock, selected);
   assertNoCredentialValue(rendered, env);
   const currentHash = existing ? sha256(existing) : null;

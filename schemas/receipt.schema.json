@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/receipt.schema.json",
+  "title": "alpha-AOS project pack receipt",
+  "description": "Closed contract for the record that will describe a materialized project pack. This phase defines and validates the envelope only; materialization and removal are phase 3.",
+  "type": "object",
+  "required": ["schemaVersion", "packId", "producer", "createdAt", "sourceHash", "targets"],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "packId": { "type": "string", "minLength": 1 },
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "createdAt": { "type": "string", "minLength": 1 },
+    "sourceHash": { "$ref": "#/$defs/sha256" },
+    "evidenceHash": {
+      "description": "Digest of the evidence envelope that selected this pack.",
+      "$ref": "#/$defs/sha256"
+    },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["harness", "path", "targetHash"],
+        "additionalProperties": false,
+        "properties": {
+          "harness": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] },
+          "path": { "type": "string", "minLength": 1 },
+          "targetHash": { "$ref": "#/$defs/sha256" }
+        }
+      }
+    }
+  }
+}

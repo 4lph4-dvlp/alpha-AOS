@@ -16,6 +16,8 @@ import {
   clearExtensionAdapters,
   createMigrationPlan,
   registerExtensionAdapter,
+  rejectRawCredentials,
+  validateAgainstSchema,
   validateManagedDocument,
 } from "../src/core/validation.js";
 
@@ -455,4 +457,162 @@ test("version routing distinguishes current, migratable and newer, and plans wit
   assert.equal(newer.status, "unknown-newer");
   assert.equal(newer.issues[0]?.code, "version.unknown-newer");
   assert.equal(createMigrationPlan(newer), null, "an unknown newer version has no migration path");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-10: operational and future-input envelopes
+// ---------------------------------------------------------------------------
+
+const REPOSITORY_SCHEMAS = resolve(repositoryRoot, "schemas");
+
+async function schema(name: string): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(join(REPOSITORY_SCHEMAS, name), "utf8")) as Record<string, unknown>;
+}
+
+const VALID_EVIDENCE = {
+  schemaVersion: 1,
+  projectId: "0123456789abcdef",
+  producer: { name: "alpha-aos", version: "0.1.0" },
+  createdAt: "2026-09-04T00:00:00.000Z",
+  sourceHash: "a".repeat(64),
+  facts: [
+    { id: "web-framework", kind: "dependency", detected: true, version: "15.0.0" },
+    { id: "agent-runtime", kind: "dependency", detected: false, reason: "AGENTS.md alone is not an agent SDK" },
+  ],
+};
+
+const VALID_RECEIPT = {
+  schemaVersion: 1,
+  packId: "WEB_BASE",
+  producer: { name: "alpha-aos", version: "0.1.0" },
+  createdAt: "2026-09-04T00:00:00.000Z",
+  sourceHash: "b".repeat(64),
+  evidenceHash: "c".repeat(64),
+  targets: [{ harness: "claude", path: ".claude/skills/web-base/SKILL.md", targetHash: "d".repeat(64) }],
+};
+
+test("evidence and receipt envelopes validate as closed current documents", async () => {
+  const evidence = validateManagedDocument({
+    text: JSON.stringify(VALID_EVIDENCE),
+    format: "json",
+    kind: "evidence",
+    schema: await schema("evidence.schema.json"),
+    domain: rejectRawCredentials,
+  });
+  assert.equal(evidence.ok, true, JSON.stringify(evidence.issues));
+  assert.equal(evidence.status, "current");
+
+  const receipt = validateManagedDocument({
+    text: JSON.stringify(VALID_RECEIPT),
+    format: "json",
+    kind: "receipt",
+    schema: await schema("receipt.schema.json"),
+    domain: rejectRawCredentials,
+  });
+  assert.equal(receipt.ok, true, JSON.stringify(receipt.issues));
+  assert.equal(receipt.status, "current");
+});
+
+test("an envelope carrying a raw credential is refused", async () => {
+  const evidenceSchema = await schema("evidence.schema.json");
+
+  const cases: ReadonlyArray<{ name: string; value: unknown }> = [
+    {
+      name: "a JWT in a fact reason",
+      value: {
+        ...VALID_EVIDENCE,
+        facts: [{ id: "x", kind: "dependency", detected: false, reason: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhIn0.sigsigsig" }],
+      },
+    },
+    {
+      name: "an API key in a version field",
+      value: { ...VALID_EVIDENCE, facts: [{ id: "x", kind: "dependency", detected: true, version: "sk-ant-api03-AAAAAAAAAAAAAAAAAA" }] },
+    },
+    {
+      name: "URL userinfo in a path",
+      value: { ...VALID_EVIDENCE, facts: [{ id: "x", kind: "remote", detected: true, path: "https://user:secret@registry.example/pkg" }] },
+    },
+  ];
+
+  for (const entry of cases) {
+    const result = validateManagedDocument({
+      text: JSON.stringify(entry.value),
+      format: "json",
+      kind: "evidence",
+      schema: evidenceSchema,
+      domain: rejectRawCredentials,
+    });
+    assert.equal(result.ok, false, `${entry.name} should have been refused`);
+    assert.equal(result.issues[0]?.code, "domain.raw-credential");
+    // The refusal describes the shape, never the value.
+    assert.equal(
+      result.issues[0]?.actualShape.includes("eyJ") || result.issues[0]?.actualShape.includes("sk-"),
+      false,
+      "an issue must not echo the credential it found",
+    );
+  }
+});
+
+test("an envelope with an unknown core field or a newer version refuses", async () => {
+  const evidenceSchema = await schema("evidence.schema.json");
+
+  const unknownField = validateManagedDocument({
+    text: JSON.stringify({ ...VALID_EVIDENCE, unknownCoreField: true }),
+    format: "json",
+    kind: "evidence",
+    schema: evidenceSchema,
+  });
+  assert.equal(unknownField.ok, false);
+  assert.equal(unknownField.issues[0]?.code, "schema.unknown-core-field");
+
+  const newer = validateManagedDocument({
+    text: JSON.stringify({ ...VALID_EVIDENCE, schemaVersion: 9 }),
+    format: "json",
+    kind: "evidence",
+    schema: evidenceSchema,
+  });
+  assert.equal(newer.status, "unknown-newer");
+  assert.equal(createMigrationPlan(newer), null);
+
+  const older = validateManagedDocument({
+    text: JSON.stringify({ ...VALID_EVIDENCE, schemaVersion: 0 }),
+    format: "json",
+    kind: "evidence",
+    schema: evidenceSchema,
+  });
+  assert.equal(older.status, "migratable");
+  assert.equal(older.value, null, "a migratable envelope yields no authoritative value");
+  assert.notEqual(createMigrationPlan(older), null);
+});
+
+test("an unregistered envelope extension is preserved but cannot change the normalized core", async () => {
+  const receiptSchema = await schema("receipt.schema.json");
+
+  const plain = validateManagedDocument({ text: JSON.stringify(VALID_RECEIPT), format: "json", kind: "receipt", schema: receiptSchema });
+  const extended = validateManagedDocument({
+    text: JSON.stringify({ ...VALID_RECEIPT, "x-vendor-note": { anything: 1 } }),
+    format: "json",
+    kind: "receipt",
+    schema: receiptSchema,
+  });
+
+  assert.equal(extended.ok, true, JSON.stringify(extended.issues));
+  assert.deepEqual(extended.extensions, { "x-vendor-note": { anything: 1 } });
+  assert.deepEqual(extended.typedExtensions, {});
+  assert.deepEqual(extended.value, plain.value, "an extension must not change the normalized core");
+});
+
+test("validateAgainstSchema roots its issues at the owned subtree", () => {
+  const ownedSchema = {
+    type: "object",
+    required: ["command"],
+    properties: { command: { type: "string", minLength: 1 } },
+    additionalProperties: true,
+  };
+
+  assert.deepEqual(validateAgainstSchema({ command: "node", extra: 1 }, ownedSchema, "/mcpServers/exa"), []);
+
+  const issues = validateAgainstSchema({ notCommand: 1 }, ownedSchema, "/mcpServers/exa");
+  assert.equal(issues.length > 0, true);
+  assert.equal(issues[0]?.documentPath.startsWith("/mcpServers/exa"), true);
 });

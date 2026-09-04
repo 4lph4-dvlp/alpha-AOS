@@ -26,10 +26,36 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
-      - name: Validate POSIX bootstrap syntax
+
+      # The artifact `npm test` just built must describe itself exactly. A
+      # mismatch here means the build is not reproducible from these sources,
+      # which is the one prerequisite every wrapper depends on.
+      - name: Verify the build artifact manifest
+        run: npm run build:check
+
+      # The Phase 1 safety boundary, exercised per OS rather than assumed.
+      # Each file is named so a suite that silently stops running is a failure
+      # rather than an omission nobody notices.
+      - name: Safety boundary suites
+        run: >
+          node --test
+          dist/test/preview.test.js
+          dist/test/path-boundary.test.js
+          dist/test/transaction-crash.test.js
+          dist/test/redaction.test.js
+          dist/test/validation.test.js
+          dist/test/process.test.js
+          dist/test/install.test.js
+          dist/test/update.test.js
+
+      # Wrapper behaviour is asserted inside preview.test.js above, which runs
+      # each family natively on this OS and records a not-run entry rather
+      # than a pass when a launcher is unavailable. These steps only prove the
+      # scripts still parse under the interpreter this OS ships.
+      - name: Validate POSIX wrapper syntax
         if: runner.os != 'Windows'
         run: sh -n scripts/install.sh && sh -n scripts/update.sh
-      - name: Validate PowerShell bootstrap syntax
+      - name: Validate PowerShell wrapper syntax
         if: runner.os == 'Windows'
         shell: pwsh
         run: |

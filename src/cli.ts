@@ -631,7 +631,8 @@ async function main(): Promise<void> {
       throw new Error("Usage: alpha-aos bootstrap install|update [--skip-link] [--apply] [--json]");
     }
     const inventory = collectInventory(catalog);
-    const managed = { catalog, lock, inventory };
+    const requestedTargets = optionalHarnessList(optionValue(args, "--target"));
+    const managed = { catalog, lock, inventory, ...(requestedTargets === undefined ? {} : { requestedTargets }) };
     const plan = await createBootstrapOperationPlan({
       operation: operation as BootstrapKind,
       root,

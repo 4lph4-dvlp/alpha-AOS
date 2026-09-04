@@ -25,6 +25,19 @@ const scriptsRoot = join(repositoryRoot, "scripts");
 /** Checkout subtrees that legitimately change between runs and are not part of the contract. */
 const CHECKOUT_IGNORED = new Set([".git", "node_modules", "dist", "coverage", ".planning"]);
 
+/**
+ * PowerShell writes a startup profile cache into the home directory the moment
+ * it launches, before the script it was given runs at all. That is the
+ * interpreter's own footprint, not the wrapper's, so it is excluded by exact
+ * path rather than by name — everything else under the home surface, including
+ * every harness resource root, still has to be byte-identical.
+ */
+const LAUNCHER_FOOTPRINT: readonly string[] = [
+  "AppData/Local/Microsoft/PowerShell",
+  ".cache/powershell",
+  ".local/share/powershell",
+];
+
 interface NotRunRecord {
   readonly surface: string;
   readonly reason: string;
@@ -37,8 +50,27 @@ function recordNotRun(surface: string, reason: string): void {
   notRun.push({ surface, reason });
 }
 
-async function treeDigest(root: string, ignored: ReadonlySet<string> = new Set()): Promise<string> {
+async function treeDigest(
+  root: string,
+  ignored: ReadonlySet<string> = new Set(),
+  ignoredPrefixes: readonly string[] = [],
+): Promise<string> {
   const entries: string[] = [];
+
+  /** The ignored subtree itself: omitted entirely, contents included. */
+  function excluded(key: string): boolean {
+    return ignoredPrefixes.some((prefix) => key === prefix || key.startsWith(`${prefix}/`));
+  }
+
+  /**
+   * A directory that exists only because it contains an ignored subtree. Its
+   * own name carries no information, so the entry line is omitted — but the
+   * walk still descends, so a real sibling written beside the ignored subtree
+   * is still recorded.
+   */
+  function ancestorOfExcluded(key: string): boolean {
+    return ignoredPrefixes.some((prefix) => prefix.startsWith(`${key}/`));
+  }
 
   async function walk(current: string): Promise<void> {
     let listing: Dirent[];
@@ -53,8 +85,9 @@ async function treeDigest(root: string, ignored: ReadonlySet<string> = new Set()
       if (ignored.has(entry.name)) continue;
       const absolute = join(current, entry.name);
       const key = relative(root, absolute).split(sep).join("/");
+      if (excluded(key)) continue;
       if (entry.isDirectory()) {
-        entries.push(`d ${key}`);
+        if (!ancestorOfExcluded(key)) entries.push(`d ${key}`);
         await walk(absolute);
       } else if (entry.isSymbolicLink()) {
         // Record the link itself, not its resolution: a preview must not
@@ -326,7 +359,7 @@ test("install and update wrappers preview without mutating either shell family",
     // The package/global-link sentinel and the managed state root are the
     // surfaces a bootstrap-happy wrapper reaches first.
     const packagesBefore = await treeDigest(sandbox.packageSentinel);
-    const homeBefore = await treeDigest(sandbox.home);
+    const homeBefore = await treeDigest(sandbox.home, new Set(), LAUNCHER_FOOTPRINT);
     const sourceBefore = await treeDigest(repositoryRoot, CHECKOUT_IGNORED);
 
     const result = spawnSync(family.launcher, [...family.leading, family.script], {
@@ -354,7 +387,7 @@ ${detail}`,
     );
     assert.equal(await treeDigest(sandbox.packageSentinel), packagesBefore, `wrapper \`${family.name}\` linked or installed a package without --apply
 ${detail}`);
-    assert.equal(await treeDigest(sandbox.home), homeBefore, `wrapper \`${family.name}\` mutated the home surface without --apply
+    assert.equal(await treeDigest(sandbox.home, new Set(), LAUNCHER_FOOTPRINT), homeBefore, `wrapper \`${family.name}\` mutated the home surface without --apply
 ${detail}`);
     assert.equal(existsSync(sandbox.stateRoot), false, `wrapper \`${family.name}\` created the managed state root without --apply`);
     assert.equal(await treeDigest(repositoryRoot, CHECKOUT_IGNORED), sourceBefore, `wrapper \`${family.name}\` reached the developer checkout`);
@@ -362,4 +395,83 @@ ${detail}`);
 
   context.diagnostic(`wrapper families executed: ${executed}; not-run: ${JSON.stringify(notRun)}`);
   assert.equal(executed + notRun.length, families.length, "every wrapper family must be either executed or explicitly recorded as not-run");
+});
+
+/** Commands a wrapper must never run itself; the reviewed operation owns them. */
+const FORBIDDEN_WRAPPER_COMMANDS: ReadonlyArray<{ readonly label: string; readonly pattern: RegExp }> = [
+  { label: "npm ci", pattern: /(?:^|[^-\w])npm\s+ci\b/mu },
+  { label: "npm install", pattern: /(?:^|[^-\w])npm\s+install\b/mu },
+  { label: "npm run build", pattern: /(?:^|[^-\w])npm\s+run\s+build\b/mu },
+  { label: "npm link", pattern: /(?:^|[^-\w])npm\s+link\b/mu },
+  { label: "git pull", pattern: /(?:^|[^-\w])git\s+pull\b/mu },
+  { label: "git fetch", pattern: /(?:^|[^-\w])git\s+fetch\b/mu },
+  { label: "git merge", pattern: /(?:^|[^-\w])git\s+merge\b/mu },
+];
+
+const WRAPPER_SCRIPTS = ["install.sh", "install.ps1", "update.sh", "update.ps1"] as const;
+
+test("no wrapper contains a direct mutation command or a fallback that would run one", async () => {
+  for (const name of WRAPPER_SCRIPTS) {
+    const script = join(scriptsRoot, name);
+    assert.equal(existsSync(script), true, `wrapper is missing: ${name}`);
+    const source = await readFile(script, "utf8");
+
+    for (const forbidden of FORBIDDEN_WRAPPER_COMMANDS) {
+      assert.equal(
+        forbidden.pattern.test(source),
+        false,
+        `wrapper \`${name}\` runs \`${forbidden.label}\` itself; that belongs to the reviewed operation`,
+      );
+    }
+
+    // The one prerequisite and the one delegation, both present.
+    assert.match(source, /build-artifact\.mjs check/u, `wrapper \`${name}\` does not verify the build artifact`);
+    assert.match(source, /cli\.js/u, `wrapper \`${name}\` does not delegate to the CLI`);
+    assert.match(source, /bootstrap/u, `wrapper \`${name}\` does not delegate to the bootstrap route`);
+  }
+});
+
+test("a wrapper refuses without a verified build artifact and delegates with one", async (context) => {
+  const sandbox = await createSandbox(context);
+  const families: ReadonlyArray<{ readonly name: string; readonly script: string; readonly launcher: string; readonly leading: string[] }> = [
+    { name: "install.sh", script: join(scriptsRoot, "install.sh"), launcher: "bash", leading: [] },
+    { name: "update.sh", script: join(scriptsRoot, "update.sh"), launcher: "bash", leading: [] },
+    { name: "install.ps1", script: join(scriptsRoot, "install.ps1"), launcher: "pwsh", leading: ["-NoLogo", "-NoProfile", "-NonInteractive", "-File"] },
+    { name: "update.ps1", script: join(scriptsRoot, "update.ps1"), launcher: "pwsh", leading: ["-NoLogo", "-NoProfile", "-NonInteractive", "-File"] },
+  ];
+
+  const manifest = join(repositoryRoot, "dist", "build-artifact.json");
+  if (!existsSync(manifest)) {
+    recordNotRun("wrapper delegation", "this checkout has no build artifact manifest to delegate with");
+    return;
+  }
+
+  for (const family of families) {
+    const launcherProbe = spawnSync(family.launcher, ["--version"], { encoding: "utf8", timeout: 15_000, windowsHide: true });
+    if (launcherProbe.status !== 0) {
+      recordNotRun(family.name, `${family.launcher} is unavailable on this host`);
+      continue;
+    }
+
+    const packagesBefore = await treeDigest(sandbox.packageSentinel);
+    const homeBefore = await treeDigest(sandbox.home, new Set(), LAUNCHER_FOOTPRINT);
+    const sourceBefore = await treeDigest(repositoryRoot, CHECKOUT_IGNORED);
+
+    const result = spawnSync(family.launcher, [...family.leading, family.script], {
+      cwd: repositoryRoot,
+      env: sandbox.env,
+      encoding: "utf8",
+      timeout: 60_000,
+      windowsHide: true,
+    });
+    const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+
+    // The prerequisite ran and passed, so the wrapper reached its delegation.
+    assert.match(output, /build artifact verified/u, `wrapper \`${family.name}\` did not verify the artifact\n${output.slice(0, 400)}`);
+    // Whatever the core decides, the wrapper itself changed nothing.
+    assert.equal(await treeDigest(sandbox.packageSentinel), packagesBefore, `wrapper \`${family.name}\` touched the package sentinel`);
+    assert.equal(await treeDigest(sandbox.home, new Set(), LAUNCHER_FOOTPRINT), homeBefore, `wrapper \`${family.name}\` touched the home surface`);
+    assert.equal(await treeDigest(repositoryRoot, CHECKOUT_IGNORED), sourceBefore, `wrapper \`${family.name}\` changed the checkout`);
+    assert.equal(existsSync(sandbox.stateRoot), false, `wrapper \`${family.name}\` created the managed state root without an apply`);
+  }
 });

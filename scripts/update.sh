@@ -1,7 +1,12 @@
 #!/usr/bin/env sh
+# A launcher, not an updater.
+#
+# The dirty-checkout check, the remote resolution, the fast-forward, the
+# package install, the build, the link and the managed reconcile all belong to
+# the core service, which performs them under one reviewed plan and one writer
+# session. This script verifies the artifact and delegates.
 set -eu
 
-repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 apply=0
 target=""
 
@@ -18,29 +23,27 @@ while [ "$#" -gt 0 ]; do
   shift
 done
 
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "Node.js 24 or newer is required." >&2
+  exit 3
+fi
+
 cd "$repo_root"
-if [ -n "$(git status --porcelain)" ]; then
-  echo "Refusing to update a dirty checkout. Commit or stash local changes first." >&2
-  exit 2
+
+if ! node scripts/build-artifact.mjs check; then
+  echo "alpha-aos: refusing to run without a verified build artifact." >&2
+  exit 3
 fi
 
-git pull --ff-only
-npm ci
-npm run build
-npm link
-
+set -- bootstrap update
+[ -n "$target" ] && set -- "$@" --target "$target"
 if [ "$apply" -eq 1 ]; then
-  if [ -n "$target" ]; then
-    node dist/src/cli.js update --apply --target "$target"
-  else
-    node dist/src/cli.js update --apply
-  fi
+  set -- "$@" --apply
 else
-  echo "Update downloaded and built. Showing the stable reconcile plan only."
-  echo "Re-run with --apply to mutate harness configuration."
-  if [ -n "$target" ]; then
-    node dist/src/cli.js install --target "$target"
-  else
-    node dist/src/cli.js install
-  fi
+  echo "Showing the update plan only."
+  echo "Re-run with --apply to run it under one reviewed operation session."
 fi
+
+exec node dist/src/cli.js "$@"

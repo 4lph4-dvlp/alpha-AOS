@@ -1,3 +1,9 @@
+# A launcher, not an updater.
+#
+# The dirty-checkout check, the remote resolution, the fast-forward, the
+# package install, the build, the link and the managed reconcile all belong to
+# the core service, which performs them under one reviewed plan and one writer
+# session. This script verifies the artifact and delegates.
 [CmdletBinding()]
 param(
     [switch]$Apply,
@@ -7,35 +13,31 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Error 'Node.js 24 or newer is required.' -ErrorAction Continue
+    exit 3
+}
+
 Push-Location $repoRoot
 try {
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        throw 'Git is required to update a source checkout.'
-    }
-    $dirty = git status --porcelain
-    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the Git working tree.' }
-    if ($dirty) {
-        throw 'Refusing to update a dirty checkout. Commit or stash local changes first.'
+    node scripts/build-artifact.mjs check
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error 'alpha-aos: refusing to run without a verified build artifact.' -ErrorAction Continue
+        exit 3
     }
 
-    git pull --ff-only
-    if ($LASTEXITCODE -ne 0) { throw 'git pull --ff-only failed.' }
-    npm ci
-    npm run build
-    npm link
-
+    $arguments = @('dist/src/cli.js', 'bootstrap', 'update')
+    if ($Target) { $arguments += @('--target', $Target) }
     if ($Apply) {
-        $arguments = @('dist/src/cli.js', 'update', '--apply')
+        $arguments += '--apply'
     }
     else {
-        $arguments = @('dist/src/cli.js', 'install')
-        if ($Target) { $arguments += @('--target', $Target) }
-        Write-Host 'Update downloaded and built. Showing the stable reconcile plan only.'
-        Write-Host 'Re-run with -Apply to mutate harness configuration.'
+        Write-Host 'Showing the update plan only.'
+        Write-Host 'Re-run with -Apply to run it under one reviewed operation session.'
     }
-    if ($Apply -and $Target) { $arguments += @('--target', $Target) }
+
     & node @arguments
-    if ($LASTEXITCODE -ne 0) { throw "alpha-AOS reconcile failed with exit code $LASTEXITCODE." }
+    exit $LASTEXITCODE
 }
 finally {
     Pop-Location

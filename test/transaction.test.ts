@@ -45,7 +45,9 @@ test("transaction rejects paths outside its ownership roots", async (context) =>
       allowedRoots: [allowed],
       operations: [{ target: join(root, "outside.txt"), content: "blocked" }],
     }),
-    /outside allowed roots/u,
+    // The path proof refuses before the writer lock is taken, so the refusal
+    // names the boundary that failed rather than a generic message.
+    /outside-configured-root|outside allowed roots/u,
   );
 });
 

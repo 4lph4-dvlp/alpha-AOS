@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import type { OperationPathRole, PathProof } from "../src/core/path-boundary.js";
 import {
@@ -140,9 +140,9 @@ test("a link that escapes the allowed root is refused and the outside sentinel i
   assert.equal(await readFile(fixture.outsideSentinel, "utf8"), SENTINEL_BYTES);
 });
 
-// applyFileTransaction still uses lexical containment; plan 01-09 routes it
-// through the proof set built here.
-test("a transaction refuses a write whose canonical path escapes", { todo: "transaction is wired to PathProof in plan 01-09" }, async (context) => {
+// Closed by plan 01-09: applyFileTransaction now proves every declared role
+// through this module before it takes the writer lock.
+test("a transaction refuses a write whose canonical path escapes", async (context) => {
   const fixture = await createFixture(context);
   const escapeLink = join(fixture.allowed, "escape");
   if (!(await tryDirectorySymlink(fixture.outsideDirectory, escapeLink))) {
@@ -458,4 +458,37 @@ test("an unprovable filesystem is reported as unsupported rather than allowed", 
   assert.equal(proof.proven, false);
   assert.equal(proof.capability.supported, false, "support must not be advertised when nothing was proven");
   assert.ok(proof.detail !== null, "an unsupported result must carry a reason");
+});
+
+test("a component the operation creates is allowed, but a link appearing there is not", async (context) => {
+  const fixture = await createFixture(context);
+  const target = join(fixture.allowed, "created", "nested", "file.txt");
+
+  // Nothing on this chain exists yet; the operation is expected to create it.
+  const proof = await provePathBoundary({ path: target, allowedRoots: [fixture.allowed], role: "target" });
+  assert.equal(proof.proven, true);
+
+  // The operation creating its own directories must not read as ancestor drift.
+  await mkdir(dirname(target), { recursive: true });
+  const afterCreate = await recheckPathProof(proof);
+  assert.equal(afterCreate.ok, true, `creating the parent must not fail the recheck: ${String(afterCreate.detail)}`);
+
+  // But something else planting a link where the operation expected to create
+  // a plain directory is exactly the substitution this boundary exists to stop.
+  const linkSite = join(fixture.allowed, "created", "linked");
+  const linkTarget = join(fixture.allowed, "created", "nested", "sub.txt");
+  const linkProof = await provePathBoundary({ path: linkTarget, allowedRoots: [fixture.allowed], role: "target" });
+  assert.equal(linkProof.proven, true);
+
+  await rm(join(fixture.allowed, "created", "nested"), { recursive: true, force: true });
+  if (!(await tryDirectorySymlink(fixture.outsideDirectory, join(fixture.allowed, "created", "nested")))) {
+    notRun.push({ fixture: "created-link-substitution", reason: "this host cannot create directory links without privileges" });
+    context.skip("created-link-substitution fixture not run: directory links unavailable");
+    return;
+  }
+
+  const substituted = await recheckPathProof(linkProof);
+  assert.equal(substituted.ok, false, "a link planted where a plain entry was expected must refuse");
+  assert.equal(await sha256File(fixture.outsideSentinel), createHash("sha256").update(SENTINEL_BYTES).digest("hex"));
+  void linkSite;
 });

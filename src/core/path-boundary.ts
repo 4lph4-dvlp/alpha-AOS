@@ -291,11 +291,46 @@ export async function recheckPathProof(proof: PathProof): Promise<{ ok: boolean;
     return { ok: false, code: proof.code, detail: proof.detail ?? "proof was never established" };
   }
 
+  let canonicalRoot = proof.allowedRoot;
+  if (canonicalRoot !== null) {
+    try {
+      canonicalRoot = await realpath(canonicalRoot);
+    } catch {
+      // Fall back to the configured root; containment is still checked below.
+    }
+  }
+
   for (const recorded of proof.components) {
     const current = await classifyComponent(recorded.path);
     if ("unknownReparse" in current) {
       return { ok: false, code: "unknown-reparse", detail: `component became unclassifiable: ${recorded.path}` };
     }
+
+    if (recorded.kind === "missing") {
+      // A component the operation itself creates is expected to appear. Only a
+      // plain directory or file counts: if a link showed up where nothing was,
+      // something else created it and the boundary is no longer proven.
+      if (current.kind === "missing") continue;
+      if (current.kind !== "directory" && current.kind !== "file") {
+        return {
+          ok: false,
+          code: "ancestor-changed",
+          detail: `a ${current.kind} appeared where the operation expected to create a plain entry: ${recorded.path}`,
+        };
+      }
+      // Ancestors above the allowed root are not the operation's to create and
+      // their containment is meaningless; only check what is inside it.
+      const insideAllowedRoot = proof.allowedRoot !== null && withinRoot(proof.allowedRoot, recorded.path);
+      if (insideAllowedRoot && canonicalRoot !== null && !withinRoot(canonicalRoot, current.canonical)) {
+        return {
+          ok: false,
+          code: "outside-canonical-root",
+          detail: `a newly created component resolves outside the allowed root: ${recorded.path}`,
+        };
+      }
+      continue;
+    }
+
     if (current.kind !== recorded.kind || current.reparse !== recorded.reparse) {
       return { ok: false, code: "ancestor-changed", detail: `component kind changed: ${recorded.path}` };
     }
@@ -309,7 +344,7 @@ export async function recheckPathProof(proof: PathProof): Promise<{ ok: boolean;
     }
   }
 
-  if (proof.allowedRoot !== null && !withinRoot(proof.allowedRoot, proof.canonical)) {
+  if (canonicalRoot !== null && !withinRoot(canonicalRoot, proof.canonical)) {
     return { ok: false, code: "outside-canonical-root", detail: "canonical endpoint left the allowed root" };
   }
   return { ok: true, code: "ok", detail: null };

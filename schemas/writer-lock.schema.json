@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/writer-lock.schema.json",
+  "title": "alpha-AOS writer lock",
+  "description": "Exclusive ownership record for one managed state root. Its presence never means an operation succeeded, and its age never means the owner is gone: only a proven repair may release it.",
+  "type": "object",
+  "required": ["schemaVersion", "operationId", "token", "pid", "host", "startedAt", "journalPath", "planDigest"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "operationId": { "type": "string", "minLength": 1 },
+    "token": {
+      "description": "Per-session ownership secret. Never returned to a reader.",
+      "type": "string",
+      "minLength": 1
+    },
+    "pid": { "type": "integer", "minimum": 1 },
+    "host": { "type": "string", "minLength": 1 },
+    "startedAt": { "type": "string", "minLength": 1 },
+    "journalPath": { "type": "string", "minLength": 1 },
+    "planDigest": { "type": "string", "minLength": 1 }
+  }
+}

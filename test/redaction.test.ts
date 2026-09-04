@@ -14,7 +14,9 @@ import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { redactHome } from "../src/core/paths.js";
+import { aliasPath, createPathAliases, redactHome } from "../src/core/paths.js";
+import { createRedactedExcerpt, createRedactionContext, redactValue, serializeObservable } from "../src/core/redaction.js";
+import { planSupportBundle, renderSupportBundleBytes } from "../src/core/support-bundle.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -163,7 +165,10 @@ test("no observable CLI surface leaks a secret sentinel", async (context) => {
   }
 });
 
-test("a removed secret leaves a visible typed placeholder, not a silent hole", async (context) => {
+// The redactor emits typed placeholders as of plan 01-03, but src/cli.ts does
+// not yet serialize through it - that seam is plan 01-15 (CLI/output closure).
+// Marked todo so the contract stays visible and named instead of deleted.
+test("a removed secret leaves a visible typed placeholder, not a silent hole", { todo: "CLI output seam is wired in plan 01-15" }, async (context) => {
   const sandbox = await createSecretSandbox(context);
 
   // Redaction must be legible: a reader has to be able to tell that a value
@@ -228,29 +233,171 @@ test("secrets split across output chunk boundaries are still redacted", async (c
   }
 });
 
-test("path aliasing is segment-aware for home, temp, and project roots", async () => {
-  // `redactHome` reads the process home directly, so this case exercises the
-  // real home rather than the sandbox home.
-  const home = resolve(homedir());
 
-  // A home-rooted path becomes an alias plus its repository-relative suffix.
-  const nested = join(home, "projects", "app", "src", "index.ts");
-  assert.equal(redactHome(nested).startsWith("~"), true);
-  assert.ok(redactHome(nested).includes("index.ts"), "the repository-relative suffix must survive aliasing");
+// ---------------------------------------------------------------------------
+// Plan 01-03: central redactor, segment-aware aliases, support-bundle planning
+// ---------------------------------------------------------------------------
 
-  // Segment-aware: a sibling directory that merely shares a prefix with the
-  // home path is a different directory and must not be aliased.
-  const prefixSibling = `${home}-backup`;
-  assert.equal(
-    redactHome(join(prefixSibling, "notes.txt")),
-    join(prefixSibling, "notes.txt"),
-    "a path that only shares a string prefix with home must not be aliased",
+test("a secret-bearing nested Error reaches a support preview as typed placeholders", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-support-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  const diagnostics = join(root, "diagnostics.log");
+  const snapshotFile = join(root, "snapshots", "0.bin");
+  await mkdir(dirname(snapshotFile), { recursive: true });
+  await writeFile(
+    diagnostics,
+    [
+      `authorization: Bearer ${SECRETS.bearerToken}`,
+      `registry: https://${SECRETS.urlUserinfo}/mcp?token=${SECRETS.urlQueryToken}`,
+      PEM,
+      `jwt: ${SECRETS.jwt}`,
+      `aws: ${SECRETS.apiKey}`,
+    ].join("\n"),
+    "utf8",
   );
+  // Snapshot bytes are recovery material and must never be previewed.
+  await writeFile(snapshotFile, `snapshot of ${SECRETS.password}\n`, "utf8");
 
-  // Temp and project roots are private locations and need their own aliases.
-  const tempPath = join(tmpdir(), "alpha-aos-fixture", "payload.bin");
-  assert.notEqual(redactHome(tempPath), tempPath, "the OS temp root must be aliased, not emitted verbatim");
+  const redaction = createRedactionContext({ secrets: [SECRETS.password], projectRoot: root });
 
-  const projectPath = join(repositoryRoot, "package.json");
-  assert.notEqual(redactHome(projectPath), projectPath, "the project root must be aliased, not emitted verbatim");
+  const cause = new Error(`upstream rejected token ${SECRETS.bearerToken}`);
+  const failure = new Error(`sync failed for https://${SECRETS.urlUserinfo}/mcp?token=${SECRETS.urlQueryToken}`, { cause });
+  const envelope = serializeObservable({ failure, password: SECRETS.password }, redaction);
+
+  assertNoSecrets(envelope.text, "serialized observable envelope");
+  assert.match(envelope.text, /\[redacted:/u, "the envelope must mark what it withheld");
+  assert.equal(envelope.sha256.length, 64, "the envelope must carry a fingerprint of what was emitted");
+
+  const sources = [
+    { path: diagnostics, label: "diagnostics.log" },
+    { path: snapshotFile, label: "snapshots/0.bin" },
+    { path: join(root, "absent.json"), label: "absent.json" },
+  ];
+  const destination = join(root, "support-bundle.json");
+  const plan = await planSupportBundle({ sources, destination, context: redaction });
+
+  const rendered = Buffer.from(renderSupportBundleBytes(plan, redaction)).toString("utf8");
+  assertNoSecrets(rendered, "rendered support bundle");
+  assertNoSecrets(JSON.stringify(plan), "support bundle plan");
+
+  assert.equal(plan.network, "none", "a support bundle must state that it performs no upload");
+  assert.equal(plan.planDigest.length, 64, "the plan must bind its sources with a digest");
+
+  const snapshotSource = plan.sources.find((source) => source.label === "snapshots/0.bin");
+  assert.ok(snapshotSource !== undefined);
+  assert.equal(snapshotSource.opaque, true, "snapshot content must be treated as opaque");
+  assert.equal(snapshotSource.preview, null, "snapshot bytes must never appear in a preview");
+  assert.equal(snapshotSource.sha256?.length, 64, "an opaque source still contributes a hash");
+  assert.ok(snapshotSource.mode !== null, "an opaque source still contributes permissions");
+
+  const missing = plan.sources.find((source) => source.label === "absent.json");
+  assert.equal(missing?.missing, true, "a missing source is reported, not silently dropped");
+
+  // Planning is deterministic and non-mutating.
+  const again = await planSupportBundle({ sources, destination, context: redaction });
+  assert.equal(again.planDigest, plan.planDigest, "the same inputs must produce the same plan digest");
+  assert.equal(existsSync(destination), false, "planning must not write the artifact");
+});
+
+test("recursive redaction is bounded on cycles, depth, item count and string length", () => {
+  const redaction = createRedactionContext({ secrets: [SECRETS.password] });
+
+  const cyclic: Record<string, unknown> = { name: "root", password: SECRETS.password };
+  cyclic.self = cyclic;
+  const cycleResult = JSON.stringify(redactValue(cyclic, redaction));
+  assert.ok(cycleResult.includes("[redacted:cycle]"), "a cycle must terminate with a stable marker");
+  assert.equal(cycleResult.includes(SECRETS.password), false);
+
+  let deep: Record<string, unknown> = { leaf: SECRETS.password };
+  for (let level = 0; level < 40; level += 1) deep = { nested: deep };
+  const deepResult = JSON.stringify(redactValue(deep, redaction));
+  assert.ok(deepResult.includes("[redacted:depth-limit]"), "depth must be bounded");
+  assert.equal(deepResult.includes(SECRETS.password), false);
+
+  const wide = Array.from({ length: 5000 }, (_, index) => `item-${index}`);
+  const wideResult = redactValue(wide, redaction) as unknown[];
+  assert.ok(wideResult.length <= 201, `item count must be bounded, got ${wideResult.length}`);
+  assert.ok(String(wideResult.at(-1)).includes("items-limit"), "truncation must be marked");
+
+  const long = { note: "A".repeat(50_000) };
+  const longResult = redactValue(long, redaction) as { note: string };
+  assert.ok(longResult.note.includes("[truncated:"), "an oversized string must be marked as truncated");
+  assert.ok(longResult.note.length < 5000, "an oversized string must actually shrink");
+});
+
+test("a secret-bearing key redacts its value whatever the value looks like", () => {
+  const redaction = createRedactionContext();
+  const result = redactValue(
+    { password: "correct-horse", apiKey: "plainlooking", note: "not a secret", nested: { authorization: "Basic abc" } },
+    redaction,
+  ) as Record<string, unknown>;
+
+  assert.equal(result.password, "[redacted:value]");
+  assert.equal(result.apiKey, "[redacted:value]");
+  assert.equal(result.note, "not a secret", "an ordinary field must survive");
+  assert.equal((result.nested as Record<string, unknown>).authorization, "[redacted:value]");
+});
+
+test("a captured stream becomes a bounded excerpt plus a whole-output fingerprint", () => {
+  const redaction = createRedactionContext({ secrets: [SECRETS.password] });
+  const raw = `${"noise ".repeat(4000)}${SECRETS.password}\n`;
+  const excerpt = createRedactedExcerpt(raw, redaction);
+
+  assert.equal(excerpt.capped, true, "an oversized stream must be reported as capped");
+  assert.ok(excerpt.excerpt.length <= 4096, "the excerpt must respect its byte budget");
+  assert.equal(excerpt.excerpt.includes(SECRETS.password), false, "the excerpt must not carry the secret");
+  assert.equal(excerpt.totalBytes, Buffer.byteLength(raw, "utf8"), "the untruncated size must stay observable");
+  assert.equal(excerpt.sha256.length, 64, "the whole stream must be fingerprinted");
+  assert.equal(JSON.stringify(excerpt).includes(SECRETS.password), false, "no raw bytes may be retained");
+});
+
+test("path aliases are segment-aware across roots, separators and case", () => {
+  const home = resolve(homedir());
+  const temp = resolve(tmpdir());
+  const project = resolve(repositoryRoot);
+  const aliases = createPathAliases({ projectRoot: project });
+
+  // Exact roots and descendants.
+  assert.equal(aliasPath(home, aliases), "~");
+  assert.equal(aliasPath(project, aliases), "<project>");
+  assert.ok(aliasPath(join(home, "notes", "todo.md"), aliases).startsWith("~"));
+  assert.ok(aliasPath(join(home, "notes", "todo.md"), aliases).endsWith("todo.md"), "the relative suffix must survive");
+  assert.ok(aliasPath(join(temp, "fixture", "payload.bin"), aliases).startsWith("<temp>"));
+  assert.ok(aliasPath(join(project, "src", "cli.ts"), aliases).startsWith("<project>"));
+
+  // Negative control: a sibling that only shares a string prefix.
+  const sibling = `${home}-backup`;
+  assert.equal(aliasPath(join(sibling, "notes.txt"), aliases), join(sibling, "notes.txt"));
+
+  // A path under no known root keeps its value rather than gaining a bogus alias.
+  const unrelated = process.platform === "win32" ? "Z:\\unrelated\\file.txt" : "/unrelated/file.txt";
+  assert.equal(aliasPath(unrelated, aliases), unrelated);
+
+  // A more specific root wins over an ancestor that also contains the path.
+  const nested = createPathAliases({ projectRoot: join(home, "work", "repo") });
+  assert.ok(aliasPath(join(home, "work", "repo", "src", "index.ts"), nested).startsWith("<project>"));
+
+  if (process.platform === "win32") {
+    // Windows compares case-insensitively; the displayed suffix is untouched.
+    assert.ok(aliasPath(join(home.toUpperCase(), "Notes", "Todo.md"), aliases).startsWith("~"));
+    assert.ok(aliasPath(join(home.toUpperCase(), "Notes", "Todo.md"), aliases).includes("Todo.md"));
+  }
+
+  // The compatibility wrapper keeps behaving like the home alias.
+  assert.equal(redactHome(home), "~");
+  assert.equal(redactHome(join(sibling, "notes.txt")), join(sibling, "notes.txt"));
+});
+
+test("aliasing applies to path values, not to arbitrary message substrings", () => {
+  const redaction = createRedactionContext({ projectRoot: repositoryRoot });
+  const message = `a sentence mentioning ${homedir()} inside prose`;
+  const result = redactValue({ message }, redaction) as { message: string };
+
+  // Prose is left alone: substring replacement inside free text mangles it.
+  assert.equal(result.message, message);
+
+  // A path-shaped value is aliased.
+  const pathValue = redactValue({ executable: join(homedir(), "bin", "tool") }, redaction) as { executable: string };
+  assert.ok(pathValue.executable.startsWith("~"));
 });

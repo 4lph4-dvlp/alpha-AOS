@@ -167,3 +167,46 @@ export interface IsolationPlan {
   launches: IsolationLaunchSpec[];
   generatedFiles: string[];
 }
+
+export interface PathAliases {
+  roots: Array<{ alias: string; root: string }>;
+}
+
+export interface RedactionContext {
+  exact: Set<string>;
+  aliases: PathAliases;
+}
+
+export interface ObservableEnvelope {
+  value: unknown;
+  text: string;
+  truncated: boolean;
+  sha256: string;
+}
+
+export interface RedactedExcerpt {
+  excerpt: string;
+  capped: boolean;
+  totalBytes: number;
+  sha256: string;
+}
+
+export interface SupportBundleSource {
+  label: string;
+  aliasPath: string;
+  byteLength: number;
+  sha256: string | null;
+  mode: string | null;
+  opaque: boolean;
+  preview: RedactedExcerpt | null;
+  missing: boolean;
+}
+
+export interface SupportBundlePlan {
+  schemaVersion: 1;
+  destination: string;
+  createdBy: string;
+  network: "none";
+  sources: SupportBundleSource[];
+  planDigest: string;
+}

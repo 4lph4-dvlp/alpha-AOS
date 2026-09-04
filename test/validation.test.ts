@@ -11,9 +11,13 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { loadCatalog, loadLock } from "../src/core/catalog.js";
-import { readProjectManifest } from "../src/core/isolation.js";
-import { listManagedTransactions } from "../src/core/transaction.js";
+import { createHash } from "node:crypto";
+import {
+  clearExtensionAdapters,
+  createMigrationPlan,
+  registerExtensionAdapter,
+  validateManagedDocument,
+} from "../src/core/validation.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -225,141 +229,230 @@ test("every managed document kind carries a case in every validation class", () 
   assert.deepEqual(missing, [], `the validation matrix has uncovered kind/class combinations: ${missing.join(", ")}`);
 });
 
+/** Format each managed kind is written in on disk. */
+const FORMATS: Record<DocumentKind, "json" | "yaml" | "toml"> = {
+  catalog: "yaml",
+  lock: "json",
+  "project-manifest": "yaml",
+  journal: "json",
+  "install-state": "json",
+  "writer-lock": "json",
+  evidence: "json",
+  receipt: "json",
+  "native-config": "json",
+};
+
 /**
- * A strict loader for the kinds that already have one. The remaining kinds are
- * routed here so the matrix names the seam that later plans must fill; until a
- * strict engine exists these entries are what makes this suite red.
+ * Routes a matrix case through the strict engine. The TOML ambiguity case
+ * declares its own format because the native-config subtree exists in both.
  */
-async function loadDocument(kind: DocumentKind, root: string, document: string): Promise<unknown> {
-  switch (kind) {
-    case "catalog": {
-      await mkdir(join(root, "catalog"), { recursive: true });
-      await writeFile(join(root, "catalog", "stack.yaml"), document, "utf8");
-      return loadCatalog(root);
-    }
-    case "lock": {
-      await mkdir(join(root, "catalog"), { recursive: true });
-      await writeFile(join(root, "catalog", "stack.lock.json"), document, "utf8");
-      return loadLock(root);
-    }
-    case "project-manifest": {
-      await mkdir(join(root, ".alpha-aos"), { recursive: true });
-      await writeFile(join(root, ".alpha-aos", "stack.yaml"), document, "utf8");
-      return readProjectManifest(root);
-    }
-    case "journal": {
-      const journalRoot = join(root, "journal");
-      await mkdir(journalRoot, { recursive: true });
-      await writeFile(join(journalRoot, "fixture.json"), document, "utf8");
-      const journals = await listManagedTransactions(root);
-      // A corrupt journal must be surfaced as a rejection, not silently dropped.
-      if (journals.length === 0) throw new Error("journal rejected");
-      return journals;
-    }
-    default: {
-      // install-state, writer-lock, evidence, receipt and native-config have no
-      // strict loader yet. Parsing alone is not validation, so anything that
-      // parses is reported as accepted and the matrix marks the gap.
-      const parsed: unknown = JSON.parse(document);
-      return parsed;
-    }
-  }
+function validateCase(entry: MatrixCase): ReturnType<typeof validateManagedDocument> {
+  const format = entry.document.trimStart().startsWith("alphaAos.") ? "toml" : FORMATS[entry.kind];
+  return validateManagedDocument({ text: entry.document, format, kind: entry.kind });
 }
 
 test("malformed, ambiguous, closed-world and newer-version documents are rejected before mutation", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-validation-"));
   context.after(async () => rm(root, { recursive: true, force: true }));
 
-  for (const [index, entry] of MATRIX.entries()) {
-    const caseRoot = join(root, `case-${index}`);
-    await mkdir(caseRoot, { recursive: true });
-    // A sentinel that any mutation during validation would disturb.
-    const sentinel = join(caseRoot, "SENTINEL");
-    await writeFile(sentinel, "untouched\n", "utf8");
+  // A sentinel any mutation during validation would disturb.
+  const sentinel = join(root, "SENTINEL");
+  await writeFile(sentinel, "untouched\n", "utf8");
 
-    let rejected = false;
-    try {
-      await loadDocument(entry.kind, caseRoot, entry.document);
-    } catch {
-      rejected = true;
-    }
+  for (const entry of MATRIX) {
+    const result = validateCase(entry);
+    const rejected = !result.ok;
 
     assert.equal(
       rejected,
       entry.rejected,
-      `${entry.kind}/${entry.klass}: "${entry.name}" should have been ${entry.rejected ? "rejected" : "accepted"}`,
+      `${entry.kind}/${entry.klass}: "${entry.name}" should have been ${entry.rejected ? "rejected" : "accepted"}` +
+        ` (status=${result.status}, issues=${JSON.stringify(result.issues)})`,
     );
+    if (rejected) {
+      assert.ok(result.issues.length > 0, `${entry.name} must explain why it was rejected`);
+      for (const problem of result.issues) {
+        assert.ok(problem.code.length > 0, "every issue must carry a stable code");
+        assert.ok(problem.documentPath.startsWith("/"), "every issue must carry a document path");
+        // A short document has no distinctive prefix to look for; anything
+        // shorter than 8 characters would make this check vacuous.
+        const distinctive = entry.document.trim().slice(0, 24);
+        if (distinctive.length >= 8) {
+          assert.equal(
+            problem.actualShape.includes(distinctive),
+            false,
+            "an issue must summarize the shape, never echo the raw document",
+          );
+        }
+      }
+    }
     assert.equal(await readFile(sentinel, "utf8"), "untouched\n", `${entry.name} mutated during validation`);
   }
 });
 
-test("validating the same invalid document twice produces identical, bounded issues", async (context) => {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-validation-repeat-"));
-  context.after(async () => rm(root, { recursive: true, force: true }));
+test("validation never coerces, defaults, or strips the input it is judging", () => {
+  const before = '{"schemaVersion":1,"components":{},"x-vendor":{"keep":true}}';
+  const result = validateManagedDocument({ text: before, format: "json", kind: "lock" });
 
+  assert.equal(result.ok, true);
+  // The extension is preserved verbatim...
+  assert.deepEqual(result.extensions, { "x-vendor": { keep: true } });
+  // ...and contributes nothing typed without a registered adapter.
+  assert.deepEqual(result.typedExtensions, {});
+  // ...and is absent from the normalized core the planner consumes.
+  assert.equal(Object.hasOwn(result.value as object, "x-vendor"), false);
+
+  // A string version is not coerced into a number.
+  const coerced = validateManagedDocument({ text: '{"schemaVersion":"1","components":{}}', format: "json", kind: "lock" });
+  assert.equal(coerced.ok, false);
+  assert.equal(coerced.issues[0]?.code, "version.missing");
+});
+
+test("validating the same invalid document twice produces identical, bounded issues", () => {
   const invalid = MATRIX.filter((entry) => entry.rejected);
   assert.ok(invalid.length > 0, "the matrix must contain rejected cases");
 
-  for (const [index, entry] of invalid.entries()) {
-    const caseRoot = join(root, `repeat-${index}`);
-    await mkdir(caseRoot, { recursive: true });
+  for (const entry of invalid) {
+    const first = validateCase(entry);
+    const second = validateCase(entry);
+    assert.deepEqual(second, first, `${entry.name} produced a non-deterministic validation result`);
+    assert.ok(first.issues.length <= 50, `${entry.name} exceeded the issue cap (${first.issues.length})`);
 
-    const attempt = async (): Promise<string> => {
-      try {
-        await loadDocument(entry.kind, caseRoot, entry.document);
-        return "accepted";
-      } catch (error) {
-        return error instanceof Error ? error.message : String(error);
-      }
-    };
-
-    const first = await attempt();
-    const second = await attempt();
-    assert.equal(second, first, `${entry.name} produced a non-deterministic validation result`);
-    assert.ok(first.length <= 2000, `${entry.name} produced an unbounded validation message (${first.length} bytes)`);
+    // Issues arrive sorted by documentPath, then code, then expected.
+    const keys = first.issues.map((problem) => `${problem.documentPath}\u0000${problem.code}\u0000${problem.expected}`);
+    assert.deepEqual(keys, [...keys].sort(), `${entry.name} returned issues in an unstable order`);
   }
 });
 
-test("an unknown namespaced extension is preserved and never reaches an operation plan", async (context) => {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-validation-extension-"));
-  context.after(async () => rm(root, { recursive: true, force: true }));
+test("a document with many faults is capped rather than allowed to flood output", () => {
+  const fields = Array.from({ length: 400 }, (_, index) => `"unknownField${index}":true`).join(",");
+  const result = validateManagedDocument({
+    text: `{"schemaVersion":1,"components":{},${fields}}`,
+    format: "json",
+    kind: "lock",
+  });
 
-  const catalogRoot = join(root, "checkout");
-  await mkdir(join(catalogRoot, "catalog"), { recursive: true });
-  // Start from the real catalog so the document is otherwise valid.
-  const realCatalog = await readFile(join(repositoryRoot, "catalog", "stack.yaml"), "utf8");
-  await copyFile(join(repositoryRoot, "catalog", "stack.lock.json"), join(catalogRoot, "catalog", "stack.lock.json"));
-  await writeFile(
-    join(catalogRoot, "catalog", "stack.yaml"),
-    `${realCatalog}\nx-vendor-experiment:\n  enabled: true\n  note: inert\n`,
-    "utf8",
-  );
-
-  const withExtension = await loadCatalog(catalogRoot);
-  const baseline = await loadCatalog(repositoryRoot);
-
-  // The extension is preserved on the loaded document...
-  assert.ok(
-    Object.hasOwn(withExtension as unknown as Record<string, unknown>, "x-vendor-experiment"),
-    "an unknown namespaced extension must be preserved for display",
-  );
-  // ...and changes nothing the operation planner consumes.
-  assert.deepEqual(withExtension.harnesses, baseline.harnesses, "an extension must not alter harness planning input");
-  assert.deepEqual(withExtension.components, baseline.components, "an extension must not alter component planning input");
-  assert.deepEqual(withExtension.policy, baseline.policy, "an extension must not alter policy planning input");
+  assert.equal(result.ok, false);
+  assert.equal(result.issues.length, 50, "the issue list must be capped at 50");
+  assert.equal(result.issuesTruncated, true, "truncation must be reported, not silent");
 });
 
-test("a malformed namespace is rejected rather than treated as an inert extension", async (context) => {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-validation-namespace-"));
-  context.after(async () => rm(root, { recursive: true, force: true }));
+/** A minimal valid catalog, built by join so the fixture stays readable. */
+const CATALOG_BASE = [
+  "schemaVersion: 1",
+  "name: alpha-aos",
+  "harnesses: {}",
+  "components: {}",
+  "policy: {}",
+  "",
+].join("\n");
 
-  await mkdir(join(root, "catalog"), { recursive: true });
-  const base = "schemaVersion: 1\nname: alpha-aos\nharnesses: {}\ncomponents: {}\npolicy: {}\n";
-  for (const malformed of ["x-: {}", "x: {}", "-x-vendor: {}", "X-VENDOR : {}"]) {
-    await writeFile(join(root, "catalog", "stack.yaml"), `${base}${malformed}\n`, "utf8");
-    await assert.rejects(
-      () => loadCatalog(root),
-      `a malformed namespace (\`${malformed}\`) must be rejected, not accepted as an extension`,
+test("an unknown namespaced extension is preserved and never reaches an operation plan", () => {
+  const baseline = validateManagedDocument({ text: CATALOG_BASE, format: "yaml", kind: "catalog" });
+  const withExtension = validateManagedDocument({
+    text: `${CATALOG_BASE}${["x-vendor-experiment:", "  enabled: true", "  note: inert", ""].join("\n")}`,
+    format: "yaml",
+    kind: "catalog",
+  });
+
+  assert.equal(baseline.ok, true, JSON.stringify(baseline.issues));
+  assert.equal(withExtension.ok, true, JSON.stringify(withExtension.issues));
+
+  // Preserved for display and round-trip...
+  assert.deepEqual(withExtension.extensions, { "x-vendor-experiment": { enabled: true, note: "inert" } });
+  // ...contributes nothing typed without a registered adapter...
+  assert.deepEqual(withExtension.typedExtensions, {});
+  // ...and leaves the value the planner consumes byte-identical.
+  assert.deepEqual(withExtension.value, baseline.value);
+  assert.equal(
+    createHash("sha256").update(JSON.stringify(withExtension.value)).digest("hex"),
+    createHash("sha256").update(JSON.stringify(baseline.value)).digest("hex"),
+    "an unregistered extension must not change the operation plan digest",
+  );
+});
+
+test("only a registered namespace with a passing schema contributes typed data", () => {
+  clearExtensionAdapters();
+  registerExtensionAdapter({
+    namespace: "x-vendor-experiment",
+    schema: {
+      type: "object",
+      required: ["enabled"],
+      properties: { enabled: { type: "boolean" } },
+      additionalProperties: true,
+    },
+  });
+
+  const accepted = validateManagedDocument({
+    text: `${CATALOG_BASE}${["x-vendor-experiment:", "  enabled: true", ""].join("\n")}`,
+    format: "yaml",
+    kind: "catalog",
+  });
+  assert.deepEqual(accepted.typedExtensions, { "x-vendor-experiment": { enabled: true } });
+
+  // A registered namespace whose data fails its own schema contributes nothing.
+  const rejected = validateManagedDocument({
+    text: `${CATALOG_BASE}${["x-vendor-experiment:", '  enabled: "yes"', ""].join("\n")}`,
+    format: "yaml",
+    kind: "catalog",
+  });
+  assert.deepEqual(rejected.typedExtensions, {}, "adapter data must pass the adapter's own schema");
+  assert.equal(rejected.ok, true, "a failing extension does not invalidate the core document");
+
+  // An unregistered namespace stays inert even alongside a registered one.
+  const mixed = validateManagedDocument({
+    text: `${CATALOG_BASE}${["x-vendor-experiment:", "  enabled: true", "x-other-vendor:", "  anything: 1", ""].join("\n")}`,
+    format: "yaml",
+    kind: "catalog",
+  });
+  assert.equal(Object.hasOwn(mixed.typedExtensions, "x-other-vendor"), false);
+  assert.equal(Object.hasOwn(mixed.extensions, "x-other-vendor"), true);
+  clearExtensionAdapters();
+});
+
+test("a malformed namespace is rejected rather than treated as an inert extension", () => {
+  for (const malformed of ["x-: {}", "x: {}", "-x-vendor: {}", "X-VENDOR: {}", "x-Vendor: {}"]) {
+    const result = validateManagedDocument({
+      text: `${CATALOG_BASE}${malformed}\n`,
+      format: "yaml",
+      kind: "catalog",
+    });
+    assert.equal(
+      result.ok,
+      false,
+      `a malformed namespace (${malformed}) must be rejected, not accepted as an extension`,
     );
+    assert.equal(result.issues[0]?.code, "schema.unknown-core-field");
   }
+
+  // Registering a malformed namespace is itself refused.
+  assert.throws(() => registerExtensionAdapter({ namespace: "x-", schema: { type: "object" } }), /malformed/u);
+});
+
+test("version routing distinguishes current, migratable and newer, and plans without mutating", () => {
+  const current = validateManagedDocument({ text: '{"schemaVersion":1,"components":{}}', format: "json", kind: "lock" });
+  assert.equal(current.status, "current");
+  assert.notEqual(current.value, null, "a current document yields a typed value");
+  assert.equal(createMigrationPlan(current), null, "a current document needs no migration");
+
+  const old = validateManagedDocument({ text: '{"schemaVersion":0,"components":{}}', format: "json", kind: "lock" });
+  assert.equal(old.status, "migratable");
+  assert.equal(old.value, null, "a migratable document must not be implicitly converted to a typed value");
+  assert.notEqual(old.readOnlyValue, null, "a migratable document is still readable");
+
+  const plan = createMigrationPlan(old);
+  assert.ok(plan !== null);
+  assert.equal(plan.fromVersion, 0);
+  assert.equal(plan.toVersion, 1);
+  assert.equal(plan.sourceHash.length, 64);
+  assert.equal(plan.targetHash.length, 64);
+  assert.notEqual(plan.sourceHash, plan.targetHash);
+  assert.deepEqual(createMigrationPlan(old), plan, "the plan must be deterministic");
+  // Planning leaves the source document untouched.
+  assert.deepEqual(old.readOnlyValue, { schemaVersion: 0, components: {} });
+
+  const newer = validateManagedDocument({ text: '{"schemaVersion":99,"components":{}}', format: "json", kind: "lock" });
+  assert.equal(newer.status, "unknown-newer");
+  assert.equal(newer.issues[0]?.code, "version.unknown-newer");
+  assert.equal(createMigrationPlan(newer), null, "an unknown newer version has no migration path");
 });

@@ -6,7 +6,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
 
 ## Phases
 
-- [ ] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets.
+- [x] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets.
 - [ ] **Phase 2: Evidence-Bound Project Planning** - Turn bounded repository evidence into stable, explainable, apply-bound plans without cross-project leakage.
 - [ ] **Phase 3: Transactional Project Packs and Native Optional Use** - Materialize exact project packs and prove optional global and project capabilities through native intent-driven use.
 - [ ] **Phase 4: Mandatory GSD Gates** - Convert deterministic risk evidence into one fail-closed mandatory check at the protected GSD lifecycle point.
@@ -45,7 +45,7 @@ Plans:
 - [x] 01-13-PLAN.md — Session-aware MCP/skill/policy/isolation/update mutators
 - [x] 01-14-PLAN.md — Ordered install caller and core bootstrap/update safe apply
 - [x] 01-15-PLAN.md — Session-bound support bundle and CLI/output closure
-- [ ] 01-16-PLAN.md — Thin wrappers and three-OS behavioral gate
+- [x] 01-16-PLAN.md — Thin wrappers and three-OS behavioral gate
 
 ### Phase 2: Evidence-Bound Project Planning
 **Goal**: Users receive reproducible project-pack decisions and reviewed plans that are bound to one canonical repository state and explain both matches and non-matches.

@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
-status: executing
-stopped_at: Wave 6 complete (01-15); wave 7 ready
-last_updated: "2026-09-04T15:55:00.000Z"
+status: complete
+stopped_at: Phase 1 complete (16/16 plans); ready for verification
+last_updated: "2026-09-04T17:05:00.000Z"
 last_activity: 2026-09-04
-last_activity_desc: "Completed wave 6: the support bundle is session-bound and every CLI surface leaves through one redaction seam. The suite has zero todos."
-state_head: a6586c8
+last_activity_desc: "Completed wave 7: the four wrappers are thin launchers over a verified build artifact. The suite has no failing test and no todo."
+state_head: 02df6b6
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
   percent: 0
 ---
 
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 ## Current Position
 
-Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 15 of 16 in current phase
-Status: Ready to execute
-Last activity: 2026-09-04 — Completed wave 6: support-bundle apply is proof-bound and journaled, repair/support-bundle/bootstrap joined the preview-first CLI, and one seam redacts every human, JSON and error surface.
+Phase: 1 (Safe Operation Boundary) — COMPLETE
+Plan: 16 of 16 in current phase
+Status: All 16 plans executed; ready for verification
+Last activity: 2026-09-04 — Completed wave 7: build-artifact.mjs records build provenance, all four wrappers verify it and delegate to the core bootstrap service, and CI runs the safety boundary on three operating systems.
 
-Progress: [███░░░░░░░] 31%
+Progress: [████░░░░░░] 33%
 
 ## Performance Metrics
 
@@ -75,8 +75,8 @@ None yet.
 - `project sync --apply` is currently blocked; no project-pack phase is complete.
 - Full uninstall, external-package compensation, and interrupted-operation recovery are absent.
 - Ordinary-entrypoint tree-off suppression remains version- and surface-sensitive and must report unsupported unless exclusion is proven before load.
-- `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected.
-- Confirmed by Wave 0 (2026-09-04): `scripts/install.{sh,ps1}` run `npm ci`, `npm run build` and `npm link` before printing a plan, with no `--apply` — a live SAFE-01 violation. Its replacement (`src/core/bootstrap.ts`) exists as of 01-14; plan 01-16 rewrites the four wrapper scripts to call it.
+- `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected. Not phase 1 scope.
+- Resolved by 01-16 (2026-09-04): all four wrappers verify a build artifact and delegate to `alpha-aos bootstrap`; a source-level test fails any wrapper that runs `npm` or `git` itself. The Wave 0 SAFE-01 tracer is green.
 - Resolved by 01-09 (2026-09-04): `src/core/transaction.ts` now proves every path role and rechecks the ancestor chain immediately before each mutation.
 - Resolved 2026-09-04: `smol-toml@1.8.0` approved at the 01-04 gate, bound to `sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==`; plan 01-05 must verify that integrity before writing the lock.
 - Resolved by 01-08 (2026-09-04): `src/core/process.ts` is shell-free, allowlisted, deadline-bound and output-capped; interpreted shims without a proven direct equivalent are reported unsupported.
@@ -89,10 +89,11 @@ None yet.
 - Resolved by 01-14 (2026-09-04): all three fixtures publish a plan that names their root before it exists, so no fixture calls `mkdtemp` and ECC skill sync binds its source paths at review time.
 - Resolved by 01-13 (2026-09-04): MCP sync, owned skills, the Claude skill policy, the isolation manifest and runtime, the isolated-runtime clean and candidate staging all publish complete plans and consume a standalone or caller `MutationSession` through `src/core/component-session.ts`.
 - Open from 01-13: `cleanIsolationRuntime` journals and snapshots every file removal, but the trailing `rmdir` calls are not journaled intents. An interruption between the transaction and the last `rmdir` leaves empty directories behind a completed journal.
-- Open from 01-14: `scripts/build-artifact.mjs` does not exist, so `inspectBuildArtifact` finds no manifest and every real bootstrap plan blocks fail-closed. Plan 01-16 writes the producer.
+- Resolved by 01-16 (2026-09-04): `scripts/build-artifact.mjs write|check` exists and `npm run build` writes the manifest, so a bootstrap plan verifies real provenance instead of blocking.
 - Open from 01-14: no end-to-end managed install test exists, because running one would install GSD and ECC globally on the test machine. One session spanning every callee is structurally verified and each callee is separately proven.
 - Resolved by 01-15 (2026-09-04): every CLI surface serializes through the redaction seam and doctor states the placeholder contract, so the last open todo in the suite is closed. The suite now has zero todos.
 - Open from 01-15: no CLI-level bootstrap apply test exists, because the route runs `npm ci`, `npm run build` and `npm link` against a real checkout. The same apply path is covered directly in `test/install.test.ts` against a fixture repository.
+- Open after phase 1 (2026-09-04): the macOS and Linux CI legs are asserted by the workflow definition but were only observed on Windows locally. First CI run confirms them.
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 
 ## Deferred Items
@@ -103,6 +104,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T15:55:00.000Z
-Stopped at: Wave 6 complete (01-15); wave 7 ready
-Resume file: .planning/phases/01-safe-operation-boundary/01-16-PLAN.md
+Last session: 2026-09-04T17:05:00.000Z
+Stopped at: Phase 1 complete (16/16 plans); ready for verification
+Resume file: none — phase 1 is complete; run verification next

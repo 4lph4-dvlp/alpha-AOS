@@ -182,6 +182,9 @@ const PREVIEW_INVOCATIONS: ReadonlyArray<{ readonly name: string; readonly args:
   { name: "project isolate sync", args: ["project", "isolate", "sync", "."] },
   { name: "project isolate clean", args: ["project", "isolate", "clean", "."] },
   { name: "rollback", args: ["rollback"] },
+  { name: "repair", args: ["repair"] },
+  { name: "support-bundle", args: ["support-bundle"] },
+  { name: "bootstrap install", args: ["bootstrap", "install", "--skip-link"] },
 ];
 
 test("every mutating CLI preview leaves all five mutation surfaces byte-identical", async (context) => {

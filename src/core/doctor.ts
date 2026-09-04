@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { DoctorFinding, Inventory, StackCatalog, StackLock } from "../types.js";
 import { codexConfigRoot, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
 import { globalClaudeSettingsPath } from "./skill-policy.js";
+import { placeholder } from "./redaction.js";
 
 function major(version: string | null): number | null {
   if (!version) return null;
@@ -84,6 +85,14 @@ export async function runDoctor(catalog: StackCatalog, lock: StackLock, inventor
   } else {
     findings.push({ level: "ok", code: "policy.ecc-profile", message: "ECC profile installation is disabled" });
   }
+  // States the output contract in a machine-readable way, so a reader who sees
+  // a marker in a report knows it is a withheld value rather than a defect.
+  findings.push({
+    level: "ok",
+    code: "output.redaction",
+    message: `Observable output is redacted: a withheld value is shown as ${placeholder("<kind>")} and a private root as an alias.`,
+  });
+
   const claudeSettings = globalClaudeSettingsPath();
   try {
     const document = existsSync(claudeSettings) ? JSON.parse(readFileSync(claudeSettings, "utf8")) as Record<string, unknown> : {};

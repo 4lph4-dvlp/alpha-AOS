@@ -28,8 +28,14 @@ import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/upda
 import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
+import { join } from "node:path";
 import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProject, formatUpdate } from "./format.js";
-import type { HarnessId, IsolationMode, McpServerId } from "./types.js";
+import { createRedactionContext, redactString, serializeObservable } from "./core/redaction.js";
+import { createPathAliases } from "./core/paths.js";
+import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
+import { applySupportBundle, collectSupportSources, planSupportBundleOperation } from "./core/support-bundle.js";
+import { applyBootstrapOperation, createBootstrapOperationPlan, type BootstrapKind } from "./core/bootstrap.js";
+import type { HarnessId, IsolationMode, McpServerId, RedactionContext } from "./types.js";
 
 const HELP = `alpha-aos
 
@@ -55,10 +61,33 @@ Usage:
   alpha-aos fixture mcp <context7|exa|firecrawl> <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
   alpha-aos gsd compat codex [--apply] [--json]
   alpha-aos rollback [operation-id] [--apply] [--json]
+  alpha-aos repair [--apply] [--json]
+  alpha-aos support-bundle [--out <path>] [--apply] [--json]
+  alpha-aos bootstrap install|update [--skip-link] [--apply] [--json]
 
 Mutation commands are dry-run by default. Live apply and rollback are enabled only
 after the fixture transaction gate passes.
+
+Every observable surface passes through one redaction seam. A value this tool
+withheld is printed as [redacted:<kind>]; a private root is printed as an alias
+such as ~ or <state>. A support bundle is written locally and is never uploaded.
 `;
+
+/**
+ * Environment names whose value is a credential. Their values are registered
+ * with the redactor so that if any surface ever echoes one back, it is
+ * replaced by a typed placeholder rather than printed.
+ */
+const CREDENTIAL_NAME_PATTERN = /(?:secret|token|password|passwd|api[-_]?key|credential|auth|jwt|session)/iu;
+
+function credentialValues(env: NodeJS.ProcessEnv = process.env): string[] {
+  const values: string[] = [];
+  for (const [name, value] of Object.entries(env)) {
+    if (typeof value !== "string" || value.trim().length < 8) continue;
+    if (CREDENTIAL_NAME_PATTERN.test(name)) values.push(value);
+  }
+  return values;
+}
 
 function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
@@ -99,8 +128,27 @@ function optionalHarnessList(value: string | null): HarnessId[] | undefined {
   return harnessList(value);
 }
 
-function print(value: unknown, json: boolean, formatted: string): void {
-  process.stdout.write(json ? `${JSON.stringify(value, null, 2)}\n` : `${formatted}\n`);
+/**
+ * The one seam every observable byte leaves through. JSON output is the
+ * redacted envelope; human output is the formatted text with the same
+ * replacements applied, so a value suppressed in one is suppressed in both.
+ */
+function print(value: unknown, json: boolean, formatted: string, context: RedactionContext = observableContext()): void {
+  if (json) {
+    process.stdout.write(`${serializeObservable(value, context).text}\n`);
+    return;
+  }
+  process.stdout.write(`${redactString(formatted, context)}\n`);
+}
+
+let sharedContext: RedactionContext | null = null;
+
+function observableContext(): RedactionContext {
+  sharedContext ??= createRedactionContext({
+    secrets: credentialValues(),
+    aliases: createPathAliases({ projectRoot: process.cwd() }),
+  });
+  return sharedContext;
 }
 
 async function main(): Promise<void> {
@@ -536,6 +584,82 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "repair") {
+    const stateRoot = userStateRoot();
+    const plan = await planWriterRepair(stateRoot);
+    if (!hasFlag(args, "--apply")) {
+      const state = await inspectWriterState(stateRoot);
+      print({ plan, state }, json, [
+        `Writer state: ${plan.status}`,
+        `Operation: ${plan.operationId ?? "none"}`,
+        ...plan.targets.map((target) => `${target.classification.toUpperCase()} ${target.target}`),
+        `Permitted transition: ${plan.transition}`,
+        ...plan.blockedReasons.map((reason) => `BLOCKED ${reason}`),
+        `Plan digest: ${plan.planDigest}`,
+        "Diagnosis only. Pass --apply to perform the one transition this evidence proves.",
+      ].join("\n"));
+    } else {
+      const result = await applyWriterRepair(stateRoot, plan.planDigest);
+      print(result, json, `Repaired ${result.operationId ?? "state"} by ${result.transition}.`);
+    }
+    return;
+  }
+
+  if (command === "support-bundle") {
+    const context = observableContext();
+    const destination = optionValue(args, "--out") ?? join(process.cwd(), "alpha-aos-support.json");
+    const sources = await collectSupportSources(userStateRoot(), root);
+    const plan = await planSupportBundleOperation({ sources, destination, context, stateRoot: userStateRoot() });
+    if (!hasFlag(args, "--apply")) {
+      print(plan.bundle, json, [
+        `Support bundle destination: ${plan.bundle.destination}`,
+        `Network: ${plan.bundle.network}`,
+        ...plan.bundle.sources.map((source) => `${source.missing ? "MISSING" : source.opaque ? "OPAQUE " : "INCLUDE"} ${source.aliasPath} (${source.byteLength}B)`),
+        `Plan digest: ${plan.digest}`,
+        "Preview only. Pass --apply to write this local file. Nothing is uploaded.",
+      ].join("\n"), context);
+    } else {
+      const result = await applySupportBundle({ plan, sources, destination, context, stateRoot: userStateRoot() });
+      print(result, json, `Support bundle written locally: ${result.destination}. Transaction: ${result.operationId}.`, context);
+    }
+    return;
+  }
+
+  if (command === "bootstrap") {
+    const operation = args[1] ?? "";
+    if (operation !== "install" && operation !== "update") {
+      throw new Error("Usage: alpha-aos bootstrap install|update [--skip-link] [--apply] [--json]");
+    }
+    const inventory = collectInventory(catalog);
+    const managed = { catalog, lock, inventory };
+    const plan = await createBootstrapOperationPlan({
+      operation: operation as BootstrapKind,
+      root,
+      skipLink: hasFlag(args, "--skip-link"),
+      managed,
+    });
+    if (!hasFlag(args, "--apply")) {
+      print(plan, json, [
+        `Bootstrap ${plan.operation} for ${plan.root}`,
+        `Build artifact: ${plan.artifact.verified ? "verified" : "not verified"}`,
+        ...(plan.checkout ? [`Checkout: ${plan.checkout.head ?? "unknown"} -> ${plan.checkout.targetOid ?? "unresolved"}`] : []),
+        ...plan.external.map((step) => `RUN ${step.id} (${step.effect})`),
+        ...plan.blockedReasons.map((reason) => `BLOCKED ${reason}`),
+        `Plan digest: ${plan.digest}`,
+        plan.blockedReasons.length > 0
+          ? "Refused. Nothing was changed."
+          : "Preview only. Pass --apply to run these steps under one operation session.",
+      ].join("\n"));
+    } else {
+      const result = await applyBootstrapOperation(plan, { managed });
+      print(result.evidence, json, [
+        `Bootstrap ${plan.operation} complete. Operation: ${result.operationId}.`,
+        ...result.evidence.steps.map((step) => `${step.id}: ${step.status} (${step.effect} ${step.observation})`),
+      ].join("\n"));
+    }
+    return;
+  }
+
   if (command === "rollback") {
     const id = positional(args.slice(1))[0];
     if (!id) {
@@ -565,6 +689,8 @@ async function main(): Promise<void> {
 
 main().catch((error: unknown) => {
   const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`alpha-aos: ${message}\n`);
+  // The error channel is an observable surface too: it leaves through the same
+  // seam as everything else.
+  process.stderr.write(`alpha-aos: ${redactString(message, observableContext())}\n`);
   process.exitCode = 2;
 });

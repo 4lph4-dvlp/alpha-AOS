@@ -165,10 +165,9 @@ test("no observable CLI surface leaks a secret sentinel", async (context) => {
   }
 });
 
-// The redactor emits typed placeholders as of plan 01-03, but src/cli.ts does
-// not yet serialize through it - that seam is plan 01-15 (CLI/output closure).
-// Marked todo so the contract stays visible and named instead of deleted.
-test("a removed secret leaves a visible typed placeholder, not a silent hole", { todo: "CLI output seam is wired in plan 01-15" }, async (context) => {
+// The redactor emits typed placeholders as of plan 01-03; src/cli.ts serializes
+// every observable surface through it as of plan 01-15.
+test("a removed secret leaves a visible typed placeholder, not a silent hole", async (context) => {
   const sandbox = await createSecretSandbox(context);
 
   // Redaction must be legible: a reader has to be able to tell that a value
@@ -400,4 +399,55 @@ test("aliasing applies to path values, not to arbitrary message substrings", () 
   // A path-shaped value is aliased.
   const pathValue = redactValue({ executable: join(homedir(), "bin", "tool") }, redaction) as { executable: string };
   assert.ok(pathValue.executable.startsWith("~"));
+});
+
+test("a support bundle preview creates nothing and names no upload destination", async (context) => {
+  const sandbox = await createSecretSandbox(context);
+  const out = join(sandbox.root, "support.json");
+
+  const corpus = runCli(["support-bundle", "--out", out, "--json"], sandbox);
+  assertNoSecrets(corpus, "support-bundle preview");
+  assert.equal(existsSync(out), false, "a preview writes no artifact");
+  assert.match(corpus, /"network":\s*"none"/u, "the preview states that nothing is transmitted");
+  assert.doesNotMatch(corpus, /upload|https?:\/\//u, "a support bundle offers no destination but the local one");
+});
+
+test("a support bundle apply writes one local redacted artifact under a journal", async (context) => {
+  const sandbox = await createSecretSandbox(context);
+  const out = join(sandbox.root, "support.json");
+
+  // An applied operation first, so there is real journal evidence to collect.
+  runCli(["mcp", "sync", "--target", "claude", "--apply"], sandbox);
+
+  const corpus = runCli(["support-bundle", "--out", out, "--apply"], sandbox);
+  assertNoSecrets(corpus, "support-bundle apply output");
+  assert.equal(existsSync(out), true, "an explicit apply writes the local artifact");
+
+  const artifact = await readFile(out, "utf8");
+  assertNoSecrets(artifact, "support bundle artifact");
+  const parsed = JSON.parse(artifact) as Record<string, any>;
+  assert.equal(parsed.network, "none");
+  assert.equal(Array.isArray(parsed.sources), true);
+  for (const source of parsed.sources as Array<Record<string, unknown>>) {
+    // A snapshot is a verbatim copy of a user file: metadata only, never bytes.
+    if (source.opaque === true) assert.equal(source.preview, null, `${String(source.label)} must contribute metadata only`);
+  }
+
+  // The write is journaled like any other managed mutation, and the writer is
+  // released once the record is durable.
+  const journals = await readAllFiles(join(sandbox.stateRoot, "journal"));
+  assert.match(journals, /support\.json/u, "the artifact write is recorded in a journal");
+  assertNoSecrets(journals, "support bundle journal evidence");
+  assert.equal(existsSync(join(sandbox.stateRoot, "writer.lock")), false, "a standalone apply releases the writer it took");
+});
+
+test("the repair diagnosis is readable and changes nothing", async (context) => {
+  const sandbox = await createSecretSandbox(context);
+  runCli(["mcp", "sync", "--target", "claude", "--apply"], sandbox);
+  const before = await readAllFiles(sandbox.stateRoot);
+
+  const corpus = runCli(["repair", "--json"], sandbox);
+  assertNoSecrets(corpus, "repair diagnosis");
+  assert.match(corpus, /"status"/u);
+  assert.equal(await readAllFiles(sandbox.stateRoot), before, "a diagnosis mutates no state");
 });

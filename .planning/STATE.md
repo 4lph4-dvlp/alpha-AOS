@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Phase 1 Wave 0 complete — plans 01-01 and 01-02 executed
-last_updated: "2026-09-04T00:09:21.923Z"
+stopped_at: Wave 1 automated plans done; plan 01-04 awaits a human supply-chain verdict
+last_updated: "2026-09-04T07:35:41.501Z"
 last_activity: 2026-09-04
-last_activity_desc: "Executed Wave 0: six Wave 0 safety suites added across plans 01-01 and 01-02."
-state_head: e4be384803ae10f989dbd0a52d7d57b32d1cc9ef
+last_activity_desc: Executed plans 01-03 and 01-07; plan 01-04 awaits a human supply-chain verdict.
+state_head: 13cbc79ed8eda7a49974ae28d0f630e21e0a97fa
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 2
+  completed_plans: 4
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 2 of 16 in current phase
+Plan: 4 of 16 in current phase
 Status: Ready to execute
-Last activity: 2026-09-04 — Executed Wave 0: six Wave 0 safety suites added across plans 01-01 and 01-02.
+Last activity: 2026-09-04 — Executed plans 01-03 and 01-07: central redactor, segment-aware path aliases, support-bundle planning, and canonical PathProof.
 
-Progress: [█░░░░░░░░░] 4%
+Progress: [█░░░░░░░░░] 8%
 
 ## Performance Metrics
 
@@ -77,7 +77,8 @@ None yet.
 - Ordinary-entrypoint tree-off suppression remains version- and surface-sensitive and must report unsupported unless exclusion is proven before load.
 - `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected.
 - Confirmed by Wave 0 (2026-09-04): `scripts/install.{sh,ps1}` run `npm ci`, `npm run build` and `npm link` before printing a plan, with no `--apply` — a live SAFE-01 violation.
-- Confirmed by Wave 0 (2026-09-04): `src/core/transaction.ts` checks containment lexically via `path.relative`, so a link canonically resolving outside an allowed root is accepted.
+- Confirmed by Wave 0 (2026-09-04): `src/core/transaction.ts` checks containment lexically via `path.relative`, so a link canonically resolving outside an allowed root is accepted. PathProof exists as of 01-07; wiring the transaction to it is plan 01-09.
+- Plan 01-04 is a blocking human gate: `smol-toml@1.8.0` cannot be installed and plan 01-05 cannot start until the user approves or rejects it.
 - Confirmed by Wave 0 (2026-09-04): `src/core/process.ts` routes `.cmd` through `cmd.exe` with `windowsVerbatimArguments` and `.ps1` through `powershell.exe`, applies no output cap, and returns raw stdout.
 - Phases 3–6 require targeted exact-version research for harness discovery, GSD gate contracts, preload isolation, and package recovery.
 
@@ -90,5 +91,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-09-03T23:44:02.536Z
-Stopped at: Phase 1 Wave 0 complete — plans 01-01 and 01-02 executed
-Resume file: .planning/phases/01-safe-operation-boundary/01-03-PLAN.md
+Stopped at: Wave 1 automated plans done; plan 01-04 awaits a human supply-chain verdict
+Resume file: .planning/phases/01-safe-operation-boundary/01-04-PLAN.md

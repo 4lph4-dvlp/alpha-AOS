@@ -39,11 +39,11 @@ created: "2026-09-03"
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
 | 01-W0-01 | 01-01 | 0 | SAFE-01 | T-01 | Every dry-run entry point leaves checkout, package, config, state, and harness digests unchanged | cross-platform integration | `npm run build && node --test dist/test/preview.test.js` | ✅ | ❌ red (by design) |
-| 01-W0-02 | 01-02, 01-07 | 0 | Escaping or unprovable symlink, junction, reparse, alias, and parent-swap paths never touch the outside sentinel | filesystem integration | `npm run build && node --test dist/test/path-boundary.test.js` | ✅ | ✅ green (2 skipped, 1 todo: transaction wiring, plan 01-09) |
-| 01-W0-03 | 01-02 | 0 | SAFE-03 | A competing writer fails fast and interrupted writes remain hash-checkable and explicitly repairable | subprocess + filesystem integration | `npm run build && node --test dist/test/transaction-crash.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-02 | 01-02, 01-07, 01-09 | 0 | Escaping or unprovable symlink, junction, reparse, alias, and parent-swap paths never touch the outside sentinel | filesystem integration | `npm run build && node --test dist/test/path-boundary.test.js` | ✅ | ✅ green (2 skipped: privileged link fixtures) |
+| 01-W0-03 | 01-02, 01-09 | 0 | A competing writer fails fast and interrupted writes remain hash-checkable and explicitly repairable | subprocess + filesystem integration | `npm run build && node --test dist/test/transaction-crash.test.js` | ✅ | ✅ green |
 | 01-W0-04 | 01-01, 01-03 | 0 | Secret values and secret-bearing URLs are absent from all observable output and persisted evidence | unit + CLI integration | `npm run build && node --test dist/test/redaction.test.js` | ✅ | ✅ green (1 todo: CLI seam, plan 01-15) |
 | 01-W0-05 | 01-01, 01-05 | 0 | SAFE-05 | Malformed, duplicate, ambiguous, unsupported, and newer-version documents are rejected before mutation | table-driven unit | `npm run build && node --test dist/test/validation.test.js` | ✅ | ✅ green |
-| 01-W0-06 | 01-02 | 0 | SAFE-06 | External commands use no shell, receive only approved environment names, and produce bounded timeout-aware evidence | subprocess integration | `npm run build && node --test dist/test/process.test.js` | ✅ | ❌ red (by design) |
+| 01-W0-06 | 01-02, 01-08 | 0 | External commands use no shell, receive only approved environment names, and produce bounded timeout-aware evidence | subprocess integration | `npm run build && node --test dist/test/process.test.js` | ✅ | ✅ green |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

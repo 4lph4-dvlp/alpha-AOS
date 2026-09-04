@@ -4,7 +4,7 @@ milestone: v0.1.0
 current_phase: 1
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: smol-toml@1.8.0 approved; plan 01-05 unblocked
+stopped_at: Wave 1 complete (01-03, 01-04, 01-05, 01-07); wave 2 ready
 last_updated: "2026-09-04T07:35:41.501Z"
 last_activity: 2026-09-04
 last_activity_desc: Executed plans 01-03 and 01-07; plan 01-04 awaits a human supply-chain verdict.
@@ -13,7 +13,7 @@ progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 16
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -29,11 +29,11 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 1 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 5 of 16 in current phase
+Plan: 6 of 16 in current phase
 Status: Ready to execute
-Last activity: 2026-09-04 — Executed plans 01-03 and 01-07: central redactor, segment-aware path aliases, support-bundle planning, and canonical PathProof.
+Last activity: 2026-09-04 — Completed wave 1: central redactor, path aliases, support-bundle planning, canonical PathProof, and the strict validation engine.
 
-Progress: [█░░░░░░░░░] 8%
+Progress: [██░░░░░░░░] 12%
 
 ## Performance Metrics
 
@@ -81,6 +81,7 @@ None yet.
 - Resolved 2026-09-04: `smol-toml@1.8.0` approved at the 01-04 gate, bound to `sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==`; plan 01-05 must verify that integrity before writing the lock.
 - Confirmed by Wave 0 (2026-09-04): `src/core/process.ts` routes `.cmd` through `cmd.exe` with `windowsVerbatimArguments` and `.ps1` through `powershell.exe`, applies no output cap, and returns raw stdout.
 - Phases 3–6 require targeted exact-version research for harness discovery, GSD gate contracts, preload isolation, and package recovery.
+- `schemas/stack.schema.json` and `schemas/lock.schema.json` still declare `additionalProperties: true`, which defeats closed-world validation; the strict engine carries inline core schemas until plan 01-10 closes those files.
 
 ## Deferred Items
 
@@ -91,5 +92,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-09-03T23:44:02.536Z
-Stopped at: smol-toml@1.8.0 approved; plan 01-05 unblocked
-Resume file: .planning/phases/01-safe-operation-boundary/01-05-PLAN.md
+Stopped at: Wave 1 complete (01-03, 01-04, 01-05, 01-07); wave 2 ready
+Resume file: .planning/phases/01-safe-operation-boundary/01-06-PLAN.md

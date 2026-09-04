@@ -34,7 +34,7 @@ Plans:
 - [x] 01-02-PLAN.md — Wave 0 path, writer/crash, and process contracts
 - [x] 01-03-PLAN.md — Central redaction, path aliases, and immutable support-bundle planning
 - [x] 01-04-PLAN.md — smol-toml legitimacy checkpoint
-- [ ] 01-05-PLAN.md — Strict multi-format validation engine
+- [x] 01-05-PLAN.md — Strict multi-format validation engine
 - [ ] 01-06-PLAN.md — Strict catalog, lock, and project-manifest loaders
 - [x] 01-07-PLAN.md — Canonical PathProof and immediate recheck
 - [ ] 01-08-PLAN.md — Shell-free bounded process adapter and probe migration
@@ -135,7 +135,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 5/16 | In progress | - |
+| 1. Safe Operation Boundary | 6/16 | In progress | - |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

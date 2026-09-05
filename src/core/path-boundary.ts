@@ -118,7 +118,46 @@ function ancestorChain(target: string): string[] {
   return chain.reverse();
 }
 
-async function classifyComponent(path: string): Promise<PathComponentIdentity | { unknownReparse: true; path: string }> {
+/**
+ * The one canonical form used by every containment comparison in this module:
+ * the realpath of the deepest ancestor that exists, plus the part that does
+ * not exist yet. Target and allowed root both come through here, so a
+ * comparison can never place a resolved path against an unresolved one.
+ *
+ * Not existing and not being readable are different facts. `ENOENT` means the
+ * tail has simply not been created and the walk continues one level up; any
+ * other errno means something that exists could not be resolved, and walking
+ * past it would be a silent catch by another name. That case reports a reason
+ * instead of substituting the unresolved string.
+ */
+async function canonicalizeWithMissingTail(pathValue: string): Promise<{ canonical: string; reason: string | null }> {
+  const chain = ancestorChain(pathValue);
+  for (let index = chain.length - 1; index >= 0; index -= 1) {
+    const ancestor = chain[index] as string;
+    let resolvedAncestor: string;
+    try {
+      resolvedAncestor = await realpath(ancestor);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+      if (code === "ENOENT") continue;
+      return {
+        canonical: pathValue,
+        reason: `${pathValue} could not be canonically resolved at ${ancestor}: ${code}`,
+      };
+    }
+    const suffix = relative(ancestor, pathValue);
+    return { canonical: suffix === "" ? resolvedAncestor : resolve(resolvedAncestor, suffix), reason: null };
+  }
+  return { canonical: pathValue, reason: `no ancestor of ${pathValue} exists, so it has no canonical form` };
+}
+
+async function classifyComponent(
+  path: string,
+): Promise<
+  | PathComponentIdentity
+  | { unknownReparse: true; path: string }
+  | { unprovable: true; path: string; reason: string }
+> {
   let info: Awaited<ReturnType<typeof lstat>>;
   try {
     info = await lstat(path);
@@ -151,10 +190,24 @@ async function classifyComponent(path: string): Promise<PathComponentIdentity | 
     return { unknownReparse: true, path };
   }
 
-  let canonical = path;
+  // This call records the component's OWN canonical location, which lstat has
+  // already proven exists. It is not an operand of any containment comparison,
+  // so it does not go through the shared helper — a not-yet-created tail is
+  // impossible here and that branch would be dead code at this site.
+  let canonical: string;
   try {
     canonical = await realpath(path);
-  } catch {
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+    if (code !== "ENOENT") {
+      // An existing component the host refuses to resolve is a different fact
+      // from an absent one. Recording its unresolved path here would let a
+      // later recheck compare against a value that was never canonical.
+      return { unprovable: true, path, reason: `component could not be canonically resolved: ${path} (${code})` };
+    }
+    // lstat succeeded but realpath is ENOENT: a dangling link. The link itself
+    // exists and is classified, so it keeps its configured spelling — today's
+    // meaning and today's value.
     canonical = path;
   }
 
@@ -225,27 +278,26 @@ export async function provePathBoundary(options: {
         "unknown-reparse",
       );
     }
+    if ("unprovable" in classified) {
+      return unsupported(role, configured, classified.reason, "unprovable-filesystem");
+    }
     components.push(classified);
   }
 
-  // Canonical form: realpath of the nearest existing ancestor plus the part
-  // that does not exist yet. A not-yet-created file still has a provable home.
-  const existing = [...components].reverse().find((component) => component.kind !== "missing");
-  let canonical: string;
-  if (existing === undefined) {
-    // Nothing on the chain exists; fall back to the filesystem root's identity.
-    canonical = configured;
-  } else {
-    const suffix = relative(existing.path, configured);
-    canonical = suffix === "" ? existing.canonical : resolve(existing.canonical, suffix);
+  // Both operands of the containment comparison below come from the same
+  // function. A not-yet-created path still has a provable home, and that is
+  // as true of the allowed root as it is of the target.
+  const targetResolution = await canonicalizeWithMissingTail(configured);
+  if (targetResolution.reason !== null) {
+    return unsupported(role, configured, targetResolution.reason, "unprovable-filesystem");
   }
+  const canonical = targetResolution.canonical;
 
-  let canonicalRootSource: string;
-  try {
-    canonicalRootSource = await realpath(configuredRoot);
-  } catch {
-    canonicalRootSource = configuredRoot;
+  const rootResolution = await canonicalizeWithMissingTail(configuredRoot);
+  if (rootResolution.reason !== null) {
+    return unsupported(role, configured, rootResolution.reason, "unprovable-filesystem");
   }
+  const canonicalRootSource = rootResolution.canonical;
 
   const capability: FilesystemCapability = {
     supported: true,
@@ -291,19 +343,28 @@ export async function recheckPathProof(proof: PathProof): Promise<{ ok: boolean;
     return { ok: false, code: proof.code, detail: proof.detail ?? "proof was never established" };
   }
 
-  let canonicalRoot = proof.allowedRoot;
-  if (canonicalRoot !== null) {
-    try {
-      canonicalRoot = await realpath(canonicalRoot);
-    } catch {
-      // Fall back to the configured root; containment is still checked below.
+  // The same helper the preflight used. Falling back to the configured root
+  // here would carry the preflight's asymmetry into the moment of mutation:
+  // the checks below would again compare a resolved endpoint against an
+  // unresolved root.
+  let canonicalRoot: string | null = null;
+  if (proof.allowedRoot !== null) {
+    const rootResolution = await canonicalizeWithMissingTail(proof.allowedRoot);
+    if (rootResolution.reason !== null) {
+      return { ok: false, code: "unprovable-filesystem", detail: rootResolution.reason };
     }
+    canonicalRoot = rootResolution.canonical;
   }
 
   for (const recorded of proof.components) {
     const current = await classifyComponent(recorded.path);
     if ("unknownReparse" in current) {
       return { ok: false, code: "unknown-reparse", detail: `component became unclassifiable: ${recorded.path}` };
+    }
+    if ("unprovable" in current) {
+      // Losing the ability to read a component just before apply is a reason
+      // to stop, not a reason to continue past it.
+      return { ok: false, code: "unprovable-filesystem", detail: current.reason };
     }
 
     if (recorded.kind === "missing") {

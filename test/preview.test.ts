@@ -220,6 +220,30 @@ const PREVIEW_INVOCATIONS: ReadonlyArray<{ readonly name: string; readonly args:
   { name: "bootstrap install", args: ["bootstrap", "install", "--skip-link"] },
 ];
 
+/**
+ * Names npm injects into the environment of any script it launches through a
+ * lifecycle. They are not decoration: `npm_config_cache` decides the directory
+ * npm writes its debug log into for every invocation, including a read-only
+ * query, so a process that inherits it launches children whose write location
+ * was chosen by the caller rather than by the code under test.
+ */
+const NPM_LIFECYCLE_INJECTION = /^npm_(config|package|lifecycle)_/iu;
+const NPM_LIFECYCLE_SINGLETON_NAMES: readonly string[] = ["npm_execpath", "npm_command", "npm_node_execpath"];
+
+test("the test runner environment carries no npm lifecycle injection", () => {
+  const injected = Object.keys(process.env).filter(
+    (name) => NPM_LIFECYCLE_INJECTION.test(name) || NPM_LIFECYCLE_SINGLETON_NAMES.includes(name),
+  );
+  assert.deepEqual(
+    injected,
+    [],
+    `the test process inherited npm lifecycle injection: ${injected.join(", ")}. While these names exist, the ` +
+      "write location of every child this process launches is decided by how the suite was invoked rather than " +
+      "by the code under test, so the surface the preview oracle observes differs between `npm test` and a bare " +
+      "`node --test`. The suite must run through scripts/run-tests.mjs, which strips them before spawning.",
+  );
+});
+
 test("every mutating CLI preview leaves all five mutation surfaces byte-identical", async (context) => {
   const sandbox = await createSandbox(context);
   assert.ok(existsSync(cliEntry), `CLI entry must be built before this suite runs: ${cliEntry}`);

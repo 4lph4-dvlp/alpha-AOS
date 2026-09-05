@@ -402,6 +402,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
   const redaction = redactionForEnvironment(environment);
   const outputLimit = spec.maxOutputBytes ?? DEFAULT_MAX_OUTPUT_BYTES;
   const frameLimit = spec.maxMessageBytes ?? DEFAULT_MAX_MESSAGE_BYTES;
+  const timeoutMs = spec.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   const stdout = new BoundedStream(outputLimit);
   const stderr = new BoundedStream(outputLimit);
@@ -426,7 +427,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
   let pending: Buffer = Buffer.alloc(0);
   let settled = false;
   let settledResult: ProcessResult | null = null;
-  const timedOut = false;
+  let timedOut = false;
   let frameCapped = false;
 
   let publish: (result: ProcessResult) => void = () => undefined;
@@ -466,6 +467,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
       stderr: current.stderr,
     };
     settledResult = result;
+    if (deadline !== undefined) clearTimeout(deadline);
     for (const waiter of waiters.splice(0)) {
       clearTimeout(waiter.timer);
       waiter.reject(
@@ -474,6 +476,21 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
     }
     publish(result);
   };
+
+  /**
+   * Absolute ceiling on the whole session. A literal `0` means the caller
+   * deliberately runs without one — a long-lived proxy — and disables only
+   * this timer. Every other bound, including the per-frame cap and the
+   * forced termination in `close()`, is unaffected.
+   */
+  const deadline =
+    timeoutMs === 0
+      ? undefined
+      : setTimeout(() => {
+          timedOut = true;
+          if (child.pid !== undefined) killTree(child.pid, "SIGKILL");
+        }, timeoutMs);
+  deadline?.unref();
 
   const deliver = (message: Record<string, unknown>): void => {
     for (const listener of [...listeners]) {

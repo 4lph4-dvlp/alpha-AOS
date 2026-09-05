@@ -2,11 +2,10 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import { spawn } from "node:child_process";
 import type { HarnessId, LockedPackage, McpServerId, StackLock } from "../types.js";
 import { mcpStdioCommand, planMcpSync } from "./mcp.js";
 import { allowedMcpTools } from "./mcp-proxy.js";
-import { materializeEnvironment, resolveCommand, resolveNodePackageCli, runProcess } from "./process.js";
+import { openProtocolProcess, resolveCommand, resolveNodePackageCli, runProcess } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -78,12 +77,32 @@ function expectedTool(server: McpServerId, name: string): boolean {
   }
 }
 
-async function discoverTools(locked: LockedPackage, server: McpServerId): Promise<string[]> {
-  const command = mcpStdioCommand(server, locked);
-  // Fixture credentials are deliberate non-secrets, and no real credential
-  // from the ambient environment is offered to the probe child.
-  const env = materializeEnvironment(
-    nodeRuntimeEnvironment({
+/**
+ * Drives one MCP server's stdio JSON-RPC handshake far enough to read its
+ * advertised tool surface.
+ *
+ * The session, not this function, owns the boundary: no shell, an absolute
+ * executable, only the environment names declared below, an absolute deadline,
+ * and a byte cap that terminates a server emitting one endless line.
+ *
+ * The resolved stdio command is injected rather than derived from the lock, so
+ * the probe can be driven against a fake upstream server in the test suite —
+ * this is a production path with no other automated coverage.
+ */
+export async function discoverTools(
+  command: { command: string; args: readonly string[] },
+  server: McpServerId,
+  cwd: string,
+): Promise<string[]> {
+  const session = await openProtocolProcess({
+    executable: command.command,
+    args: command.args,
+    cwd,
+    // Fixture credentials are deliberate non-secrets, and no real credential
+    // from the ambient environment is offered to the probe child. The policy
+    // is handed over unmaterialized so the session also seeds its redaction
+    // context from the secret-bearing names it passes.
+    environment: nodeRuntimeEnvironment({
       literal: {
         CONTEXT7_API_KEY: "alpha-aos-fixture-not-a-real-key",
         EXA_API_KEY: "alpha-aos-fixture-not-a-real-key",
@@ -92,47 +111,20 @@ async function discoverTools(locked: LockedPackage, server: McpServerId): Promis
         FIRECRAWL_NO_ENDPOINT_FEEDBACK: "1",
       },
     }),
-  );
-  const child = spawn(command.command, command.args, {
-    env,
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
+    timeoutMs: 120_000,
+    maxOutputBytes: 64 * 1024,
   });
-  let stdout = "";
-  let stderr = "";
-  const responses = new Map<number, Record<string, unknown>>();
-  let wake: (() => void) | null = null;
-  child.stdout.setEncoding("utf8");
-  child.stderr.setEncoding("utf8");
-  child.stdout.on("data", (chunk: string) => {
-    stdout += chunk;
-    const lines = stdout.split(/\r?\n/u);
-    stdout = lines.pop() ?? "";
-    for (const line of lines) {
-      if (!line.trim().startsWith("{")) continue;
-      try {
-        const value = JSON.parse(line) as Record<string, unknown>;
-        if (typeof value.id === "number") responses.set(value.id, value);
-      } catch {
-        // Server diagnostics are ignored unless the protocol response times out.
-      }
-    }
-    wake?.();
-  });
-  child.stderr.on("data", (chunk: string) => { stderr = `${stderr}${chunk}`.slice(-8_000); });
 
-  const send = (value: unknown): void => { child.stdin.write(`${JSON.stringify(value)}\n`); };
+  const send = (value: unknown): void => { session.send(value); };
   const waitFor = async (id: number): Promise<Record<string, unknown>> => {
-    const deadline = Date.now() + 60_000;
-    while (Date.now() < deadline) {
-      const response = responses.get(id);
-      if (response) return response;
-      await new Promise<void>((resolveWait) => {
-        const timer = setTimeout(resolveWait, 250);
-        wake = () => { clearTimeout(timer); wake = null; resolveWait(); };
-      });
+    try {
+      return await session.waitFor((message) => message.id === id, 60_000);
+    } catch {
+      // A wait ends only with a coded session outcome, so the failure is
+      // described from exit metadata and stream fingerprints — never by
+      // interpolating what the child happened to print (D-12).
+      throw new Error(describeProcessFailure(`${server} MCP protocol`, await session.close()));
     }
-    throw new Error(`${server} MCP protocol timed out. stderr: ${stderr || "<empty>"}`);
   };
 
   try {
@@ -157,8 +149,7 @@ async function discoverTools(locked: LockedPackage, server: McpServerId): Promis
     if (!Array.isArray(tools)) throw new Error(`${server} tools/list returned no tool array`);
     return tools.map((tool) => typeof tool === "object" && tool !== null ? String((tool as Record<string, unknown>).name ?? "") : "").filter(Boolean);
   } finally {
-    child.stdin.end();
-    child.kill();
+    await session.close();
   }
 }
 
@@ -219,9 +210,10 @@ export interface McpFixtureOperationPlan {
 /**
  * Enumerates every path this fixture may use, before it creates anything.
  *
- * The protocol probe itself is a long-lived bidirectional stdio session, which
- * the one-shot process adapter cannot express; that child is still spawned
- * directly and is named as an asserted exception in test/process.test.ts.
+ * The protocol probe itself is a long-lived bidirectional stdio session. It
+ * runs through the process adapter's protocol-session mode, so it shares the
+ * stdout frame cap, the absolute deadline and the environment allowlist with
+ * every other child alpha-AOS starts.
  */
 export async function createMcpFixtureOperationPlan(options: {
   harness: HarnessId;
@@ -309,7 +301,7 @@ export async function runMcpFixture(options: {
       selected: [options.server],
       env: {},
     });
-    const toolNames = await discoverTools(locked, options.server);
+    const toolNames = await discoverTools(mcpStdioCommand(options.server, locked), options.server, fixtureRoot);
     if (toolNames.length === 0) throw new Error(`${options.server} exposed zero tools`);
     const expectedToolFound = toolNames.some((name) => expectedTool(options.server, name));
     if (!expectedToolFound) throw new Error(`${options.server} did not expose its expected tool family: ${toolNames.join(", ")}`);

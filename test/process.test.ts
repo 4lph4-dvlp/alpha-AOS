@@ -417,19 +417,20 @@ test("no source module spawns a child outside the process adapter", async () => 
     join("src", "adapters", "isolation.ts"),
   ];
 
-  // The MCP fixture drives a long-lived JSON-RPC session over stdio, which the
-  // one-shot adapter cannot express. The protocol-session mode that would
-  // replace it (`openProtocolProcess`) is an open phase-1 gap, recorded in the
-  // 01-08 and 01-11 summaries. It is named here so the exception stays visible
-  // rather than quietly widening.
-  const protocolSessionExceptions = new Set([join("src", "core", "mcp-fixture.ts")]);
+  // The enumeration carries no exception set. The MCP fixture's long-lived
+  // JSON-RPC child was the last holdout and now runs through the adapter's
+  // protocol-session mode, so its presence in this list is the assertion.
+  assert.ok(
+    files.includes(join("src", "core", "mcp-fixture.ts")),
+    "the MCP fixture must stay inside the enumeration rather than be dropped from it",
+  );
 
   for (const relativePath of files) {
     if (relativePath === join("src", "core", "process.ts")) continue;
     const source = await readFile(join(repositoryRoot, relativePath), "utf8");
 
     assert.equal(
-      /\bspawnSync\s*\(|\bspawn\s*\(/u.test(source) && !protocolSessionExceptions.has(relativePath),
+      /\bspawnSync\s*\(|\bspawn\s*\(/u.test(source),
       false,
       `${relativePath} spawns a child directly instead of going through the process adapter`,
     );

@@ -45,6 +45,7 @@ jobs:
           dist/test/redaction.test.js
           dist/test/validation.test.js
           dist/test/process.test.js
+          dist/test/protocol-session.test.js
           dist/test/install.test.js
           dist/test/update.test.js
 

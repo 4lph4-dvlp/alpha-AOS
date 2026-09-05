@@ -9,10 +9,12 @@
 // raw.
 
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { discoverTools } from "../src/core/mcp-fixture.js";
 import {
   DEFAULT_MAX_MESSAGE_BYTES,
   openProtocolProcess,
@@ -22,6 +24,9 @@ import {
 } from "../src/core/process.js";
 
 const ENV_SECRET = "alphaAOSprotocolSentinel0011";
+
+// Compiled to dist/test, so the repository root is two levels up.
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 interface ProtocolFixture {
   readonly root: string;
@@ -39,6 +44,8 @@ interface ProtocolFixture {
   readonly descendantScript: string;
   /** The descendant the spawner leaves behind. */
   readonly sleepScript: string;
+  /** A fake upstream MCP server: initialize, initialized, tools/list. */
+  readonly fakeMcpServerScript: string;
   /**
    * Registers a session for teardown. Windows will not remove a directory a
    * live child still holds as its cwd, so every session must be closed before
@@ -67,6 +74,7 @@ async function createProtocolFixture(
   const secretEchoScript = join(root, "secret-echo-server.mjs");
   const descendantScript = join(root, "descendant-server.mjs");
   const sleepScript = join(root, "sleep.mjs");
+  const fakeMcpServerScript = join(root, "fake-mcp-server.mjs");
 
   await writeFile(
     roundTripScript,
@@ -152,6 +160,31 @@ async function createProtocolFixture(
 
   await writeFile(sleepScript, "await new Promise((resolve) => setTimeout(resolve, 30_000));\n", "utf8");
 
+  // Speaks just enough of the MCP handshake for the fixture probe: it answers
+  // initialize, ignores the initialized notification, and advertises one tool.
+  await writeFile(
+    fakeMcpServerScript,
+    [
+      "import { createInterface } from 'node:readline';",
+      "const lines = createInterface({ input: process.stdin });",
+      "lines.on('line', (line) => {",
+      "  if (!line.trim().startsWith('{')) return;",
+      "  let message;",
+      "  try { message = JSON.parse(line); } catch { return; }",
+      "  if (message.method === 'notifications/initialized') return;",
+      "  if (message.id === 1) {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: 1, result: { protocolVersion: '2025-06-18', capabilities: {}, serverInfo: { name: 'fixture-upstream', version: '0.0.0' } } }));",
+      "    return;",
+      "  }",
+      "  if (message.id === 2) {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tools: [{ name: 'fixture_probe_tool' }] } }));",
+      "  }",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
   return {
     root,
     roundTripScript,
@@ -161,6 +194,7 @@ async function createProtocolFixture(
     secretEchoScript,
     descendantScript,
     sleepScript,
+    fakeMcpServerScript,
     track(session: ProtocolSession): ProtocolSession {
       opened.push(session);
       return session;
@@ -419,4 +453,53 @@ test("closing a protocol session terminates the whole child tree", async (contex
   const alive = isAlive(descendantPid);
   if (alive) process.kill(descendantPid, "SIGKILL");
   assert.equal(alive, false, "closing a protocol session left a descendant process running");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-17 Task 3: the migrated MCP fixture probe
+// ---------------------------------------------------------------------------
+
+test("the migrated fixture probe completes a tool discovery round trip through the bounded session", async (context) => {
+  const fixture = await createProtocolFixture(context);
+
+  // The boundary change must be proven not to have broken the behaviour it
+  // bounds: this is the only automated evidence that the production probe
+  // still completes initialize -> initialized -> tools/list.
+  const tools = await discoverTools(
+    { command: process.execPath, args: [fixture.fakeMcpServerScript] },
+    "context7",
+    fixture.root,
+  );
+
+  assert.deepEqual(tools, ["fixture_probe_tool"], "the migrated probe must return the advertised tool names");
+});
+
+test("no protocol-session carve-out survives in the source enumeration", async () => {
+  const enumeration = await readFile(join(repositoryRoot, "test", "process.test.ts"), "utf8");
+  const migrated = await readFile(join(repositoryRoot, "src", "core", "mcp-fixture.ts"), "utf8");
+
+  // The identifiers below deliberately live only in this file. Grepping a file
+  // for a literal it also contains would make the assertion permanently red.
+  assert.equal(
+    /protocolSessionExceptions/u.test(enumeration),
+    false,
+    "the direct-spawn exception set must be retired, not left behind as dead code",
+  );
+  // Positive control: deleting the enumeration test itself must not be a way
+  // to make the assertion above pass.
+  assert.equal(
+    /no source module spawns a child outside the process adapter/u.test(enumeration),
+    true,
+    "the direct-spawn enumeration test must still exist",
+  );
+  assert.equal(
+    /from\s+["']node:child_process["']/u.test(migrated),
+    false,
+    "the MCP fixture must not import a child-process primitive of its own",
+  );
+  assert.equal(
+    /openProtocolProcess/u.test(migrated),
+    true,
+    "the MCP fixture must reach its JSON-RPC child through the bounded adapter",
+  );
 });

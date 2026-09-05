@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-20-PLAN.md
-last_updated: "2026-09-05T16:48:30.313Z"
+stopped_at: Completed 01-21-PLAN.md
+last_updated: "2026-09-05T17:37:32.785Z"
 last_activity: 2026-09-06
 last_activity_desc: Phase 01 execution started
-state_head: 9f2c812f15774366008da7176cea74fd7e455442
+state_head: 9ac5385a71f8ac8fa96b8e0c5212d9c54248311c
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 20
+  completed_plans: 21
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 3 of 23
+Plan: 4 of 23
 Status: Ready to execute
 Last activity: 2026-09-06 — Phase 01 execution started
 
@@ -62,6 +62,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P18 | 22 min | 2 tasks | 3 files |
 | Phase 01 P19 | 11 min | 2 tasks | 2 files |
 | Phase 01 P20 | 7 min | 2 tasks | 2 files |
+| Phase 01 P21 | 40 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -83,6 +84,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: [01-19]: not existing and not being readable are different facts - ENOENT continues the ancestor walk, every other errno becomes an unprovable-filesystem refusal carrying a reason — Without that split, walking up to a shallower ancestor would itself be a silent catch by another name. A dangling link (lstat ok, realpath ENOENT) keeps today's meaning and today's value.
 - [Phase 01]: [01-20]: The platform environment floor is a pure function of the platform name, not a `process.platform` constant initializer — A constant keyed on the running host makes a macOS-only regression unobservable until a macOS host runs it. Making the platform an argument puts the declaration itself under test from any host, while the runtime exact-match assertion stays the separate authority for whether the declaration is true.
 - [Phase 01]: [01-20]: The darwin floor names exactly `__CF_USER_TEXT_ENCODING` and nothing speculative, and the name stays in the floor rather than in a per-child allowlist — The runtime assertion is an exact deepEqual, so an over-declared floor is as wrong as an under-declared one. Adding the name to NODE_RUNTIME_ENVIRONMENT_NAMES or UPSTREAM_ENVIRONMENT_NAMES would have silenced the failure while making an OS-injected name read as operation-approved, collapsing the distinction between the floor and the allowlist. Its value's first field is the caller's numeric UID, so it is documented as user-identifying alongside USERNAME, USERPROFILE and HOMEPATH.
+- [Phase 01]: [01-21]: The managed-install plan builder reads the global npm root off disk instead of spawning `npm root --global`; an unresolvable root is recorded as `unverified` and never as `current`. — npm writes a debug log into its cache for every invocation including a read-only query, and on POSIX the cache default is always home-derived, so the probe made every preview write to the user's home. D-01 makes the unverified branch plan the install; installEccRuntime re-probes authoritatively at apply and no-ops when the locked version is already installed. No .npmrc parser was built - knowing an effective prefix means running npm - so 01-23 will measure how often real hosts land on `unverified`.
+- [Phase 01]: [01-21]: A child launched for a read-only query gets a declared environment, and the names that decide where it writes are pinned outside the user's home rather than inherited. — readCommandVersion passed no env to spawnSync, so `hermes --version` during harness detection inherited LOCALAPPDATA and bootstrapped fifteen entries under it - a second, independent SAFE-01/SAFE-06 violation the old ambient-spread oracle could not see. commandProbeEnvironment and npmProbeEnvironment both remove the name from the passthrough list AND pin it as a literal; HOME/USERPROFILE stay passed through because redirecting them would trade a write violation for a wrong answer about what is installed.
+- [Phase 01]: [01-21]: `npm test` now runs through scripts/run-tests.mjs, which strips npm's lifecycle injection so the primary gate and the CI `Safety boundary suites` step share one environment. — CI run 33937610401 reported `npm test` green at 190/0 while the same job's bare `node --test` step failed four suites, because npm injected 22 names including npm_config_cache. The runner also fails loudly on an empty compiled test set, closing the shell-glob hazard where a suite that stopped being built looked green.
 
 ### Pending Todos
 
@@ -120,6 +124,7 @@ None yet.
 - Open from 01-19 (2026-09-05): the unprovable-filesystem branch for an existing-but-unreadable component or allowed root (EACCES/EPERM/ELOOP/EIO) is compiler-checked at both classifyComponent call sites but has no automated coverage - an unreadable-but-existing fixture needs privileged or platform-specific setup. Tracked as coverage D4 in 01-19-SUMMARY.md with human_judgment: true.
 - Open from 01-19 (2026-09-05): the suite baseline is now 195 tests (fail 0, 2 pre-existing platform skips). Plan 01-20 must raise its own baseline to 195 rather than the 190/191 figures earlier plans quote.
 - Open from 01-20 (2026-09-05): the suite baseline is now 196 tests (fail 0, 2 pre-existing platform skips). Plan 01-21 must raise its own baseline to 196 rather than 195. Whether `__CF_USER_TEXT_ENCODING` is the complete darwin floor is still unproven on this host - only the macos-latest leg of the three-OS matrix owned by 01-23 can answer it, and if it reports a second injected name the floor is extended to match observation.
+- Open from 01-21 (2026-09-05): the suite baseline is now 200 tests (fail 0, 2 pre-existing platform skips). Plan 01-22 must raise its own baseline to 200 rather than 196. `npm test` now means `npm run build && node scripts/run-tests.mjs`, so any plan reasoning about the primary gate must read the runner rather than a shell glob. commandProbeEnvironment's passthrough set is proven on Windows only - coverage D5 in 01-21-SUMMARY.md is human_judgment:true, and if a CI leg reports a harness version that went null, the passthrough set is what to widen, not the pin. Gap G-01-1 is not authoritatively closed until the three-OS matrix is green; 01-23 checks the two falsifiable predictions.
 
 ## Deferred Items
 
@@ -129,6 +134,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T16:48:18.202Z
-Stopped at: Completed 01-20-PLAN.md
+Last session: 2026-09-05T17:36:49.068Z
+Stopped at: Completed 01-21-PLAN.md
 Resume file: None

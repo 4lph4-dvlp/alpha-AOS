@@ -30,7 +30,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
 
-**Plans**: 20/23 plans executed (18 executed; 5 gap-closure plans pending for UAT gap G-01-1)
+**Plans**: 21/23 plans executed (18 executed; 5 gap-closure plans pending for UAT gap G-01-1)
 
 Plans:
 **Wave 1**
@@ -88,7 +88,7 @@ Plans:
 
 **Wave 12** *(blocked on Wave 11 completion — UAT gap G-01-1, root cause RC-3)*
 
-- [ ] 01-21-PLAN.md — Gap closure (RC-3): preview stops spawning npm, and the oracle stops depending on the runner
+- [x] 01-21-PLAN.md — Gap closure (RC-3): preview stops spawning npm, and the oracle stops depending on the runner
 
 **Wave 13** *(blocked on Wave 12 completion — UAT gap G-01-1, root cause RC-4)*
 
@@ -206,7 +206,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 20/23 | In Progress|  |
+| 1. Safe Operation Boundary | 21/23 | In Progress|  |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

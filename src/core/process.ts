@@ -64,6 +64,12 @@ export interface ProcessResult {
   /** Bounded, redacted evidence plus a fingerprint of the complete stream. */
   stdout: RedactedExcerpt;
   stderr: RedactedExcerpt;
+  /**
+   * Which delivery path the last forced termination took, or `not-required`
+   * when the child left on its own and none was needed. A coded value, never
+   * interpolated into a diagnostic message (D-12).
+   */
+  treeTermination?: KillDelivery;
 }
 
 /**
@@ -127,6 +133,22 @@ export const DEFAULT_MESSAGE_TIMEOUT_MS = 60_000;
 
 /** How long a closing session waits for a voluntary exit before killing. */
 const DEFAULT_CLOSE_GRACE_MS = 2_000;
+
+/**
+ * Upper bound alpha-AOS guarantees between `close()` returning and every
+ * descendant of that session's process group having stopped running.
+ *
+ * This is not the grace period. `DEFAULT_CLOSE_GRACE_MS` is how long a closing
+ * session waits for the child to leave voluntarily before it signals at all;
+ * this constant is the window after the signal within which the whole group is
+ * guaranteed to have stopped. They are different numbers because they answer
+ * different questions.
+ *
+ * It is declared here so a test that verifies the guarantee polls to the same
+ * window the product promises, instead of inventing its own and drifting from
+ * the contract it is supposed to be checking.
+ */
+export const CLOSE_TREE_DEADLINE_MS = 5_000;
 
 /**
  * Cap on parsed-but-unclaimed frames. A server that talks without being asked
@@ -249,20 +271,33 @@ class BoundedStream {
   }
 }
 
-function killTree(pid: number, signal: NodeJS.Signals): void {
+/**
+ * Which path a termination actually took. Reported rather than assumed: a
+ * POSIX group signal that was refused and fell back to the direct child has
+ * terminated strictly less than the caller asked for, and a caller that cannot
+ * see the difference cannot know whether the tree guarantee held.
+ */
+export type KillDelivery = "group" | "direct" | "windows-tree" | "already-gone" | "not-required";
+
+function killTree(pid: number, signal: NodeJS.Signals): KillDelivery {
   if (process.platform === "win32") {
     // taskkill is an executable, not a shell, and /T reaches descendants that
     // a direct kill on the parent would leave running.
-    spawnSync("taskkill.exe", ["/pid", String(pid), "/T", "/F"], { windowsHide: true, timeout: 10_000 });
-    return;
+    const result = spawnSync("taskkill.exe", ["/pid", String(pid), "/T", "/F"], {
+      windowsHide: true,
+      timeout: 10_000,
+    });
+    return result.status === 0 ? "windows-tree" : "already-gone";
   }
   try {
     process.kill(-pid, signal);
+    return "group";
   } catch {
     try {
       process.kill(pid, signal);
+      return "direct";
     } catch {
-      // The child already exited.
+      return "already-gone";
     }
   }
 }
@@ -309,6 +344,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
     let settled = false;
     let timedOut = false;
     let cappedKill = false;
+    let treeDelivery: KillDelivery = "not-required";
 
     const finish = (code: ProcessCode, exitCode: number | null, signal: NodeJS.Signals | null): void => {
       if (settled) return;
@@ -323,12 +359,13 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
         durationMs: Date.now() - startedAt,
         stdout: stdout.finish(redaction),
         stderr: stderr.finish(redaction),
+        treeTermination: treeDelivery,
       });
     };
 
     const deadline = setTimeout(() => {
       timedOut = true;
-      if (child.pid !== undefined) killTree(child.pid, "SIGKILL");
+      if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
     }, timeoutMs);
     deadline.unref();
 
@@ -339,7 +376,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
         // allowed to exhaust memory.
         if (sink.totalBytes > limit * 8 && !cappedKill) {
           cappedKill = true;
-          if (child.pid !== undefined) killTree(child.pid, "SIGKILL");
+          if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
         }
       });
     };
@@ -448,6 +485,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
   let settledResult: ProcessResult | null = null;
   let timedOut = false;
   let frameCapped = false;
+  let treeDelivery: KillDelivery = "not-required";
 
   let publish: (result: ProcessResult) => void = () => undefined;
   const closed = new Promise<ProcessResult>((resolveClosed) => {
@@ -484,6 +522,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
       durationMs: Date.now() - startedAt,
       stdout: current.stdout,
       stderr: current.stderr,
+      treeTermination: treeDelivery,
     };
     settledResult = result;
     if (deadline !== undefined) clearTimeout(deadline);
@@ -507,7 +546,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
       ? undefined
       : setTimeout(() => {
           timedOut = true;
-          if (child.pid !== undefined) killTree(child.pid, "SIGKILL");
+          if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
         }, timeoutMs);
   deadline?.unref();
 
@@ -569,7 +608,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
     if (pending.byteLength > frameLimit) {
       pending = Buffer.alloc(0);
       frameCapped = true;
-      if (child.pid !== undefined) killTree(child.pid, "SIGKILL");
+      if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
     }
   });
 
@@ -640,6 +679,27 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
   };
 
   let closing: Promise<ProcessResult> | null = null;
+  /**
+   * Ends the session and states exactly what that guarantees.
+   *
+   * 1. `close()` resolves on the DIRECT child's `close` event. By that moment a
+   *    termination signal has been delivered to that child's whole process
+   *    group — the child is spawned `detached` on POSIX, so it leads its own
+   *    group and every descendant it spawns joins that group.
+   * 2. Every descendant in that group stops running within
+   *    `CLOSE_TREE_DEADLINE_MS` of this resolving. Reaping is NOT awaited: a
+   *    grandchild is not this process's child, so it is not a `waitpid`
+   *    target, and claiming to wait for it would be false. A signalled
+   *    grandchild can therefore still hold a pid as a zombie after `close()`
+   *    returns, which is why liveness must be judged by terminal evidence
+   *    rather than by whether a pid can still be signalled.
+   * 3. The two platforms differ, deliberately. Windows blocks on
+   *    `spawnSync("taskkill /T /F")`, so the tree is already gone when this
+   *    returns. POSIX is synchronous only as far as signal delivery. The
+   *    delivery path actually taken is reported as `treeTermination` on the
+   *    settled result, so a caller can tell a real group signal from a
+   *    fallback to the direct child alone.
+   */
   const close = (): Promise<ProcessResult> => {
     if (closing !== null) return closing;
     closing = (async (): Promise<ProcessResult> => {
@@ -658,7 +718,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
         ]);
         // A child that declined to leave on its own is terminated, and so are
         // its descendants.
-        if (!settled && child.pid !== undefined) killTree(child.pid, "SIGKILL");
+        if (!settled && child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
       }
       return closed;
     })();

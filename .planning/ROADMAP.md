@@ -78,19 +78,27 @@ Plans:
 
 - [x] 01-18-PLAN.md — Gap closure: MCP SDK transport over the bounded protocol session
 
-**Wave 10** *(blocked on Wave 9 completion — UAT gap G-01-1, root causes RC-1/RC-2/RC-3)*
+**Wave 10** *(blocked on Wave 9 completion — UAT gap G-01-1, root cause RC-1)*
 
 - [ ] 01-19-PLAN.md — Gap closure (RC-1): symmetric canonicalization of the allowed root
+
+**Wave 11** *(blocked on Wave 10 completion — UAT gap G-01-1, root cause RC-2)*
+
 - [ ] 01-20-PLAN.md — Gap closure (RC-2): darwin platform environment floor
+
+**Wave 12** *(blocked on Wave 11 completion — UAT gap G-01-1, root cause RC-3)*
+
 - [ ] 01-21-PLAN.md — Gap closure (RC-3): preview stops spawning npm, and the oracle stops depending on the runner
 
-**Wave 11** *(blocked on Wave 10 completion — UAT gap G-01-1, root cause RC-4)*
+**Wave 13** *(blocked on Wave 12 completion — UAT gap G-01-1, root cause RC-4)*
 
 - [ ] 01-22-PLAN.md — Gap closure (RC-4): bounded, identity-bearing descendant termination oracle
 
-**Wave 12** *(blocked on Wave 11 completion)*
+**Wave 14** *(blocked on Wave 13 completion)*
 
 - [ ] 01-23-PLAN.md — Gap closure: the three-OS CI matrix observation that closes G-01-1
+
+> Waves 10–13 hold one plan each rather than running 01-19/01-20/01-21 together. They share no files, but each opens with a committed RED and `01-20`'s RED is a type error that breaks `npm run build` for the whole tree — a shared resource the file-overlap rule cannot see. Rationale in `01-19-PLAN.md` `## Wave placement`.
 
 ### Phase 2: Evidence-Bound Project Planning
 

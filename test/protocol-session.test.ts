@@ -9,6 +9,8 @@
 // raw.
 
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -16,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { discoverTools } from "../src/core/mcp-fixture.js";
 import {
+  CLOSE_TREE_DEADLINE_MS,
   DEFAULT_MAX_MESSAGE_BYTES,
   openProtocolProcess,
   PLATFORM_FLOOR_ENVIRONMENT,
@@ -28,21 +31,79 @@ const ENV_SECRET = "alphaAOSprotocolSentinel0011";
 // Compiled to dist/test, so the repository root is two levels up.
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
+/**
+ * Source lines every judged fixture script carries, so the process can testify
+ * that it is still running under an identity the test minted.
+ *
+ * Three properties are load-bearing.
+ *
+ * A beat is published by writing `<path>.tmp` and renaming it over `<path>`. A
+ * rename replaces the directory entry in one step, so a reader observes either
+ * the previous complete beat or the new complete beat and never a mixture.
+ * Truncating and rewriting in place would expose a half-written line, and a
+ * reader landing in that window would see a first token that is not this
+ * nonce — which the classifier would read as a foreign identity and therefore
+ * as a stopped process. That is a live, actively-writing descendant reported as
+ * terminated, and the window widens exactly as the runner gets busier.
+ *
+ * The terminator is built with `String.fromCharCode(10)` rather than an escape,
+ * because this source travels through a JS string array here and a `.mjs` file
+ * on disk. `os.EOL` is deliberately not used: CRLF on Windows would disagree
+ * with a reader that requires a bare LF terminator.
+ *
+ * A failed rename is swallowed. Windows can refuse one while a reader holds the
+ * file open; a missed beat is a stall, and a stall concludes nothing. Throwing
+ * here would let the fixture kill the very process under judgment.
+ *
+ * With no heartbeat path in `argv[2]` nothing is installed at all — no timer
+ * and no beat zero — so a script opened without an identity does not litter the
+ * fixture root with a file named after `undefined`.
+ */
+const heartbeatSource = [
+  "import { renameSync, writeFileSync } from 'node:fs';",
+  "const heartbeatPath = process.argv[2];",
+  "const heartbeatNonce = process.argv[3];",
+  "if (heartbeatPath !== undefined && heartbeatNonce !== undefined) {",
+  "  const beat = (counter) => {",
+  "    try {",
+  "      writeFileSync(heartbeatPath + '.tmp', heartbeatNonce + ' ' + counter + String.fromCharCode(10));",
+  "      renameSync(heartbeatPath + '.tmp', heartbeatPath);",
+  "    } catch {}",
+  "  };",
+  "  let heartbeatCounter = 0;",
+  "  beat(heartbeatCounter);",
+  "  const heartbeatTimer = setInterval(() => { heartbeatCounter += 1; beat(heartbeatCounter); }, 50);",
+  "  heartbeatTimer.unref();",
+  "}",
+];
+
 interface ProtocolFixture {
   readonly root: string;
   /** Answers every request carrying a numeric id with a single NDJSON line. */
   readonly roundTripScript: string;
-  /** Announces its pid, then emits one very long line with no newline. */
+  /**
+   * Announces its pid, then emits one very long line with no newline. Publishes
+   * a heartbeat when `argv[2]`/`argv[3]` name a path and a nonce.
+   */
   readonly unterminatedFloodScript: string;
-  /** Announces its pid, reads requests, and answers none of them. */
+  /**
+   * Announces its pid, reads requests, and answers none of them. Publishes a
+   * heartbeat when `argv[2]`/`argv[3]` name a path and a nonce.
+   */
   readonly silentScript: string;
   /** Reports the environment block it actually received. */
   readonly environmentScript: string;
   /** Echoes the credential it was handed back through stderr. */
   readonly secretEchoScript: string;
-  /** Announces a descendant's pid, then stays alive. */
+  /**
+   * Announces a descendant's pid, then stays alive. Forwards `argv[3]`/`argv[4]`
+   * to the grandchild, because the grandchild is what gets judged.
+   */
   readonly descendantScript: string;
-  /** The descendant the spawner leaves behind. */
+  /**
+   * The descendant the spawner leaves behind. Publishes a heartbeat when
+   * `argv[2]`/`argv[3]` name a path and a nonce, and does nothing else.
+   */
   readonly sleepScript: string;
   /** A fake upstream MCP server: initialize, initialized, tools/list. */
   readonly fakeMcpServerScript: string;
@@ -53,6 +114,14 @@ interface ProtocolFixture {
    * guarantee, because hooks run in registration order.
    */
   track(session: ProtocolSession): ProtocolSession;
+  /**
+   * Mints one heartbeat identity. The path is named after the nonce it carries,
+   * so one probe's heartbeat file can never be another's — which is what makes
+   * a well-formed foreign nonce a fixture-integrity tripwire rather than
+   * something a race can produce. `args` is spread straight after a session's
+   * own arguments.
+   */
+  mintHeartbeat(): { path: string; nonce: string; args: [string, string] };
 }
 
 async function createProtocolFixture(
@@ -98,6 +167,9 @@ async function createProtocolFixture(
   await writeFile(
     unterminatedFloodScript,
     [
+      // Beat zero is published before the pid is announced, so the heartbeat
+      // file already exists by the time the test can register a probe on it.
+      ...heartbeatSource,
       // The pid is announced as a complete frame first, so the test can prove
       // the capped session actually terminated this child.
       "console.log(JSON.stringify({ jsonrpc: '2.0', id: 0, result: { pid: process.pid } }));",
@@ -114,6 +186,7 @@ async function createProtocolFixture(
   await writeFile(
     silentScript,
     [
+      ...heartbeatSource,
       "import { createInterface } from 'node:readline';",
       "const lines = createInterface({ input: process.stdin });",
       "lines.on('line', () => {});",
@@ -150,7 +223,12 @@ async function createProtocolFixture(
     descendantScript,
     [
       "import { spawn } from 'node:child_process';",
-      "const descendant = spawn(process.execPath, [process.argv[2]], { detached: false, stdio: 'ignore' });",
+      // The heartbeat path and nonce are forwarded to the grandchild: the
+      // spawner is not what gets judged, the descendant is. They are filtered
+      // rather than passed positionally, because an undefined argv entry would
+      // make spawn throw when this script is opened without an identity.
+      "const forwarded = [process.argv[2], process.argv[3], process.argv[4]].filter((value) => value !== undefined);",
+      "const descendant = spawn(process.execPath, forwarded, { detached: false, stdio: 'ignore' });",
       "console.log(JSON.stringify({ jsonrpc: '2.0', id: 0, result: { pid: descendant.pid } }));",
       "await new Promise((resolve) => setTimeout(resolve, 30_000));",
       "",
@@ -158,7 +236,15 @@ async function createProtocolFixture(
     "utf8",
   );
 
-  await writeFile(sleepScript, "await new Promise((resolve) => setTimeout(resolve, 30_000));\n", "utf8");
+  await writeFile(
+    sleepScript,
+    [
+      ...heartbeatSource,
+      "await new Promise((resolve) => setTimeout(resolve, 30_000));",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 
   // Speaks just enough of the MCP handshake for the fixture probe: it answers
   // initialize, ignores the initialized notification, and advertises one tool.
@@ -198,6 +284,11 @@ async function createProtocolFixture(
     track(session: ProtocolSession): ProtocolSession {
       opened.push(session);
       return session;
+    },
+    mintHeartbeat(): { path: string; nonce: string; args: [string, string] } {
+      const nonce = randomUUID();
+      const path = join(root, `heartbeat-${nonce}.txt`);
+      return { path, nonce, args: [path, nonce] };
     },
   };
 }

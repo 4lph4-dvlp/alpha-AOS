@@ -18,9 +18,9 @@
 - [ ] **SAFE-01**: User can preview any mutating alpha-AOS operation without changing source checkouts, global packages, configuration files, managed state, or harness resources
 - [ ] **SAFE-02**: User is protected from writes or removals that escape an allowed root through symlinks, junctions, reparse points, aliases, or changed parent paths
 - [ ] **SAFE-03**: User receives serialized, hash-checked, journaled, and crash-diagnosable managed writes so concurrent or interrupted operations cannot silently lose data
-- [x] **SAFE-04**: User can inspect human output, JSON output, plans, journals, snapshots, subprocess failures, and CI evidence without credential values or secret-bearing URLs being exposed
+- [ ] **SAFE-04**: User can inspect human output, JSON output, plans, journals, snapshots, subprocess failures, and CI evidence without credential values or secret-bearing URLs being exposed
 - [ ] **SAFE-05**: User receives a clear refusal when catalogs, locks, manifests, evidence, receipts, or native configuration inputs are malformed, ambiguous, unsupported, or fail strict schema validation
-- [x] **SAFE-06**: User-launched external commands run without a shell, with bounded output and timeout behavior, and with only the environment variables allowed for that operation
+- [ ] **SAFE-06**: User-launched external commands run without a shell, with bounded output and timeout behavior, and with only the environment variables allowed for that operation
 
 ### Deterministic Project Detection and Planning
 
@@ -129,9 +129,9 @@
 | SAFE-01 | Phase 1 | Pending |
 | SAFE-02 | Phase 1 | Pending |
 | SAFE-03 | Phase 1 | Pending |
-| SAFE-04 | Phase 1 | Complete |
+| SAFE-04 | Phase 1 | Gaps Found |
 | SAFE-05 | Phase 1 | Pending |
-| SAFE-06 | Phase 1 | Complete |
+| SAFE-06 | Phase 1 | Gaps Found |
 | DETC-01 | Phase 2 | Pending |
 | DETC-02 | Phase 2 | Pending |
 | DETC-03 | Phase 2 | Pending |

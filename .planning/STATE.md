@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-18-PLAN.md
-last_updated: "2026-09-05T01:34:48.172Z"
-last_activity: 2026-09-05
+stopped_at: Completed 01-19-PLAN.md
+last_updated: "2026-09-05T16:32:40.506Z"
+last_activity: 2026-09-06
 last_activity_desc: Phase 01 execution started
-state_head: 5a16f172e0622cc0919ff236b415b6196174d8de
+state_head: 578ccea2d2db89891f16ceaae3be47cc01860c08
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 18
-  completed_plans: 18
+  total_plans: 23
+  completed_plans: 19
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 18 of 18 (all plans complete)
-Status: Phase execution complete - verification pending
-Last activity: 2026-09-05 — Phase 01 execution started
+Plan: 2 of 23
+Status: Ready to execute
+Last activity: 2026-09-06 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -60,6 +60,7 @@ Progress: [░░░░░░░░░░] 0%
 |------|----------|-------|-------|
 | Phase 01 P17 | 33 min | 3 tasks | 5 files |
 | Phase 01 P18 | 22 min | 2 tasks | 3 files |
+| Phase 01 P19 | 11 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -77,6 +78,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: BoundedStdioTransport has no fallback to an unbounded transport: an unstartable bounded session is a refusal — A fallback branch would make the byte cap, environment allowlist and stderr redaction advisory rather than operative, so send() on a transport with no session throws instead of degrading.
 - [Phase 01]: JSON-RPC message validity stays delegated to the MCP SDK JSONRPCMessageSchema — alpha-AOS owns the process boundary and the byte bound; minting a project-local message-shape prohibition would duplicate canon the SDK already maintains and would rot against SDK versions.
 - [Phase 01]: The mcp-proxy.ts to redaction.ts key link was dropped rather than retargeted — After the transport swap the proxy performs no redaction; the session does. A type-only edge to ../types.js is already compiler-enforced, so keeping the link would assert nothing a grep could see that the build cannot.
+- [Phase 01]: [01-19]: canonicalizeWithMissingTail is the single canonical form for every containment operand; classifyComponent keeps its own resolution call because it records a component's own identity, not a comparison operand — The target was canonicalized through its deepest existing ancestor while the allowed root got a bare realpath whose catch left an unresolved string, so withinRoot compared a resolved path against an unresolved one and refused legitimate operations. Routing component identity through the same helper would add a permanently dead missing-tail branch and a third apparent resolution site.
+- [Phase 01]: [01-19]: not existing and not being readable are different facts - ENOENT continues the ancestor walk, every other errno becomes an unprovable-filesystem refusal carrying a reason — Without that split, walking up to a shallower ancestor would itself be a silent catch by another name. A dangling link (lstat ok, realpath ENOENT) keeps today's meaning and today's value.
 
 ### Pending Todos
 
@@ -111,6 +114,8 @@ None yet.
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
 - Resolved by 01-17 (2026-09-05): `openProtocolProcess` exists and is exported; `src/core/mcp-fixture.ts` no longer spawns directly and the enumeration carries no carve-out. Still open from 01-VERIFICATION: `src/core/mcp-proxy.ts` uses the SDK StdioClientTransport - owned by plan 01-18, the last of the four `missing` items.
 - Open from 01-17 (2026-09-05): the suite baseline is now 185 tests (was 176). Plan 01-18 must raise its own baseline to 185 rather than 176 or 184.
+- Open from 01-19 (2026-09-05): the unprovable-filesystem branch for an existing-but-unreadable component or allowed root (EACCES/EPERM/ELOOP/EIO) is compiler-checked at both classifyComponent call sites but has no automated coverage - an unreadable-but-existing fixture needs privileged or platform-specific setup. Tracked as coverage D4 in 01-19-SUMMARY.md with human_judgment: true.
+- Open from 01-19 (2026-09-05): the suite baseline is now 195 tests (fail 0, 2 pre-existing platform skips). Plan 01-20 must raise its own baseline to 195 rather than the 190/191 figures earlier plans quote.
 
 ## Deferred Items
 
@@ -120,6 +125,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T01:33:48.639Z
-Stopped at: Completed 01-18-PLAN.md
+Last session: 2026-09-05T16:32:40.184Z
+Stopped at: Completed 01-19-PLAN.md
 Resume file: None

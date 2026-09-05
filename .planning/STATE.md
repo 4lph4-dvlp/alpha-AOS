@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-17-PLAN.md
-last_updated: "2026-09-05T01:09:31.926Z"
+stopped_at: Completed 01-18-PLAN.md
+last_updated: "2026-09-05T01:34:48.172Z"
 last_activity: 2026-09-05
 last_activity_desc: Phase 01 execution started
-state_head: 2ec01305cbd2e0dded2d11fb403e4b8111b6393a
+state_head: 5a16f172e0622cc0919ff236b415b6196174d8de
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 18
-  completed_plans: 17
+  completed_plans: 18
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 2 of 18
-Status: Ready to execute
+Plan: 18 of 18 (all plans complete)
+Status: Phase execution complete - verification pending
 Last activity: 2026-09-05 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -59,6 +59,7 @@ Progress: [░░░░░░░░░░] 0%
 | Plan | Duration | Tasks | Files |
 |------|----------|-------|-------|
 | Phase 01 P17 | 33 min | 3 tasks | 5 files |
+| Phase 01 P18 | 22 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -73,6 +74,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 5]: `off` excludes alpha-AOS-managed and other user-global customization but allows repository-local user-owned resources; `sealed` remains v2 and fail-closed.
 - [Phase 01]: [01-17]: `openProtocolProcess` closes the SAFE-06 protocol gap; the MCP fixture reaches its JSON-RPC child only through the bounded adapter and the direct-spawn carve-out in test/process.test.ts is retired. — The fixture accumulated stdout with no byte cap, the one property `unbounded child output is capped and reported as capped` proves for every other child. A 1 MiB per-frame cap now terminates the child tree instead of growing a buffer.
 - [Phase 01]: [01-17]: A long-lived session is never exempt from a bound - `timeoutMs: 0` disables only the absolute ceiling, and the per-frame cap plus forced close-time termination stay in force. — Recorded as a flagged SAFE-06 prohibition by the plan with status `unverified`; no named test covered it, so one was added (deviation Rule 2) rather than shipping it unproven.
+- [Phase 01]: BoundedStdioTransport has no fallback to an unbounded transport: an unstartable bounded session is a refusal — A fallback branch would make the byte cap, environment allowlist and stderr redaction advisory rather than operative, so send() on a transport with no session throws instead of degrading.
+- [Phase 01]: JSON-RPC message validity stays delegated to the MCP SDK JSONRPCMessageSchema — alpha-AOS owns the process boundary and the byte bound; minting a project-local message-shape prohibition would duplicate canon the SDK already maintains and would rot against SDK versions.
+- [Phase 01]: The mcp-proxy.ts to redaction.ts key link was dropped rather than retargeted — After the transport swap the proxy performs no redaction; the session does. A type-only edge to ../types.js is already compiler-enforced, so keeping the link would assert nothing a grep could see that the build cannot.
 
 ### Pending Todos
 
@@ -116,6 +120,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T01:08:36.402Z
-Stopped at: Completed 01-17-PLAN.md
+Last session: 2026-09-05T01:33:48.639Z
+Stopped at: Completed 01-18-PLAN.md
 Resume file: None

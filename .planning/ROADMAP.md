@@ -30,7 +30,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
 
-**Plans**: 18/18 plans executed (16 executed, 2 gap closure)
+**Plans**: 23 plans (18 executed; 5 gap-closure plans pending for UAT gap G-01-1)
 
 Plans:
 **Wave 1**
@@ -77,6 +77,20 @@ Plans:
 **Wave 9** *(blocked on Wave 8 completion)*
 
 - [x] 01-18-PLAN.md — Gap closure: MCP SDK transport over the bounded protocol session
+
+**Wave 10** *(blocked on Wave 9 completion — UAT gap G-01-1, root causes RC-1/RC-2/RC-3)*
+
+- [ ] 01-19-PLAN.md — Gap closure (RC-1): symmetric canonicalization of the allowed root
+- [ ] 01-20-PLAN.md — Gap closure (RC-2): darwin platform environment floor
+- [ ] 01-21-PLAN.md — Gap closure (RC-3): preview stops spawning npm, and the oracle stops depending on the runner
+
+**Wave 11** *(blocked on Wave 10 completion — UAT gap G-01-1, root cause RC-4)*
+
+- [ ] 01-22-PLAN.md — Gap closure (RC-4): bounded, identity-bearing descendant termination oracle
+
+**Wave 12** *(blocked on Wave 11 completion)*
+
+- [ ] 01-23-PLAN.md — Gap closure: the three-OS CI matrix observation that closes G-01-1
 
 ### Phase 2: Evidence-Bound Project Planning
 

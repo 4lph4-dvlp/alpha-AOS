@@ -16,6 +16,7 @@ import {
   materializeEnvironment,
   normalizeProcessSpec,
   PLATFORM_FLOOR_ENVIRONMENT,
+  platformFloorEnvironment,
   ProcessPolicyError,
   readCommandVersion,
   resolveCommand,
@@ -162,6 +163,49 @@ test("the platform environment floor is declared rather than discovered at runti
     observed,
     [...PLATFORM_FLOOR_ENVIRONMENT].sort(),
     "the declared platform floor must match what the OS actually delivers",
+  );
+});
+
+test("the platform floor is declared per platform rather than only for the running one", () => {
+  // The runtime assertion above can only speak for the host it runs on. The
+  // floor itself is a pure function of the platform name, so every branch is
+  // assertable from any host — which is how a macOS-only regression stops
+  // needing a macOS host to be seen.
+  assert.ok(
+    platformFloorEnvironment("darwin").includes("__CF_USER_TEXT_ENCODING"),
+    "CoreFoundation hands __CF_USER_TEXT_ENCODING to every child regardless of the environment block, " +
+      "so the darwin floor must name it; CI run 33937610401 (macos-latest) reported exactly this name as " +
+      "an undeclared name crossing the process/protocol boundary",
+  );
+
+  assert.deepEqual(
+    [...platformFloorEnvironment("win32")].sort(),
+    [
+      "HOMEDRIVE",
+      "HOMEPATH",
+      "LOGONSERVER",
+      "PATH",
+      "SYSTEMDRIVE",
+      "SYSTEMROOT",
+      "TEMP",
+      "USERDOMAIN",
+      "USERNAME",
+      "USERPROFILE",
+      "WINDIR",
+    ].sort(),
+    "the eleven Windows names libuv guarantees a child must stay declared, including the three that are user-identifying",
+  );
+
+  assert.deepEqual(
+    platformFloorEnvironment("linux"),
+    [],
+    "ubuntu-latest passed the runtime exact-match assertion in CI run 33937610401, so the linux floor is empty",
+  );
+
+  assert.deepEqual(
+    [...PLATFORM_FLOOR_ENVIRONMENT],
+    [...platformFloorEnvironment(process.platform)],
+    "the exported constant must be the floor function applied to the running platform, never a separate declaration",
   );
 });
 

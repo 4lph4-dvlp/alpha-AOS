@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 01
-current_phase_name: safe-operation-boundary
+current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Verification returned gaps_found; one must-have artifact (openProtocolProcess) is undelivered
-last_updated: "2026-09-04T17:08:28.365Z"
+stopped_at: Completed 01-17-PLAN.md
+last_updated: "2026-09-05T01:09:31.926Z"
 last_activity: 2026-09-05
-last_activity_desc: "Verification returned gaps_found: 4/5 must-haves verified; openProtocolProcess is undelivered."
-state_head: cf96f4c5967c436960932e452a56d01685397470
+last_activity_desc: Phase 01 execution started
+state_head: 2ec01305cbd2e0dded2d11fb403e4b8111b6393a
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 18
-  completed_plans: 16
+  completed_plans: 17
   percent: 0
 ---
 
@@ -28,12 +28,12 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 ## Current Position
 
-Phase: 01 (safe-operation-boundary) — READY TO EXECUTE
-Plan: 16 of 16 executed
-Status: All 16 plans summarized and verified; 1 gap blocks completion
-Last activity: 2026-09-05 — Reconstructed the missing 01-10 summary at the safe_resume_gate, then ran phase verification: 174/174 tests pass, all 18 flagged prohibitions hold, one must-have artifact (openProtocolProcess) is undelivered.
+Phase: 01 (Safe Operation Boundary) — EXECUTING
+Plan: 2 of 18
+Status: Ready to execute
+Last activity: 2026-09-05 — Phase 01 execution started
 
-Progress: [████░░░░░░] 33%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -54,6 +54,12 @@ Progress: [████░░░░░░] 33%
 - Last 5 plans: -
 - Trend: Not started
 
+**Per-Plan Metrics:**
+
+| Plan | Duration | Tasks | Files |
+|------|----------|-------|-------|
+| Phase 01 P17 | 33 min | 3 tasks | 5 files |
+
 ## Accumulated Context
 
 ### Decisions
@@ -65,6 +71,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 4]: GSD Core `standard` remains the sole lifecycle and `.planning/` writer; Hermes and other harnesses are workers.
 - [Phase 5]: `off` is inherited by a directory tree until a nested override and must work through ordinary entrypoints before global context loads; late detection triggers a clean restart.
 - [Phase 5]: `off` excludes alpha-AOS-managed and other user-global customization but allows repository-local user-owned resources; `sealed` remains v2 and fail-closed.
+- [Phase 01]: [01-17]: `openProtocolProcess` closes the SAFE-06 protocol gap; the MCP fixture reaches its JSON-RPC child only through the bounded adapter and the direct-spawn carve-out in test/process.test.ts is retired. — The fixture accumulated stdout with no byte cap, the one property `unbounded child output is capped and reported as capped` proves for every other child. A 1 MiB per-frame cap now terminates the child tree instead of growing a buffer.
+- [Phase 01]: [01-17]: A long-lived session is never exempt from a bound - `timeoutMs: 0` disables only the absolute ceiling, and the per-frame cap plus forced close-time termination stay in force. — Recorded as a flagged SAFE-06 prohibition by the plan with status `unverified`; no named test covered it, so one was added (deviation Rule 2) rather than shipping it unproven.
 
 ### Pending Todos
 
@@ -97,6 +105,8 @@ None yet.
 - Open from 01-VERIFICATION (2026-09-05): `openProtocolProcess` is an undelivered must-have export of 01-08 and the mechanism behind two of its key links. Two MCP protocol paths sit outside the bounded adapter: `src/core/mcp-fixture.ts` spawns directly and accumulates stdout with no byte cap (stderr is capped, shell off, env allowlisted, 60s deadline), and `src/core/mcp-proxy.ts` still uses the SDK StdioClientTransport. No later roadmap phase names this work, so it is not deferrable on current evidence.
 - Deferred to Phase 7 by 01-VERIFICATION (2026-09-05): the end-to-end managed install test and the observed macOS/Linux CI legs, both covered by Phase 7 success criterion 1 (three-OS fixture matrix).
 - Windows delivers a floor of environment variables no allowlist can suppress (`PLATFORM_FLOOR_ENVIRONMENT`), three of them user-identifying. Phase 5 must state this rather than imply total control of a project-only launch environment.
+- Resolved by 01-17 (2026-09-05): `openProtocolProcess` exists and is exported; `src/core/mcp-fixture.ts` no longer spawns directly and the enumeration carries no carve-out. Still open from 01-VERIFICATION: `src/core/mcp-proxy.ts` uses the SDK StdioClientTransport - owned by plan 01-18, the last of the four `missing` items.
+- Open from 01-17 (2026-09-05): the suite baseline is now 185 tests (was 176). Plan 01-18 must raise its own baseline to 185 rather than 176 or 184.
 
 ## Deferred Items
 
@@ -106,6 +116,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-04T17:05:00.000Z
-Stopped at: Verification returned gaps_found; run /gsd-plan-phase 01 --gaps
-Resume file: .planning/phases/01-safe-operation-boundary/01-VERIFICATION.md
+Last session: 2026-09-05T01:08:36.402Z
+Stopped at: Completed 01-17-PLAN.md
+Resume file: None

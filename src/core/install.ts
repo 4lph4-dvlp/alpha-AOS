@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { HarnessId, Inventory, StackCatalog, StackLock } from "../types.js";
 import {
@@ -211,6 +211,41 @@ export function describeProcessFailure(label: string, result: ProcessResult): st
 }
 
 /**
+ * Where a read-only npm query is allowed to write. npm writes a debug log
+ * into its cache directory even for a query, and on POSIX the cache default
+ * is always home-derived, so the location is pinned here rather than left to
+ * whatever the caller's environment happens to contain.
+ *
+ * The cache name is removed from the passthrough list AND fixed as a literal.
+ * The literal alone would win - `materializeEnvironment` applies literals last -
+ * but leaving the name in the passthrough list would read as though the value
+ * were inherited, and an allowlist that lies about what it forwards is worse
+ * than no allowlist.
+ *
+ * `npm_config_prefix` and `npm_config_userconfig` stay passed through: they
+ * decide what the probe looks at, not where it writes, and ignoring the
+ * user's own npm configuration would make apply-time verification answer
+ * about a global root the user does not use.
+ */
+export function npmProbeEnvironment(options: {
+  cacheRoot?: string;
+  source?: NodeJS.ProcessEnv;
+} = {}): EnvironmentPolicy {
+  const cacheRoot = options.cacheRoot ?? join(tmpdir(), "alpha-aos-npm-cache");
+  return {
+    optional: NODE_RUNTIME_ENVIRONMENT_NAMES.filter((name) => name !== "npm_config_cache"),
+    literal: {
+      npm_config_cache: cacheRoot,
+      npm_config_logs_max: "0",
+      npm_config_update_notifier: "false",
+      npm_config_fund: "false",
+      npm_config_audit: "false",
+    },
+    source: options.source ?? process.env,
+  };
+}
+
+/**
  * Asks npm itself where the global root is. This launches a child, and npm
  * writes a debug log into its cache directory for every invocation including
  * a read-only query, so the name says so out loud: nothing that runs before
@@ -225,7 +260,7 @@ async function probeGlobalNpmPackageVersion(packageName: string): Promise<string
     cwd: process.cwd(),
     timeoutMs: 30_000,
     maxOutputBytes: 64 * 1024,
-    environment: nodeRuntimeEnvironment(),
+    environment: npmProbeEnvironment(),
   });
   if (result.code !== "ok") throw new Error(describeProcessFailure("npm root --global", result));
   const manifest = join(result.stdout.excerpt.trim(), ...packageName.split("/"), "package.json");

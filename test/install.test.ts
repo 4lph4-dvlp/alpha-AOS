@@ -3,9 +3,10 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { createManagedInstallOperationPlan, inspectGsdInstall, selectInstallTargets } from "../src/core/install.js";
+import { createManagedInstallOperationPlan, inspectGsdInstall, npmProbeEnvironment, selectInstallTargets } from "../src/core/install.js";
 import {
   applyBootstrapOperation,
   BootstrapRefusal,
@@ -14,9 +15,13 @@ import {
 } from "../src/core/bootstrap.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
+import { materializeEnvironment } from "../src/core/process.js";
 import { listManagedTransactions } from "../src/core/transaction.js";
 import { acquireMutationSession, WriterConflictError, writerLockPath } from "../src/core/writer-lock.js";
 import type { HarnessId, Inventory, StackLock } from "../src/types.js";
+
+/** The checkout root, from the compiled location: dist/test -> repository root. */
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 function inventory(detected: HarnessId[]): Inventory {
   const ids: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
@@ -338,4 +343,87 @@ test("a failed external step reports what it observed and never claims a rollbac
   assert.equal(typeof recorded.steps[1].detail, "string");
   assert.equal(recorded.recovery.length > 0, true);
   assert.equal(existsSync(writerLockPath(fixture.stateRoot)), false, "the writer is released after durable evidence");
+});
+
+test("a read-only npm probe cannot have its write location decided by the caller", () => {
+  const owned = join("alpha-aos-owned", "cache-root");
+  const callerCache = join("caller-chosen", "cache-root");
+  const callerPrefix = join("caller-chosen", "prefix");
+
+  const materialized = materializeEnvironment(
+    npmProbeEnvironment({
+      cacheRoot: owned,
+      source: { npm_config_cache: callerCache, npm_config_prefix: callerPrefix },
+    }),
+  );
+
+  assert.equal(
+    materialized.npm_config_cache,
+    owned,
+    "the caller's npm cache value reached the probe, so an inherited name decides where a read-only query writes",
+  );
+  assert.notEqual(materialized.npm_config_cache, callerCache);
+  assert.equal(
+    materialized.npm_config_logs_max,
+    "0",
+    "the probe must suppress npm log files rather than merely relocate them",
+  );
+  // Positive control: the policy pins where the probe writes, it does not cut
+  // the probe off from the user configuration that decides what it looks at.
+  assert.equal(
+    materialized.npm_config_prefix,
+    callerPrefix,
+    "the probe lost the user's npm prefix, so apply-time verification would answer about a global root the user does not use",
+  );
+});
+
+test("the managed install plan builder does not spawn to learn the global npm root", async () => {
+  const source = await readFile(join(repositoryRoot, "src", "core", "install.ts"), "utf8");
+  const eol = source.includes("\r\n") ? "\r\n" : "\n";
+  const start = source.indexOf("export async function createManagedInstallPlan(");
+  assert.notEqual(start, -1, "createManagedInstallPlan is no longer declared as an exported async function");
+  // Bounded by the function's own closing brace at column zero, not by the
+  // next exported declaration: everything between this builder and the next
+  // `export` is apply-time helper code, and `installEccRuntime` is supposed
+  // to reach the spawning probe. Slicing that far would make the negative
+  // control below fail against correct code.
+  const end = source.indexOf(eol + "}", start);
+  const region = end === -1 ? source.slice(start) : source.slice(start, end);
+
+  // A slice that broke would make both controls below vacuous, so its failure
+  // is reported as a failure rather than absorbed as a pass.
+  assert.equal(
+    region.length >= 200,
+    true,
+    `the createManagedInstallPlan region could not be extracted (${region.length} characters); the controls below would be vacuous`,
+  );
+  assert.equal(
+    /probeGlobalNpmPackageVersion/u.test(region),
+    false,
+    "the managed install plan builder reaches the spawning npm probe. A preview runs this builder with no --apply, and npm writes a debug log into its cache for every invocation including a read-only query, which on POSIX is always under the user home.",
+  );
+  assert.equal(
+    /readGlobalPackageVersion/u.test(region),
+    true,
+    "the spawn-free reader is absent from the plan builder region, so the negative control above proves nothing",
+  );
+});
+
+test("the byte-identical entry points include both plan-builder callers", async () => {
+  const source = await readFile(join(repositoryRoot, "test", "preview.test.ts"), "utf8");
+  const start = source.indexOf("const PREVIEW_INVOCATIONS");
+  assert.notEqual(start, -1, "PREVIEW_INVOCATIONS is no longer declared in test/preview.test.ts");
+  const end = source.indexOf("];", start);
+  assert.notEqual(end, -1, "the PREVIEW_INVOCATIONS list is not terminated where expected");
+  const region = source.slice(start, end);
+
+  for (const entry of ['name: "install"', 'name: "bootstrap install"']) {
+    assert.equal(
+      region.includes(entry),
+      true,
+      `the byte-identical preview enumeration is missing ${entry}. ` +
+        "'install' and 'bootstrap install' share createManagedInstallPlan, so enumerating only one leaves a " +
+        "regression on the other entry point unobserved.",
+    );
+  }
 });

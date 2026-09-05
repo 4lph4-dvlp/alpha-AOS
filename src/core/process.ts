@@ -66,18 +66,29 @@ export interface ProcessResult {
 }
 
 /**
- * Windows always hands a child a fixed set of system variables regardless of
- * the environment block a parent supplies — libuv guarantees them so the child
- * can locate the system at all. alpha-AOS cannot suppress these, so it names
- * them instead of pretending the allowlist is total.
+ * Names the operating system hands a child regardless of the environment
+ * block the parent supplies. alpha-AOS cannot suppress these, so it names
+ * them instead of pretending the allowlist is total. The floor is a pure
+ * function of the platform name so every branch stays assertable from any
+ * host, not only from the host that happens to be running.
  *
- * Three of them (`USERNAME`, `USERPROFILE`, `HOMEPATH`) are user-identifying,
- * which is why diagnostics alias private paths rather than assuming a child
- * never learned who is running it.
+ * Windows: libuv guarantees a fixed set of system variables so the child can
+ * locate the system at all. Three of them (`USERNAME`, `USERPROFILE`,
+ * `HOMEPATH`) are user-identifying, which is why diagnostics alias private
+ * paths rather than assuming a child never learned who is running it.
+ *
+ * macOS: CoreFoundation injects `__CF_USER_TEXT_ENCODING` into every child,
+ * so it is observed even when alpha-AOS hands over an empty environment
+ * block. Its value's first field is the caller's numeric UID, which makes it
+ * the same class of user-identifying exposure as the three Windows names
+ * above — one more reason diagnostics must alias private paths on macOS too.
+ *
+ * Every other platform delivers nothing beyond the declared allowlist.
  */
-export const PLATFORM_FLOOR_ENVIRONMENT: readonly string[] =
-  process.platform === "win32"
-    ? [
+export function platformFloorEnvironment(platform: NodeJS.Platform): readonly string[] {
+  switch (platform) {
+    case "win32":
+      return [
         "HOMEDRIVE",
         "HOMEPATH",
         "LOGONSERVER",
@@ -89,8 +100,15 @@ export const PLATFORM_FLOOR_ENVIRONMENT: readonly string[] =
         "USERNAME",
         "USERPROFILE",
         "WINDIR",
-      ]
-    : [];
+      ];
+    case "darwin":
+      return ["__CF_USER_TEXT_ENCODING"];
+    default:
+      return [];
+  }
+}
+
+export const PLATFORM_FLOOR_ENVIRONMENT: readonly string[] = platformFloorEnvironment(process.platform);
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;

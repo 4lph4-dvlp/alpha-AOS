@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-19-PLAN.md
-last_updated: "2026-09-05T16:32:40.506Z"
+stopped_at: Completed 01-20-PLAN.md
+last_updated: "2026-09-05T16:48:30.313Z"
 last_activity: 2026-09-06
 last_activity_desc: Phase 01 execution started
-state_head: 578ccea2d2db89891f16ceaae3be47cc01860c08
+state_head: 9f2c812f15774366008da7176cea74fd7e455442
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 19
+  completed_plans: 20
   percent: 0
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 2 of 23
+Plan: 3 of 23
 Status: Ready to execute
 Last activity: 2026-09-06 — Phase 01 execution started
 
@@ -61,6 +61,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P17 | 33 min | 3 tasks | 5 files |
 | Phase 01 P18 | 22 min | 2 tasks | 3 files |
 | Phase 01 P19 | 11 min | 2 tasks | 2 files |
+| Phase 01 P20 | 7 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -80,6 +81,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: The mcp-proxy.ts to redaction.ts key link was dropped rather than retargeted — After the transport swap the proxy performs no redaction; the session does. A type-only edge to ../types.js is already compiler-enforced, so keeping the link would assert nothing a grep could see that the build cannot.
 - [Phase 01]: [01-19]: canonicalizeWithMissingTail is the single canonical form for every containment operand; classifyComponent keeps its own resolution call because it records a component's own identity, not a comparison operand — The target was canonicalized through its deepest existing ancestor while the allowed root got a bare realpath whose catch left an unresolved string, so withinRoot compared a resolved path against an unresolved one and refused legitimate operations. Routing component identity through the same helper would add a permanently dead missing-tail branch and a third apparent resolution site.
 - [Phase 01]: [01-19]: not existing and not being readable are different facts - ENOENT continues the ancestor walk, every other errno becomes an unprovable-filesystem refusal carrying a reason — Without that split, walking up to a shallower ancestor would itself be a silent catch by another name. A dangling link (lstat ok, realpath ENOENT) keeps today's meaning and today's value.
+- [Phase 01]: [01-20]: The platform environment floor is a pure function of the platform name, not a `process.platform` constant initializer — A constant keyed on the running host makes a macOS-only regression unobservable until a macOS host runs it. Making the platform an argument puts the declaration itself under test from any host, while the runtime exact-match assertion stays the separate authority for whether the declaration is true.
+- [Phase 01]: [01-20]: The darwin floor names exactly `__CF_USER_TEXT_ENCODING` and nothing speculative, and the name stays in the floor rather than in a per-child allowlist — The runtime assertion is an exact deepEqual, so an over-declared floor is as wrong as an under-declared one. Adding the name to NODE_RUNTIME_ENVIRONMENT_NAMES or UPSTREAM_ENVIRONMENT_NAMES would have silenced the failure while making an OS-injected name read as operation-approved, collapsing the distinction between the floor and the allowlist. Its value's first field is the caller's numeric UID, so it is documented as user-identifying alongside USERNAME, USERPROFILE and HOMEPATH.
 
 ### Pending Todos
 
@@ -116,6 +119,7 @@ None yet.
 - Open from 01-17 (2026-09-05): the suite baseline is now 185 tests (was 176). Plan 01-18 must raise its own baseline to 185 rather than 176 or 184.
 - Open from 01-19 (2026-09-05): the unprovable-filesystem branch for an existing-but-unreadable component or allowed root (EACCES/EPERM/ELOOP/EIO) is compiler-checked at both classifyComponent call sites but has no automated coverage - an unreadable-but-existing fixture needs privileged or platform-specific setup. Tracked as coverage D4 in 01-19-SUMMARY.md with human_judgment: true.
 - Open from 01-19 (2026-09-05): the suite baseline is now 195 tests (fail 0, 2 pre-existing platform skips). Plan 01-20 must raise its own baseline to 195 rather than the 190/191 figures earlier plans quote.
+- Open from 01-20 (2026-09-05): the suite baseline is now 196 tests (fail 0, 2 pre-existing platform skips). Plan 01-21 must raise its own baseline to 196 rather than 195. Whether `__CF_USER_TEXT_ENCODING` is the complete darwin floor is still unproven on this host - only the macos-latest leg of the three-OS matrix owned by 01-23 can answer it, and if it reports a second injected name the floor is extended to match observation.
 
 ## Deferred Items
 
@@ -125,6 +129,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T16:32:40.184Z
-Stopped at: Completed 01-19-PLAN.md
+Last session: 2026-09-05T16:48:18.202Z
+Stopped at: Completed 01-20-PLAN.md
 Resume file: None

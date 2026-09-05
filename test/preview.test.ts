@@ -108,6 +108,23 @@ async function treeDigest(
   return createHash("sha256").update(entries.join("\n")).digest("hex");
 }
 
+/**
+ * The only ambient names the sandbox forwards: a process cannot start or find
+ * its interpreter without them. Everything else a command needs is set
+ * explicitly below, and every home-derived name is redirected into the
+ * observed home surface rather than inherited.
+ *
+ * Spreading `process.env` here would make the verdict depend on how the suite
+ * was launched - an inherited `npm_config_cache` or a real `LOCALAPPDATA`
+ * moves a child's write out of the surface this oracle watches, which is the
+ * exact class of defect the oracle exists to catch.
+ */
+const SANDBOX_ENVIRONMENT_PASSTHROUGH: readonly string[] = [
+  "PATH", "PATHEXT", "COMSPEC", "SYSTEMDRIVE", "SYSTEMROOT", "WINDIR",
+  "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "OS",
+  "TMPDIR", "TEMP", "TMP", "LANG", "LC_ALL", "TZ",
+];
+
 interface Sandbox {
   readonly root: string;
   readonly home: string;
@@ -140,17 +157,47 @@ async function createSandbox(context: { after: (fn: () => Promise<unknown> | unk
   await writeFile(join(outside, "SENTINEL"), "must never change\n", "utf8");
   await writeFile(join(projectRoot, "package.json"), `${JSON.stringify({ name: "fixture" }, null, 2)}\n`, "utf8");
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    HOME: home,
-    USERPROFILE: home,
-    ALPHA_AOS_STATE_DIR: stateRoot,
-    npm_config_prefix: packageSentinel,
-    // Keep the child from inheriting a real credential surface.
-    NO_COLOR: "1",
-  };
-  delete env.CLAUDE_CONFIG_DIR;
-  delete env.CODEX_HOME;
+  // Forwarded by name, keeping the original casing so Windows never ends up
+  // with both `Path` and `PATH` in one environment.
+  const forwarded = new Set(SANDBOX_ENVIRONMENT_PASSTHROUGH.map((name) => name.toUpperCase()));
+  const env: NodeJS.ProcessEnv = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (!forwarded.has(name.toUpperCase())) continue;
+    env[name] = value;
+  }
+
+  // Every home-derived location a child might write to, redirected into the
+  // observed home surface. These directories are deliberately not created: if
+  // a preview creates one, that is the violation and the digest must see it.
+  // TMPDIR/TEMP/TMP keep the real temp space - temporary storage is not one of
+  // the five surfaces, and moving it under the home would report legitimate
+  // temp use as a mutation.
+  env.HOME = home;
+  env.USERPROFILE = home;
+  env.LOCALAPPDATA = join(home, "AppData", "Local");
+  env.APPDATA = join(home, "AppData", "Roaming");
+  env.XDG_CACHE_HOME = join(home, ".cache");
+  env.XDG_CONFIG_HOME = join(home, ".config");
+  env.XDG_DATA_HOME = join(home, ".local", "share");
+  env.XDG_STATE_HOME = join(home, ".local", "state");
+  env.ALPHA_AOS_STATE_DIR = stateRoot;
+  env.npm_config_prefix = packageSentinel;
+  // Keep the child from inheriting a real credential surface.
+  env.NO_COLOR = "1";
+
+  // The oracle asserting its own soundness: `npm_config_prefix` names what a
+  // child may look at, and it is the only npm setting the sandbox supplies.
+  // Any other `npm_config_*` name - `npm_config_cache` above all - would
+  // decide where a child writes, moving the write off the observed surface.
+  const npmConfigNames = Object.keys(env).filter((name) => /^npm_config_/iu.test(name));
+  assert.deepEqual(
+    npmConfigNames,
+    ["npm_config_prefix"],
+    `the sandbox environment carries npm settings beyond npm_config_prefix: ${npmConfigNames.join(", ")}. ` +
+      "A cache or log setting reached the child under test, so where it writes is no longer decided by the " +
+      "code under test and this suite can no longer observe a home write.",
+  );
 
   return { root, home, stateRoot, packageSentinel, harnessRoot, outsideSentinel: join(outside, "SENTINEL"), projectRoot, env };
 }

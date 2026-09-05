@@ -210,7 +210,14 @@ export function describeProcessFailure(label: string, result: ProcessResult): st
   );
 }
 
-async function globalNpmPackageVersion(packageName: string): Promise<string | null> {
+/**
+ * Asks npm itself where the global root is. This launches a child, and npm
+ * writes a debug log into its cache directory for every invocation including
+ * a read-only query, so the name says so out loud: nothing that runs before
+ * an apply is authorized may call it. Plan builders use
+ * `readGlobalPackageVersion`, which reads the filesystem and launches nothing.
+ */
+async function probeGlobalNpmPackageVersion(packageName: string): Promise<string | null> {
   const npm = resolveNodePackageCli("npm");
   const result = await runProcess({
     executable: npm.executable,
@@ -231,6 +238,62 @@ async function globalNpmPackageVersion(packageName: string): Promise<string | nu
   }
 }
 
+/**
+ * Resolves the global `node_modules` root without launching a child.
+ *
+ * `npm_config_prefix` wins when present; otherwise the prefix is derived
+ * from the running interpreter, which is where npm puts a global install:
+ * `<prefix>/node_modules` on Windows, `<prefix>/lib/node_modules` elsewhere.
+ *
+ * Honest limit: a user .npmrc that sets `prefix` is not read here, because
+ * knowing its effective value means running npm. The answer is then reported
+ * as unresolvable rather than guessed, the caller records an unverified state,
+ * and apply re-probes authoritatively. Users on nvm, volta, or with an .npmrc
+ * prefix will therefore always see an unverified runtime in a preview; how
+ * common that is on real hosts is what plan 01-23 records across this host and
+ * the three CI legs, and no .npmrc parser is built here on a guess.
+ */
+export function resolveGlobalNodeModulesRoot(
+  source: NodeJS.ProcessEnv = process.env,
+): { root: string | null; reason: string | null } {
+  const configured = source.npm_config_prefix;
+  const prefix = configured && configured.trim()
+    ? resolve(configured.trim())
+    : process.platform === "win32"
+      ? dirname(process.execPath)
+      : dirname(dirname(process.execPath));
+  const root = process.platform === "win32" ? join(prefix, "node_modules") : join(prefix, "lib", "node_modules");
+  if (!existsSync(root)) {
+    return { root: null, reason: `no global node_modules directory at ${root}` };
+  }
+  return { root, reason: null };
+}
+
+/**
+ * Reads a globally installed package version from the filesystem, launching
+ * nothing. A manifest that cannot be read or parsed is unverified, never
+ * absent: not existing and not being readable are different facts, and only
+ * the first of them justifies claiming the package is missing.
+ */
+export async function readGlobalPackageVersion(
+  packageName: string,
+  source: NodeJS.ProcessEnv = process.env,
+): Promise<{ state: "installed" | "absent" | "unverified"; version: string | null; reason: string | null }> {
+  const resolved = resolveGlobalNodeModulesRoot(source);
+  if (resolved.root === null) return { state: "unverified", version: null, reason: resolved.reason };
+  const manifest = join(resolved.root, ...packageName.split("/"), "package.json");
+  if (!existsSync(manifest)) return { state: "absent", version: null, reason: null };
+  try {
+    const value = JSON.parse(await readFile(manifest, "utf8")) as Record<string, unknown>;
+    if (typeof value.version !== "string") {
+      return { state: "unverified", version: null, reason: `${manifest} declares no string version` };
+    }
+    return { state: "installed", version: value.version, reason: null };
+  } catch (error) {
+    return { state: "unverified", version: null, reason: `${manifest} is present but unreadable: ${(error as Error).message}` };
+  }
+}
+
 export interface ManagedInstallOptions {
   root: string;
   catalog: StackCatalog;
@@ -246,6 +309,12 @@ export interface ManagedInstallOptions {
   fixtureRoots?: Readonly<Record<string, string>>;
 }
 
+/**
+ * Shared by `alpha-aos install` and by `bootstrap install` through
+ * `createManagedInstallOperationPlan`. Both entry points are under the
+ * byte-identical preview contract, so nothing reached from here may write,
+ * and nothing reached from here may launch a child that writes.
+ */
 export async function createManagedInstallPlan(options: ManagedInstallOptions): Promise<ManagedInstallPlan> {
   requirePreflight(options.inventory);
   const selection = selectInstallTargets(options.inventory, options.requestedTargets);
@@ -272,11 +341,22 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
     }
   }
 
-  const runtimeVersion = await globalNpmPackageVersion(ecc.package);
+  // Read the filesystem rather than asking npm. A preview that spawns
+  // `npm root --global` gets a debug log written into the npm cache, and on
+  // POSIX that cache is always home-derived. D-01 governs the answer: an
+  // unverified state plans the install rather than claiming the runtime is
+  // current, and installEccRuntime re-probes authoritatively at apply and
+  // no-ops when the locked version is already installed.
+  const runtime = await readGlobalPackageVersion(ecc.package);
+  const runtimeCurrent = runtime.state === "installed" && runtime.version === ecc.version;
   steps.push({
     id: "ecc:runtime", component: "ecc-runtime", target: "machine",
-    action: runtimeVersion === ecc.version ? "current" : "install", external: true,
-    note: runtimeVersion === ecc.version ? runtimeVersion : `${runtimeVersion ?? "missing"} -> ${ecc.version}; lifecycle scripts disabled`,
+    action: runtimeCurrent ? "current" : "install", external: true,
+    note: runtimeCurrent
+      ? `${runtime.version}`
+      : runtime.state === "unverified"
+        ? `unverified -> ${ecc.version}; the global npm root is not resolvable without running npm; verified at apply`
+        : `${runtime.version ?? "missing"} -> ${ecc.version}; lifecycle scripts disabled`,
   });
 
   for (const target of selection.targets) {
@@ -350,11 +430,11 @@ async function installEccRuntime(
 ): Promise<boolean> {
   const ecc = lock.components.ecc;
   if (!ecc) throw new Error("Stable lock has no ECC component");
-  if (await globalNpmPackageVersion(ecc.package) === ecc.version) return false;
+  if (await probeGlobalNpmPackageVersion(ecc.package) === ecc.version) return false;
   // Exact skill extraction verifies the tarball before the global CLI runtime is needed.
   await runEccFixture({ harness: "claude", ecc, plan: fixture, session });
   await runDeclared(spec, "ECC Memory Vault runtime install");
-  const actual = await globalNpmPackageVersion(ecc.package);
+  const actual = await probeGlobalNpmPackageVersion(ecc.package);
   if (actual !== ecc.version) throw new Error(`ECC runtime verification failed: expected ${ecc.version}, got ${actual ?? "missing"}`);
   return true;
 }

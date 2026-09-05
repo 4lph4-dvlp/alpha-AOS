@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, extname, isAbsolute, join } from "node:path";
 import type { RedactedExcerpt, RedactionContext } from "../types.js";
 import { createRedactedExcerpt, createRedactionContext } from "./redaction.js";
@@ -733,9 +734,72 @@ export function normalizeProcessSpec(spec: ProcessSpec): ProcessSpec {
  * Reads a version string. An interpreted shim without a proven direct
  * equivalent returns null — unsupported and reported, never simulated.
  */
+/**
+ * Where a read-only command probe is allowed to write.
+ *
+ * Detection asks a harness for its version, and a harness asked for its
+ * version may bootstrap its own data root before answering. Observed: with
+ * `LOCALAPPDATA` pointing into a sandbox home, `hermes --version` created
+ * fifteen entries under it - during a preview, which is contractually
+ * forbidden from changing a byte of the user's home.
+ *
+ * alpha-AOS cannot control what a third-party binary decides to write. It can
+ * control where: the names that decide a data, cache or state root are pinned
+ * to an alpha-AOS-owned directory outside the home rather than inherited, so
+ * a probe that insists on bootstrapping does it somewhere alpha-AOS chose.
+ *
+ * `HOME`/`USERPROFILE` are passed through deliberately. A version probe
+ * legitimately reads user configuration to answer, and redirecting the home
+ * would make detection report a version the user does not actually have -
+ * trading a write violation for a lie about what was detected.
+ */
+export function commandProbeEnvironment(options: {
+  writeRoot?: string;
+  source?: NodeJS.ProcessEnv;
+} = {}): EnvironmentPolicy {
+  const writeRoot = options.writeRoot ?? join(tmpdir(), "alpha-aos-command-probe");
+  return {
+    optional: [
+      ...PLATFORM_FLOOR_ENVIRONMENT,
+      "PATH",
+      "PATHEXT",
+      "COMSPEC",
+      "HOME",
+      "USERPROFILE",
+      "TMPDIR",
+      "TEMP",
+      "TMP",
+      "LANG",
+      "LC_ALL",
+      "TZ",
+      "NODE_EXTRA_CA_CERTS",
+      "npm_config_prefix",
+      "npm_config_registry",
+      "npm_config_userconfig",
+    ],
+    literal: {
+      LOCALAPPDATA: join(writeRoot, "local"),
+      APPDATA: join(writeRoot, "roaming"),
+      XDG_CACHE_HOME: join(writeRoot, "cache"),
+      XDG_CONFIG_HOME: join(writeRoot, "config"),
+      XDG_DATA_HOME: join(writeRoot, "data"),
+      XDG_STATE_HOME: join(writeRoot, "state"),
+      npm_config_cache: join(writeRoot, "npm-cache"),
+      npm_config_logs_max: "0",
+    },
+    source: options.source ?? process.env,
+  };
+}
+
+/**
+ * Reads a version by launching the command. The child gets the probe
+ * environment, never the ambient one: an inherited name must not decide where
+ * a read-only query writes.
+ */
 export function readCommandVersion(commandPath: string): string | null {
   if (!isDirectlyExecutable(commandPath)) return null;
   const result = spawnSync(commandPath, ["--version"], {
+    env: materializeEnvironment(commandProbeEnvironment()),
     encoding: "utf8",
     timeout: 10_000,
     windowsHide: true,
@@ -792,6 +856,7 @@ export function probeCommand(command: string): CommandProbe {
     try {
       const normalized = resolveNodePackageCli(command);
       const result = spawnSync(normalized.executable, [...normalized.argsPrefix, "--version"], {
+        env: materializeEnvironment(commandProbeEnvironment()),
         encoding: "utf8",
         timeout: 10_000,
         windowsHide: true,

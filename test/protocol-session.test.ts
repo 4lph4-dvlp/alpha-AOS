@@ -42,7 +42,9 @@ async function createProtocolFixture(
       "  let message;",
       "  try { message = JSON.parse(line); } catch { return; }",
       "  if (typeof message.id !== 'number') return;",
-      "  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { method: message.method ?? null } }) + '\n');",
+      // console.log supplies the frame terminator, so the fixture never has to
+      // carry an escaped newline through two levels of source.
+      "  console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { method: message.method ?? null } }));",
       "});",
       "",
     ].join("\n"),
@@ -54,7 +56,7 @@ async function createProtocolFixture(
     [
       // The pid is announced as a complete frame first, so the test can prove
       // the capped session actually terminated this child.
-      "process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: 0, result: { pid: process.pid } }) + '\n');",
+      "console.log(JSON.stringify({ jsonrpc: '2.0', id: 0, result: { pid: process.pid } }));",
       "const chunk = 'F'.repeat(64 * 1024);",
       "for (let index = 0; index < 64; index += 1) process.stdout.write(chunk);",
       "await new Promise((resolve) => setTimeout(resolve, 30_000));",

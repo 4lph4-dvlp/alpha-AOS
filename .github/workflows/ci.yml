@@ -46,6 +46,7 @@ jobs:
           dist/test/validation.test.js
           dist/test/process.test.js
           dist/test/protocol-session.test.js
+          dist/test/mcp-proxy.test.js
           dist/test/install.test.js
           dist/test/update.test.js
 

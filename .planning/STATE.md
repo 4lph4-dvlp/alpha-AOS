@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-22-PLAN.md
-last_updated: "2026-09-05T18:17:59.874Z"
+stopped_at: Completed 01-23-PLAN.md
+last_updated: "2026-09-05T18:39:45.099Z"
 last_activity: 2026-09-06
 last_activity_desc: Phase 01 execution started
-state_head: 0f33012390a12e4623c779b768324c5bfae204ca
+state_head: df6aa630116d12c8669abe17e04834772d33acc0
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 23
-  completed_plans: 22
+  completed_plans: 23
   percent: 0
 ---
 
@@ -29,8 +29,8 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 5 of 23
-Status: Ready to execute
+Plan: 23 of 23 (all plans have summaries)
+Status: Blocked — G-01-1 open, windows-latest red in CI run 33984247757 (RC-5)
 Last activity: 2026-09-06 — Phase 01 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -64,6 +64,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P20 | 7 min | 2 tasks | 2 files |
 | Phase 01 P21 | 40 min | 3 tasks | 6 files |
 | Phase 01 P22 | 32 min | 2 tasks | 2 files |
+| Phase 01 P23 | 22 min | 2 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -91,6 +92,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: [01-22]: Descendant termination is judged only by positive terminal evidence; a stalled heartbeat and an unreadable one both classify as indeterminate rather than terminated. — The failure was load-induced on the ubuntu ten-file leg. A staleness rule would report a live descendant starved of CPU as terminated, converting a flaky red into a flaky green on a safety boundary. A deadline reached without terminal evidence returns terminated:false, which reads as "could not prove it stopped" and fails the assertion.
 - [Phase 01]: [01-22]: A torn heartbeat read is no evidence (null) and can never become a foreign nonce (false); publish-by-rename and strict full-line parsing are two independent closures over the same hazard. — A reader landing mid-write would see a first token that is not our nonce, fire the foreign-nonce rule, and report a live, actively-writing descendant as terminated - load-sensitive in exactly RC-4's way. parseHeartbeatLine requires a newline terminator, so heartbeatNonceMatches:false is reachable only from a complete line whose nonce token differs.
 - [Phase 01]: [01-22]: close() states what it guarantees and what it only signals, and killTree reports its delivery path into ProcessResult.treeTermination instead of discarding it. — close() resolves on the direct child's close event with the whole group already signalled; reaping is explicitly not awaited because a grandchild is not a waitpid target. The POSIX/Windows asymmetry is deliberate and written down. Two tests assert a real "group" delivery, so a silent fallback to signalling the direct child alone is visible rather than indistinguishable from success.
+- [Phase 01]: [01-23]: Gap G-01-1 is NOT closed. CI run 33984247757 on 403e017 returned ubuntu-latest and macos-latest green on all four steps and windows-latest red at `Safety boundary suites`. — The plan's own prohibition makes an observed three-green-leg run the only closing evidence, so two green legs is not closure. RC-1..RC-4 are observably closed on the platforms that own them - the ubuntu step that reported 109/4 in run 33937610401 now reports fail 0, and the windows/macOS npm test legs that died at 46 and 50 failures are green at 202.
+- [Phase 01]: [01-23]: The darwin platform floor is confirmed as exactly `__CF_USER_TEXT_ENCODING` against a real macOS host; the macOS RC-3 prediction is recorded as not verifiable from this run rather than upgraded by a green leg. — The runtime assertion is an exact deepEqual, so an over-declared floor fails it as surely as an under-declared one; it passed on macos-latest in both the npm test and ten-file steps, so 01-20's branch needs no widening. Prediction 1 cannot be decided by a green run because run 33937610401's macOS leg died at npm test and never reached the step where RC-3 manifested - recording the non-answer is the honest result.
 
 ### Pending Todos
 
@@ -130,6 +133,7 @@ None yet.
 - Open from 01-20 (2026-09-05): the suite baseline is now 196 tests (fail 0, 2 pre-existing platform skips). Plan 01-21 must raise its own baseline to 196 rather than 195. Whether `__CF_USER_TEXT_ENCODING` is the complete darwin floor is still unproven on this host - only the macos-latest leg of the three-OS matrix owned by 01-23 can answer it, and if it reports a second injected name the floor is extended to match observation.
 - Open from 01-21 (2026-09-05): the suite baseline is now 200 tests (fail 0, 2 pre-existing platform skips). Plan 01-22 must raise its own baseline to 200 rather than 196. `npm test` now means `npm run build && node scripts/run-tests.mjs`, so any plan reasoning about the primary gate must read the runner rather than a shell glob. commandProbeEnvironment's passthrough set is proven on Windows only - coverage D5 in 01-21-SUMMARY.md is human_judgment:true, and if a CI leg reports a harness version that went null, the passthrough set is what to widen, not the pin. Gap G-01-1 is not authoritatively closed until the three-OS matrix is green; 01-23 checks the two falsifiable predictions.
 - Open from 01-22 (2026-09-05): the suite baseline is now 202 tests (fail 0, 2 pre-existing platform skips). Plan 01-23 must raise its own baseline to 202. Gap G-01-1 is still not authoritatively closed - RC-4 is load-dependent and POSIX-only and never reproduced on this Windows host even under the exact ten-file command, so the authoritative verification is the green three-OS matrix 01-23 owns. Two falsifiable predictions for the ubuntu leg: the descendant failure message now carries evidence/observedMs/lastCounter/advanced, which distinguishes "the tree really was not terminated" from "the oracle is still mis-instrumented"; and result.treeTermination should read "group" on both POSIX legs, so a "direct" or "not-required" there is new information about the product rather than the test.
+- Open from 01-23 (2026-09-05): RC-5 blocks phase verification. windows-latest fails `Safety boundary suites` on `the test runner environment carries no npm lifecycle injection` with actual ['npm_config_prefix'], expected []. The windows-2025-vs2026 runner image sets npm_config_prefix machine-wide, so scripts/run-tests.mjs strips it under `npm test` while the bare `node --test` CI step sees it - the exact invocation divergence that invariant forbids. 01-21's stated goal of one shared environment was applied to package.json but never to .github/workflows/ci.yml. The repair is not mechanical: run-tests.mjs enumerates all dist/test/*.test.js itself and treats argv as flags, so it cannot express the ten-file subset today, and any fix must keep npm_config_prefix a legitimate input to resolveGlobalNodeModulesRoot (src/core/install.ts:294). 01-VALIDATION.md requires a fully green three-OS suite before /gsd-verify-work, so phase 1 verification is blocked until a new run id shows three green legs.
 
 ## Deferred Items
 
@@ -139,6 +143,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T18:17:46.737Z
-Stopped at: Completed 01-22-PLAN.md
+Last session: 2026-09-05T18:39:02.017Z
+Stopped at: Completed 01-23-PLAN.md
 Resume file: None

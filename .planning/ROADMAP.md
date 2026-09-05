@@ -30,7 +30,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
 
-**Plans**: 22/23 plans executed (18 executed; 5 gap-closure plans pending for UAT gap G-01-1)
+**Plans**: 23/23 plans executed (18 executed; 5 gap-closure plans pending for UAT gap G-01-1)
 
 Plans:
 **Wave 1**
@@ -96,7 +96,7 @@ Plans:
 
 **Wave 14** *(blocked on Wave 13 completion)*
 
-- [ ] 01-23-PLAN.md — Gap closure: the three-OS CI matrix observation that closes G-01-1
+- [x] 01-23-PLAN.md — Gap closure: the three-OS CI matrix observation that closes G-01-1
 
 > Waves 10–13 hold one plan each rather than running 01-19/01-20/01-21 together. They share no files, but each opens with a committed RED and `01-20`'s RED is a type error that breaks `npm run build` for the whole tree — a shared resource the file-overlap rule cannot see. Rationale in `01-19-PLAN.md` `## Wave placement`.
 
@@ -206,7 +206,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 22/23 | In Progress|  |
+| 1. Safe Operation Boundary | 23/23 | In Progress|  |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

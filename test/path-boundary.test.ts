@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -491,4 +491,141 @@ test("a component the operation creates is allowed, but a link appearing there i
   assert.equal(substituted.ok, false, "a link planted where a plain entry was expected must refuse");
   assert.equal(await sha256File(fixture.outsideSentinel), createHash("sha256").update(SENTINEL_BYTES).digest("hex"));
   void linkSite;
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-19 Task 1: RC-1 regression — the allowed root and the target must be
+// canonicalized by the same rule. Each fixture builds its own link so the
+// defect reproduces on an ordinary developer host rather than only where CI
+// happens to hand out a linked `os.tmpdir()`.
+// ---------------------------------------------------------------------------
+
+test("an allowed root that does not exist yet under a link is still provable", async (context) => {
+  const fixture = await createFixture(context);
+  const realDirectory = join(fixture.root, "real");
+  await mkdir(realDirectory, { recursive: true });
+  const linkPath = join(fixture.root, "link");
+
+  if (!(await tryDirectorySymlink(realDirectory, linkPath))) {
+    notRun.push({ fixture: "linked-missing-root", reason: "this host cannot create directory links without privileges" });
+    context.skip("linked-missing-root fixture not run: directory links unavailable");
+    return;
+  }
+
+  // The allowed root is deliberately never created: an operation is entitled
+  // to create its own state root, and here the ancestor above it is a link.
+  const allowedRoot = join(linkPath, "state");
+  const target = join(allowedRoot, "journal", "entry.json");
+
+  const proof = await provePathBoundary({ path: target, allowedRoots: [allowedRoot], role: "journal" });
+
+  assert.equal(
+    proof.proven,
+    true,
+    `a not-yet-created allowed root under a link must be provable, got ${proof.code}: ${String(proof.detail)}`,
+  );
+  assert.equal(proof.code, "ok", `expected code ok, got ${proof.code}: ${String(proof.detail)}`);
+});
+
+test("an allowed root reached through a link is canonicalized on both sides", async (context) => {
+  const fixture = await createFixture(context);
+  const realDirectory = join(fixture.root, "real");
+  await mkdir(join(realDirectory, "state"), { recursive: true });
+  const linkPath = join(fixture.root, "link");
+
+  if (!(await tryDirectorySymlink(realDirectory, linkPath))) {
+    notRun.push({ fixture: "linked-existing-root", reason: "this host cannot create directory links without privileges" });
+    context.skip("linked-existing-root fixture not run: directory links unavailable");
+    return;
+  }
+
+  // The macOS `/var` → `/private/var` shape: the allowed root exists, but the
+  // configured spelling reaches it through a link.
+  const allowedRoot = join(linkPath, "state");
+  const target = join(allowedRoot, "entry.json");
+
+  const proof = await provePathBoundary({ path: target, allowedRoots: [allowedRoot], role: "state" });
+
+  assert.equal(
+    proof.proven,
+    true,
+    `an allowed root reached through a link must be provable, got ${proof.code}: ${String(proof.detail)}`,
+  );
+  const canonicalState = await realpath(join(realDirectory, "state"));
+  assert.ok(
+    proof.canonical.startsWith(canonicalState),
+    `the canonical target must resolve through the link to ${canonicalState}, got ${proof.canonical}`,
+  );
+});
+
+test("a target that escapes a linked allowed root is still refused", async (context) => {
+  const fixture = await createFixture(context);
+  const before = await sha256File(fixture.outsideSentinel);
+  const realDirectory = join(fixture.root, "real");
+  await mkdir(realDirectory, { recursive: true });
+  const linkPath = join(fixture.root, "link");
+
+  if (!(await tryDirectorySymlink(realDirectory, linkPath))) {
+    notRun.push({ fixture: "linked-root-escape", reason: "this host cannot create directory links without privileges" });
+    context.skip("linked-root-escape fixture not run: directory links unavailable");
+    return;
+  }
+
+  const escapeLink = join(linkPath, "escape");
+  if (!(await tryDirectorySymlink(fixture.outsideDirectory, escapeLink))) {
+    notRun.push({ fixture: "linked-root-escape", reason: "the escaping link could not be created on this host" });
+    context.skip("linked-root-escape fixture not run: escaping link unavailable");
+    return;
+  }
+
+  // Restoring the legitimate case must not be achieved by relaxing
+  // containment: this refusal is green before the fix and must stay green.
+  const proof = await provePathBoundary({
+    path: join(escapeLink, "written.txt"),
+    allowedRoots: [linkPath],
+    role: "target",
+  });
+
+  assert.equal(proof.proven, false, "a target that escapes the canonical allowed root must not be proven");
+  assert.equal(
+    proof.code,
+    "outside-canonical-root",
+    `expected outside-canonical-root, got ${proof.code}: ${String(proof.detail)}`,
+  );
+  assert.equal(await sha256File(fixture.outsideSentinel), before, "the outside sentinel was modified");
+});
+
+test("a canonical-root refusal names the canonically resolved root", async (context) => {
+  const fixture = await createFixture(context);
+  const realDirectory = join(fixture.root, "real");
+  await mkdir(realDirectory, { recursive: true });
+  const linkPath = join(fixture.root, "link");
+
+  if (!(await tryDirectorySymlink(realDirectory, linkPath))) {
+    notRun.push({ fixture: "linked-root-refusal-detail", reason: "this host cannot create directory links without privileges" });
+    context.skip("linked-root-refusal-detail fixture not run: directory links unavailable");
+    return;
+  }
+
+  const escapeLink = join(linkPath, "escape");
+  if (!(await tryDirectorySymlink(fixture.outsideDirectory, escapeLink))) {
+    notRun.push({ fixture: "linked-root-refusal-detail", reason: "the escaping link could not be created on this host" });
+    context.skip("linked-root-refusal-detail fixture not run: escaping link unavailable");
+    return;
+  }
+
+  const proof = await provePathBoundary({
+    path: join(escapeLink, "written.txt"),
+    allowedRoots: [linkPath],
+    role: "target",
+  });
+
+  assert.equal(proof.proven, false);
+  // If either side of the comparison were left unresolved the detail would
+  // carry the link spelling instead of the canonical one.
+  const canonicalRoot = await realpath(realDirectory);
+  assert.ok(
+    proof.detail?.includes(canonicalRoot),
+    `the refusal must name the canonically resolved root ${canonicalRoot}, got ${String(proof.detail)}`,
+  );
 });

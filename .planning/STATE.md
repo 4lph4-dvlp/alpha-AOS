@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: "01-27 Tasks 1-2 complete and ledger #7 registered; HALTED before Task 3's push (orchestrator owns it)"
-last_updated: "2026-09-06T18:21:54.591Z"
+stopped_at: Completed 01-27-PLAN.md — G-01-1 closed on run 34051628180
+last_updated: "2026-09-06T18:40:35.490Z"
 last_activity: 2026-09-06
-last_activity_desc: "01-27 Tasks 1-2 executed: the descendant-liveness instrument is repaired and shared; WSL2 fail-first says the product held (group/esrch). HALTED before Task 3's push; G-01-1 still open"
-state_head: 1ead377d61884ec0a45c16d2db25b35e2c447921
+last_activity_desc: "01-27 complete: run 34051628180 returned three green legs in ONE run id; every leg reports group/windows-tree + esrch, so the product terminated the tree and the old ubuntu red was an invalid instrument. G-01-1 CLOSED; ledger #7/#2/#3/#4 fixed, #5/#6 open"
+state_head: 7cd9e0667295e702b0a78c947d632a05c9c247bc
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 27
-  completed_plans: 26
+  completed_plans: 27
   percent: 0
 ---
 
@@ -28,11 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 ## Current Position
 
-Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 27 IN PROGRESS (01-01..01-26 have summaries; 01-27 has no SUMMARY yet — Tasks 1-2 committed, Task 3 unfinished)
-Status: G-01-1 STILL OPEN. 01-27 made the ubuntu red cell DECIDABLE — the termination oracle is extracted to test/helpers/termination-oracle.ts and the runProcess timeout site now judges on terminal evidence and asserts treeTermination — and registered ledger #7. It then HALTED before Task 3's single authorized push to origin/main, which the orchestrator owns. What to push is the current HEAD of main, not a cherry-pick: origin/main is several commits behind, so that push also publishes 01-26's unpushed docs commits, and the new run's head sha is whatever HEAD reads at push time. Closing evidence for G-01-1 is still ONE run id with three green legs.
-Last activity: 2026-09-06 — 01-27 Tasks 1-2 executed; WSL2 Arch fail-first observed treeTermination "group" / evidence "esrch", so case (b) is NOT diagnosed locally and the push is not spent
-
+Phase: 01 (Safe Operation Boundary) — PLANS COMPLETE, AWAITING VERIFICATION
+Plan: 27 of 27 COMPLETE (01-01..01-27 all have summaries)
+Status: **G-01-1 IS CLOSED** on run `34051628180` (head `25b5434`, conclusion `success`) — ONE run id whose three legs are all green in that same run: ubuntu-latest, macos-latest and windows-latest each pass `npm run check`, `npm test` (208 tests / fail 0), `npm run build:check` (`56 inputs, 106 outputs`) and the routed `Safety boundary suites` (131 tests / fail 0). The descendant diagnostic was transcribed from all three legs including the green ones: POSIX legs report `treeTermination: "group"`, win32 reports `"windows-tree"`, and all six lines report `evidence: "esrch"` / `terminated: true` / `advanced: false` — the pid was wholly gone, not a lingering zombie. So the 01-26 ubuntu red cell was an INVALID INSTRUMENT (a bare `process.kill(pid, 0)` that succeeds against a zombie), not a SAFE-06 containment defect; 01-26-SUMMARY's reading that the descendant was "actually still alive" is corrected. RC-5 confirmed still repaired (windows routed step shows `the test runner environment carries no npm lifecycle injection` PASSING). Broken Windows ledger disposed on observed per-leg evidence only: #7/#2/#3/#4 fixed, #5/#6 open, #1 waived → `open 2, waived 1, fixed 4, total 7`. NEXT STEP: `/gsd-verify-work 01` — 01-VERIFICATION.md truths 7 and 8 must be re-judged on this run id, and that document is the verifier's to write (this executor deliberately did not touch it).
+Last activity: 2026-09-06 — 01-27 Task 3 read run 34051628180 directly with `gh`, closed G-01-1 on it, and disposed the ledger
 Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
@@ -68,6 +67,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P24 | 36 min | 2 tasks | 3 files |
 | Phase 01 P25 | 14 min | 2 tasks | 2 files |
 | Phase 01 P26 | 17 min | 3 tasks | 1 files |
+| Phase 01 P27 | 63 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -101,6 +101,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: The runner-environment invariant's singleton lookup is case-folded and `init_cwd` joins it in lowercase, aligning all three injection loci — Adding INIT_CWD uppercase to a case-sensitive list would make the invariant catch one spelling and miss the other - the same near-miss class RC-5 already took once. Case-folding is strictly a strengthening: every name caught before is still caught
 - [Phase 01]: [01-26]: Gap G-01-1 is NOT closed. Observed run 34046336104 (head 8c04c5f) returned macos-latest and windows-latest green on all four steps and ubuntu-latest red at `Safety boundary suites` on `a timed-out command leaves no descendant process behind`. — Two of three green legs is not closure; the closing evidence is one run id whose three legs are all green in that same run. RC-5 IS confirmed repaired - the windows-latest routed step shows `the test runner environment carries no npm lifecycle injection` as a pass rather than absent - but the ubuntu leg regressed at a different seam.
 - [Phase 01]: [01-26]: The ubuntu red cell is recorded as an entrypoint asymmetry, not diagnosed and not explained away as cosmetic. Ledger entries #2/#3/#4 were left OPEN even though this run produced their evidence lines, because the plan's disposition rule is `if and only if state (b)` and this execution is state (c). — The identical compiled test dist/test/process.test.js:187 passed in the same ubuntu job's `npm test` step and failed in the routed `Safety boundary suites` step - same commit, same file, two invocations. `actual: true` means a descendant process was actually alive after a 1500ms timeout, so it is a real SAFE-06 containment fact rather than a meta-test. Closing Broken Windows on a run that did not go green is the reasoning pattern this phase's prohibitions exist to prevent, so the evidence was transcribed into 01-26-SUMMARY.md for a one-step close next cycle instead.
+- [Phase 01]: [01-27]: Gap G-01-1 is CLOSED on CI run 34051628180 (head 25b5434, conclusion success) — one run id whose three legs are all green in that same run, with the descendant termination diagnostic transcribed from all three legs including the green ones. — Every leg reports terminal evidence "esrch" with treeTermination "group" on both POSIX legs and "windows-tree" on win32, terminated:true, advanced:false, heartbeatNonceMatches:true — the descendant pid was wholly gone rather than an unreaped zombie. npm test is exactly 208 tests fail 0 and Safety boundary suites exactly 131 tests fail 0 on all three legs. No leg was individually re-run and no leg was stitched in from another run.
+- [Phase 01]: [01-27]: The 01-26 ubuntu-latest red cell was an INVALID INSTRUMENT, not a SAFE-06 containment defect; 01-26-SUMMARY.md's reading that the descendant was "actually still alive" is corrected rather than inherited. — The judgment was a single bare process.kill(descendantPid, 0), which succeeds against a zombie as well as a running process — the product's own close() contract at src/core/process.ts:690-699 already named that probe invalid. With the shared oracle in test/helpers/termination-oracle.ts the same code path now reports esrch on all three legs in both entrypoints, and the npm-test-vs-routed-step asymmetry is gone. What remains a HYPOTHESIS, deliberately not recorded as established cause, is why that invalid instrument tipped on that particular ubuntu run.
+- [Phase 01]: [01-27]: Broken Windows ledger disposed strictly on observed per-leg evidence — #7, #2, #3 and #4 marked fixed on run 34051628180; #5 and #6 left open with what each awaits stated. — #2 closed because BOTH POSIX legs reported the three EACCES fixtures executed and passing rather than not-run (their path-boundary not-run array holds only unknown-reparse); #3 because macos-latest passed the darwin floor exact-match assertion in both entrypoints; #4 because all nine probed commands across three legs returned a non-null version with a null unsupportedReason. #5 awaits a permanent suite test for the --files loud-failure paths and #6 is reachable only through a TOCTOU race — neither is a question a green matrix can answer, so no disposition rule was invented for them.
+- [Phase 01]: [01-27]: The file-symlink escape canary DID execute and pass on windows-latest, contradicting the plan's premise that no CI leg can produce that evidence — recorded as an observation, not promoted, and handed to the verifier. — `a file link that escapes the allowed root is refused for both write and removal` is green in BOTH windows-latest entrypoints and escape-file-link is absent from that leg's path-boundary not-run array, so the GitHub windows image permits file symlink creation where the developer host does not. The plan (inheriting 01-26's developer-host reading) assumed the opposite. 01-UAT.md is outside this plan's files_modified and whether a CI Windows host satisfies the canary is a judgment call, so item 3 was NOT promoted here.
 
 ### Pending Todos
 
@@ -142,6 +146,10 @@ None yet.
 - Open from 01-22 (2026-09-05): the suite baseline is now 202 tests (fail 0, 2 pre-existing platform skips). Plan 01-23 must raise its own baseline to 202. Gap G-01-1 is still not authoritatively closed - RC-4 is load-dependent and POSIX-only and never reproduced on this Windows host even under the exact ten-file command, so the authoritative verification is the green three-OS matrix 01-23 owns. Two falsifiable predictions for the ubuntu leg: the descendant failure message now carries evidence/observedMs/lastCounter/advanced, which distinguishes "the tree really was not terminated" from "the oracle is still mis-instrumented"; and result.treeTermination should read "group" on both POSIX legs, so a "direct" or "not-required" there is new information about the product rather than the test.
 - Open from 01-23 (2026-09-05): RC-5 blocks phase verification. windows-latest fails `Safety boundary suites` on `the test runner environment carries no npm lifecycle injection` with actual ['npm_config_prefix'], expected []. The windows-2025-vs2026 runner image sets npm_config_prefix machine-wide, so scripts/run-tests.mjs strips it under `npm test` while the bare `node --test` CI step sees it - the exact invocation divergence that invariant forbids. 01-21's stated goal of one shared environment was applied to package.json but never to .github/workflows/ci.yml. The repair is not mechanical: run-tests.mjs enumerates all dist/test/*.test.js itself and treats argv as flags, so it cannot express the ten-file subset today, and any fix must keep npm_config_prefix a legitimate input to resolveGlobalNodeModulesRoot (src/core/install.ts:294). 01-VALIDATION.md requires a fully green three-OS suite before /gsd-verify-work, so phase 1 verification is blocked until a new run id shows three green legs.
 - Open from 01-26 (2026-09-06): G-01-1 is STILL OPEN and phase 1 verification stays blocked. Observed run 34046336104 (head 8c04c5f) is 2-of-3: macos-latest and windows-latest green on all four steps, ubuntu-latest red at `Safety boundary suites`. RC-5 is closed - the windows leg shows `the test runner environment carries no npm lifecycle injection` PASSING inside the routed step. The new red cell is an entrypoint asymmetry on ubuntu: `a timed-out command leaves no descendant process behind` (dist/test/process.test.js:187, source test/process.test.ts:298) passes under `npm test` and fails under the routed `Safety boundary suites` step in the SAME job, same commit, same compiled file, with `actual: true` meaning a descendant was really alive after the 1500ms timeout. The two invocations differ only in file set (self-enumerated full suite vs the ten named files) and parent chain (`npm run` wrapper vs bare node). Do NOT diagnose it by reverting 01-24's routing - that reinstates RC-5 on windows-latest. Baselines for the next plan: `npm test` 208 tests, `Safety boundary suites` 131 tests. Ledger entries #2/#3/#4 have their closing evidence lines already transcribed in 01-26-SUMMARY.md and close in one step on the next state-(b) run.
+- Open from 01-27 (2026-09-06): an unexplained single-run Windows-local failure is carried forward unresolved. During Task 2 one routed ten-file run on the Windows developer host reported `131 / pass 125 / fail 1 / skipped 5` and the failing test's NAME WAS NOT CAPTURED; six further routed runs on the same host reported `131 / pass 126 / fail 0 / skipped 5`. It was not the descendant test (that run's own diagnostic showed windows-tree / esrch / terminated:true). Run 34051628180's three legs did not reproduce it — windows-latest is `131 / pass 127 / fail 0 / skipped 4`. Note the skip delta: the developer host skips FIVE (the fifth is escape-file-link, which windows-latest actually runs), so the two hosts execute different test sets under the same 131 total and the CI green does not cover the local failing test. This is non-reproduction, not diagnosis. If it recurs, capture the failing test name FIRST.
+- Open from 01-27 (2026-09-06): Broken Windows ledger stands at `open 2, waived 1, fixed 4, total 7`. #5 (scripts/run-tests.mjs) awaits a permanent suite test asserting the `--files` loud-failure paths on every leg; #6 (src/core/path-boundary.ts provePathBoundary:296-299) is reachable only through a TOCTOU race between :285 and :296. Neither is answerable by a green three-OS matrix. With `workflow.windows_enforce` on, /gsd-ship blocks until both are fixed or waived with a reason.
+- Open from 01-27 (2026-09-06): the two manual-only SAFE-02 canaries have DIVERGED and 01-UAT.md was deliberately not edited. The Windows unknown-reparse canary is still unanswerable by any CI leg (windows-latest reports `privileged reparse facilities unavailable`; POSIX legs correctly report it Windows-only), so 01-UAT.md item 2 stays `result: skipped`. The file-symlink escape canary, by contrast, DID execute and pass on windows-latest in both entrypoints of run 34051628180 — the plan's premise that no CI leg can produce that evidence is falsified for this fixture. The evidence now exists; whether it promotes 01-UAT.md item 3 from an accepted privilege gate to an observation is the verifier's call, and 01-UAT.md is outside 01-27's files_modified.
+- Open from 01-27 (2026-09-06): baselines updated for any later plan — `npm test` is 208 tests (fail 0; 1 skip on POSIX, 4 on Windows), the routed `Safety boundary suites` step is 131 tests (fail 0), and `npm run build:check` reports `56 inputs, 106 outputs`. Any other total is a suite that stopped compiling, not a faster run. Also: WHY the old invalid instrument tipped on that particular ubuntu run remains a HYPOTHESIS (file-set / scheduling load), explicitly not recorded as established cause.
 
 ## Deferred Items
 
@@ -151,6 +159,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T18:21:54.512Z
-Stopped at: 01-27 Tasks 1-2 complete and ledger #7 registered; HALTED before Task 3's push (orchestrator owns it)
-Resume file: .planning/phases/01-safe-operation-boundary/01-27-PLAN.md
+Last session: 2026-09-06T18:40:35.411Z
+Stopped at: Completed 01-27-PLAN.md — G-01-1 closed on run 34051628180
+Resume file: None

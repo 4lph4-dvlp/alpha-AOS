@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-25-PLAN.md
-last_updated: "2026-09-06T11:52:17.282Z"
+stopped_at: Completed 01-26-PLAN.md
+last_updated: "2026-09-06T17:08:02.227Z"
 last_activity: 2026-09-06
-last_activity_desc: 01-25 executed: the unprovable-filesystem refusal now has a running unprivileged POSIX fixture
-state_head: ee1e48ce6e5af5c7266cc57d91ce2f869ef8b06a
+last_activity_desc: "01-26 executed: three-OS gate observed at run 34046336104 - RC-5 repaired on windows-latest, ubuntu entrypoint asymmetry found, G-01-1 still open"
+state_head: 2b33e2a2c23d82679f0dd6f7ca1ff32b9f298d96
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 26
-  completed_plans: 25
+  completed_plans: 26
   percent: 0
 ---
 
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 25 of 26 complete (01-01..01-25 have summaries; 01-26 planned, not executed)
-Status: Ready to execute 01-26 — G-01-1 stays open until one CI run is green on all three legs (01-26)
-Last activity: 2026-09-06 — 01-25 gap closure executed: EACCES unprovable-filesystem fixture at three sites + cross-platform probe answerability
+Plan: 26 of 26 complete (01-01..01-26 all have summaries)
+Status: All 26 plans executed, but G-01-1 is STILL OPEN — run 34046336104 is 2-of-3 (ubuntu-latest red at `Safety boundary suites`). Phase verification stays blocked; a new gap-closure cycle is needed for the ubuntu entrypoint asymmetry.
+Last activity: 2026-09-06 — 01-26 executed: three-OS acceptance gate observed, RC-5 confirmed repaired on windows-latest, new ubuntu-only entrypoint asymmetry recorded
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -67,6 +67,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P23 | 22 min | 2 tasks | 0 files |
 | Phase 01 P24 | 36 min | 2 tasks | 3 files |
 | Phase 01 P25 | 14 min | 2 tasks | 2 files |
+| Phase 01 P26 | 17 min | 3 tasks | 1 files |
 
 ## Accumulated Context
 
@@ -98,6 +99,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: [01-23]: The darwin platform floor is confirmed as exactly `__CF_USER_TEXT_ENCODING` against a real macOS host; the macOS RC-3 prediction is recorded as not verifiable from this run rather than upgraded by a green leg. — The runtime assertion is an exact deepEqual, so an over-declared floor fails it as surely as an under-declared one; it passed on macos-latest in both the npm test and ten-file steps, so 01-20's branch needs no widening. Prediction 1 cannot be decided by a green run because run 33937610401's macOS leg died at npm test and never reached the step where RC-3 manifested - recording the non-answer is the honest result.
 - [Phase 01]: `--files` on scripts/run-tests.mjs is terminal: flags before, paths after, order preserved; a named-but-unbuilt path is a loud failure naming every missing path — A shell glob that expands to nothing exits 0 and a suite that stops being compiled goes quietly absent; an explicit list that names a missing file must be red on every leg instead
 - [Phase 01]: The runner-environment invariant's singleton lookup is case-folded and `init_cwd` joins it in lowercase, aligning all three injection loci — Adding INIT_CWD uppercase to a case-sensitive list would make the invariant catch one spelling and miss the other - the same near-miss class RC-5 already took once. Case-folding is strictly a strengthening: every name caught before is still caught
+- [Phase 01]: [01-26]: Gap G-01-1 is NOT closed. Observed run 34046336104 (head 8c04c5f) returned macos-latest and windows-latest green on all four steps and ubuntu-latest red at `Safety boundary suites` on `a timed-out command leaves no descendant process behind`. — Two of three green legs is not closure; the closing evidence is one run id whose three legs are all green in that same run. RC-5 IS confirmed repaired - the windows-latest routed step shows `the test runner environment carries no npm lifecycle injection` as a pass rather than absent - but the ubuntu leg regressed at a different seam.
+- [Phase 01]: [01-26]: The ubuntu red cell is recorded as an entrypoint asymmetry, not diagnosed and not explained away as cosmetic. Ledger entries #2/#3/#4 were left OPEN even though this run produced their evidence lines, because the plan's disposition rule is `if and only if state (b)` and this execution is state (c). — The identical compiled test dist/test/process.test.js:187 passed in the same ubuntu job's `npm test` step and failed in the routed `Safety boundary suites` step - same commit, same file, two invocations. `actual: true` means a descendant process was actually alive after a 1500ms timeout, so it is a real SAFE-06 containment fact rather than a meta-test. Closing Broken Windows on a run that did not go green is the reasoning pattern this phase's prohibitions exist to prevent, so the evidence was transcribed into 01-26-SUMMARY.md for a one-step close next cycle instead.
 
 ### Pending Todos
 
@@ -138,6 +141,7 @@ None yet.
 - Open from 01-21 (2026-09-05): the suite baseline is now 200 tests (fail 0, 2 pre-existing platform skips). Plan 01-22 must raise its own baseline to 200 rather than 196. `npm test` now means `npm run build && node scripts/run-tests.mjs`, so any plan reasoning about the primary gate must read the runner rather than a shell glob. commandProbeEnvironment's passthrough set is proven on Windows only - coverage D5 in 01-21-SUMMARY.md is human_judgment:true, and if a CI leg reports a harness version that went null, the passthrough set is what to widen, not the pin. Gap G-01-1 is not authoritatively closed until the three-OS matrix is green; 01-23 checks the two falsifiable predictions.
 - Open from 01-22 (2026-09-05): the suite baseline is now 202 tests (fail 0, 2 pre-existing platform skips). Plan 01-23 must raise its own baseline to 202. Gap G-01-1 is still not authoritatively closed - RC-4 is load-dependent and POSIX-only and never reproduced on this Windows host even under the exact ten-file command, so the authoritative verification is the green three-OS matrix 01-23 owns. Two falsifiable predictions for the ubuntu leg: the descendant failure message now carries evidence/observedMs/lastCounter/advanced, which distinguishes "the tree really was not terminated" from "the oracle is still mis-instrumented"; and result.treeTermination should read "group" on both POSIX legs, so a "direct" or "not-required" there is new information about the product rather than the test.
 - Open from 01-23 (2026-09-05): RC-5 blocks phase verification. windows-latest fails `Safety boundary suites` on `the test runner environment carries no npm lifecycle injection` with actual ['npm_config_prefix'], expected []. The windows-2025-vs2026 runner image sets npm_config_prefix machine-wide, so scripts/run-tests.mjs strips it under `npm test` while the bare `node --test` CI step sees it - the exact invocation divergence that invariant forbids. 01-21's stated goal of one shared environment was applied to package.json but never to .github/workflows/ci.yml. The repair is not mechanical: run-tests.mjs enumerates all dist/test/*.test.js itself and treats argv as flags, so it cannot express the ten-file subset today, and any fix must keep npm_config_prefix a legitimate input to resolveGlobalNodeModulesRoot (src/core/install.ts:294). 01-VALIDATION.md requires a fully green three-OS suite before /gsd-verify-work, so phase 1 verification is blocked until a new run id shows three green legs.
+- Open from 01-26 (2026-09-06): G-01-1 is STILL OPEN and phase 1 verification stays blocked. Observed run 34046336104 (head 8c04c5f) is 2-of-3: macos-latest and windows-latest green on all four steps, ubuntu-latest red at `Safety boundary suites`. RC-5 is closed - the windows leg shows `the test runner environment carries no npm lifecycle injection` PASSING inside the routed step. The new red cell is an entrypoint asymmetry on ubuntu: `a timed-out command leaves no descendant process behind` (dist/test/process.test.js:187, source test/process.test.ts:298) passes under `npm test` and fails under the routed `Safety boundary suites` step in the SAME job, same commit, same compiled file, with `actual: true` meaning a descendant was really alive after the 1500ms timeout. The two invocations differ only in file set (self-enumerated full suite vs the ten named files) and parent chain (`npm run` wrapper vs bare node). Do NOT diagnose it by reverting 01-24's routing - that reinstates RC-5 on windows-latest. Baselines for the next plan: `npm test` 208 tests, `Safety boundary suites` 131 tests. Ledger entries #2/#3/#4 have their closing evidence lines already transcribed in 01-26-SUMMARY.md and close in one step on the next state-(b) run.
 
 ## Deferred Items
 
@@ -147,6 +151,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T11:52:17.207Z
-Stopped at: Completed 01-25-PLAN.md
+Last session: 2026-09-06T17:08:02.129Z
+Stopped at: Completed 01-26-PLAN.md
 Resume file: None

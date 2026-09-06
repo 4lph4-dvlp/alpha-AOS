@@ -30,7 +30,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
 
-**Plans**: 25/26 plans executed (23 executed; 3 gap-closure plans pending for verification gap G-01-1, root cause RC-5)
+**Plans**: 26/26 plans executed (23 executed; 3 gap-closure plans pending for verification gap G-01-1, root cause RC-5)
 
 Plans:
 **Wave 1**
@@ -108,7 +108,7 @@ Plans:
 
 **Wave 17** *(blocked on Wave 16 completion)*
 
-- [ ] 01-26-PLAN.md — Gap closure: the new three-OS run that closes G-01-1, and the ledger disposed on it
+- [x] 01-26-PLAN.md — Gap closure: the new three-OS run that closes G-01-1, and the ledger disposed on it
 
 > Waves 15–17 hold one plan each for the same reason waves 10–13 did: each edits a file `npm run build` compiles for the whole tree, so a half-written file is a shared resource the file-overlap rule cannot see. `01-26` additionally must observe the combined effect of both preceding plans inside a single matrix run.
 
@@ -220,7 +220,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 25/26 | In Progress|  |
+| 1. Safe Operation Boundary | 26/26 | In Progress|  |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

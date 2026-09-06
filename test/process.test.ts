@@ -23,7 +23,15 @@ import {
   resolveCommand,
   resolveNodePackageCli,
   runProcess,
+  CLOSE_TREE_DEADLINE_MS,
 } from "../src/core/process.js";
+import {
+  describeTermination,
+  heartbeatSource,
+  mintHeartbeat,
+  registerProbe,
+  waitForTermination,
+} from "./helpers/termination-oracle.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "../src/core/install.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -38,6 +46,14 @@ interface ProcessFixture {
   readonly sleepScript: string;
   readonly spawnerScript: string;
   readonly sideEffect: string;
+  /**
+   * Mints one heartbeat identity for the shared termination oracle. Delegates
+   * to `test/helpers/termination-oracle.ts`, because the rule that a heartbeat
+   * file is named after the nonce it carries is what makes a well-formed
+   * foreign nonce a fixture-integrity tripwire — it belongs to the instrument,
+   * not to a fixture that happens to use it.
+   */
+  mintHeartbeat(): { path: string; nonce: string; args: [string, string] };
 }
 
 async function createProcessFixture(context: { after: (fn: () => Promise<unknown> | unknown) => void }): Promise<ProcessFixture> {
@@ -68,13 +84,31 @@ async function createProcessFixture(context: { after: (fn: () => Promise<unknown
     "utf8",
   );
 
-  await writeFile(sleepScript, "await new Promise((r) => setTimeout(r, 30_000));\n", "utf8");
+  // The descendant that gets judged. `heartbeatSource` installs NOTHING when
+  // `argv[2]`/`argv[3]` are absent — no timer and no beat zero — so the plain
+  // timeout test below, which passes no heartbeat arguments, is unaffected by
+  // this and does not litter the fixture root with a file named `undefined`.
+  await writeFile(
+    sleepScript,
+    [
+      ...heartbeatSource,
+      "await new Promise((r) => setTimeout(r, 30_000));",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
 
   await writeFile(
     spawnerScript,
     [
       "import { spawn } from 'node:child_process';",
-      "const child = spawn(process.execPath, [process.argv[2]], { detached: false, stdio: 'ignore' });",
+      // The heartbeat path and nonce are forwarded to the grandchild: the
+      // spawner is not what gets judged, the descendant is. They are filtered
+      // rather than passed positionally, because an undefined argv entry would
+      // make spawn throw when this script is opened without an identity. Same
+      // shape as `descendantScript` in test/protocol-session.test.ts.
+      "const forwarded = [process.argv[2], process.argv[3], process.argv[4]].filter((value) => value !== undefined);",
+      "const child = spawn(process.execPath, forwarded, { detached: false, stdio: 'ignore' });",
       "process.stdout.write(String(child.pid));",
       "await new Promise((r) => setTimeout(r, 30_000));",
       "",
@@ -82,7 +116,17 @@ async function createProcessFixture(context: { after: (fn: () => Promise<unknown
     "utf8",
   );
 
-  return { root, echoScript, floodScript, sleepScript, spawnerScript, sideEffect };
+  return {
+    root,
+    echoScript,
+    floodScript,
+    sleepScript,
+    spawnerScript,
+    sideEffect,
+    mintHeartbeat(): { path: string; nonce: string; args: [string, string] } {
+      return mintHeartbeat(root);
+    },
+  };
 }
 
 test("shell metacharacters in an argument stay data and never execute", async (context) => {
@@ -298,27 +342,99 @@ test("unbounded child output is capped and reported as capped", async (context) 
 test("a timed-out command leaves no descendant process behind", async (context) => {
   const fixture = await createProcessFixture(context);
 
+  // The descendant carries an identity the test minted, forwarded to it by the
+  // spawner. Judging it by a bare `process.kill(pid, 0)` was the defect this
+  // site is being repaired for: that call answers "may I signal this pid", not
+  // "is this process running", and it succeeds against a zombie. The product's
+  // own close() contract (src/core/process.ts:690-699) says so outright — a
+  // signalled grandchild is nobody's waitpid target, "which is why liveness
+  // must be judged by terminal evidence rather than by whether a pid can still
+  // be signalled". The old probe made a red leg undecidable between an unreaped
+  // zombie and a real containment failure; the shared oracle separates them.
+  const hb = fixture.mintHeartbeat();
+
   const result = await runProcess({
     executable: process.execPath,
-    args: [fixture.spawnerScript, fixture.sleepScript],
+    args: [fixture.spawnerScript, fixture.sleepScript, ...hb.args],
     cwd: fixture.root,
     timeoutMs: 1500,
   });
 
   const descendantPid = Number.parseInt(result.stdout.excerpt.trim(), 10);
   if (!Number.isFinite(descendantPid)) {
+    // Not observable is recorded as not-run rather than reported as a pass.
     context.diagnostic("descendant pid was not observable; the process tree assertion could not be evaluated");
     return;
   }
 
-  let alive = true;
-  try {
-    process.kill(descendantPid, 0);
-  } catch {
-    alive = false;
+  // The classifier's `pid-reused` branch is INERT at this site, and that is
+  // recorded rather than hidden. A start-time baseline can only be read while
+  // the process is alive, and this descendant's pid only becomes observable
+  // after `runProcess` has already returned — so `recordedStartTime` is null or
+  // read from a zombie. Its absence makes the classifier strictly MORE
+  // conservative: `pid-reused` is a rule that RETURNS `terminated`, so a
+  // judgment that cannot reach it falls to `indeterminate`, which is a red.
+  // That is the correct direction to be wrong in on a safety boundary, the same
+  // logic by which `classifyProcessSample` refuses a staleness rule. Identity
+  // is carried by the nonce heartbeat instead.
+  const probe = await registerProbe({ pid: descendantPid, heartbeatPath: hb.path, nonce: hb.nonce });
+  const termination = await waitForTermination(probe, CLOSE_TREE_DEADLINE_MS);
+
+  // A pid is signalled only once its identity is confirmed, exactly as every
+  // signalling site in test/protocol-session.test.ts does it. `null` is no
+  // evidence, which is not confirmation either.
+  if (!termination.terminated && termination.heartbeatNonceMatches === true) {
+    process.kill(descendantPid, "SIGKILL");
   }
-  if (alive) process.kill(descendantPid, "SIGKILL");
-  assert.equal(alive, false, "a timed-out command left a descendant process running");
+
+  // One coded line per run, on every leg, green ones included. A leg that goes
+  // green without saying HOW the descendant ended has not answered the question
+  // — it has only failed to raise it. Coded metadata, never interpolated prose
+  // (D-12).
+  context.diagnostic(
+    `descendant termination evidence (${process.platform}): ${JSON.stringify({
+      treeTermination: result.treeTermination ?? null,
+      evidence: termination.evidence,
+      terminated: termination.terminated,
+      observedMs: termination.observedMs,
+      lastCounter: termination.lastCounter,
+      advanced: termination.advanced,
+      heartbeatNonceMatches: termination.heartbeatNonceMatches,
+    })}`,
+  );
+
+  // Delivery is asserted BEFORE liveness, on purpose. If the group signal fell
+  // back to the direct child then a surviving descendant is the CONSEQUENCE,
+  // and a liveness assertion firing first would report the symptom in place of
+  // the more useful root cause. On POSIX the child is spawned `detached`
+  // (src/core/process.ts:334) so it leads its own group, which makes `group`
+  // the healthy value and `direct` strictly less termination than the caller
+  // asked for.
+  if (process.platform !== "win32") {
+    assert.notEqual(
+      result.treeTermination,
+      "direct",
+      "the process-group signal was refused and only the direct child was killed, so the descendant was never signalled: "
+        + "this is a containment failure, not a reaping delay",
+    );
+  }
+
+  // `not-required` or `already-gone` fail here. The fixture sleeps 30s
+  // precisely so a forced termination must have happened; a run where it did
+  // not has proven nothing about the tree, which is new information rather than
+  // cause to weaken the assertion. Same reasoning the session side already
+  // wrote down at test/protocol-session.test.ts's close-time tree test.
+  assert.equal(
+    result.treeTermination,
+    process.platform === "win32" ? "windows-tree" : "group",
+    "the timeout's termination did not reach the child's process group",
+  );
+
+  assert.equal(
+    termination.terminated,
+    true,
+    `a timed-out command left a descendant process running (${describeTermination(termination)})`,
+  );
 });
 
 test("a captured result carries no raw secret and no shell trace", async (context) => {

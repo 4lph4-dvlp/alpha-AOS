@@ -8,7 +8,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -308,15 +308,11 @@ test("an unproven boundary offers no override that turns it into an applyable on
   assert.equal(await sha256File(fixture.outsideSentinel), before);
 });
 
-test("unsupported path fixtures are reported, never counted as passes", (context) => {
-  context.diagnostic(`path-boundary not-run evidence: ${JSON.stringify(notRun)}`);
-  for (const record of notRun) {
-    assert.ok(record.reason.length > 0, `not-run record for ${record.fixture} must carry a reason`);
-  }
-  // Records are evidence, not failures: the suite states plainly what this
-  // host could not prove so a green run is never mistaken for full coverage.
-  assert.ok(Array.isArray(notRun));
-});
+// The not-run reporter lives at the BOTTOM of this file, after every fixture
+// that can push a record. `node:test` runs top-level tests in declaration
+// order, so a reporter declared here would print an `notRun` array that is only
+// as complete as the tests above it — silently omitting every later fixture's
+// evidence while still looking green. See the end of this file.
 
 // ---------------------------------------------------------------------------
 // Plan 01-07 Task 2: operation-wide proof set and immediate recheck
@@ -628,4 +624,289 @@ test("a canonical-root refusal names the canonically resolved root", async (cont
     proof.detail?.includes(canonicalRoot),
     `the refusal must name the canonically resolved root ${canonicalRoot}, got ${String(proof.detail)}`,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 01-25 Task 1: the non-ENOENT `unprovable-filesystem` refusal, driven by
+// a real EACCES instead of read off the source.
+//
+// 01-19 split two facts that a silent catch used to merge: a path that does not
+// exist (ENOENT, keep walking up) and a path that exists but cannot be resolved
+// (any other errno, refuse with a stated reason). Until this fixture, only the
+// compiler had ever seen the second branch — `grep unprovable-filesystem
+// test/path-boundary.test.ts` returned zero hits, which is what 01-19 recorded
+// as coverage D4, 01-VERIFICATION.md as behavior_unverified_items[1] and
+// WINDOWS.md as ledger entry #2.
+//
+// THE SHAPE. The branch needs `lstat` to SUCCEED and `realpath` to FAIL with a
+// non-ENOENT errno. A directory at mode 0o000 does not produce that shape
+// directly: `lstat` on a path BENEATH it fails with EACCES, and
+// `classifyComponent` turns an lstat failure into `unknownReparse` — a
+// different code about a different fact. The shape that reaches the branch is a
+// directory link pointing INTO an unreadable directory: the link itself sits in
+// a readable directory, so `lstat` and `readlink` both succeed and the
+// component is classified as a link, while resolving it must traverse the
+// unreadable directory, so `realpath` fails EACCES.
+//
+// PRIVILEGE. An ordinary unprivileged user owns the directory and may set its
+// mode, so this runs on ubuntu-latest and macos-latest without privileges. It
+// does NOT work as root (root ignores the mode) and it does NOT work on Windows
+// (a POSIX mode does not deny traversal there), so it is gated — and the gate
+// asks the host for the real errno instead of trusting a platform name.
+//
+// CLEANUP DOES NOT DEPEND ON HOOK ORDERING. `node:test` runs a subtest's
+// `context.after` hooks in REGISTRATION order (measured on the installed Node
+// v24.13.1: a hook registered first runs first). `createFixture` registers its
+// own `rm(fixture.root)` first, so a mode-restoring hook registered after it
+// would run TOO LATE: the fixture `rm` would descend into a 0o000 directory,
+// fail with EACCES, strand an undeletable tree AND turn the test red for a
+// purely environmental reason. So the denied directory never lives inside the
+// fixture root. It lives in `makeDeniableTree`'s own `mkdtemp` tree, whose
+// SINGLE hook restores the mode and then removes the tree. The fixture root
+// holds only a symlink, and `rm` unlinks a symlink rather than following it, so
+// the relative order of the two hooks is irrelevant. Do not re-introduce a
+// restore hook that assumes LIFO.
+// ---------------------------------------------------------------------------
+
+interface DeniableTree {
+  readonly root: string;
+  readonly blocked: string;
+  readonly inner: string;
+  readonly innerFile: string;
+}
+
+/**
+ * A temp tree that owns its whole lifecycle: `blocked/inner/file.txt`, created
+ * while everything is still readable, plus one `after` hook — registered before
+ * the mode can ever change — that restores traversal and then removes the tree.
+ * Never throws.
+ */
+async function makeDeniableTree(
+  context: { after: (fn: () => Promise<unknown> | unknown) => void },
+): Promise<DeniableTree> {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-deny-"));
+  const blocked = join(root, "blocked");
+  context.after(async () => {
+    try {
+      await chmod(blocked, 0o700);
+    } catch {
+      // Never denied, already restored, or already gone. The removal below is
+      // the authority; a failed restore must not fail the hook.
+    }
+    await rm(root, { recursive: true, force: true });
+  });
+  const inner = join(blocked, "inner");
+  await mkdir(inner, { recursive: true });
+  const innerFile = join(inner, "file.txt");
+  await writeFile(innerFile, "deniable\n", "utf8");
+  return { root, blocked, inner, innerFile };
+}
+
+/**
+ * Denies traversal and then ASKS THE HOST whether the denial actually took —
+ * the point of this helper. A platform name and a uid are both weaker signals
+ * than the errno the filesystem returns: Windows does not deny traversal by a
+ * POSIX mode and root ignores the mode entirely, and both answer by resolving
+ * the path anyway. Returns the observed errno string, or null when the host
+ * does not deny (mode restored before returning). Never throws.
+ */
+async function denyTraversal(tree: DeniableTree): Promise<string | null> {
+  try {
+    await chmod(tree.blocked, 0o000);
+  } catch {
+    return null;
+  }
+  try {
+    await realpath(tree.inner);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+    if (code === "EACCES" || code === "EPERM") return code;
+    await chmod(tree.blocked, 0o700).catch(() => undefined);
+    return null;
+  }
+  // The host resolved it despite the mode: not a denial, so not a fixture.
+  await chmod(tree.blocked, 0o700).catch(() => undefined);
+  return null;
+}
+
+test("an allowed root that became unreadable is refused at the recheck rather than compared unresolved", async (context) => {
+  const fixture = await createFixture(context);
+  const tree = await makeDeniableTree(context);
+  const link = join(fixture.allowed, "link");
+
+  if (!(await tryDirectorySymlink(tree.inner, link))) {
+    notRun.push({ fixture: "eacces-recheck-root", reason: "this host cannot create directory links without privileges" });
+    context.skip("eacces-recheck-root fixture not run: directory links unavailable");
+    return;
+  }
+
+  // Taken while the tree is still readable. Without this assertion the test
+  // would be vacuous: an unproven proof refuses at recheckPathProof:343 for an
+  // entirely different reason and would still look green.
+  const proof = await provePathBoundary({
+    path: join(link, "file.txt"),
+    allowedRoots: [link],
+    role: "target",
+  });
+  assert.equal(
+    proof.proven,
+    true,
+    `the preflight proof must succeed before the denial, got ${proof.code}: ${String(proof.detail)}`,
+  );
+
+  const errno = await denyTraversal(tree);
+  if (errno === null) {
+    notRun.push({ fixture: "eacces-recheck-root", reason: "this host does not deny traversal by POSIX mode" });
+    context.skip("eacces-recheck-root fixture not run: the host resolves the path despite mode 0o000");
+    return;
+  }
+
+  // SITE: recheckPathProof:352-355 — the allowed root's own canonicalization.
+  // It answers BEFORE the recheck's component loop at :359, which makes this
+  // the one test that watches canonicalizeWithMissingTail's non-ENOENT reason
+  // (:140-147) become an actual refusal rather than a compiler-checked return
+  // value. It returns before `canonicalRoot` is ever assigned, so a containment
+  // comparison against a non-canonical root cannot happen here.
+  //
+  // provePathBoundary:296-299 is this refusal's twin inside the preflight and
+  // is deliberately NOT claimed by any test: it is unreachable through the
+  // public API for every filesystem state, because the component loop at
+  // :271-285 has already visited every ancestor of the configured root and
+  // returned. See `## Flagged finding` in 01-25-PLAN.md and 01-25-SUMMARY.md.
+  const recheck = await recheckPathProof(proof);
+  assert.equal(
+    recheck.ok,
+    false,
+    "an allowed root that cannot be canonically resolved must refuse rather than be compared unresolved",
+  );
+  assert.equal(
+    recheck.code,
+    "unprovable-filesystem",
+    `expected unprovable-filesystem at recheckPathProof:352-355, observed ${recheck.code}: ${String(recheck.detail)}`,
+  );
+  assert.notEqual(recheck.detail, null, "an unprovable refusal must carry a stated reason");
+  assert.ok(
+    recheck.detail?.includes(errno),
+    `the refusal detail must name the errno the host actually returned (${errno}), got ${String(recheck.detail)}`,
+  );
+});
+
+test("an unreadable component is unprovable rather than unclassified", async (context) => {
+  const fixture = await createFixture(context);
+  const tree = await makeDeniableTree(context);
+  const link = join(fixture.allowed, "link");
+
+  if (!(await tryDirectorySymlink(tree.inner, link))) {
+    notRun.push({ fixture: "eacces-component", reason: "this host cannot create directory links without privileges" });
+    context.skip("eacces-component fixture not run: directory links unavailable");
+    return;
+  }
+
+  const errno = await denyTraversal(tree);
+  if (errno === null) {
+    notRun.push({ fixture: "eacces-component", reason: "this host does not deny traversal by POSIX mode" });
+    context.skip("eacces-component fixture not run: the host resolves the path despite mode 0o000");
+    return;
+  }
+
+  // SITE: classifyComponent's `unprovable` branch (:200-207), surfaced by
+  // provePathBoundary's component loop at :281-283. The loop reaches
+  // `<allowed>/link`, where lstat and readlink both succeed and only realpath
+  // fails.
+  //
+  // Aiming at `<blocked>/inner` directly instead of at the link would produce a
+  // DIFFERENT code: lstat itself would fail EACCES and classifyComponent would
+  // return unknownReparse. Going through the link is the only shape that
+  // reaches this branch.
+  const proof = await provePathBoundary({
+    path: join(link, "file.txt"),
+    allowedRoots: [fixture.allowed],
+    role: "target",
+  });
+
+  assert.equal(proof.proven, false, "a component the host refuses to resolve must not be proven");
+  // `unknown-reparse` is NOT accepted in its place. Not being readable and not
+  // being classifiable are different facts about the filesystem; collapsing
+  // them would erase the distinction 01-19 exists to make. The message carries
+  // the observed code so a product that answers differently reads as new
+  // information rather than as a test to relax.
+  assert.equal(
+    proof.code,
+    "unprovable-filesystem",
+    `expected unprovable-filesystem at provePathBoundary:281-283, observed ${proof.code}: ${String(proof.detail)}`,
+  );
+});
+
+test("losing readability between preflight and apply refuses at the recheck", async (context) => {
+  const tree = await makeDeniableTree(context);
+  // The link lives in the deniable tree's OWN root here, and that root is the
+  // allowed root. Two conditions must hold at once for this site to be the one
+  // that answers, and only this shape satisfies both: the allowed root must
+  // canonicalize successfully (so :352 passes) while a recorded component must
+  // fail to canonicalize (so the loop at :365-367 answers) — and the preflight
+  // must have been PROVEN, which requires the target's canonical form to lie
+  // inside the canonical allowed root, i.e. inside the deniable tree. A fixture
+  // root that does not contain the deniable tree cannot be the allowed root of
+  // a proven proof. See 01-25-SUMMARY.md `## Deviations from Plan`.
+  const link = join(tree.root, "link");
+
+  if (!(await tryDirectorySymlink(tree.inner, link))) {
+    notRun.push({
+      fixture: "eacces-recheck-component",
+      reason: "this host cannot create directory links without privileges",
+    });
+    context.skip("eacces-recheck-component fixture not run: directory links unavailable");
+    return;
+  }
+
+  const proof = await provePathBoundary({
+    path: join(link, "file.txt"),
+    allowedRoots: [tree.root],
+    role: "target",
+  });
+  assert.equal(
+    proof.proven,
+    true,
+    `the preflight proof must succeed before the denial, got ${proof.code}: ${String(proof.detail)}`,
+  );
+
+  const errno = await denyTraversal(tree);
+  if (errno === null) {
+    notRun.push({ fixture: "eacces-recheck-component", reason: "this host does not deny traversal by POSIX mode" });
+    context.skip("eacces-recheck-component fixture not run: the host resolves the path despite mode 0o000");
+    return;
+  }
+
+  // SITE: recheckPathProof's OWN component loop at :365-367. The allowed root
+  // stays readable, so :352 passes and this is a genuinely different site from
+  // the one the first test drives — same code, different place. Merging the two
+  // into one test would let either site die unnoticed. Losing the ability to
+  // read a component between preflight and apply is precisely the case the
+  // recheck exists for.
+  const recheck = await recheckPathProof(proof);
+  assert.equal(recheck.ok, false, "a component that became unreadable after preflight must refuse before any mutation");
+  assert.equal(
+    recheck.code,
+    "unprovable-filesystem",
+    `expected unprovable-filesystem at recheckPathProof:365-367, observed ${recheck.code}: ${String(recheck.detail)}`,
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The not-run reporter. It is LAST on purpose: `node:test` runs top-level tests
+// in declaration order, so a reporter placed anywhere else prints a `notRun`
+// array that is only as complete as the tests declared above it. It used to sit
+// above the 01-07, 01-19 and 01-25 fixtures and silently omitted their
+// evidence while still passing — the exact "a gated fixture must not look like
+// a fixture that passed" hazard this test exists to close. Anything that pushes
+// a not-run record belongs ABOVE this test.
+// ---------------------------------------------------------------------------
+test("unsupported path fixtures are reported, never counted as passes", (context) => {
+  context.diagnostic(`path-boundary not-run evidence: ${JSON.stringify(notRun)}`);
+  for (const record of notRun) {
+    assert.ok(record.reason.length > 0, `not-run record for ${record.fixture} must carry a reason`);
+  }
+  // Records are evidence, not failures: the suite states plainly what this
+  // host could not prove so a green run is never mistaken for full coverage.
+  assert.ok(Array.isArray(notRun));
 });

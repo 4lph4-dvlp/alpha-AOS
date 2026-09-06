@@ -30,7 +30,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
 
-**Plans**: 23/23 plans executed (18 executed; 5 gap-closure plans pending for UAT gap G-01-1)
+**Plans**: 26 plans (23 executed; 3 gap-closure plans pending for verification gap G-01-1, root cause RC-5)
 
 Plans:
 **Wave 1**
@@ -97,6 +97,20 @@ Plans:
 **Wave 14** *(blocked on Wave 13 completion)*
 
 - [x] 01-23-PLAN.md — Gap closure: the three-OS CI matrix observation that closes G-01-1
+
+**Wave 15** *(blocked on Wave 14 completion — verification gap G-01-1, root cause RC-5)*
+
+- [ ] 01-24-PLAN.md — Gap closure (RC-5): the CI safety step reaches the suite through the scrubbing runner
+
+**Wave 16** *(blocked on Wave 15 completion)*
+
+- [ ] 01-25-PLAN.md — Gap closure: EACCES `unprovable-filesystem` fixture and cross-platform probe answerability
+
+**Wave 17** *(blocked on Wave 16 completion)*
+
+- [ ] 01-26-PLAN.md — Gap closure: the new three-OS run that closes G-01-1, and the ledger disposed on it
+
+> Waves 15–17 hold one plan each for the same reason waves 10–13 did: each edits a file `npm run build` compiles for the whole tree, so a half-written file is a shared resource the file-overlap rule cannot see. `01-26` additionally must observe the combined effect of both preceding plans inside a single matrix run.
 
 > Waves 10–13 hold one plan each rather than running 01-19/01-20/01-21 together. They share no files, but each opens with a committed RED and `01-20`'s RED is a type error that breaks `npm run build` for the whole tree — a shared resource the file-overlap rule cannot see. Rationale in `01-19-PLAN.md` `## Wave placement`.
 

@@ -4,15 +4,15 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-26-PLAN.md
-last_updated: "2026-09-06T17:08:02.227Z"
+stopped_at: "01-27 Tasks 1-2 complete and ledger #7 registered; HALTED before Task 3's push (orchestrator owns it)"
+last_updated: "2026-09-06T18:21:54.591Z"
 last_activity: 2026-09-06
-last_activity_desc: "01-26 executed: three-OS gate observed at run 34046336104 - RC-5 repaired on windows-latest, ubuntu entrypoint asymmetry found, G-01-1 still open"
-state_head: 2b33e2a2c23d82679f0dd6f7ca1ff32b9f298d96
+last_activity_desc: "01-27 Tasks 1-2 executed: the descendant-liveness instrument is repaired and shared; WSL2 fail-first says the product held (group/esrch). HALTED before Task 3's push; G-01-1 still open"
+state_head: 1ead377d61884ec0a45c16d2db25b35e2c447921
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 26
+  total_plans: 27
   completed_plans: 26
   percent: 0
 ---
@@ -29,9 +29,9 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
-Plan: 26 of 26 complete (01-01..01-26 all have summaries)
-Status: All 26 plans executed, but G-01-1 is STILL OPEN — run 34046336104 is 2-of-3 (ubuntu-latest red at `Safety boundary suites`). Phase verification stays blocked; a new gap-closure cycle is needed for the ubuntu entrypoint asymmetry.
-Last activity: 2026-09-06 — 01-26 executed: three-OS acceptance gate observed, RC-5 confirmed repaired on windows-latest, new ubuntu-only entrypoint asymmetry recorded
+Plan: 27 IN PROGRESS (01-01..01-26 have summaries; 01-27 has no SUMMARY yet — Tasks 1-2 committed, Task 3 unfinished)
+Status: G-01-1 STILL OPEN. 01-27 made the ubuntu red cell DECIDABLE — the termination oracle is extracted to test/helpers/termination-oracle.ts and the runProcess timeout site now judges on terminal evidence and asserts treeTermination — and registered ledger #7. It then HALTED before Task 3's single authorized push to origin/main, which the orchestrator owns. The commit to push is 1ead377. Closing evidence for G-01-1 is still ONE run id with three green legs.
+Last activity: 2026-09-06 — 01-27 Tasks 1-2 executed; WSL2 Arch fail-first observed treeTermination "group" / evidence "esrch", so case (b) is NOT diagnosed locally and the push is not spent
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -151,6 +151,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-06T17:08:02.129Z
-Stopped at: Completed 01-26-PLAN.md
-Resume file: None
+Last session: 2026-09-06T18:21:54.512Z
+Stopped at: 01-27 Tasks 1-2 complete and ledger #7 registered; HALTED before Task 3's push (orchestrator owns it)
+Resume file: .planning/phases/01-safe-operation-boundary/01-27-PLAN.md

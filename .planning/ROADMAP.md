@@ -30,9 +30,12 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
   4. Human and JSON output, plans, journals, snapshots, subprocess failures, and CI evidence redact credential values and secret-bearing URLs; launched commands use no shell, bounded capture, timeouts, and only operation-approved environment names.
   5. Malformed, ambiguous, unsupported, or schema-invalid catalogs, locks, manifests, evidence, receipts, journals, and native configuration are rejected before mutation.
 
-**Plans**: 26/26 plans executed (23 executed; 3 gap-closure plans pending for verification gap G-01-1, root cause RC-5)
+**Plans**: 26/27 plans executed (23 executed; 3 gap-closure plans pending for verification gap G-01-1, root cause RC-5)
 
 Plans:
+
+- [ ] 01-27-PLAN.md
+
 **Wave 1**
 
 - [x] 01-01-PLAN.md — Wave 0 preview, redaction, and strict-validation contracts
@@ -220,7 +223,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 26/26 | In Progress|  |
+| 1. Safe Operation Boundary | 26/27 | In Progress|  |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

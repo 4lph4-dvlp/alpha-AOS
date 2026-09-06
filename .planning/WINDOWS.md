@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
-waived_count: 0
+open_count: 5
+waived_count: 1
 fixed_count: 0
 total_count: 6
-last_updated: 2026-09-06T11:48:39.962Z
+last_updated: 2026-09-06T17:03:04.345Z
 ---
 
 # Broken Windows Ledger
@@ -15,7 +15,7 @@ last_updated: 2026-09-06T11:48:39.962Z
 
 | id | phase | kind | file | line | description | status | reason | recorded_at | resolved_at |
 |----|-------|------|------|------|-------------|--------|--------|-------------|-------------|
-| 1 | 01 | deviation | test/path-boundary.test.ts |  | 01-19 fixture 4 'a canonical-root refusal names the canonically resolved root' is green before the fix: a not-yet-existing allowed root cannot have an existing escaping descendant, so it is a second negative control rather than the RC-1 reproducer the plan predicted | open |  | 2026-09-05T16:33:00.301Z |  |
+| 1 | 01 | deviation | test/path-boundary.test.ts |  | 01-19 fixture 4 'a canonical-root refusal names the canonically resolved root' is green before the fix: a not-yet-existing allowed root cannot have an existing escaping descendant, so it is a second negative control rather than the RC-1 reproducer the plan predicted | waived | Prediction disclosure, not a product defect: 01-19 predicted fixture 4 'a canonical-root refusal names the canonically resolved root' would be the RC-1 reproducer, and it was green before the fix because a not-yet-existing allowed root cannot have an existing escaping descendant - it is a second negative control. 01-VERIFICATION.md rated this self-disclosure as what makes the rest of the 01-19 record trustworthy. The fixture still runs and is green: observed passing on all three legs of run 34046336104 (ubuntu, macos, windows), in both the npm test step and the routed Safety boundary suites step. Nothing to fix; waived on the written record rather than silently marked fixed. | 2026-09-05T16:33:00.301Z | 2026-09-06T17:03:04.345Z |
 | 2 | 01 | unrun-verify | src/core/path-boundary.ts |  | 01-19 D4: the non-ENOENT unprovable-filesystem branch (existing but unreadable component or allowed root) has no automated coverage - needs a privileged EACCES/EPERM fixture | open |  | 2026-09-05T16:33:00.990Z |  |
 | 3 | 01 | unrun-verify | test/process.test.ts |  | The runtime exact-match assertion 'the declared platform floor must match what the OS actually delivers' cannot run on this win32 host for the darwin branch; completeness of the darwin floor is proven only by the macos-latest CI leg owned by plan 01-23 | open |  | 2026-09-05T16:48:40.118Z |  |
 | 4 | 01 | deviation | src/core/process.ts |  | commandProbeEnvironment passthrough set proven on Windows only; a harness whose version goes null on Linux/macOS means the allowlist needs widening (01-21 coverage D5) | open |  | 2026-09-05T17:37:19.376Z |  |
@@ -31,10 +31,10 @@ last_updated: 2026-09-06T11:48:39.962Z
     "file": "test/path-boundary.test.ts",
     "line": null,
     "description": "01-19 fixture 4 'a canonical-root refusal names the canonically resolved root' is green before the fix: a not-yet-existing allowed root cannot have an existing escaping descendant, so it is a second negative control rather than the RC-1 reproducer the plan predicted",
-    "status": "open",
-    "reason": "",
+    "status": "waived",
+    "reason": "Prediction disclosure, not a product defect: 01-19 predicted fixture 4 'a canonical-root refusal names the canonically resolved root' would be the RC-1 reproducer, and it was green before the fix because a not-yet-existing allowed root cannot have an existing escaping descendant - it is a second negative control. 01-VERIFICATION.md rated this self-disclosure as what makes the rest of the 01-19 record trustworthy. The fixture still runs and is green: observed passing on all three legs of run 34046336104 (ubuntu, macos, windows), in both the npm test step and the routed Safety boundary suites step. Nothing to fix; waived on the written record rather than silently marked fixed.",
     "recorded_at": "2026-09-05T16:33:00.301Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-06T17:03:04.345Z"
   },
   {
     "id": 2,

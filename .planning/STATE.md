@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 01
 current_phase_name: Safe Operation Boundary
 status: executing
-stopped_at: Completed 01-23-PLAN.md
-last_updated: "2026-09-06T10:37:30.319Z"
+stopped_at: Completed 01-24-PLAN.md
+last_updated: "2026-09-06T11:28:56.444Z"
 last_activity: 2026-09-06
 last_activity_desc: Phase 01 execution started
-state_head: 23cedf34baf0a643e94a45e101d464a82b75230b
+state_head: 18b4f028a8580a364002f1d02a0aa638189684ae
 progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 26
-  completed_plans: 23
+  completed_plans: 24
   percent: 0
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 ## Current Position
 
-Phase: 01 (Safe Operation Boundary) — READY TO EXECUTE
-Plan: 23 of 26 (01-01..01-23 have summaries; 01-24..01-26 planned, not executed)
-Status: Ready to execute — gap-closure plans 01-24..01-26 target RC-5; G-01-1 stays open until one CI run is green on all three legs
-Last activity: 2026-09-06 — Phase 01 gap-closure planning complete (01-24..01-26)
+Phase: 01 (Safe Operation Boundary) — EXECUTING
+Plan: 24 of 26 complete (01-01..01-24 have summaries; 01-25..01-26 planned, not executed)
+Status: Ready to execute 01-25 — G-01-1 stays open until one CI run is green on all three legs (01-26)
+Last activity: 2026-09-06 — 01-24 gap closure executed: the CI safety step now reaches the suite through scripts/run-tests.mjs
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -65,6 +65,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 01 P21 | 40 min | 3 tasks | 6 files |
 | Phase 01 P22 | 32 min | 2 tasks | 2 files |
 | Phase 01 P23 | 22 min | 2 tasks | 0 files |
+| Phase 01 P24 | 36 min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -94,6 +95,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: [01-22]: close() states what it guarantees and what it only signals, and killTree reports its delivery path into ProcessResult.treeTermination instead of discarding it. — close() resolves on the direct child's close event with the whole group already signalled; reaping is explicitly not awaited because a grandchild is not a waitpid target. The POSIX/Windows asymmetry is deliberate and written down. Two tests assert a real "group" delivery, so a silent fallback to signalling the direct child alone is visible rather than indistinguishable from success.
 - [Phase 01]: [01-23]: Gap G-01-1 is NOT closed. CI run 33984247757 on 403e017 returned ubuntu-latest and macos-latest green on all four steps and windows-latest red at `Safety boundary suites`. — The plan's own prohibition makes an observed three-green-leg run the only closing evidence, so two green legs is not closure. RC-1..RC-4 are observably closed on the platforms that own them - the ubuntu step that reported 109/4 in run 33937610401 now reports fail 0, and the windows/macOS npm test legs that died at 46 and 50 failures are green at 202.
 - [Phase 01]: [01-23]: The darwin platform floor is confirmed as exactly `__CF_USER_TEXT_ENCODING` against a real macOS host; the macOS RC-3 prediction is recorded as not verifiable from this run rather than upgraded by a green leg. — The runtime assertion is an exact deepEqual, so an over-declared floor fails it as surely as an under-declared one; it passed on macos-latest in both the npm test and ten-file steps, so 01-20's branch needs no widening. Prediction 1 cannot be decided by a green run because run 33937610401's macOS leg died at npm test and never reached the step where RC-3 manifested - recording the non-answer is the honest result.
+- [Phase 01]: `--files` on scripts/run-tests.mjs is terminal: flags before, paths after, order preserved; a named-but-unbuilt path is a loud failure naming every missing path — A shell glob that expands to nothing exits 0 and a suite that stops being compiled goes quietly absent; an explicit list that names a missing file must be red on every leg instead
+- [Phase 01]: The runner-environment invariant's singleton lookup is case-folded and `init_cwd` joins it in lowercase, aligning all three injection loci — Adding INIT_CWD uppercase to a case-sensitive list would make the invariant catch one spelling and miss the other - the same near-miss class RC-5 already took once. Case-folding is strictly a strengthening: every name caught before is still caught
 
 ### Pending Todos
 
@@ -143,6 +146,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-05T18:39:02.017Z
-Stopped at: Completed 01-23-PLAN.md
+Last session: 2026-09-06T11:27:53.414Z
+Stopped at: Completed 01-24-PLAN.md
 Resume file: None

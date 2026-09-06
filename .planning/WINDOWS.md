@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 4
+open_count: 5
 waived_count: 0
 fixed_count: 0
-total_count: 4
-last_updated: 2026-09-05T17:37:19.376Z
+total_count: 5
+last_updated: 2026-09-06T11:29:06.550Z
 ---
 
 # Broken Windows Ledger
@@ -19,6 +19,7 @@ last_updated: 2026-09-05T17:37:19.376Z
 | 2 | 01 | unrun-verify | src/core/path-boundary.ts |  | 01-19 D4: the non-ENOENT unprovable-filesystem branch (existing but unreadable component or allowed root) has no automated coverage - needs a privileged EACCES/EPERM fixture | open |  | 2026-09-05T16:33:00.990Z |  |
 | 3 | 01 | unrun-verify | test/process.test.ts |  | The runtime exact-match assertion 'the declared platform floor must match what the OS actually delivers' cannot run on this win32 host for the darwin branch; completeness of the darwin floor is proven only by the macos-latest CI leg owned by plan 01-23 | open |  | 2026-09-05T16:48:40.118Z |  |
 | 4 | 01 | deviation | src/core/process.ts |  | commandProbeEnvironment passthrough set proven on Windows only; a harness whose version goes null on Linux/macOS means the allowlist needs widening (01-21 coverage D5) | open |  | 2026-09-05T17:37:19.376Z |  |
+| 5 | 01 | unrun-verify | scripts/run-tests.mjs |  | No permanent suite test asserts the --files loud-failure paths (empty explicit set, named-but-unbuilt path); both were proven by command invocation in 01-24 but are not guarded on every leg | open |  | 2026-09-06T11:29:06.550Z |  |
 
 ````json
 [
@@ -68,6 +69,18 @@ last_updated: 2026-09-05T17:37:19.376Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-05T17:37:19.376Z",
+    "resolved_at": null
+  },
+  {
+    "id": 5,
+    "kind": "unrun-verify",
+    "phase": "01",
+    "file": "scripts/run-tests.mjs",
+    "line": null,
+    "description": "No permanent suite test asserts the --files loud-failure paths (empty explicit set, named-but-unbuilt path); both were proven by command invocation in 01-24 but are not guarded on every leg",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T11:29:06.550Z",
     "resolved_at": null
   }
 ]

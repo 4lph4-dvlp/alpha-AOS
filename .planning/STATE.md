@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 Phase: 01 (Safe Operation Boundary) — EXECUTING
 Plan: 27 IN PROGRESS (01-01..01-26 have summaries; 01-27 has no SUMMARY yet — Tasks 1-2 committed, Task 3 unfinished)
-Status: G-01-1 STILL OPEN. 01-27 made the ubuntu red cell DECIDABLE — the termination oracle is extracted to test/helpers/termination-oracle.ts and the runProcess timeout site now judges on terminal evidence and asserts treeTermination — and registered ledger #7. It then HALTED before Task 3's single authorized push to origin/main, which the orchestrator owns. The commit to push is 1ead377. Closing evidence for G-01-1 is still ONE run id with three green legs.
+Status: G-01-1 STILL OPEN. 01-27 made the ubuntu red cell DECIDABLE — the termination oracle is extracted to test/helpers/termination-oracle.ts and the runProcess timeout site now judges on terminal evidence and asserts treeTermination — and registered ledger #7. It then HALTED before Task 3's single authorized push to origin/main, which the orchestrator owns. The commit to push is HEAD (2be37c3); note origin/main is 7 commits behind and that push also publishes 01-26's unpushed docs commits, so the new run's head sha will be 2be37c3. Closing evidence for G-01-1 is still ONE run id with three green legs.
 Last activity: 2026-09-06 — 01-27 Tasks 1-2 executed; WSL2 Arch fail-first observed treeTermination "group" / evidence "esrch", so case (b) is NOT diagnosed locally and the push is not spent
 
 Progress: [░░░░░░░░░░] 0%

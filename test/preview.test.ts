@@ -275,11 +275,41 @@ const PREVIEW_INVOCATIONS: ReadonlyArray<{ readonly name: string; readonly args:
  * was chosen by the caller rather than by the code under test.
  */
 const NPM_LIFECYCLE_INJECTION = /^npm_(config|package|lifecycle)_/iu;
-const NPM_LIFECYCLE_SINGLETON_NAMES: readonly string[] = ["npm_execpath", "npm_command", "npm_node_execpath"];
+/**
+ * The exact names npm injects that the prefix regex above cannot reach. All
+ * four are written in lowercase and are looked up through `name.toLowerCase()`
+ * in the invariant below, which puts this locus in one voice with the two
+ * others that decide the same question: the `i` flag on
+ * NPM_LIFECYCLE_INJECTION, and `INJECTED_NAMES.has(name.toLowerCase())` in
+ * scripts/run-tests.mjs. Until that alignment the lookup here was a
+ * case-SENSITIVE `includes`, which nobody decided - it was an artifact of one
+ * list being a Set queried through toLowerCase() and this one an Array queried
+ * through includes.
+ *
+ * Case-folding the lookup STRENGTHENS this invariant and cannot weaken it:
+ * every name it caught before is still caught, and it additionally catches
+ * `NPM_EXECPATH`, `Npm_Command` and every other spelling of the names it
+ * already listed. A name caught in one spelling and missed in another is the
+ * same near-miss class as a name the scrubber never listed at all, which is
+ * the shape RC-5 took once already.
+ *
+ * `init_cwd` is here because npm sets it on a lifecycle child and nothing else
+ * does. `npm test` and the CI `Safety boundary suites` step both reach the
+ * test process through scripts/run-tests.mjs, which strips it; a direct
+ * `node --test` with no npm in front of it never had it to begin with. All
+ * three entry points are green on it, and a fourth one that is not is exactly
+ * what this invariant exists to report.
+ */
+const NPM_LIFECYCLE_SINGLETON_NAMES: readonly string[] = [
+  "npm_execpath",
+  "npm_command",
+  "npm_node_execpath",
+  "init_cwd",
+];
 
 test("the test runner environment carries no npm lifecycle injection", () => {
   const injected = Object.keys(process.env).filter(
-    (name) => NPM_LIFECYCLE_INJECTION.test(name) || NPM_LIFECYCLE_SINGLETON_NAMES.includes(name),
+    (name) => NPM_LIFECYCLE_INJECTION.test(name) || NPM_LIFECYCLE_SINGLETON_NAMES.includes(name.toLowerCase()),
   );
   assert.deepEqual(
     injected,
@@ -288,6 +318,174 @@ test("the test runner environment carries no npm lifecycle injection", () => {
       "write location of every child this process launches is decided by how the suite was invoked rather than " +
       "by the code under test, so the surface the preview oracle observes differs between `npm test` and a bare " +
       "`node --test`. The suite must run through scripts/run-tests.mjs, which strips them before spawning.",
+  );
+});
+
+/**
+ * The child environment for both halves of the differential test below. It is
+ * built from the same explicit allowlist SANDBOX_ENVIRONMENT_PASSTHROUGH uses
+ * rather than by spreading the ambient environment - spreading is the defect
+ * this file already fixed once - plus the three injected names whose fate is
+ * the thing under test. `npm_config_prefix` is the name the windows-latest
+ * runner image sets at machine scope; `npm_lifecycle_event` is reached by the
+ * prefix regex; `INIT_CWD` is reached only by the exact-name set, and only in
+ * its case-folded form.
+ */
+function injectedChildEnvironment(injectedPrefix: string): NodeJS.ProcessEnv {
+  const forwarded = new Set(SANDBOX_ENVIRONMENT_PASSTHROUGH.map((name) => name.toUpperCase()));
+  const env: NodeJS.ProcessEnv = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (value === undefined) continue;
+    if (!forwarded.has(name.toUpperCase())) continue;
+    env[name] = value;
+  }
+  env.npm_config_prefix = injectedPrefix;
+  env.npm_lifecycle_event = "test";
+  env.INIT_CWD = repositoryRoot;
+  return env;
+}
+
+/**
+ * The probe's verdict rule is serialized from the two constants above,
+ * including the case-folded lookup, rather than restated. A probe with its own
+ * rule is a second oracle that drifts from the first; a probe that copied the
+ * values but not the lookup would miss `INIT_CWD` and would then prove the
+ * routed invocation green for the wrong reason.
+ */
+const INJECTION_PROBE_SOURCE = [
+  'import assert from "node:assert/strict";',
+  'import test from "node:test";',
+  "",
+  `const INJECTION = ${NPM_LIFECYCLE_INJECTION.toString()};`,
+  `const SINGLETONS = ${JSON.stringify(NPM_LIFECYCLE_SINGLETON_NAMES)};`,
+  "",
+  'test("the probe child carries no npm lifecycle injection", () => {',
+  "  const injected = Object.keys(process.env).filter(",
+  "    (name) => INJECTION.test(name) || SINGLETONS.includes(name.toLowerCase()),",
+  "  );",
+  "  assert.deepEqual(",
+  "    injected,",
+  "    [],",
+  '    `the probe child inherited npm lifecycle injection: ${injected.join(", ")}`,',
+  "  );",
+  "});",
+  "",
+].join("\n");
+
+test("the CI safety-suite invocation scrubs an injected npm setting that a bare invocation keeps", async (context) => {
+  const sandbox = await mkdtemp(join(tmpdir(), "alpha-aos-injection-"));
+  context.after(async () => rm(sandbox, { recursive: true, force: true }));
+
+  // Written outside dist/test and named by absolute path, so `--files` is
+  // exercised on a path the runner's own enumeration would never reach.
+  const probe = join(sandbox, "injection-probe.test.js");
+  await writeFile(probe, INJECTION_PROBE_SOURCE, "utf8");
+
+  const env = injectedChildEnvironment(join(sandbox, "prefix"));
+
+  const routed = spawnSync(
+    process.execPath,
+    [join(repositoryRoot, "scripts", "run-tests.mjs"), "--files", probe],
+    { cwd: repositoryRoot, env, encoding: "utf8", timeout: 60_000, windowsHide: true },
+  );
+  assert.equal(
+    routed.status,
+    0,
+    "the invocation the CI safety step uses must hand the test process an environment free of npm " +
+      "lifecycle injection, whatever the runner image put in this process's own environment\n" +
+      `stdout: ${(routed.stdout ?? "").slice(0, 800)}\nstderr: ${(routed.stderr ?? "").slice(0, 800)}`,
+  );
+
+  const bare = spawnSync(process.execPath, ["--test", probe], {
+    cwd: repositoryRoot,
+    env,
+    encoding: "utf8",
+    timeout: 60_000,
+    windowsHide: true,
+  });
+  const bareOutput = `${bare.stdout ?? ""}${bare.stderr ?? ""}`;
+  assert.notEqual(
+    bare.status,
+    0,
+    "the negative control must still fail: a bare `node --test` strips nothing, so if it passes under " +
+      "this injection the probe has stopped detecting what it claims to detect\n" +
+      `stdout: ${(bare.stdout ?? "").slice(0, 800)}\nstderr: ${(bare.stderr ?? "").slice(0, 800)}`,
+  );
+  assert.ok(
+    bareOutput.includes("npm_config_prefix"),
+    "the negative control must fail FOR THE INJECTION, not for an unrelated non-zero exit: the child " +
+      `output has to name npm_config_prefix.\noutput: ${bareOutput.slice(0, 800)}`,
+  );
+
+  // Logged rather than gated on purpose. The full set of names npm adds varies
+  // by npm version, so asserting the difference would make this acceptance
+  // gate hostage to an npm upgrade. As a diagnostic it still puts the
+  // divergence in every leg's log, so the next one is visible instead of
+  // being discovered as a red leg.
+  const stripped = Object.keys(env)
+    .filter(
+      (name) =>
+        NPM_LIFECYCLE_INJECTION.test(name) || NPM_LIFECYCLE_SINGLETON_NAMES.includes(name.toLowerCase()),
+    )
+    .sort();
+  context.diagnostic(
+    `environment names the bare invocation keeps and the routed invocation drops: ${stripped.join(", ") || "(none)"}`,
+  );
+});
+
+/** The suites the CI safety step names, in the order it names them. */
+const CI_SAFETY_SUITES: readonly string[] = [
+  "dist/test/preview.test.js",
+  "dist/test/path-boundary.test.js",
+  "dist/test/transaction-crash.test.js",
+  "dist/test/redaction.test.js",
+  "dist/test/validation.test.js",
+  "dist/test/process.test.js",
+  "dist/test/protocol-session.test.js",
+  "dist/test/mcp-proxy.test.js",
+  "dist/test/install.test.js",
+  "dist/test/update.test.js",
+];
+
+test("the CI safety step reaches the suite through the scrubbing runner", async () => {
+  const workflow = await readFile(join(repositoryRoot, ".github", "workflows", "ci.yml"), "utf8");
+
+  // Only this step's region is examined. Searching the whole file would pass
+  // on a `scripts/run-tests.mjs` occurring in some other step, and would
+  // therefore say nothing at all about this one. The marker is anchored to a
+  // whole line: a plain `indexOf` would also match a step merely NAMED with
+  // this as a prefix, so a rename could slip past and this test would go on
+  // asserting against a step that is no longer the one CI runs.
+  const marker = /^[ \t]*- name: Safety boundary suites[ \t]*$/mu;
+  const located = marker.exec(workflow);
+  if (located === null) {
+    assert.fail(
+      "the step named `Safety boundary suites` is absent from .github/workflows/ci.yml. That name is the " +
+        "anchor three legs' logs are compared across runs by, and without it this test would pass while " +
+        "guarding nothing.",
+    );
+  }
+  const rest = workflow.slice(located.index + located[0].length);
+  const nextStep = rest.indexOf("- name:");
+  const region = nextStep === -1 ? rest : rest.slice(0, nextStep);
+
+  assert.ok(
+    region.includes("scripts/run-tests.mjs"),
+    "the `Safety boundary suites` step must reach the test process through scripts/run-tests.mjs. A bare " +
+      "`node --test` here is RC-5: the windows-latest image sets npm_config_prefix at machine scope and " +
+      `nothing would strip it.\nstep region: ${region.slice(0, 600)}`,
+  );
+  assert.ok(
+    region.includes("--files"),
+    `the step must name its file subset through the runner's --files argument.\nstep region: ${region.slice(0, 600)}`,
+  );
+
+  const absent = CI_SAFETY_SUITES.filter((suite) => !region.includes(suite));
+  assert.deepEqual(
+    absent,
+    [],
+    `the \`Safety boundary suites\` step no longer names every Phase 1 suite. Missing: ${absent.join(", ")}. ` +
+      "A red leg is never made green by dropping a suite from this list.",
   );
 });
 

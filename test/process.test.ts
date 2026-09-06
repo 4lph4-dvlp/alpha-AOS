@@ -18,6 +18,7 @@ import {
   PLATFORM_FLOOR_ENVIRONMENT,
   platformFloorEnvironment,
   ProcessPolicyError,
+  probeCommand,
   readCommandVersion,
   resolveCommand,
   resolveNodePackageCli,
@@ -506,6 +507,73 @@ test("the environment policy for a node child names what it passes", () => {
     Object.hasOwn(materialized, "ALPHA_AOS_SECRET_TOKEN"),
     false,
     "an undeclared name from the source must not cross the boundary",
+  );
+});
+
+// SAFE-06 / Broken Window #4, and 01-21 coverage D5, which say the same thing:
+// `commandProbeEnvironment`'s passthrough set was only ever validated on
+// Windows. The test above asks what the environment policy DECLARES it passes;
+// this one asks whether that declaration is SUFFICIENT for a real binary on the
+// platform actually running the suite. A green macos or ubuntu leg was weak
+// positive evidence at best — no assertion put the probe's own passthrough
+// under test there.
+test("a version probe answers under the probe environment on this platform", (context) => {
+  // The interpreter running this suite is guaranteed present on all three legs
+  // and guaranteed to answer `--version`, so this assertion is never not-run.
+  // `readCommandVersion` materializes `commandProbeEnvironment()` for the child,
+  // so a non-null answer means that environment ALONE was enough.
+  const probed = readCommandVersion(process.execPath);
+  const ownVersion = probed ?? "";
+  const widenAdvice =
+    "the passthrough set in commandProbeEnvironment is what needs widening, not its pinned literals (01-21 D5)";
+  assert.ok(
+    ownVersion.length > 0,
+    `the running interpreter answered nothing under the probe environment on ${process.platform} ` +
+      `(got ${JSON.stringify(probed)}); ${widenAdvice}`,
+  );
+  assert.match(
+    ownVersion,
+    /^v\d/u,
+    `expected a leading v and a digit from the running interpreter on ${process.platform}, ` +
+      `got ${JSON.stringify(probed)}; ${widenAdvice}`,
+  );
+
+  // `npm` covers both branches of probeCommand: on Windows it is a `.cmd` shim
+  // and goes through the `resolveNodePackageCli` normalization, while on POSIX
+  // it is executed directly. `node` is always present and is the positive
+  // control. `git` is on all three runner images but can be absent on a
+  // developer host, so it actually exercises the not-found branch. The list is
+  // deliberately not longer: a command nobody has adds diagnostic noise while
+  // asserting nothing.
+  const observed = ["npm", "node", "git"].map((name) => {
+    const probe = probeCommand(name);
+    return {
+      name,
+      found: probe.command !== null,
+      resolved: probe.command,
+      version: probe.version,
+      unsupportedReason: probe.unsupportedReason,
+    };
+  });
+
+  for (const record of observed) {
+    // Not on this host at all: recorded in the diagnostic below, never asserted.
+    if (!record.found) continue;
+    assert.ok(
+      record.version !== null || record.unsupportedReason !== null,
+      `${record.name} was found at ${String(record.resolved)} but answered with neither a version nor a ` +
+        "stated unsupported reason. A found command that says nothing is exactly the SAFE-06 silence " +
+        `Broken Window #4 names: the probe environment was insufficient on ${process.platform} and the ` +
+        `outcome went unreported. ${widenAdvice}`,
+    );
+  }
+
+  // This line is the artifact 01-26 reads off all three legs, so ledger entry
+  // #4 is disposed on evidence rather than on the absence of a complaint.
+  context.diagnostic(
+    `command probe evidence (${process.platform}): ${JSON.stringify(
+      observed.map(({ name, found, version, unsupportedReason }) => ({ name, found, version, unsupportedReason })),
+    )}`,
   );
 });
 

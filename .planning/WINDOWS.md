@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 5
+open_count: 6
 waived_count: 0
 fixed_count: 0
-total_count: 5
-last_updated: 2026-09-06T11:29:06.550Z
+total_count: 6
+last_updated: 2026-09-06T11:48:39.962Z
 ---
 
 # Broken Windows Ledger
@@ -20,6 +20,7 @@ last_updated: 2026-09-06T11:29:06.550Z
 | 3 | 01 | unrun-verify | test/process.test.ts |  | The runtime exact-match assertion 'the declared platform floor must match what the OS actually delivers' cannot run on this win32 host for the darwin branch; completeness of the darwin floor is proven only by the macos-latest CI leg owned by plan 01-23 | open |  | 2026-09-05T16:48:40.118Z |  |
 | 4 | 01 | deviation | src/core/process.ts |  | commandProbeEnvironment passthrough set proven on Windows only; a harness whose version goes null on Linux/macOS means the allowlist needs widening (01-21 coverage D5) | open |  | 2026-09-05T17:37:19.376Z |  |
 | 5 | 01 | unrun-verify | scripts/run-tests.mjs |  | No permanent suite test asserts the --files loud-failure paths (empty explicit set, named-but-unbuilt path); both were proven by command invocation in 01-24 but are not guarded on every leg | open |  | 2026-09-06T11:29:06.550Z |  |
+| 6 | 01 | unrun-verify | src/core/path-boundary.ts |  | provePathBoundary:296-299 (the allowed-root canonicalization refusal inside the preflight) is unreachable through the public API for every filesystem state: lexical root selection at :260 means configuredRoot is always in ancestorChain(configured), and the component loop at :271-285 already issues the same realpath on every member, so it returns unknown-reparse or unprovable-filesystem before :296. Only a TOCTOU race between :285 and :296 reaches it. Derivation recorded in 01-25-PLAN.md and 01-25-SUMMARY.md; the branch is ordered-out defensive symmetry, not dead code, and its behavioral twin at recheckPathProof:352-355 IS covered | open |  | 2026-09-06T11:48:39.962Z |  |
 
 ````json
 [
@@ -81,6 +82,18 @@ last_updated: 2026-09-06T11:29:06.550Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-06T11:29:06.550Z",
+    "resolved_at": null
+  },
+  {
+    "id": 6,
+    "kind": "unrun-verify",
+    "phase": "01",
+    "file": "src/core/path-boundary.ts",
+    "line": null,
+    "description": "provePathBoundary:296-299 (the allowed-root canonicalization refusal inside the preflight) is unreachable through the public API for every filesystem state: lexical root selection at :260 means configuredRoot is always in ancestorChain(configured), and the component loop at :271-285 already issues the same realpath on every member, so it returns unknown-reparse or unprovable-filesystem before :296. Only a TOCTOU race between :285 and :296 reaches it. Derivation recorded in 01-25-PLAN.md and 01-25-SUMMARY.md; the branch is ordered-out defensive symmetry, not dead code, and its behavioral twin at recheckPathProof:352-355 IS covered",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-06T11:48:39.962Z",
     "resolved_at": null
   }
 ]

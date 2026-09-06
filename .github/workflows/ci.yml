@@ -36,9 +36,15 @@ jobs:
       # The Phase 1 safety boundary, exercised per OS rather than assumed.
       # Each file is named so a suite that silently stops running is a failure
       # rather than an omission nobody notices.
+      # It goes through scripts/run-tests.mjs so this step observes the same
+      # environment the primary `npm test` gate does. Reverting it to a bare
+      # `node --test` reinstates RC-5: the windows-latest image sets
+      # `npm_config_prefix` at machine scope, and in run 33984247757 that made
+      # this step fail the runner-environment invariant inside a job whose
+      # `npm test` step reported fail 0 on the very same compiled files.
       - name: Safety boundary suites
         run: >
-          node --test
+          node scripts/run-tests.mjs --files
           dist/test/preview.test.js
           dist/test/path-boundary.test.js
           dist/test/transaction-crash.test.js

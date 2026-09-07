@@ -7,6 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { loadLock } from "../src/core/catalog.js";
 import { ComponentPlanError } from "../src/core/component-session.js";
+import { createEccFixtureOperationPlan } from "../src/core/ecc-fixture.js";
 import { applyEccSkillSync, globalEccSkillRoot, planEccSkillOperation, planEccSkillSync } from "../src/core/ecc-skills.js";
 import { packageRoot } from "../src/core/paths.js";
 import { acquireMutationSession, inspectWriterState, writerLockPath } from "../src/core/writer-lock.js";
@@ -189,4 +190,90 @@ test("a reviewed ECC plan refuses a changed source and preserves the target and 
   assert.equal(existsSync(join(targetRoot, "deep-research", "SKILL.md")), false);
   assert.equal(await readFile(sentinel, "utf8"), "untouched\n");
   assert.equal(existsSync(writerLockPath(stateRoot)), false, "a refused plan never takes the writer");
+});
+
+// ---------------------------------------------------------------------------
+// Caller-supplied fixture skill lists (02-04 Task 1)
+//
+// The fixture is the authoritative, integrity-checked acquisition path. Task 1
+// lets a caller point it at any skill list WITHOUT widening the global sync
+// list, so the maintainer pinning script can hash pack skills through the same
+// verified tarball a user's global sync uses.
+// ---------------------------------------------------------------------------
+
+/** The repository lock's ECC block, or a loud failure. */
+async function realEccLock(): Promise<NonNullable<StackLock["components"]["ecc"]>> {
+  const ecc = (await loadLock(packageRoot())).components.ecc;
+  if (!ecc) throw new Error("the repository lock must carry an ECC component");
+  return ecc;
+}
+
+/**
+ * The contract this task adds, expressed before it exists so the RED run fails
+ * on the behaviour rather than on a compile error.
+ */
+type FixtureOptions = Parameters<typeof createEccFixtureOperationPlan>[0] & { skills?: readonly string[] };
+
+test("the ECC fixture plan defaults to exactly the three global skills", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-ecc-plan-default-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  const plan = await createEccFixtureOperationPlan({ harness: HARNESS, ecc: await realEccLock(), fixtureRoot: root });
+
+  assert.deepEqual([...plan.skills], [...SKILLS], "an unparameterised fixture must plan exactly the global three");
+  for (const skill of SKILLS) {
+    assert.equal(plan.proofs.includes(join(plan.targetRoot, skill, "SKILL.md")), true, `${skill} must have a proven target`);
+  }
+});
+
+test("the ECC fixture plan accepts a caller-supplied skill list", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-ecc-plan-packs-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const ecc = await realEccLock();
+  const packSkills = ["browser-qa", "accessibility", "security-review", "docker-patterns"];
+
+  const plan = await createEccFixtureOperationPlan({
+    harness: HARNESS,
+    ecc: { ...ecc, skills: [...ecc.skills, ...packSkills] },
+    fixtureRoot: root,
+    skills: packSkills,
+  } as FixtureOptions);
+
+  assert.deepEqual([...plan.skills], packSkills, "the fixture must plan exactly the skills the caller named");
+  for (const skill of packSkills) {
+    assert.equal(plan.proofs.includes(join(plan.targetRoot, skill, "SKILL.md")), true, `${skill} must have a proven target`);
+  }
+  assert.equal(
+    plan.proofs.includes(join(plan.targetRoot, "unified-memory", "SKILL.md")),
+    false,
+    "a global skill the caller did not name must not be planned",
+  );
+});
+
+test("a fixture skill with no SKILL.md is a loud failure naming that skill", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-ecc-source-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  await mkdir(join(root, "browser-qa"), { recursive: true });
+  await writeFile(join(root, "browser-qa", "SKILL.md"), "present\n");
+
+  const fixtureModule = await import("../src/core/ecc-fixture.js") as Record<string, unknown>;
+  assert.equal(typeof fixtureModule.readEccSkillSource, "function", "ecc-fixture must export readEccSkillSource");
+  const readSource = fixtureModule.readEccSkillSource as (sourceRoot: string, skill: string) => Promise<string>;
+
+  assert.equal(await readSource(root, "browser-qa"), "present\n");
+  await assert.rejects(
+    () => readSource(root, "click-path-audit"),
+    /click-path-audit/u,
+    "a named skill absent from the extracted tree must name itself in the failure",
+  );
+});
+
+test("the global ECC skill sync stays at exactly three entries", async (context) => {
+  const target = await mkdtemp(join(tmpdir(), "alpha-aos-ecc-global-"));
+  context.after(async () => rm(target, { recursive: true, force: true }));
+
+  const plan = await planEccSkillSync(HARNESS, await loadLock(packageRoot()), target);
+
+  assert.equal(plan.entries.length, 3, "widening the fixture must never widen the global sync");
+  assert.deepEqual(plan.entries.map((entry) => entry.skill), [...SKILLS]);
 });

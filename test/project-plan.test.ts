@@ -17,15 +17,20 @@ import type {
   FactDeclaration,
   LeafResult,
   PackDeclaration,
+  PackEvaluation,
   PackOverride,
+  ProjectCapabilityPlan,
   ProjectStackManifest,
 } from "../src/types.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { collectProjectEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
-import { loadFactVocabularyStrict } from "../src/core/pack-catalog.js";
+import { formatProjectPlan } from "../src/format.js";
+import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import {
   evaluatePack,
+  MAX_NEAR_MISS_LINES,
   planProjectCapabilities,
+  rankNearMisses,
   type PackEvaluationEnvironment,
 } from "../src/core/project-plan.js";
 
@@ -465,4 +470,187 @@ test("the security pack is unimplemented naming GATE-01, and its manifest opt-in
     selectedSecurity?.satisfied.map((leaf) => leaf.factId),
     ["manifest:securityReview"],
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-07 Task 2: near-miss classification, the bound, uniform rendering,
+// `--why` and `--project <rel>`
+// ---------------------------------------------------------------------------
+
+function syntheticLeaf(factId: string, detected: boolean): LeafResult {
+  return {
+    factId,
+    detected,
+    path: detected ? "package.json" : null,
+    reason: detected ? null : `${factId} was not detected`,
+    broad: false,
+    phrase: `the ${factId} signal`,
+  };
+}
+
+/** A near-miss evaluation with a chosen satisfied-leaf count, for ordering and cap tests. */
+function syntheticNearMiss(packId: string, satisfiedCount: number): PackEvaluation {
+  const satisfied = Array.from({ length: satisfiedCount }, (_unused, index) =>
+    syntheticLeaf(`${packId.toLowerCase()}-hit-${index}`, true),
+  );
+  const failed = [syntheticLeaf(`${packId.toLowerCase()}-miss`, false)];
+  return {
+    packId,
+    status: "near-miss",
+    satisfied,
+    failed,
+    deferred: [],
+    explanation: `${packId}: ${satisfied[0]?.phrase ?? ""} — missing: ${failed[0]?.phrase ?? ""}`,
+    overrideReason: null,
+  };
+}
+
+function syntheticPlan(evaluations: PackEvaluation[]): ProjectCapabilityPlan {
+  return {
+    schemaVersion: 1,
+    scope: { canonicalRoot: "/tmp/fixture", rootReason: "standalone-directory", projectId: "0".repeat(16), subProjectPath: null },
+    evaluations,
+    selected: [],
+    nearMissOrder: rankNearMisses(evaluations).map((evaluation) => evaluation.packId),
+    subProjects: [],
+    inputsDigest: "0".repeat(64),
+    evidenceDigest: "1".repeat(64),
+    planDigest: "2".repeat(64),
+  };
+}
+
+/** The phrase the renderer must use, derived here from the declaration itself. */
+function expectedPhrase(declaration: FactDeclaration | undefined): string {
+  const collapsed = (declaration?.description ?? "").replace(/\s+/gu, " ").trim();
+  const stop = collapsed.search(/\.(?:\s|$)/u);
+  return stop === -1 ? collapsed : collapsed.slice(0, stop);
+}
+
+/** A workspace whose two members carry different evidence. */
+async function workspaceFixture(context: TestContext): Promise<string> {
+  const root = await scratchRoot(context, "workspace");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "monorepo", private: true, workspaces: ["packages/*"] }),
+    "utf8",
+  );
+  await mkdir(join(root, "packages", "api"), { recursive: true });
+  await mkdir(join(root, "packages", "web"), { recursive: true });
+  await writeFile(
+    join(root, "packages", "api", "package.json"),
+    JSON.stringify({ name: "api", dependencies: { express: "4.0.0" } }),
+    "utf8",
+  );
+  await writeFile(
+    join(root, "packages", "web", "package.json"),
+    JSON.stringify({ name: "web", dependencies: { react: "19.0.0" } }),
+    "utf8",
+  );
+  return root;
+}
+
+test("more near-miss packs than the cap print exactly the cap plus a suppression line naming --why", () => {
+  const evaluations = ["A_PACK", "B_PACK", "C_PACK", "D_PACK", "E_PACK", "F_PACK", "G_PACK", "H_PACK"].map(
+    (packId, index) => syntheticNearMiss(packId, 8 - index),
+  );
+  const text = formatProjectPlan(syntheticPlan(evaluations));
+  const nearMissLines = text.split("\n").filter((line) => line.startsWith("NEAR-MISS "));
+
+  assert.equal(nearMissLines.length, MAX_NEAR_MISS_LINES);
+  assert.equal(evaluations.length > MAX_NEAR_MISS_LINES, true);
+  const suppressed = text.split("\n").find((line) => line.includes("suppressed"));
+  assert.ok(suppressed, text);
+  assert.match(suppressed, /3 more/u);
+  assert.match(suppressed, /--why/u);
+});
+
+test("the near-miss order is descending satisfied-leaf count, then ascending pack id", () => {
+  const evaluations = [
+    syntheticNearMiss("ZED", 2),
+    syntheticNearMiss("ALPHA", 1),
+    syntheticNearMiss("BETA", 2),
+    syntheticNearMiss("GAMMA", 3),
+  ];
+  assert.deepEqual(
+    rankNearMisses(evaluations).map((evaluation) => evaluation.packId),
+    ["GAMMA", "BETA", "ZED", "ALPHA"],
+  );
+});
+
+test("--why prints every one of the 15 packs with leaf detail and applies no cap", async (context) => {
+  const root = await reactFixture(context);
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+
+  assert.equal(why.status, 0, why.stderr);
+  const catalog = await loadPackCatalogStrict(repositoryRoot);
+  assert.equal(catalog.value.packs.length, 15);
+  for (const pack of catalog.value.packs) {
+    assert.ok(why.stdout.includes(`WHY ${pack.id} `), `--why omitted ${pack.id}`);
+  }
+  assert.equal(why.stdout.includes("suppressed"), false);
+  assert.ok(why.stdout.length > plain.stdout.length);
+});
+
+test("a pack with zero satisfied leaves produces no default output line", async (context) => {
+  const root = await reactFixture(context);
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+
+  assert.equal(plain.status, 0, plain.stderr);
+  // CACHE_REDIS matches nothing in a react-only fixture: silent by default,
+  // present under --why.
+  assert.equal(plain.stdout.includes("CACHE_REDIS"), false, plain.stdout);
+  assert.ok(why.stdout.includes("CACHE_REDIS"));
+});
+
+test("the agent-runtime near-miss line names the present document and the absent SDK, both from catalog/facts.yaml", async (context) => {
+  const root = await scratchRoot(context, "near-miss");
+  await writeFile(join(root, "AGENTS.md"), "# Instructions\n", "utf8");
+  const result = await runCli(["project", "plan", root]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const line = result.stdout.split("\n").find((entry) => entry.startsWith("NEAR-MISS AGENT_RUNTIME"));
+  assert.ok(line, result.stdout);
+
+  const vocabulary = await vocabularyIndex();
+  const present = expectedPhrase(vocabulary.get("agent-runtime-config"));
+  const missing = expectedPhrase(vocabulary.get("agent-sdk-dependency"));
+  assert.ok(present.length > 0);
+  assert.ok(missing.length > 0);
+  assert.ok(line.includes(present), `${line} does not carry the declared phrase "${present}"`);
+  assert.ok(line.includes(missing), `${line} does not carry the declared phrase "${missing}"`);
+  assert.ok(line.includes("AGENTS.md"), line);
+});
+
+test("--project with an unrecognised value exits non-zero and names the discovered sub-projects", async (context) => {
+  const root = await workspaceFixture(context);
+  const result = await runCli(["project", "plan", root, "--project", "packages/nope"]);
+
+  assert.notEqual(result.status, 0);
+  const message = `${result.stdout}${result.stderr}`;
+  assert.match(message, /packages\/api/u);
+  assert.match(message, /packages\/web/u);
+});
+
+test("from a repository root with no --project, each sub-project reports its own decision and none is selected", async (context) => {
+  const root = await workspaceFixture(context);
+  const listed = await runCli(["project", "plan", root, "--json"]);
+  assert.equal(listed.status, 0, listed.stderr);
+
+  const plan = JSON.parse(listed.stdout) as {
+    selected: string[];
+    subProjects: Array<{ path: string; selected: string[] }>;
+  };
+  assert.deepEqual(plan.selected, []);
+  assert.deepEqual(plan.subProjects.map((member) => member.path), ["packages/api", "packages/web"]);
+  assert.ok(plan.subProjects.find((member) => member.path === "packages/api")?.selected.includes("API"));
+  assert.ok(plan.subProjects.find((member) => member.path === "packages/web")?.selected.includes("WEB_REACT"));
+
+  const targeted = JSON.parse((await runCli(["project", "plan", root, "--project", "packages/web", "--json"])).stdout) as {
+    scope: { subProjectPath: string | null };
+    selected: string[];
+  };
+  assert.equal(targeted.scope.subProjectPath, "packages/web");
+  assert.ok(targeted.selected.includes("WEB_REACT"));
 });

@@ -1322,7 +1322,7 @@ export async function approveProjectPlan(options: ApproveProjectPlanOptions): Pr
     assertPlanUnchanged(reviewed, revalidated.boundary);
   } catch (error) {
     if (!(error instanceof ComponentPlanError)) throw error;
-    throw await explainPlanDrift(error, options, revalidated);
+    throw await explainPlanDrift(options, revalidated);
   }
 
   // Idempotency: the same plan already on disk is not rewritten. Writing
@@ -1360,17 +1360,173 @@ export async function approveProjectPlan(options: ApproveProjectPlanOptions): Pr
 }
 
 /**
- * Turns the boundary's digest mismatch into a refusal a user can act on.
+ * What moved between review and apply.
  *
- * Task 3 replaces the body with the D-13 classification; the seam exists here
- * so the drift refusal has exactly one construction site.
+ * `inputs-changed` and `selection-changed` are the two D-13 names: the first is
+ * routine — a file that was read changed without changing any decision — and
+ * the second is the one that deserves a second look, because the decision
+ * itself is different. The other four exist so a refusal can name the specific
+ * surface rather than making a user diff two plans to find it.
+ */
+export type PlanDriftKind =
+  | "inputs-changed"
+  | "selection-changed"
+  | "target-changed"
+  | "lock-changed"
+  | "manifest-changed"
+  | "adapter-changed";
+
+export interface PlanDrift {
+  readonly kind: PlanDriftKind;
+  /** One sentence a user can act on, already naming the specific surface. */
+  readonly detail: string;
+  /** Pack ids the revalidated selection has and the reviewed one did not. */
+  readonly joined: readonly string[];
+  /** Pack ids the reviewed selection had and the revalidated one does not. */
+  readonly left: readonly string[];
+}
+
+/** Stable comparison of two already-sorted, already-canonical values. */
+function differs(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) !== JSON.stringify(right);
+}
+
+/**
+ * Names what moved, in order of consequence.
+ *
+ * The order is the point, not an implementation detail. A dependency that
+ * selects a new pack ALSO moves that pack's source and target rows, so a
+ * lock-first order would report "a locked source changed" for what is really a
+ * different decision. The selection is checked first because it is the answer a
+ * reviewer actually reviewed; `inputs-changed` is last because it is what
+ * remains once nothing a reviewer decided on has moved.
+ */
+export function classifyPlanDrift(reviewed: ProjectCapabilityPlan, revalidated: ProjectCapabilityPlan): PlanDrift {
+  const joined = revalidated.selected.filter((packId) => !reviewed.selected.includes(packId));
+  const left = reviewed.selected.filter((packId) => !revalidated.selected.includes(packId));
+
+  if (joined.length > 0 || left.length > 0) {
+    return {
+      kind: "selection-changed",
+      detail:
+        "the pack selection itself changed, so this is a different decision from the one that was reviewed: " +
+        `joined ${joined.join(", ") || "none"}; left ${left.join(", ") || "none"}`,
+      joined,
+      left,
+    };
+  }
+
+  if (differs(reviewed.source, revalidated.source)) {
+    const moved = revalidated.source
+      .filter((entry) => {
+        const before = reviewed.source.find((candidate) => candidate.packId === entry.packId && candidate.skill === entry.skill);
+        return before === undefined || before.sourceSha256 !== entry.sourceSha256 || before.version !== entry.version;
+      })
+      .map((entry) => `${entry.packId}/${entry.skill}`);
+    return {
+      kind: "lock-changed",
+      detail: `the stable lock's pinned source moved for ${moved.join(", ") || "a selected pack"}; the pack selection is unchanged`,
+      joined,
+      left,
+    };
+  }
+
+  if (differs(reviewed.targetPreState, revalidated.targetPreState)) {
+    const moved = revalidated.targetPreState
+      .filter((entry) => {
+        const before = reviewed.targetPreState.find((candidate) => candidate.path === entry.path);
+        return before === undefined || before.currentHash !== entry.currentHash || before.exists !== entry.exists;
+      })
+      .map((entry) => entry.path);
+    return {
+      kind: "target-changed",
+      detail: `bytes at a planned target changed: ${moved.join(", ") || "a planned target"}; the pack selection is unchanged`,
+      joined,
+      left,
+    };
+  }
+
+  if (
+    differs(reviewed.adapterSupportEvidence, revalidated.adapterSupportEvidence) ||
+    differs(reviewed.adapterSupport, revalidated.adapterSupport)
+  ) {
+    const moved = revalidated.adapterSupportEvidence
+      .filter((entry) => reviewed.adapterSupport[entry.harness] !== entry.support)
+      .map((entry) => `${entry.harness} -> ${entry.support}`);
+    return {
+      kind: "adapter-changed",
+      detail: `a harness's project-scope pack delivery classification changed: ${moved.join(", ") || "a declared harness"}; the pack selection is unchanged`,
+      joined,
+      left,
+    };
+  }
+
+  if (reviewed.manifestDigest !== revalidated.manifestDigest) {
+    return {
+      kind: "manifest-changed",
+      detail:
+        `${PROJECT_MANIFEST_PATH} changed (${reviewed.manifestDigest?.slice(0, 12) ?? "absent"} -> ` +
+        `${revalidated.manifestDigest?.slice(0, 12) ?? "absent"}); the pack selection is unchanged`,
+      joined,
+      left,
+    };
+  }
+
+  const observed = reviewed.evidenceDigest !== revalidated.evidenceDigest;
+  return {
+    kind: "inputs-changed",
+    detail: observed
+      ? "a file that was read changed and moved an observation, but the pack selection is unchanged, so re-approval is routine"
+      : "a file that was read changed without changing any observation, and the pack selection is unchanged, so re-approval is routine",
+    joined,
+    left,
+  };
+}
+
+/** The reviewed plan, when the last approved artifact IS the plan under review. */
+async function reviewedPlanFromArtifact(
+  artifactPath: string,
+  expectedDigest: string,
+): Promise<ProjectCapabilityPlan | null> {
+  const artifact = await readApprovedProjectPlan(artifactPath);
+  if (artifact === null || artifact.approvedDigest !== expectedDigest) return null;
+  return artifact.plan;
+}
+
+/**
+ * Turns the boundary's digest mismatch into a refusal that is a next step.
+ *
+ * The classification needs the reviewed plan VALUE, and a digest is not one. A
+ * caller that still holds the plan it reviewed passes it; the CLI, whose two
+ * invocations share nothing but a digest, falls back to the last approved
+ * artifact. When neither is available the refusal SAYS SO rather than guessing
+ * — and still carries the command that re-approves in place, because a refusal
+ * with no next step is D-13's whole complaint.
  */
 async function explainPlanDrift(
-  refusal: ComponentPlanError,
   options: ApproveProjectPlanOptions,
   revalidated: ProjectPlanRevalidation,
 ): Promise<ComponentPlanError> {
-  void options;
-  void revalidated;
-  return refusal;
+  const command = approvalCommand({
+    path: options.path,
+    subProject: options.subProject,
+    planDigest: revalidated.plan.planDigest,
+  });
+  const digests = `reviewed ${options.expectedDigest.slice(0, 12)}, observed ${revalidated.plan.planDigest.slice(0, 12)}`;
+  const reviewed =
+    options.reviewedPlan ?? (await reviewedPlanFromArtifact(revalidated.artifactPath, options.expectedDigest));
+
+  if (reviewed === null) {
+    return new ComponentPlanError(
+      "plan-drift",
+      `${PLAN_DIGEST_KIND} changed between review and apply (${digests}). The reviewed plan value is not available here, ` +
+        `so what moved cannot be named; review the current plan again first. Re-approve in place with: ${command}`,
+    );
+  }
+
+  const drift = classifyPlanDrift(reviewed, revalidated.plan);
+  return new ComponentPlanError(
+    "plan-drift",
+    `${drift.kind}: ${drift.detail} (${digests}). Re-approve in place with: ${command}`,
+  );
 }

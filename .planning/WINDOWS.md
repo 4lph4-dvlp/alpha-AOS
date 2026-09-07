@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 7
+open_count: 8
 waived_count: 1
 fixed_count: 4
-total_count: 12
-last_updated: 2026-09-07T16:08:58.094Z
+total_count: 13
+last_updated: 2026-09-07T17:32:45.429Z
 ---
 
 # Broken Windows Ledger
@@ -27,6 +27,7 @@ last_updated: 2026-09-07T16:08:58.094Z
 | 10 | 02 | stub | src/core/evidence.ts |  | catalog/facts.yaml declares 31 facts across all six detector kinds, but collectProjectEvidence still implements only the dependency detector over package.json. A file / directory / manifestKey / fileAbsent / fileContent fact is now loadable, validated and referenceable by a pack predicate, yet cannot be observed, so the packs that depend on those kinds still contribute no evaluation. Closed by 02-06 (the remaining five detector kinds and the non-npm manifest readers). | open |  | 2026-09-07T14:02:30.976Z |  |
 | 11 | 02 | stub | catalog/facts.yaml |  | The eight SECURITY_REVIEW risk facts (auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api) are declared with deferredTo: GATE-01 and no detector parameters. They are change-risk semantics rather than repository-state facts and two of them would require credential-scanning a user's repository, so Phase 4 GATE-01 owns them. Declaring them keeps the near-miss line honest instead of silent; until 02-07 renders them as unimplemented, SECURITY_REVIEW can never select. | open |  | 2026-09-07T14:02:31.697Z |  |
 | 12 | 02 | unmet-truth | src/core/project-plan.ts |  | project plan does not yet name each selected pack's source version and hash, though catalog/stack.lock.json can now answer for all 19 pack skills (02-04) | open |  | 2026-09-07T16:08:58.094Z |  |
+| 13 | 02 | unrun-verify | test/evidence.test.ts |  | MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun | open |  | 2026-09-07T17:32:45.429Z |  |
 
 ````json
 [
@@ -172,6 +173,18 @@ last_updated: 2026-09-07T16:08:58.094Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T16:08:58.094Z",
+    "resolved_at": null
+  },
+  {
+    "id": 13,
+    "kind": "unrun-verify",
+    "phase": "02",
+    "file": "test/evidence.test.ts",
+    "line": null,
+    "description": "MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T17:32:45.429Z",
     "resolved_at": null
   }
 ]

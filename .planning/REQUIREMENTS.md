@@ -25,7 +25,7 @@
 ### Deterministic Project Detection and Planning
 
 - [x] **DETC-01**: User can select one canonical project root, and detection stops at nested repository or worktree boundaries instead of borrowing evidence from parents, siblings, or unrelated repositories
-- [ ] **DETC-02**: User can see the positive, versioned file, dependency, entrypoint, configuration, and manifest evidence that caused each project capability pack to be selected
+- [x] **DETC-02**: User can see the positive, versioned file, dependency, entrypoint, configuration, and manifest evidence that caused each project capability pack to be selected
 - [ ] **DETC-03**: User can see why a near-match did not select a pack, and generic files such as `AGENTS.md` alone cannot activate agent-runtime capabilities
 - [ ] **DETC-04**: User receives stable text and JSON plans that identify scope, owner, exact source version and hash, renderer, target pre-state, adapter support, approvals, and safe inverse
 - [ ] **DETC-05**: User cannot apply a reviewed plan after its evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes have changed
@@ -133,7 +133,7 @@
 | SAFE-05 | Phase 1 | Complete |
 | SAFE-06 | Phase 1 | Complete |
 | DETC-01 | Phase 2 | Complete |
-| DETC-02 | Phase 2 | Pending |
+| DETC-02 | Phase 2 | Complete |
 | DETC-03 | Phase 2 | Pending |
 | DETC-04 | Phase 2 | Pending |
 | DETC-05 | Phase 2 | Pending |

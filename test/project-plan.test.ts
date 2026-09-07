@@ -1757,3 +1757,124 @@ test("mutating any one of the seven DETC-05 nouns changes the plan digest", asyn
     );
   }
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-09 Task 2: the `project approve` CLI verb and its preview registration
+// ---------------------------------------------------------------------------
+//
+// D-12 in command form: `plan` previews, `approve` persists, and `--apply`
+// belongs to exactly one of them. The assertions below run the built binary,
+// because the claim is about the command surface rather than about the module.
+
+/** The `Plan digest:` line every project rendering ends with. */
+function planDigestOf(stdout: string): string {
+  const line = /^Plan digest: ([0-9a-f]{64})$/mu.exec(stdout);
+  assert.ok(line, `no plan digest line in:\n${stdout.slice(-600)}`);
+  return line[1] as string;
+}
+
+test("project approve is registered in the preview enumeration in its preview form", async () => {
+  const source = await readFile(join(repositoryRoot, "test", "preview.test.ts"), "utf8");
+  const entries = [...source.matchAll(/args:\s*\[([^\]]*)\]/gu)].map(([, body]) =>
+    (body ?? "")
+      .split(",")
+      .map((part) => part.trim().replace(/^"|"$/gu, ""))
+      .filter((part) => part.length > 0),
+  );
+
+  assert.ok(
+    entries.some((args) => JSON.stringify(args) === JSON.stringify(["project", "approve", "."])),
+    'test/preview.test.ts has no PREVIEW_INVOCATIONS entry whose args are exactly ["project", "approve", "."]. ' +
+      "Adding a mutating command without adding it there is the regression that enumeration exists to catch.",
+  );
+  // The list is the PREVIEW enumeration. An --apply entry in it would assert
+  // that a live write changes nothing, which is the opposite of the contract.
+  assert.equal(
+    entries.some((args) => args.includes("approve") && args.includes("--apply")),
+    false,
+    "an --apply invocation was added to the preview enumeration",
+  );
+});
+
+test("project approve without --apply previews the approval and writes nothing", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const before = await snapshotTree(root);
+
+  const result = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: stateRoot });
+
+  assert.equal(result.status, 0, result.stderr);
+  const digest = planDigestOf(result.stdout);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.equal(digest, plan.planDigest, "the preview printed a digest the plan does not produce");
+  assert.match(result.stdout, /--plan-digest/u);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a preview wrote the artifact");
+  assert.deepEqual(await snapshotTree(root), before, "a preview changed the project tree");
+  assert.equal(existsSync(stateRoot), false, "a preview created the managed state root");
+});
+
+test("project approve --plan-digest --apply writes the artifact and reports the transaction id", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const result = await runCli(["project", "approve", root, "--plan-digest", plan.planDigest, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), true, "an approved apply wrote no artifact");
+  const transaction = /Transaction: (\S+)/u.exec(result.stdout);
+  assert.ok(transaction, `the apply printed no transaction id:\n${result.stdout}`);
+  assert.ok((transaction[1] ?? "").length > 0);
+});
+
+test("project approve --apply without a plan digest refuses, naming the digest the plan would produce", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const result = await runCli(["project", "approve", root, "--apply"], { ALPHA_AOS_STATE_DIR: stateRoot });
+
+  assert.notEqual(result.status, 0, "an apply with no reviewed digest succeeded");
+  assert.ok(
+    result.stderr.includes(plan.planDigest),
+    `the refusal did not name the digest the current plan would produce:\n${result.stderr}`,
+  );
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a refused apply wrote the artifact");
+});
+
+test("project plan has no --apply route and still writes nothing", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const before = await snapshotTree(root);
+
+  const result = await runCli(["project", "plan", root, "--apply"], { ALPHA_AOS_STATE_DIR: stateRoot });
+
+  // Either shape is acceptable; what is NOT acceptable is an apply route on
+  // `plan`. D-12's whole point is that previewing and persisting are two acts.
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "project plan --apply wrote the artifact");
+  assert.deepEqual(await snapshotTree(root), before, "project plan --apply changed the project tree");
+  if (result.status !== 0) {
+    assert.match(result.stderr, /approve/u, `a rejected plan --apply must point at the command that does apply:\n${result.stderr}`);
+  }
+});
+
+test("project sync --apply still refuses with the Phase 3 message", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+
+  const result = await runCli(["project", "sync", root, "--apply"], { ALPHA_AOS_STATE_DIR: stateRoot });
+
+  assert.notEqual(result.status, 0, "the Phase 3 gate was opened early");
+  assert.match(result.stderr, /not enabled until trust and transaction support are implemented/u);
+});
+
+test("project approve --json carries the same decision as the text rendering", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+
+  const text = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: stateRoot });
+  const structured = await runCli(["project", "approve", root, "--json"], { ALPHA_AOS_STATE_DIR: stateRoot });
+
+  assert.equal(text.status, 0, text.stderr);
+  assert.equal(structured.status, 0, structured.stderr);
+  const parsed = asRecord(JSON.parse(structured.stdout));
+  assert.equal(typeof parsed.planDigest, "string", "the JSON envelope carries no plan digest field");
+  assert.equal(parsed.planDigest, planDigestOf(text.stdout), "text and JSON reported different plan digests");
+  assert.equal(parsed.applied, false, "a preview reported itself as applied");
+});

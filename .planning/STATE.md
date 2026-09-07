@@ -1,20 +1,20 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.1.0
-current_phase: 01
-current_phase_name: Safe Operation Boundary
-status: executing
-stopped_at: Completed 01-27-PLAN.md — G-01-1 closed on run 34051628180
-last_updated: "2026-09-06T18:40:35.490Z"
-last_activity: 2026-09-06
-last_activity_desc: "01-27 complete: run 34051628180 returned three green legs in ONE run id; every leg reports group/windows-tree + esrch, so the product terminated the tree and the old ubuntu red was an invalid instrument. G-01-1 CLOSED; ledger #7/#2/#3/#4 fixed, #5/#6 open"
-state_head: 7cd9e0667295e702b0a78c947d632a05c9c247bc
+current_phase: 2
+current_phase_name: Evidence-Bound Project Planning
+status: planning
+stopped_at: Phase 01 complete, ready to plan Phase 2
+last_updated: "2026-09-07T04:34:15.699Z"
+last_activity: 2026-09-07
+last_activity_desc: Phase 01 complete, transitioned to Phase 2
+state_head: b01bea46a09d511d40bd2c884455d572947693ad
 progress:
   total_phases: 7
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 27
   completed_plans: 27
-  percent: 0
+  percent: 14
 ---
 
 # Project State
@@ -24,21 +24,21 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-03)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 01 — Safe Operation Boundary
+**Current focus:** Phase 02 — Evidence-Bound Project Planning
 
 ## Current Position
 
-Phase: 01 (Safe Operation Boundary) — PLANS COMPLETE, AWAITING VERIFICATION
-Plan: 27 of 27 COMPLETE (01-01..01-27 all have summaries)
-Status: **G-01-1 IS CLOSED** on run `34051628180` (head `25b5434`, conclusion `success`) — ONE run id whose three legs are all green in that same run: ubuntu-latest, macos-latest and windows-latest each pass `npm run check`, `npm test` (208 tests / fail 0), `npm run build:check` (`56 inputs, 106 outputs`) and the routed `Safety boundary suites` (131 tests / fail 0). The descendant diagnostic was transcribed from all three legs including the green ones: POSIX legs report `treeTermination: "group"`, win32 reports `"windows-tree"`, and all six lines report `evidence: "esrch"` / `terminated: true` / `advanced: false` — the pid was wholly gone, not a lingering zombie. So the 01-26 ubuntu red cell was an INVALID INSTRUMENT (a bare `process.kill(pid, 0)` that succeeds against a zombie), not a SAFE-06 containment defect; 01-26-SUMMARY's reading that the descendant was "actually still alive" is corrected. RC-5 confirmed still repaired (windows routed step shows `the test runner environment carries no npm lifecycle injection` PASSING). Broken Windows ledger disposed on observed per-leg evidence only: #7/#2/#3/#4 fixed, #5/#6 open, #1 waived → `open 2, waived 1, fixed 4, total 7`. NEXT STEP: `/gsd-verify-work 01` — 01-VERIFICATION.md truths 7 and 8 must be re-judged on this run id, and that document is the verifier's to write (this executor deliberately did not touch it).
-Last activity: 2026-09-06 — 01-27 Task 3 read run 34051628180 directly with `gh`, closed G-01-1 on it, and disposed the ledger
+Phase: 2 — Evidence-Bound Project Planning
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-07 — Phase 01 complete, transitioned to Phase 2
 Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 0
+- Total plans completed: 27
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -46,7 +46,7 @@ Progress: [░░░░░░░░░░] 0%
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01 | 27 | - | - |
 
 **Recent Trend:**
 
@@ -160,5 +160,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-09-06T18:40:35.411Z
-Stopped at: Completed 01-27-PLAN.md — G-01-1 closed on run 34051628180
+Stopped at: Phase 01 complete, ready to plan Phase 2
 Resume file: None

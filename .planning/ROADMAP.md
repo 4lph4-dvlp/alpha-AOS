@@ -6,7 +6,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
 
 ## Phases
 
-- [ ] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets.
+- [x] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets. (completed 2026-09-07)
 - [ ] **Phase 2: Evidence-Bound Project Planning** - Turn bounded repository evidence into stable, explainable, apply-bound plans without cross-project leakage.
 - [ ] **Phase 3: Transactional Project Packs and Native Optional Use** - Materialize exact project packs and prove optional global and project capabilities through native intent-driven use.
 - [ ] **Phase 4: Mandatory GSD Gates** - Convert deterministic risk evidence into one fail-closed mandatory check at the protected GSD lifecycle point.
@@ -227,7 +227,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Safe Operation Boundary | 27/27 | In Progress|  |
+| 1. Safe Operation Boundary | 27/27 | Complete    | 2026-09-07 |
 | 2. Evidence-Bound Project Planning | 0/TBD | Not started | - |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |

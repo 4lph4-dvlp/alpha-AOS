@@ -1,9 +1,30 @@
 ---
-status: investigating
+status: resolved
 trigger: "CI run 33937610401 ubuntu-latest: `npm test` green (190/0) but 'Safety boundary suites' step (explicit 10-file `node --test`) fails 4 tests. Failures 1-3 in preview.test.ts (home sentinel digest mismatch, concurrent previews, wrapper touched home surface), failure 4 in protocol-session.test.ts (descendant process left running)."
 created: 2026-09-05
-updated: 2026-09-05
+updated: 2026-09-07
 ---
+
+## Resolution (2026-09-07)
+
+status: resolved — 이 세션의 모든 가설이 처분됐다. 근거는 UAT 라운드 2 (01-UAT.md) 와
+01-VERIFICATION.md (2026-09-07) 다.
+
+- RC-1 (path-boundary 비대칭 정규화) — 수리됨. 01-19..01-23.
+- RC-2 (macOS 환경변수 floor 누락) — 수리됨.
+- RC-3 (install 프리뷰가 npm root --global 을 spawn 해 홈에 로그 기록) — 수리됨.
+- RC-4 (자손 종료 판정이 단발 kill(pid,0)) — 계측기 교체됨 (01-27). 제품은 원래 정상이었음이
+  이번 세션에 독립 확인됐다: WSL Arch (Linux 6.18) 에서 저장소 헬퍼를 쓰지 않는 프로브로
+  runProcess 를 40회 호출하고 /proc/<pid>/stat 으로 손자 상태를 직접 읽은 결과
+  40/40 proc=GONE, treeTermination=group.
+- RC-5 (npm 라이프사이클 주입으로 인한 진입점 비대칭) — 근원 수리됨 (01-24).
+
+종결 근거: CI run 34051628180 (head 25b5434, conclusion: success) 에서 ubuntu/macos/windows
+세 leg 이 하나의 run id 안에서 네 스텝 전부 초록. gap G-01-1 은 resolved.
+
+미규명으로 이월된 것: 좀비 창(zombie window) 가설은 WSL 에서 재현되지 않았다(0/40). 옛
+계측기가 오판할 수 있었다는 것은 코드상 자명하지만 ubuntu CI 의 단발 RED 의 실제 원인은
+증명되지 않았다. Broken Windows 원장이 아니라 여기에 미재현으로 남긴다.
 
 ## Current Focus
 

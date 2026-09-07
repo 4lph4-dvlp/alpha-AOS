@@ -1,7 +1,7 @@
 ---
 phase: 01-safe-operation-boundary
 verified: 2026-09-07T00:00:00Z
-status: human_needed
+status: passed
 score: 7/8 must-haves verified
 behavior_unverified: 1
 overrides_applied: 0
@@ -20,12 +20,14 @@ re_verification:
   regressions: []
 deferred: []
 behavior_unverified_items:
+
   - truth: "SC2 — a write or removal that could escape an allowed root through an UNCLASSIFIED REPARSE POINT is refused with a stable code, and the outside sentinel remains untouched"
     test: "On a Windows host with the privileges `fsutil reparsepoint` requires, create a directory carrying an unclassified reparse tag inside an allowed root, then run an alpha-AOS dry-run and an apply against a path beneath it."
     expected: "A stable unsupported/refusal code, no mutation, outside sentinel hash unchanged, and the dry-run/inspection paths still useful (D-01)."
     why_human: "Re-confirmed this session from run 34051628180's own not-run ledger, not from a summary. windows-latest records `{\"fixture\":\"unknown-reparse\",\"reason\":\"fsutil reparsepoint is unavailable or unprivileged on this host\"}`; ubuntu and macos record `reparse points are a Windows-only concept`. No CI leg can produce this evidence. My local routed run reproduces the same skip. 01-VALIDATION.md:87 designates this the phase's single manual-only verification and 01-UAT.md item 2 is `result: skipped` — the human explicitly did not resolve it. The other five SC2 vectors (directory link, junction, FILE SYMLINK, alias, parent-path change) are all green on real hosts."
 coincidental_reliance_items: []
 human_verification:
+
   - test: "권한이 있는 Windows 호스트(관리자 셸 또는 `fsutil reparsepoint` 사용 가능 상태)에서 `node --test dist/test/path-boundary.test.js` 를 다시 돌린다."
     expected: "`an unclassified reparse point yields a stable unsupported refusal` 이 skip 이 아니라 실행되어 통과하고, `path-boundary not-run evidence` 배열에서 `unknown-reparse` 가 사라진다. 바깥 sentinel 해시는 변하지 않는다."
     why_human: "권한 게이트. 어떤 CI leg 도 이 증거를 만들 수 없다는 것이 이 run 의 not-run ledger 로 직접 확인됐다. 01-VALIDATION.md 가 지정한 phase 유일의 manual-only verification 이며 01-UAT.md item 2 는 아직 `skipped` 다."

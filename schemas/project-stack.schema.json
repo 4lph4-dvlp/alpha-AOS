@@ -27,6 +27,10 @@
     "scientificResearch": {
       "type": "boolean"
     },
+    "securityReview": {
+      "description": "Opts this project in to the SECURITY_REVIEW pack. Its eight risk facts are deferred to GATE-01, so this is the pack's one operative branch in this phase.",
+      "type": "boolean"
+    },
     "isolation": {
       "type": "object",
       "required": [

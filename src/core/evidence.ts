@@ -286,7 +286,7 @@ function toPosixPath(value: string): string {
  * cannot be one. Absolute entries and entries escaping through `..` are
  * refused here rather than resolved, so nothing outside is ever joined.
  */
-function normalizeRelativePosix(value: string): string | null {
+export function normalizeRelativePosix(value: string): string | null {
   let text = value.trim();
   if (text.startsWith('"') && text.endsWith('"') && text.length >= 2) text = text.slice(1, -1);
   text = text.split("\\").join("/").trim();
@@ -1522,7 +1522,7 @@ function ingestManifest(manifest: string, text: string, index: Map<string, Decla
 
 // --- the project manifest, read once --------------------------------------
 
-const PROJECT_MANIFEST_PATH = ".alpha-aos/stack.yaml";
+export const PROJECT_MANIFEST_PATH = ".alpha-aos/stack.yaml";
 
 function undecidableReason(evidence: UndecidableEvidence): string {
   return `UNDECIDABLE: ${evidence.path} exists but could not be read as declared (errno=${evidence.errno})`;
@@ -1719,7 +1719,7 @@ function detectDirectory(context: DetectionContext, declaration: FactDeclaration
 }
 
 /** A declared key counts as opted in when it carries something, not merely a slot. */
-function isOptedIn(value: unknown): boolean {
+export function isOptedIn(value: unknown): boolean {
   if (value === undefined || value === null || value === false) return false;
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === "string") return value.length > 0;

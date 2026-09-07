@@ -54,15 +54,21 @@ test("pack selection comes only from positive repository evidence", async (conte
   );
 
   const packs = await selectedPacks(root);
-  // WEB_REACT is the one pack whose operator has an evaluator today; the
-  // remaining four operators land with plan 02-07. What must hold NOW is that
-  // nothing selects without positive evidence for it.
-  assert.deepEqual(packs, ["WEB_REACT"]);
+  // Plan 02-07 supplied the remaining four operators, so every pack this
+  // fixture carries positive evidence for now selects — and nothing else does.
+  assert.deepEqual(packs, [
+    "BROWNFIELD_INIT",
+    "CONTAINER",
+    "DB_MIGRATION",
+    "DB_POSTGRES",
+    "WEB_BASE",
+    "WEB_REACT",
+  ]);
   assert.equal(packs.includes("AGENT_RUNTIME"), false);
   assert.equal(packs.includes("SECURITY_REVIEW"), false);
 
-  // The evidence those still-unevaluated packs will read is already observed,
-  // positively and by name, which is what the retired detector could not say.
+  // Each selection rests on evidence observed positively and by name, which is
+  // what the retired detector could not say.
   const facts = await factsOf(root);
   for (const id of ["web-framework", "browser-entrypoint", "postgres-driver", "migration-directory", "existing-source"]) {
     assert.equal(facts.get(id)?.detected, true, `${id} should be positive evidence in this fixture`);

@@ -439,3 +439,30 @@ test("MCP_SERVER selects on a declared MCP SDK dependency", async (context) => {
     [["mcp-sdk-dependency", "package.json"]],
   );
 });
+
+test("the security pack is unimplemented naming GATE-01, and its manifest opt-in branch selects", async (context) => {
+  const bare = await scratchRoot(context, "security");
+  const unopted = await planProjectCapabilities({ path: bare, packageRoot: repositoryRoot });
+  const silentSecurity = unopted.evaluations.find((evaluation) => evaluation.packId === "SECURITY_REVIEW");
+
+  assert.ok(silentSecurity);
+  assert.equal(silentSecurity.status, "unimplemented");
+  assert.deepEqual(
+    silentSecurity.deferred.map((entry) => entry.factId),
+    ["auth-change", "command-execution", "payments", "public-api", "secrets", "sensitive-data", "trust-boundary", "user-input"],
+  );
+  for (const entry of silentSecurity.deferred) assert.equal(entry.deferredTo, "GATE-01");
+  assert.match(silentSecurity.explanation, /GATE-01/u);
+
+  const opted = await scratchRoot(context, "security-optin");
+  await mkdir(join(opted, ".alpha-aos"), { recursive: true });
+  await writeFile(join(opted, ".alpha-aos", "stack.yaml"), "schemaVersion: 1\nsecurityReview: true\n", "utf8");
+  const plan = await planProjectCapabilities({ path: opted, packageRoot: repositoryRoot });
+
+  assert.ok(plan.selected.includes("SECURITY_REVIEW"), `not selected: ${plan.selected.join(", ")}`);
+  const selectedSecurity = plan.evaluations.find((evaluation) => evaluation.packId === "SECURITY_REVIEW");
+  assert.deepEqual(
+    selectedSecurity?.satisfied.map((leaf) => leaf.factId),
+    ["manifest:securityReview"],
+  );
+});

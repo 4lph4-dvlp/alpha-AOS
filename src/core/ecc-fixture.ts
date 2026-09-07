@@ -23,13 +23,24 @@ import {
 const selectedSkills = ["unified-memory", "documentation-lookup", "deep-research"] as const;
 export type SelectedEccSkill = typeof selectedSkills[number];
 
+/**
+ * A skill this fixture may be pointed at, which is a strictly wider set than
+ * `SelectedEccSkill`.
+ *
+ * `selectedSkills` — here and in `ecc-skills.ts` — is the GLOBAL sync list:
+ * every id in it is installed into a user's global skill root. Pack skills are
+ * project-scoped and must never join it, so they travel under their own name
+ * and the two sets stay separable at every call site.
+ */
+export type PackSkillId = string;
+
 export interface EccFixtureResult {
   harness: HarnessId;
   version: string;
   integrity: string;
   operationCount: number;
-  sourceHashes: Record<SelectedEccSkill, string>;
-  targetHashes: Record<SelectedEccSkill, string>;
+  sourceHashes: Record<PackSkillId, string>;
+  targetHashes: Record<PackSkillId, string>;
   targetRoot: string;
   retainedFixture: string | null;
 }
@@ -58,7 +69,25 @@ export function eccSkillRoot(harness: HarnessId, syntheticHome: string): string 
   }
 }
 
-export function renderEccSkill(skill: SelectedEccSkill, source: string, harness?: HarnessId): string {
+/**
+ * The one place a fixture reads a skill's bytes.
+ *
+ * A named skill with no `SKILL.md` is a loud failure naming that skill: D-08's
+ * guarantee is that a pack is never planned sourceless, so a silent skip would
+ * defeat it. The containment check matters because skill ids now arrive from
+ * `catalog/packs/*.yaml` rather than from a three-element tuple in this file.
+ */
+export async function readEccSkillSource(sourceRoot: string, skill: PackSkillId): Promise<string> {
+  const file = join(sourceRoot, skill, "SKILL.md");
+  if (!inside(sourceRoot, file)) throw new Error(`Unsafe ECC skill id: ${skill}`);
+  try {
+    return await readFile(file, "utf8");
+  } catch (cause) {
+    throw new Error(`ECC package has no SKILL.md for ${skill} (${file})`, { cause });
+  }
+}
+
+export function renderEccSkill(skill: PackSkillId, source: string, harness?: HarnessId): string {
   if (skill === "documentation-lookup" && harness === "antigravity") {
     const description = "description: Use up-to-date library and framework docs via Context7 MCP instead of training data. In Antigravity, use the surface's native Context7 MCP route and never substitute native web search. Activates for setup questions, API references, code examples, or named frameworks.";
     let rendered = source.replace(/^description:.*$/mu, description);
@@ -140,7 +169,7 @@ export interface EccFixtureOperationPlan {
   targetRoot: string;
   sourceRoot: string;
   package: { name: string; version: string; integrity: string };
-  skills: readonly SelectedEccSkill[];
+  skills: readonly PackSkillId[];
   processes: readonly EccFixtureProcessStep[];
   environmentNames: readonly string[];
   proofs: OperationPathProofSet;
@@ -157,8 +186,17 @@ export async function createEccFixtureOperationPlan(options: {
   harness: HarnessId;
   ecc: LockedPackage & { skills: string[] };
   fixtureRoot?: string;
+  /**
+   * The skills to acquire. Defaults to the three global skills, so an
+   * unparameterised call plans exactly what it always did. A caller that names
+   * pack skills gets them from this same integrity-checked path without any of
+   * them reaching the global sync list.
+   */
+  skills?: readonly PackSkillId[];
 }): Promise<EccFixtureOperationPlan> {
-  if (selectedSkills.some((skill) => !options.ecc.skills.includes(skill))) throw new Error("ECC lock does not contain all selected logical skills");
+  const skills: readonly PackSkillId[] = options.skills ?? selectedSkills;
+  const undeclared = skills.filter((skill) => !options.ecc.skills.includes(skill));
+  if (undeclared.length > 0) throw new Error(`ECC lock does not contain all selected logical skills: ${undeclared.join(", ")}`);
   const fixtureRoot = resolve(options.fixtureRoot ?? plannedFixtureRoot(`alpha-aos-ecc-${options.harness}`));
   const packRoot = join(fixtureRoot, "pack");
   const extractionRoot = join(fixtureRoot, "extract");
@@ -214,7 +252,7 @@ export async function createEccFixtureOperationPlan(options: {
     { role: "temp", path: targetRoot },
     { role: "package-root", path: join(extractionRoot, "node_modules", "ecc-universal") },
     { role: "source", path: sourceRoot },
-    ...selectedSkills.map((skill): OperationPathInput => ({ role: "target", path: join(targetRoot, skill, "SKILL.md") })),
+    ...skills.map((skill): OperationPathInput => ({ role: "target", path: join(targetRoot, skill, "SKILL.md") })),
   ];
   const proofs = await proveOperationPaths({
     inputs,
@@ -231,7 +269,7 @@ export async function createEccFixtureOperationPlan(options: {
     targetRoot,
     sourceRoot,
     package: { name: options.ecc.package, version: options.ecc.version, integrity: options.ecc.integrity },
-    skills: selectedSkills,
+    skills,
     processes,
     environmentNames: declaredEnvironmentNames(environment),
     boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
@@ -247,7 +285,7 @@ export async function createEccFixtureOperationPlan(options: {
     targetRoot,
     sourceRoot,
     package: { name: options.ecc.package, version: options.ecc.version, integrity: options.ecc.integrity },
-    skills: selectedSkills,
+    skills,
     processes,
     environmentNames: declaredEnvironmentNames(environment),
     proofs,
@@ -263,12 +301,17 @@ export async function runEccFixture(options: {
   plan?: EccFixtureOperationPlan;
   /** The operation writer; the fixture refuses to start before it exists. */
   session?: MutationSession;
+  /** Defaults to the three global skills; see createEccFixtureOperationPlan. */
+  skills?: readonly PackSkillId[];
 }): Promise<EccFixtureResult> {
   const reviewed = options.plan ?? await createEccFixtureOperationPlan(options);
+  // The re-plan derives its skill list from the REVIEWED plan, so a caller
+  // cannot hand apply a different list than the one that was reviewed.
   assertPlanUnchanged(reviewed, await createEccFixtureOperationPlan({
     harness: reviewed.harness,
     ecc: options.ecc,
     fixtureRoot: reviewed.fixtureRoot,
+    skills: reviewed.skills,
   }));
 
   const fixtureRoot = reviewed.fixtureRoot;
@@ -299,10 +342,10 @@ export async function runEccFixture(options: {
     const installed = await runProcess({ ...extractStep.spec, args: extractArguments, environment: nodeRuntimeEnvironment() });
     if (installed.code !== "ok") throw new Error(describeProcessFailure("ECC tarball extraction", installed));
     await assertUnchangedSincePlan(reviewed, plannedProof(reviewed, "source", sourceRoot));
-    const sourceHashes = {} as Record<SelectedEccSkill, string>;
-    const targetHashes = {} as Record<SelectedEccSkill, string>;
-    for (const skill of selectedSkills) {
-      const source = await readFile(join(sourceRoot, skill, "SKILL.md"), "utf8");
+    const sourceHashes: Record<PackSkillId, string> = {};
+    const targetHashes: Record<PackSkillId, string> = {};
+    for (const skill of reviewed.skills) {
+      const source = await readEccSkillSource(sourceRoot, skill);
       const rendered = renderEccSkill(skill, source, reviewed.harness);
       sourceHashes[skill] = sha256(source);
       targetHashes[skill] = sha256(rendered);
@@ -319,7 +362,7 @@ export async function runEccFixture(options: {
       harness: reviewed.harness,
       version: options.ecc.version,
       integrity: pack.integrity,
-      operationCount: selectedSkills.length,
+      operationCount: reviewed.skills.length,
       sourceHashes,
       targetHashes,
       targetRoot,

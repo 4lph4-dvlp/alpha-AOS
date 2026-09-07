@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
-status: executing
-stopped_at: Completed 02-09-PLAN.md
-last_updated: "2026-09-07T20:02:49.074Z"
+status: verifying
+stopped_at: Completed 02-10-PLAN.md
+last_updated: "2026-09-07T20:59:06.399Z"
 last_activity: 2026-09-07
 last_activity_desc: Phase 02 execution started
-state_head: bb6ba6739790d4cedca66f617a279f8027f19890
+state_head: 56b4c7c585fd04b2a529b1ddb2978593773fe4d5
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 37
-  completed_plans: 36
+  completed_plans: 37
   percent: 14
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
 Plan: 10 of 10
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-07 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
 
@@ -77,6 +77,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P07 | 52 min | 3 tasks | 11 files |
 | Phase 02 P08 | 28 min | 3 tasks | 5 files |
 | Phase 02 P09 | 40 min | 3 tasks | 6 files |
+| Phase 02 P10 | 118 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -129,6 +130,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: [02-09]: manifestDigest is a named plan field rather than being folded into inputsDigest, so DETC-05's manifest noun is nameable and not merely detectable. — The plan assumed 02-08 already carried a manifest content hash. It did not: readManifestEvidence records .alpha-aos/stack.yaml into the read ledger, so the hash sat inside the aggregate inputsDigest. That refuses an apply but cannot say the manifest is what moved, which makes D-13's manifest-changed classification an unreachable branch - a manifest edit that moves the selection reads as selection-changed and an inert one reads as inputs-changed.
 - [Phase 02]: [02-09]: approve journals into the managed user state root while .alpha-aos stays the only allowed WRITE root, and stateRoot is a required option rather than defaulting to userStateRoot(). — The journal and snapshots are what make the safe inverse real, and putting them where alpha-aos rollback already looks means a project approval is undoable by the command that already undoes managed writes. Requiring stateRoot rather than defaulting it stops a module-level test taking the exclusive writer lock on the developer's real ~/.alpha-aos - the ambient-write class 01-21 spent a plan closing, arriving through a convenience default.
 - [Phase 02]: [02-09]: Drift classification consumes the reviewed plan VALUE (explicit reviewedPlan, else .alpha-aos/plan.json when that artifact IS the reviewed plan); with neither available the refusal states the classification is unavailable rather than inferring one. — A digest cannot be un-hashed. D-12 plus SAFE-01 mean the CLI's two invocations share only a digest, because the preview persists nothing. Inferring which noun moved from a digest alone would be a guess presented as a finding, so the CLI branch carries both digests and the runnable re-approval command and says what it cannot name. Recorded as an open Broken Windows unmet-truth entry.
+- [Phase 02]: 02-10: STALE vs CHANGED is discriminated by whether a specific approved fact can be NAMED as having flipped, not by an evidence-digest comparison — Removing a dependency always moves evidenceDigest, so a digest comparison cannot tell a stale pack from an artifact claiming something the evidence never supported; naming the flipped fact can. The artifact-level disagreement is reported separately as artifactState plus unsupportedClaims.
+- [Phase 02]: 02-10: the branch and commit are recorded BESIDE the plan in .alpha-aos/plan.json, so digestablePlan cannot reach them — digestablePlan is a literal listing exactly what a reviewer reviewed. Putting gitContext at the artifact top level makes exclusion from every digest structural rather than a rule someone must remember; a test commits an irrelevant change and observes inputsDigest, evidenceDigest and planDigest all unchanged.
+- [Phase 02]: 02-10: a removal is approved through the EXISTING approve verb with the removal digest; project status has no apply flag — D-14 requires that stale evidence never trigger automatic deletion. Reusing the approve verb and the same digest contract keeps exactly one writer in the phase and one command shape, instead of a second drift mechanism that would drift from the first.
+- [Phase 02]: 02-10: only a STALE pack is offered a removal plan; DRIFTED, CONFLICT, CHANGED and UNDECIDABLE never are — Only STALE means the evidence that selected the pack is gone. An UNDECIDABLE evidence file is a read failure, not an absence, so it must never motivate a deletion - the same resolution 02-06 applied one layer down.
 
 ### Pending Todos
 
@@ -183,6 +188,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-07T20:02:08.606Z
-Stopped at: Completed 02-09-PLAN.md
+Last session: 2026-09-07T20:58:23.284Z
+Stopped at: Completed 02-10-PLAN.md
 Resume file: None

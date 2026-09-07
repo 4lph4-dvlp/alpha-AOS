@@ -371,3 +371,12 @@ None — no external service configuration required.
 ---
 *Phase: 02-evidence-bound-project-planning*
 *Completed: 2026-09-08*
+
+## Self-Check: PASSED
+
+Every file named in `key-files.modified` exists on disk; all seven commits
+(`3af11d2`, `bd1e69e`, `41e737f`, `b347140`, `84d06e6`, `fcccbe8`, `56b4c7c`)
+are reachable from `git log --all`; and every export this plan claims —
+`reconcileProjectState`, `readPackReceiptsStrict`, `readGitContext`,
+`describeGitDifference`, `planPackRemoval`, `applyPackRemoval`, `PackState`,
+`formatProjectStatus` — is present in the source.

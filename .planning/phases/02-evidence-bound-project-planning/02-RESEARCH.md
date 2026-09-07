@@ -816,27 +816,34 @@ Note `project plan` must have **no** `--apply` at all (D-12: it persists nothing
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does `alpha-aos project plan` at a repository root evaluate every sub-project eagerly?**
+All four questions were settled during phase planning on 2026-09-07 and each recommendation was adopted
+by a named plan. Nothing below is still open; no question was deleted.
+
+1. **Does `alpha-aos project plan` at a repository root evaluate every sub-project eagerly?** — **(RESOLVED — adopted in `02-05`, Task 3)**
    - What we know: D-01 says running from a repository root "lists the sub-projects found and their per-project pack decisions."
    - What's unclear: In a 40-package monorepo this means 40 full evidence collections on every invocation.
    - Recommendation: Evaluate all, but share one `inputsDigest` cache keyed by file path across sub-projects — the same `package.json` at the root is read once. Add a `--project <rel>` fast path that skips sibling evaluation. Measure before optimising further.
+   - **Resolution:** recommendation adopted verbatim. `02-05` Task 3 evaluates every discovered sub-project, shares ONE read cache keyed by canonical path so a root `package.json` read by three members is read once, enforces `MAX_SUB_PROJECTS` (recommended 64) so a pathological monorepo reports a bound rather than running unbounded, and makes `--project <rel>` the fast path that skips sibling evaluation. The plan states explicitly that no further optimisation happens without a measurement.
 
-2. **Does the unreadable-evidence case report `STALE` or `UNDECIDABLE`?** (CONTEXT flags this as Claude's discretion.)
+2. **Does the unreadable-evidence case report `STALE` or `UNDECIDABLE`?** (CONTEXT flags this as Claude's discretion.) — **(RESOLVED — `UNDECIDABLE`, not `STALE`; adopted in `02-06` and `02-10`)**
    - What we know: Phase 1 D-01 fails closed when safety is unprovable; 01-19 established that "not existing and not being readable are different facts — ENOENT continues the ancestor walk, every other errno becomes an unprovable-filesystem refusal carrying a reason" `[VERIFIED: STATE.md 01-19 decision, verbatim]`.
    - What's unclear: `STALE` is a report, not a mutation, which weakens the fail-closed argument.
    - Recommendation: `UNDECIDABLE`, with the errno and path in the reason. The 01-19 precedent is directly on point and already implemented one layer down; reusing its distinction costs nothing and keeps one story about unreadable paths. `STALE` should mean "the evidence is gone", and an EACCES does not establish that.
+   - **Resolution:** recommendation adopted. The answer is `UNDECIDABLE` at BOTH layers, and it is a `must_haves` truth in each rather than only prose: `02-06` — "An evidence file that exists but cannot be read reports `UNDECIDABLE` carrying the errno and path, never `STALE` and never a silent absence"; `02-10` — "An installed pack whose evidence file exists but cannot be read reports `UNDECIDABLE` carrying the errno and path, never `STALE`." `02-10` additionally makes it a prohibition, because an unreadable file wrongly classified `STALE` would motivate a removal plan.
 
-3. **How narrow should `deploy-workflow`'s content match be?**
+3. **How narrow should `deploy-workflow`'s content match be?** — **(RESOLVED — declared vocabulary in `catalog/facts.yaml`, seeded conservatively; adopted in `02-02`, Task 1)**
    - What we know: the doc requires "**실제** deploy/release/publish workflow", not just the presence of `.github/workflows/`.
    - What's unclear: whether matching job names, `on: release`, or specific action names is the right vocabulary.
    - Recommendation: declare the vocabulary in `catalog/facts.yaml` so it is reviewable and correctable without a rebuild, seed it conservatively (`on:\s+release`, `environment:`, known deploy actions), and let the near-miss line say which one was looked for. Treat a false negative as acceptable and a false positive as not.
+   - **Resolution:** recommendation adopted verbatim. `02-02` Task 1 declares `deploy-workflow` and `release-workflow` as `kind: fileContent` over `files: [.github/workflows]`, seeded conservatively with a release trigger, a declared deployment environment, and a small named set of well-known deploy action names — with the stated rule that a false negative is acceptable and a false positive is not. Every pattern lives in the repository-owned YAML and is never read from the scanned project (that is also the ReDoS boundary, `T-02-05`), so narrowing or widening it later needs no rebuild.
 
-4. **Does `catalog/facts.yaml` belong in the release allowlist?**
+4. **Does `catalog/facts.yaml` belong in the release allowlist?** — **(RESOLVED — yes, automatically; REL-05 recorded as a Phase 7 note in `02-04` and `02-10`)**
    - What we know: `package.json` `files` includes `"catalog/"` `[VERIFIED: package.json files array]`, so a new file under `catalog/` ships automatically.
    - What's unclear: nothing blocking, but STATE.md records an open REL-05 concern that `catalog/candidate.lock.json` is currently included by `npm pack`. Adding files under `catalog/` interacts with that.
    - Recommendation: note it for Phase 7; do not attempt the allowlist fix here.
+   - **Resolution:** recommendation adopted. `package.json` `files` already includes `"catalog/"`, so `catalog/facts.yaml` ships with `npm pack` without any allowlist edit. The interacting REL-05 concern (`catalog/candidate.lock.json` currently included by `npm pack`) is recorded as a Phase 7 note in `02-04` §Flagged planner note and again in `02-10` §Phase-close note, and no plan in this phase edits the candidate lock — `02-04` Task 2 makes that a prohibition and gates it with `git diff --stat -- catalog/candidate.lock.json`.
 
 ---
 

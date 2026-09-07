@@ -41,8 +41,14 @@ export interface CanonicalRoot {
   projectId: string;
 }
 
-function sha256(content: Uint8Array | string): string {
-  return createHash("sha256").update(content).digest("hex");
+/**
+ * Every digest input in this module is text, and the encoding is stated rather
+ * than defaulted: a relative path carrying non-ASCII characters must hash the
+ * same bytes on every host, and `update(string)` inheriting whatever the
+ * default happens to be is precisely how that stops being true.
+ */
+function sha256(content: string): string {
+  return createHash("sha256").update(content, "utf8").digest("hex");
 }
 
 /** Every ancestor of `target`, deepest first. */

@@ -27,6 +27,8 @@ import type {
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { reviewedDigest } from "../src/core/component-session.js";
+import { proveOperationPaths } from "../src/core/path-boundary.js";
+import { acquireMutationSession } from "../src/core/writer-lock.js";
 import { collectProjectEvidence, digestableEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
@@ -1880,4 +1882,278 @@ test("project approve --json carries the same decision as the text rendering", a
   assert.equal(typeof parsed.planDigest, "string", "the JSON envelope carries no plan digest field");
   assert.equal(parsed.planDigest, planDigestOf(text.stdout), "text and JSON reported different plan digests");
   assert.equal(parsed.applied, false, "a preview reported itself as applied");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-09 Task 3: D-13 — a refusal that says what changed, and re-approval
+// in place
+// ---------------------------------------------------------------------------
+//
+// The load-bearing distinction is D-13's: "a file that was read changed but the
+// pack selection is identical" reads very differently from "the selection
+// itself changed", and whether re-approval is routine depends entirely on which
+// one it is. Plan 02-08's two digests make that a comparison rather than a
+// re-derivation.
+
+interface PlanDrift {
+  readonly kind: string;
+  readonly detail: string;
+  readonly joined: readonly string[];
+  readonly left: readonly string[];
+}
+
+type ClassifyPlanDrift = (reviewed: ProjectCapabilityPlan, revalidated: ProjectCapabilityPlan) => PlanDrift;
+
+/** A react fixture that ALSO declares the MCP SDK, so MCP_SERVER selects. */
+async function reactAndSdkFixture(context: TestContext): Promise<string> {
+  const root = await reactFixture(context);
+  await writeFile(join(root, "package.json"), REACT_PLUS_SDK, "utf8");
+  return root;
+}
+
+test("a comment appended to a read file yields inputs-changed, and says the selection is unchanged", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  // A key no fact reads: the bytes of a read file move, no observation does.
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "plan-fixture", private: true, description: "an inert edit", dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  const after = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.notEqual(after.inputsDigest, plan.inputsDigest, "the fixture edit moved no input digest");
+  assert.equal(after.evidenceDigest, plan.evidenceDigest, "the fixture edit moved an observation, so it is not the inputs-only case");
+
+  const error = await expectRefusal(
+    () =>
+      approveProjectPlan({
+        path: root,
+        packageRoot: repositoryRoot,
+        stateRoot,
+        expectedDigest: plan.planDigest,
+        reviewedPlan: plan,
+      }),
+    "an approve after an inert edit to a read file",
+  );
+
+  assert.match(error.message, /inputs-changed/u);
+  assert.match(error.message, /the pack selection is unchanged/u);
+});
+
+test("a dependency that selects a new pack yields selection-changed and names the pack that joined", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  await writeFile(join(root, "package.json"), REACT_PLUS_SDK, "utf8");
+  const after = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const joined = after.selected.filter((packId) => !plan.selected.includes(packId));
+  assert.ok(joined.length > 0, "the fixture dependency selected no new pack");
+
+  const error = await expectRefusal(
+    () =>
+      approveProjectPlan({
+        path: root,
+        packageRoot: repositoryRoot,
+        stateRoot,
+        expectedDigest: plan.planDigest,
+        reviewedPlan: plan,
+      }),
+    "an approve after a pack joined the selection",
+  );
+
+  assert.match(error.message, /selection-changed/u);
+  for (const packId of joined) {
+    assert.ok(error.message.includes(packId), `the refusal did not name the pack that joined (${packId}): ${error.message}`);
+  }
+});
+
+test("a dependency removed that deselects a pack yields selection-changed and names the pack that left", async (context) => {
+  const root = await reactAndSdkFixture(context);
+  const stateRoot = await scratchRoot(context, "approve-state");
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(plan.selected.includes("WEB_REACT"), `the fixture did not select WEB_REACT: ${plan.selected.join(", ")}`);
+
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "plan-fixture", private: true, dependencies: { "@modelcontextprotocol/sdk": "^1.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+
+  const error = await expectRefusal(
+    () =>
+      approveProjectPlan({
+        path: root,
+        packageRoot: repositoryRoot,
+        stateRoot,
+        expectedDigest: plan.planDigest,
+        reviewedPlan: plan,
+      }),
+    "an approve after a pack left the selection",
+  );
+
+  assert.match(error.message, /selection-changed/u);
+  assert.ok(error.message.includes("WEB_REACT"), `the refusal did not name the pack that left: ${error.message}`);
+});
+
+test("target-bytes, lock, manifest, adapter-support and inputs changes each get their own classification", async (context) => {
+  const classifyPlanDrift = await planExport<ClassifyPlanDrift>("classifyPlanDrift");
+  const root = await reactFixture(context);
+  const reviewed = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const cases: ReadonlyArray<{ kind: string; mutate: (plan: ProjectCapabilityPlan) => void }> = [
+    {
+      kind: "selection-changed",
+      mutate: (plan) => {
+        plan.selected = [...plan.selected, "MCP_SERVER"].sort();
+      },
+    },
+    {
+      kind: "lock-changed",
+      mutate: (plan) => {
+        const entry = plan.source[0];
+        assert.ok(entry, "the fixture plan carries no pack source");
+        entry.sourceSha256 = "d".repeat(64);
+      },
+    },
+    {
+      kind: "target-changed",
+      mutate: (plan) => {
+        const entry = plan.targetPreState[0];
+        assert.ok(entry, "the fixture plan planned no target");
+        entry.currentHash = "c".repeat(64);
+        entry.exists = true;
+      },
+    },
+    {
+      kind: "adapter-changed",
+      mutate: (plan) => {
+        const entry = plan.adapterSupportEvidence[0];
+        assert.ok(entry, "the fixture plan classified no harness");
+        const flipped = entry.support === "supported" ? "unsupported" : "supported";
+        entry.support = flipped;
+        plan.adapterSupport[entry.harness] = flipped;
+      },
+    },
+    {
+      kind: "manifest-changed",
+      mutate: (plan) => {
+        plan.manifestDigest = "e".repeat(64);
+      },
+    },
+    {
+      kind: "inputs-changed",
+      mutate: (plan) => {
+        plan.inputsDigest = "b".repeat(64);
+      },
+    },
+  ];
+
+  const kinds = new Set(cases.map((entry) => entry.kind));
+  assert.equal(kinds.size, cases.length, "two cases claim the same classification, so the table proves less than it states");
+
+  for (const entry of cases) {
+    const revalidated = structuredClone(reviewed);
+    entry.mutate(revalidated);
+    const drift = classifyPlanDrift(reviewed, revalidated);
+    assert.equal(drift.kind, entry.kind, `mutating for ${entry.kind} classified as ${drift.kind}: ${drift.detail}`);
+    assert.ok(drift.detail.length > 0, `${entry.kind} produced an empty detail`);
+  }
+});
+
+test("a refusal carries a runnable re-approval command, and running it succeeds", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const managed = join(stateRoot, "managed");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  await writeFile(join(root, "package.json"), REACT_PLUS_SDK, "utf8");
+  const refused = await runCli(["project", "approve", root, "--plan-digest", plan.planDigest, "--apply"], {
+    ALPHA_AOS_STATE_DIR: managed,
+  });
+  assert.notEqual(refused.status, 0, "a stale digest was accepted");
+
+  const command = /Re-approve in place with: alpha-aos (.+)$/mu.exec(refused.stderr);
+  assert.ok(command, `the refusal carried no re-approval command:\n${refused.stderr}`);
+  const argv = (command[1] ?? "").trim().split(/\s+/u);
+  const observed = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(argv.includes(observed.planDigest), `the re-approval command does not carry the newly computed digest: ${argv.join(" ")}`);
+
+  const retried = await runCli(argv, { ALPHA_AOS_STATE_DIR: managed });
+  assert.equal(retried.status, 0, `the printed re-approval command did not succeed:\n${retried.stderr}`);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), true, "the re-approval wrote no artifact");
+});
+
+test("an approve refuses while another writer holds the state root, and writes nothing", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const managed = join(stateRoot, "managed");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const artifactRoot = join(plan.scope.canonicalRoot, ".alpha-aos");
+
+  const proofs = await proveOperationPaths({
+    inputs: [
+      { role: "target", path: join(artifactRoot, "plan.json") },
+      { role: "state", path: managed },
+      { role: "journal", path: join(managed, "journal") },
+      { role: "snapshot", path: join(managed, "snapshots") },
+    ],
+    allowedRoots: [artifactRoot, managed],
+    requiredRoles: ["target", "state", "journal", "snapshot"],
+  });
+  assert.equal(proofs.proven, true, `${proofs.code} — ${proofs.detail ?? "no detail"}`);
+  const holder = await acquireMutationSession({ stateRoot: managed, proofs, planDigest: plan.planDigest });
+
+  try {
+    const result = await runCli(["project", "approve", root, "--plan-digest", plan.planDigest, "--apply"], {
+      ALPHA_AOS_STATE_DIR: managed,
+    });
+    assert.notEqual(result.status, 0, "an approve wrote while another writer held the state root");
+    const diagnostics = result.stderr.toLowerCase();
+    for (const field of ["operationid", "pid", "startedat", "retry"]) {
+      assert.ok(diagnostics.includes(field), `the lock refusal did not name ${field}:\n${result.stderr}`);
+    }
+    assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a lock-refused approve still wrote the artifact");
+  } finally {
+    await holder.close();
+  }
+});
+
+test("two concurrent project approve --apply runs never both write, and leave no partial artifact", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const managed = join(stateRoot, "managed");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const argv = ["project", "approve", root, "--plan-digest", plan.planDigest, "--apply", "--json"];
+
+  const [left, right] = await Promise.all([
+    runCli(argv, { ALPHA_AOS_STATE_DIR: managed }),
+    runCli(argv, { ALPHA_AOS_STATE_DIR: managed }),
+  ]);
+  const runs = [left, right];
+
+  const written = runs.filter((run) => run.status === 0 && run.stdout.includes('"status": "written"'));
+  assert.equal(written.length, 1, `expected exactly one writer, got ${written.length}:\n${runs.map((run) => `${run.status}|${run.stdout.slice(0, 200)}|${run.stderr.slice(0, 200)}`).join("\n")}`);
+
+  const loser = runs.find((run) => !written.includes(run));
+  assert.ok(loser, "no second run was observed");
+  if (loser.status !== 0) {
+    assert.match(
+      loser.stderr,
+      /Another writer holds this state root/u,
+      `the loser refused for a reason that is not the writer lock:\n${loser.stderr}`,
+    );
+  } else {
+    // The only other legal outcome: the loser ran after the winner finished
+    // and found the artifact already current. It must never write a second one.
+    assert.match(loser.stdout, /"status": "already-current"/u, `the loser neither refused nor found the plan current:\n${loser.stdout}`);
+  }
+
+  // Absent or complete and parseable — never a truncated partial write.
+  const artifactPath = join(plan.scope.canonicalRoot, ".alpha-aos", "plan.json");
+  if (existsSync(artifactPath)) {
+    const artifact = await readArtifact(artifactPath);
+    assert.equal(artifact.approvedDigest, plan.planDigest, "the artifact on disk is not the plan that was approved");
+    assert.equal(asRecord(artifact.plan).planDigest, plan.planDigest);
+  }
 });

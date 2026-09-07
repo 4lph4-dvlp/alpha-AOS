@@ -1,8 +1,16 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { DetectorKind, FactVocabulary, PackCatalog, PackDeclaration } from "../types.js";
+import type { DetectorKind, EvidenceNode, FactVocabulary, PackCatalog, PackDeclaration } from "../types.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
-import { createMigrationPlan, validateManagedDocument, type ValidationIssue } from "./validation.js";
+import {
+  createMigrationPlan,
+  validateManagedDocument,
+  type ValidationIssue,
+  type ValidationResult,
+} from "./validation.js";
+
+/** Mirrors ISSUE_CAP in validation.ts: a refusal is bounded, never a flood. */
+const ISSUE_CAP = 50;
 
 let packCatalogSchema: Record<string, unknown> | null = null;
 let factVocabularySchema: Record<string, unknown> | null = null;
@@ -85,18 +93,19 @@ export async function loadPackCatalogStrict(
   }
 
   packs.sort(byPackId);
-  return { value: { schemaVersion, packs }, extensions };
-}
+  const merged: PackCatalog = { schemaVersion, packs };
 
-/**
- * RED scaffold. GREEN runs the post-merge domain pass: duplicate pack ids,
- * duplicate fact ids, and predicate leaves naming a fact the vocabulary does
- * not declare.
- */
-export function packCatalogInvariants(merged: PackCatalog, vocabulary: FactVocabulary): ValidationIssue[] {
-  void merged;
-  void vocabulary;
-  return [];
+  // The invariant pass runs over the MERGED value, so it cannot be handed to
+  // validateManagedDocument as a per-file `domain` callback — a duplicate pack
+  // id spanning two files is invisible to either file on its own.
+  const vocabulary = await loadFactVocabularyStrict(root);
+  const issues = packCatalogInvariants(merged, vocabulary.value);
+  if (issues.length > 0) {
+    const result = invariantResult(issues);
+    throw new ManagedDocumentError("Pack catalog", result, createMigrationPlan(result));
+  }
+
+  return { value: merged, extensions };
 }
 
 /**
@@ -158,4 +167,110 @@ export async function loadFactVocabularyStrict(root: string): Promise<StrictLoad
     throw new ManagedDocumentError("Fact vocabulary", result, createMigrationPlan(result));
   }
   return { value: result.value, extensions: result.extensions };
+}
+
+/**
+ * Every fact id a predicate names, each with the pointer that names it.
+ *
+ * `anyFiles` and `anyDependencies` carry inline literals and `manifestOptIn`
+ * names a manifest key: none of the three is a fact id, so none is subject to
+ * the undeclared-fact refusal.
+ */
+function collectFactLeaves(
+  node: EvidenceNode,
+  pointer: string,
+  into: Array<{ id: string; pointer: string }>,
+): void {
+  for (const operator of ["all", "any"] as const) {
+    const items = node[operator];
+    if (items === undefined) continue;
+    for (const [index, item] of items.entries()) {
+      const at = `${pointer}/${operator}/${index}`;
+      if (typeof item === "string") into.push({ id: item, pointer: at });
+      else collectFactLeaves(item, at, into);
+    }
+  }
+}
+
+/**
+ * Deterministic order and a hard cap, mirroring `finalizeIssues` in
+ * `validation.ts` — that one is module-private, and a hostile catalog must not
+ * be able to flood output through this route either.
+ */
+function orderIssues(issues: ValidationIssue[]): { issues: ValidationIssue[]; truncated: boolean } {
+  const sorted = [...issues].sort(
+    (left, right) =>
+      left.documentPath.localeCompare(right.documentPath) ||
+      left.code.localeCompare(right.code) ||
+      left.expected.localeCompare(right.expected),
+  );
+  if (sorted.length <= ISSUE_CAP) return { issues: sorted, truncated: false };
+  return { issues: sorted.slice(0, ISSUE_CAP), truncated: true };
+}
+
+/** The `ValidationResult` shape `ManagedDocumentError` reads, for a post-merge refusal. */
+function invariantResult(issues: ValidationIssue[]): ValidationResult<PackCatalog> {
+  const finalized = orderIssues(issues);
+  return {
+    ok: false,
+    kind: "pack-catalog",
+    format: "yaml",
+    schemaVersion: 1,
+    status: "invalid",
+    value: null,
+    readOnlyValue: null,
+    extensions: {},
+    typedExtensions: {},
+    issues: finalized.issues,
+    issuesTruncated: finalized.truncated,
+  };
+}
+
+/**
+ * Domain invariants over the merged catalog and the vocabulary it is read
+ * against. Three refusals a schema cannot express:
+ *
+ * - `domain.duplicate-pack-id` — one id declared by two files. Last-wins would
+ *   turn an ambiguous catalog into a confident answer.
+ * - `domain.duplicate-fact-id` — one fact declared twice, via the same
+ *   invariant `loadFactVocabularyStrict` applies, so a vocabulary reaching
+ *   this pass from anywhere else is held to the same rule.
+ * - `domain.undeclared-fact` — a leaf naming a fact `catalog/facts.yaml` does
+ *   not declare. Treating it as a false leaf is the obvious implementation and
+ *   is wrong: a pack that can never select is indistinguishable from a pack
+ *   whose evidence is genuinely absent, which is the exact failure DETC-03
+ *   exists to prevent. The refusal is at LOAD.
+ *
+ * No issue carries the offending value — a scanned document may hold a secret,
+ * so only `string(length=N)` is reported.
+ */
+export function packCatalogInvariants(merged: PackCatalog, vocabulary: FactVocabulary): ValidationIssue[] {
+  const issues: ValidationIssue[] = [...factVocabularyInvariants(vocabulary)];
+  const declared = new Set(vocabulary.facts.map((fact) => fact.id));
+  const seen = new Set<string>();
+
+  for (const [index, pack] of merged.packs.entries()) {
+    if (seen.has(pack.id)) {
+      issues.push({
+        code: "domain.duplicate-pack-id",
+        documentPath: `/packs/${index}`,
+        expected: "each pack id to appear once across catalog/packs/*.yaml",
+        actualShape: `string(length=${pack.id.length})`,
+      });
+    }
+    seen.add(pack.id);
+
+    const leaves: Array<{ id: string; pointer: string }> = [];
+    collectFactLeaves(pack.evidence, `/packs/${index}/evidence`, leaves);
+    for (const leaf of leaves) {
+      if (declared.has(leaf.id)) continue;
+      issues.push({
+        code: "domain.undeclared-fact",
+        documentPath: leaf.pointer,
+        expected: "every referenced fact to be declared in catalog/facts.yaml",
+        actualShape: `string(length=${leaf.id.length})`,
+      });
+    }
+  }
+  return issues;
 }

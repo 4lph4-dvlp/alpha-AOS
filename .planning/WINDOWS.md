@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
+open_count: 7
 waived_count: 1
 fixed_count: 7
-total_count: 14
-last_updated: 2026-09-07T19:59:35.274Z
+total_count: 15
+last_updated: 2026-09-07T20:55:07.812Z
 ---
 
 # Broken Windows Ledger
@@ -29,6 +29,7 @@ last_updated: 2026-09-07T19:59:35.274Z
 | 12 | 02 | unmet-truth | src/core/project-plan.ts |  | project plan does not yet name each selected pack's source version and hash, though catalog/stack.lock.json can now answer for all 19 pack skills (02-04) | open |  | 2026-09-07T16:08:58.094Z |  |
 | 13 | 02 | unrun-verify | test/evidence.test.ts |  | MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun | open |  | 2026-09-07T17:32:45.429Z |  |
 | 14 | 02 | unmet-truth | src/core/project-plan.ts |  | D-13 classification is complete for a caller that still holds the reviewed plan value, and PARTIAL at the CLI. approveProjectPlan classifies drift from options.reviewedPlan, or from .alpha-aos/plan.json when that artifact IS the reviewed plan; a CLI approve that drifts before any artifact exists gets a refusal that names both digests and the runnable re-approval command but cannot name WHICH noun moved. This is a consequence of D-12 plus SAFE-01 (the preview persists nothing, so two CLI invocations share only a digest), not a patchable bug: closing it needs a decision - either a reviewed-plan record the preview is allowed to write, or scoping the must-have truth to callers that hold the plan. | open |  | 2026-09-07T19:59:35.274Z |  |
+| 15 | 02 | unrun-verify | src/core/project-plan.ts |  | DETC-06's meaning of 'previously installed' is implemented as 'has a receipt under .alpha-aos/receipts/', so a pack that was approved but never materialized has NO state in reconcileProjectState — neither CURRENT nor STALE. Phase 3 is what writes receipts, so this reading cannot be confirmed against any Phase 2 source artifact. Confirm it against Phase 3's receipt writer before treating the passing 02-10 tests as agreement. | open |  | 2026-09-07T20:55:07.812Z |  |
 
 ````json
 [
@@ -198,6 +199,18 @@ last_updated: 2026-09-07T19:59:35.274Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T19:59:35.274Z",
+    "resolved_at": null
+  },
+  {
+    "id": 15,
+    "kind": "unrun-verify",
+    "phase": "02",
+    "file": "src/core/project-plan.ts",
+    "line": null,
+    "description": "DETC-06's meaning of 'previously installed' is implemented as 'has a receipt under .alpha-aos/receipts/', so a pack that was approved but never materialized has NO state in reconcileProjectState — neither CURRENT nor STALE. Phase 3 is what writes receipts, so this reading cannot be confirmed against any Phase 2 source artifact. Confirm it against Phase 3's receipt writer before treating the passing 02-10 tests as agreement.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T20:55:07.812Z",
     "resolved_at": null
   }
 ]

@@ -19,8 +19,9 @@
 //      special-cased for one.
 
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, type Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   AdapterSupportEntry,
@@ -82,6 +83,13 @@ function byFactId(left: LeafResult, right: LeafResult): number {
  * plus a hard cap, so a hostile or pathological catalog cannot flood output.
  */
 export const MAX_NEAR_MISS_LINES = 5;
+
+/**
+ * At most this many target pre-state rows print, with a trailing line naming
+ * how many were suppressed. Same discipline as `MAX_NEAR_MISS_LINES`: a
+ * catalog naming many skills must not be able to flood the rendering.
+ */
+export const MAX_TARGET_ROWS = 20;
 
 // ---------------------------------------------------------------------------
 // Rendering — one vocabulary, never a per-pack string
@@ -674,6 +682,51 @@ export async function readReceiptClaims(root: string): Promise<ReceiptClaims> {
   return { byPath, unreadable: unreadable.sort(byCodePoint) };
 }
 
+/**
+ * Personal-scope skill roots, mirroring the global ECC skill roots.
+ *
+ * Declared here rather than imported so this module never reaches the global
+ * skill SYNC list: what is needed is where a personal skill would already be,
+ * not which skills alpha-AOS installs globally.
+ */
+function personalSkillRoots(environment: NodeJS.ProcessEnv, home: string): string[] {
+  return [
+    join(environment.CLAUDE_CONFIG_DIR?.trim() || join(home, ".claude"), "skills"),
+    join(home, ".agents", "skills"),
+    join(environment.ANTIGRAVITY_CONFIG_DIR?.trim() || join(home, ".gemini", "config"), "skills"),
+    join(environment.HERMES_HOME?.trim() || join(home, ".hermes"), "skills"),
+  ];
+}
+
+/**
+ * Skill names that already exist at personal scope.
+ *
+ * Claude Code resolves a same-named skill by SOURCE, and personal overrides
+ * project — so a pack skill colliding with a personal one would silently not
+ * be the skill that loads. That is reported as an observed collision, never
+ * assumed: none of the declared pack skills collides with the three global
+ * skills today, so an unconditional warning would be noise.
+ */
+export async function discoverPersonalSkillNames(
+  environment: NodeJS.ProcessEnv = process.env,
+  home: string = homedir(),
+): Promise<ReadonlySet<string>> {
+  const names = new Set<string>();
+  for (const root of personalSkillRoots(environment, home)) {
+    if (!existsSync(root)) continue;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(root, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory() && existsSync(join(root, entry.name, "SKILL.md"))) names.add(entry.name);
+    }
+  }
+  return names;
+}
+
 export interface InspectTargetPreStateOptions {
   /** Absolute canonical root. */
   readonly root: string;
@@ -961,9 +1014,34 @@ export async function planProjectCapabilities(
   for (const detail of [...new Set(source.map((entry) => `${entry.package}@${entry.version} (${entry.integrity})`))].sort(byCodePoint)) {
     approvals.push({ code: "PACKAGE_SOURCE", detail });
   }
+
+  // D-11: a target holding bytes alpha-AOS did not write DROPS its pack. There
+  // is no automatic overwrite and no silent rename — the conflict is found by
+  // reading, and the drop is explained by an approval rather than merely
+  // observed as an absence.
+  const conflicts = targetPreState.filter((target) => target.exists && !target.ownedByReceipt);
+  for (const target of conflicts) {
+    approvals.push({
+      code: "TARGET_CONFLICT",
+      detail: `${target.packId}: ${target.path} already holds a file alpha-AOS did not write, so the pack is dropped from the applicable set; nothing was overwritten or renamed`,
+    });
+  }
+
+  // A personal skill overrides a project one, so a collision means the pack
+  // would not be the skill that loads. Reported only when actually observed.
+  const personalSkills = source.length === 0 ? new Set<string>() : await discoverPersonalSkillNames();
+  for (const skill of [...new Set(source.map((entry) => entry.skill))].sort(byCodePoint)) {
+    if (!personalSkills.has(skill)) continue;
+    approvals.push({
+      code: "SKILL_SHADOWED",
+      detail: `${skill} already exists as a personal-scope skill, and a personal skill overrides a project one, so the project pack would not be the skill that loads`,
+    });
+  }
+
   approvals.sort((left, right) => byCodePoint(left.code, right.code) || byCodePoint(left.detail, right.detail));
 
-  const applicable = [...selected];
+  const conflicted = new Set(conflicts.map((target) => target.packId));
+  const applicable = selected.filter((packId) => !conflicted.has(packId));
   const applicableSet = new Set(applicable);
   const safeInverse = targetPreState.filter((target) => applicableSet.has(target.packId)).map(buildSafeInverse);
 

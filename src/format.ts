@@ -1,5 +1,5 @@
 import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
-import { describeLeaf, MAX_NEAR_MISS_LINES } from "./core/project-plan.js";
+import { describeLeaf, MAX_NEAR_MISS_LINES, MAX_TARGET_ROWS } from "./core/project-plan.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -92,6 +92,47 @@ export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: 
       if (evaluation.status === "unimplemented") lines.push(`UNIMPLEMENTED ${evaluation.explanation}`);
     }
   }
+
+  // D-11, rendered from the pre-state rather than from the approval text: a
+  // conflicting target is a fact about the filesystem, and naming the pack and
+  // the path is what turns a dropped pack from an unexplained absence into a
+  // reviewable decision.
+  for (const target of plan.targetPreState) {
+    if (!target.exists || target.ownedByReceipt) continue;
+    lines.push(
+      `CONFLICT ${target.packId} ${target.path} — a file alpha-AOS did not write; the pack is dropped, and nothing was overwritten or renamed`,
+    );
+  }
+
+  if (plan.targetPreState.length > 0) {
+    // Deterministic order plus a hard cap, the same discipline the near-miss
+    // lines follow, so a catalog naming many skills cannot flood the output.
+    const shown = plan.targetPreState.slice(0, MAX_TARGET_ROWS);
+    const rows = shown.map((target) => [
+      target.path,
+      target.harness,
+      target.exists ? (target.ownedByReceipt ? "ours" : "foreign") : "absent",
+      target.action,
+    ]);
+    lines.push("", table(["TARGET", "HARNESS", "STATE", "ACTION"], rows));
+    const suppressed = plan.targetPreState.length - shown.length;
+    if (suppressed > 0) lines.push(`... ${suppressed} more target(s) suppressed (use --json)`);
+  }
+
+  if (plan.adapterSupportEvidence.length > 0) {
+    // `supported` means a real probe passed. No probe runs on this path, so
+    // the basis column carries what was actually recorded instead.
+    lines.push(
+      "",
+      table(
+        ["HARNESS", "SUPPORT", "BASIS"],
+        plan.adapterSupportEvidence.map((entry) => [entry.harness, entry.support, entry.reason]),
+      ),
+      "",
+    );
+  }
+
+  for (const approval of plan.approvals) lines.push(`APPROVAL ${approval.code} ${approval.detail}`);
 
   lines.push(
     `Inputs digest: ${plan.inputsDigest}`,

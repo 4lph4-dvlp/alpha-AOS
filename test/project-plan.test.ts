@@ -2554,10 +2554,14 @@ test("a STALE line names the missing fact by name, not merely the pack", async (
   const sentence = pack.stale[0]?.sentence ?? "";
   assert.ok(sentence.includes(POSTGRES_PACK), `the STALE sentence did not name the pack: ${sentence}`);
   assert.ok(sentence.includes("pg"), `the STALE sentence did not name the dependency that selected it: ${sentence}`);
-  assert.equal(pack.stale[0]?.named, "pg");
+  // The pack names a DECLARED fact rather than an inline `pg` literal, so the
+  // fact id is what identifies it; the specific package names reach the user
+  // through the negative record's own reason, which enumerates them.
+  assert.equal(pack.stale[0]?.factId, "postgres-driver");
+  assert.equal(pack.stale[0]?.named, "postgres-driver");
 
   const rendered = formatProjectStatus(reconciliation, [], { path: root });
-  const stale = rendered.split("\n").filter((line) => line.startsWith("STALE "));
+  const stale = rendered.split("\n").filter((line) => line.startsWith("STALE-FACT "));
   assert.equal(stale.length, 1, `expected exactly one STALE line:\n${rendered}`);
   assert.ok(stale[0]?.includes(POSTGRES_PACK) === true && stale[0]?.includes("pg") === true, stale[0] ?? "");
 });
@@ -2578,7 +2582,7 @@ test("two facts that disappeared for one pack emit two distinct STALE lines", as
   assert.equal(new Set(pack.stale.map((entry) => entry.sentence)).size, 2, "two missing facts produced one merged line");
 
   const rendered = formatProjectStatus(reconciliation, [], { path: root });
-  assert.equal(rendered.split("\n").filter((line) => line.startsWith("STALE ")).length, 2, rendered);
+  assert.equal(rendered.split("\n").filter((line) => line.startsWith("STALE-FACT ")).length, 2, rendered);
 });
 
 test("readGitContext reports an ordinary repository's branch and commit from the filesystem", async (context) => {
@@ -2686,7 +2690,7 @@ test("a branch switch that removes evidence yields STALE and a branch-differs no
   assert.ok((reconciliation.gitNote ?? "").includes(fixture.branch), reconciliation.gitNote ?? "");
 
   const rendered = formatProjectStatus(reconciliation, [], { path: fixture.root });
-  assert.ok(rendered.split("\n").some((line) => line.startsWith("STALE ")), rendered);
+  assert.ok(rendered.split("\n").some((line) => line.startsWith("STALE-FACT ")), rendered);
   assert.ok(rendered.includes("BRANCH-DIFFERS"), rendered);
   assert.equal(existsSync(fixture.target), true, "a branch switch deleted the installed target");
 });

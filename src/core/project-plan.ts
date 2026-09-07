@@ -20,7 +20,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, type Dirent } from "node:fs";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
@@ -1256,6 +1256,15 @@ export interface ApprovedProjectPlanArtifact {
   readonly schemaVersion: 1;
   readonly kind: string;
   readonly approvedDigest: string;
+  /**
+   * The branch and commit the approval was recorded on. CONTEXT ONLY.
+   *
+   * It sits BESIDE `plan` rather than inside it, which is what keeps it out of
+   * `digestablePlan` by construction: the digest covers the plan value, and a
+   * branch that entered it would make every commit invalidate every approval.
+   * Optional, so an artifact written before this field existed still reads.
+   */
+  readonly gitContext?: GitContext;
   readonly plan: ProjectCapabilityPlan;
 }
 
@@ -1282,11 +1291,12 @@ export interface ApproveProjectPlanOptions extends RevalidateProjectPlanOptions 
  * byte-identical content, which is what makes "already current" a property of
  * the plan rather than of when it was approved.
  */
-function approvalArtifactBytes(plan: ProjectCapabilityPlan): string {
+function approvalArtifactBytes(plan: ProjectCapabilityPlan, gitContext: GitContext): string {
   const artifact: ApprovedProjectPlanArtifact = {
     schemaVersion: 1,
     kind: PLAN_DIGEST_KIND,
     approvedDigest: plan.planDigest,
+    gitContext,
     plan,
   };
   return `${JSON.stringify(artifact, null, 2)}\n`;
@@ -1343,13 +1353,17 @@ export async function approveProjectPlan(options: ApproveProjectPlanOptions): Pr
   // The writer lock is exclusive-create, so a second acquisition inside an
   // already-held session would deadlock the operation against itself. The
   // wrapper is what handles the caller-supplied and standalone cases alike.
+  // Read once, before the transaction: it is recorded so `status` can later
+  // say the working tree moved, and it takes part in no digest.
+  const gitContext = await readGitContext(revalidated.plan.scope.canonicalRoot);
+
   return withComponentSession(revalidated.boundary, options.session, async (session): Promise<ProjectApprovalResult> => {
     const journal = await applyFileTransaction({
       stateRoot: revalidated.stateRoot,
       // D-10, enforced: `.alpha-aos` is the only root, so a target anywhere
       // else refuses inside the transaction rather than being trusted here.
       allowedRoots: [revalidated.artifactRoot],
-      operations: [{ target: revalidated.artifactPath, content: approvalArtifactBytes(revalidated.plan) }],
+      operations: [{ target: revalidated.artifactPath, content: approvalArtifactBytes(revalidated.plan, gitContext) }],
       session,
     });
     return {
@@ -1623,6 +1637,12 @@ export interface ProjectReconciliation {
   readonly unsupportedClaims: readonly string[];
   /** One entry per INSTALLED pack — one that has a receipt. Sorted by pack id. */
   readonly packs: readonly PackReconciliation[];
+  /** The working tree's branch and commit. Context only; never digested. */
+  readonly git: GitContext;
+  /** The context recorded at approval time, or null when the artifact carries none. */
+  readonly approvedGit: GitContext | null;
+  /** D-15's distinguishing sentence, or null when nothing differs. */
+  readonly gitNote: string | null;
 }
 
 /** One receipt, as read through the strict validator. */
@@ -1713,17 +1733,25 @@ function namedByLeaf(factId: string): string {
 /**
  * How one missing fact is described, in the shape the CONTEXT asked for.
  *
- * "`postgres-patterns` — the `pg` dependency that selected it is gone." The
- * operator prefix a synthesized leaf id already carries is what decides the
- * noun, so a dependency, a file and a manifest opt-in each read as themselves
- * without a per-pack string anywhere.
+ * "`postgres-patterns` — the `pg` dependency that selected it is gone." An
+ * inline literal already carries its noun in its synthesized id, so a
+ * dependency, a file and a manifest opt-in each read as themselves. A DECLARED
+ * fact carries its noun in the vocabulary's own description instead, which is
+ * what `phrase` is — so the line names the fact AND says what it means without
+ * a per-pack string anywhere.
+ *
+ * A declared `dependency` fact deliberately does NOT claim which package was
+ * installed: the envelope records that the fact matched and the manifest that
+ * answered, never which of the declared alternatives it was. The specific
+ * names reach the user through the negative record's own reason, which
+ * enumerates them, rather than through a guess made here.
  */
-function describeMissingFact(factId: string): string {
+function describeMissingFact(factId: string, phrase: string | null): string {
   const named = namedByLeaf(factId);
   if (factId.startsWith("dependency:")) return `\`${named}\` dependency`;
   if (factId.startsWith("file:")) return `\`${named}\` file`;
   if (factId.startsWith("manifest:")) return `\`${named}\` manifest opt-in`;
-  return `\`${factId}\` fact`;
+  return phrase === null || phrase.length === 0 ? `\`${factId}\` fact` : `\`${factId}\` fact (${phrase})`;
 }
 
 function staleReasonFor(packId: string, leaf: LeafResult, fresh: LeafResult | undefined): StaleReason {
@@ -1733,7 +1761,7 @@ function staleReasonFor(packId: string, leaf: LeafResult, fresh: LeafResult | un
     factId: leaf.factId,
     named: namedByLeaf(leaf.factId),
     reason,
-    sentence: `${packId} — the ${describeMissingFact(leaf.factId)} that selected it is gone: ${reason}`,
+    sentence: `${packId} — the ${describeMissingFact(leaf.factId, fresh?.phrase ?? leaf.phrase)} that selected it is gone: ${reason}`,
   };
 }
 
@@ -1758,6 +1786,8 @@ export async function reconcileProjectState(
   const artifactPath = join(root, ...PROJECT_PLAN_ARTIFACT.split("/"));
   const artifact = await readApprovedProjectPlan(artifactPath);
   const approved = artifact?.plan ?? null;
+  const approvedGit = artifact?.gitContext ?? null;
+  const git = await readGitContext(root);
 
   const artifactState: ApprovedArtifactState =
     approved === null ? "absent" : approved.evidenceDigest === plan.evidenceDigest ? "current" : "changed";
@@ -1804,6 +1834,9 @@ export async function reconcileProjectState(
     artifactPath,
     unsupportedClaims,
     packs,
+    git,
+    approvedGit,
+    gitNote: describeGitDifference(approvedGit, git),
   };
 }
 
@@ -1880,8 +1913,8 @@ function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
       ...base,
       state: "UNDECIDABLE",
       detail: `${receipt.packId} cannot be decided: ${undecidable
-        .map((entry) => `${entry.path} exists but could not be read (errno=${entry.errno})`)
-        .join("; ")} — that is not evidence that the pack's basis is gone, so it is not reported STALE`,
+        .map((entry) => `${entry.path} (errno=${entry.errno})`)
+        .join("; ")} exists but could not be read — that is not evidence the pack's basis is gone, so it is not reported STALE`,
       stale: [],
       undecidable,
     };
@@ -1892,7 +1925,12 @@ function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
     return {
       ...base,
       state: "STALE",
-      detail: stale.map((entry) => entry.sentence).join(" | "),
+      // Short by design: the full sentence for each missing fact is emitted on
+      // its own line, and repeating all of them inside a table cell is how a
+      // pack with several missing facts floods the report.
+      detail: `${receipt.packId}: ${stale.length} fact(s) that selected it are gone (${stale
+        .map((entry) => entry.factId)
+        .join(", ")}); each is named in full on its own STALE-FACT line`,
       stale,
       undecidable: [],
     };
@@ -1911,4 +1949,164 @@ function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
     stale: [],
     undecidable: [],
   };
+}
+
+// ---------------------------------------------------------------------------
+// D-15: the branch context, read from the filesystem and digested nowhere
+// ---------------------------------------------------------------------------
+//
+// `plan`, `approve` and `status` are offline and subprocess-free by contract,
+// so the branch is read from `.git` rather than from `git rev-parse`. The same
+// rule that keeps a package manager off the preview path keeps git off it.
+//
+// Every value below is CONTEXT ONLY. It never reaches `digestablePlan`, which
+// is a literal listing exactly what a reviewer reviewed — if the branch or the
+// commit entered any digest, every commit would invalidate every approval.
+
+/** 4 KiB is far above any `HEAD`, ref or `gitdir:` pointer; anything larger is not one. */
+export const MAX_GIT_POINTER_BYTES = 4096;
+
+/** 1 MiB of `packed-refs` is read. A larger one reports the tip unresolved rather than looping. */
+export const MAX_GIT_PACKED_REFS_BYTES = 1048576;
+
+/** A git object id, in either the sha-1 or the sha-256 object format. */
+const GIT_OBJECT_ID = /^[0-9a-f]{40}$|^[0-9a-f]{64}$/u;
+
+/**
+ * Where the branch context came from, so a reader can tell a resolved tip from
+ * a guessed one. `null` means the branch is known and its tip is not.
+ */
+export type GitContextSource = "loose" | "packed" | "detached" | null;
+
+export interface GitContext {
+  readonly available: boolean;
+  /** The branch name for an attached HEAD; null when detached or unavailable. */
+  readonly branch: string | null;
+  /** The object id HEAD resolves to, or null when it could not be resolved. */
+  readonly commit: string | null;
+  readonly detached: boolean;
+  readonly source: GitContextSource;
+  /** Why the context is unavailable or incomplete. Null when fully resolved. */
+  readonly reason: string | null;
+}
+
+function gitUnavailable(reason: string): GitContext {
+  return { available: false, branch: null, commit: null, detached: false, source: null, reason };
+}
+
+/** A bounded read that reports "not there / too large / unreadable" as null. */
+async function readCapped(path: string, cap: number): Promise<string | null> {
+  try {
+    const info = await stat(path);
+    if (!info.isFile() || info.size > cap) return null;
+    return await readFile(path, "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The branch and commit a working tree is on, read from `.git`.
+ *
+ * Handles the four shapes that actually occur: a `.git` DIRECTORY, a `.git`
+ * FILE carrying a `gitdir:` pointer (linked worktree, submodule), a detached
+ * HEAD holding a raw object id, and a branch whose loose ref has been packed
+ * away into `packed-refs`. A linked worktree keeps `HEAD` in its own git dir
+ * and its refs in the COMMON dir, so `commondir` is followed when present.
+ *
+ * When the parse fails for any reason the context is reported UNAVAILABLE
+ * rather than guessed. It is context only: a wrong branch name here would be a
+ * confident statement about something nothing else verified.
+ */
+export async function readGitContext(canonicalRoot: string): Promise<GitContext> {
+  const entry = join(canonicalRoot, ".git");
+  let gitDir = entry;
+  let info: Awaited<ReturnType<typeof stat>>;
+  try {
+    info = await stat(entry);
+  } catch {
+    return gitUnavailable(".git does not exist at the canonical root, so there is no branch context to read");
+  }
+
+  if (info.isFile()) {
+    if (info.size > MAX_GIT_POINTER_BYTES) {
+      return gitUnavailable(`.git is a file larger than MAX_GIT_POINTER_BYTES=${MAX_GIT_POINTER_BYTES}, so it is not a gitdir pointer`);
+    }
+    const pointer = await readCapped(entry, MAX_GIT_POINTER_BYTES);
+    const match = pointer === null ? null : /^gitdir:\s*(.+)$/mu.exec(pointer);
+    const target = match?.[1]?.trim();
+    if (target === undefined || target.length === 0) {
+      return gitUnavailable(".git is a file that carries no gitdir: pointer, so the branch context cannot be read");
+    }
+    gitDir = resolve(canonicalRoot, target);
+  } else if (!info.isDirectory()) {
+    return gitUnavailable(".git is neither a directory nor a file, so the branch context cannot be read");
+  }
+
+  const head = await readCapped(join(gitDir, "HEAD"), MAX_GIT_POINTER_BYTES);
+  if (head === null) {
+    return gitUnavailable("HEAD could not be read inside the git directory, so the branch context is unavailable");
+  }
+  const trimmed = head.trim();
+  if (GIT_OBJECT_ID.test(trimmed)) {
+    return { available: true, branch: null, commit: trimmed, detached: true, source: "detached", reason: null };
+  }
+  const pointer = /^ref:\s*(\S+)$/mu.exec(trimmed);
+  const refName = pointer?.[1];
+  if (refName === undefined) {
+    return gitUnavailable("HEAD holds neither a ref pointer nor an object id, so the branch context cannot be read");
+  }
+  const branch = refName.startsWith("refs/heads/") ? refName.slice("refs/heads/".length) : refName;
+
+  // A linked worktree's own git dir holds HEAD; its refs live in the common
+  // dir. Both are consulted, own dir first, so an ordinary repository (where
+  // they are the same directory) is unaffected.
+  const commonPointer = await readCapped(join(gitDir, "commondir"), MAX_GIT_POINTER_BYTES);
+  const commonDir = commonPointer === null ? gitDir : resolve(gitDir, commonPointer.trim());
+  const searchRoots = commonDir === gitDir ? [gitDir] : [gitDir, commonDir];
+
+  for (const base of searchRoots) {
+    const loose = (await readCapped(join(base, ...refName.split("/")), MAX_GIT_POINTER_BYTES))?.trim();
+    if (loose !== undefined && GIT_OBJECT_ID.test(loose)) {
+      return { available: true, branch, commit: loose, detached: false, source: "loose", reason: null };
+    }
+  }
+
+  for (const base of searchRoots) {
+    const packed = await readCapped(join(base, "packed-refs"), MAX_GIT_PACKED_REFS_BYTES);
+    if (packed === null) continue;
+    for (const line of packed.split(/\r?\n/u)) {
+      // `#` opens a header line and `^` a peeled tag; neither names a branch tip.
+      if (line.length === 0 || line.startsWith("#") || line.startsWith("^")) continue;
+      const [objectId, name] = line.trim().split(/\s+/u);
+      if (name !== refName || objectId === undefined || !GIT_OBJECT_ID.test(objectId)) continue;
+      return { available: true, branch, commit: objectId, detached: false, source: "packed", reason: null };
+    }
+  }
+
+  // The branch is known and its tip is not. Reporting the branch is honest;
+  // inventing a commit would not be.
+  return {
+    available: true,
+    branch,
+    commit: null,
+    detached: false,
+    source: null,
+    reason: `${refName} resolves to no loose ref and to no packed-refs entry, so its tip is unresolved`,
+  };
+}
+
+/**
+ * D-15's distinguishing sentence, or null when there is nothing to distinguish.
+ *
+ * `STALE` reflects CURRENT state, so a checkout that removes evidence DOES
+ * produce `STALE` — that is correct. This note is what lets a user tell that
+ * from a real removal. Both are reported; neither replaces the other.
+ */
+export function describeGitDifference(approved: GitContext | null, current: GitContext): string | null {
+  if (approved === null || !approved.available) return null;
+  if (approved.branch === current.branch && approved.commit === current.commit) return null;
+  const describe = (context: GitContext): string =>
+    `${context.branch === null ? (context.detached ? "a detached HEAD" : "an unknown branch") : `branch ${context.branch}`} at commit ${context.commit?.slice(0, 12) ?? "unknown"}`;
+  return `the approved plan was recorded on ${describe(approved)}; the working tree is now on ${describe(current)} — a checkout can remove evidence without anything having been deleted`;
 }

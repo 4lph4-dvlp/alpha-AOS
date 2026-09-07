@@ -1,5 +1,13 @@
 import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
-import { describeLeaf, MAX_NEAR_MISS_LINES, MAX_TARGET_ROWS, type ProjectApprovalResult } from "./core/project-plan.js";
+import {
+  approvalCommand,
+  describeLeaf,
+  MAX_NEAR_MISS_LINES,
+  MAX_TARGET_ROWS,
+  PROJECT_PLAN_ARTIFACT,
+  type ProjectApprovalResult,
+  type ProjectReconciliation,
+} from "./core/project-plan.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -227,4 +235,127 @@ export function formatIsolationLaunch(launch: IsolationLaunchSpec): string {
     `Warnings: ${launch.warnings.join("; ") || "none"}`,
     `Blocked: ${launch.blockedReasons.join("; ") || "no"}`,
   ].join("\n");
+}
+
+/**
+ * The removal shape this renderer needs, stated structurally.
+ *
+ * `planPackRemoval` returns a richer value; naming only what is PRINTED keeps
+ * the renderer from acquiring an opinion about how a removal is built.
+ */
+export interface RenderableRemoval {
+  readonly packId: string;
+  readonly removalDigest: string;
+  readonly targets: readonly { readonly path: string; readonly exists: boolean; readonly expectedHash: string | null }[];
+}
+
+/**
+ * DETC-06's report: what is installed, what state it is in, which fact went
+ * away, and the command a human would run to approve a removal.
+ *
+ * Rendered beside the plan formatter and in the same `rows: string[][]` table
+ * style, so every byte leaves through the one `print()` redaction seam rather
+ * than a direct write. Nothing here deletes anything or offers to delete
+ * anything on its own: the removal is a value, and the command that approves
+ * it is the SAME approve verb the plan artifact goes through, so the phase has
+ * exactly one writer.
+ */
+/**
+ * A status DETAIL cell is truncated here, the same discipline
+ * `MAX_NEAR_MISS_LINES` and `MAX_TARGET_ROWS` already apply: a report whose
+ * width is decided by the longest reason a detector happened to produce is one
+ * a hostile or merely verbose catalog can flood.
+ */
+export const MAX_STATUS_DETAIL_CHARS = 180;
+
+function detailCell(detail: string): string {
+  return detail.length <= MAX_STATUS_DETAIL_CHARS ? detail : `${detail.slice(0, MAX_STATUS_DETAIL_CHARS - 1)}\u2026`;
+}
+
+export function formatProjectStatus(
+  reconciliation: ProjectReconciliation,
+  removals: readonly RenderableRemoval[],
+  options: { path: string; subProject?: string | null },
+): string {
+  const lines = [
+    `Project: ${reconciliation.plan.scope.canonicalRoot} (${reconciliation.plan.scope.rootReason})`,
+    `Project id: ${reconciliation.plan.scope.projectId}`,
+  ];
+
+  const git = reconciliation.git;
+  lines.push(
+    git.available
+      ? `Branch: ${git.branch ?? "(detached HEAD)"} at commit ${git.commit?.slice(0, 12) ?? "unresolved"}`
+      : `Branch: unavailable — ${git.reason ?? "no reason recorded"}`,
+  );
+  lines.push(
+    `Approved plan: ${reconciliation.approved?.planDigest ?? "none"} (${reconciliation.artifactState})`,
+    `Evidence digest: ${reconciliation.plan.evidenceDigest}`,
+  );
+
+  // D-15: both facts are present and neither replaces the other, so a user can
+  // tell a checkout from a real removal.
+  if (reconciliation.gitNote !== null) lines.push(`BRANCH-DIFFERS ${reconciliation.gitNote}`);
+
+  if (reconciliation.artifactState === "changed") {
+    lines.push(
+      `CHANGED ${PROJECT_PLAN_ARTIFACT} records an approval taken against different evidence, so it is read as a record of what was approved and never as an authority about what is true now`,
+    );
+  }
+  for (const packId of reconciliation.unsupportedClaims) {
+    lines.push(
+      `UNSUPPORTED-CLAIM ${packId} is claimed by ${PROJECT_PLAN_ARTIFACT} and is not selected by freshly collected evidence`,
+    );
+  }
+
+  if (reconciliation.packs.length === 0) {
+    lines.push("No pack is installed: no receipt exists under the receipt directory.");
+  } else {
+    lines.push(
+      "",
+      table(
+        ["STATE", "PACK", "TARGETS", "DETAIL"],
+        reconciliation.packs.map((pack) => [
+          pack.state,
+          pack.packId,
+          `${pack.targets.filter((target) => target.matches).length}/${pack.targets.length} matching`,
+          detailCell(pack.detail),
+        ]),
+      ),
+      "",
+    );
+  }
+
+  // One line per MISSING FACT, never a merged summary: two facts that
+  // disappeared are two different things a user may want to put back.
+  //
+  // The prefixes are hyphenated codes rather than the bare state names on
+  // purpose: a bare `STALE ` would also be the opening of the table row above,
+  // so a reader — human or test — could not tell a per-fact line from a
+  // per-pack one.
+  for (const pack of reconciliation.packs) {
+    for (const reason of pack.stale) lines.push(`STALE-FACT ${reason.sentence}`);
+    for (const entry of pack.undecidable) {
+      lines.push(
+        `UNDECIDABLE-PATH ${pack.packId} — ${entry.path} exists but could not be read (errno=${entry.errno}); that is not evidence that anything is gone`,
+      );
+    }
+  }
+
+  for (const removal of removals) {
+    lines.push("", `REMOVAL ${removal.packId} — ${removal.targets.length} target(s). Nothing has been removed.`);
+    for (const target of removal.targets) {
+      lines.push(`  ${target.exists ? (target.expectedHash ?? "unreadable").slice(0, 12) : "absent      "}  ${target.path}`);
+    }
+    lines.push(
+      `  Removal digest: ${removal.removalDigest}`,
+      `  Approve this removal with: ${approvalCommand({ path: options.path, subProject: options.subProject, planDigest: removal.removalDigest })}`,
+    );
+  }
+
+  lines.push(
+    "",
+    "Read only. `project status` deletes nothing: a removal is a separate act a human approves by digest.",
+  );
+  return lines.join("\n");
 }

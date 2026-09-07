@@ -1,4 +1,4 @@
-import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectDetection, StackLock } from "./types.js";
+import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, LeafResult, PlanAction, ProjectCapabilityPlan, ProjectDetection, StackLock } from "./types.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -36,6 +36,29 @@ export function formatDoctor(findings: DoctorFinding[]): string {
 
 export function formatProject(detection: ProjectDetection): string {
   return [`Root: ${detection.root}`, `Evidence: ${detection.evidence.join(", ") || "none"}`, `Packs: ${detection.packs.join(", ") || "none"}`].join("\n");
+}
+
+/** Names the fact and the file that carried it, never a bare fact id. */
+function describeLeaf(leaf: LeafResult): string {
+  return leaf.path === null ? leaf.factId : `${leaf.factId} (${leaf.path})`;
+}
+
+export function formatProjectPlan(plan: ProjectCapabilityPlan): string {
+  const lines = [`Project: ${plan.scope.canonicalRoot} (${plan.scope.rootReason})`, `Project id: ${plan.scope.projectId}`];
+  if (plan.selected.length === 0) {
+    lines.push("No pack qualified on the evidence found.");
+  } else {
+    for (const pack of plan.selected) {
+      lines.push(`SELECT ${pack.packId} — ${pack.satisfied.map(describeLeaf).join(", ")}`);
+    }
+  }
+  lines.push(
+    `Inputs digest: ${plan.inputsDigest}`,
+    `Evidence digest: ${plan.evidenceDigest}`,
+    `Plan digest: ${plan.planDigest}`,
+    "Preview only. Nothing was written: `project plan` persists nothing.",
+  );
+  return lines.join("\n");
 }
 
 export function formatUpdate(current: StackLock, candidate: StackLock): string {

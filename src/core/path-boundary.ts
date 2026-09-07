@@ -129,8 +129,14 @@ function ancestorChain(target: string): string[] {
  * other errno means something that exists could not be resolved, and walking
  * past it would be a silent catch by another name. That case reports a reason
  * instead of substituting the unresolved string.
+ *
+ * Exported because a project root has no outer allowed root to be proven
+ * against, so it cannot travel through `provePathBoundary` — and deriving a
+ * second canonical form for it is exactly the asymmetry this function exists
+ * to remove. Callers outside this module reuse this one form; they do not
+ * re-implement it.
  */
-async function canonicalizeWithMissingTail(pathValue: string): Promise<{ canonical: string; reason: string | null }> {
+export async function canonicalizeWithMissingTail(pathValue: string): Promise<{ canonical: string; reason: string | null }> {
   const chain = ancestorChain(pathValue);
   for (let index = chain.length - 1; index >= 0; index -= 1) {
     const ancestor = chain[index] as string;

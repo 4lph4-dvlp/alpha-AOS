@@ -18,7 +18,8 @@ export type ManagedDocumentKind =
   | "writer-lock"
   | "evidence"
   | "receipt"
-  | "native-config";
+  | "native-config"
+  | "pack-catalog";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -297,6 +298,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   evidence: null,
   receipt: null,
   "native-config": "alphaAos",
+  "pack-catalog": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -361,6 +363,10 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
       properties: { schemaVersion: { type: "integer" }, managed: anyObject },
       additionalProperties: false,
     },
+  }),
+  "pack-catalog": coreObject(["schemaVersion", "packs"], {
+    schemaVersion: { type: "integer" },
+    packs: { type: "array" },
   }),
 };
 

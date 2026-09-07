@@ -1,3 +1,7 @@
+// `RootReason` is declared beside the ladder that produces it, so the reason
+// vocabulary and the resolver can never drift apart.
+import type { RootReason } from "./core/evidence.js";
+
 export type HarnessId = "claude" | "codex" | "antigravity" | "pi" | "hermes";
 export type McpServerId = "context7" | "exa" | "firecrawl";
 export type Channel = "stable" | "candidate" | "pinned";
@@ -208,5 +212,93 @@ export interface SupportBundlePlan {
   createdBy: string;
   network: "none";
   sources: SupportBundleSource[];
+  planDigest: string;
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: evidence-bound project planning
+// ---------------------------------------------------------------------------
+
+/**
+ * One observation about a repository. `path` and `version` are recorded so an
+ * explanation can name what selected a pack; a per-fact `hash` is deliberately
+ * absent, so an unrelated edit to a file does not disturb the fact it carries.
+ */
+export interface EvidenceFact {
+  id: string;
+  kind: string;
+  /** Negative observations are recorded, never omitted. */
+  detected: boolean;
+  path?: string;
+  version?: string;
+  /** Why a near-match failed. Present on negative evidence. */
+  reason?: string;
+}
+
+/** Matches the sealed envelope in `schemas/evidence.schema.json`. */
+export interface EvidenceEnvelope {
+  schemaVersion: 1;
+  projectId: string;
+  producer: { name: string; version: string };
+  /** Wall-clock context only. It must never reach a digest. */
+  createdAt: string;
+  /** Digest of the canonical repository state this evidence was derived from. */
+  sourceHash: string;
+  facts: EvidenceFact[];
+}
+
+/** The predicate shape `catalog/packs/*.yaml` already uses. */
+export interface PackEvidenceNode {
+  all?: string[];
+  any?: string[];
+  anyFiles?: string[];
+  anyDependencies?: string[];
+  manifestOptIn?: string;
+}
+
+export interface PackDeclaration {
+  id: string;
+  evidence: PackEvidenceNode;
+  skills?: string[];
+  lifecycle?: string;
+  selectionPolicy?: string;
+}
+
+export interface PackCatalog {
+  schemaVersion: number;
+  packs: PackDeclaration[];
+}
+
+/** One leaf of a pack predicate, evaluated without short-circuiting. */
+export interface LeafResult {
+  factId: string;
+  detected: boolean;
+  path: string | null;
+  reason: string | null;
+}
+
+export interface PackEvaluation {
+  packId: string;
+  status: "selected" | "silent";
+  /** Every leaf that held. */
+  satisfied: LeafResult[];
+  /** Every leaf that did not, each with a reason. */
+  failed: LeafResult[];
+}
+
+export interface ProjectCapabilityPlan {
+  schemaVersion: 1;
+  scope: {
+    canonicalRoot: string;
+    rootReason: RootReason;
+    projectId: string;
+    subProjectPath: string | null;
+  };
+  selected: PackEvaluation[];
+  /** Did anything we looked at change? Carries the evidence envelope's sourceHash. */
+  inputsDigest: string;
+  /** Did the selection-relevant observations change? */
+  evidenceDigest: string;
+  /** Digest of everything a reviewer would look at. */
   planDigest: string;
 }

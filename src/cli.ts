@@ -6,6 +6,7 @@ import { packageRoot } from "./core/paths.js";
 import { createInstallPlan } from "./core/plan.js";
 import { applyOwnedSkillSync, planOwnedSkillSync } from "./core/owned-skills.js";
 import { detectProject } from "./core/project.js";
+import { planProjectCapabilities } from "./core/project-plan.js";
 import {
   applyIsolationManifest,
   cleanIsolationRuntime,
@@ -29,7 +30,7 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
-import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProject, formatUpdate } from "./format.js";
+import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProject, formatProjectPlan, formatUpdate } from "./format.js";
 import { createRedactionContext, redactString, serializeObservable } from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
@@ -578,6 +579,15 @@ async function main(): Promise<void> {
     }
     const parts = positional(args.slice(2));
     const target = parts[0] ?? process.cwd();
+    if (subcommand === "plan") {
+      // No `--apply`: this route previews and persists nothing. Dependency
+      // names and paths reach stdout, so both renderings leave through the one
+      // redaction seam rather than a direct write.
+      const context = observableContext();
+      const plan = await planProjectCapabilities({ path: target, packageRoot: root });
+      print(plan, json, formatProjectPlan(plan), context);
+      return;
+    }
     const detection = await detectProject(target);
     print(detection, json, formatProject(detection));
     if (subcommand !== "detect") process.stdout.write("\nDry-run only. Project files and harness configuration were not changed.\n");

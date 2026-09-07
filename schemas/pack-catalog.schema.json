@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/pack-catalog.schema.json",
+  "title": "alpha-AOS project pack catalog",
+  "description": "Closed-world contract for a catalog/packs/*.yaml file. The declarations are the single authority for which capability packs a repository qualifies for; code loads and evaluates them but never restates them. Namespaced x-* extensions are split out before validation, so every object described here is exhaustive.",
+  "type": "object",
+  "required": ["schemaVersion", "packs"],
+  "additionalProperties": false,
+  "$defs": {
+    "factId": {
+      "description": "A fact declared by the evidence vocabulary, referenced by a predicate leaf.",
+      "type": "string",
+      "minLength": 1
+    },
+    "factIdList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/factId" }
+    },
+    "literalList": {
+      "description": "Inline literals a detector matches directly. The evaluator synthesizes the explaining fact id from the operator and the matched literal.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    },
+    "evidence": {
+      "description": "One predicate node. Exactly the five operators the declared packs use today; the evaluator computes every leaf rather than short-circuiting, so a partial match stays explainable.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "description": "Every named fact must be detected.",
+          "$ref": "#/$defs/factIdList"
+        },
+        "any": {
+          "description": "At least one named fact must be detected.",
+          "$ref": "#/$defs/factIdList"
+        },
+        "anyFiles": {
+          "description": "At least one of these paths, relative to the canonical root, must exist.",
+          "$ref": "#/$defs/literalList"
+        },
+        "anyDependencies": {
+          "description": "At least one of these package names must be declared by a manifest at the canonical root.",
+          "$ref": "#/$defs/literalList"
+        },
+        "manifestOptIn": {
+          "description": "The named project-manifest key must opt this pack in.",
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "packs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "evidence"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "description": "Stable pack identifier, referenced by receipts and approved plans.",
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "evidence": { "$ref": "#/$defs/evidence" },
+          "skills": {
+            "description": "ECC skill ids this pack supplies. An empty array declares a pack that supplies no skill.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "lifecycle": {
+            "description": "Declared and carried by this phase; materialization acts on it in a later phase.",
+            "type": "string",
+            "minLength": 1
+          },
+          "selectionPolicy": {
+            "description": "How this pack composes with a native engine covering the same ground.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

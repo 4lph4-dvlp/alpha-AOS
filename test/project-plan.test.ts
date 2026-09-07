@@ -26,7 +26,7 @@ import type {
 } from "../src/types.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
-import { collectProjectEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
+import { collectProjectEvidence, digestableEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import {
@@ -1229,4 +1229,149 @@ test("the text rendering carries the target pre-state, adapter-support and appro
   assert.match(result.stdout, /^codex\s+unverified\s+\S/mu, result.stdout);
   assert.match(result.stdout, /^TARGET\s+HARNESS\s+STATE\s+ACTION/mu, result.stdout);
   assert.match(result.stdout, /^APPROVAL PACKAGE_SOURCE /mu, result.stdout);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-08 Task 3: two digests, and byte-identical output on repeated runs
+// ---------------------------------------------------------------------------
+//
+// The byte-stability assertions are the cheapest possible regression net for
+// the whole DETC-04 stability claim: if `plan` produces different bytes on two
+// runs over an unchanged repository, `approve` refuses its own freshly printed
+// digest and the contract collapses.
+
+/** The three files every plan digest is actually computed in. */
+const DIGEST_PATH_FILES = ["src/core/evidence.ts", "src/core/project-plan.ts", "src/core/component-session.ts"];
+
+test("a byte change to a read file moves inputsDigest and leaves evidenceDigest unchanged", async (context) => {
+  const root = await reactFixture(context);
+  const before = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  // Same declared dependencies, different bytes. D-07 keeps a fact to path,
+  // name and version, so no individual fact moves — but the AGGREGATE input
+  // digest is a different object and must notice.
+  const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as Record<string, unknown>;
+  await writeFile(join(root, "package.json"), `${JSON.stringify(manifest, null, 4)}\n`, "utf8");
+
+  const after = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.notEqual(after.inputsDigest, before.inputsDigest, "inputsDigest did not move when a read file changed");
+  assert.equal(after.evidenceDigest, before.evidenceDigest, "evidenceDigest moved without any fact changing");
+  assert.deepEqual(after.selected, before.selected);
+});
+
+test("a dependency that satisfies a declared fact moves both digests", async (context) => {
+  const root = await reactFixture(context);
+  const before = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.equal(before.selected.includes("MCP_SERVER"), false);
+
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify(
+      { name: "plan-fixture", private: true, dependencies: { react: "^19.0.0", "@modelcontextprotocol/sdk": "^1.0.0" } },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const after = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.notEqual(after.inputsDigest, before.inputsDigest);
+  assert.notEqual(after.evidenceDigest, before.evidenceDigest, "evidenceDigest did not move when a fact flipped");
+  assert.ok(after.selected.includes("MCP_SERVER"), after.selected.join(", "));
+});
+
+test("two consecutive project plan runs over an unchanged fixture are byte-identical in text mode", async (context) => {
+  const root = await reactFixture(context);
+  const first = await runCli(["project", "plan", root]);
+  const second = await runCli(["project", "plan", root]);
+
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(second.stdout, first.stdout, "text output is not byte-identical across runs");
+  assert.equal(Buffer.byteLength(second.stdout, "utf8"), Buffer.byteLength(first.stdout, "utf8"));
+});
+
+test("two consecutive project plan runs over an unchanged fixture are byte-identical in --json mode", async (context) => {
+  const root = await reactFixture(context);
+  const first = await runCli(["project", "plan", root, "--json"]);
+  const second = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(first.status, 0, first.stderr);
+  assert.equal(second.status, 0, second.stderr);
+  assert.equal(second.stdout, first.stdout, "JSON output is not byte-identical across runs");
+  assert.equal(Buffer.byteLength(second.stdout, "utf8"), Buffer.byteLength(first.stdout, "utf8"));
+});
+
+test("createdAt is excluded from every digest by construction and never reaches the plan output", async (context) => {
+  const root = await reactFixture(context);
+  const canonical = await resolveCanonicalRoot(root);
+  const envelope = await collectProjectEvidence(canonical);
+  assert.match(envelope.createdAt, /^\d{4}-\d{2}-\d{2}T/u);
+
+  // Deterministic proof of exclusion: two envelopes differing ONLY in
+  // createdAt normalize to the same digestable evidence. This is exclusion by
+  // construction, not by deleting a field after the fact.
+  const later = { ...envelope, createdAt: "2099-12-31T23:59:59.999Z" };
+  assert.notEqual(later.createdAt, envelope.createdAt);
+  assert.deepEqual(digestableEvidence(later), digestableEvidence(envelope));
+
+  // And the clock does advance between real runs while every digest holds still.
+  const second = await collectProjectEvidence(canonical);
+  assert.ok(Date.parse(second.createdAt) >= Date.parse(envelope.createdAt));
+
+  const firstPlan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const secondPlan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.equal(secondPlan.inputsDigest, firstPlan.inputsDigest);
+  assert.equal(secondPlan.evidenceDigest, firstPlan.evidenceDigest);
+  assert.equal(secondPlan.planDigest, firstPlan.planDigest);
+
+  const rendered = await runCli(["project", "plan", root, "--json"]);
+  const json = JSON.parse(rendered.stdout) as Record<string, unknown>;
+  assert.equal(Object.hasOwn(json, "createdAt"), false, "the plan output carries a wall-clock timestamp");
+  assert.equal(
+    /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/u.test(rendered.stdout),
+    false,
+    "a wall-clock timestamp reached the plan output",
+  );
+});
+
+test("a canonical root whose name contains non-ASCII characters digests identically across two runs", async (context) => {
+  const parent = await mkdtemp(join(tmpdir(), "alpha-aos-unicode-"));
+  context.after(async () => rm(parent, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const root = join(parent, "프로젝트-café-Ω");
+  await mkdir(root, { recursive: true });
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "unicode-fixture", private: true, dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+
+  const first = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const second = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  assert.deepEqual(first.selected, ["WEB_REACT"]);
+  assert.equal(second.inputsDigest, first.inputsDigest);
+  assert.equal(second.evidenceDigest, first.evidenceDigest);
+  assert.equal(second.planDigest, first.planDigest);
+
+  const rendered = await runCli(["project", "plan", root, "--json"]);
+  const repeated = await runCli(["project", "plan", root, "--json"]);
+  assert.equal(rendered.status, 0, rendered.stderr);
+  assert.equal(repeated.stdout, rendered.stdout);
+});
+
+test("every hash of a string in the digest path passes an explicit utf8 encoding", async () => {
+  let checked = 0;
+  for (const file of DIGEST_PATH_FILES) {
+    const text = await readFile(join(repositoryRoot, ...file.split("/")), "utf8");
+    for (const match of text.matchAll(/\.update\(([\s\S]*?)\)\.digest\(/gu)) {
+      checked += 1;
+      assert.ok(
+        (match[1] ?? "").includes('"utf8"'),
+        `${file} hashes without an explicit utf8 encoding: .update(${(match[1] ?? "").trim()})`,
+      );
+    }
+  }
+  // Non-vacuous: the gate must actually have found the hash calls it guards.
+  assert.ok(checked >= DIGEST_PATH_FILES.length, `the encoding gate inspected only ${checked} hash call(s)`);
 });

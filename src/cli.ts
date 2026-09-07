@@ -5,7 +5,6 @@ import { collectInventory } from "./core/inventory.js";
 import { packageRoot } from "./core/paths.js";
 import { createInstallPlan } from "./core/plan.js";
 import { applyOwnedSkillSync, planOwnedSkillSync } from "./core/owned-skills.js";
-import { detectProject } from "./core/project.js";
 import { planProjectCapabilities } from "./core/project-plan.js";
 import {
   applyIsolationManifest,
@@ -30,7 +29,7 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
-import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProject, formatProjectPlan, formatUpdate } from "./format.js";
+import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectPlan, formatUpdate } from "./format.js";
 import { createRedactionContext, redactString, serializeObservable } from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
@@ -51,7 +50,7 @@ Usage:
   alpha-aos update --check [--json]
   alpha-aos update --stage [--apply]
   alpha-aos update --apply [--target <harness[,harness]>] [--json]
-  alpha-aos project detect|plan|sync [path] [--json]
+  alpha-aos project plan|sync [path] [--json]
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
@@ -501,7 +500,7 @@ async function main(): Promise<void> {
   }
 
   if (command === "project") {
-    const subcommand = args[1] ?? "detect";
+    const subcommand = args[1] ?? "plan";
     if (subcommand === "isolate") {
       const action = args[2] ?? "plan";
       if (!["init", "plan", "doctor", "sync", "clean"].includes(action)) throw new Error(`Unknown project isolate command: ${action}`);
@@ -573,24 +572,22 @@ async function main(): Promise<void> {
       }
       return;
     }
-    if (!["detect", "plan", "sync"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
+    // `detect` is gone: it is folded into `plan`, which already printed
+    // everything `detect` printed and more. Keeping two entry points would
+    // keep two answers to one question (plan 02-06).
+    if (!["plan", "sync"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
     if (subcommand === "sync" && hasFlag(args, "--apply")) {
       throw new Error("Project apply is not enabled until trust and transaction support are implemented");
     }
     const parts = positional(args.slice(2));
     const target = parts[0] ?? process.cwd();
-    if (subcommand === "plan") {
-      // No `--apply`: this route previews and persists nothing. Dependency
-      // names and paths reach stdout, so both renderings leave through the one
-      // redaction seam rather than a direct write.
-      const context = observableContext();
-      const plan = await planProjectCapabilities({ path: target, packageRoot: root });
-      print(plan, json, formatProjectPlan(plan), context);
-      return;
-    }
-    const detection = await detectProject(target);
-    print(detection, json, formatProject(detection));
-    if (subcommand !== "detect") process.stdout.write("\nDry-run only. Project files and harness configuration were not changed.\n");
+    // No `--apply`: this route previews and persists nothing. Dependency names
+    // and paths reach stdout, so both renderings leave through the one
+    // redaction seam rather than a direct write.
+    const context = observableContext();
+    const plan = await planProjectCapabilities({ path: target, packageRoot: root });
+    print(plan, json, formatProjectPlan(plan), context);
+    if (subcommand === "sync") process.stdout.write("\nDry-run only. Project files and harness configuration were not changed.\n");
     return;
   }
 

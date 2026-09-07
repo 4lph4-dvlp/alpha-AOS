@@ -112,12 +112,6 @@ export interface DoctorFinding {
   message: string;
 }
 
-export interface ProjectDetection {
-  root: string;
-  evidence: string[];
-  packs: string[];
-}
-
 export interface ProjectIsolationPolicy {
   mode: IsolationMode;
   allowedHarnesses: HarnessId[];

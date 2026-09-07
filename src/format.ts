@@ -1,4 +1,4 @@
-import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, LeafResult, PlanAction, ProjectCapabilityPlan, ProjectDetection, StackLock } from "./types.js";
+import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, LeafResult, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -32,10 +32,6 @@ export function formatPlan(actions: PlanAction[]): string {
 
 export function formatDoctor(findings: DoctorFinding[]): string {
   return table(["LEVEL", "CODE", "MESSAGE"], findings.map((finding) => [finding.level.toUpperCase(), finding.code, finding.message]));
-}
-
-export function formatProject(detection: ProjectDetection): string {
-  return [`Root: ${detection.root}`, `Evidence: ${detection.evidence.join(", ") || "none"}`, `Packs: ${detection.packs.join(", ") || "none"}`].join("\n");
 }
 
 /** Names the fact and the file that carried it, never a bare fact id. */

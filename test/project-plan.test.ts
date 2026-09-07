@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -26,10 +26,12 @@ import type {
 } from "../src/types.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
+import { reviewedDigest } from "../src/core/component-session.js";
 import { collectProjectEvidence, digestableEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import {
+  digestablePlan,
   evaluatePack,
   MAX_NEAR_MISS_LINES,
   planProjectCapabilities,
@@ -1374,4 +1376,383 @@ test("every hash of a string in the digest path passes an explicit utf8 encoding
   }
   // Non-vacuous: the gate must actually have found the hash calls it guards.
   assert.ok(checked >= DIGEST_PATH_FILES.length, `the encoding gate inspected only ${checked} hash call(s)`);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-09 Task 1: approve — revalidate, refuse on drift, write under one
+// transaction
+// ---------------------------------------------------------------------------
+//
+// DETC-05 is the reviewed-digest contract Phase 1 already implements for the
+// ECC, GSD, MCP, isolation and support-bundle components. The assertions below
+// therefore test a BINDING, not a second mechanism: every refusal here has to
+// come out of `assertPlanUnchanged` over the plan boundary, and every write has
+// to go through `applyFileTransaction` with `.alpha-aos` as the only allowed
+// root.
+
+/** The approved-plan artifact, relative to the canonical root. Latest only (D-16). */
+const PLAN_ARTIFACT_RELATIVE = ".alpha-aos/plan.json";
+
+interface ApproveResult {
+  readonly status: string;
+  readonly operationId: string | null;
+  readonly artifactPath: string;
+  readonly plan: ProjectCapabilityPlan;
+}
+
+interface ApproveOptions {
+  path: string;
+  packageRoot: string;
+  stateRoot: string;
+  expectedDigest: string;
+  subProject?: string;
+  reviewedPlan?: ProjectCapabilityPlan;
+}
+
+type ApproveProjectPlan = (options: ApproveOptions) => Promise<ApproveResult>;
+
+/**
+ * A package root the test OWNS, so a lock-drift fixture can move a lock entry
+ * without editing the repository's own `catalog/stack.lock.json`.
+ */
+async function packageRootCopy(context: TestContext): Promise<string> {
+  const root = await scratchRoot(context, "package-root");
+  await cp(join(repositoryRoot, "catalog"), join(root, "catalog"), { recursive: true });
+  await cp(join(repositoryRoot, "schemas"), join(root, "schemas"), { recursive: true });
+  return root;
+}
+
+/** A project fixture plus the managed state root its approve journals into. */
+async function approvalFixture(context: TestContext): Promise<{ root: string; stateRoot: string }> {
+  const root = await reactFixture(context);
+  const stateRoot = await scratchRoot(context, "approve-state");
+  return { root, stateRoot };
+}
+
+/** Every file under a root EXCEPT the one directory an approve may write inside. */
+async function snapshotOutsideArtifactRoot(root: string): Promise<Array<[string, string]>> {
+  return (await snapshotTree(root)).filter(([path]) => !path.startsWith(".alpha-aos/"));
+}
+
+async function readArtifact(artifactPath: string): Promise<Record<string, unknown>> {
+  return asRecord(JSON.parse(await readFile(artifactPath, "utf8")));
+}
+
+/** A second react fixture manifest that pulls in one more declared dependency. */
+const REACT_PLUS_SDK = `${JSON.stringify(
+  { name: "plan-fixture", private: true, dependencies: { react: "^19.0.0", "@modelcontextprotocol/sdk": "^1.0.0" } },
+  null,
+  2,
+)}\n`;
+
+async function expectRefusal(run: () => Promise<unknown>, label: string): Promise<Error> {
+  try {
+    await run();
+  } catch (error) {
+    assert.ok(error instanceof Error, `${label} threw a non-Error value`);
+    return error;
+  }
+  assert.fail(`${label} did not refuse`);
+}
+
+test("approving a freshly computed plan digest writes the artifact and returns a transaction id", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const result = await approveProjectPlan({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    expectedDigest: plan.planDigest,
+  });
+
+  assert.equal(result.status, "written");
+  assert.equal(typeof result.operationId, "string");
+  assert.ok((result.operationId ?? "").length > 0, "an approve that wrote reported no transaction id");
+  assert.equal(existsSync(result.artifactPath), true, `the artifact was not written at ${result.artifactPath}`);
+  assert.ok(
+    result.artifactPath.replaceAll("\\", "/").endsWith(PLAN_ARTIFACT_RELATIVE),
+    `the artifact was written somewhere other than ${PLAN_ARTIFACT_RELATIVE}: ${result.artifactPath}`,
+  );
+});
+
+test("a dependency changed between plan and approve refuses, naming both digest prefixes", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  await writeFile(join(root, "package.json"), REACT_PLUS_SDK, "utf8");
+
+  const error = await expectRefusal(
+    () => approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest }),
+    "an approve against changed dependencies",
+  );
+
+  assert.match(error.message, /plan-drift/u);
+  const observed = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(error.message.includes(plan.planDigest.slice(0, 12)), `the refusal did not name the reviewed digest: ${error.message}`);
+  assert.ok(error.message.includes(observed.planDigest.slice(0, 12)), `the refusal did not name the observed digest: ${error.message}`);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a refused approve still wrote the artifact");
+});
+
+test("a target file's bytes changed between plan and approve refuses", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  await mkdir(join(root, ".claude", "skills", REACT_PACK_SKILL), { recursive: true });
+  await writeFile(join(root, ".claude", "skills", REACT_PACK_SKILL, "SKILL.md"), "# somebody else\n", "utf8");
+
+  const error = await expectRefusal(
+    () => approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest }),
+    "an approve against changed target bytes",
+  );
+  assert.match(error.message, /plan-drift/u);
+});
+
+test("a lock entry changed for a selected pack's skill between plan and approve refuses", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const packageRoot = await packageRootCopy(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot });
+
+  const lockPath = join(packageRoot, "catalog", "stack.lock.json");
+  const lock = JSON.parse(await readFile(lockPath, "utf8")) as {
+    components: { ecc: { sourceSha256: Record<string, string> } };
+  };
+  assert.equal(
+    typeof lock.components.ecc.sourceSha256[REACT_PACK_SKILL],
+    "string",
+    `the lock carries no sourceSha256 for ${REACT_PACK_SKILL}`,
+  );
+  lock.components.ecc.sourceSha256[REACT_PACK_SKILL] = `${"0".repeat(63)}1`;
+  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
+
+  const error = await expectRefusal(
+    () => approveProjectPlan({ path: root, packageRoot, stateRoot, expectedDigest: plan.planDigest }),
+    "an approve against a changed lock entry",
+  );
+  assert.match(error.message, /plan-drift/u);
+});
+
+test("a project manifest changed between plan and approve refuses", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  await mkdir(join(root, ".alpha-aos"), { recursive: true });
+  await writeFile(join(root, ".alpha-aos", "stack.yaml"), "schemaVersion: 1\n", "utf8");
+
+  const error = await expectRefusal(
+    () => approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest }),
+    "an approve against a changed project manifest",
+  );
+  assert.match(error.message, /plan-drift/u);
+});
+
+test("a digest that was never produced refuses without creating the artifact", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+
+  const error = await expectRefusal(
+    () => approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: "9".repeat(64) }),
+    "an approve of a digest that was never printed",
+  );
+  assert.match(error.message, /plan-drift/u);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a refused approve created the artifact");
+});
+
+test("the written artifact round-trips: the three digests and the approved fact set survive a read", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const result = await approveProjectPlan({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    expectedDigest: plan.planDigest,
+  });
+
+  const artifact = await readArtifact(result.artifactPath);
+  assert.equal(artifact.approvedDigest, plan.planDigest);
+  const stored = asRecord(artifact.plan);
+  assert.equal(stored.planDigest, plan.planDigest);
+  assert.equal(stored.inputsDigest, plan.inputsDigest);
+  assert.equal(stored.evidenceDigest, plan.evidenceDigest);
+  assert.deepEqual(stored.selected, plan.selected);
+  assert.deepEqual(stored.applicable, plan.applicable);
+  assert.deepEqual(stored.source, JSON.parse(JSON.stringify(plan.source)));
+  assert.deepEqual(stored.targetPreState, JSON.parse(JSON.stringify(plan.targetPreState)));
+});
+
+test("approve writes nothing outside .alpha-aos/", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const before = await snapshotOutsideArtifactRoot(root);
+
+  await approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest });
+
+  assert.deepEqual(await snapshotOutsideArtifactRoot(root), before, "approve changed a file outside .alpha-aos/");
+});
+
+test("a second approve of the same digest reports already-current and writes no new bytes", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const first = await approveProjectPlan({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    expectedDigest: plan.planDigest,
+  });
+  const stampBefore = (await stat(first.artifactPath)).mtimeMs;
+
+  const again = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const second = await approveProjectPlan({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    expectedDigest: again.planDigest,
+  });
+
+  assert.equal(second.status, "already-current");
+  assert.equal(second.operationId, null, "an already-current approve still opened a transaction");
+  assert.equal((await stat(first.artifactPath)).mtimeMs, stampBefore, "an already-current approve rewrote the artifact");
+});
+
+test("only one plan artifact exists under .alpha-aos after two approvals, with no history directory", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+
+  const first = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  await approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: first.planDigest });
+
+  await writeFile(join(root, "package.json"), REACT_PLUS_SDK, "utf8");
+  const second = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.notEqual(second.planDigest, first.planDigest, "the fixture did not actually produce a second, different plan");
+  const result = await approveProjectPlan({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    expectedDigest: second.planDigest,
+  });
+  assert.equal(result.status, "written");
+
+  const entries = (await readdir(join(root, ".alpha-aos"), { withFileTypes: true }))
+    .map((entry) => `${entry.name}${entry.isDirectory() ? "/" : ""}`)
+    .sort();
+  assert.deepEqual(entries, ["plan.json"], `.alpha-aos accumulated more than the latest plan: ${entries.join(", ")}`);
+  const artifact = await readArtifact(result.artifactPath);
+  assert.equal(artifact.approvedDigest, second.planDigest, "the artifact is not the latest approved plan");
+});
+
+/**
+ * One entry per DETC-05 noun, naming the field the plan carries it in.
+ *
+ * The four repository fixtures above prove the END-TO-END refusal path for the
+ * nouns a filesystem can move. This table proves the DIFFERENT thing: that no
+ * noun sits outside the digestable view — including `renderer`, `adapterSupport`
+ * and the `executable` null, whose values are code-derived and cannot be moved
+ * by editing a repository at all. A noun whose mutation leaves `planDigest`
+ * equal is a change the refusal can never see.
+ */
+const DETC05_DIGESTED_NOUNS: ReadonlyArray<{
+  readonly noun: string;
+  readonly field: string;
+  readonly mutate: (plan: Record<string, unknown>) => void;
+}> = [
+  {
+    noun: "evidence",
+    field: "evidenceDigest",
+    mutate: (plan) => {
+      plan.evidenceDigest = "f".repeat(64);
+    },
+  },
+  {
+    noun: "manifest",
+    field: "manifestDigest",
+    mutate: (plan) => {
+      plan.manifestDigest = "e".repeat(64);
+    },
+  },
+  {
+    noun: "stable lock",
+    field: "source[0].sourceSha256",
+    mutate: (plan) => {
+      const entry = asRecordArray(plan.source, "source")[0];
+      assert.ok(entry, "the fixture plan selected no pack, so no lock entry could be mutated");
+      entry.sourceSha256 = "d".repeat(64);
+    },
+  },
+  {
+    noun: "renderer",
+    field: "renderer.id",
+    mutate: (plan) => {
+      asRecord(plan.renderer).id = "ecc-skill/transform";
+    },
+  },
+  {
+    noun: "executable",
+    field: "executable",
+    mutate: (plan) => {
+      plan.executable = "/usr/bin/env";
+    },
+  },
+  {
+    noun: "adapter capability",
+    field: "adapterSupportEvidence[0].support",
+    mutate: (plan) => {
+      const entry = asRecordArray(plan.adapterSupportEvidence, "adapterSupportEvidence")[0];
+      assert.ok(entry, "no harness was classified, so adapter support could not be mutated");
+      entry.support = entry.support === "supported" ? "unsupported" : "supported";
+    },
+  },
+  {
+    noun: "target bytes",
+    field: "targetPreState[0].currentHash",
+    mutate: (plan) => {
+      const entry = asRecordArray(plan.targetPreState, "targetPreState")[0];
+      assert.ok(entry, "the fixture plan planned no target, so no target hash could be mutated");
+      entry.currentHash = "c".repeat(64);
+    },
+  },
+];
+
+test("mutating any one of the seven DETC-05 nouns changes the plan digest", async (context) => {
+  assert.equal(
+    DETC05_DIGESTED_NOUNS.length,
+    7,
+    "DETC-05 names seven nouns; a shorter table means one was dropped from the coverage claim rather than proven",
+  );
+  const kind = await planExport<string>("PLAN_DIGEST_KIND");
+  const root = await reactFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  // The record and its evidence array must agree, or mutating one would leave
+  // the other stating something the digest never sees.
+  for (const entry of plan.adapterSupportEvidence) {
+    assert.equal(
+      plan.adapterSupport[entry.harness],
+      entry.support,
+      `adapterSupport disagrees with its recorded evidence for ${entry.harness}`,
+    );
+  }
+
+  const baseline = reviewedDigest(kind, digestablePlan(plan));
+  assert.equal(baseline, plan.planDigest, "the digestable view no longer reproduces the sealed plan digest");
+
+  for (const entry of DETC05_DIGESTED_NOUNS) {
+    const mutated = structuredClone(plan) as unknown as Record<string, unknown>;
+    entry.mutate(mutated);
+    const digest = reviewedDigest(kind, digestablePlan(mutated as unknown as ProjectCapabilityPlan));
+    assert.notEqual(
+      digest,
+      baseline,
+      `the ${entry.noun} noun (${entry.field}) is outside the digestable view, so a change to it can never refuse an apply`,
+    );
+  }
 });

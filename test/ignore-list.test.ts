@@ -93,7 +93,11 @@ test("the same .gitignore decides identically in a directory that is not a git r
   const plainDecisions: IgnoreDecision[] = probes.map(([path, dir]) => isIgnored(path, dir, plainStack).decision);
 
   assert.deepEqual(plainDecisions, gitDecisions);
-  assert.deepEqual(plainDecisions, ["ignored", "scannable", "ignored", "scannable"]);
+  // `build/keep.txt` is ignored despite `!build/keep.txt`: gitignore(5) says a
+  // file cannot be re-included once a parent directory is excluded. Verified
+  // against `git check-ignore -q` in a scratch repository with this exact
+  // .gitignore, which reports build/keep.txt as ignored.
+  assert.deepEqual(plainDecisions, ["ignored", "scannable", "ignored", "ignored"]);
 });
 
 test("a nested .gitignore takes precedence over a shallower one for paths beneath it", async (context) => {

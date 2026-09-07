@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-07-PLAN.md
-last_updated: "2026-09-07T18:34:51.943Z"
+stopped_at: Completed 02-08-PLAN.md
+last_updated: "2026-09-07T19:17:53.481Z"
 last_activity: 2026-09-07
 last_activity_desc: Phase 02 execution started
-state_head: e41ab4d22ee3290d69cf3363e06250a7c9ac57a7
+state_head: b3b11a85b4170680f7c666424df1f453663673b2
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 37
-  completed_plans: 34
+  completed_plans: 35
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
-Plan: 8 of 10
+Plan: 9 of 10
 Status: Ready to execute
 Last activity: 2026-09-07 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -75,6 +75,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P05 | 38 min | 3 tasks | 3 files |
 | Phase 02 P06 | 35 min | 3 tasks | 8 files |
 | Phase 02 P07 | 52 min | 3 tasks | 11 files |
+| Phase 02 P08 | 28 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: [02-06]: An evidence file that exists but fails to read with a non-ENOENT errno reports UNDECIDABLE carrying the errno and the path — never STALE, never a silent absence. — Reuses plan 01-19's precedent one layer down rather than inventing a second story about unreadable paths. STALE is reserved for "the evidence is gone", which an EACCES does not establish. The fixture is a directory bearing a manifest's name, which yields EISDIR on every supported host, so the case needs no privileged fixture.
 - [Phase 02]: [02-06]: The evidence envelope carries EXACTLY the vocabulary declared in catalog/facts.yaml; anyFiles and anyDependencies inline literals stay outside it and resolve against the dependency index. — Putting inline literals in the envelope would make the fact set depend on what the packs happen to say and would break the one-record-per-declared-fact property the empty-repository case rests on. The evaluator synthesizes the explaining fact id (dependency:react) at evaluation time instead — the split 02-RESEARCH.md Pattern 3 describes.
 - [Phase 02]: [02-06]: project detect is folded into project plan rather than aliased, and the hardcoded rule engine is deleted rather than kept alongside the YAML declarations. — Two entry points would keep two answers to one question. The removed engine disagreed with catalog/packs/*.yaml in six ways and four of its declared alternatives were never checked at all. Documented consequence: project plan . selects no pack where detect reported MCP_SERVER, because MCP_SERVER uses the any: operator whose evaluator arrives in 02-07 — the evidence itself is observed positively.
+- [Phase 02]: A conflicting target drops its pack from `applicable` while it stays in `selected`: the evidence decision and the actionable set are different questions, and collapsing them makes a D-11 drop indistinguishable from a pack the evidence never chose.
+- [Phase 02]: DETC-05 executable noun recorded as an explicit null with `deferredTo: phase-3-capability-materialization`, carried INTO the digestable view — the same declared-and-attributed form 02-02 used for the eight `deferredTo: GATE-01` risk facts, so Phase 3 inherits a watched slot rather than a fiction.
+- [Phase 02]: Cross-host Unicode path normalization is NOT proven by 02-08: the non-ASCII fixture proves same-host stability only. A macOS NFD vs Linux NFC path naming the same file is unaddressed and belongs to the Phase 7 three-OS matrix.
 
 ### Pending Todos
 
@@ -175,6 +179,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-07T18:34:51.603Z
-Stopped at: Completed 02-07-PLAN.md
+Last session: 2026-09-07T19:17:22.181Z
+Stopped at: Completed 02-08-PLAN.md
 Resume file: None

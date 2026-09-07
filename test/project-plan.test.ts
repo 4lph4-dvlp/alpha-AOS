@@ -2157,3 +2157,302 @@ test("two concurrent project approve --apply runs never both write, and leave no
     assert.equal(asRecord(artifact.plan).planDigest, plan.planDigest);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-10 / DETC-06: reconciling what is installed against what is true now
+// ---------------------------------------------------------------------------
+//
+// Every new export below is resolved through `planExport` rather than imported
+// statically, for the reason that helper already records: a static import of a
+// name that does not exist yet fails to COMPILE, and a suite that never ran
+// proves nothing. Resolved by name, the RED run discovers the test and fails on
+// an assertion that names the missing export.
+
+/** The pack, skill and target the CONTEXT's own `STALE` example is written about. */
+const POSTGRES_SKILL = "postgres-patterns";
+const POSTGRES_TARGET = `.claude/skills/${POSTGRES_SKILL}/SKILL.md`;
+const POSTGRES_PACK = "DB_POSTGRES";
+
+interface ReconciledTargetLike {
+  readonly path: string;
+  readonly harness: string;
+  readonly expectedHash: string;
+  readonly currentHash: string | null;
+  readonly exists: boolean;
+  readonly matches: boolean;
+}
+
+interface StaleReasonLike {
+  readonly packId: string;
+  readonly factId: string;
+  readonly named: string;
+  readonly sentence: string;
+}
+
+interface PackReconciliationLike {
+  readonly packId: string;
+  readonly state: string;
+  readonly receiptPath: string;
+  readonly detail: string;
+  readonly targets: readonly ReconciledTargetLike[];
+  readonly stale: readonly StaleReasonLike[];
+  readonly undecidable: ReadonlyArray<{ readonly path: string; readonly errno: string }>;
+}
+
+interface GitContextLike {
+  readonly available: boolean;
+  readonly branch: string | null;
+  readonly commit: string | null;
+  readonly detached: boolean;
+  readonly source: string | null;
+  readonly reason: string | null;
+}
+
+interface ProjectReconciliationLike {
+  readonly plan: ProjectCapabilityPlan;
+  readonly approved: ProjectCapabilityPlan | null;
+  readonly artifactState: string;
+  readonly artifactPath: string;
+  readonly unsupportedClaims: readonly string[];
+  readonly packs: readonly PackReconciliationLike[];
+  readonly git: GitContextLike;
+  readonly approvedGit: GitContextLike | null;
+  readonly gitNote: string | null;
+}
+
+type ReconcileProjectState = (options: {
+  path: string;
+  packageRoot: string;
+  subProject?: string;
+}) => Promise<ProjectReconciliationLike>;
+
+/** The receipt bytes Phase 3 will write, built here by hand against the real schema. */
+async function writeInstalledPack(
+  root: string,
+  options: { packId: string; target: string; body: string; evidenceHash?: string },
+): Promise<{ absolute: string; targetHash: string }> {
+  const absolute = join(root, ...options.target.split("/"));
+  await mkdir(dirname(absolute), { recursive: true });
+  await writeFile(absolute, options.body, "utf8");
+  const targetHash = createHash("sha256").update(options.body, "utf8").digest("hex");
+  const receipt = {
+    schemaVersion: 1,
+    packId: options.packId,
+    producer: { name: "alpha-aos", version: "0.1.0" },
+    createdAt: "2026-01-01T00:00:00.000Z",
+    sourceHash: "a".repeat(64),
+    ...(options.evidenceHash === undefined ? {} : { evidenceHash: options.evidenceHash }),
+    targets: [{ harness: "claude", path: options.target, targetHash }],
+  };
+  await mkdir(join(root, ".alpha-aos", "receipts"), { recursive: true });
+  await writeFile(
+    join(root, ".alpha-aos", "receipts", `${options.packId}.json`),
+    `${JSON.stringify(receipt, null, 2)}\n`,
+    "utf8",
+  );
+  return { absolute, targetHash };
+}
+
+/**
+ * A repository whose `pg` dependency selects DB_POSTGRES, with the pack's
+ * skill materialized, a receipt claiming it, and the plan approved — in that
+ * order, so the approved artifact records the world the receipt describes.
+ */
+async function installedPostgresFixture(
+  context: TestContext,
+  options: { dsn?: boolean } = {},
+): Promise<{ root: string; stateRoot: string; target: string; targetHash: string }> {
+  const root = await scratchRoot(context, "reconcile");
+  const stateRoot = await scratchRoot(context, "reconcile-state");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "reconcile-fixture", private: true, dependencies: { pg: "^8.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  if (options.dsn === true) {
+    await writeFile(join(root, ".env.example"), "DATABASE_URL=postgres://db.example.invalid/app\n", "utf8");
+  }
+  const installed = await writeInstalledPack(root, {
+    packId: POSTGRES_PACK,
+    target: POSTGRES_TARGET,
+    body: "# postgres-patterns\n",
+  });
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(
+    plan.selected.includes(POSTGRES_PACK),
+    `the fixture did not select ${POSTGRES_PACK}: ${plan.selected.join(", ")}`,
+  );
+  await approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest });
+  return { root, stateRoot, target: installed.absolute, targetHash: installed.targetHash };
+}
+
+function packStateOf(reconciliation: ProjectReconciliationLike, packId: string): PackReconciliationLike {
+  const found = reconciliation.packs.find((pack) => pack.packId === packId);
+  assert.ok(
+    found,
+    `the reconciliation reported no state for ${packId}: ${reconciliation.packs.map((entry) => `${entry.packId}=${entry.state}`).join(", ")}`,
+  );
+  return found;
+}
+
+test("an installed pack whose evidence and target bytes are unchanged reports CURRENT", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.equal(pack.state, "CURRENT", pack.detail);
+  assert.equal(reconciliation.packs.filter((entry) => entry.state === "CURRENT").length, 1);
+  assert.equal(pack.targets.length, 1);
+  assert.equal(pack.targets[0]?.matches, true);
+});
+
+test("removing the dependency that selected an installed pack reports STALE", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root, target } = await installedPostgresFixture(context);
+
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "reconcile-fixture", private: true, dependencies: {} }, null, 2)}\n`,
+    "utf8",
+  );
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.equal(pack.state, "STALE", pack.detail);
+  assert.ok(pack.stale.length > 0, "a STALE pack named no missing fact");
+  assert.equal(existsSync(target), true, "reporting STALE deleted the installed target");
+});
+
+test("editing an installed target's bytes reports DRIFTED", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root, target } = await installedPostgresFixture(context);
+
+  await writeFile(target, "# postgres-patterns\n\nedited by a human\n", "utf8");
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.equal(pack.state, "DRIFTED", pack.detail);
+  assert.equal(pack.targets[0]?.matches, false);
+  assert.notEqual(pack.targets[0]?.currentHash, pack.targets[0]?.expectedHash);
+});
+
+test("an evidence file that exists but cannot be read reports UNDECIDABLE with the errno and path", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+
+  // A directory where a file is declared reads as EISDIR on every host, so the
+  // case is exercised rather than skipped. A host that could not produce it at
+  // all is reported here by name rather than silently not running.
+  await rm(join(root, "package.json"), { force: true });
+  await mkdir(join(root, "package.json"), { recursive: true });
+  if (!existsSync(join(root, "package.json"))) {
+    context.skip("this host could not create a directory where a dependency manifest is declared");
+    return;
+  }
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.equal(pack.state, "UNDECIDABLE", pack.detail);
+  assert.ok(pack.undecidable.length > 0, "UNDECIDABLE carried no errno and no path");
+  assert.equal(pack.undecidable[0]?.path, "package.json");
+  assert.ok((pack.undecidable[0]?.errno ?? "").length > 0, "UNDECIDABLE carried an empty errno");
+  assert.ok(pack.detail.includes("package.json"), `the UNDECIDABLE detail did not name the path: ${pack.detail}`);
+});
+
+test("a planted plan artifact claiming a pack the evidence does not support reports CHANGED", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const root = await scratchRoot(context, "planted");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "planted-fixture", private: true, dependencies: {} }, null, 2)}\n`,
+    "utf8",
+  );
+  await writeInstalledPack(root, {
+    packId: "SECURITY_REVIEW",
+    target: ".claude/skills/security-review/SKILL.md",
+    body: "# security-review\n",
+  });
+  // A hand-planted artifact: a record of an approval, never an authority.
+  await writeFile(
+    join(root, ".alpha-aos", "plan.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        kind: "project-capability-plan",
+        approvedDigest: "f".repeat(64),
+        plan: {
+          selected: ["SECURITY_REVIEW"],
+          applicable: ["SECURITY_REVIEW"],
+          evaluations: [],
+          evidenceDigest: "0".repeat(64),
+        },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, "SECURITY_REVIEW");
+
+  assert.equal(reconciliation.artifactState, "changed", "the artifact's evidence digest did not disagree with fresh evidence");
+  assert.ok(reconciliation.unsupportedClaims.includes("SECURITY_REVIEW"), "the unsupported claim was not named");
+  assert.equal(pack.state, "CHANGED", pack.detail);
+});
+
+test("a malformed receipt refuses by name rather than producing a partially trusted state", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+  const receiptPath = join(root, ".alpha-aos", "receipts", `${POSTGRES_PACK}.json`);
+  await writeFile(receiptPath, `${JSON.stringify({ schemaVersion: 1, packId: POSTGRES_PACK }, null, 2)}\n`, "utf8");
+
+  const error = await expectRefusal(
+    () => reconcileProjectState({ path: root, packageRoot: repositoryRoot }),
+    "a reconciliation over a malformed receipt",
+  );
+  assert.ok(
+    error.message.includes(`${POSTGRES_PACK}.json`),
+    `the refusal did not name the receipt path: ${error.message}`,
+  );
+});
+
+test("a pack whose target holds a file alpha-AOS did not write reports CONFLICT", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+
+  // A second harness root for the same skill, holding bytes no receipt claims.
+  const foreign = join(root, ".agents", "skills", POSTGRES_SKILL, "SKILL.md");
+  await mkdir(dirname(foreign), { recursive: true });
+  await writeFile(foreign, "# a file alpha-AOS did not write\n", "utf8");
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.equal(pack.state, "CONFLICT", pack.detail);
+  assert.ok(
+    pack.detail.includes(".agents/skills"),
+    `the CONFLICT detail did not name the conflicting path: ${pack.detail}`,
+  );
+});
+
+test("reconciling changes nothing on disk, including under .alpha-aos", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+
+  const before = await snapshotTree(root);
+  await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const after = await snapshotTree(root);
+
+  assert.deepEqual(after, before, "reconciliation wrote, created or deleted something");
+  assert.ok(
+    before.some(([path]) => path.startsWith(".alpha-aos/")),
+    "the snapshot covered no .alpha-aos/ entry, so it could not have proven one unchanged",
+  );
+});

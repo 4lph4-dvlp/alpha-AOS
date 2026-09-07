@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Phase 2 context gathered
-last_updated: "2026-09-07T09:53:16.405Z"
+stopped_at: Completed 02-01-PLAN.md
+last_updated: "2026-09-07T13:34:46.244Z"
 last_activity: 2026-09-07
-last_activity_desc: Phase 01 complete, transitioned to Phase 2
-state_head: 3509439bba345e7c70d082d8d02eee78c5e7a9f6
+last_activity_desc: Phase 02 execution started
+state_head: 8c6e2a57b194e24c9fc513a8f99a96f53879d860
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 37
-  completed_plans: 27
+  completed_plans: 28
   percent: 14
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 ## Current Position
 
-Phase: 02 (Evidence-Bound Project Planning) — READY TO EXECUTE
-Plan: Not started
+Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
+Plan: 2 of 10
 Status: Ready to execute
-Last activity: 2026-09-07 — Phase 01 complete, transitioned to Phase 2
+Last activity: 2026-09-07 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
 
 ## Performance Metrics
@@ -68,6 +68,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 01 P25 | 14 min | 2 tasks | 2 files |
 | Phase 01 P26 | 17 min | 3 tasks | 1 files |
 | Phase 01 P27 | 63 min | 3 tasks | 4 files |
+| Phase 02 P01 | 18 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 01]: [01-27]: The 01-26 ubuntu-latest red cell was an INVALID INSTRUMENT, not a SAFE-06 containment defect; 01-26-SUMMARY.md's reading that the descendant was "actually still alive" is corrected rather than inherited. — The judgment was a single bare process.kill(descendantPid, 0), which succeeds against a zombie as well as a running process — the product's own close() contract at src/core/process.ts:690-699 already named that probe invalid. With the shared oracle in test/helpers/termination-oracle.ts the same code path now reports esrch on all three legs in both entrypoints, and the npm-test-vs-routed-step asymmetry is gone. What remains a HYPOTHESIS, deliberately not recorded as established cause, is why that invalid instrument tipped on that particular ubuntu run.
 - [Phase 01]: [01-27]: Broken Windows ledger disposed strictly on observed per-leg evidence — #7, #2, #3 and #4 marked fixed on run 34051628180; #5 and #6 left open with what each awaits stated. — #2 closed because BOTH POSIX legs reported the three EACCES fixtures executed and passing rather than not-run (their path-boundary not-run array holds only unknown-reparse); #3 because macos-latest passed the darwin floor exact-match assertion in both entrypoints; #4 because all nine probed commands across three legs returned a non-null version with a null unsupportedReason. #5 awaits a permanent suite test for the --files loud-failure paths and #6 is reachable only through a TOCTOU race — neither is a question a green matrix can answer, so no disposition rule was invented for them.
 - [Phase 01]: [01-27]: The file-symlink escape canary DID execute and pass on windows-latest, contradicting the plan's premise that no CI leg can produce that evidence — recorded as an observation, not promoted, and handed to the verifier. — `a file link that escapes the allowed root is refused for both write and removal` is green in BOTH windows-latest entrypoints and escape-file-link is absent from that leg's path-boundary not-run array, so the GitHub windows image permits file symlink creation where the developer host does not. The plan (inheriting 01-26's developer-host reading) assumed the opposite. 01-UAT.md is outside this plan's files_modified and whether a CI Windows host satisfies the canary is a judgment call, so item 3 was NOT promoted here.
+- [Phase 02]: [02-01]: canonicalizeWithMissingTail is exported and reused for the project root rather than the root being routed through provePathBoundary — A canonical project root has no outer allowed root to be proven against, so provePathBoundary cannot express it. Re-deriving a second canonical form is exactly the 01-19 asymmetry. The export changes only the keyword and the doc comment; the body, the ENOENT-continues / other-errno-refuses split and every call site are untouched. This is what makes one repository yield one 16-hex projectId whether it is addressed directly or through a symlinked alias.
+- [Phase 02]: [02-01]: A pack whose predicate operator has no evaluator yet is absent from the plan value entirely, never reported as `silent` — Research Pitfall 8: a pack that silently never matches is indistinguishable from a pack whose evidence is genuinely absent, which is the exact failure DETC-03 exists to prevent. evaluatePack returns null for such a pack so no false "did not qualify" claim is made. The gap - a user cannot yet tell "not evaluated" from "did not qualify" - is recorded as an open stub in .planning/WINDOWS.md and closed by 02-02 and 02-07.
+- [Phase 02]: [02-01]: package.json is read through the exported parseManagedDocument({format: "json"}) rather than exporting the module-private parseStrictJson a second time — The plan named parseStrictJson, which is not exported from src/core/validation.ts. parseManagedDocument is its already-exported wrapper and delegates to it directly for JSON, so the duplicate-key refusal the plan required is obtained unchanged without widening a Phase 1 module public surface for one consumer. Deviation Rule 3.
 
 ### Pending Todos
 
@@ -159,6 +163,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-07T08:32:28.898Z
-Stopped at: Phase 2 context gathered
-Resume file: .planning/phases/02-evidence-bound-project-planning/02-CONTEXT.md
+Last session: 2026-09-07T13:34:04.571Z
+Stopped at: Completed 02-01-PLAN.md
+Resume file: None

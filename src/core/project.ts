@@ -20,6 +20,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ProjectStackManifest } from "../types.js";
+import { loadPackCatalogStrict } from "./pack-catalog.js";
 import { findPackageRoot } from "./paths.js";
 import {
   createMigrationPlan,
@@ -31,20 +32,59 @@ import {
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 let manifestSchema: Record<string, unknown> | null = null;
+let declaredPackIds: ReadonlySet<string> | null = null;
+
+function packageDirectoryOrThrow(): string {
+  const packageDirectory = findPackageRoot(moduleDirectory) ?? findPackageRoot(process.cwd());
+  if (packageDirectory === null) throw new Error("Could not locate the alpha-AOS package root");
+  return packageDirectory;
+}
 
 async function loadManifestSchema(): Promise<Record<string, unknown>> {
   if (manifestSchema !== null) return manifestSchema;
-  const packageDirectory = findPackageRoot(moduleDirectory) ?? findPackageRoot(process.cwd());
-  if (packageDirectory === null) throw new Error("Could not locate the alpha-AOS package root");
   manifestSchema = JSON.parse(
-    await readFile(join(packageDirectory, "schemas", "project-stack.schema.json"), "utf8"),
+    await readFile(join(packageDirectoryOrThrow(), "schemas", "project-stack.schema.json"), "utf8"),
   ) as Record<string, unknown>;
   return manifestSchema;
 }
 
-function manifestInvariants(value: unknown): ValidationIssue[] {
+/**
+ * The declared pack id set a `packOverrides` key is checked against.
+ *
+ * Memoized: the catalog is repository-owned and does not change within a
+ * process, and the invariant must be unconditional. Making the check optional
+ * would let an unknown override key through on whichever route forgot to pass
+ * the set, which is exactly the silent acceptance D-06 must not have.
+ */
+async function loadDeclaredPackIds(): Promise<ReadonlySet<string>> {
+  if (declaredPackIds !== null) return declaredPackIds;
+  const catalog = await loadPackCatalogStrict(packageDirectoryOrThrow());
+  declaredPackIds = new Set(catalog.value.packs.map((pack) => pack.id));
+  return declaredPackIds;
+}
+
+function manifestInvariants(value: unknown, packIds: ReadonlySet<string>): ValidationIssue[] {
   const manifest = value as ProjectStackManifest;
   const issues: ValidationIssue[] = [];
+
+  // D-06: an override naming a pack the catalog does not declare is a refusal,
+  // in exactly the shape `domain.sealed-unsupported` uses. Silently ignoring it
+  // would let a user believe a capability was forced on when nothing was.
+  // The offending key never enters the issue: only its shape is reported.
+  const overrides = manifest.packOverrides;
+  if (overrides !== undefined) {
+    const safe = Object.assign(Object.create(null) as Record<string, unknown>, overrides);
+    for (const key of Object.keys(safe).sort()) {
+      if (packIds.has(key)) continue;
+      issues.push({
+        code: "domain.unknown-pack-override",
+        documentPath: `/packOverrides/${key}`,
+        expected: "every override to name a declared pack in catalog/packs/*.yaml",
+        actualShape: `string(length=${key.length})`,
+      });
+    }
+  }
+
   const isolation = manifest.isolation;
   if (isolation === undefined) return issues;
 
@@ -88,12 +128,13 @@ export async function inspectProjectManifest(inputRoot: string): Promise<Project
   const manifestPath = join(resolve(inputRoot), ".alpha-aos", "stack.yaml");
   if (!existsSync(manifestPath)) return null;
 
+  const packIds = await loadDeclaredPackIds();
   const result = validateManagedDocument<ProjectStackManifest>({
     text: await readFile(manifestPath, "utf8"),
     format: "yaml",
     kind: "project-manifest",
     schema: await loadManifestSchema(),
-    domain: manifestInvariants,
+    domain: (value) => manifestInvariants(value, packIds),
   });
 
   return {

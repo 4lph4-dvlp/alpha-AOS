@@ -30,7 +30,7 @@ import { listManagedTransactions, planManagedRollback, rollbackManagedTransactio
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
 import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectPlan, formatUpdate } from "./format.js";
-import { createRedactionContext, redactString, serializeObservable } from "./core/redaction.js";
+import { createRedactionContext, redactDocument, redactString, serializeObservable } from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
 import { applySupportBundle, collectSupportSources, planSupportBundleOperation } from "./core/support-bundle.js";
@@ -50,7 +50,7 @@ Usage:
   alpha-aos update --check [--json]
   alpha-aos update --stage [--apply]
   alpha-aos update --apply [--target <harness[,harness]>] [--json]
-  alpha-aos project plan|sync [path] [--json]
+  alpha-aos project plan|sync [path] [--project <rel>] [--why] [--json]
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
@@ -93,8 +93,25 @@ function hasFlag(args: string[], flag: string): boolean {
   return args.includes(flag);
 }
 
-function positional(args: string[]): string[] {
-  return args.filter((arg) => !arg.startsWith("--"));
+/**
+ * Bare arguments, with the VALUE of a value-taking flag skipped.
+ *
+ * Without `valueFlags`, `--project packages/web` would leave `packages/web`
+ * looking like the target path, and the tool would silently plan the wrong
+ * directory.
+ */
+function positional(args: string[], valueFlags: readonly string[] = []): string[] {
+  const result: string[] = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index];
+    if (value === undefined) continue;
+    if (valueFlags.includes(value)) {
+      index += 1;
+      continue;
+    }
+    if (!value.startsWith("--")) result.push(value);
+  }
+  return result;
 }
 
 function optionValue(args: string[], flag: string): string | null {
@@ -138,7 +155,10 @@ function print(value: unknown, json: boolean, formatted: string, context: Redact
     process.stdout.write(`${serializeObservable(value, context).text}\n`);
     return;
   }
-  process.stdout.write(`${redactString(formatted, context)}\n`);
+  // A whole rendering, not one field value: `redactDocument` applies the same
+  // replacements over the same text and caps at the document bound rather than
+  // the per-value one, so `project plan --why` is not silently truncated.
+  process.stdout.write(`${redactDocument(formatted, context)}\n`);
 }
 
 let sharedContext: RedactionContext | null = null;
@@ -579,14 +599,19 @@ async function main(): Promise<void> {
     if (subcommand === "sync" && hasFlag(args, "--apply")) {
       throw new Error("Project apply is not enabled until trust and transaction support are implemented");
     }
-    const parts = positional(args.slice(2));
+    const parts = positional(args.slice(2), ["--project"]);
     const target = parts[0] ?? process.cwd();
     // No `--apply`: this route previews and persists nothing. Dependency names
     // and paths reach stdout, so both renderings leave through the one
     // redaction seam rather than a direct write.
     const context = observableContext();
-    const plan = await planProjectCapabilities({ path: target, packageRoot: root });
-    print(plan, json, formatProjectPlan(plan), context);
+    const subProject = optionValue(args, "--project");
+    const plan = await planProjectCapabilities({
+      path: target,
+      packageRoot: root,
+      ...(subProject === null ? {} : { subProject }),
+    });
+    print(plan, json, formatProjectPlan(plan, { why: hasFlag(args, "--why") }), context);
     if (subcommand === "sync") process.stdout.write("\nDry-run only. Project files and harness configuration were not changed.\n");
     return;
   }

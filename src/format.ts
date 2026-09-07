@@ -1,4 +1,5 @@
-import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, LeafResult, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
+import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
+import { describeLeaf, MAX_NEAR_MISS_LINES } from "./core/project-plan.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -34,23 +35,64 @@ export function formatDoctor(findings: DoctorFinding[]): string {
   return table(["LEVEL", "CODE", "MESSAGE"], findings.map((finding) => [finding.level.toUpperCase(), finding.code, finding.message]));
 }
 
-/** Names the fact and the file that carried it, never a bare fact id. */
-function describeLeaf(leaf: LeafResult): string {
-  return leaf.path === null ? leaf.phrase : `${leaf.phrase} (${leaf.path})`;
-}
-
-export function formatProjectPlan(plan: ProjectCapabilityPlan): string {
+/**
+ * D-09's default output contract, rendered.
+ *
+ * Full reasoning for every selected pack; one line for every pack that
+ * satisfied part of its conditions and failed the rest, bounded by
+ * `MAX_NEAR_MISS_LINES` and deterministically ordered; an honest line for a
+ * pack whose facts are declared but deliberately unimplemented; and silence
+ * for packs that matched nothing. `--why` drops the cap and prints every
+ * declared pack with full leaf detail.
+ *
+ * Every phrase below comes from `PackEvaluation.explanation` or from a leaf's
+ * `phrase`, both of which the evaluator renders out of `catalog/facts.yaml`.
+ * Nothing here is a per-pack string, so all 15 packs explain uniformly.
+ */
+export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: boolean } = {}): string {
   const lines = [`Project: ${plan.scope.canonicalRoot} (${plan.scope.rootReason})`, `Project id: ${plan.scope.projectId}`];
+  if (plan.scope.subProjectPath !== null) lines.push(`Sub-project: ${plan.scope.subProjectPath}`);
   const byId = new Map(plan.evaluations.map((evaluation) => [evaluation.packId, evaluation]));
-  if (plan.selected.length === 0) {
+
+  if (plan.subProjects.length > 0) {
+    // D-01: the user names the target rather than the tool guessing which
+    // member of a workspace they meant.
+    lines.push(`${plan.subProjects.length} sub-project(s) discovered; none selected. Name one with --project <path>.`);
+    for (const member of plan.subProjects) {
+      lines.push(`  ${member.path} (${member.declarationFile}): ${member.selected.join(", ") || "no pack qualified"}`);
+    }
+  } else if (plan.selected.length === 0) {
     lines.push("No pack qualified on the evidence found.");
   } else {
     for (const packId of plan.selected) {
       const pack = byId.get(packId);
-      if (pack === undefined) continue;
-      lines.push(`SELECT ${pack.packId} — ${pack.satisfied.map(describeLeaf).join(", ")}`);
+      if (pack !== undefined) lines.push(`SELECT ${pack.explanation}`);
     }
   }
+
+  if (options.why === true) {
+    for (const evaluation of plan.evaluations) {
+      lines.push(`WHY ${evaluation.packId} [${evaluation.status}] ${evaluation.explanation}`);
+      for (const leaf of evaluation.satisfied) lines.push(`  + ${describeLeaf(leaf)}`);
+      for (const leaf of evaluation.failed) lines.push(`  - ${leaf.phrase}: ${leaf.reason ?? "no reason recorded"}`);
+    }
+  } else {
+    // Deterministic order and a hard cap, mirroring `finalizeIssues` in
+    // validation.ts, so a hostile or pathological catalog cannot flood output.
+    const shown = plan.nearMissOrder.slice(0, MAX_NEAR_MISS_LINES);
+    for (const packId of shown) {
+      const pack = byId.get(packId);
+      if (pack !== undefined) lines.push(`NEAR-MISS ${pack.explanation}`);
+    }
+    const suppressed = plan.nearMissOrder.length - shown.length;
+    if (suppressed > 0) lines.push(`... ${suppressed} more near-miss pack(s) suppressed (use --why)`);
+    // A pack that can NEVER select says so. Reporting it as an ordinary
+    // non-match would make it indistinguishable from an unqualified repository.
+    for (const evaluation of plan.evaluations) {
+      if (evaluation.status === "unimplemented") lines.push(`UNIMPLEMENTED ${evaluation.explanation}`);
+    }
+  }
+
   lines.push(
     `Inputs digest: ${plan.inputsDigest}`,
     `Evidence digest: ${plan.evidenceDigest}`,

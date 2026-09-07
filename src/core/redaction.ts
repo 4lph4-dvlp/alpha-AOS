@@ -143,6 +143,25 @@ export function redactString(value: string, context: RedactionContext): string {
 }
 
 /**
+ * Redacts a whole rendered DOCUMENT rather than one field value.
+ *
+ * `redactString` caps at `LIMITS.stringLength`, which is the right bound for a
+ * single value inside a serialized envelope and the wrong one for a command's
+ * entire human-readable rendering: `project plan --why` prints every declared
+ * pack with full leaf detail and legitimately exceeds 2 KiB. The redaction is
+ * identical and runs over the whole text, so a multi-line structural rule such
+ * as the PEM block still matches across newlines; only the cap differs, and it
+ * is the same `LIMITS.totalBytes` bound the JSON envelope already uses.
+ */
+export function redactDocument(value: string, context: RedactionContext): string {
+  const result = redactCore(value, context);
+  if (Buffer.byteLength(result, "utf8") > LIMITS.totalBytes) {
+    return `${result.slice(0, LIMITS.totalBytes)}…[truncated]`;
+  }
+  return result;
+}
+
+/**
  * Recursively redacts an arbitrary value into something safe to serialize.
  * Cycles, depth, item counts and string sizes are all bounded, so a hostile or
  * self-referential object cannot exhaust memory or hang the walk.

@@ -28,11 +28,26 @@ async function loadSchema(root: string, name: string): Promise<Record<string, un
 }
 
 /**
- * The pack files this tracer reads. The remaining six and the cross-file
- * duplicate-id refusal that a merge needs are the next plan's work; this one
- * proves the seam, not the breadth.
+ * Every declared pack file, as an explicit sorted list rather than a glob. A
+ * glob that expands to nothing exits successfully, which is the same hazard
+ * `scripts/run-tests.mjs --files` exists to close: a catalog that silently
+ * stopped being read would look like a repository that qualifies for nothing.
  */
-const TRACER_PACK_FILES: readonly string[] = ["catalog/packs/web.yaml"];
+const PACK_FILES: readonly string[] = [
+  "catalog/packs/ai.yaml",
+  "catalog/packs/backend.yaml",
+  "catalog/packs/brownfield.yaml",
+  "catalog/packs/infra.yaml",
+  "catalog/packs/research.yaml",
+  "catalog/packs/security.yaml",
+  "catalog/packs/web.yaml",
+];
+
+/** Codepoint order, so the merged catalog is byte-stable on every host. */
+function byPackId(left: PackDeclaration, right: PackDeclaration): number {
+  if (left.id < right.id) return -1;
+  return left.id > right.id ? 1 : 0;
+}
 
 /**
  * Loads declared packs through the one managed-document route.
@@ -43,7 +58,7 @@ const TRACER_PACK_FILES: readonly string[] = ["catalog/packs/web.yaml"];
  */
 export async function loadPackCatalogStrict(
   root: string,
-  files: readonly string[] = TRACER_PACK_FILES,
+  files: readonly string[] = PACK_FILES,
 ): Promise<StrictLoadResult<PackCatalog>> {
   packCatalogSchema ??= await loadSchema(root, "pack-catalog.schema.json");
 
@@ -69,6 +84,7 @@ export async function loadPackCatalogStrict(
     Object.assign(extensions, result.extensions);
   }
 
+  packs.sort(byPackId);
   return { value: { schemaVersion, packs }, extensions };
 }
 

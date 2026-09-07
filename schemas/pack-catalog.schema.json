@@ -8,25 +8,88 @@
   "additionalProperties": false,
   "$defs": {
     "factId": {
-      "description": "A fact declared by the evidence vocabulary, referenced by a predicate leaf.",
+      "description": "A fact declared by catalog/facts.yaml, referenced by a predicate leaf. A leaf naming an undeclared fact is refused at load, never treated as false.",
       "type": "string",
       "minLength": 1
     },
-    "factIdList": {
-      "type": "array",
-      "minItems": 1,
-      "uniqueItems": true,
-      "items": { "$ref": "#/$defs/factId" }
-    },
     "literalList": {
-      "description": "Inline literals a detector matches directly. The evaluator synthesizes the explaining fact id from the operator and the matched literal.",
+      "description": "Inline literals a detector matches directly. The evaluator synthesizes the explaining fact id from the operator and the matched literal, so these are not fact ids and are not subject to the undeclared-fact refusal.",
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 }
     },
-    "evidence": {
-      "description": "One predicate node. Exactly the five operators the declared packs use today; the evaluator computes every leaf rather than short-circuiting, so a partial match stays explainable.",
+    "leafList": {
+      "description": "The items of a deepest-level `all` / `any`: fact ids only. The recursion stops here, which is what bounds validation cost by the schema rather than by the document.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/factId" }
+    },
+    "evidenceNode4": {
+      "description": "Nesting level 4 — the deepest a predicate may go. Its `all` / `any` items are fact ids only; there is no level 5.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "all": { "$ref": "#/$defs/leafList" },
+        "any": { "$ref": "#/$defs/leafList" },
+        "anyFiles": { "$ref": "#/$defs/literalList" },
+        "anyDependencies": { "$ref": "#/$defs/literalList" },
+        "manifestOptIn": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidenceNode3": {
+      "description": "Nesting level 3. Its `all` / `any` items are a fact id or a level-4 node.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "oneOf": [{ "$ref": "#/$defs/factId" }, { "$ref": "#/$defs/evidenceNode4" }] }
+        },
+        "any": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "oneOf": [{ "$ref": "#/$defs/factId" }, { "$ref": "#/$defs/evidenceNode4" }] }
+        },
+        "anyFiles": { "$ref": "#/$defs/literalList" },
+        "anyDependencies": { "$ref": "#/$defs/literalList" },
+        "manifestOptIn": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidenceNode2": {
+      "description": "Nesting level 2. Its `all` / `any` items are a fact id or a level-3 node.",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "all": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "oneOf": [{ "$ref": "#/$defs/factId" }, { "$ref": "#/$defs/evidenceNode3" }] }
+        },
+        "any": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "oneOf": [{ "$ref": "#/$defs/factId" }, { "$ref": "#/$defs/evidenceNode3" }] }
+        },
+        "anyFiles": { "$ref": "#/$defs/literalList" },
+        "anyDependencies": { "$ref": "#/$defs/literalList" },
+        "manifestOptIn": { "type": "string", "minLength": 1 }
+      }
+    },
+    "evidenceNode1": {
+      "description": "A pack's predicate root. Exactly one of the five operators the declared packs already use; `all` and `any` items may nest, and the four explicit levels below are declared rather than a self-referencing $ref cycle, because an unbounded cycle would let a hostile document set the validation cost.",
       "type": "object",
       "minProperties": 1,
       "maxProperties": 1,
@@ -34,11 +97,17 @@
       "properties": {
         "all": {
           "description": "Every named fact must be detected.",
-          "$ref": "#/$defs/factIdList"
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "oneOf": [{ "$ref": "#/$defs/factId" }, { "$ref": "#/$defs/evidenceNode2" }] }
         },
         "any": {
           "description": "At least one named fact must be detected.",
-          "$ref": "#/$defs/factIdList"
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "oneOf": [{ "$ref": "#/$defs/factId" }, { "$ref": "#/$defs/evidenceNode2" }] }
         },
         "anyFiles": {
           "description": "At least one of these paths, relative to the canonical root, must exist.",
@@ -71,7 +140,7 @@
             "type": "string",
             "pattern": "^[A-Z][A-Z0-9_]*$"
           },
-          "evidence": { "$ref": "#/$defs/evidence" },
+          "evidence": { "$ref": "#/$defs/evidenceNode1" },
           "skills": {
             "description": "ECC skill ids this pack supplies. An empty array declares a pack that supplies no skill.",
             "type": "array",

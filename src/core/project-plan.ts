@@ -19,21 +19,33 @@
 //      special-cased for one.
 
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import type {
+  AdapterSupportEntry,
   DeferredFact,
   EvidenceEnvelope,
   EvidenceFact,
   EvidenceNode,
   FactDeclaration,
+  HarnessId,
   LeafResult,
   PackDeclaration,
   PackEvaluation,
   PackOverride,
+  PackSource,
   PackStatus,
+  PlanApproval,
   ProjectCapabilityPlan,
   ProjectStackManifest,
+  SafeInverse,
+  StackLock,
   SubProjectDecision,
+  SurfaceSupport,
+  TargetPreState,
 } from "../types.js";
+import { loadCatalog, loadLock } from "./catalog.js";
 import { reviewedDigest } from "./component-session.js";
 import type { DeclaredDependencies, SubProject } from "./evidence.js";
 import {
@@ -470,6 +482,360 @@ function byPackId(left: PackEvaluation, right: PackEvaluation): number {
   return byCodePoint(left.packId, right.packId);
 }
 
+// ---------------------------------------------------------------------------
+// DETC-04: one named field per noun
+// ---------------------------------------------------------------------------
+
+/**
+ * Where a materialization receipt lives, relative to the canonical root.
+ *
+ * Phase 2 must READ receipts to decide whether a file at a target path is one
+ * alpha-AOS wrote, while Phase 3 WRITES them. The location is therefore a
+ * Phase 2 decision Phase 3 inherits, and carrying it inside the plan artifact
+ * is what stops Phase 3 choosing differently.
+ */
+export const PROJECT_RECEIPT_DIRECTORY = ".alpha-aos/receipts";
+
+/** The constant owner every plan declares. */
+export const PLAN_OWNER = "alpha-aos";
+
+/**
+ * The render identity a pack skill passes through.
+ *
+ * `renderEccSkill` returns its source unchanged for every skill except
+ * `documentation-lookup`+`antigravity` and `deep-research`, neither of which
+ * is a pack skill. For all pack skills the render is therefore the identity
+ * and the target hash equals the source hash — stated in the plan value rather
+ * than left implied.
+ */
+export const PLAN_RENDERER_ID = "ecc-skill/identity";
+
+/**
+ * The project-local skill root each harness reads, as a relative POSIX path.
+ *
+ * These are exactly the three roots `discoverSkillPaths` in
+ * `src/core/isolation.ts` already enumerates. A harness absent from this table
+ * has no project-local root, so no target is planned for it at all.
+ */
+export const PROJECT_SKILL_ROOTS: Readonly<Partial<Record<HarnessId, string>>> = {
+  claude: ".claude/skills",
+  codex: ".agents/skills",
+  pi: ".pi/skills",
+};
+
+/**
+ * What is actually recorded about each harness's project-scope pack delivery.
+ *
+ * Every classification below is read off documented discovery or off
+ * `catalog/stack.yaml`'s recorded strategy. No probe runs on the preview path
+ * — probes are Phase 3's canaries — so nothing here is upgraded on the
+ * strength of a plausible filename.
+ */
+const ADAPTER_SUPPORT_EVIDENCE = new Map<HarnessId, { support: SurfaceSupport; reason: string }>([
+  [
+    "claude",
+    {
+      support: "supported",
+      reason: "project skills load from .claude/skills/<skill>/SKILL.md, which is the documented project-scope location and the shape the design docs already assume",
+    },
+  ],
+  [
+    "codex",
+    {
+      support: "unverified",
+      reason: "a project-local .agents/skills root exists, but no documented project-scope discovery has been proven; an over-claimed supported is the failure that matters",
+    },
+  ],
+  [
+    "pi",
+    {
+      support: "unverified",
+      reason: "catalog/stack.yaml records eccStrategy: bridge with no eccTarget, and project-scope discovery under .pi/skills is not documented",
+    },
+  ],
+  [
+    "antigravity",
+    {
+      support: "unsupported",
+      reason: "no project-local skill root is enumerated for antigravity; project-scope pack delivery stays unsupported until a canary proves otherwise",
+    },
+  ],
+  [
+    "hermes",
+    {
+      support: "unsupported",
+      reason: "catalog/stack.yaml records gsdStrategy: worker-only, which rules out project-scope pack delivery until a canary proves otherwise",
+    },
+  ],
+]);
+
+/**
+ * One classification per DECLARED harness, from recorded evidence only.
+ *
+ * A harness this table does not know is `unverified`, never `supported`: the
+ * fail-closed answer for an unclassified surface is the one that blocks a
+ * mandatory gate rather than the one that quietly promises an opt-out.
+ */
+export function classifyAdapterSupport(declared: readonly HarnessId[]): AdapterSupportEntry[] {
+  return [...declared].sort(byCodePoint).map((harness) => {
+    const recorded = ADAPTER_SUPPORT_EVIDENCE.get(harness);
+    if (recorded === undefined) {
+      return {
+        harness,
+        support: "unverified" as SurfaceSupport,
+        reason: `no recorded evidence classifies project-scope pack delivery for ${harness}`,
+      };
+    }
+    return { harness, support: recorded.support, reason: recorded.reason };
+  });
+}
+
+/**
+ * The exact source version and hash for one pack skill.
+ *
+ * This is a SEPARATE read path from the global ECC skill sync. That list is
+ * the set of skills installed into a user's global skill root; consulting it
+ * for a pack skill is one step from installing all of them everywhere, which
+ * is the precise opposite of what a project-scoped pack is for. A skill with
+ * no hash in the lock is a refusal naming that skill — a pack is never planned
+ * sourceless.
+ */
+export function resolvePackSource(lock: StackLock, packId: string, skill: string): PackSource {
+  const ecc = lock.components.ecc;
+  if (ecc === undefined) {
+    throw new Error(`The stable lock has no ECC component, so the pack skill ${skill} (${packId}) cannot be sourced`);
+  }
+  const hashes = Object.assign(Object.create(null) as Record<string, unknown>, ecc.sourceSha256);
+  const sourceSha256 = hashes[skill];
+  if (typeof sourceSha256 !== "string" || sourceSha256.length === 0) {
+    throw new Error(
+      `The stable lock has no sourceSha256 for the pack skill ${skill} (named by ${packId}), so the pack would be planned sourceless`,
+    );
+  }
+  return { packId, skill, package: ecc.package, version: ecc.version, integrity: ecc.integrity, sourceSha256 };
+}
+
+/** One target path a receipt says alpha-AOS wrote. */
+export interface ReceiptClaim {
+  readonly packId: string;
+  readonly path: string;
+  readonly targetHash: string;
+}
+
+export interface ReceiptClaims {
+  /** Relative POSIX target path to the receipt entry claiming it. */
+  readonly byPath: ReadonlyMap<string, ReceiptClaim>;
+  /** Receipt files that exist but could not be read as a claim set. Sorted. */
+  readonly unreadable: readonly string[];
+}
+
+/**
+ * Reads every receipt under the receipt directory.
+ *
+ * A receipt that cannot be read is reported rather than skipped: an unreadable
+ * receipt means ownership is UNDECIDABLE for whatever it claimed, and silently
+ * treating that as "not ours" would let planning overwrite a file it wrote.
+ */
+export async function readReceiptClaims(root: string): Promise<ReceiptClaims> {
+  const directory = join(root, ...PROJECT_RECEIPT_DIRECTORY.split("/"));
+  const byPath = new Map<string, ReceiptClaim>();
+  const unreadable: string[] = [];
+  if (!existsSync(directory)) return { byPath, unreadable };
+
+  let names: string[];
+  try {
+    names = (await readdir(directory)).filter((name) => name.endsWith(".json")).sort(byCodePoint);
+  } catch {
+    return { byPath, unreadable: [PROJECT_RECEIPT_DIRECTORY] };
+  }
+
+  for (const name of names) {
+    const relativePath = `${PROJECT_RECEIPT_DIRECTORY}/${name}`;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(await readFile(join(directory, name), "utf8"));
+    } catch {
+      unreadable.push(relativePath);
+      continue;
+    }
+    const receipt = parsed as { packId?: unknown; targets?: unknown } | null;
+    const packId = typeof receipt?.packId === "string" ? receipt.packId : "";
+    if (packId.length === 0 || !Array.isArray(receipt?.targets)) {
+      unreadable.push(relativePath);
+      continue;
+    }
+    for (const entry of receipt.targets as ReadonlyArray<{ path?: unknown; targetHash?: unknown } | null>) {
+      const claimed = typeof entry?.path === "string" ? normalizeRelativePosix(entry.path) : null;
+      const targetHash = typeof entry?.targetHash === "string" ? entry.targetHash : "";
+      if (claimed === null || targetHash.length === 0) continue;
+      if (!byPath.has(claimed)) byPath.set(claimed, { packId, path: claimed, targetHash });
+    }
+  }
+  return { byPath, unreadable: unreadable.sort(byCodePoint) };
+}
+
+export interface InspectTargetPreStateOptions {
+  /** Absolute canonical root. */
+  readonly root: string;
+  readonly packId: string;
+  readonly skill: string;
+  readonly harness: HarnessId;
+  /** The hash the render would produce. Identity render, so the source hash. */
+  readonly expectedHash: string;
+  readonly claims: ReadonlyMap<string, ReceiptClaim>;
+}
+
+/**
+ * What is already at one target path.
+ *
+ * Follows the pre-state read shape the ECC skill sync already uses: existence
+ * check, hash of the current bytes when present, and a create/update/current
+ * action. Nothing here writes, moves or renames — the conflict D-11 cares
+ * about is reported by READING.
+ */
+export async function inspectTargetPreState(options: InspectTargetPreStateOptions): Promise<TargetPreState> {
+  const skillRoot = PROJECT_SKILL_ROOTS[options.harness];
+  if (skillRoot === undefined) {
+    throw new Error(`${options.harness} has no project-local skill root, so no target can be planned for it`);
+  }
+  const path = `${skillRoot}/${options.skill}/SKILL.md`;
+  const absolute = join(options.root, ...path.split("/"));
+  const exists = existsSync(absolute);
+
+  let currentHash: string | null = null;
+  if (exists) {
+    try {
+      currentHash = sha256(await readFile(absolute, "utf8"));
+    } catch {
+      // Present but unreadable: the hash is unknown, so ownership cannot be
+      // proven and the action stays `update` rather than `current`.
+      currentHash = null;
+    }
+  }
+
+  return {
+    packId: options.packId,
+    skill: options.skill,
+    harness: options.harness,
+    path,
+    exists,
+    currentHash,
+    ownedByReceipt: options.claims.has(path),
+    expectedHash: options.expectedHash,
+    action: !exists ? "create" : currentHash === options.expectedHash ? "current" : "update",
+  };
+}
+
+/**
+ * The undo for one planned target, and the hash that guards it.
+ *
+ * Transaction snapshot semantics, stated as a value: the inverse of a create
+ * is a remove guarded by the hash that will be written, and the inverse of an
+ * update is a restore guarded by the hash that was there before.
+ */
+export function buildSafeInverse(target: TargetPreState): SafeInverse {
+  if (target.action === "create") {
+    return {
+      packId: target.packId,
+      operation: "remove",
+      guard: { path: target.path, expectedHash: target.expectedHash },
+    };
+  }
+  return {
+    packId: target.packId,
+    operation: "restore",
+    guard: { path: target.path, expectedHash: target.currentHash ?? target.expectedHash },
+  };
+}
+
+/**
+ * Everything a reviewer would look at, as ONE object literal in ONE place.
+ *
+ * Built as a literal rather than derived by deleting fields from the plan:
+ * that is what keeps `createdAt` and the git branch/commit context out of
+ * every digest BY CONSTRUCTION, and what stops two code paths building the
+ * same logical object with keys in different orders. Every array reaching here
+ * is already sorted by its producer.
+ */
+export function digestablePlan(plan: Omit<ProjectCapabilityPlan, "planDigest">): Record<string, unknown> {
+  return {
+    schemaVersion: plan.schemaVersion,
+    scope: {
+      canonicalRoot: plan.scope.canonicalRoot,
+      rootReason: plan.scope.rootReason,
+      projectId: plan.scope.projectId,
+      subProjectPath: plan.scope.subProjectPath,
+    },
+    owner: {
+      id: plan.owner.id,
+      producer: { name: plan.owner.producer.name, version: plan.owner.producer.version },
+    },
+    receiptDirectory: plan.receiptDirectory,
+    renderer: {
+      id: plan.renderer.id,
+      version: plan.renderer.version,
+      identity: plan.renderer.identity,
+    },
+    source: plan.source.map((entry) => [
+      entry.packId,
+      entry.skill,
+      entry.package,
+      entry.version,
+      entry.integrity,
+      entry.sourceSha256,
+    ]),
+    targetPreState: plan.targetPreState.map((target) => [
+      target.packId,
+      target.skill,
+      target.harness,
+      target.path,
+      target.exists,
+      target.currentHash,
+      target.ownedByReceipt,
+      target.expectedHash,
+      target.action,
+    ]),
+    adapterSupport: plan.adapterSupportEvidence.map((entry) => [entry.harness, entry.support]),
+    approvals: plan.approvals.map((approval) => [approval.code, approval.detail]),
+    safeInverse: plan.safeInverse.map((inverse) => [
+      inverse.packId,
+      inverse.operation,
+      inverse.guard.path,
+      inverse.guard.expectedHash,
+    ]),
+    // DETC-05 names an executable among the things whose change must refuse an
+    // apply. Phase 2 spawns nothing, so the slot is null — and it is digested
+    // as null, so the moment Phase 3 fills it the existing drift refusal
+    // already watches it with no new mechanism.
+    executable: plan.executable,
+    executableDisposition: {
+      deferredTo: plan.executableDisposition.deferredTo,
+      reason: plan.executableDisposition.reason,
+    },
+    inputsDigest: plan.inputsDigest,
+    evidenceDigest: plan.evidenceDigest,
+    evaluations: plan.evaluations.map((evaluation) => ({
+      packId: evaluation.packId,
+      status: evaluation.status,
+      satisfied: evaluation.satisfied.map((leaf) => [leaf.factId, leaf.path]),
+      failed: evaluation.failed.map((leaf) => [leaf.factId, leaf.reason]),
+      deferred: evaluation.deferred.map((entry) => [entry.factId, entry.deferredTo]),
+      undeclared: evaluation.undeclared,
+    })),
+    selected: plan.selected,
+    applicable: plan.applicable,
+    nearMissOrder: plan.nearMissOrder,
+    subProjects: plan.subProjects.map((entry) => [entry.path, entry.selected.join("+")]),
+  };
+}
+
+/** The digest name every reviewed project plan is bound under. */
+const PLAN_DIGEST_KIND = "project-capability-plan";
+
+function sealPlan(plan: Omit<ProjectCapabilityPlan, "planDigest">): ProjectCapabilityPlan {
+  return { ...plan, planDigest: reviewedDigest(PLAN_DIGEST_KIND, digestablePlan(plan)) };
+}
+
 /** Selected covers the predicate answer AND an explicit manifest force-on. */
 function isSelected(evaluation: PackEvaluation): boolean {
   return evaluation.status === "selected" || evaluation.status === "forced-on";
@@ -543,33 +909,65 @@ export async function planProjectCapabilities(
   const inputsDigest = envelope.sourceHash;
   const evidenceDigest = evidenceDigestOf(envelope);
 
-  // Built once, here, as a literal. Deriving it by deleting fields from a
-  // larger envelope is how `createdAt` or a git ref leaks into a digest and
-  // makes two runs over an unchanged repository disagree.
-  const digestableView = {
-    schemaVersion: 1,
-    scope: {
-      canonicalRoot: scope.root,
-      rootReason: scope.reason,
-      projectId: scope.projectId,
-      subProjectPath: null,
-    },
-    inputsDigest,
-    evidenceDigest,
-    evaluations: evaluations.map((evaluation) => ({
-      packId: evaluation.packId,
-      status: evaluation.status,
-      satisfied: evaluation.satisfied.map((leaf) => [leaf.factId, leaf.path]),
-      failed: evaluation.failed.map((leaf) => [leaf.factId, leaf.reason]),
-      deferred: evaluation.deferred.map((entry) => [entry.factId, entry.deferredTo]),
-      undeclared: evaluation.undeclared,
-    })),
-    selected,
-    nearMissOrder,
-    subProjects: subProjects.map((entry) => [entry.path, entry.selected.join("+")]),
-  };
+  // DETC-04's remaining nouns. Every array below is sorted by its producer, so
+  // the digestable view never has to re-sort and two runs cannot disagree on
+  // order.
+  const lock = await loadLock(options.packageRoot);
+  const stack = await loadCatalog(options.packageRoot);
+  const packSkills = new Map(catalog.value.packs.map((pack) => [pack.id, [...(pack.skills ?? [])].sort(byCodePoint)]));
 
-  return {
+  const source: PackSource[] = [];
+  for (const packId of selected) {
+    for (const skill of packSkills.get(packId) ?? []) source.push(resolvePackSource(lock, packId, skill));
+  }
+  source.sort((left, right) => byCodePoint(left.packId, right.packId) || byCodePoint(left.skill, right.skill));
+
+  const claims = await readReceiptClaims(scope.root);
+  const targetHarnesses = (Object.keys(PROJECT_SKILL_ROOTS) as HarnessId[]).sort(byCodePoint);
+  const targetPreState: TargetPreState[] = [];
+  for (const entry of source) {
+    for (const harness of targetHarnesses) {
+      targetPreState.push(
+        await inspectTargetPreState({
+          root: scope.root,
+          packId: entry.packId,
+          skill: entry.skill,
+          harness,
+          expectedHash: entry.sourceSha256,
+          claims: claims.byPath,
+        }),
+      );
+    }
+  }
+  targetPreState.sort((left, right) => byCodePoint(left.path, right.path));
+
+  const adapterSupportEvidence = classifyAdapterSupport(Object.keys(stack.harnesses) as HarnessId[]);
+  const adapterSupport = {} as Record<HarnessId, SurfaceSupport>;
+  for (const entry of adapterSupportEvidence) adapterSupport[entry.harness] = entry.support;
+
+  const approvals: PlanApproval[] = [];
+  // D-06: a forced pack is recorded as something a reviewer accepted, in the
+  // same structure as every other approval, rather than as a silent deviation.
+  for (const evaluation of evaluations) {
+    if (evaluation.status !== "forced-on" && evaluation.status !== "forced-off") continue;
+    approvals.push({
+      code: "PACK_OVERRIDE_FORCED",
+      detail: `${evaluation.packId}: ${evaluation.overrideReason ?? "forced by the project manifest"}`,
+    });
+  }
+  for (const path of claims.unreadable) {
+    approvals.push({ code: "RECEIPT_UNREADABLE", detail: `${path} could not be read, so ownership of what it claims is undecidable` });
+  }
+  for (const detail of [...new Set(source.map((entry) => `${entry.package}@${entry.version} (${entry.integrity})`))].sort(byCodePoint)) {
+    approvals.push({ code: "PACKAGE_SOURCE", detail });
+  }
+  approvals.sort((left, right) => byCodePoint(left.code, right.code) || byCodePoint(left.detail, right.detail));
+
+  const applicable = [...selected];
+  const applicableSet = new Set(applicable);
+  const safeInverse = targetPreState.filter((target) => applicableSet.has(target.packId)).map(buildSafeInverse);
+
+  return sealPlan({
     schemaVersion: 1,
     scope: {
       canonicalRoot: scope.root,
@@ -577,14 +975,33 @@ export async function planProjectCapabilities(
       projectId: scope.projectId,
       subProjectPath: null,
     },
+    owner: { id: PLAN_OWNER, producer: { name: envelope.producer.name, version: envelope.producer.version } },
+    source,
+    renderer: {
+      id: PLAN_RENDERER_ID,
+      version: envelope.producer.version,
+      identity: true,
+      note: "the ECC skill render returns its source unchanged for every pack skill, so each target hash equals its source hash",
+    },
+    targetPreState,
+    adapterSupport,
+    adapterSupportEvidence,
+    approvals,
+    safeInverse,
+    executable: null,
+    executableDisposition: {
+      deferredTo: "phase-3-capability-materialization",
+      reason: "Phase 2's `plan` and `approve` spawn nothing, so there is no executable to name; the slot is declared null and digested as null, so the moment Phase 3 fills it the existing drift refusal already watches it",
+    },
+    receiptDirectory: PROJECT_RECEIPT_DIRECTORY,
     evaluations,
     selected,
+    applicable,
     nearMissOrder,
     subProjects,
     inputsDigest,
     evidenceDigest,
-    planDigest: reviewedDigest("project-capability-plan", digestableView),
-  };
+  });
 }
 
 /** The named sub-project's own decision, recorded as the plan's scope. */
@@ -593,7 +1010,11 @@ async function planSubProject(
   options: PlanProjectCapabilitiesOptions,
 ): Promise<ProjectCapabilityPlan> {
   const plan = await planProjectCapabilities({ path: target.absolute, packageRoot: options.packageRoot });
-  return { ...plan, scope: { ...plan.scope, subProjectPath: target.path } };
+  // Re-seal: the scope this plan reports is not the one the inner run digested,
+  // and a plan digest that does not cover the plan's own scope would let two
+  // different sub-projects share a digest.
+  const { planDigest: _superseded, ...rest } = plan;
+  return sealPlan({ ...rest, scope: { ...plan.scope, subProjectPath: target.path } });
 }
 
 /** Each discovered sub-project with the packs its OWN evidence selects. */

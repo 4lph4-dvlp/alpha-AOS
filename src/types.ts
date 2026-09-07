@@ -385,6 +385,91 @@ export interface SubProjectDecision {
   selected: string[];
 }
 
+/**
+ * How much is actually known about a harness surface.
+ *
+ * The vocabulary is the project's own, declared verbatim in
+ * `.planning/research/ARCHITECTURE.md`: `supported` means a real probe passed,
+ * NOT that an adapter contains a plausible filename. `unverified` is the
+ * honest answer for a surface nothing has proven, and is deliberately the
+ * fail-closed default — an over-claimed `supported` is the failure that costs
+ * a user their opt-out guarantee.
+ */
+export type SurfaceSupport = "supported" | "unsupported" | "unverified";
+
+/** Exact source version and hash for one pack skill, read from the stable lock. */
+export interface PackSource {
+  packId: string;
+  skill: string;
+  package: string;
+  version: string;
+  integrity: string;
+  sourceSha256: string;
+}
+
+/** The render a pack skill passes through on its way to a target. */
+export interface PlanRenderer {
+  id: string;
+  version: string;
+  /** True when the rendered bytes equal the source bytes for every pack skill. */
+  identity: boolean;
+  note: string;
+}
+
+/** What is already at one target path, read and never written. */
+export interface TargetPreState {
+  packId: string;
+  skill: string;
+  harness: HarnessId;
+  /** Relative POSIX path from the canonical root. */
+  path: string;
+  exists: boolean;
+  currentHash: string | null;
+  /** True when a receipt under the receipt directory claims this exact path. */
+  ownedByReceipt: boolean;
+  /** The hash the render would produce. Identity render, so the source hash. */
+  expectedHash: string;
+  action: "create" | "update" | "current";
+}
+
+/** One thing a reviewer must accept before an apply is honest. */
+export interface PlanApproval {
+  code: string;
+  detail: string;
+}
+
+/** How to undo one planned target, and the hash that guards the undo. */
+export interface SafeInverse {
+  packId: string;
+  operation: "remove" | "restore";
+  guard: { path: string; expectedHash: string };
+}
+
+/** Who produced the plan. Mirrors the evidence envelope's `producer` shape. */
+export interface PlanOwner {
+  id: string;
+  producer: { name: string; version: string };
+}
+
+/**
+ * Why a DETC-05 noun is null rather than absent.
+ *
+ * Mirrors the `deferredTo` attribution the fact vocabulary already uses for
+ * facts owned by a later requirement: a deliberately empty slot is declared
+ * and attributed, so it can never be mistaken for one nobody considered.
+ */
+export interface DeferredSlot {
+  deferredTo: string;
+  reason: string;
+}
+
+/** One harness's project-scope classification and the evidence behind it. */
+export interface AdapterSupportEntry {
+  harness: HarnessId;
+  support: SurfaceSupport;
+  reason: string;
+}
+
 export interface ProjectCapabilityPlan {
   schemaVersion: 1;
   scope: {
@@ -393,10 +478,40 @@ export interface ProjectCapabilityPlan {
     projectId: string;
     subProjectPath: string | null;
   };
+  /** DETC-04: who produced this plan. */
+  owner: PlanOwner;
+  /** DETC-04: exact source version and hash, per selected pack skill. Sorted. */
+  source: PackSource[];
+  /** DETC-04: the render identity every pack skill passes through. */
+  renderer: PlanRenderer;
+  /** DETC-04: what is already at each target path. Sorted by path. */
+  targetPreState: TargetPreState[];
+  /** DETC-04: one classification per declared harness. */
+  adapterSupport: Record<HarnessId, SurfaceSupport>;
+  /** The recorded evidence behind each `adapterSupport` value. Sorted by harness. */
+  adapterSupportEvidence: AdapterSupportEntry[];
+  /** DETC-04: what a reviewer must accept. Sorted by code, then detail. */
+  approvals: PlanApproval[];
+  /** DETC-04: how to undo each planned target. Sorted by guard path. */
+  safeInverse: SafeInverse[];
+  /**
+   * DETC-05's `executable` noun.
+   *
+   * Phase 2's `plan` and `approve` spawn nothing, so the honest value is
+   * `null` — not a placeholder path, not an empty string, not an empty array.
+   * The key is present and travels into the digestable view, so the slot Phase
+   * 3 fills is already one the drift refusal watches.
+   */
+  executable: null;
+  executableDisposition: DeferredSlot;
+  /** Where Phase 3 writes a receipt and Phase 2 reads one. A Phase 2 decision. */
+  receiptDirectory: string;
   /** Every declared pack, evaluated in full. Never short-circuited, never filtered. */
   evaluations: PackEvaluation[];
   /** Pack ids the evidence (or an explicit manifest force-on) selected, sorted. */
   selected: string[];
+  /** Selected packs minus the ones a D-11 target conflict dropped. Sorted. */
+  applicable: string[];
   /** Near-miss pack ids, ranked: descending satisfied-leaf count, then ascending id. */
   nearMissOrder: string[];
   /** Discovered sub-projects and their own decisions. Empty unless a workspace was found. */

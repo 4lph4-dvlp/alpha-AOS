@@ -175,71 +175,6 @@ function declaredPackages(section: unknown): Array<{ name: string; range: string
 
 const DEPENDENCY_SECTIONS = ["dependencies", "devDependencies", "peerDependencies"] as const;
 
-/**
- * Collects repository evidence.
- *
- * This tracer runs exactly one detector — `dependency`, reading `package.json`
- * at the root through the duplicate-key-rejecting route, because a document
- * that declares one package twice is ambiguous rather than authoritative. The
- * remaining five detector kinds and the declared fact vocabulary land in later
- * plans of this phase.
- */
-export async function collectProjectEvidence(root: CanonicalRoot): Promise<EvidenceEnvelope> {
-  const ledger = new ReadLedger();
-  const facts: EvidenceFact[] = [];
-
-  const manifestPath = join(root.root, "package.json");
-  let absent: string | null = null;
-  if (!existsSync(manifestPath)) {
-    absent = "package.json does not exist at the canonical root";
-  } else {
-    const text = await readFile(manifestPath, "utf8");
-    ledger.record(root.root, manifestPath, text);
-    const parsed = parseManagedDocument({ text, format: "json" });
-    if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null || Array.isArray(parsed.value)) {
-      const first = parsed.issues[0];
-      throw new Error(
-        `package.json at ${manifestPath} is not an unambiguous JSON object: ${first?.code ?? "syntax.malformed"}`,
-      );
-    }
-    const manifest = parsed.value as Record<string, unknown>;
-    // First section wins, so one package cannot produce two contradictory facts.
-    const seen = new Set<string>();
-    for (const section of DEPENDENCY_SECTIONS) {
-      for (const declared of declaredPackages(manifest[section])) {
-        if (seen.has(declared.name)) continue;
-        seen.add(declared.name);
-        const fact: EvidenceFact = {
-          id: `dependency:${declared.name}`,
-          kind: "dependency",
-          detected: true,
-          path: "package.json",
-        };
-        if (declared.range !== null) fact.version = declared.range;
-        facts.push(fact);
-      }
-    }
-    if (seen.size === 0) absent = "package.json declares no dependencies";
-  }
-
-  if (absent !== null) {
-    // Absence is recorded, never omitted: "not detected" and "not checked"
-    // must not be the same output. A later plan replaces this single summary
-    // record with one negative record per declared fact in catalog/facts.yaml.
-    facts.push({ id: "dependency:none", kind: "dependency", detected: false, reason: absent });
-  }
-
-  facts.sort((left, right) => left.id.localeCompare(right.id));
-  return {
-    schemaVersion: 1,
-    projectId: root.projectId,
-    producer: await readProducer(),
-    createdAt: new Date().toISOString(),
-    sourceHash: ledger.digest(),
-    facts,
-  };
-}
-
 // ---------------------------------------------------------------------------
 // Bounded, boundary-proven tree scan
 // ---------------------------------------------------------------------------
@@ -1357,6 +1292,8 @@ export interface DetectionContext {
 export interface EvidenceDetection {
   readonly detections: readonly FactDetection[];
   readonly readInputs: readonly ReadInput[];
+  /** The inline-literal resolution surface for `anyDependencies` predicates. */
+  readonly dependencies: DeclaredDependencies;
 }
 
 /** The envelope plus everything the pack evaluator needs alongside it. */
@@ -1930,11 +1867,50 @@ export async function detectProjectFacts(
     detections.push(await detectFact(context, declaration));
   }
   // Read AFTER every detector ran: `fileContent` opens files during detection.
-  return { detections, readInputs: context.ledger.inputs() };
+  return { detections, readInputs: context.ledger.inputs(), dependencies: context.dependencies };
 }
 
-export function digestableEvidence(envelope: EvidenceEnvelope): unknown {
-  throw new Error(`digestableEvidence is not implemented (${envelope.facts.length})`);
+/**
+ * The digestable view of an envelope: the selection-relevant observations and
+ * nothing else.
+ *
+ * Built as ONE literal in ONE place. `JSON.stringify` preserves insertion
+ * order, so two code paths building the same logical object with keys in a
+ * different order produce different digests. `createdAt` is absent BY
+ * CONSTRUCTION here — never by deleting a field from the envelope, which is
+ * how a clock leaks back into a digest the next time the envelope grows.
+ */
+export function digestableEvidence(
+  envelope: EvidenceEnvelope,
+): ReadonlyArray<readonly [string, boolean, string | null, string | null]> {
+  return envelope.facts
+    .map((fact) => [fact.id, fact.detected, fact.path ?? null, fact.version ?? null] as const)
+    .sort((left, right) => (left[0] < right[0] ? -1 : left[0] > right[0] ? 1 : 0));
+}
+
+/** Ascending fact id, then ascending path. By code point, so no locale reorders it. */
+function byEmittedFact(left: EvidenceFact, right: EvidenceFact): number {
+  if (left.id !== right.id) return left.id < right.id ? -1 : 1;
+  const leftPath = left.path ?? "";
+  const rightPath = right.path ?? "";
+  return leftPath < rightPath ? -1 : leftPath > rightPath ? 1 : 0;
+}
+
+/**
+ * Projects one detection onto the sealed record shape. `hash` is never set:
+ * D-07 keeps a fact to path, name and version so an unrelated comment change
+ * does not disturb it. Whether anything looked at moved is the DIFFERENT
+ * question the envelope's aggregate `sourceHash` answers.
+ */
+function emitFact(detection: FactDetection): EvidenceFact {
+  const fact: EvidenceFact = { id: detection.id, kind: detection.kind, detected: detection.detected };
+  if (detection.path !== null && detection.path.length > 0) fact.path = detection.path;
+  if (detection.version !== null && detection.version.length > 0) fact.version = detection.version;
+  if (detection.reason !== null && detection.reason.length > 0) fact.reason = detection.reason;
+  // A negative record ALWAYS says why. Absence must stop being
+  // indistinguishable from not-checked — DETC-03's explanation is built on it.
+  else if (!detection.detected) fact.reason = "not detected, and the detector gave no further reason";
+  return fact;
 }
 
 export async function buildEvidenceEnvelope(
@@ -1942,14 +1918,72 @@ export async function buildEvidenceEnvelope(
   vocabulary: FactVocabulary,
   detected: EvidenceDetection,
 ): Promise<EvidenceEnvelope> {
-  throw new Error(
-    `buildEvidenceEnvelope is not implemented (${root.root}, ${vocabulary.facts.length}, ${detected.detections.length})`,
-  );
+  const byId = new Map(detected.detections.map((detection) => [detection.id, detection]));
+
+  // One record per DECLARED fact — the vocabulary decides the fact set, not
+  // whatever happened to be observed. A vocabulary carrying one id twice is
+  // already refused at load by `factVocabularyInvariants`.
+  const facts = vocabulary.facts.map((declaration) => {
+    const detection = byId.get(declaration.id);
+    if (detection !== undefined) return emitFact(detection);
+    return {
+      id: declaration.id,
+      kind: declaration.kind,
+      detected: false,
+      reason: "no detector reported on this declared fact in this run",
+    } satisfies EvidenceFact;
+  });
+
+  facts.sort(byEmittedFact);
+
+  return {
+    schemaVersion: 1,
+    projectId: root.projectId,
+    producer: await readProducer(),
+    // Wall-clock context, and the one field allowed to differ between two runs
+    // over an unchanged repository. It reaches no digest.
+    createdAt: new Date().toISOString(),
+    sourceHash: inputsDigest(detected.readInputs),
+    facts,
+  };
 }
 
+/**
+ * Collects repository evidence: the whole declared vocabulary, positive and
+ * negative, over a bounded and boundary-proven scan.
+ *
+ * The detail form carries what the pack evaluator needs alongside the
+ * envelope. `anyFiles` / `anyDependencies` predicates name inline literals
+ * rather than declared fact ids, so they resolve against the scan and the
+ * dependency index and synthesize their explaining fact id — they are not, and
+ * must not become, entries in the declared vocabulary.
+ */
 export async function collectProjectEvidenceDetail(
   root: CanonicalRoot,
   options: CollectEvidenceOptions = {},
 ): Promise<ProjectEvidence> {
-  throw new Error(`collectProjectEvidenceDetail is not implemented (${root.root}, ${options.packageRoot ?? "-"})`);
+  const packageRoot = options.packageRoot ?? findPackageRoot(moduleDirectory) ?? findPackageRoot(process.cwd());
+  if (packageRoot === null) {
+    throw new Error("Could not locate the alpha-AOS package root that owns catalog/facts.yaml");
+  }
+
+  const vocabulary = (await loadFactVocabularyStrict(packageRoot)).value;
+  const scan = await scanProjectTree(root);
+  const detected = await detectProjectFacts(root, scan, vocabulary);
+  const envelope = await buildEvidenceEnvelope(root, vocabulary, detected);
+
+  return {
+    envelope,
+    scan,
+    detections: detected.detections,
+    dependencies: detected.dependencies,
+    readInputs: detected.readInputs,
+  };
+}
+
+export async function collectProjectEvidence(
+  root: CanonicalRoot,
+  options: CollectEvidenceOptions = {},
+): Promise<EvidenceEnvelope> {
+  return (await collectProjectEvidenceDetail(root, options)).envelope;
 }

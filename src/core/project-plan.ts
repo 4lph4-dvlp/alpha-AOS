@@ -1,14 +1,19 @@
 import { createHash } from "node:crypto";
 import type {
   EvidenceEnvelope,
-  EvidenceFact,
   LeafResult,
   PackDeclaration,
   PackEvaluation,
   ProjectCapabilityPlan,
 } from "../types.js";
 import { reviewedDigest } from "./component-session.js";
-import { collectProjectEvidence, resolveCanonicalRoot } from "./evidence.js";
+import type { DeclaredDependencies } from "./evidence.js";
+import {
+  collectProjectEvidenceDetail,
+  digestableEvidence,
+  lookupDependency,
+  resolveCanonicalRoot,
+} from "./evidence.js";
 import { loadPackCatalogStrict } from "./pack-catalog.js";
 
 function sha256(content: string): string {
@@ -28,8 +33,13 @@ function byFactId(left: LeafResult, right: LeafResult): number {
  * with an operator that has no evaluator yet contributes no leaves and stays
  * silent — it is never reported as "your repository does not qualify", because
  * that claim would not be true.
+ *
+ * `anyDependencies` names inline package literals, not declared fact ids, so
+ * it resolves against the dependency index rather than against the envelope:
+ * the envelope carries exactly the vocabulary declared in `catalog/facts.yaml`
+ * and an inline literal is deliberately not part of it.
  */
-function evaluatePack(pack: PackDeclaration, facts: ReadonlyMap<string, EvidenceFact>): PackEvaluation | null {
+function evaluatePack(pack: PackDeclaration, dependencies: DeclaredDependencies): PackEvaluation | null {
   const literals = pack.evidence.anyDependencies;
   if (literals === undefined) return null;
 
@@ -39,9 +49,9 @@ function evaluatePack(pack: PackDeclaration, facts: ReadonlyMap<string, Evidence
     // The explaining fact id is synthesized from operator plus matched
     // literal, extending the `manifest:<key>` convention already in use.
     const factId = `dependency:${literal}`;
-    const fact = facts.get(factId);
-    if (fact !== undefined && fact.detected) {
-      satisfied.push({ factId, detected: true, path: fact.path ?? null, reason: null });
+    const declared = lookupDependency(dependencies, literal);
+    if (declared !== null) {
+      satisfied.push({ factId, detected: true, path: declared.path, reason: null });
     } else {
       failed.push({
         factId,
@@ -64,10 +74,7 @@ function evaluatePack(pack: PackDeclaration, facts: ReadonlyMap<string, Evidence
  * stay two answerable questions rather than one.
  */
 function evidenceDigestOf(envelope: EvidenceEnvelope): string {
-  const normalized = [...envelope.facts]
-    .map((fact) => [fact.id, fact.detected, fact.path ?? null, fact.version ?? null] as const)
-    .sort((left, right) => left[0].localeCompare(right[0]));
-  return sha256(JSON.stringify(normalized));
+  return sha256(JSON.stringify(digestableEvidence(envelope)));
 }
 
 /**
@@ -81,13 +88,13 @@ export async function planProjectCapabilities(options: {
   packageRoot: string;
 }): Promise<ProjectCapabilityPlan> {
   const scope = await resolveCanonicalRoot(options.path);
-  const envelope = await collectProjectEvidence(scope);
+  const evidence = await collectProjectEvidenceDetail(scope, { packageRoot: options.packageRoot });
+  const envelope = evidence.envelope;
   const catalog = await loadPackCatalogStrict(options.packageRoot);
 
-  const facts = new Map(envelope.facts.map((fact) => [fact.id, fact]));
   const evaluations: PackEvaluation[] = [];
   for (const pack of catalog.value.packs) {
-    const evaluation = evaluatePack(pack, facts);
+    const evaluation = evaluatePack(pack, evidence.dependencies);
     if (evaluation !== null) evaluations.push(evaluation);
   }
 

@@ -15,17 +15,31 @@ import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import type { ExcludedBoundary, ProjectTreeScan, SubProjectDiscovery } from "../src/core/evidence.js";
+import { fileURLToPath } from "node:url";
+import type { FactDeclaration, FactVocabulary } from "../src/types.js";
+import type {
+  DetectionContext,
+  ExcludedBoundary,
+  FactDetection,
+  ProjectTreeScan,
+  SubProjectDiscovery,
+} from "../src/core/evidence.js";
 import {
+  detectFact,
+  detectProjectFacts,
   discoverSubProjects,
+  matchDeclaredContent,
+  MAX_EVIDENCE_FILE_BYTES,
   MAX_SCAN_DEPTH,
+  openDetectionContext,
   ProjectReadCache,
   readWorkspaceDeclaration,
   resolveCanonicalRoot,
   scanProjectTree,
 } from "../src/core/evidence.js";
+import { loadFactVocabularyStrict } from "../src/core/pack-catalog.js";
 import {
   createLinkedWorktree,
   createNestedRepository,
@@ -33,6 +47,9 @@ import {
   createSubmodule,
   gitAvailability,
 } from "./helpers/git-fixture.js";
+
+/** The alpha-AOS package root that owns `catalog/facts.yaml` and `schemas/`. */
+const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 interface NotRunRecord {
   readonly fixture: string;
@@ -555,4 +572,233 @@ test.after(() => {
   for (const record of notRun) {
     process.stderr.write(`fixture not run: ${record.fixture} — ${record.reason}\n`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-06 Task 1 — the six detector kinds and five manifest readers
+// ---------------------------------------------------------------------------
+//
+// The fixtures below are real temporary files, because the question under test
+// is what a detector observes on a filesystem, not what a mock agreed to say.
+// Every expectation is stated against `catalog/facts.yaml` as the repository
+// declares it: the detector KINDS are the code under test, and the detector
+// INSTANCES arrive as data.
+
+/** Writes a nested `{ "a/b.txt": "..." }` tree, creating parent directories. */
+async function writeTree(root: string, files: Readonly<Record<string, string>>): Promise<void> {
+  for (const relativePath of Object.keys(files).sort()) {
+    const absolute = join(root, ...relativePath.split("/"));
+    await mkdir(dirname(absolute), { recursive: true });
+    await writeFile(absolute, files[relativePath] as string, "utf8");
+  }
+}
+
+async function vocabulary(): Promise<FactVocabulary> {
+  return (await loadFactVocabularyStrict(repositoryRoot)).value;
+}
+
+/** A scratch repository, scanned, with every declared fact detected once. */
+async function factsIn(
+  context: TestContext,
+  files: Readonly<Record<string, string>>,
+): Promise<Map<string, FactDetection>> {
+  const root = await scratch(context, "facts");
+  await writeTree(root, files);
+  const canonical = await resolveCanonicalRoot(root);
+  const scan = await scanProjectTree(canonical);
+  const detected = await detectProjectFacts(canonical, scan, await vocabulary());
+  return new Map(detected.detections.map((detection) => [detection.id, detection]));
+}
+
+/** A scratch repository with a detection context open over it. */
+async function contextIn(
+  context: TestContext,
+  files: Readonly<Record<string, string>>,
+): Promise<DetectionContext> {
+  const root = await scratch(context, "facts");
+  await writeTree(root, files);
+  const canonical = await resolveCanonicalRoot(root);
+  return openDetectionContext(canonical, await scanProjectTree(canonical));
+}
+
+test("a dependency fact resolves from package.json and records the declared range", async (context) => {
+  const facts = await factsIn(context, {
+    "package.json": `${JSON.stringify({ name: "f", dependencies: { pg: "^8.11.0" }, devDependencies: { next: "15.0.0" } })}\n`,
+  });
+
+  const postgres = facts.get("postgres-driver");
+  assert.equal(postgres?.detected, true);
+  assert.equal(postgres?.path, "package.json");
+  assert.equal(postgres?.version, "^8.11.0", "the record carries the declared range verbatim");
+
+  // devDependencies is a declared section, not a second-class one.
+  assert.equal(facts.get("web-framework")?.detected, true);
+  assert.equal(facts.get("web-framework")?.version, "15.0.0");
+});
+
+test("the same dependency fact id resolves from pyproject.toml and from requirements.txt", async (context) => {
+  const fromProject = await factsIn(context, {
+    "pyproject.toml": [
+      "[project]",
+      'name = "svc"',
+      'version = "0.1.0"',
+      'dependencies = ["psycopg2-binary>=2.9", "flask==3.0.0"]',
+      "",
+    ].join("\n"),
+  });
+  assert.equal(fromProject.get("postgres-driver")?.detected, true);
+  assert.equal(fromProject.get("postgres-driver")?.path, "pyproject.toml");
+  assert.equal(fromProject.get("postgres-driver")?.version, ">=2.9");
+  assert.equal(fromProject.get("server-framework")?.detected, true, "flask is a declared server framework");
+
+  const fromPoetry = await factsIn(context, {
+    "pyproject.toml": ['[tool.poetry.dependencies]', 'asyncpg = "^0.29.0"', ""].join("\n"),
+  });
+  assert.equal(fromPoetry.get("postgres-driver")?.detected, true);
+  assert.equal(fromPoetry.get("postgres-driver")?.version, "^0.29.0");
+
+  const fromRequirements = await factsIn(context, {
+    "requirements.txt": ["# runtime", "-r other.txt", "asyncpg==0.29.0", "django>=5.0 ; python_version >= '3.11'", ""].join("\n"),
+  });
+  assert.equal(fromRequirements.get("postgres-driver")?.detected, true);
+  assert.equal(fromRequirements.get("postgres-driver")?.path, "requirements.txt");
+  assert.equal(fromRequirements.get("postgres-driver")?.version, "==0.29.0");
+  assert.equal(fromRequirements.get("server-framework")?.detected, true);
+});
+
+test("a Go module in go.mod and a crate in Cargo.toml both resolve", async (context) => {
+  const fromGo = await factsIn(context, {
+    "go.mod": [
+      "module example.com/app",
+      "",
+      "go 1.23",
+      "",
+      "require (",
+      "\tgithub.com/redis/go-redis/v9 v9.5.1 // indirect",
+      ")",
+      "",
+      "require github.com/gin-gonic/gin v1.10.0",
+      "",
+    ].join("\n"),
+  });
+  assert.equal(fromGo.get("redis-client")?.detected, true);
+  assert.equal(fromGo.get("redis-client")?.path, "go.mod");
+  assert.equal(fromGo.get("redis-client")?.version, "v9.5.1");
+  assert.equal(fromGo.get("server-framework")?.detected, true, "a single-line require is a require too");
+
+  const fromCargo = await factsIn(context, {
+    "Cargo.toml": [
+      "[package]",
+      'name = "app"',
+      'version = "0.1.0"',
+      "",
+      "[dependencies]",
+      'actix-web = "4.5"',
+      "",
+      "[dev-dependencies]",
+      'axum = { version = "0.7.5", features = ["macros"] }',
+      "",
+    ].join("\n"),
+  });
+  assert.equal(fromCargo.get("server-framework")?.detected, true);
+  assert.equal(fromCargo.get("server-framework")?.path, "Cargo.toml");
+  assert.equal(fromCargo.get("server-framework")?.version, "4.5");
+});
+
+test("a file fact records which of its declared alternatives matched", async (context) => {
+  const facts = await factsIn(context, { "docs/openapi.yaml": "openapi: 3.1.0\n" });
+  assert.equal(facts.get("openapi")?.detected, true);
+  assert.equal(facts.get("openapi")?.path, "docs/openapi.yaml", "the matched alternative is named, not the fact id");
+});
+
+test("a directory fact matches a directory and never a file bearing its name", async (context) => {
+  const asFile = await factsIn(context, { evals: "this is a file, not a directory\n" });
+  assert.equal(asFile.get("eval-assets")?.detected, false);
+  assert.ok((asFile.get("eval-assets")?.reason ?? "").length > 0);
+
+  const asDirectory = await factsIn(context, { "evals/case-01.json": "{}\n" });
+  assert.equal(asDirectory.get("eval-assets")?.detected, true);
+  assert.equal(asDirectory.get("eval-assets")?.path, "evals");
+});
+
+test("a manifestKey fact contributes only from a current, valid project manifest", async (context) => {
+  const declaration: FactDeclaration = {
+    id: "manifest:scientificResearch",
+    kind: "manifestKey",
+    manifestKey: "scientificResearch",
+  };
+
+  const current = await contextIn(context, {
+    ".alpha-aos/stack.yaml": "schemaVersion: 1\nscientificResearch: true\n",
+  });
+  const detected = await detectFact(current, declaration);
+  assert.equal(detected.detected, true);
+  assert.equal(detected.path, ".alpha-aos/stack.yaml");
+  assert.equal(detected.version, "1", "the record's version is the manifest schemaVersion");
+
+  const invalid = await contextIn(context, {
+    ".alpha-aos/stack.yaml": "schemaVersion: 1\nscientificResearch: true\nscientificResearch: false\n",
+  });
+  const refused = await detectFact(invalid, declaration);
+  assert.equal(refused.detected, false, "an invalid manifest contributes nothing rather than what parsed");
+  assert.ok((refused.reason ?? "").length > 0);
+
+  const absent = await contextIn(context, { "README.md": "# no manifest\n" });
+  assert.equal((await detectFact(absent, declaration)).detected, false);
+});
+
+test("a fileAbsent fact detects the absence of every declared alternative", async (context) => {
+  const bare = await factsIn(context, { "README.md": "# service\n" });
+  assert.equal(bare.get("missing-conventions-document")?.detected, true, "absence is the detection");
+
+  const documented = await factsIn(context, { "CONVENTIONS.md": "# conventions\n" });
+  const fact = documented.get("missing-conventions-document");
+  assert.equal(fact?.detected, false);
+  assert.equal(fact?.path, "CONVENTIONS.md");
+  assert.ok((fact?.reason ?? "").length > 0);
+});
+
+test("a fileContent fact reports where it matched and cannot represent what it matched", async (context) => {
+  const facts = await factsIn(context, {
+    ".env.example": "DATABASE_URL=postgres://admin:hunter2@db.internal:5432/app\n",
+  });
+
+  const dsn = facts.get("postgres-dsn");
+  assert.equal(dsn?.detected, true);
+  assert.equal(dsn?.path, ".env.example");
+  assert.equal(
+    JSON.stringify(dsn).includes("hunter2"),
+    false,
+    "a fileContent detection must not carry the matched text anywhere",
+  );
+
+  // The return type itself is the first net: there is no field to leak from.
+  const match = matchDeclaredContent(".env.example", "postgres://admin:hunter2@db/app", [/postgres:\/\//u]);
+  assert.equal(match.matched, true);
+  assert.deepEqual(Object.keys(match).sort(), ["matched", "path"]);
+});
+
+test("an evidence file over MAX_EVIDENCE_FILE_BYTES is not matched and the cap is the reason", async (context) => {
+  const facts = await factsIn(context, {
+    ".env.example": `${"#".repeat(MAX_EVIDENCE_FILE_BYTES)}\nDATABASE_URL=postgres://db/app\n`,
+  });
+
+  const dsn = facts.get("postgres-dsn");
+  assert.equal(dsn?.detected, false);
+  assert.match(dsn?.reason ?? "", /MAX_EVIDENCE_FILE_BYTES/u);
+});
+
+test("an evidence file that exists but cannot be read is UNDECIDABLE, never a confident absence", async (context) => {
+  // A directory bearing a manifest's name exists and is not readable AS a file
+  // on every supported host, so this case needs no privileged fixture.
+  const facts = await factsIn(context, { "package.json/placeholder.txt": "not a manifest\n" });
+
+  const postgres = facts.get("postgres-driver");
+  assert.equal(postgres?.detected, false);
+  assert.notEqual(postgres?.undecidable, null, "an unreadable manifest is undecidable, not absent");
+  assert.notEqual(postgres?.undecidable?.errno, "ENOENT");
+  assert.equal(postgres?.undecidable?.path, "package.json");
+  assert.match(postgres?.reason ?? "", /UNDECIDABLE/u);
+  assert.match(postgres?.reason ?? "", new RegExp(postgres?.undecidable?.errno ?? "IMPOSSIBLE", "u"));
+  assert.match(postgres?.reason ?? "", /package\.json/u);
 });

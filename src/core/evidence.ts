@@ -4,12 +4,21 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { EvidenceEnvelope, EvidenceFact } from "../types.js";
+import type {
+  DetectorKind,
+  EvidenceEnvelope,
+  EvidenceFact,
+  FactDeclaration,
+  FactVocabulary,
+  ProjectStackManifest,
+} from "../types.js";
 import type { IgnoreRuleSet } from "./ignore-list.js";
 import { isIgnored, loadIgnoreRules } from "./ignore-list.js";
 import { isolationProjectId } from "./isolation.js";
+import { loadFactVocabularyStrict } from "./pack-catalog.js";
 import { canonicalizeWithMissingTail, provePathBoundary } from "./path-boundary.js";
 import { findPackageRoot } from "./paths.js";
+import { inspectProjectManifest } from "./project.js";
 import { parseManagedDocument } from "./validation.js";
 
 /**
@@ -116,11 +125,27 @@ async function readProducer(): Promise<{ name: string; version: string }> {
 }
 
 /** Records which files a detector actually read, for the aggregate input digest. */
-class ReadLedger {
+export class ReadLedger {
   private readonly entries = new Map<string, string>();
 
   record(root: string, absolutePath: string, bytes: string): void {
     this.entries.set(relative(root, absolutePath).split(sep).join("/"), sha256(bytes));
+  }
+
+  /** Records an already-relative POSIX path, for readers that never joined one. */
+  recordRelative(relativePosixPath: string, bytes: string): void {
+    this.entries.set(relativePosixPath, sha256(bytes));
+  }
+
+  get size(): number {
+    return this.entries.size;
+  }
+
+  /** Every file actually read, in one total order. Plan 02-08 digests this list. */
+  inputs(): ReadInput[] {
+    return [...this.entries.entries()]
+      .map(([path, hash]) => ({ path, hash }))
+      .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
   }
 
   /**
@@ -130,8 +155,7 @@ class ReadLedger {
    * this answers the different question of whether anything looked at moved.
    */
   digest(): string {
-    const lines = [...this.entries.entries()].map(([path, hash]) => `${path}\u0000${hash}`).sort();
-    return sha256(lines.join("\n"));
+    return inputsDigest(this.inputs());
   }
 }
 
@@ -1209,4 +1233,201 @@ export async function discoverSubProjects(
     excludedBoundaries: scan.excludedBoundaries,
     selected,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Fact detection — six kinds, five manifest readers
+// ---------------------------------------------------------------------------
+//
+// Detector KINDS are code; detector INSTANCES are data. That split is what
+// makes D-05 ("adding a pack is a YAML edit") true for the facts a pack names
+// as well as for the pack itself: every parameter below arrives from
+// `catalog/facts.yaml` through `loadFactVocabularyStrict`, never from a
+// TypeScript literal.
+//
+// Three rules hold across every detector here:
+//   1. Every read is boundary-proven against the canonical root and byte-capped
+//      by a NAMED constant, so a reported refusal always names what refused.
+//   2. Absence and unreadability are different facts. ENOENT is an absence; any
+//      other errno is UNDECIDABLE and carries the errno and the path. This is
+//      the precedent plan 01-19 set one layer down, reused rather than
+//      reinvented, so the codebase tells one story about unreadable paths.
+//   3. The `fileContent` detector cannot represent what it matched. The value
+//      is unrepresentable, not merely redacted — `redactString` is the SECOND
+//      net — because a DSN carrying credentials must not be capturable at all
+//      when the artifact lands under `.alpha-aos/` for a team to commit.
+
+/** 1 MiB. An evidence file past this is refused rather than partially read. */
+export const MAX_EVIDENCE_FILE_BYTES = 1048576;
+
+/**
+ * 256 KiB of a file is offered to a declared pattern. Applied as a code-unit
+ * cap, which for UTF-8 text is never more than the byte length. Every pattern
+ * comes from the repository-owned `catalog/facts.yaml`, but the INPUT is
+ * attacker-controlled, so match cost is bounded on the input side.
+ */
+export const MAX_CONTENT_MATCH_BYTES = 262144;
+
+/** Files one `fileContent` fact will open before it reports a bound. */
+export const MAX_CONTENT_FILES = 128;
+
+/** One file a detector actually read. Plan 02-08 digests this list. */
+export interface ReadInput {
+  /** Relative POSIX path from the canonical root. */
+  readonly path: string;
+  /** sha256 of the bytes read. */
+  readonly hash: string;
+}
+
+/**
+ * An evidence path that could be neither confirmed nor denied. `errno` carries
+ * the filesystem errno for a read failure, or a stable validation code for a
+ * document that exists and is readable but is not unambiguously parseable.
+ */
+export interface UndecidableEvidence {
+  readonly path: string;
+  readonly errno: string;
+}
+
+/** What one detector concluded about one declared fact. */
+export interface FactDetection {
+  readonly id: string;
+  readonly kind: DetectorKind;
+  readonly detected: boolean;
+  /** Which declared alternative answered, or the manifest that declared it. */
+  readonly path: string | null;
+  readonly version: string | null;
+  /** Always populated on a negative detection. */
+  readonly reason: string | null;
+  readonly undecidable: UndecidableEvidence | null;
+}
+
+/**
+ * The `fileContent` detector's ENTIRE vocabulary. There is deliberately no
+ * text field: making the matched value unrepresentable is the first net
+ * against 02-RESEARCH.md Pitfall 7.
+ */
+export interface ContentMatch {
+  readonly matched: boolean;
+  readonly path: string;
+}
+
+/** One package name as some manifest declared it. */
+export interface DeclaredDependency {
+  readonly name: string;
+  /** Relative POSIX path of the manifest that declared it. */
+  readonly path: string;
+  /** The declared range, verbatim. Null when the manifest declared none. */
+  readonly version: string | null;
+}
+
+export interface DeclaredDependencies {
+  /** Keyed by declared name and, for Python, by its PEP 503 normalized form. */
+  readonly byName: ReadonlyMap<string, DeclaredDependency>;
+  /** Manifests that exist but could not be read or unambiguously parsed. */
+  readonly undecidable: readonly UndecidableEvidence[];
+  /** Manifests refused by a named byte cap, each carrying the cap. */
+  readonly bounded: readonly string[];
+}
+
+/** What `manifestKey` detectors read, once, for the whole vocabulary. */
+export interface ManifestEvidence {
+  readonly present: boolean;
+  readonly current: boolean;
+  readonly value: ProjectStackManifest | null;
+  readonly schemaVersion: string | null;
+  readonly reason: string | null;
+  readonly undecidable: UndecidableEvidence | null;
+}
+
+/** Everything the six detectors share, read once per project. */
+export interface DetectionContext {
+  readonly root: CanonicalRoot;
+  /** Every scannable path — the ignore list and boundary walk already applied. */
+  readonly paths: ReadonlySet<string>;
+  readonly files: ReadonlySet<string>;
+  readonly directories: ReadonlySet<string>;
+  /** `scan.files` in its sorted order, so content expansion is total-ordered. */
+  readonly sortedFiles: readonly string[];
+  readonly dependencies: DeclaredDependencies;
+  readonly manifest: ManifestEvidence;
+  readonly ledger: ReadLedger;
+}
+
+export interface EvidenceDetection {
+  readonly detections: readonly FactDetection[];
+  readonly readInputs: readonly ReadInput[];
+}
+
+/** The envelope plus everything the pack evaluator needs alongside it. */
+export interface ProjectEvidence {
+  readonly envelope: EvidenceEnvelope;
+  readonly scan: ProjectTreeScan;
+  readonly detections: readonly FactDetection[];
+  readonly dependencies: DeclaredDependencies;
+  readonly readInputs: readonly ReadInput[];
+}
+
+export interface CollectEvidenceOptions {
+  /** The alpha-AOS package root that owns `catalog/facts.yaml`. */
+  readonly packageRoot?: string;
+}
+
+export function matchDeclaredContent(path: string, text: string, patterns: readonly RegExp[]): ContentMatch {
+  throw new Error(`matchDeclaredContent is not implemented (${path}, ${text.length}, ${patterns.length})`);
+}
+
+export function inputsDigest(inputs: readonly ReadInput[]): string {
+  throw new Error(`inputsDigest is not implemented (${inputs.length})`);
+}
+
+export function lookupDependency(dependencies: DeclaredDependencies, name: string): DeclaredDependency | null {
+  throw new Error(`lookupDependency is not implemented (${dependencies.byName.size}, ${name})`);
+}
+
+export async function readDeclaredDependencies(
+  root: CanonicalRoot,
+  scan: ProjectTreeScan,
+  ledger: ReadLedger,
+): Promise<DeclaredDependencies> {
+  throw new Error(`readDeclaredDependencies is not implemented (${root.root}, ${scan.files.length}, ${ledger.size})`);
+}
+
+export async function openDetectionContext(root: CanonicalRoot, scan: ProjectTreeScan): Promise<DetectionContext> {
+  throw new Error(`openDetectionContext is not implemented (${root.root}, ${scan.paths.length})`);
+}
+
+export async function detectFact(context: DetectionContext, declaration: FactDeclaration): Promise<FactDetection> {
+  throw new Error(`detectFact is not implemented (${context.root.root}, ${declaration.id})`);
+}
+
+export async function detectProjectFacts(
+  root: CanonicalRoot,
+  scan: ProjectTreeScan,
+  vocabulary: FactVocabulary,
+): Promise<EvidenceDetection> {
+  throw new Error(
+    `detectProjectFacts is not implemented (${root.root}, ${scan.paths.length}, ${vocabulary.facts.length})`,
+  );
+}
+
+export function digestableEvidence(envelope: EvidenceEnvelope): unknown {
+  throw new Error(`digestableEvidence is not implemented (${envelope.facts.length})`);
+}
+
+export async function buildEvidenceEnvelope(
+  root: CanonicalRoot,
+  vocabulary: FactVocabulary,
+  detected: EvidenceDetection,
+): Promise<EvidenceEnvelope> {
+  throw new Error(
+    `buildEvidenceEnvelope is not implemented (${root.root}, ${vocabulary.facts.length}, ${detected.detections.length})`,
+  );
+}
+
+export async function collectProjectEvidenceDetail(
+  root: CanonicalRoot,
+  options: CollectEvidenceOptions = {},
+): Promise<ProjectEvidence> {
+  throw new Error(`collectProjectEvidenceDetail is not implemented (${root.root}, ${options.packageRoot ?? "-"})`);
 }

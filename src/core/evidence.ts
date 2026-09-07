@@ -1373,16 +1373,292 @@ export interface CollectEvidenceOptions {
   readonly packageRoot?: string;
 }
 
+// --- bounded, boundary-proven reads ---------------------------------------
+
+type EvidenceRead =
+  | { readonly kind: "text"; readonly text: string }
+  | { readonly kind: "missing" }
+  | { readonly kind: "over-cap"; readonly cap: number }
+  | { readonly kind: "unreadable"; readonly errno: string };
+
+/**
+ * Reads one declared evidence path. Nothing is read before the boundary proof,
+ * and nothing over `cap` is read at all.
+ *
+ * ENOENT is `missing` and every other errno is `unreadable` — the distinction
+ * plan 01-19 drew one layer down, reused rather than reinvented. A directory
+ * bearing a file's name is `EISDIR`: it exists, and it is not readable as the
+ * document the declaration named, which is a different fact from absence.
+ */
+async function readEvidenceFile(root: string, relativePosixPath: string, cap: number): Promise<EvidenceRead> {
+  const absolute = join(root, ...relativePosixPath.split("/"));
+  const proof = await proveInsideRoot(root, absolute);
+  if (!proof.proven) return { kind: "unreadable", errno: proof.code };
+
+  let info: Stats;
+  try {
+    info = await stat(absolute);
+  } catch (error) {
+    const errno = errnoOf(error);
+    return errno === "ENOENT" ? { kind: "missing" } : { kind: "unreadable", errno };
+  }
+  if (info.isDirectory()) return { kind: "unreadable", errno: "EISDIR" };
+  if (!info.isFile()) return { kind: "unreadable", errno: "ENOTFILE" };
+  if (info.size > cap) return { kind: "over-cap", cap };
+
+  try {
+    return { kind: "text", text: await readFile(absolute, "utf8") };
+  } catch (error) {
+    const errno = errnoOf(error);
+    return errno === "ENOENT" ? { kind: "missing" } : { kind: "unreadable", errno };
+  }
+}
+
+/** Lines of a manifest, bounded. The file is byte-capped; this bounds the count. */
+const MAX_MANIFEST_LINES = 20000;
+
+function boundedLines(text: string): string[] {
+  return text.split(/\r?\n/u).slice(0, MAX_MANIFEST_LINES);
+}
+
+// --- the five dependency manifest readers ---------------------------------
+
+/**
+ * Read in one fixed order, so a package declared twice always resolves to the
+ * same manifest. First declaration wins.
+ */
+const DEPENDENCY_MANIFESTS = ["package.json", "pyproject.toml", "requirements.txt", "go.mod", "Cargo.toml"] as const;
+
+/** A package name longer than this is not a name; it is an attempt at something. */
+const MAX_DEPENDENCY_NAME_LENGTH = 256;
+
+/** PEP 503 normalization. Applied to Python names only — npm and Go are literal. */
+function pep503(name: string): string {
+  return name.toLowerCase().replace(/[-_.]+/gu, "-");
+}
+
+function addDependency(
+  index: Map<string, DeclaredDependency>,
+  entry: DeclaredDependency,
+  aliasNormalized: boolean,
+): void {
+  if (entry.name.length === 0 || entry.name.length > MAX_DEPENDENCY_NAME_LENGTH) return;
+  if (!index.has(entry.name)) index.set(entry.name, entry);
+  if (!aliasNormalized) return;
+  const normalized = pep503(entry.name);
+  if (normalized !== entry.name && !index.has(normalized)) index.set(normalized, entry);
+}
+
+/**
+ * A PEP 508 requirement reduced to the two things a fact records: the name and
+ * the declared range. A direct reference (`pkg @ https://...`) declares no
+ * range, so it records none rather than recording a URL that may carry
+ * credentials.
+ */
+const PEP508 = /^([A-Za-z0-9][A-Za-z0-9._-]*)\s*(?:\[[^\]]*\])?\s*(.*)$/u;
+
+function parseRequirement(entry: string): { name: string; version: string | null } | null {
+  const withoutMarker = entry.split(";")[0] ?? "";
+  const withoutComment = withoutMarker.split(" #")[0] ?? withoutMarker;
+  const text = withoutComment.trim();
+  if (text.length === 0) return null;
+  const match = PEP508.exec(text);
+  if (match === null) return null;
+  const rest = (match[2] ?? "").trim();
+  return { name: match[1] as string, version: rest.length === 0 || rest.startsWith("@") ? null : rest };
+}
+
+function readPackageJson(manifest: unknown, path: string, index: Map<string, DeclaredDependency>): void {
+  const record = manifest as Record<string, unknown>;
+  for (const section of DEPENDENCY_SECTIONS) {
+    for (const declared of declaredPackages(record[section])) {
+      addDependency(index, { name: declared.name, path, version: declared.range }, false);
+    }
+  }
+}
+
+/** A TOML dependency table entry: `name = "1.0"` or `name = { version = "1.0" }`. */
+function tableDependencies(section: unknown): Array<{ name: string; range: string | null }> {
+  if (typeof section !== "object" || section === null || Array.isArray(section)) return [];
+  const safe = Object.assign(Object.create(null) as Record<string, unknown>, section);
+  return Object.keys(safe).map((name) => {
+    const value = safe[name];
+    if (typeof value === "string") return { name, range: value.length > 0 ? value : null };
+    const nested = branch(value, "version");
+    return { name, range: typeof nested === "string" && nested.length > 0 ? nested : null };
+  });
+}
+
+function readPyproject(manifest: unknown, path: string, index: Map<string, DeclaredDependency>): void {
+  for (const entry of stringEntries(branch(branch(manifest, "project"), "dependencies"))) {
+    const parsed = parseRequirement(entry);
+    if (parsed !== null) addDependency(index, { name: parsed.name, path, version: parsed.version }, true);
+  }
+  for (const declared of tableDependencies(branch(branch(branch(manifest, "tool"), "poetry"), "dependencies"))) {
+    addDependency(index, { name: declared.name, path, version: declared.range }, true);
+  }
+  const groups = branch(manifest, "dependency-groups");
+  if (typeof groups === "object" && groups !== null && !Array.isArray(groups)) {
+    const safe = Object.assign(Object.create(null) as Record<string, unknown>, groups);
+    for (const group of Object.keys(safe).sort()) {
+      for (const entry of stringEntries(safe[group])) {
+        const parsed = parseRequirement(entry);
+        if (parsed !== null) addDependency(index, { name: parsed.name, path, version: parsed.version }, true);
+      }
+    }
+  }
+}
+
+const CARGO_SECTIONS = ["dependencies", "dev-dependencies", "build-dependencies"] as const;
+
+function readCargoToml(manifest: unknown, path: string, index: Map<string, DeclaredDependency>): void {
+  for (const section of CARGO_SECTIONS) {
+    for (const declared of tableDependencies(branch(manifest, section))) {
+      addDependency(index, { name: declared.name, path, version: declared.range }, false);
+    }
+  }
+}
+
+function addGoRequire(line: string, path: string, index: Map<string, DeclaredDependency>): void {
+  const parts = line.split(/\s+/u).filter((part) => part.length > 0);
+  const name = parts[0];
+  if (name === undefined || name === "(" || name === ")") return;
+  addDependency(index, { name, path, version: parts[1] ?? null }, false);
+}
+
+/**
+ * `go.mod` is the one manifest with no parser in the dependency set, so it gets
+ * a small bounded line reader rather than a new dependency. Both require forms
+ * are read: the parenthesized block and the single-line `require path version`.
+ */
+function readGoMod(text: string, path: string, index: Map<string, DeclaredDependency>): void {
+  let inRequireBlock = false;
+  for (const rawLine of boundedLines(text)) {
+    const line = (rawLine.split("//")[0] ?? "").trim();
+    if (line.length === 0) continue;
+    if (inRequireBlock) {
+      if (line === ")") inRequireBlock = false;
+      else addGoRequire(line, path, index);
+      continue;
+    }
+    if (/^require\s*\($/u.test(line)) {
+      inRequireBlock = true;
+      continue;
+    }
+    if (/^require\s+\S/u.test(line)) addGoRequire(line.replace(/^require\s+/u, ""), path, index);
+  }
+}
+
+function readRequirementsTxt(text: string, path: string, index: Map<string, DeclaredDependency>): void {
+  for (const rawLine of boundedLines(text)) {
+    const line = rawLine.trim();
+    // `-r`, `-e`, `--index-url` are options, not requirements, and a referenced
+    // file is NOT followed: only paths this walk proved are ever read.
+    if (line.length === 0 || line.startsWith("#") || line.startsWith("-")) continue;
+    const parsed = parseRequirement(line);
+    if (parsed !== null) addDependency(index, { name: parsed.name, path, version: parsed.version }, true);
+  }
+}
+
+/** Returns a stable code when the manifest exists but is not unambiguously parseable. */
+function ingestManifest(manifest: string, text: string, index: Map<string, DeclaredDependency>): string | null {
+  if (manifest === "requirements.txt") {
+    readRequirementsTxt(text, manifest, index);
+    return null;
+  }
+  if (manifest === "go.mod") {
+    readGoMod(text, manifest, index);
+    return null;
+  }
+
+  // The strict route, so a document declaring one package twice is refused
+  // rather than silently resolved to whichever value happened to come last.
+  const parsed = parseManagedDocument({ text, format: manifest === "package.json" ? "json" : "toml" });
+  if (!parsed.ok || typeof parsed.value !== "object" || parsed.value === null || Array.isArray(parsed.value)) {
+    return parsed.issues[0]?.code ?? "syntax.malformed";
+  }
+  if (manifest === "package.json") readPackageJson(parsed.value, manifest, index);
+  else if (manifest === "pyproject.toml") readPyproject(parsed.value, manifest, index);
+  else readCargoToml(parsed.value, manifest, index);
+  return null;
+}
+
+// --- the project manifest, read once --------------------------------------
+
+const PROJECT_MANIFEST_PATH = ".alpha-aos/stack.yaml";
+
+function undecidableReason(evidence: UndecidableEvidence): string {
+  return `UNDECIDABLE: ${evidence.path} exists but could not be read as declared (errno=${evidence.errno})`;
+}
+
+/**
+ * The project manifest is the user's own opt-in, not scanned repository
+ * evidence, so it is read directly rather than through the scan's ignore
+ * decision — `.alpha-aos/` is routinely gitignored and an opt-in a user wrote
+ * on purpose must not vanish because of that.
+ */
+async function readManifestEvidence(root: CanonicalRoot, ledger: ReadLedger): Promise<ManifestEvidence> {
+  const read = await readEvidenceFile(root.root, PROJECT_MANIFEST_PATH, MAX_EVIDENCE_FILE_BYTES);
+  const empty = { present: false, current: false, value: null, schemaVersion: null } as const;
+
+  if (read.kind === "missing") {
+    return { ...empty, reason: `${PROJECT_MANIFEST_PATH} does not exist at the canonical root`, undecidable: null };
+  }
+  if (read.kind === "over-cap") {
+    return {
+      ...empty,
+      present: true,
+      reason: `BOUNDED: ${PROJECT_MANIFEST_PATH} exceeds MAX_EVIDENCE_FILE_BYTES=${read.cap}`,
+      undecidable: null,
+    };
+  }
+  if (read.kind === "unreadable") {
+    const undecidable = { path: PROJECT_MANIFEST_PATH, errno: read.errno };
+    return { ...empty, present: true, reason: undecidableReason(undecidable), undecidable };
+  }
+
+  ledger.recordRelative(PROJECT_MANIFEST_PATH, read.text);
+  const inspection = await inspectProjectManifest(root.root);
+
+  // The gating rule survives verbatim from the retired detector: a migratable
+  // manifest is readable but is not consumed as current, and an invalid one
+  // adds nothing rather than partially applying whatever happened to parse.
+  if (inspection === null || inspection.status !== "current" || inspection.value === null) {
+    return {
+      ...empty,
+      present: true,
+      reason: `${PROJECT_MANIFEST_PATH} is ${inspection?.status ?? "unreadable"}, so it is not consumed as current`,
+      undecidable: null,
+    };
+  }
+  return {
+    present: true,
+    current: true,
+    value: inspection.value,
+    schemaVersion: String(inspection.value.schemaVersion),
+    reason: null,
+    undecidable: null,
+  };
+}
+
+// --- the public detection surface -----------------------------------------
+
 export function matchDeclaredContent(path: string, text: string, patterns: readonly RegExp[]): ContentMatch {
-  throw new Error(`matchDeclaredContent is not implemented (${path}, ${text.length}, ${patterns.length})`);
+  const bounded = text.length > MAX_CONTENT_MATCH_BYTES ? text.slice(0, MAX_CONTENT_MATCH_BYTES) : text;
+  for (const pattern of patterns) {
+    pattern.lastIndex = 0;
+    if (pattern.test(bounded)) return { matched: true, path };
+  }
+  return { matched: false, path };
 }
 
 export function inputsDigest(inputs: readonly ReadInput[]): string {
-  throw new Error(`inputsDigest is not implemented (${inputs.length})`);
+  const lines = inputs.map((input) => `${input.path}\u0000${input.hash}`).sort();
+  return sha256(lines.join("\n"));
 }
 
 export function lookupDependency(dependencies: DeclaredDependencies, name: string): DeclaredDependency | null {
-  throw new Error(`lookupDependency is not implemented (${dependencies.byName.size}, ${name})`);
+  return dependencies.byName.get(name) ?? dependencies.byName.get(pep503(name)) ?? null;
 }
 
 export async function readDeclaredDependencies(
@@ -1390,15 +1666,257 @@ export async function readDeclaredDependencies(
   scan: ProjectTreeScan,
   ledger: ReadLedger,
 ): Promise<DeclaredDependencies> {
-  throw new Error(`readDeclaredDependencies is not implemented (${root.root}, ${scan.files.length}, ${ledger.size})`);
+  const scannable = new Set<string>(scan.paths);
+  const index = new Map<string, DeclaredDependency>();
+  const undecidable: UndecidableEvidence[] = [];
+  const bounded: string[] = [];
+
+  for (const manifest of DEPENDENCY_MANIFESTS) {
+    // Scan membership is what makes D-04 true here: a gitignored manifest, or
+    // one behind a nested-repository boundary, is not this project's evidence.
+    if (!scannable.has(manifest)) continue;
+
+    const read = await readEvidenceFile(root.root, manifest, MAX_EVIDENCE_FILE_BYTES);
+    if (read.kind === "missing") continue;
+    if (read.kind === "over-cap") {
+      bounded.push(`${manifest} exceeds MAX_EVIDENCE_FILE_BYTES=${read.cap}`);
+      continue;
+    }
+    if (read.kind === "unreadable") {
+      undecidable.push({ path: manifest, errno: read.errno });
+      continue;
+    }
+    ledger.recordRelative(manifest, read.text);
+    const failure = ingestManifest(manifest, read.text, index);
+    if (failure !== null) undecidable.push({ path: manifest, errno: failure });
+  }
+
+  return { byName: index, undecidable, bounded };
 }
 
 export async function openDetectionContext(root: CanonicalRoot, scan: ProjectTreeScan): Promise<DetectionContext> {
-  throw new Error(`openDetectionContext is not implemented (${root.root}, ${scan.paths.length})`);
+  const ledger = new ReadLedger();
+  const dependencies = await readDeclaredDependencies(root, scan, ledger);
+  const manifest = await readManifestEvidence(root, ledger);
+  return {
+    root,
+    paths: new Set(scan.paths),
+    files: new Set(scan.files),
+    directories: new Set(scan.directories),
+    sortedFiles: scan.files,
+    dependencies,
+    manifest,
+    ledger,
+  };
+}
+
+function positive(declaration: FactDeclaration, path: string | null, version: string | null): FactDetection {
+  return { id: declaration.id, kind: declaration.kind, detected: true, path, version, reason: null, undecidable: null };
+}
+
+function negative(
+  declaration: FactDeclaration,
+  reason: string,
+  extra: { path?: string; undecidable?: UndecidableEvidence | null } = {},
+): FactDetection {
+  return {
+    id: declaration.id,
+    kind: declaration.kind,
+    detected: false,
+    path: extra.path ?? null,
+    version: null,
+    reason,
+    undecidable: extra.undecidable ?? null,
+  };
+}
+
+/** Repository-owned names, bounded so one fact cannot flood an explanation. */
+function nameList(values: readonly string[], cap = 6): string {
+  const shown = values.slice(0, cap).join(", ");
+  return values.length > cap ? `${shown} (+${values.length - cap} more)` : shown;
+}
+
+function firstObstacle(dependencies: DeclaredDependencies): string | null {
+  const unreadable = dependencies.undecidable[0];
+  if (unreadable !== undefined) return undecidableReason(unreadable);
+  const bound = dependencies.bounded[0];
+  return bound === undefined ? null : `BOUNDED: ${bound}`;
+}
+
+function detectDependency(context: DetectionContext, declaration: FactDeclaration): FactDetection {
+  const packages = declaration.packages ?? [];
+  if (packages.length === 0) return negative(declaration, "the declaration names no packages to look for");
+
+  for (const name of packages) {
+    const declared = lookupDependency(context.dependencies, name);
+    if (declared !== null) return positive(declaration, declared.path, declared.version);
+  }
+
+  const absence = `no dependency manifest at the canonical root declares any of: ${nameList(packages)}`;
+  const obstacle = firstObstacle(context.dependencies);
+  return negative(declaration, obstacle === null ? absence : `${obstacle}; ${absence}`, {
+    undecidable: context.dependencies.undecidable[0] ?? null,
+  });
+}
+
+function detectFile(context: DetectionContext, declaration: FactDeclaration): FactDetection {
+  const declared = declaration.files ?? [];
+  if (declared.length === 0) return negative(declaration, "the declaration names no files to look for");
+  for (const candidate of declared) {
+    const normalized = normalizeRelativePosix(candidate);
+    if (normalized !== null && context.paths.has(normalized)) return positive(declaration, normalized, null);
+  }
+  return negative(declaration, `none of the declared paths exists under the canonical root: ${nameList(declared)}`);
+}
+
+function detectDirectory(context: DetectionContext, declaration: FactDeclaration): FactDetection {
+  const declared = declaration.directories ?? [];
+  if (declared.length === 0) return negative(declaration, "the declaration names no directories to look for");
+  for (const candidate of declared) {
+    const normalized = normalizeRelativePosix(candidate);
+    // Directory membership only. A file bearing the directory's name is a
+    // different thing on disk and must not answer for it.
+    if (normalized !== null && context.directories.has(normalized)) return positive(declaration, normalized, null);
+  }
+  return negative(declaration, `none of the declared directories exists under the canonical root: ${nameList(declared)}`);
+}
+
+/** A declared key counts as opted in when it carries something, not merely a slot. */
+function isOptedIn(value: unknown): boolean {
+  if (value === undefined || value === null || value === false) return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "string") return value.length > 0;
+  return true;
+}
+
+function detectManifestKey(context: DetectionContext, declaration: FactDeclaration): FactDetection {
+  const key = declaration.manifestKey;
+  if (key === undefined) return negative(declaration, "the declaration names no manifest key");
+
+  const manifest = context.manifest;
+  if (!manifest.current || manifest.value === null) {
+    return negative(declaration, manifest.reason ?? `${PROJECT_MANIFEST_PATH} is not a current, valid manifest`, {
+      undecidable: manifest.undecidable,
+    });
+  }
+
+  const safe = Object.assign(Object.create(null) as Record<string, unknown>, manifest.value);
+  if (!isOptedIn(safe[key])) return negative(declaration, `${PROJECT_MANIFEST_PATH} does not opt in to ${key}`);
+  return positive(declaration, PROJECT_MANIFEST_PATH, manifest.schemaVersion);
+}
+
+function detectFileAbsent(context: DetectionContext, declaration: FactDeclaration): FactDetection {
+  const declared = declaration.files ?? [];
+  if (declared.length === 0) return negative(declaration, "the declaration names no files whose absence to check");
+  for (const candidate of declared) {
+    const normalized = normalizeRelativePosix(candidate);
+    if (normalized !== null && context.paths.has(normalized)) {
+      return negative(declaration, `${normalized} exists, so the declared document is not absent`, { path: normalized });
+    }
+  }
+  // Absence IS the detection. Expressing the negation as its own kind is what
+  // removes the need for a `not` operator in the predicate grammar.
+  return positive(declaration, null, null);
+}
+
+/** Declared files first, then the sorted files under any declared directory. */
+function expandContentFiles(context: DetectionContext, declared: readonly string[]): string[] {
+  const chosen: string[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of declared) {
+    const normalized = normalizeRelativePosix(entry);
+    if (normalized === null) continue;
+    if (context.files.has(normalized)) {
+      if (!seen.has(normalized)) {
+        seen.add(normalized);
+        chosen.push(normalized);
+      }
+      continue;
+    }
+    if (!context.directories.has(normalized)) continue;
+    const prefix = `${normalized}/`;
+    for (const file of context.sortedFiles) {
+      if (!file.startsWith(prefix) || seen.has(file)) continue;
+      seen.add(file);
+      chosen.push(file);
+      if (chosen.length >= MAX_CONTENT_FILES) return chosen;
+    }
+  }
+  return chosen;
+}
+
+async function detectFileContent(context: DetectionContext, declaration: FactDeclaration): Promise<FactDetection> {
+  const declared = declaration.files ?? [];
+  const patterns = declaration.patterns ?? [];
+  if (declared.length === 0 || patterns.length === 0) {
+    return negative(declaration, "the declaration names no files or no patterns to match");
+  }
+
+  let compiled: RegExp[];
+  try {
+    // Every pattern comes from the repository-owned catalog, never from the
+    // scanned project. A pattern that does not compile is a catalog defect and
+    // is reported as one rather than silently making the fact undetectable.
+    compiled = patterns.map((pattern) => new RegExp(pattern, "mu"));
+  } catch {
+    const undecidable = { path: "catalog/facts.yaml", errno: "pattern.invalid" };
+    return negative(declaration, undecidableReason(undecidable), { undecidable });
+  }
+
+  let bound: string | null = null;
+  let unreadable: UndecidableEvidence | null = null;
+
+  for (const candidate of expandContentFiles(context, declared)) {
+    const read = await readEvidenceFile(context.root.root, candidate, MAX_EVIDENCE_FILE_BYTES);
+    if (read.kind === "missing") continue;
+    if (read.kind === "over-cap") {
+      bound ??= `BOUNDED: ${candidate} exceeds MAX_EVIDENCE_FILE_BYTES=${read.cap}`;
+      continue;
+    }
+    if (read.kind === "unreadable") {
+      unreadable ??= { path: candidate, errno: read.errno };
+      continue;
+    }
+    context.ledger.recordRelative(candidate, read.text);
+    // The match carries a boolean and a path. There is no third thing it
+    // could carry, which is why a credential-bearing DSN cannot leak here.
+    const match = matchDeclaredContent(candidate, read.text, compiled);
+    if (match.matched) return positive(declaration, match.path, null);
+  }
+
+  const absence = `no declared pattern matched any of: ${nameList(declared)}`;
+  if (unreadable !== null) return negative(declaration, `${undecidableReason(unreadable)}; ${absence}`, { undecidable: unreadable });
+  if (bound !== null) return negative(declaration, `${bound}; ${absence}`);
+  return negative(declaration, absence);
 }
 
 export async function detectFact(context: DetectionContext, declaration: FactDeclaration): Promise<FactDetection> {
-  throw new Error(`detectFact is not implemented (${context.root.root}, ${declaration.id})`);
+  if (declaration.deferredTo !== undefined) {
+    return negative(declaration, `deferred to ${declaration.deferredTo}: no detector for this fact runs in this phase`);
+  }
+  switch (declaration.kind) {
+    case "dependency":
+      return detectDependency(context, declaration);
+    case "file":
+      return detectFile(context, declaration);
+    case "directory":
+      return detectDirectory(context, declaration);
+    case "manifestKey":
+      return detectManifestKey(context, declaration);
+    case "fileAbsent":
+      return detectFileAbsent(context, declaration);
+    case "fileContent":
+      return detectFileContent(context, declaration);
+  }
+  // Unreachable through the schema-validated vocabulary, and fail-closed for a
+  // value that reached this function any other way.
+  return negative(declaration, "no detector implements this fact's declared kind");
+}
+
+/** Ascending declaration id, by code point, so no locale can reorder the walk. */
+function byDeclarationId(left: FactDeclaration, right: FactDeclaration): number {
+  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
 export async function detectProjectFacts(
@@ -1406,9 +1924,13 @@ export async function detectProjectFacts(
   scan: ProjectTreeScan,
   vocabulary: FactVocabulary,
 ): Promise<EvidenceDetection> {
-  throw new Error(
-    `detectProjectFacts is not implemented (${root.root}, ${scan.paths.length}, ${vocabulary.facts.length})`,
-  );
+  const context = await openDetectionContext(root, scan);
+  const detections: FactDetection[] = [];
+  for (const declaration of [...vocabulary.facts].sort(byDeclarationId)) {
+    detections.push(await detectFact(context, declaration));
+  }
+  // Read AFTER every detector ran: `fileContent` opens files during detection.
+  return { detections, readInputs: context.ledger.inputs() };
 }
 
 export function digestableEvidence(envelope: EvidenceEnvelope): unknown {

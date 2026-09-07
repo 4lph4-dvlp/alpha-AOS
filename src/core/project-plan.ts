@@ -1219,6 +1219,26 @@ export async function revalidateProjectPlan(options: RevalidateProjectPlanOption
   };
 }
 
+/** The exact command that approves one plan, ready to paste. */
+export interface ApprovalCommandParts {
+  readonly path: string;
+  readonly subProject?: string | null | undefined;
+  readonly planDigest: string;
+}
+
+/**
+ * The runnable approve command for a given plan digest.
+ *
+ * Every refusal ends with one of these. A refusal that only says what went
+ * wrong leaves the user to reconstruct the command; D-13 is explicit that the
+ * refusal must be a next step rather than a dead end.
+ */
+export function approvalCommand(parts: ApprovalCommandParts): string {
+  const target = /\s/u.test(parts.path) ? `"${parts.path}"` : parts.path;
+  const project = parts.subProject === undefined || parts.subProject === null ? [] : ["--project", parts.subProject];
+  return ["alpha-aos", "project", "approve", target, ...project, "--plan-digest", parts.planDigest, "--apply"].join(" ");
+}
+
 export type ProjectApprovalStatus = "written" | "already-current";
 
 export interface ProjectApprovalResult {

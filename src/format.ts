@@ -1,5 +1,5 @@
 import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
-import { describeLeaf, MAX_NEAR_MISS_LINES, MAX_TARGET_ROWS } from "./core/project-plan.js";
+import { describeLeaf, MAX_NEAR_MISS_LINES, MAX_TARGET_ROWS, type ProjectApprovalResult } from "./core/project-plan.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -49,7 +49,7 @@ export function formatDoctor(findings: DoctorFinding[]): string {
  * `phrase`, both of which the evaluator renders out of `catalog/facts.yaml`.
  * Nothing here is a per-pack string, so all 15 packs explain uniformly.
  */
-export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: boolean } = {}): string {
+export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: boolean; trailer?: string } = {}): string {
   const lines = [`Project: ${plan.scope.canonicalRoot} (${plan.scope.rootReason})`, `Project id: ${plan.scope.projectId}`];
   if (plan.scope.subProjectPath !== null) lines.push(`Sub-project: ${plan.scope.subProjectPath}`);
   const byId = new Map(plan.evaluations.map((evaluation) => [evaluation.packId, evaluation]));
@@ -135,12 +135,49 @@ export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: 
   for (const approval of plan.approvals) lines.push(`APPROVAL ${approval.code} ${approval.detail}`);
 
   lines.push(
+    `Manifest digest: ${plan.manifestDigest ?? "none"}`,
     `Inputs digest: ${plan.inputsDigest}`,
     `Evidence digest: ${plan.evidenceDigest}`,
     `Plan digest: ${plan.planDigest}`,
-    "Preview only. Nothing was written: `project plan` persists nothing.",
+    options.trailer ?? "Preview only. Nothing was written: `project plan` persists nothing.",
   );
   return lines.join("\n");
+}
+
+/**
+ * The approval preview: the same reviewable plan, with the trailer that names
+ * the command which persists it.
+ *
+ * D-12 is why this is a different TRAILER rather than a different rendering — a
+ * reviewer must look at exactly what an apply will recompute.
+ */
+export function formatProjectApprovalPreview(
+  plan: ProjectCapabilityPlan,
+  command: string,
+  options: { why?: boolean } = {},
+): string {
+  return formatProjectPlan(plan, {
+    ...options,
+    trailer: [
+      "Preview only. Nothing was written: approving is a separate act from looking (D-12).",
+      `Pass this digest back to apply: ${command}`,
+    ].join("\n"),
+  });
+}
+
+/** What an approve did, or did not need to do. */
+export function formatProjectApproval(result: ProjectApprovalResult): string {
+  const approved = result.plan.applicable;
+  return [
+    `Project: ${result.plan.scope.canonicalRoot}`,
+    `Approved packs: ${approved.join(", ") || "none"} (${approved.length})`,
+    `Plan digest: ${result.plan.planDigest}`,
+    `Artifact: ${result.artifactPath}`,
+    `Transaction: ${result.operationId ?? "none"}`,
+    result.status === "already-current"
+      ? "Already current. No bytes were written and no transaction was opened."
+      : "Approved. Only .alpha-aos/plan.json was written; project source, package manifests, tests and build configuration stay read-only inputs.",
+  ].join("\n");
 }
 
 export function formatUpdate(current: StackLock, candidate: StackLock): string {

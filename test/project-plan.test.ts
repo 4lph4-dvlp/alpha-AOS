@@ -1800,7 +1800,10 @@ test("project approve without --apply previews the approval and writes nothing",
   const { root, stateRoot } = await approvalFixture(context);
   const before = await snapshotTree(root);
 
-  const result = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: stateRoot });
+  // A managed state root that does NOT exist yet, so "a preview created it" is
+  // a question about the command rather than about this fixture.
+  const managed = join(stateRoot, "managed");
+  const result = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: managed });
 
   assert.equal(result.status, 0, result.stderr);
   const digest = planDigestOf(result.stdout);
@@ -1809,7 +1812,7 @@ test("project approve without --apply previews the approval and writes nothing",
   assert.match(result.stdout, /--plan-digest/u);
   assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a preview wrote the artifact");
   assert.deepEqual(await snapshotTree(root), before, "a preview changed the project tree");
-  assert.equal(existsSync(stateRoot), false, "a preview created the managed state root");
+  assert.equal(existsSync(managed), false, "a preview created the managed state root");
 });
 
 test("project approve --plan-digest --apply writes the artifact and reports the transaction id", async (context) => {

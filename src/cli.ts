@@ -5,7 +5,7 @@ import { collectInventory } from "./core/inventory.js";
 import { packageRoot } from "./core/paths.js";
 import { createInstallPlan } from "./core/plan.js";
 import { applyOwnedSkillSync, planOwnedSkillSync } from "./core/owned-skills.js";
-import { planProjectCapabilities } from "./core/project-plan.js";
+import { approvalCommand, approveProjectPlan, planProjectCapabilities, revalidateProjectPlan } from "./core/project-plan.js";
 import {
   applyIsolationManifest,
   cleanIsolationRuntime,
@@ -29,7 +29,7 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
-import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectPlan, formatUpdate } from "./format.js";
+import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPlan, formatUpdate } from "./format.js";
 import { createRedactionContext, redactDocument, redactString, serializeObservable } from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
@@ -51,6 +51,7 @@ Usage:
   alpha-aos update --stage [--apply]
   alpha-aos update --apply [--target <harness[,harness]>] [--json]
   alpha-aos project plan|sync [path] [--project <rel>] [--why] [--json]
+  alpha-aos project approve [path] [--project <rel>] [--plan-digest <digest>] [--apply] [--json]
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
@@ -595,22 +596,54 @@ async function main(): Promise<void> {
     // `detect` is gone: it is folded into `plan`, which already printed
     // everything `detect` printed and more. Keeping two entry points would
     // keep two answers to one question (plan 02-06).
-    if (!["plan", "sync"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
+    if (!["plan", "sync", "approve"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
     if (subcommand === "sync" && hasFlag(args, "--apply")) {
       throw new Error("Project apply is not enabled until trust and transaction support are implemented");
     }
-    const parts = positional(args.slice(2), ["--project"]);
+    // D-12: previewing and persisting are two different acts, so `--apply`
+    // belongs to `approve` and to nothing else. Silently ignoring the flag here
+    // would let a user believe `plan` had persisted something.
+    if (subcommand === "plan" && hasFlag(args, "--apply")) {
+      throw new Error("`project plan` has no --apply: it previews and persists nothing. Approve a reviewed plan with `alpha-aos project approve <path> --plan-digest <digest> --apply`.");
+    }
+    const parts = positional(args.slice(2), ["--project", "--plan-digest"]);
     const target = parts[0] ?? process.cwd();
-    // No `--apply`: this route previews and persists nothing. Dependency names
-    // and paths reach stdout, so both renderings leave through the one
-    // redaction seam rather than a direct write.
+    // Dependency names and paths reach stdout, so every rendering below leaves
+    // through the one redaction seam rather than a direct write.
     const context = observableContext();
     const subProject = optionValue(args, "--project");
-    const plan = await planProjectCapabilities({
+    const planOptions = {
       path: target,
       packageRoot: root,
       ...(subProject === null ? {} : { subProject }),
-    });
+    };
+
+    if (subcommand === "approve") {
+      const stateRoot = userStateRoot();
+      const apply = hasFlag(args, "--apply");
+      const reviewed = optionValue(args, "--plan-digest");
+      if (!apply || reviewed === null) {
+        // The same revalidation the apply runs, so the digest a reviewer is
+        // asked to pass back is the digest the apply will recompute.
+        const revalidated = await revalidateProjectPlan({ ...planOptions, stateRoot });
+        const command = approvalCommand({ path: target, subProject, planDigest: revalidated.plan.planDigest });
+        if (!apply) {
+          print(
+            { applied: false, planDigest: revalidated.plan.planDigest, command, plan: revalidated.plan },
+            json,
+            formatProjectApprovalPreview(revalidated.plan, command, { why: hasFlag(args, "--why") }),
+            context,
+          );
+          return;
+        }
+        throw new Error(`project approve --apply requires the digest that was reviewed. The current plan digest is ${revalidated.plan.planDigest}. Run: ${command}`);
+      }
+      const result = await approveProjectPlan({ ...planOptions, stateRoot, expectedDigest: reviewed });
+      print(result, json, formatProjectApproval(result), context);
+      return;
+    }
+
+    const plan = await planProjectCapabilities(planOptions);
     print(plan, json, formatProjectPlan(plan, { why: hasFlag(args, "--why") }), context);
     if (subcommand === "sync") process.stdout.write("\nDry-run only. Project files and harness configuration were not changed.\n");
     return;

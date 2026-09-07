@@ -2110,3 +2110,189 @@ export function describeGitDifference(approved: GitContext | null, current: GitC
     `${context.branch === null ? (context.detached ? "a detached HEAD" : "an unknown branch") : `branch ${context.branch}`} at commit ${context.commit?.slice(0, 12) ?? "unknown"}`;
   return `the approved plan was recorded on ${describe(approved)}; the working tree is now on ${describe(current)} — a checkout can remove evidence without anything having been deleted`;
 }
+
+// ---------------------------------------------------------------------------
+// D-14: the removal plan a human approves, and nothing removes on its own
+// ---------------------------------------------------------------------------
+//
+// Building the removal plan is the WHOLE of what `status` does about
+// staleness. The removal still travels the same digest contract an approval
+// does — recompute, compare, refuse the instant anything moved — and executes
+// only inside one journaled, snapshotted transaction. The snapshot IS the safe
+// inverse, which is what makes "stale evidence never triggers automatic
+// deletion" enforceable rather than aspirational.
+
+/** The digest name every reviewed pack removal is bound under. */
+export const REMOVAL_DIGEST_KIND = "project-pack-removal";
+
+/** One file a removal would delete, and the hash that guards deleting it. */
+export interface RemovalTarget {
+  /** Relative POSIX path from the canonical root. */
+  readonly path: string;
+  readonly harness: HarnessId;
+  /** The hash of the bytes there NOW. Null when the target is absent or unreadable. */
+  readonly expectedHash: string | null;
+  readonly exists: boolean;
+}
+
+export interface RemovalPlan {
+  readonly packId: string;
+  readonly receiptPath: string;
+  readonly targets: readonly RemovalTarget[];
+  /** Why this removal is offered: the STALE sentences, verbatim. */
+  readonly reasons: readonly string[];
+  readonly removalDigest: string;
+}
+
+/** Everything a reviewer of a removal looks at, as ONE literal in ONE place. */
+function digestableRemoval(removal: Omit<RemovalPlan, "removalDigest">): Record<string, unknown> {
+  return {
+    packId: removal.packId,
+    receiptPath: removal.receiptPath,
+    targets: removal.targets.map((target) => [target.path, target.harness, target.expectedHash, target.exists]),
+    reasons: removal.reasons,
+  };
+}
+
+/**
+ * A removal plan for every stale pack, and for nothing else.
+ *
+ * A `DRIFTED`, `CONFLICT`, `CHANGED` or `UNDECIDABLE` pack is deliberately NOT
+ * offered a removal: only `STALE` means the evidence that selected the pack is
+ * gone, and an unreadable evidence file must never motivate a deletion.
+ *
+ * The digest covers each target's CURRENT hash, so a target whose bytes move
+ * between the plan and its approval produces a different digest and the
+ * approval refuses — the same "recompute and compare" the plan artifact uses,
+ * rather than a second drift mechanism that would drift from the first.
+ */
+export function planPackRemoval(reconciliation: ProjectReconciliation): RemovalPlan[] {
+  const plans: RemovalPlan[] = [];
+  for (const pack of reconciliation.packs) {
+    if (pack.state !== "STALE") continue;
+    const draft = {
+      packId: pack.packId,
+      receiptPath: pack.receiptPath,
+      targets: pack.targets.map((target) => ({
+        path: target.path,
+        harness: target.harness,
+        expectedHash: target.currentHash,
+        exists: target.exists,
+      })),
+      reasons: pack.stale.map((reason) => reason.sentence),
+    };
+    plans.push({ ...draft, removalDigest: reviewedDigest(REMOVAL_DIGEST_KIND, digestableRemoval(draft)) });
+  }
+  return plans;
+}
+
+export interface ApplyPackRemovalOptions extends RevalidateProjectPlanOptions {
+  /** The removal digest a reviewer saw. Nothing is removed unless a re-read reproduces it. */
+  readonly removalDigest: string;
+  /** A writer already held by the caller. When supplied, no second lock is taken. */
+  readonly session?: MutationSession;
+}
+
+export interface PackRemovalResult {
+  readonly packId: string;
+  readonly operationId: string;
+  /** Relative POSIX paths actually removed, sorted. */
+  readonly removed: readonly string[];
+  readonly removalDigest: string;
+}
+
+/**
+ * The roots a removal may write inside: the project-local skill roots that own
+ * the targets, and nothing else.
+ *
+ * Passing the canonical root would make the transaction's containment check
+ * vacuous. Deriving the roots from `PROJECT_SKILL_ROOTS` keeps a removal
+ * confined to the same three directories a materialization can reach.
+ */
+function removalAllowedRoots(canonicalRoot: string, targets: readonly RemovalTarget[]): string[] {
+  const roots = new Set<string>();
+  for (const target of targets) {
+    const skillRoot = PROJECT_SKILL_ROOTS[target.harness];
+    if (skillRoot === undefined) {
+      throw new Error(`${target.harness} has no project-local skill root, so ${target.path} cannot be removed`);
+    }
+    roots.add(join(canonicalRoot, ...skillRoot.split("/")));
+  }
+  return [...roots].sort(byCodePoint);
+}
+
+/**
+ * Removes one stale pack's targets, under one journaled, snapshotted transaction.
+ *
+ * The reconciliation is recomputed here rather than carried from the preview,
+ * so the digest a user pastes back is compared against the world as it is at
+ * apply time. A removal plan that no longer exists — because the evidence came
+ * back, or because a target's bytes moved — is a `plan-drift` refusal naming
+ * what is on offer now, never a partial deletion.
+ */
+export async function applyPackRemoval(options: ApplyPackRemovalOptions): Promise<PackRemovalResult> {
+  const reconciliation = await reconcileProjectState(options);
+  const offered = planPackRemoval(reconciliation);
+  const removal = offered.find((entry) => entry.removalDigest === options.removalDigest);
+
+  if (removal === undefined) {
+    const available =
+      offered.map((entry) => `${entry.packId}=${entry.removalDigest.slice(0, 12)}`).join(", ") || "none";
+    throw new ComponentPlanError(
+      "plan-drift",
+      `no stale pack currently offers a removal plan with digest ${options.removalDigest.slice(0, 12)} ` +
+        `(on offer now: ${available}). Either the evidence came back or a target's bytes moved since the plan ` +
+        `was built, so nothing was removed. Review the current state again with: ` +
+        `alpha-aos project status ${/\s/u.test(options.path) ? `"${options.path}"` : options.path}`,
+    );
+  }
+
+  const canonicalRoot = reconciliation.plan.scope.canonicalRoot;
+  const present = removal.targets.filter((target) => target.exists);
+  if (present.length === 0) {
+    throw new ComponentPlanError(
+      "plan-incomplete",
+      `${removal.packId} has no target file left on disk, so there is nothing for a removal to remove`,
+    );
+  }
+
+  const stateRoot = resolve(options.stateRoot);
+  const allowedRoots = removalAllowedRoots(canonicalRoot, present);
+  const absolute = present.map((target) => join(canonicalRoot, ...target.path.split("/")));
+
+  // Every role declared up front and as one set, exactly as an approval does.
+  const proofs = await proveOperationPaths({
+    inputs: [
+      ...absolute.map((path) => ({ role: "target" as const, path })),
+      { role: "state", path: stateRoot },
+      { role: "journal", path: join(stateRoot, "journal") },
+      { role: "snapshot", path: join(stateRoot, "snapshots") },
+    ],
+    allowedRoots: [...allowedRoots, stateRoot],
+    requiredRoles: requiredRolesForFileMutation(),
+  });
+
+  const boundary: ReviewedComponentPlan = {
+    kind: REMOVAL_DIGEST_KIND,
+    digest: removal.removalDigest,
+    proofs,
+    stateRoot,
+  };
+
+  return withComponentSession(boundary, options.session, async (session): Promise<PackRemovalResult> => {
+    const journal = await applyFileTransaction({
+      stateRoot,
+      allowedRoots,
+      // `content: null` is the transaction's removal, so the snapshot taken
+      // before the delete is the restore that undoes it.
+      operations: absolute.map((target) => ({ target, content: null })),
+      session,
+    });
+    return {
+      packId: removal.packId,
+      operationId: journal.id,
+      removed: present.map((target) => target.path).sort(byCodePoint),
+      removalDigest: removal.removalDigest,
+    };
+  });
+}

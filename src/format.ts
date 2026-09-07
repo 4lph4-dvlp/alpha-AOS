@@ -7,6 +7,7 @@ import {
   PROJECT_PLAN_ARTIFACT,
   type ProjectApprovalResult,
   type ProjectReconciliation,
+  type RemovalPlan,
 } from "./core/project-plan.js";
 
 function table(headers: string[], rows: string[][]): string {
@@ -238,18 +239,6 @@ export function formatIsolationLaunch(launch: IsolationLaunchSpec): string {
 }
 
 /**
- * The removal shape this renderer needs, stated structurally.
- *
- * `planPackRemoval` returns a richer value; naming only what is PRINTED keeps
- * the renderer from acquiring an opinion about how a removal is built.
- */
-export interface RenderableRemoval {
-  readonly packId: string;
-  readonly removalDigest: string;
-  readonly targets: readonly { readonly path: string; readonly exists: boolean; readonly expectedHash: string | null }[];
-}
-
-/**
  * DETC-06's report: what is installed, what state it is in, which fact went
  * away, and the command a human would run to approve a removal.
  *
@@ -274,7 +263,7 @@ function detailCell(detail: string): string {
 
 export function formatProjectStatus(
   reconciliation: ProjectReconciliation,
-  removals: readonly RenderableRemoval[],
+  removals: readonly RemovalPlan[],
   options: { path: string; subProject?: string | null },
 ): string {
   const lines = [

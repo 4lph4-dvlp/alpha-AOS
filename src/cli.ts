@@ -5,7 +5,15 @@ import { collectInventory } from "./core/inventory.js";
 import { packageRoot } from "./core/paths.js";
 import { createInstallPlan } from "./core/plan.js";
 import { applyOwnedSkillSync, planOwnedSkillSync } from "./core/owned-skills.js";
-import { approvalCommand, approveProjectPlan, planProjectCapabilities, revalidateProjectPlan } from "./core/project-plan.js";
+import {
+  applyPackRemoval,
+  approvalCommand,
+  approveProjectPlan,
+  planPackRemoval,
+  planProjectCapabilities,
+  reconcileProjectState,
+  revalidateProjectPlan,
+} from "./core/project-plan.js";
 import {
   applyIsolationManifest,
   cleanIsolationRuntime,
@@ -29,7 +37,7 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
-import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPlan, formatUpdate } from "./format.js";
+import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
 import { createRedactionContext, redactDocument, redactString, serializeObservable } from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
@@ -52,6 +60,7 @@ Usage:
   alpha-aos update --apply [--target <harness[,harness]>] [--json]
   alpha-aos project plan|sync [path] [--project <rel>] [--why] [--json]
   alpha-aos project approve [path] [--project <rel>] [--plan-digest <digest>] [--apply] [--json]
+  alpha-aos project status [path] [--project <rel>] [--json]
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
@@ -596,7 +605,7 @@ async function main(): Promise<void> {
     // `detect` is gone: it is folded into `plan`, which already printed
     // everything `detect` printed and more. Keeping two entry points would
     // keep two answers to one question (plan 02-06).
-    if (!["plan", "sync", "approve"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
+    if (!["plan", "sync", "approve", "status"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
     if (subcommand === "sync" && hasFlag(args, "--apply")) {
       throw new Error("Project apply is not enabled until trust and transaction support are implemented");
     }
@@ -605,6 +614,12 @@ async function main(): Promise<void> {
     // would let a user believe `plan` had persisted something.
     if (subcommand === "plan" && hasFlag(args, "--apply")) {
       throw new Error("`project plan` has no --apply: it previews and persists nothing. Approve a reviewed plan with `alpha-aos project approve <path> --plan-digest <digest> --apply`.");
+    }
+    // D-14: `status` reports and offers; it is never the thing that deletes.
+    // The removal travels the approve verb with the removal plan's digest, so
+    // the phase has exactly one writer.
+    if (subcommand === "status" && hasFlag(args, "--apply")) {
+      throw new Error("`project status` has no --apply: it reads and deletes nothing. Approve a removal it printed with `alpha-aos project approve <path> --plan-digest <removal-digest> --apply`.");
     }
     const parts = positional(args.slice(2), ["--project", "--plan-digest"]);
     const target = parts[0] ?? process.cwd();
@@ -617,6 +632,18 @@ async function main(): Promise<void> {
       packageRoot: root,
       ...(subProject === null ? {} : { subProject }),
     };
+
+    if (subcommand === "status") {
+      const reconciliation = await reconcileProjectState(planOptions);
+      const removals = planPackRemoval(reconciliation);
+      print(
+        { reconciliation, removals },
+        json,
+        formatProjectStatus(reconciliation, removals, { path: target, subProject }),
+        context,
+      );
+      return;
+    }
 
     if (subcommand === "approve") {
       const stateRoot = userStateRoot();
@@ -637,6 +664,27 @@ async function main(): Promise<void> {
           return;
         }
         throw new Error(`project approve --apply requires the digest that was reviewed. The current plan digest is ${revalidated.plan.planDigest}. Run: ${command}`);
+      }
+      // A removal is approved through this same verb and this same digest
+      // contract, so the offered removals are consulted first. Only a digest
+      // that is not one of them is a plan approval.
+      const removal = planPackRemoval(await reconcileProjectState(planOptions)).find(
+        (entry) => entry.removalDigest === reviewed,
+      );
+      if (removal !== undefined) {
+        const removed = await applyPackRemoval({ ...planOptions, stateRoot, removalDigest: reviewed });
+        print(
+          removed,
+          json,
+          [
+            `Removed pack: ${removed.packId}`,
+            ...removed.removed.map((path) => `  removed ${path}`),
+            `Transaction: ${removed.operationId}`,
+            "The transaction snapshotted every removed file before deleting it, so this removal is reversible with `alpha-aos rollback`.",
+          ].join("\n"),
+          context,
+        );
+        return;
       }
       const result = await approveProjectPlan({ ...planOptions, stateRoot, expectedDigest: reviewed });
       print(result, json, formatProjectApproval(result), context);

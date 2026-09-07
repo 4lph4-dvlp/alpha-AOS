@@ -7,7 +7,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -21,8 +21,10 @@ import type {
   PackOverride,
   ProjectCapabilityPlan,
   ProjectStackManifest,
+  StackLock,
 } from "../src/types.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
+import { loadLock } from "../src/core/catalog.js";
 import { collectProjectEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
@@ -762,4 +764,231 @@ test("a pack naming a fact the vocabulary does not declare is unimplemented, nev
   );
   assert.deepEqual(container.undeclared, []);
   assert.equal(container.status, "selected");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-08 Task 1: the nine DETC-04 nouns as named fields
+// ---------------------------------------------------------------------------
+//
+// The assertions below read the plan STRUCTURALLY rather than through the
+// compiled `ProjectCapabilityPlan` interface. That is deliberate: it is what
+// lets the RED run compile and fail on the missing behaviour rather than on a
+// missing type, and it keeps `Object.hasOwn` — the thing DETC-04 actually
+// demands of a field that may legitimately be null or empty — assertable.
+
+/** One field per DETC-04 noun. A reviewer must be able to read every one. */
+const DETC04_FIELDS = [
+  "scope",
+  "owner",
+  "source",
+  "renderer",
+  "targetPreState",
+  "adapterSupport",
+  "approvals",
+  "safeInverse",
+  "inputsDigest",
+  "evidenceDigest",
+  "planDigest",
+] as const;
+
+function asRecord(value: unknown): Record<string, unknown> {
+  assert.equal(typeof value, "object", `expected an object, got ${typeof value}`);
+  assert.notEqual(value, null, "expected an object, got null");
+  return value as Record<string, unknown>;
+}
+
+function asRecordArray(value: unknown, label: string): Array<Record<string, unknown>> {
+  assert.ok(Array.isArray(value), `${label} is not an array`);
+  return (value as unknown[]).map((entry) => asRecord(entry));
+}
+
+/**
+ * A named export this plan adds, resolved at run time.
+ *
+ * Resolving by name rather than by static import is what makes the RED gate
+ * honest — the test is discovered and fails on the assertion below, naming the
+ * export that does not exist yet, instead of failing to compile.
+ */
+async function planExport<T>(name: string): Promise<T> {
+  const module = (await import("../src/core/project-plan.js")) as unknown as Record<string, unknown>;
+  const value = module[name];
+  assert.notEqual(value, undefined, `src/core/project-plan.ts does not export ${name}`);
+  return value as T;
+}
+
+type ResolvePackSource = (lock: StackLock, packId: string, skill: string) => unknown;
+type EccComponent = NonNullable<StackLock["components"]["ecc"]>;
+
+/** The real stable lock's ECC component, which every pack source is read from. */
+async function eccComponent(): Promise<EccComponent> {
+  const lock = await loadLock(repositoryRoot);
+  const ecc = lock.components.ecc;
+  assert.ok(ecc, "catalog/stack.lock.json has no ECC component");
+  return ecc;
+}
+
+async function withEcc(mutate: (ecc: EccComponent) => EccComponent): Promise<StackLock> {
+  const lock = await loadLock(repositoryRoot);
+  const ecc = lock.components.ecc;
+  assert.ok(ecc, "catalog/stack.lock.json has no ECC component");
+  return { ...lock, components: { ...lock.components, ecc: mutate(ecc) } };
+}
+
+/** Pack id to the skills it declares, from the real merged catalog. */
+async function skillsByPack(): Promise<Map<string, string[]>> {
+  const catalog = await loadPackCatalogStrict(repositoryRoot);
+  return new Map(catalog.value.packs.map((pack) => [pack.id, [...(pack.skills ?? [])]]));
+}
+
+test("the plan carries every DETC-04 noun as a named field", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+
+  for (const field of DETC04_FIELDS) {
+    assert.equal(Object.hasOwn(plan, field), true, `the plan has no ${field} field`);
+  }
+  // The receipt location is a Phase 2 decision Phase 3 inherits, so it travels
+  // inside the artifact rather than only inside this repository's source.
+  assert.equal(plan.receiptDirectory, ".alpha-aos/receipts");
+
+  const owner = asRecord(plan.owner);
+  assert.equal(owner.id, "alpha-aos");
+  const producer = asRecord(owner.producer);
+  assert.equal(producer.name, "alpha-aos");
+  assert.equal(typeof producer.version, "string");
+  assert.ok(String(producer.version).length > 0);
+});
+
+test("a project with zero selected packs still carries every DETC-04 field, with empty arrays rather than omitted keys", async (context) => {
+  const root = await scratchRoot(context, "no-packs");
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+
+  assert.deepEqual(plan.selected, []);
+  for (const field of DETC04_FIELDS) {
+    assert.equal(Object.hasOwn(plan, field), true, `the plan has no ${field} field`);
+  }
+  assert.deepEqual(plan.source, [], "source is not an empty array");
+  assert.deepEqual(plan.targetPreState, [], "targetPreState is not an empty array");
+  assert.deepEqual(plan.safeInverse, [], "safeInverse is not an empty array");
+  assert.deepEqual(plan.approvals, [], "approvals is not an empty array");
+  assert.deepEqual(plan.applicable, [], "applicable is not an empty array");
+
+  // The non-array nouns are present and populated, never omitted.
+  assert.equal(typeof asRecord(plan.renderer).id, "string");
+  assert.ok(Object.keys(asRecord(plan.adapterSupport)).length > 0);
+});
+
+test("each selected pack's source names the locked package, version, integrity and skill hash", async (context) => {
+  const root = await reactFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const source = asRecordArray(asRecord(plan).source, "source");
+  const ecc = await eccComponent();
+  const skills = await skillsByPack();
+
+  assert.ok(source.length > 0, "a selected pack produced no source entry");
+  for (const entry of source) {
+    assert.equal(entry.package, ecc.package);
+    assert.equal(entry.version, ecc.version);
+    assert.equal(entry.integrity, ecc.integrity);
+    assert.equal(entry.sourceSha256, ecc.sourceSha256[String(entry.skill)]);
+    assert.match(String(entry.sourceSha256), /^[0-9a-f]{64}$/u);
+    assert.ok(
+      skills.get(String(entry.packId))?.includes(String(entry.skill)),
+      `${String(entry.packId)} does not declare the skill ${String(entry.skill)}`,
+    );
+  }
+
+  const expected = plan.selected
+    .flatMap((packId) => (skills.get(packId) ?? []).map((skill) => `${packId}/${skill}`))
+    .sort();
+  assert.deepEqual(source.map((entry) => `${String(entry.packId)}/${String(entry.skill)}`), expected);
+});
+
+test("a lock with no source hash for a selected pack's skill is a refusal naming that skill", async () => {
+  const resolvePackSource = await planExport<ResolvePackSource>("resolvePackSource");
+  const stripped = await withEcc((ecc) => ({ ...ecc, sourceSha256: {} }));
+
+  assert.throws(
+    () => resolvePackSource(stripped, "WEB_REACT", "frontend-a11y"),
+    /frontend-a11y/u,
+    "a missing pack skill hash did not refuse by name",
+  );
+});
+
+test("pack source resolution never consults the global ECC skill list", async () => {
+  const resolvePackSource = await planExport<ResolvePackSource>("resolvePackSource");
+  const ecc = await eccComponent();
+
+  // `components.ecc.skills` is the GLOBAL sync list. Emptying it must not stop
+  // a pack skill resolving — the two read paths are separate by construction,
+  // which is what keeps 19 project-scoped skills out of every user's global
+  // skill root.
+  const narrowed = await withEcc((component) => ({ ...component, skills: [] }));
+  const resolved = asRecord(resolvePackSource(narrowed, "WEB_REACT", "frontend-a11y"));
+  assert.equal(resolved.sourceSha256, ecc.sourceSha256["frontend-a11y"]);
+
+  const text = await readFile(join(repositoryRoot, "src", "core", "project-plan.ts"), "utf8");
+  assert.equal(/from "\.\/ecc-skills\.js"/u.test(text), false, "project-plan.ts imports the global ECC skill sync module");
+  assert.equal(text.includes("selectedSkills"), false, "project-plan.ts names the global skill tuple");
+  assert.equal(text.includes("planEccSkillSync"), false, "project-plan.ts reaches the global skill sync plan");
+});
+
+test("the renderer is declared as an identity render and every planned target expects the source hash unchanged", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+  const renderer = asRecord(plan.renderer);
+
+  assert.equal(renderer.id, "ecc-skill/identity");
+  assert.equal(renderer.identity, true);
+  assert.equal(typeof renderer.version, "string");
+  assert.ok(String(renderer.version).length > 0);
+
+  const bySkill = new Map(
+    asRecordArray(plan.source, "source").map((entry) => [`${String(entry.packId)}/${String(entry.skill)}`, String(entry.sourceSha256)]),
+  );
+  const targets = asRecordArray(plan.targetPreState, "targetPreState");
+  assert.ok(targets.length > 0, "a selected pack produced no target pre-state");
+  for (const target of targets) {
+    assert.equal(target.expectedHash, bySkill.get(`${String(target.packId)}/${String(target.skill)}`));
+  }
+});
+
+test("the executable slot is an own property whose value is null, and the digestable view carries it too", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+
+  assert.equal(Object.hasOwn(plan, "executable"), true, "the plan omits the executable slot");
+  assert.equal(plan.executable, null, "the executable slot is not exactly null");
+
+  const disposition = asRecord(plan.executableDisposition);
+  assert.match(String(disposition.deferredTo), /phase-3/iu);
+  assert.ok(String(disposition.reason).length > 0);
+
+  // The slot Phase 3 fills is already one the DETC-05 drift refusal watches.
+  const digestablePlan = await planExport<(value: unknown) => unknown>("digestablePlan");
+  const view = asRecord(digestablePlan(plan));
+  assert.equal(Object.hasOwn(view, "executable"), true, "the digestable view omits the executable slot");
+  assert.equal(view.executable, null);
+});
+
+test("safeInverse names an operation and a guard carrying a path and an expected hash for every planned target", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+  const applicable = new Set((plan.applicable as string[]) ?? []);
+  const planned = asRecordArray(plan.targetPreState, "targetPreState").filter((target) => applicable.has(String(target.packId)));
+  const inverses = asRecordArray(plan.safeInverse, "safeInverse");
+
+  assert.ok(planned.length > 0, "no target was planned");
+  assert.equal(inverses.length, planned.length);
+  for (const inverse of inverses) {
+    assert.ok(["remove", "restore"].includes(String(inverse.operation)), `unknown inverse operation ${String(inverse.operation)}`);
+    const guard = asRecord(inverse.guard);
+    assert.equal(typeof guard.path, "string");
+    assert.ok(String(guard.path).length > 0);
+    assert.match(String(guard.expectedHash), /^[0-9a-f]{64}$/u);
+  }
+  assert.deepEqual(
+    inverses.map((inverse) => String(asRecord(inverse.guard).path)).sort(),
+    planned.map((target) => String(target.path)).sort(),
+  );
 });

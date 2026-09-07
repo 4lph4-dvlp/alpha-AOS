@@ -17,8 +17,9 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
-import type { FactDeclaration, FactVocabulary } from "../src/types.js";
+import type { EvidenceEnvelope, FactDeclaration, FactVocabulary } from "../src/types.js";
 import type {
   DetectionContext,
   ExcludedBoundary,
@@ -27,6 +28,7 @@ import type {
   SubProjectDiscovery,
 } from "../src/core/evidence.js";
 import {
+  collectProjectEvidence,
   detectFact,
   detectProjectFacts,
   discoverSubProjects,
@@ -40,6 +42,7 @@ import {
   scanProjectTree,
 } from "../src/core/evidence.js";
 import { loadFactVocabularyStrict } from "../src/core/pack-catalog.js";
+import { validateManagedDocument } from "../src/core/validation.js";
 import {
   createLinkedWorktree,
   createNestedRepository,
@@ -801,4 +804,145 @@ test("an evidence file that exists but cannot be read is UNDECIDABLE, never a co
   assert.match(postgres?.reason ?? "", /UNDECIDABLE/u);
   assert.match(postgres?.reason ?? "", new RegExp(postgres?.undecidable?.errno ?? "IMPOSSIBLE", "u"));
   assert.match(postgres?.reason ?? "", /package\.json/u);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-06 Task 2 — the complete envelope: positive, negative, ordered, digested
+// ---------------------------------------------------------------------------
+
+/** A rich fixture: several kinds detected, several deliberately not. */
+const RICH_FIXTURE: Readonly<Record<string, string>> = {
+  "package.json": `${JSON.stringify({ name: "rich", dependencies: { next: "^15.0.0", pg: "^8.11.0" } })}\n`,
+  "src/index.ts": "export const ok = true;\n",
+  "docs/openapi.yaml": "openapi: 3.1.0\n",
+  "prisma/migrations/0001_init/migration.sql": "-- init\n",
+  ".env.example": "DATABASE_URL=postgres://admin:hunter2@db.internal:5432/app\n",
+  "AGENTS.md": "# instructions\n",
+};
+
+async function envelopeIn(
+  context: TestContext,
+  files: Readonly<Record<string, string>>,
+): Promise<EvidenceEnvelope> {
+  const root = await scratch(context, "envelope");
+  await writeTree(root, files);
+  return collectProjectEvidence(await resolveCanonicalRoot(root));
+}
+
+/**
+ * Every invariant below is a claim about the COMPLETE envelope. Asserting it
+ * over a partial one would let a shrinking fact set pass every net it has.
+ */
+async function assertCoversVocabulary(envelope: EvidenceEnvelope): Promise<void> {
+  assert.equal(
+    envelope.facts.length,
+    (await vocabulary()).facts.length,
+    "the envelope must answer for every declared fact before any other claim about it holds",
+  );
+}
+
+test("the evidence envelope validates against schemas/evidence.schema.json as a current document", async (context) => {
+  const envelope = await envelopeIn(context, RICH_FIXTURE);
+  const schema = JSON.parse(
+    await readFile(join(repositoryRoot, "schemas", "evidence.schema.json"), "utf8"),
+  ) as Record<string, unknown>;
+
+  const result = validateManagedDocument({
+    text: JSON.stringify(envelope),
+    format: "json",
+    kind: "evidence",
+    schema,
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.issues));
+  assert.equal(result.status, "current");
+  await assertCoversVocabulary(envelope);
+  assert.ok(envelope.facts.some((fact) => fact.detected), "a positive record must validate");
+  assert.ok(envelope.facts.some((fact) => !fact.detected), "a negative record must validate too");
+});
+
+test("every fact declared in catalog/facts.yaml appears in the envelope exactly once", async (context) => {
+  const declared = (await vocabulary()).facts.map((fact) => fact.id).sort();
+
+  for (const fixture of [RICH_FIXTURE, {}]) {
+    const envelope = await envelopeIn(context, fixture);
+    assert.equal(envelope.facts.length, declared.length, "one record per declared fact, positive or negative");
+    assert.deepEqual(envelope.facts.map((fact) => fact.id).sort(), declared);
+  }
+});
+
+test("every negative record carries a reason", async (context) => {
+  const envelope = await envelopeIn(context, RICH_FIXTURE);
+  const negatives = envelope.facts.filter((fact) => !fact.detected);
+
+  assert.ok(negatives.length > 0, "the fixture must exercise the negative path");
+  for (const fact of negatives) {
+    assert.ok((fact.reason ?? "").length >= 1, `${fact.id} was not detected and said nothing about why`);
+  }
+});
+
+test("no record carries a per-fact hash", async (context) => {
+  const envelope = await envelopeIn(context, RICH_FIXTURE);
+  await assertCoversVocabulary(envelope);
+  for (const fact of envelope.facts) {
+    assert.equal(Object.hasOwn(fact, "hash"), false, `${fact.id} carries a hash (D-07)`);
+  }
+});
+
+test("a repository containing nothing still answers for every declared fact", async (context) => {
+  const envelope = await envelopeIn(context, {});
+  assert.equal(envelope.facts.length, (await vocabulary()).facts.length);
+
+  for (const fact of envelope.facts) {
+    if (fact.kind === "fileAbsent") {
+      // Absence IS this kind's detection, so an empty directory detects it.
+      assert.equal(fact.detected, true, `${fact.id} should detect the absence it names`);
+      continue;
+    }
+    assert.equal(fact.detected, false, `${fact.id} was detected in an empty directory`);
+    assert.ok((fact.reason ?? "").length >= 1);
+  }
+});
+
+test("two runs over an unchanged repository agree on facts and sourceHash while createdAt differs", async (context) => {
+  const root = await scratch(context, "stable");
+  await writeTree(root, RICH_FIXTURE);
+  const canonical = await resolveCanonicalRoot(root);
+
+  const first = await collectProjectEvidence(canonical);
+  // The clock is the only thing allowed to move between the two runs.
+  await sleep(2);
+  const second = await collectProjectEvidence(canonical);
+
+  await assertCoversVocabulary(first);
+
+  assert.deepEqual(second.facts, first.facts, "the same repository must answer the same way");
+  assert.equal(second.sourceHash, first.sourceHash);
+  assert.notEqual(second.createdAt, first.createdAt, "createdAt is wall-clock context, not content");
+});
+
+test("a gitignored evidence file contributes no fact and an unignored one does", async (context) => {
+  const ignored = await envelopeIn(context, {
+    ".gitignore": "openapi.yaml\n",
+    "openapi.yaml": "openapi: 3.1.0\n",
+  });
+  const ignoredFact = ignored.facts.find((fact) => fact.id === "openapi");
+  assert.equal(ignoredFact?.detected, false, "an ignored file is not this project's evidence");
+
+  const tracked = await envelopeIn(context, { "openapi.yaml": "openapi: 3.1.0\n" });
+  const trackedFact = tracked.facts.find((fact) => fact.id === "openapi");
+  assert.equal(trackedFact?.detected, true, "the same file, uncommitted but unignored, is evidence");
+  assert.equal(trackedFact?.path, "openapi.yaml");
+});
+
+test("facts are emitted in one total order — ascending id, then ascending path", async (context) => {
+  const envelope = await envelopeIn(context, RICH_FIXTURE);
+  await assertCoversVocabulary(envelope);
+  const keys = envelope.facts.map((fact) => [fact.id, fact.path ?? ""] as const);
+  const sorted = [...keys].sort((left, right) => {
+    if (left[0] !== right[0]) return left[0] < right[0] ? -1 : 1;
+    return left[1] < right[1] ? -1 : left[1] > right[1] ? 1 : 0;
+  });
+
+  assert.deepEqual(keys, sorted, "no Set, Map or readdir order may reach the emitted array");
 });

@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 6
+open_count: 7
 waived_count: 1
 fixed_count: 4
-total_count: 11
-last_updated: 2026-09-07T14:02:31.697Z
+total_count: 12
+last_updated: 2026-09-07T16:08:58.094Z
 ---
 
 # Broken Windows Ledger
@@ -26,6 +26,7 @@ last_updated: 2026-09-07T14:02:31.697Z
 | 9 | 02 | stub | src/core/project-plan.ts |  | Tracer scope: evaluatePack implements only the anyDependencies operator, so 12 of the 15 declared packs (every all / any / anyFiles / manifestOptIn pack) contribute no evaluation at all and are absent from the plan value. Nothing false is claimed - they are not reported 'silent' - but a user cannot yet tell 'not evaluated' from 'did not qualify', which is the Pitfall 8 hazard DETC-03 exists to prevent. Closed by 02-02 (fact vocabulary + remaining operators) and 02-07 (near-miss / unimplemented statuses). | open |  | 2026-09-07T13:32:22.318Z |  |
 | 10 | 02 | stub | src/core/evidence.ts |  | catalog/facts.yaml declares 31 facts across all six detector kinds, but collectProjectEvidence still implements only the dependency detector over package.json. A file / directory / manifestKey / fileAbsent / fileContent fact is now loadable, validated and referenceable by a pack predicate, yet cannot be observed, so the packs that depend on those kinds still contribute no evaluation. Closed by 02-06 (the remaining five detector kinds and the non-npm manifest readers). | open |  | 2026-09-07T14:02:30.976Z |  |
 | 11 | 02 | stub | catalog/facts.yaml |  | The eight SECURITY_REVIEW risk facts (auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api) are declared with deferredTo: GATE-01 and no detector parameters. They are change-risk semantics rather than repository-state facts and two of them would require credential-scanning a user's repository, so Phase 4 GATE-01 owns them. Declaring them keeps the near-miss line honest instead of silent; until 02-07 renders them as unimplemented, SECURITY_REVIEW can never select. | open |  | 2026-09-07T14:02:31.697Z |  |
+| 12 | 02 | unmet-truth | src/core/project-plan.ts |  | project plan does not yet name each selected pack's source version and hash, though catalog/stack.lock.json can now answer for all 19 pack skills (02-04) | open |  | 2026-09-07T16:08:58.094Z |  |
 
 ````json
 [
@@ -159,6 +160,18 @@ last_updated: 2026-09-07T14:02:31.697Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T14:02:31.697Z",
+    "resolved_at": null
+  },
+  {
+    "id": 12,
+    "kind": "unmet-truth",
+    "phase": "02",
+    "file": "src/core/project-plan.ts",
+    "line": null,
+    "description": "project plan does not yet name each selected pack's source version and hash, though catalog/stack.lock.json can now answer for all 19 pack skills (02-04)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T16:08:58.094Z",
     "resolved_at": null
   }
 ]

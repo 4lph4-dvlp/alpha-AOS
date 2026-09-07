@@ -135,7 +135,48 @@ Plans:
   4. Applying a reviewed plan is refused if evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes changed after review.
   5. When evidence for an installed pack disappears, the user sees `STALE` with the missing evidence identified and no automatic deletion.
 
-**Plans**: TBD
+**Plans**: 10 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Tracer: one repository selects one pack end-to-end through `alpha-aos project plan`
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md — Strict pack catalog, declared fact vocabulary, and load-time refusals
+- [ ] 02-03-PLAN.md — Ignore-list semantics and the `ignore@7.0.5` legitimacy gate
+- [ ] 02-04-PLAN.md — Pack-skill source pinning and the global-sync anti-regression net
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-05-PLAN.md — Bounded, boundary-proven scan and sub-project discovery
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-06-PLAN.md — Six detector kinds, five manifest readers, and the complete evidence envelope
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-07-PLAN.md — Evaluate-all predicates, near-miss explanation, and manifest pack overrides
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 02-08-PLAN.md — The reviewable plan artifact: nine DETC-04 nouns and byte stability
+
+**Wave 7** *(blocked on Wave 6 completion)*
+
+- [ ] 02-09-PLAN.md — `project approve`, change refusal, and the inputs-vs-selection split
+
+**Wave 8** *(blocked on Wave 7 completion)*
+
+- [ ] 02-10-PLAN.md — `project status`, `STALE` naming the missing fact, and the approval-gated removal plan
+
+> Waves 3 through 8 hold one plan each because each successive plan extends the same two modules —
+> `src/core/evidence.ts` then `src/core/project-plan.ts` — and a shared file is an implicit dependency
+> the wave rule already forbids from being parallel. Wave 2's three plans touch disjoint file sets:
+> the catalog/schema surface, the ignore-list module and its dependency, and the lock-pinning surface.
 
 ### Phase 3: Transactional Project Packs and Native Optional Use
 

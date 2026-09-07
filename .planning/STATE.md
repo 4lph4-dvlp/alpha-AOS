@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-02-PLAN.md
-last_updated: "2026-09-07T14:05:01.086Z"
+stopped_at: Completed 02-03-PLAN.md
+last_updated: "2026-09-07T15:32:45.980Z"
 last_activity: 2026-09-07
 last_activity_desc: Phase 02 execution started
-state_head: 8c582b468cfd1557d3453fa2ad393a346783ede7
+state_head: 98d04887cf65e4094c0ba9c649e4d3f9fe410154
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 37
-  completed_plans: 29
+  completed_plans: 30
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
-Plan: 3 of 10
+Plan: 4 of 10
 Status: Ready to execute
 Last activity: 2026-09-07 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -70,6 +70,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 01 P27 | 63 min | 3 tasks | 4 files |
 | Phase 02 P01 | 18 min | 2 tasks | 11 files |
 | Phase 02 P02 | 18 min | 3 tasks | 7 files |
+| Phase 02 P03 | 15 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -110,6 +111,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: [02-01]: canonicalizeWithMissingTail is exported and reused for the project root rather than the root being routed through provePathBoundary — A canonical project root has no outer allowed root to be proven against, so provePathBoundary cannot express it. Re-deriving a second canonical form is exactly the 01-19 asymmetry. The export changes only the keyword and the doc comment; the body, the ENOENT-continues / other-errno-refuses split and every call site are untouched. This is what makes one repository yield one 16-hex projectId whether it is addressed directly or through a symlinked alias.
 - [Phase 02]: [02-01]: A pack whose predicate operator has no evaluator yet is absent from the plan value entirely, never reported as `silent` — Research Pitfall 8: a pack that silently never matches is indistinguishable from a pack whose evidence is genuinely absent, which is the exact failure DETC-03 exists to prevent. evaluatePack returns null for such a pack so no false "did not qualify" claim is made. The gap - a user cannot yet tell "not evaluated" from "did not qualify" - is recorded as an open stub in .planning/WINDOWS.md and closed by 02-02 and 02-07.
 - [Phase 02]: [02-01]: package.json is read through the exported parseManagedDocument({format: "json"}) rather than exporting the module-private parseStrictJson a second time — The plan named parseStrictJson, which is not exported from src/core/validation.ts. parseManagedDocument is its already-exported wrapper and delegates to it directly for JSON, so the duplicate-key refusal the plan required is obtained unchanged without widening a Phase 1 module public surface for one consumer. Deviation Rule 3.
+- [Phase 02]: ignore@7.0.5 approved at the human legitimacy gate and pinned exactly, with dist.integrity re-verified against the live registry immediately before it was written and --ignore-scripts on install — Same shape as the smol-toml@1.8.0 approval at 01-04: a human verifies the package, then the executor re-proves the exact artifact hash rather than trusting the recorded one. 7.0.5 declares no install-time lifecycle script and has zero runtime dependencies.
+- [Phase 02]: isIgnored decides a path ancestor-first, so a negation cannot re-include a file beneath an excluded directory — gitignore(5) forbids re-inclusion under an excluded parent. Delegating the path straight to the ignore matcher answers scannable there; git check-ignore was run against the exact fixture and reports ignored. The RED test had encoded the wrong expectation and was corrected to the verified value.
+- [Phase 02]: An unreadable .gitignore yields undecidable, not an empty rule set; only ENOENT/ENOTDIR mean the file is genuinely absent — Reporting no-patterns for a file that exists but could not be read is a fail-open on the predicate deciding what gets scanned, which D-01 forbids. The errno code is reported; no file content is.
 
 ### Pending Todos
 
@@ -164,6 +168,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-07T14:05:00.813Z
-Stopped at: Completed 02-02-PLAN.md
+Last session: 2026-09-07T15:32:11.285Z
+Stopped at: Completed 02-03-PLAN.md
 Resume file: None

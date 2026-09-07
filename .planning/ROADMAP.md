@@ -135,7 +135,7 @@ Plans:
   4. Applying a reviewed plan is refused if evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes changed after review.
   5. When evidence for an installed pack disappears, the user sees `STALE` with the missing evidence identified and no automatic deletion.
 
-**Plans**: 8/10 plans executed
+**Plans**: 9/10 plans executed
 
 Plans:
 
@@ -167,7 +167,7 @@ Plans:
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 02-09-PLAN.md — `project approve`, change refusal, and the inputs-vs-selection split
+- [x] 02-09-PLAN.md — `project approve`, change refusal, and the inputs-vs-selection split
 
 **Wave 8** *(blocked on Wave 7 completion)*
 
@@ -269,7 +269,7 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Safe Operation Boundary | 27/27 | Complete    | 2026-09-07 |
-| 2. Evidence-Bound Project Planning | 8/10 | In Progress|  |
+| 2. Evidence-Bound Project Planning | 9/10 | In Progress|  |
 | 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |
 | 5. Persistent Tree-Off Preload Isolation | 0/TBD | Not started | - |

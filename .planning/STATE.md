@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-08-PLAN.md
-last_updated: "2026-09-07T19:17:53.481Z"
+stopped_at: Completed 02-09-PLAN.md
+last_updated: "2026-09-07T20:02:49.074Z"
 last_activity: 2026-09-07
 last_activity_desc: Phase 02 execution started
-state_head: b3b11a85b4170680f7c666424df1f453663673b2
+state_head: bb6ba6739790d4cedca66f617a279f8027f19890
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 37
-  completed_plans: 35
+  completed_plans: 36
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
-Plan: 9 of 10
+Plan: 10 of 10
 Status: Ready to execute
 Last activity: 2026-09-07 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -76,6 +76,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P06 | 35 min | 3 tasks | 8 files |
 | Phase 02 P07 | 52 min | 3 tasks | 11 files |
 | Phase 02 P08 | 28 min | 3 tasks | 5 files |
+| Phase 02 P09 | 40 min | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -125,6 +126,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: A conflicting target drops its pack from `applicable` while it stays in `selected`: the evidence decision and the actionable set are different questions, and collapsing them makes a D-11 drop indistinguishable from a pack the evidence never chose.
 - [Phase 02]: DETC-05 executable noun recorded as an explicit null with `deferredTo: phase-3-capability-materialization`, carried INTO the digestable view — the same declared-and-attributed form 02-02 used for the eight `deferredTo: GATE-01` risk facts, so Phase 3 inherits a watched slot rather than a fiction.
 - [Phase 02]: Cross-host Unicode path normalization is NOT proven by 02-08: the non-ASCII fixture proves same-host stability only. A macOS NFD vs Linux NFC path naming the same file is unaddressed and belongs to the Phase 7 three-OS matrix.
+- [Phase 02]: [02-09]: manifestDigest is a named plan field rather than being folded into inputsDigest, so DETC-05's manifest noun is nameable and not merely detectable. — The plan assumed 02-08 already carried a manifest content hash. It did not: readManifestEvidence records .alpha-aos/stack.yaml into the read ledger, so the hash sat inside the aggregate inputsDigest. That refuses an apply but cannot say the manifest is what moved, which makes D-13's manifest-changed classification an unreachable branch - a manifest edit that moves the selection reads as selection-changed and an inert one reads as inputs-changed.
+- [Phase 02]: [02-09]: approve journals into the managed user state root while .alpha-aos stays the only allowed WRITE root, and stateRoot is a required option rather than defaulting to userStateRoot(). — The journal and snapshots are what make the safe inverse real, and putting them where alpha-aos rollback already looks means a project approval is undoable by the command that already undoes managed writes. Requiring stateRoot rather than defaulting it stops a module-level test taking the exclusive writer lock on the developer's real ~/.alpha-aos - the ambient-write class 01-21 spent a plan closing, arriving through a convenience default.
+- [Phase 02]: [02-09]: Drift classification consumes the reviewed plan VALUE (explicit reviewedPlan, else .alpha-aos/plan.json when that artifact IS the reviewed plan); with neither available the refusal states the classification is unavailable rather than inferring one. — A digest cannot be un-hashed. D-12 plus SAFE-01 mean the CLI's two invocations share only a digest, because the preview persists nothing. Inferring which noun moved from a digest alone would be a guess presented as a finding, so the CLI branch carries both digests and the runnable re-approval command and says what it cannot name. Recorded as an open Broken Windows unmet-truth entry.
 
 ### Pending Todos
 
@@ -179,6 +183,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-07T19:17:22.181Z
-Stopped at: Completed 02-08-PLAN.md
+Last session: 2026-09-07T20:02:08.606Z
+Stopped at: Completed 02-09-PLAN.md
 Resume file: None

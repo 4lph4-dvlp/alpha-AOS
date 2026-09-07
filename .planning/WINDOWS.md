@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 5
+open_count: 6
 waived_count: 1
 fixed_count: 7
-total_count: 13
-last_updated: 2026-09-07T18:26:54.921Z
+total_count: 14
+last_updated: 2026-09-07T19:59:35.274Z
 ---
 
 # Broken Windows Ledger
@@ -28,6 +28,7 @@ last_updated: 2026-09-07T18:26:54.921Z
 | 11 | 02 | stub | catalog/facts.yaml |  | The eight SECURITY_REVIEW risk facts (auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api) are declared with deferredTo: GATE-01 and no detector parameters. They are change-risk semantics rather than repository-state facts and two of them would require credential-scanning a user's repository, so Phase 4 GATE-01 owns them. Declaring them keeps the near-miss line honest instead of silent; until 02-07 renders them as unimplemented, SECURITY_REVIEW can never select. | fixed |  | 2026-09-07T14:02:31.697Z | 2026-09-07T18:26:40.624Z |
 | 12 | 02 | unmet-truth | src/core/project-plan.ts |  | project plan does not yet name each selected pack's source version and hash, though catalog/stack.lock.json can now answer for all 19 pack skills (02-04) | open |  | 2026-09-07T16:08:58.094Z |  |
 | 13 | 02 | unrun-verify | test/evidence.test.ts |  | MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun | open |  | 2026-09-07T17:32:45.429Z |  |
+| 14 | 02 | unmet-truth | src/core/project-plan.ts |  | D-13 classification is complete for a caller that still holds the reviewed plan value, and PARTIAL at the CLI. approveProjectPlan classifies drift from options.reviewedPlan, or from .alpha-aos/plan.json when that artifact IS the reviewed plan; a CLI approve that drifts before any artifact exists gets a refusal that names both digests and the runnable re-approval command but cannot name WHICH noun moved. This is a consequence of D-12 plus SAFE-01 (the preview persists nothing, so two CLI invocations share only a digest), not a patchable bug: closing it needs a decision - either a reviewed-plan record the preview is allowed to write, or scoping the must-have truth to callers that hold the plan. | open |  | 2026-09-07T19:59:35.274Z |  |
 
 ````json
 [
@@ -185,6 +186,18 @@ last_updated: 2026-09-07T18:26:54.921Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T17:32:45.429Z",
+    "resolved_at": null
+  },
+  {
+    "id": 14,
+    "kind": "unmet-truth",
+    "phase": "02",
+    "file": "src/core/project-plan.ts",
+    "line": null,
+    "description": "D-13 classification is complete for a caller that still holds the reviewed plan value, and PARTIAL at the CLI. approveProjectPlan classifies drift from options.reviewedPlan, or from .alpha-aos/plan.json when that artifact IS the reviewed plan; a CLI approve that drifts before any artifact exists gets a refusal that names both digests and the runnable re-approval command but cannot name WHICH noun moved. This is a consequence of D-12 plus SAFE-01 (the preview persists nothing, so two CLI invocations share only a digest), not a patchable bug: closing it needs a decision - either a reviewed-plan record the preview is allowed to write, or scoping the must-have truth to callers that hold the plan.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T19:59:35.274Z",
     "resolved_at": null
   }
 ]

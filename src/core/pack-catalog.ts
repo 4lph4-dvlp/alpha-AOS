@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { PackCatalog, PackDeclaration } from "../types.js";
+import type { FactVocabulary, PackCatalog, PackDeclaration } from "../types.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
 import { createMigrationPlan, validateManagedDocument } from "./validation.js";
 
@@ -54,4 +54,14 @@ export async function loadPackCatalogStrict(
   }
 
   return { value: { schemaVersion, packs }, extensions };
+}
+
+/**
+ * RED scaffold. The declared fact vocabulary is not read yet; GREEN routes
+ * `catalog/facts.yaml` through `validateManagedDocument` like every other
+ * managed document.
+ */
+export async function loadFactVocabularyStrict(root: string): Promise<StrictLoadResult<FactVocabulary>> {
+  void root;
+  return Promise.resolve({ value: { schemaVersion: 1, facts: [] }, extensions: {} });
 }

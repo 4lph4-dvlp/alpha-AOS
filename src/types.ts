@@ -247,18 +247,61 @@ export interface EvidenceEnvelope {
   facts: EvidenceFact[];
 }
 
-/** The predicate shape `catalog/packs/*.yaml` already uses. */
-export interface PackEvidenceNode {
-  all?: string[];
-  any?: string[];
+/**
+ * The predicate shape `catalog/packs/*.yaml` already uses. `all` and `any`
+ * items are either a declared fact id or a nested node; nesting is bounded at
+ * four levels by `schemas/pack-catalog.schema.json`, so a hostile document
+ * cannot make validation cost unbounded.
+ */
+export interface EvidenceNode {
+  all?: Array<string | EvidenceNode>;
+  any?: Array<string | EvidenceNode>;
   anyFiles?: string[];
   anyDependencies?: string[];
   manifestOptIn?: string;
 }
 
+/**
+ * The six bounded detector kinds. Kinds are code; instances are data, which is
+ * what keeps adding a fact out of TypeScript.
+ */
+export type DetectorKind =
+  | "dependency"
+  | "file"
+  | "directory"
+  | "manifestKey"
+  | "fileAbsent"
+  | "fileContent";
+
+/** One entry of `catalog/facts.yaml`. Matches `schemas/fact-vocabulary.schema.json`. */
+export interface FactDeclaration {
+  id: string;
+  kind: DetectorKind;
+  /** `dependency`: package names read from a declared manifest. */
+  packages?: string[];
+  /** `file` / `fileAbsent`, and the search set for `fileContent`. */
+  files?: string[];
+  /** `directory`: directory paths relative to the canonical root. */
+  directories?: string[];
+  /** `manifestKey`: the project-manifest key that carries this fact. */
+  manifestKey?: string;
+  /** `fileContent`: repository-owned match vocabulary, never read from the scanned project. */
+  patterns?: string[];
+  /** This fact also exists in repositories that are not this kind of project. */
+  broad?: boolean;
+  description?: string;
+  /** The requirement id that owns a fact declared here but not implemented in this phase. */
+  deferredTo?: string;
+}
+
+export interface FactVocabulary {
+  schemaVersion: number;
+  facts: FactDeclaration[];
+}
+
 export interface PackDeclaration {
   id: string;
-  evidence: PackEvidenceNode;
+  evidence: EvidenceNode;
   skills?: string[];
   lifecycle?: string;
   selectionPolicy?: string;

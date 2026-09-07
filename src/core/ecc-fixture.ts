@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
 import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
@@ -43,11 +43,6 @@ export interface EccFixtureResult {
   targetHashes: Record<PackSkillId, string>;
   targetRoot: string;
   retainedFixture: string | null;
-}
-
-interface PackResult {
-  filename: string;
-  integrity: string;
 }
 
 function inside(root: string, target: string): boolean {
@@ -131,16 +126,32 @@ export function renderEccSkill(skill: PackSkillId, source: string, harness?: Har
   return rendered;
 }
 
-function parsePackResult(stdout: string): PackResult {
-  const start = stdout.indexOf("[");
-  if (start < 0) throw new Error(`npm pack did not return JSON: ${stdout}`);
-  const values = JSON.parse(stdout.slice(start)) as unknown;
-  if (!Array.isArray(values) || values.length !== 1 || typeof values[0] !== "object" || values[0] === null) {
-    throw new Error("npm pack returned an unexpected result");
+/**
+ * The one file `npm pack` wrote into the pack root this fixture just created.
+ *
+ * The archive name used to be read out of `npm pack --json`, but that document
+ * carries the package's entire file list — 292 KB for `ecc-universal@2.2.0` —
+ * while a `ProcessResult` is a BOUNDED redacted excerpt by design, so the parse
+ * failed at the excerpt cut and the fixture could not run at all. Reading the
+ * directory the plan proved is both bounded and stricter: the name comes from a
+ * root this fixture owns rather than from a child's stdout.
+ */
+async function soleArchive(packRoot: string): Promise<string> {
+  const files = (await readdir(packRoot, { withFileTypes: true })).filter((entry) => entry.isFile());
+  const [entry] = files;
+  if (files.length !== 1 || entry === undefined) {
+    throw new ComponentPlanError("unplanned-path", `npm pack wrote ${files.length} files into the planned pack root; expected exactly one archive`);
   }
-  const value = values[0] as Record<string, unknown>;
-  if (typeof value.filename !== "string" || typeof value.integrity !== "string") throw new Error("npm pack result lacks filename or integrity");
-  return { filename: value.filename, integrity: value.integrity };
+  return join(packRoot, entry.name);
+}
+
+/**
+ * The tarball's Subresource Integrity string, computed from the bytes on disk.
+ * npm reports the same value, but hashing what was actually written is what a
+ * locked `integrity` is meant to bind.
+ */
+async function tarballIntegrity(archive: string): Promise<string> {
+  return `sha512-${createHash("sha512").update(await readFile(archive)).digest("base64")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -328,15 +339,15 @@ export async function runEccFixture(options: {
     }
     const packed = await runProcess({ ...packStep.spec, environment: nodeRuntimeEnvironment() });
     if (packed.code !== "ok") throw new Error(describeProcessFailure("npm pack", packed));
-    const pack = parsePackResult(packed.stdout.excerpt);
-    if (pack.integrity !== options.ecc.integrity) throw new Error(`ECC tarball integrity mismatch: expected ${options.ecc.integrity}, got ${pack.integrity}`);
     const deferred = extractStep.deferredArgument;
-    const archive = join(deferred.withinRoot, basename(pack.filename));
-    // The archive name comes from a child, so it is only accepted inside the
-    // root the plan proved for it.
+    const archive = await soleArchive(deferred.withinRoot);
+    // The archive name comes from a child's write, so it is only accepted
+    // inside the root the plan proved for it.
     if (!inside(deferred.withinRoot, archive) || !existsSync(archive)) {
       throw new ComponentPlanError("unplanned-path", `npm pack archive is not inside the planned pack root: ${archive}`);
     }
+    const integrity = await tarballIntegrity(archive);
+    if (integrity !== options.ecc.integrity) throw new Error(`ECC tarball integrity mismatch: expected ${options.ecc.integrity}, got ${integrity}`);
     const extractArguments = [...extractStep.spec.args];
     extractArguments[deferred.index] = archive;
     const installed = await runProcess({ ...extractStep.spec, args: extractArguments, environment: nodeRuntimeEnvironment() });
@@ -361,7 +372,7 @@ export async function runEccFixture(options: {
     return {
       harness: reviewed.harness,
       version: options.ecc.version,
-      integrity: pack.integrity,
+      integrity,
       operationCount: reviewed.skills.length,
       sourceHashes,
       targetHashes,

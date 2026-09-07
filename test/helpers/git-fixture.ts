@@ -109,7 +109,7 @@ const FIXTURE_IDENTITY: readonly (readonly string[])[] = [
   ["config", "core.autocrlf", "false"],
 ];
 
-interface GitRun {
+export interface GitRun {
   readonly ok: boolean;
   readonly stdout: string;
   readonly stderr: string;
@@ -146,6 +146,18 @@ function runGit(cwd: string, args: readonly string[]): GitRun {
     stderr: result.stderr ?? "",
     display,
   };
+}
+
+/**
+ * One git invocation inside an already-built fixture.
+ *
+ * Exported so a test can BRANCH, COMMIT or PACK REFS on a fixture repository
+ * without reimplementing the environment hardening above — and, more to the
+ * point, without escaping `FORBIDDEN_GIT_SUBCOMMANDS`: this routes through the
+ * same `runGit`, so a future edit still cannot quietly reach the network.
+ */
+export function gitCommand(cwd: string, args: readonly string[]): GitRun {
+  return runGit(cwd, args);
 }
 
 interface GitAvailability {

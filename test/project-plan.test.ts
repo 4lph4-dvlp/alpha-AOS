@@ -32,6 +32,7 @@ import { acquireMutationSession } from "../src/core/writer-lock.js";
 import { collectProjectEvidence, digestableEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
+import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
 import {
   digestablePlan,
   evaluatePack,
@@ -2455,4 +2456,303 @@ test("reconciling changes nothing on disk, including under .alpha-aos", async (c
     before.some(([path]) => path.startsWith(".alpha-aos/")),
     "the snapshot covered no .alpha-aos/ entry, so it could not have proven one unchanged",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-10 Task 2: `STALE` names the missing fact, plus the branch context
+// ---------------------------------------------------------------------------
+
+type ReadGitContext = (canonicalRoot: string) => Promise<GitContextLike>;
+type FormatProjectStatus = (
+  reconciliation: ProjectReconciliationLike,
+  removals: readonly unknown[],
+  options: { path: string; subProject?: string | null },
+) => string;
+
+/** A named export from `src/format.ts`, resolved at run time for the same reason `planExport` is. */
+async function formatExport<T>(name: string): Promise<T> {
+  const module = (await import("../src/format.js")) as unknown as Record<string, unknown>;
+  const value = module[name];
+  assert.notEqual(value, undefined, `src/format.ts does not export ${name}`);
+  return value as T;
+}
+
+const NO_DEPENDENCIES = `${JSON.stringify({ name: "branch-fixture", private: true, dependencies: {} }, null, 2)}\n`;
+const PG_DEPENDENCY = `${JSON.stringify({ name: "branch-fixture", private: true, dependencies: { pg: "^8.0.0" } }, null, 2)}\n`;
+
+/**
+ * A REAL repository whose main branch selects DB_POSTGRES and whose second
+ * branch does not, with the pack installed and approved on main.
+ *
+ * Built by git itself rather than by hand: the thing under test is whether the
+ * branch context read from the filesystem matches what git actually produces.
+ */
+async function branchFixture(
+  context: TestContext,
+  options: { readonly secondBranch: "removes-evidence" | "removes-nothing" },
+): Promise<{ root: string; stateRoot: string; branch: string; target: string } | null> {
+  const parent = await scratchRoot(context, "branch");
+  const created = await createOrdinaryRepository(parent, "repo");
+  if (!created.ok) {
+    context.skip(created.reason);
+    return null;
+  }
+  const root = created.fixture.path;
+  const stateRoot = await scratchRoot(context, "branch-state");
+  const branch = options.secondBranch === "removes-evidence" ? "no-pg" : "docs-only";
+
+  await writeFile(join(root, "package.json"), PG_DEPENDENCY, "utf8");
+  const installed = await writeInstalledPack(root, {
+    packId: POSTGRES_PACK,
+    target: POSTGRES_TARGET,
+    body: "# postgres-patterns\n",
+  });
+  for (const argv of [["add", "-A"], ["commit", "-m", "fixture: install the postgres pack"]]) {
+    const run = gitCommand(root, argv);
+    if (!run.ok) {
+      context.skip(`git ${argv.join(" ")} failed: ${run.stderr.trim() || run.stdout.trim()}`);
+      return null;
+    }
+  }
+
+  const branched = gitCommand(root, ["checkout", "-b", branch]);
+  if (!branched.ok) {
+    context.skip(`git checkout -b ${branch} failed: ${branched.stderr.trim()}`);
+    return null;
+  }
+  if (options.secondBranch === "removes-evidence") {
+    await writeFile(join(root, "package.json"), NO_DEPENDENCIES, "utf8");
+  } else {
+    await writeFile(join(root, "NOTES.md"), "# notes\n", "utf8");
+  }
+  for (const argv of [["add", "-A"], ["commit", "-m", `fixture: ${branch}`], ["checkout", "main"]]) {
+    const run = gitCommand(root, argv);
+    if (!run.ok) {
+      context.skip(`git ${argv.join(" ")} failed: ${run.stderr.trim() || run.stdout.trim()}`);
+      return null;
+    }
+  }
+
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(plan.selected.includes(POSTGRES_PACK), `the branch fixture did not select ${POSTGRES_PACK} on main`);
+  await approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest });
+
+  return { root, stateRoot, branch, target: installed.absolute };
+}
+
+test("a STALE line names the missing fact by name, not merely the pack", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const { root } = await installedPostgresFixture(context);
+  await writeFile(join(root, "package.json"), NO_DEPENDENCIES, "utf8");
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+  assert.equal(pack.state, "STALE", pack.detail);
+
+  const sentence = pack.stale[0]?.sentence ?? "";
+  assert.ok(sentence.includes(POSTGRES_PACK), `the STALE sentence did not name the pack: ${sentence}`);
+  assert.ok(sentence.includes("pg"), `the STALE sentence did not name the dependency that selected it: ${sentence}`);
+  assert.equal(pack.stale[0]?.named, "pg");
+
+  const rendered = formatProjectStatus(reconciliation, [], { path: root });
+  const stale = rendered.split("\n").filter((line) => line.startsWith("STALE "));
+  assert.equal(stale.length, 1, `expected exactly one STALE line:\n${rendered}`);
+  assert.ok(stale[0]?.includes(POSTGRES_PACK) === true && stale[0]?.includes("pg") === true, stale[0] ?? "");
+});
+
+test("two facts that disappeared for one pack emit two distinct STALE lines", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const { root } = await installedPostgresFixture(context, { dsn: true });
+
+  await writeFile(join(root, "package.json"), NO_DEPENDENCIES, "utf8");
+  await rm(join(root, ".env.example"), { force: true });
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.stale.length, 2, `expected two missing facts, got ${pack.stale.map((entry) => entry.factId).join(", ")}`);
+  assert.equal(new Set(pack.stale.map((entry) => entry.sentence)).size, 2, "two missing facts produced one merged line");
+
+  const rendered = formatProjectStatus(reconciliation, [], { path: root });
+  assert.equal(rendered.split("\n").filter((line) => line.startsWith("STALE ")).length, 2, rendered);
+});
+
+test("readGitContext reports an ordinary repository's branch and commit from the filesystem", async (context) => {
+  const readGitContext = await planExport<ReadGitContext>("readGitContext");
+  const parent = await scratchRoot(context, "git-ordinary");
+  const created = await createOrdinaryRepository(parent, "repo");
+  if (!created.ok) {
+    context.skip(created.reason);
+    return;
+  }
+
+  const git = await readGitContext(created.fixture.path);
+  assert.equal(git.available, true, git.reason ?? "no reason recorded");
+  assert.equal(git.branch, "main");
+  assert.equal(git.detached, false);
+  assert.equal(git.source, "loose");
+  assert.match(git.commit ?? "", /^[0-9a-f]{40,64}$/u);
+});
+
+test("readGitContext reports a detached HEAD's commit and never guesses a branch", async (context) => {
+  const readGitContext = await planExport<ReadGitContext>("readGitContext");
+  const parent = await scratchRoot(context, "git-detached");
+  const created = await createOrdinaryRepository(parent, "repo");
+  if (!created.ok) {
+    context.skip(created.reason);
+    return;
+  }
+  const attached = await readGitContext(created.fixture.path);
+  const detachedRun = gitCommand(created.fixture.path, ["checkout", "--detach", "HEAD"]);
+  if (!detachedRun.ok) {
+    context.skip(`git checkout --detach failed: ${detachedRun.stderr.trim()}`);
+    return;
+  }
+
+  const git = await readGitContext(created.fixture.path);
+  assert.equal(git.available, true, git.reason ?? "no reason recorded");
+  assert.equal(git.detached, true);
+  assert.equal(git.branch, null, "a detached HEAD reported a branch it does not have");
+  assert.equal(git.commit, attached.commit);
+  assert.equal(git.source, "detached");
+});
+
+test("readGitContext resolves a branch tip from packed-refs when the loose ref is gone", async (context) => {
+  const readGitContext = await planExport<ReadGitContext>("readGitContext");
+  const parent = await scratchRoot(context, "git-packed");
+  const created = await createOrdinaryRepository(parent, "repo");
+  if (!created.ok) {
+    context.skip(created.reason);
+    return;
+  }
+  const loose = await readGitContext(created.fixture.path);
+  const packed = gitCommand(created.fixture.path, ["pack-refs", "--all"]);
+  if (!packed.ok) {
+    context.skip(`git pack-refs --all failed: ${packed.stderr.trim()}`);
+    return;
+  }
+  if (existsSync(join(created.fixture.path, ".git", "refs", "heads", "main"))) {
+    context.skip("this git left the loose ref in place, so the packed-refs branch is not exercised");
+    return;
+  }
+
+  const git = await readGitContext(created.fixture.path);
+  assert.equal(git.available, true, git.reason ?? "no reason recorded");
+  assert.equal(git.branch, "main");
+  assert.equal(git.commit, loose.commit);
+  assert.equal(git.source, "packed");
+});
+
+test("readGitContext reports an unparseable .git state as unavailable rather than guessing", async (context) => {
+  const readGitContext = await planExport<ReadGitContext>("readGitContext");
+  const root = await scratchRoot(context, "git-broken");
+
+  const absent = await readGitContext(root);
+  assert.equal(absent.available, false);
+  assert.ok((absent.reason ?? "").length > 0, "an absent .git reported no reason");
+
+  await writeFile(join(root, ".git"), "this is not a gitdir pointer\n", "utf8");
+  const broken = await readGitContext(root);
+  assert.equal(broken.available, false, "an unparseable .git file produced a guess");
+  assert.equal(broken.branch, null);
+  assert.equal(broken.commit, null);
+  assert.ok((broken.reason ?? "").length > 0, "an unparseable .git reported no reason");
+});
+
+test("a branch switch that removes evidence yields STALE and a branch-differs note together", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const fixture = await branchFixture(context, { secondBranch: "removes-evidence" });
+  if (fixture === null) return;
+
+  const switched = gitCommand(fixture.root, ["checkout", fixture.branch]);
+  if (!switched.ok) {
+    context.skip(`git checkout ${fixture.branch} failed: ${switched.stderr.trim()}`);
+    return;
+  }
+
+  const reconciliation = await reconcileProjectState({ path: fixture.root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  // D-15: both facts are present, and neither replaces the other.
+  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(reconciliation.git.branch, fixture.branch);
+  assert.ok(reconciliation.gitNote !== null, "a branch switch produced no branch-differs note");
+  assert.ok((reconciliation.gitNote ?? "").includes("main"), reconciliation.gitNote ?? "");
+  assert.ok((reconciliation.gitNote ?? "").includes(fixture.branch), reconciliation.gitNote ?? "");
+
+  const rendered = formatProjectStatus(reconciliation, [], { path: fixture.root });
+  assert.ok(rendered.split("\n").some((line) => line.startsWith("STALE ")), rendered);
+  assert.ok(rendered.includes("BRANCH-DIFFERS"), rendered);
+  assert.equal(existsSync(fixture.target), true, "a branch switch deleted the installed target");
+});
+
+test("a branch switch that removes no evidence yields no STALE and still reports the differing branch", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const fixture = await branchFixture(context, { secondBranch: "removes-nothing" });
+  if (fixture === null) return;
+
+  const switched = gitCommand(fixture.root, ["checkout", fixture.branch]);
+  if (!switched.ok) {
+    context.skip(`git checkout ${fixture.branch} failed: ${switched.stderr.trim()}`);
+    return;
+  }
+
+  const reconciliation = await reconcileProjectState({ path: fixture.root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  assert.notEqual(pack.state, "STALE", `a checkout that removed nothing reported STALE: ${pack.detail}`);
+  assert.equal(reconciliation.packs.filter((entry) => entry.state === "STALE").length, 0);
+  assert.equal(reconciliation.git.branch, fixture.branch);
+  assert.ok(reconciliation.gitNote !== null, "a differing branch produced no note");
+});
+
+test("an irrelevant commit leaves every digest unchanged while the reported commit differs", async (context) => {
+  const readGitContext = await planExport<ReadGitContext>("readGitContext");
+  const parent = await scratchRoot(context, "git-digest");
+  const created = await createOrdinaryRepository(parent, "repo");
+  if (!created.ok) {
+    context.skip(created.reason);
+    return;
+  }
+  const root = created.fixture.path;
+  await writeFile(join(root, "package.json"), PG_DEPENDENCY, "utf8");
+
+  const before = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const beforeGit = await readGitContext(root);
+
+  // A commit changes git's own state and no working-tree byte an evidence
+  // detector reads. If any digest moved, every commit would invalidate every
+  // approval — which is exactly why the branch context is context only.
+  for (const argv of [["add", "-A"], ["commit", "-m", "fixture: commit what is already on disk"]]) {
+    const run = gitCommand(root, argv);
+    if (!run.ok) {
+      context.skip(`git ${argv.join(" ")} failed: ${run.stderr.trim() || run.stdout.trim()}`);
+      return;
+    }
+  }
+
+  const after = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const afterGit = await readGitContext(root);
+
+  assert.notEqual(afterGit.commit, beforeGit.commit, "the fixture commit did not move HEAD, so nothing was proven");
+  assert.equal(after.inputsDigest, before.inputsDigest, "a commit moved inputsDigest");
+  assert.equal(after.evidenceDigest, before.evidenceDigest, "a commit moved evidenceDigest");
+  assert.equal(after.planDigest, before.planDigest, "a commit moved planDigest");
+});
+
+test("the status path reads git from the filesystem and spawns no subprocess", async () => {
+  const source = await readFile(join(repositoryRoot, "src", "core", "project-plan.ts"), "utf8");
+  for (const forbidden of ["node:child_process", "child_process", "spawnSync", "execFileSync", "execSync"]) {
+    assert.equal(
+      source.includes(forbidden),
+      false,
+      `src/core/project-plan.ts reaches for ${forbidden}; plan, approve and status are offline and subprocess-free`,
+    );
+  }
+  assert.ok(source.includes("packed-refs"), "the git context does not handle a packed ref, so a packed repository reports its branch unavailable");
 });

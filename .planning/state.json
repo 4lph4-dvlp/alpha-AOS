@@ -11,7 +11,7 @@
     {
       "number": "2",
       "name": "Evidence-Bound Project Planning",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "3",
@@ -44,5 +44,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 02 of 7 · 14% · executing"
   },
-  "updated_at": "2026-09-07T13:34:00.564Z"
+  "updated_at": "2026-09-07T14:04:57.411Z"
 }

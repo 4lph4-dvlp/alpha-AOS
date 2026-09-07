@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 4
+open_count: 6
 waived_count: 1
 fixed_count: 4
-total_count: 9
-last_updated: 2026-09-07T13:32:22.318Z
+total_count: 11
+last_updated: 2026-09-07T14:02:31.697Z
 ---
 
 # Broken Windows Ledger
@@ -24,6 +24,8 @@ last_updated: 2026-09-07T13:32:22.318Z
 | 7 | 01 | deviation | test/process.test.ts | 298 | An invalidated instrument shipped and produced a real verdict: the descendant-liveness judgment in 'a timed-out command leaves no descendant process behind' was a single bare process.kill(descendantPid, 0), which answers 'may I signal this pid' and succeeds against a zombie as well as a running process. The product's own close() contract at src/core/process.ts:690-699 already named that probe invalid - a signalled grandchild is not this process's waitpid target, 'which is why liveness must be judged by terminal evidence rather than by whether a pid can still be signalled'. Consequence: the ubuntu-latest red cell of CI run 34046336104 (actual: true, expected: false) was UNDECIDABLE between (a) an unreaped zombie and (b) a real SAFE-06 containment failure in which killTree fell back from the process-group signal to the direct child. Both produced byte-identical output. 01-27 replaced the instrument with the shared oracle in test/helpers/termination-oracle.ts (terminal evidence polled to CLOSE_TREE_DEADLINE_MS) and now asserts ProcessResult.treeTermination at the timeout site, with a POSIX 'direct' failing first on its own message. Recorded as a deviation rather than an unrun-verify because this is a diagnosed defect that shipped and decided a leg, not a verification that has not yet run. | fixed |  | 2026-09-06T18:20:44.402Z | 2026-09-06T18:34:02.828Z |
 | 8 | 01 | deviation | test/path-boundary.test.ts | 267 | The unknown-reparse fixture's privilege gate can never open, and its recorded not-run reason misdiagnoses why. The gate at test/path-boundary.test.ts:267-276 runs 'fsutil reparsepoint query .' with cwd = fixture.allowed (an ordinary mkdtemp directory) and skips when exit != 0. An ordinary directory is not a reparse point, so fsutil returns Error 4390 and exit 1 on EVERY host regardless of privilege — measured on this Windows host. That is why windows-latest, a host privileged enough to create file symlinks, also recorded this fixture as not-run in run 34051628180. The reason string it writes, 'fsutil reparsepoint is unavailable or unprivileged on this host', is therefore a misdiagnosis that routed the item to a human as a privilege gate for two verification rounds. Two further facts fix the shape of the repair: (a) 'fsutil reparsepoint' exposes only 'query' and 'delete' — it cannot create a reparse point at all, so no privilege level makes this fixture runnable as written; (b) even past the gate the fixture body at :279-287 never creates an unclassified reparse point, it only expects applyFileTransaction to reject a write under <allowed>/reparse/, which can succeed for reasons unrelated to reparse tags. A genuine fixture must call DeviceIoControl(FSCTL_SET_REPARSE_POINT) with a non-Microsoft tag and gate on whether THAT creation failed. Free unclassified-tag candidates were ruled out: all 45 entries under %LOCALAPPDATA%\\Microsoft\\WindowsApps are read successfully by Node readlink, so the product classifies them as junction. Consequence: SC2's unclassified-reparse-point vector has never been measured on any host; the other five SC2 vectors are green. | open |  | 2026-09-07T04:32:08.607Z |  |
 | 9 | 02 | stub | src/core/project-plan.ts |  | Tracer scope: evaluatePack implements only the anyDependencies operator, so 12 of the 15 declared packs (every all / any / anyFiles / manifestOptIn pack) contribute no evaluation at all and are absent from the plan value. Nothing false is claimed - they are not reported 'silent' - but a user cannot yet tell 'not evaluated' from 'did not qualify', which is the Pitfall 8 hazard DETC-03 exists to prevent. Closed by 02-02 (fact vocabulary + remaining operators) and 02-07 (near-miss / unimplemented statuses). | open |  | 2026-09-07T13:32:22.318Z |  |
+| 10 | 02 | stub | src/core/evidence.ts |  | catalog/facts.yaml declares 31 facts across all six detector kinds, but collectProjectEvidence still implements only the dependency detector over package.json. A file / directory / manifestKey / fileAbsent / fileContent fact is now loadable, validated and referenceable by a pack predicate, yet cannot be observed, so the packs that depend on those kinds still contribute no evaluation. Closed by 02-06 (the remaining five detector kinds and the non-npm manifest readers). | open |  | 2026-09-07T14:02:30.976Z |  |
+| 11 | 02 | stub | catalog/facts.yaml |  | The eight SECURITY_REVIEW risk facts (auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api) are declared with deferredTo: GATE-01 and no detector parameters. They are change-risk semantics rather than repository-state facts and two of them would require credential-scanning a user's repository, so Phase 4 GATE-01 owns them. Declaring them keeps the near-miss line honest instead of silent; until 02-07 renders them as unimplemented, SECURITY_REVIEW can never select. | open |  | 2026-09-07T14:02:31.697Z |  |
 
 ````json
 [
@@ -133,6 +135,30 @@ last_updated: 2026-09-07T13:32:22.318Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T13:32:22.318Z",
+    "resolved_at": null
+  },
+  {
+    "id": 10,
+    "kind": "stub",
+    "phase": "02",
+    "file": "src/core/evidence.ts",
+    "line": null,
+    "description": "catalog/facts.yaml declares 31 facts across all six detector kinds, but collectProjectEvidence still implements only the dependency detector over package.json. A file / directory / manifestKey / fileAbsent / fileContent fact is now loadable, validated and referenceable by a pack predicate, yet cannot be observed, so the packs that depend on those kinds still contribute no evaluation. Closed by 02-06 (the remaining five detector kinds and the non-npm manifest readers).",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T14:02:30.976Z",
+    "resolved_at": null
+  },
+  {
+    "id": 11,
+    "kind": "stub",
+    "phase": "02",
+    "file": "catalog/facts.yaml",
+    "line": null,
+    "description": "The eight SECURITY_REVIEW risk facts (auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api) are declared with deferredTo: GATE-01 and no detector parameters. They are change-risk semantics rather than repository-state facts and two of them would require credential-scanning a user's repository, so Phase 4 GATE-01 owns them. Declaring them keeps the near-miss line honest instead of silent; until 02-07 renders them as unimplemented, SECURITY_REVIEW can never select.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-07T14:02:31.697Z",
     "resolved_at": null
   }
 ]

@@ -17,8 +17,15 @@ import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { ExcludedBoundary, ProjectTreeScan } from "../src/core/evidence.js";
-import { MAX_SCAN_DEPTH, resolveCanonicalRoot, scanProjectTree } from "../src/core/evidence.js";
+import type { ExcludedBoundary, ProjectTreeScan, SubProjectDiscovery } from "../src/core/evidence.js";
+import {
+  discoverSubProjects,
+  MAX_SCAN_DEPTH,
+  ProjectReadCache,
+  readWorkspaceDeclaration,
+  resolveCanonicalRoot,
+  scanProjectTree,
+} from "../src/core/evidence.js";
 import {
   createLinkedWorktree,
   createNestedRepository,
@@ -356,6 +363,189 @@ test("a path whose ignore decision is undecidable is excluded with its reason", 
   const excluded = excludedFor(scan, "sub/f.txt");
   assert.equal(excluded?.reason, "undecidable");
   assert.equal(typeof excluded?.detail, "string", "the reason that stopped the decision is carried");
+});
+
+// ---------------------------------------------------------------------------
+// Task 3 — sub-project discovery: declaration first, scan as the safety net
+// ---------------------------------------------------------------------------
+
+async function writeProject(directory: string, fileName: string, content: string): Promise<void> {
+  await mkdir(directory, { recursive: true });
+  await writeFile(join(directory, fileName), content, "utf8");
+}
+
+function pathsOf(discovery: SubProjectDiscovery): readonly string[] {
+  return discovery.subProjects.map((member) => member.path);
+}
+
+function declaredPathsOf(discovery: SubProjectDiscovery): readonly string[] {
+  return discovery.subProjects.filter((member) => member.declaredBy !== null).map((member) => member.path);
+}
+
+test("package.json workspaces globs expand to the declared members", async (context) => {
+  const workspace = await scratch(context, "ws-npm");
+  await writeProject(workspace, "package.json", JSON.stringify({ name: "root", workspaces: ["packages/*"] }));
+  await writeProject(join(workspace, "packages", "a"), "package.json", JSON.stringify({ name: "a" }));
+  await writeProject(join(workspace, "packages", "b"), "package.json", JSON.stringify({ name: "b" }));
+
+  const root = await resolveCanonicalRoot(workspace);
+  const declarations = await readWorkspaceDeclaration(root);
+  assert.deepEqual(declarations.map((entry) => entry.ecosystem), ["npm"]);
+  assert.deepEqual(declarations[0]?.source, "package.json");
+
+  const discovery = await discoverSubProjects(root);
+  assert.deepEqual(declaredPathsOf(discovery), ["packages/a", "packages/b"]);
+  assert.equal(discovery.subProjects[0]?.declarationFile, "package.json");
+});
+
+test("pnpm-workspace.yaml packages expands and a negated entry removes a matched member", async (context) => {
+  const workspace = await scratch(context, "ws-pnpm");
+  await writeProject(workspace, "package.json", JSON.stringify({ name: "root" }));
+  await writeProject(workspace, "pnpm-workspace.yaml", "packages:\n  - 'packages/*'\n  - '!**/test/**'\n");
+  await writeProject(join(workspace, "packages", "app"), "package.json", JSON.stringify({ name: "app" }));
+  await writeProject(join(workspace, "packages", "test"), "package.json", JSON.stringify({ name: "test" }));
+
+  const root = await resolveCanonicalRoot(workspace);
+  const declarations = await readWorkspaceDeclaration(root);
+  assert.deepEqual(declarations.map((entry) => entry.ecosystem), ["pnpm"]);
+  assert.deepEqual(declarations[0]?.exclude, ["**/test/**"]);
+
+  const discovery = await discoverSubProjects(root);
+  assert.deepEqual(pathsOf(discovery), ["packages/app"], "the negated entry removed a previously matched member");
+});
+
+test("Cargo.toml workspace members expand, exclude removes, and a virtual workspace is handled", async (context) => {
+  const workspace = await scratch(context, "ws-cargo");
+  await writeProject(
+    workspace,
+    "Cargo.toml",
+    '[workspace]\nmembers = ["crates/*"]\nexclude = ["crates/scratch"]\n',
+  );
+  await writeProject(join(workspace, "crates", "core"), "Cargo.toml", '[package]\nname = "core"\n');
+  await writeProject(join(workspace, "crates", "cli"), "Cargo.toml", '[package]\nname = "cli"\n');
+  await writeProject(join(workspace, "crates", "scratch"), "Cargo.toml", '[package]\nname = "scratch"\n');
+
+  const root = await resolveCanonicalRoot(workspace);
+  const declarations = await readWorkspaceDeclaration(root);
+  assert.deepEqual(declarations.map((entry) => entry.ecosystem), ["cargo"]);
+  assert.deepEqual(declarations[0]?.exclude, ["crates/scratch"]);
+
+  const discovery = await discoverSubProjects(root);
+  assert.deepEqual(pathsOf(discovery), ["crates/cli", "crates/core"]);
+});
+
+test("go.work use entries are literal directories and a subdirectory of one is not a member", async (context) => {
+  const workspace = await scratch(context, "ws-go");
+  await writeProject(workspace, "go.work", "go 1.22\n\nuse (\n\t./svc\n)\n");
+  await writeProject(join(workspace, "svc"), "go.mod", "module example.com/svc\n\ngo 1.22\n");
+  await writeProject(join(workspace, "svc", "inner"), "go.mod", "module example.com/svc/inner\n\ngo 1.22\n");
+
+  const root = await resolveCanonicalRoot(workspace);
+  const declarations = await readWorkspaceDeclaration(root);
+  assert.deepEqual(declarations.map((entry) => entry.ecosystem), ["go"]);
+  assert.equal(declarations[0]?.literal, true, "use entries are literal directories, never globs");
+
+  const discovery = await discoverSubProjects(root);
+  assert.deepEqual(declaredPathsOf(discovery), ["svc"]);
+  assert.equal(pathsOf(discovery).includes("svc/inner"), false, "a subdirectory of a use argument is not a member");
+});
+
+test("pyproject.toml uv workspace members expand and exclude removes", async (context) => {
+  const workspace = await scratch(context, "ws-uv");
+  await writeProject(
+    workspace,
+    "pyproject.toml",
+    '[project]\nname = "root"\nversion = "0.1.0"\n\n[tool.uv.workspace]\nmembers = ["packages/*"]\nexclude = ["packages/seeds"]\n',
+  );
+  await writeProject(join(workspace, "packages", "lib"), "pyproject.toml", '[project]\nname = "lib"\n');
+  await writeProject(join(workspace, "packages", "seeds"), "pyproject.toml", '[project]\nname = "seeds"\n');
+
+  const root = await resolveCanonicalRoot(workspace);
+  const declarations = await readWorkspaceDeclaration(root);
+  assert.deepEqual(declarations.map((entry) => entry.ecosystem), ["uv"]);
+
+  const discovery = await discoverSubProjects(root);
+  assert.deepEqual(pathsOf(discovery), ["packages/lib"]);
+});
+
+test("a workspaces entry escaping the canonical root is reported and dropped, and nothing outside is read", async (context) => {
+  const enclosing = await scratch(context, "ws-escape");
+  const outside = join(enclosing, "outside");
+  await mkdir(outside, { recursive: true });
+  const sentinel = join(outside, "SENTINEL");
+  await writeFile(sentinel, SENTINEL_BYTES, "utf8");
+
+  const workspace = join(enclosing, "repo");
+  await writeProject(workspace, "package.json", JSON.stringify({ name: "root", workspaces: ["../../.."] }));
+
+  const before = await stat(sentinel);
+  const root = await resolveCanonicalRoot(workspace);
+  const discovery = await discoverSubProjects(root);
+  const after = await stat(sentinel);
+
+  assert.deepEqual(declaredPathsOf(discovery), [], "no declared member survived the boundary proof");
+  assert.equal(discovery.dropped.length, 1, "the escaping entry is reported, not silently ignored");
+  assert.equal(discovery.dropped[0]?.declared, "../../..");
+  assert.match(discovery.dropped[0]?.reason ?? "", /outside/u);
+  assert.equal(after.mtimeMs, before.mtimeMs, "nothing outside the canonical root was touched");
+  assert.equal(after.size, before.size, "the outside sentinel is byte-identical");
+});
+
+test("a declaration listing a non-existent member reports the drop and the fallback still finds the undeclared one", async (context) => {
+  const workspace = await scratch(context, "ws-stale");
+  await writeProject(workspace, "package.json", JSON.stringify({ name: "root", workspaces: ["packages/gone"] }));
+  await writeProject(join(workspace, "packages", "real"), "package.json", JSON.stringify({ name: "real" }));
+
+  const root = await resolveCanonicalRoot(workspace);
+  const discovery = await discoverSubProjects(root);
+
+  assert.equal(
+    discovery.dropped.some((entry) => entry.declared === "packages/gone"),
+    true,
+    "the stale entry is reported with a reason",
+  );
+  assert.deepEqual(pathsOf(discovery), ["packages/real"], "a stale declaration cannot make a real sub-project invisible");
+  assert.equal(discovery.subProjects[0]?.declaredBy, null, "the fallback scan found it, not the declaration");
+});
+
+test("an explicit target that is not among the discovered sub-projects is refused with the options named", async (context) => {
+  const workspace = await scratch(context, "ws-target");
+  await writeProject(workspace, "package.json", JSON.stringify({ name: "root", workspaces: ["packages/*"] }));
+  await writeProject(join(workspace, "packages", "real"), "package.json", JSON.stringify({ name: "real" }));
+
+  const root = await resolveCanonicalRoot(workspace);
+  await assert.rejects(
+    () => discoverSubProjects(root, { target: "packages/nope" }),
+    (error: unknown) => {
+      assert.equal(error instanceof Error, true);
+      assert.match((error as Error).message, /packages\/real/u, "the refusal names the discovered options");
+      return true;
+    },
+    "an unrecognised target is a refusal, never a guess",
+  );
+
+  const selected = await discoverSubProjects(root, { target: "packages/real" });
+  assert.equal(selected.selected?.path, "packages/real");
+});
+
+test("no target from a repository root returns the sub-project list with none selected", async (context) => {
+  const workspace = await scratch(context, "ws-list");
+  await writeProject(workspace, "package.json", JSON.stringify({ name: "root", workspaces: ["packages/*"] }));
+  await writeProject(join(workspace, "packages", "a"), "package.json", JSON.stringify({ name: "a" }));
+  await writeProject(join(workspace, "packages", "b"), "package.json", JSON.stringify({ name: "b" }));
+
+  const root = await resolveCanonicalRoot(workspace);
+  const cache = new ProjectReadCache();
+  const first = await discoverSubProjects(root, { cache });
+
+  assert.equal(first.selected, null, "nothing is selected until the user names it");
+  assert.deepEqual(pathsOf(first), ["packages/a", "packages/b"]);
+
+  // One read cache keyed by canonical path is shared across sub-projects, so a
+  // file read once is not read again.
+  const hitsBefore = cache.hits;
+  await discoverSubProjects(root, { cache });
+  assert.equal(cache.hits > hitsBefore, true, "the shared read cache served the second discovery");
 });
 
 test.after(() => {

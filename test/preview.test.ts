@@ -258,6 +258,7 @@ const PREVIEW_INVOCATIONS: ReadonlyArray<{ readonly name: string; readonly args:
   { name: "fixture ecc claude", args: ["fixture", "ecc", "claude"] },
   { name: "fixture mcp context7 claude", args: ["fixture", "mcp", "context7", "claude"] },
   { name: "project isolate init", args: ["project", "isolate", "init", ".", "--mode", "project-only", "--harness", "claude"] },
+  { name: "project plan", args: ["project", "plan", "."] },
   { name: "project isolate plan", args: ["project", "isolate", "plan", "."] },
   { name: "project isolate sync", args: ["project", "isolate", "sync", "."] },
   { name: "project isolate clean", args: ["project", "isolate", "clean", "."] },

@@ -541,6 +541,7 @@ function syntheticPlan(evaluations: PackEvaluation[]): ProjectCapabilityPlan {
     applicable: [],
     nearMissOrder: rankNearMisses(evaluations).map((evaluation) => evaluation.packId),
     subProjects: [],
+    manifestDigest: null,
     inputsDigest: "0".repeat(64),
     evidenceDigest: "1".repeat(64),
     planDigest: "2".repeat(64),

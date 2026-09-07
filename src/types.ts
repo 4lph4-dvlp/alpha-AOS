@@ -516,6 +516,15 @@ export interface ProjectCapabilityPlan {
   nearMissOrder: string[];
   /** Discovered sub-projects and their own decisions. Empty unless a workspace was found. */
   subProjects: SubProjectDecision[];
+  /**
+   * DETC-05's manifest noun: sha256 of `.alpha-aos/stack.yaml`'s bytes, or
+   * `null` when the project declares none.
+   *
+   * Folding it into `inputsDigest` would have made it detectable but not
+   * NAMEABLE: an approve could refuse, and could not say the manifest is what
+   * moved. D-13 turns on exactly that distinction.
+   */
+  manifestDigest: string | null;
   /** Did anything we looked at change? Carries the evidence envelope's sourceHash. */
   inputsDigest: string;
   /** Did the selection-relevant observations change? */

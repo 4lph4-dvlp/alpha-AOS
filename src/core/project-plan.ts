@@ -22,7 +22,7 @@ import { createHash } from "node:crypto";
 import { existsSync, type Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type {
   AdapterSupportEntry,
   DeferredFact,
@@ -47,7 +47,14 @@ import type {
   TargetPreState,
 } from "../types.js";
 import { loadCatalog, loadLock } from "./catalog.js";
-import { reviewedDigest } from "./component-session.js";
+import {
+  assertPlanUnchanged,
+  ComponentPlanError,
+  reviewedDigest,
+  withComponentSession,
+  type ReviewedComponentPlan,
+  type ReviewedPlanBoundary,
+} from "./component-session.js";
 import type { DeclaredDependencies, SubProject } from "./evidence.js";
 import {
   collectProjectEvidenceDetail,
@@ -60,7 +67,10 @@ import {
   resolveCanonicalRoot,
 } from "./evidence.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "./pack-catalog.js";
+import { proveOperationPaths, requiredRolesForFileMutation } from "./path-boundary.js";
 import { inspectProjectManifest } from "./project.js";
+import { applyFileTransaction } from "./transaction.js";
+import type { MutationSession } from "./writer-lock.js";
 
 function sha256(content: string): string {
   return createHash("sha256").update(content, "utf8").digest("hex");
@@ -865,6 +875,7 @@ export function digestablePlan(plan: Omit<ProjectCapabilityPlan, "planDigest">):
       deferredTo: plan.executableDisposition.deferredTo,
       reason: plan.executableDisposition.reason,
     },
+    manifestDigest: plan.manifestDigest,
     inputsDigest: plan.inputsDigest,
     evidenceDigest: plan.evidenceDigest,
     evaluations: plan.evaluations.map((evaluation) => ({
@@ -883,7 +894,7 @@ export function digestablePlan(plan: Omit<ProjectCapabilityPlan, "planDigest">):
 }
 
 /** The digest name every reviewed project plan is bound under. */
-const PLAN_DIGEST_KIND = "project-capability-plan";
+export const PLAN_DIGEST_KIND = "project-capability-plan";
 
 function sealPlan(plan: Omit<ProjectCapabilityPlan, "planDigest">): ProjectCapabilityPlan {
   return { ...plan, planDigest: reviewedDigest(PLAN_DIGEST_KIND, digestablePlan(plan)) };
@@ -961,6 +972,10 @@ export async function planProjectCapabilities(
 
   const inputsDigest = envelope.sourceHash;
   const evidenceDigest = evidenceDigestOf(envelope);
+  // The manifest's own content hash, taken from the read ledger rather than
+  // re-read: the ledger records what a detector ACTUALLY read, so a manifest
+  // that was skipped as over-cap or unreadable is honestly absent here.
+  const manifestDigest = evidence.readInputs.find((input) => input.path === PROJECT_MANIFEST_PATH)?.hash ?? null;
 
   // DETC-04's remaining nouns. Every array below is sorted by its producer, so
   // the digestable view never has to re-sort and two runs cannot disagree on
@@ -1077,6 +1092,7 @@ export async function planProjectCapabilities(
     applicable,
     nearMissOrder,
     subProjects,
+    manifestDigest,
     inputsDigest,
     evidenceDigest,
   });
@@ -1126,4 +1142,215 @@ function overridesOf(manifest: ProjectStackManifest | null): ReadonlyMap<string,
     if (value === "force-on" || value === "force-off") overrides.set(key, value);
   }
   return overrides;
+}
+
+// ---------------------------------------------------------------------------
+// DETC-05: approving a reviewed plan
+// ---------------------------------------------------------------------------
+//
+// `plan` previews and persists nothing; `approve` is the only writer (D-12).
+// The refusal is NOT a second drift mechanism: it is the plan boundary handed
+// to the same `assertPlanUnchanged` that already serves the ECC, GSD, MCP,
+// isolation and support-bundle components. A second comparison would be a
+// second thing to keep true, and the two would drift apart.
+
+/** The approved-plan artifact, relative to the canonical root. D-16: latest only. */
+export const PROJECT_PLAN_ARTIFACT = ".alpha-aos/plan.json";
+
+/**
+ * The ONE directory inside a project alpha-AOS may write (D-10).
+ *
+ * Project source, package manifests, tests and build configuration are
+ * read-only inputs. Passing this as the transaction's `allowedRoots` is what
+ * makes that an enforced property rather than a convention.
+ */
+export const PROJECT_ARTIFACT_DIRECTORY = ".alpha-aos";
+
+export interface RevalidateProjectPlanOptions extends PlanProjectCapabilitiesOptions {
+  /** Where the journal and snapshots live. The writer lock is taken here. */
+  readonly stateRoot: string;
+}
+
+export interface ProjectPlanRevalidation {
+  readonly plan: ProjectCapabilityPlan;
+  /** The boundary `assertPlanUnchanged` and `withComponentSession` consume. */
+  readonly boundary: ReviewedComponentPlan;
+  /** Absolute path of the approved-plan artifact. */
+  readonly artifactPath: string;
+  /** Absolute `.alpha-aos` directory — the only root an approve may write inside. */
+  readonly artifactRoot: string;
+  readonly stateRoot: string;
+}
+
+/**
+ * Re-reads everything a reviewer looked at and proves every path an approve
+ * would touch, before anything is acquired or written.
+ *
+ * This is the read-only half of `approve`, and it is also what the preview form
+ * of `project approve` prints: previewing and persisting run the same
+ * revalidation, so the digest a user is asked to pass back is the digest the
+ * apply will recompute.
+ */
+export async function revalidateProjectPlan(options: RevalidateProjectPlanOptions): Promise<ProjectPlanRevalidation> {
+  const plan = await planProjectCapabilities(options);
+  const artifactRoot = join(plan.scope.canonicalRoot, PROJECT_ARTIFACT_DIRECTORY);
+  const artifactPath = join(plan.scope.canonicalRoot, ...PROJECT_PLAN_ARTIFACT.split("/"));
+  const stateRoot = resolve(options.stateRoot);
+
+  // Every role is declared here, up front and as one set. A step that reached
+  // for a path this set does not carry could not prove it after the fact.
+  const proofs = await proveOperationPaths({
+    inputs: [
+      { role: "target", path: artifactPath },
+      { role: "state", path: stateRoot },
+      { role: "journal", path: join(stateRoot, "journal") },
+      { role: "snapshot", path: join(stateRoot, "snapshots") },
+    ],
+    allowedRoots: [artifactRoot, stateRoot],
+    requiredRoles: requiredRolesForFileMutation(),
+  });
+
+  return {
+    plan,
+    boundary: { kind: PLAN_DIGEST_KIND, digest: plan.planDigest, proofs, stateRoot },
+    artifactPath,
+    artifactRoot,
+    stateRoot,
+  };
+}
+
+export type ProjectApprovalStatus = "written" | "already-current";
+
+export interface ProjectApprovalResult {
+  readonly status: ProjectApprovalStatus;
+  /** The journal id, or `null` when the artifact was already current. */
+  readonly operationId: string | null;
+  readonly artifactPath: string;
+  readonly plan: ProjectCapabilityPlan;
+}
+
+/** The approved-plan artifact, as written and as read back. */
+export interface ApprovedProjectPlanArtifact {
+  readonly schemaVersion: 1;
+  readonly kind: string;
+  readonly approvedDigest: string;
+  readonly plan: ProjectCapabilityPlan;
+}
+
+export interface ApproveProjectPlanOptions extends RevalidateProjectPlanOptions {
+  /** The digest a reviewer saw. Nothing is written unless a re-read reproduces it. */
+  readonly expectedDigest: string;
+  /**
+   * The plan the reviewer actually saw, when the caller still holds it.
+   *
+   * A digest alone cannot say WHAT moved, so a caller that kept the reviewed
+   * value gets the D-13 classification. A caller that did not — the CLI, whose
+   * two invocations share nothing but the digest — falls back to the last
+   * approved artifact, and to an unclassified refusal when there is none.
+   */
+  readonly reviewedPlan?: ProjectCapabilityPlan;
+  /** A writer already held by the caller. When supplied, no second lock is taken. */
+  readonly session?: MutationSession;
+}
+
+/**
+ * The bytes of the approved artifact.
+ *
+ * Deliberately carries no timestamp: approving the same plan twice produces
+ * byte-identical content, which is what makes "already current" a property of
+ * the plan rather than of when it was approved.
+ */
+function approvalArtifactBytes(plan: ProjectCapabilityPlan): string {
+  const artifact: ApprovedProjectPlanArtifact = {
+    schemaVersion: 1,
+    kind: PLAN_DIGEST_KIND,
+    approvedDigest: plan.planDigest,
+    plan,
+  };
+  return `${JSON.stringify(artifact, null, 2)}\n`;
+}
+
+/** The last approved plan at a path, or `null` when there is none to read. */
+export async function readApprovedProjectPlan(artifactPath: string): Promise<ApprovedProjectPlanArtifact | null> {
+  if (!existsSync(artifactPath)) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(artifactPath, "utf8"));
+  } catch {
+    return null;
+  }
+  const artifact = parsed as ApprovedProjectPlanArtifact | null;
+  if (artifact === null || typeof artifact !== "object") return null;
+  if (typeof artifact.approvedDigest !== "string" || artifact.approvedDigest.length === 0) return null;
+  if (artifact.plan === null || typeof artifact.plan !== "object") return null;
+  return artifact;
+}
+
+/**
+ * Applies a reviewed plan: refuses the instant anything a reviewer saw moved,
+ * then writes exactly one artifact under one journaled, snapshotted transaction.
+ */
+export async function approveProjectPlan(options: ApproveProjectPlanOptions): Promise<ProjectApprovalResult> {
+  const revalidated = await revalidateProjectPlan(options);
+  const reviewed: ReviewedPlanBoundary = {
+    kind: PLAN_DIGEST_KIND,
+    proofs: revalidated.boundary.proofs,
+    digest: options.expectedDigest,
+  };
+
+  try {
+    assertPlanUnchanged(reviewed, revalidated.boundary);
+  } catch (error) {
+    if (!(error instanceof ComponentPlanError)) throw error;
+    throw await explainPlanDrift(error, options, revalidated);
+  }
+
+  // Idempotency: the same plan already on disk is not rewritten. Writing
+  // identical bytes would still churn the file's mtime and add a journal entry
+  // that undoes nothing.
+  const existing = await readApprovedProjectPlan(revalidated.artifactPath);
+  if (existing !== null && existing.approvedDigest === revalidated.plan.planDigest) {
+    return {
+      status: "already-current",
+      operationId: null,
+      artifactPath: revalidated.artifactPath,
+      plan: revalidated.plan,
+    };
+  }
+
+  // The writer lock is exclusive-create, so a second acquisition inside an
+  // already-held session would deadlock the operation against itself. The
+  // wrapper is what handles the caller-supplied and standalone cases alike.
+  return withComponentSession(revalidated.boundary, options.session, async (session): Promise<ProjectApprovalResult> => {
+    const journal = await applyFileTransaction({
+      stateRoot: revalidated.stateRoot,
+      // D-10, enforced: `.alpha-aos` is the only root, so a target anywhere
+      // else refuses inside the transaction rather than being trusted here.
+      allowedRoots: [revalidated.artifactRoot],
+      operations: [{ target: revalidated.artifactPath, content: approvalArtifactBytes(revalidated.plan) }],
+      session,
+    });
+    return {
+      status: "written",
+      operationId: journal.id,
+      artifactPath: revalidated.artifactPath,
+      plan: revalidated.plan,
+    };
+  });
+}
+
+/**
+ * Turns the boundary's digest mismatch into a refusal a user can act on.
+ *
+ * Task 3 replaces the body with the D-13 classification; the seam exists here
+ * so the drift refusal has exactly one construction site.
+ */
+async function explainPlanDrift(
+  refusal: ComponentPlanError,
+  options: ApproveProjectPlanOptions,
+  revalidated: ProjectPlanRevalidation,
+): Promise<ComponentPlanError> {
+  void options;
+  void revalidated;
+  return refusal;
 }

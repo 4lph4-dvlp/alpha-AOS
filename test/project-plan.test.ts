@@ -2760,3 +2760,177 @@ test("the status path reads git from the filesystem and spawns no subprocess", a
   }
   assert.ok(source.includes("packed-refs"), "the git context does not handle a packed ref, so a packed repository reports its branch unavailable");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-10 Task 3: the approval-gated removal plan and the `status` verb
+// ---------------------------------------------------------------------------
+
+interface RemovalTargetLike {
+  readonly path: string;
+  readonly harness: string;
+  readonly expectedHash: string | null;
+  readonly exists: boolean;
+}
+
+interface RemovalPlanLike {
+  readonly packId: string;
+  readonly receiptPath: string;
+  readonly targets: readonly RemovalTargetLike[];
+  readonly reasons: readonly string[];
+  readonly removalDigest: string;
+}
+
+type PlanPackRemoval = (reconciliation: ProjectReconciliationLike) => RemovalPlanLike[];
+
+type ApplyPackRemoval = (options: {
+  path: string;
+  packageRoot: string;
+  stateRoot: string;
+  removalDigest: string;
+}) => Promise<{
+  packId: string;
+  operationId: string;
+  removed: readonly string[];
+  removalDigest: string;
+}>;
+
+/** A fixture whose installed pack has become stale: the `pg` dependency is gone. */
+async function stalePostgresFixture(context: TestContext): Promise<{ root: string; stateRoot: string; target: string }> {
+  const fixture = await installedPostgresFixture(context);
+  await writeFile(
+    join(fixture.root, "package.json"),
+    `${JSON.stringify({ name: "reconcile-fixture", private: true, dependencies: {} }, null, 2)}\n`,
+    "utf8",
+  );
+  return { root: fixture.root, stateRoot: fixture.stateRoot, target: fixture.target };
+}
+
+test("a stale pack yields a removal plan naming every target, its guard hash and its own digest", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await stalePostgresFixture(context);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const removals = planPackRemoval(reconciliation);
+
+  assert.equal(removals.length, 1, `expected one removal plan, got ${removals.map((entry) => entry.packId).join(", ")}`);
+  const removal = removals[0];
+  assert.ok(removal);
+  assert.equal(removal.packId, POSTGRES_PACK);
+  assert.equal(removal.targets.length, 1);
+  assert.equal(removal.targets[0]?.path, POSTGRES_TARGET);
+  assert.match(removal.targets[0]?.expectedHash ?? "", /^[0-9a-f]{64}$/u);
+  assert.match(removal.removalDigest, /^[0-9a-f]{64}$/u);
+  assert.ok(removal.reasons.length > 0, "a removal plan carried no reason for existing");
+
+  // A removal plan is a VALUE. Building one must not have removed anything.
+  assert.equal(existsSync(join(root, ...POSTGRES_TARGET.split("/"))), true);
+});
+
+test("a pack that is not stale is offered no removal plan", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await installedPostgresFixture(context);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  assert.equal(packStateOf(reconciliation, POSTGRES_PACK).state, "CURRENT");
+  assert.deepEqual(planPackRemoval(reconciliation), []);
+});
+
+test("project status against a stale fixture leaves every target present with an unchanged hash", async (context) => {
+  const { root, target } = await stalePostgresFixture(context);
+  const before = await snapshotTree(root);
+
+  const result = await runCli(["project", "status", root]);
+  assert.equal(result.status, 0, `project status failed:\n${result.stderr}`);
+  assert.ok(result.stdout.includes("STALE-FACT "), `project status printed no STALE-FACT line:\n${result.stdout}`);
+
+  assert.equal(existsSync(target), true, "project status deleted the stale pack's target");
+  assert.deepEqual(await snapshotTree(root), before, "project status changed a byte on disk");
+});
+
+test("project status prints the removal plan, its digest and the command that approves it", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await stalePostgresFixture(context);
+
+  const removal = planPackRemoval(await reconcileProjectState({ path: root, packageRoot: repositoryRoot }))[0];
+  assert.ok(removal);
+
+  const result = await runCli(["project", "status", root]);
+  assert.equal(result.status, 0, `project status failed:\n${result.stderr}`);
+  assert.ok(result.stdout.includes(`REMOVAL ${POSTGRES_PACK}`), result.stdout);
+  assert.ok(result.stdout.includes(POSTGRES_TARGET), result.stdout);
+  assert.ok(result.stdout.includes(removal.removalDigest), result.stdout);
+
+  const command = /Approve this removal with: alpha-aos (.+)$/mu.exec(result.stdout);
+  assert.ok(command, `project status printed no approval command:\n${result.stdout}`);
+  assert.ok((command[1] ?? "").includes(removal.removalDigest), command[1] ?? "");
+  assert.ok((command[1] ?? "").includes("--apply"), command[1] ?? "");
+});
+
+test("project status has no --apply, so status can never be the thing that deletes", async (context) => {
+  const { root, target } = await stalePostgresFixture(context);
+
+  const result = await runCli(["project", "status", root, "--apply"]);
+  assert.notEqual(result.status, 0, "`project status --apply` was accepted");
+  assert.match(result.stderr, /--apply/u);
+  assert.equal(existsSync(target), true, "a refused status still deleted the target");
+});
+
+test("approving a removal plan's digest removes exactly the named targets and produces a journal id", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const applyPackRemoval = await planExport<ApplyPackRemoval>("applyPackRemoval");
+  const { root, stateRoot, target } = await stalePostgresFixture(context);
+
+  const removal = planPackRemoval(await reconcileProjectState({ path: root, packageRoot: repositoryRoot }))[0];
+  assert.ok(removal);
+  const untouched = join(root, "package.json");
+
+  const result = await applyPackRemoval({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    removalDigest: removal.removalDigest,
+  });
+
+  assert.equal(result.packId, POSTGRES_PACK);
+  assert.ok(result.operationId.length > 0, "an approved removal produced no journal id");
+  assert.deepEqual([...result.removed], [POSTGRES_TARGET]);
+  assert.equal(existsSync(target), false, "the approved removal did not remove its named target");
+  assert.equal(existsSync(untouched), true, "the removal reached outside the targets it named");
+  // The journal's snapshot is the safe inverse, so the removal is reversible.
+  assert.equal(existsSync(join(stateRoot, "snapshots", result.operationId)), true, "the removal kept no snapshot");
+});
+
+test("approving a removal plan whose target bytes changed refuses with the drift code", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const applyPackRemoval = await planExport<ApplyPackRemoval>("applyPackRemoval");
+  const { root, stateRoot, target } = await stalePostgresFixture(context);
+
+  const removal = planPackRemoval(await reconcileProjectState({ path: root, packageRoot: repositoryRoot }))[0];
+  assert.ok(removal);
+  await writeFile(target, "# postgres-patterns\n\nedited after the removal plan was built\n", "utf8");
+
+  const error = await expectRefusal(
+    () =>
+      applyPackRemoval({
+        path: root,
+        packageRoot: repositoryRoot,
+        stateRoot,
+        removalDigest: removal.removalDigest,
+      }),
+    "an approved removal whose target bytes moved",
+  );
+
+  assert.match(error.message, /plan-drift/u);
+  assert.equal(existsSync(target), true, "a refused removal still deleted the target");
+});
+
+test("project sync --apply is still refused, so this phase did not open the Phase 3 gate", async () => {
+  const result = await runCli(["project", "sync", ".", "--apply"]);
+  assert.notEqual(result.status, 0, "`project sync --apply` was accepted at phase close");
+  assert.match(result.stderr, /not enabled until trust and transaction support are implemented/u);
+});

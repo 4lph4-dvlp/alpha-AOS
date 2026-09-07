@@ -260,6 +260,7 @@ const PREVIEW_INVOCATIONS: ReadonlyArray<{ readonly name: string; readonly args:
   { name: "project isolate init", args: ["project", "isolate", "init", ".", "--mode", "project-only", "--harness", "claude"] },
   { name: "project plan", args: ["project", "plan", "."] },
   { name: "project approve", args: ["project", "approve", "."] },
+  { name: "project status", args: ["project", "status", "."] },
   { name: "project isolate plan", args: ["project", "isolate", "plan", "."] },
   { name: "project isolate sync", args: ["project", "isolate", "sync", "."] },
   { name: "project isolate clean", args: ["project", "isolate", "clean", "."] },

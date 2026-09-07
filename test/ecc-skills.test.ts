@@ -7,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { loadLock } from "../src/core/catalog.js";
 import { ComponentPlanError } from "../src/core/component-session.js";
-import { createEccFixtureOperationPlan } from "../src/core/ecc-fixture.js";
+import { createEccFixtureOperationPlan, readEccSkillSource } from "../src/core/ecc-fixture.js";
 import { applyEccSkillSync, globalEccSkillRoot, planEccSkillOperation, planEccSkillSync } from "../src/core/ecc-skills.js";
 import { packageRoot } from "../src/core/paths.js";
 import { acquireMutationSession, inspectWriterState, writerLockPath } from "../src/core/writer-lock.js";
@@ -208,12 +208,6 @@ async function realEccLock(): Promise<NonNullable<StackLock["components"]["ecc"]
   return ecc;
 }
 
-/**
- * The contract this task adds, expressed before it exists so the RED run fails
- * on the behaviour rather than on a compile error.
- */
-type FixtureOptions = Parameters<typeof createEccFixtureOperationPlan>[0] & { skills?: readonly string[] };
-
 test("the ECC fixture plan defaults to exactly the three global skills", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-ecc-plan-default-"));
   context.after(async () => rm(root, { recursive: true, force: true }));
@@ -237,7 +231,7 @@ test("the ECC fixture plan accepts a caller-supplied skill list", async (context
     ecc: { ...ecc, skills: [...ecc.skills, ...packSkills] },
     fixtureRoot: root,
     skills: packSkills,
-  } as FixtureOptions);
+  });
 
   assert.deepEqual([...plan.skills], packSkills, "the fixture must plan exactly the skills the caller named");
   for (const skill of packSkills) {
@@ -256,13 +250,9 @@ test("a fixture skill with no SKILL.md is a loud failure naming that skill", asy
   await mkdir(join(root, "browser-qa"), { recursive: true });
   await writeFile(join(root, "browser-qa", "SKILL.md"), "present\n");
 
-  const fixtureModule = await import("../src/core/ecc-fixture.js") as Record<string, unknown>;
-  assert.equal(typeof fixtureModule.readEccSkillSource, "function", "ecc-fixture must export readEccSkillSource");
-  const readSource = fixtureModule.readEccSkillSource as (sourceRoot: string, skill: string) => Promise<string>;
-
-  assert.equal(await readSource(root, "browser-qa"), "present\n");
+  assert.equal(await readEccSkillSource(root, "browser-qa"), "present\n");
   await assert.rejects(
-    () => readSource(root, "click-path-audit"),
+    () => readEccSkillSource(root, "click-path-audit"),
     /click-path-audit/u,
     "a named skill absent from the extracted tree must name itself in the failure",
   );

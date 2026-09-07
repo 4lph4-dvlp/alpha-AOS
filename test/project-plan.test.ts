@@ -6,8 +6,9 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -24,7 +25,7 @@ import type {
   StackLock,
 } from "../src/types.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
-import { loadLock } from "../src/core/catalog.js";
+import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { collectProjectEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
@@ -46,12 +47,22 @@ interface RunResult {
   readonly stderr: string;
 }
 
-/** Mirrors `runCli` in test/preview.test.ts, but asynchronous so two runs can overlap. */
-function runCli(args: readonly string[]): Promise<RunResult> {
+/**
+ * Mirrors `runCli` in test/preview.test.ts, but asynchronous so two runs can
+ * overlap, and with an environment override so the personal-scope skill roots
+ * a shadowing check reads can be pointed at a fixture instead of the host.
+ */
+function runCli(args: readonly string[], environment: Record<string, string | undefined> = {}): Promise<RunResult> {
+  const childEnvironment: NodeJS.ProcessEnv = { ...process.env };
+  for (const [name, value] of Object.entries(environment)) {
+    if (value === undefined) delete childEnvironment[name];
+    else childEnvironment[name] = value;
+  }
   return new Promise((resolveRun) => {
     const child = spawn(process.execPath, [cliEntry, ...args], {
       cwd: repositoryRoot,
       windowsHide: true,
+      env: childEnvironment,
     });
     let stdout = "";
     let stderr = "";
@@ -1003,4 +1014,219 @@ test("safeInverse names an operation and a guard carrying a path and an expected
     inverses.map((inverse) => String(asRecord(inverse.guard).path)).sort(),
     planned.map((target) => String(target.path)).sort(),
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-08 Task 2: target pre-state, the D-11 conflict, and honest support
+// ---------------------------------------------------------------------------
+
+/** The skill WEB_REACT declares, and therefore the path a target conflict sits at. */
+const REACT_PACK_SKILL = "frontend-a11y";
+
+/** A react fixture whose Claude project skill root already holds an unowned file. */
+async function conflictFixture(context: TestContext): Promise<{ root: string; targetPath: string }> {
+  const root = await reactFixture(context);
+  await mkdir(join(root, ".claude", "skills", REACT_PACK_SKILL), { recursive: true });
+  await writeFile(
+    join(root, ".claude", "skills", REACT_PACK_SKILL, "SKILL.md"),
+    "# hand-written by somebody else\n",
+    "utf8",
+  );
+  return { root, targetPath: `.claude/skills/${REACT_PACK_SKILL}/SKILL.md` };
+}
+
+/** Every file under a root, as sorted `[relative POSIX path, sha256]` pairs. */
+async function snapshotTree(root: string): Promise<Array<[string, string]>> {
+  const entries: Array<[string, string]> = [];
+  async function walk(directory: string, prefix: string): Promise<void> {
+    const listing = (await readdir(directory, { withFileTypes: true })).sort((left, right) =>
+      left.name < right.name ? -1 : left.name > right.name ? 1 : 0,
+    );
+    for (const entry of listing) {
+      const relativePath = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        await walk(join(directory, entry.name), relativePath);
+        continue;
+      }
+      entries.push([relativePath, createHash("sha256").update(await readFile(join(directory, entry.name))).digest("hex")]);
+    }
+  }
+  await walk(root, "");
+  return entries;
+}
+
+test("a target path that does not exist yields a pre-state with exists false and a null current hash", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+  const targets = asRecordArray(plan.targetPreState, "targetPreState");
+
+  assert.ok(targets.length > 0, "a selected pack produced no target pre-state");
+  for (const target of targets) {
+    assert.equal(target.exists, false, `${String(target.path)} unexpectedly exists`);
+    assert.equal(target.currentHash, null);
+    assert.equal(target.ownedByReceipt, false);
+    assert.equal(target.action, "create");
+  }
+});
+
+test("an unowned file at a pack's target path drops the pack from the applicable set and records the conflict", async (context) => {
+  const { root, targetPath } = await conflictFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+
+  assert.ok((plan.selected as string[]).includes("WEB_REACT"), "the evidence no longer selects the pack under test");
+  assert.equal((plan.applicable as string[]).includes("WEB_REACT"), false, "a conflicting target did not drop the pack");
+
+  const conflicts = asRecordArray(plan.approvals, "approvals").filter((entry) => String(entry.code) === "TARGET_CONFLICT");
+  assert.equal(conflicts.length, 1, `expected exactly one conflict approval, got ${conflicts.length}`);
+  const detail = String(conflicts[0]?.detail ?? "");
+  assert.match(detail, /WEB_REACT/u);
+  assert.ok(detail.includes(targetPath), detail);
+
+  const target = asRecord(asRecordArray(plan.targetPreState, "targetPreState").find((entry) => String(entry.path) === targetPath));
+  assert.equal(target.exists, true);
+  assert.equal(target.ownedByReceipt, false);
+
+  // No inverse is planned for a pack that was dropped.
+  assert.equal(
+    asRecordArray(plan.safeInverse, "safeInverse").some((entry) => String(entry.packId) === "WEB_REACT"),
+    false,
+    "a dropped pack still planned an inverse",
+  );
+});
+
+test("planning a conflicting target renames, moves and overwrites nothing", async (context) => {
+  const { root } = await conflictFixture(context);
+  const before = await snapshotTree(root);
+
+  await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const rendered = await runCli(["project", "plan", root]);
+  assert.equal(rendered.status, 0, rendered.stderr);
+
+  assert.deepEqual(await snapshotTree(root), before, "planning changed the target directory");
+});
+
+test("a receipt claiming the target file yields no conflict for that pack", async (context) => {
+  const { root, targetPath } = await conflictFixture(context);
+  const bytes = await readFile(join(root, ".claude", "skills", REACT_PACK_SKILL, "SKILL.md"), "utf8");
+  await mkdir(join(root, ".alpha-aos", "receipts"), { recursive: true });
+  await writeFile(
+    join(root, ".alpha-aos", "receipts", "WEB_REACT.json"),
+    `${JSON.stringify(
+      {
+        schemaVersion: 1,
+        packId: "WEB_REACT",
+        producer: { name: "alpha-aos", version: "0.0.0" },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        sourceHash: "0".repeat(64),
+        targets: [{ harness: "claude", path: targetPath, targetHash: createHash("sha256").update(bytes, "utf8").digest("hex") }],
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+  assert.ok((plan.applicable as string[]).includes("WEB_REACT"), "a receipt-owned target still dropped the pack");
+  assert.equal(
+    asRecordArray(plan.approvals, "approvals").some((entry) => String(entry.code) === "TARGET_CONFLICT"),
+    false,
+    "a receipt-owned target still reported a conflict",
+  );
+
+  const target = asRecord(asRecordArray(plan.targetPreState, "targetPreState").find((entry) => String(entry.path) === targetPath));
+  assert.equal(target.exists, true);
+  assert.equal(target.ownedByReceipt, true);
+});
+
+test("adapterSupport reports one classification per declared harness in the project's own three-value vocabulary", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+  const declared = Object.keys((await loadCatalog(repositoryRoot)).harnesses).sort();
+  const support = asRecord(plan.adapterSupport);
+
+  assert.deepEqual(Object.keys(support).sort(), declared);
+  for (const [harness, value] of Object.entries(support)) {
+    assert.ok(
+      ["supported", "unsupported", "unverified"].includes(String(value)),
+      `${harness} carries ${String(value)}, which is not one of the project's three support classifications`,
+    );
+  }
+});
+
+test("no harness lacking documented project-scope discovery is reported supported", async (context) => {
+  const root = await reactFixture(context);
+  const plan = asRecord(await planProjectCapabilities({ path: root, packageRoot: repositoryRoot }));
+  const support = asRecord(plan.adapterSupport);
+
+  // Only Claude Code's project skill location is documented. Everything else
+  // is reported at the confidence it actually has.
+  assert.deepEqual(
+    Object.entries(support).filter(([, value]) => value === "supported").map(([harness]) => harness),
+    ["claude"],
+  );
+  assert.equal(support.codex, "unverified");
+  assert.equal(support.pi, "unverified");
+  assert.equal(support.antigravity, "unsupported");
+  assert.equal(support.hermes, "unsupported");
+
+  const evidence = asRecordArray(plan.adapterSupportEvidence, "adapterSupportEvidence");
+  assert.equal(evidence.length, Object.keys(support).length);
+  for (const entry of evidence) {
+    assert.equal(support[String(entry.harness)], entry.support);
+    assert.ok(String(entry.reason).length > 0, `${String(entry.harness)} states no basis for its classification`);
+  }
+
+  // A harness nothing has classified fails CLOSED to unverified.
+  const classify = await planExport<(declared: readonly string[]) => Array<Record<string, unknown>>>("classifyAdapterSupport");
+  assert.equal(classify(["future-harness"])[0]?.support, "unverified");
+});
+
+test("a pack skill colliding with a personal-scope skill records a named shadowing approval", async (context) => {
+  const root = await reactFixture(context);
+  const collidingHome = await scratchRoot(context, "personal-home");
+  await mkdir(join(collidingHome, ".claude", "skills", REACT_PACK_SKILL), { recursive: true });
+  await writeFile(join(collidingHome, ".claude", "skills", REACT_PACK_SKILL, "SKILL.md"), "# personal\n", "utf8");
+  const emptyHome = await scratchRoot(context, "personal-empty");
+
+  const collided = await runCli(["project", "plan", root, "--json"], {
+    HOME: collidingHome,
+    USERPROFILE: collidingHome,
+    CLAUDE_CONFIG_DIR: undefined,
+    ANTIGRAVITY_CONFIG_DIR: undefined,
+    HERMES_HOME: undefined,
+  });
+  assert.equal(collided.status, 0, collided.stderr);
+  const shadowed = (JSON.parse(collided.stdout) as { approvals: Array<{ code: string; detail: string }> }).approvals
+    .filter((entry) => entry.code === "SKILL_SHADOWED");
+  assert.equal(shadowed.length, 1, `expected one shadowing approval, got ${shadowed.length}`);
+  assert.match(shadowed[0]?.detail ?? "", new RegExp(REACT_PACK_SKILL, "u"));
+
+  // Emitted on an OBSERVED collision, never assumed.
+  const quiet = await runCli(["project", "plan", root, "--json"], {
+    HOME: emptyHome,
+    USERPROFILE: emptyHome,
+    CLAUDE_CONFIG_DIR: undefined,
+    ANTIGRAVITY_CONFIG_DIR: undefined,
+    HERMES_HOME: undefined,
+  });
+  assert.equal(quiet.status, 0, quiet.stderr);
+  assert.deepEqual(
+    (JSON.parse(quiet.stdout) as { approvals: Array<{ code: string }> }).approvals.filter((entry) => entry.code === "SKILL_SHADOWED"),
+    [],
+  );
+});
+
+test("the text rendering carries the target pre-state, adapter-support and approval rows", async (context) => {
+  const { root, targetPath } = await conflictFixture(context);
+  const result = await runCli(["project", "plan", root]);
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^CONFLICT WEB_REACT /mu, result.stdout);
+  assert.ok(result.stdout.includes(targetPath), result.stdout);
+  assert.match(result.stdout, /HARNESS\s+SUPPORT\s+BASIS/u, result.stdout);
+  assert.match(result.stdout, /^claude\s+supported\s+\S/mu, result.stdout);
+  assert.match(result.stdout, /^codex\s+unverified\s+\S/mu, result.stdout);
+  assert.match(result.stdout, /^TARGET\s+HARNESS\s+STATE\s+ACTION/mu, result.stdout);
+  assert.match(result.stdout, /^APPROVAL PACKAGE_SOURCE /mu, result.stdout);
 });

@@ -258,12 +258,20 @@ test("a fixture skill with no SKILL.md is a loud failure naming that skill", asy
   );
 });
 
-test("the global ECC skill sync stays at exactly three entries", async (context) => {
+test("a grown ECC lock does not grow the global skill sync", async (context) => {
   const target = await mkdtemp(join(tmpdir(), "alpha-aos-ecc-global-"));
   context.after(async () => rm(target, { recursive: true, force: true }));
+  const lock = await loadLock(packageRoot());
 
-  const plan = await planEccSkillSync(HARNESS, await loadLock(packageRoot()), target);
+  // Without this the count assertion below could pass vacuously against a lock
+  // that never grew: it must be the GROWN lock that still syncs exactly three.
+  const pinned = Object.keys(lock.components.ecc?.sourceSha256 ?? {});
+  assert.ok(pinned.length > SKILLS.length, `the lock must carry pack skills for this net to mean anything (has ${pinned.length})`);
 
+  const plan = await planEccSkillSync(HARNESS, lock, target);
+
+  // Count AND ids: a count-only assertion would pass if a pack skill displaced
+  // a global one, which is exactly the elevation this net exists to catch.
   assert.equal(plan.entries.length, 3, "widening the fixture must never widen the global sync");
   assert.deepEqual(plan.entries.map((entry) => entry.skill), [...SKILLS]);
 });

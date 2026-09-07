@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,8 +12,51 @@ import {
   ManagedDocumentError,
 } from "../src/core/catalog.js";
 import { renderOwnedSkill } from "../src/core/owned-skills.js";
+import { loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import { createInstallPlan } from "../src/core/plan.js";
+
+/**
+ * Every pack file on disk, read from the directory rather than restated here.
+ * A name list in this test would go green for a pack added after the test was
+ * written, which is precisely the failure this net exists to catch.
+ */
+async function declaredPackFiles(): Promise<string[]> {
+  const names = (await readdir(join(packageRoot(), "catalog", "packs")))
+    .filter((name) => name.endsWith(".yaml"))
+    .sort();
+  assert.ok(names.length > 0, "catalog/packs must declare at least one pack file");
+  return names.map((name) => `catalog/packs/${name}`);
+}
+
+test("every skill any declared pack names is pinned in the stable lock", async () => {
+  const root = packageRoot();
+  const catalog = await loadPackCatalogStrict(root, await declaredPackFiles());
+  const ecc = (await loadLock(root)).components.ecc;
+  assert.ok(ecc, "the stable lock must carry an ECC component");
+
+  const declared = [...new Set(catalog.value.packs.flatMap((pack) => pack.skills ?? []))].sort();
+  assert.ok(declared.length > 0, "the declared packs must name at least one skill");
+
+  // D-08: a pack is never planned sourceless. The expected set is computed from
+  // the catalog at runtime, so declaring a pack whose skill is unpinned turns
+  // this red at the moment the pack is declared.
+  const unpinned = declared.filter((skill) => ecc.sourceSha256[skill] === undefined);
+  assert.deepEqual(unpinned, [], `pack skills with no sourceSha256 entry: ${unpinned.join(", ")}`);
+
+  const unlisted = declared.filter((skill) => !ecc.skills.includes(skill));
+  assert.deepEqual(unlisted, [], `pack skills absent from components.ecc.skills: ${unlisted.join(", ")}`);
+
+  // The loader's own file list must not drift from the directory. A pack file
+  // the loader never reads would be pinned by scripts/pin-pack-skills.mjs and
+  // still be permanently unselectable — the silent half of D-05.
+  const loaded = await loadPackCatalogStrict(root);
+  assert.deepEqual(
+    loaded.value.packs.map((pack) => pack.id),
+    catalog.value.packs.map((pack) => pack.id),
+    "loadPackCatalogStrict must read every pack file present in catalog/packs",
+  );
+});
 
 test("stable catalog loads exact locked components", async () => {
   const root = packageRoot();
@@ -23,7 +66,11 @@ test("stable catalog loads exact locked components", async () => {
   assert.equal(catalog.components.ecc.profileInstallAllowed, false);
   assert.equal(lock.components.gsd?.version, "1.12.0");
   assert.equal(lock.components.ecc?.version, "2.2.0");
+  // All three global source hashes as literals, so a lock rewrite that quietly
+  // moves one is visible here rather than absorbed.
   assert.equal(lock.components.ecc?.sourceSha256["unified-memory"], "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0");
+  assert.equal(lock.components.ecc?.sourceSha256["documentation-lookup"], "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1");
+  assert.equal(lock.components.ecc?.sourceSha256["deep-research"], "f85e06874ffd0fcfea6051b4292f45fc2b7e4cd47586659817ddbafd6bea3ede");
   assert.equal(lock.components.ecc?.targetSha256["deep-research"]?.codex, "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74");
   assert.deepEqual(Object.keys(lock.components.mcp ?? {}), ["context7", "exa", "firecrawl"]);
   assert.equal(lock.components.mcpBridges?.pi?.version, "2.31.0");

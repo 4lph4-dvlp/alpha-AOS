@@ -156,3 +156,88 @@ test("an x- namespaced property on a fact loads and is preserved verbatim", asyn
   assert.equal((fact as unknown as Record<string, unknown>)["x-vendor-note"], "kept");
   assert.equal(fact.kind, "dependency");
 });
+
+// ---------------------------------------------------------------------------
+// Task 2 — the full-fidelity pack schema and the seven-file merging loader
+// ---------------------------------------------------------------------------
+
+/** Every pack id declared under `catalog/packs/`, as the files stand today. */
+const DECLARED_PACK_IDS: readonly string[] = [
+  "AGENT_RUNTIME",
+  "AI_EVAL",
+  "API",
+  "BROWNFIELD_INIT",
+  "CACHE_REDIS",
+  "CONTAINER",
+  "DB_MIGRATION",
+  "DB_POSTGRES",
+  "DEPLOYMENT",
+  "MCP_SERVER",
+  "RESEARCH_SCIENTIFIC",
+  "SECURITY_REVIEW",
+  "WEB_BASE",
+  "WEB_FLOW_AUDIT",
+  "WEB_REACT",
+];
+
+test("all seven pack files merge into one catalog of fifteen packs", async () => {
+  const catalog = await loadPackCatalogStrict(packageRoot());
+  const ids = catalog.value.packs.map((pack) => pack.id);
+
+  assert.equal(ids.length, 15);
+  assert.deepEqual([...ids].sort(), [...DECLARED_PACK_IDS].sort());
+  // Codepoint order, not locale order: the merged catalog must be byte-stable
+  // on every host, and `localeCompare` is not.
+  assert.deepEqual(ids, [...ids].sort());
+});
+
+test("lifecycle and selectionPolicy survive the merge unchanged", async () => {
+  const catalog = await loadPackCatalogStrict(packageRoot());
+  const byId = new Map(catalog.value.packs.map((pack) => [pack.id, pack]));
+
+  assert.equal(byId.get("BROWNFIELD_INIT")?.lifecycle, "one-shot-remove-after-output");
+  assert.equal(byId.get("SECURITY_REVIEW")?.selectionPolicy, "prefer-native-single-engine");
+  assert.deepEqual(byId.get("API")?.skills, []);
+});
+
+test("an any item may be a nested evidence node", async (t) => {
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: {
+      "security.yaml": `schemaVersion: 1
+packs:
+  - id: SECURITY_REVIEW
+    evidence:
+      any:
+        - web-framework
+        - manifestOptIn: securityReview
+`,
+    },
+  });
+
+  const catalog = await loadPackCatalogStrict(root, packFiles);
+  const node = catalog.value.packs[0]?.evidence;
+  assert.deepEqual(node?.any, ["web-framework", { manifestOptIn: "securityReview" }]);
+});
+
+test("evidence nesting is accepted to four levels and refused beyond", async (t) => {
+  const nested = (depth: number): string => {
+    let body = "[web-framework]";
+    for (let level = depth; level > 1; level -= 1) body = `[{any: ${body}}]`;
+    return body;
+  };
+
+  const deep = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: { "deep.yaml": `schemaVersion: 1\npacks:\n  - id: DEEP\n    evidence:\n      any: ${nested(4)}\n` },
+  });
+  const catalog = await loadPackCatalogStrict(deep.root, deep.packFiles);
+  assert.equal(catalog.value.packs[0]?.id, "DEEP");
+
+  const deeper = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: { "deep.yaml": `schemaVersion: 1\npacks:\n  - id: DEEP\n    evidence:\n      any: ${nested(5)}\n` },
+  });
+  const error = await rejection(async () => loadPackCatalogStrict(deeper.root, deeper.packFiles));
+  assert.match(error.issues[0]?.code ?? "", /^schema\./u);
+});

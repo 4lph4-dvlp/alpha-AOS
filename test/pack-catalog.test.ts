@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ManagedDocumentError } from "../src/core/catalog.js";
-import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
+import { loadFactVocabularyStrict, loadPackCatalogStrict, packCatalogInvariants } from "../src/core/pack-catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import type { EvidenceNode } from "../src/types.js";
 
@@ -240,4 +240,112 @@ test("evidence nesting is accepted to four levels and refused beyond", async (t)
   });
   const error = await rejection(async () => loadPackCatalogStrict(deeper.root, deeper.packFiles));
   assert.match(error.issues[0]?.code ?? "", /^schema\./u);
+});
+
+// ---------------------------------------------------------------------------
+// Task 3 — domain invariants: duplicate ids and undeclared facts refuse at load
+// ---------------------------------------------------------------------------
+
+/** Distinctive enough that a leak into an issue would be unmistakable. */
+const UNDECLARED_FACT = "nonexistent-fact-abcxyz";
+
+test("two pack files declaring the same pack id are refused", async (t) => {
+  const declaration = (file: string) => `schemaVersion: 1
+packs:
+  - id: WEB_BASE
+    evidence:
+      any: [web-framework]
+    skills: [${file}]
+`;
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: { "a.yaml": declaration("from-a"), "b.yaml": declaration("from-b") },
+  });
+
+  const error = await rejection(async () => loadPackCatalogStrict(root, packFiles));
+  assert.equal(error.issues[0]?.code, "domain.duplicate-pack-id");
+  assert.match(error.issues[0]?.documentPath ?? "", /^\/packs\/\d+$/u);
+});
+
+test("a predicate naming a fact the vocabulary does not declare is refused", async (t) => {
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: {
+      "web.yaml": `schemaVersion: 1
+packs:
+  - id: WEB_BASE
+    evidence:
+      all: [web-framework, ${UNDECLARED_FACT}]
+`,
+    },
+  });
+
+  const error = await rejection(async () => loadPackCatalogStrict(root, packFiles));
+  assert.equal(error.issues[0]?.code, "domain.undeclared-fact");
+  assert.match(error.issues[0]?.expected ?? "", /catalog\/facts\.yaml/u);
+});
+
+test("a refusal reports the offending id's shape and never its value", async (t) => {
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: {
+      "web.yaml": `schemaVersion: 1
+packs:
+  - id: WEB_BASE
+    evidence:
+      any:
+        - any: [${UNDECLARED_FACT}]
+`,
+    },
+  });
+
+  const error = await rejection(async () => loadPackCatalogStrict(root, packFiles));
+  assert.ok(error.issues.length > 0);
+  for (const issue of error.issues) {
+    assert.match(issue.actualShape, /^string\(length=\d+\)$/u);
+  }
+  assert.ok(
+    !JSON.stringify(error.issues).includes(UNDECLARED_FACT),
+    "no part of a refusal may echo the offending value",
+  );
+  assert.equal(error.issues[0]?.actualShape, `string(length=${UNDECLARED_FACT.length})`);
+});
+
+test("inline literals are not fact ids and are never refused as undeclared", async (t) => {
+  const literalsOnly = `schemaVersion: 1
+packs:
+  - id: CONTAINER
+    evidence:
+      anyFiles: [Dockerfile, compose.yaml]
+  - id: WEB_REACT
+    evidence:
+      anyDependencies: [react, next]
+  - id: RESEARCH_SCIENTIFIC
+    evidence:
+      manifestOptIn: scientificResearch
+`;
+  const clean = await catalogFixture(t, { facts: ONE_FACT, packs: { "mixed.yaml": literalsOnly } });
+  const catalog = await loadPackCatalogStrict(clean.root, clean.packFiles);
+  assert.deepEqual(
+    catalog.value.packs.map((pack) => pack.id),
+    ["CONTAINER", "RESEARCH_SCIENTIFIC", "WEB_REACT"],
+  );
+
+  // The same fixture with one `any` leaf added does refuse, which is what
+  // shows the literals above were exempt rather than merely unchecked.
+  const dirty = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: { "mixed.yaml": `${literalsOnly}  - id: API\n    evidence:\n      any: [${UNDECLARED_FACT}]\n` },
+  });
+  const error = await rejection(async () => loadPackCatalogStrict(dirty.root, dirty.packFiles));
+  assert.equal(error.issues[0]?.code, "domain.undeclared-fact");
+});
+
+test("the real repository catalog satisfies every invariant", async () => {
+  const root = packageRoot();
+  const catalog = await loadPackCatalogStrict(root);
+  const vocabulary = await loadFactVocabularyStrict(root);
+
+  assert.deepEqual(packCatalogInvariants(catalog.value, vocabulary.value), []);
+  assert.equal(catalog.value.packs.length, 15);
 });

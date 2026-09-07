@@ -89,6 +89,17 @@ export async function loadPackCatalogStrict(
 }
 
 /**
+ * RED scaffold. GREEN runs the post-merge domain pass: duplicate pack ids,
+ * duplicate fact ids, and predicate leaves naming a fact the vocabulary does
+ * not declare.
+ */
+export function packCatalogInvariants(merged: PackCatalog, vocabulary: FactVocabulary): ValidationIssue[] {
+  void merged;
+  void vocabulary;
+  return [];
+}
+
+/**
  * Domain invariants the vocabulary schema cannot express. The offending id
  * never enters an issue — a scanned document may carry a secret, so only its
  * shape is reported.

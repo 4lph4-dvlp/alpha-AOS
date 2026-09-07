@@ -361,6 +361,15 @@ export interface PackEvaluation {
   failed: LeafResult[];
   /** Leaves whose fact is declared but has no detector in this phase. */
   deferred: DeferredFact[];
+  /**
+   * Leaves naming a fact `catalog/facts.yaml` does not declare at all.
+   *
+   * `loadPackCatalogStrict` refuses such a pack at load, so this is empty on
+   * every supported route. It exists because the fail-closed answer for a
+   * predicate that arrived some other way must be `unimplemented` naming the
+   * offending fact, never an ordinary non-match.
+   */
+  undeclared: string[];
   /** The whole outcome as one line, rendered from the fact vocabulary. */
   explanation: string;
   /** Why the project manifest forced this pack, when it did. */

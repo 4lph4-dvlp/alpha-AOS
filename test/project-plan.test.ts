@@ -500,6 +500,7 @@ function syntheticNearMiss(packId: string, satisfiedCount: number): PackEvaluati
     satisfied,
     failed,
     deferred: [],
+    undeclared: [],
     explanation: `${packId}: ${satisfied[0]?.phrase ?? ""} — missing: ${failed[0]?.phrase ?? ""}`,
     overrideReason: null,
   };
@@ -737,4 +738,28 @@ test("--why states the manifest as the reason a forced pack attached", async (co
   assert.ok(line, result.stdout);
   assert.match(line, /forced-on/u);
   assert.match(line, /packOverrides/u);
+});
+
+test("a pack naming a fact the vocabulary does not declare is unimplemented, never a plain non-match", async () => {
+  const vocabulary = await vocabularyIndex();
+  vocabulary.delete("eval-assets");
+
+  const evaluation = evaluatePack(
+    { id: "AI_EVAL", evidence: { all: ["model-sdk", "eval-assets"] } },
+    environment({ vocabulary, detected: { "model-sdk": "package.json" } }),
+  );
+
+  assert.equal(evaluation.status, "unimplemented");
+  assert.deepEqual(evaluation.undeclared, ["eval-assets"]);
+  assert.match(evaluation.explanation, /eval-assets/u);
+  assert.match(evaluation.explanation, /catalog\/facts\.yaml/u);
+
+  // A synthesized inline literal is not a declared fact id and is never
+  // mistaken for one.
+  const container = evaluatePack(
+    { id: "CONTAINER", evidence: { anyFiles: ["Dockerfile"] } },
+    environment({ vocabulary, paths: ["Dockerfile"] }),
+  );
+  assert.deepEqual(container.undeclared, []);
+  assert.equal(container.status, "selected");
 });

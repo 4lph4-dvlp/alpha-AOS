@@ -111,6 +111,9 @@ export function describeNearMiss(evaluation: PackEvaluation): string {
 }
 
 function describeDeferral(evaluation: PackEvaluation): string {
+  if (evaluation.undeclared.length > 0) {
+    return `${evaluation.packId}: ${evaluation.undeclared.join(", ")} is not declared by catalog/facts.yaml, so this pack cannot be evaluated`;
+  }
   const requirements = [...new Set(evaluation.deferred.map((entry) => entry.deferredTo))].sort(byCodePoint);
   const facts = evaluation.deferred.map((entry) => entry.factId).join(", ");
   return `${evaluation.packId}: no detector runs for ${facts} — deferred to ${requirements.join(", ")}`;
@@ -351,11 +354,31 @@ function deferredFactsOf(
     .sort((left, right) => byCodePoint(left.factId, right.factId));
 }
 
+/**
+ * Leaves naming a fact the vocabulary does not declare at all.
+ *
+ * A synthesized leaf id always carries an operator prefix and a colon, which
+ * a declared fact id cannot (`^[a-z][a-z0-9-]*$` in the vocabulary schema), so
+ * the two are distinguishable without a second flag on the leaf.
+ */
+function undeclaredFactsOf(
+  leaves: readonly LeafResult[],
+  environment: PackEvaluationEnvironment,
+): string[] {
+  const found = new Set<string>();
+  for (const leaf of leaves) {
+    if (leaf.factId.includes(":")) continue;
+    if (!environment.vocabulary.has(leaf.factId)) found.add(leaf.factId);
+  }
+  return [...found].sort(byCodePoint);
+}
+
 export interface PackClassification {
   readonly value: boolean;
   readonly satisfied: readonly LeafResult[];
   readonly failed: readonly LeafResult[];
   readonly deferred: readonly DeferredFact[];
+  readonly undeclared: readonly string[];
   readonly override: PackOverride | null;
 }
 
@@ -374,6 +397,9 @@ export function classifyPack(classification: PackClassification): PackStatus {
   if (classification.override === "force-on") return "forced-on";
 
   const broadOnly = classification.satisfied.length > 0 && classification.satisfied.every((leaf) => leaf.broad);
+  // An undeclared fact outranks the truth value: a pack that cannot be
+  // evaluated must never be reported as a repository that did not qualify.
+  if (classification.undeclared.length > 0) return "unimplemented";
   if (classification.value && !broadOnly) return "selected";
   if (classification.deferred.length > 0) return "unimplemented";
   if (classification.satisfied.length > 0 && classification.failed.length > 0) return "near-miss";
@@ -386,9 +412,10 @@ export function evaluatePack(pack: PackDeclaration, environment: PackEvaluationE
   const satisfied = result.leaves.filter((leaf) => leaf.detected).sort(byFactId);
   const failed = result.leaves.filter((leaf) => !leaf.detected).sort(byFactId);
   const deferred = deferredFactsOf(result.leaves, environment);
+  const undeclared = undeclaredFactsOf(result.leaves, environment);
   const override = environment.overrides.get(pack.id) ?? null;
 
-  const status = classifyPack({ value: result.value, satisfied, failed, deferred, override });
+  const status = classifyPack({ value: result.value, satisfied, failed, deferred, undeclared, override });
   // D-06: the override is recorded as EVIDENCE, in the same structure as every
   // other reason, so "why did this pack attach?" can answer "the user
   // specified it explicitly" rather than leaving an unexplained deviation.
@@ -403,6 +430,7 @@ export function evaluatePack(pack: PackDeclaration, environment: PackEvaluationE
     satisfied,
     failed,
     deferred,
+    undeclared,
     explanation: "",
     overrideReason,
   };
@@ -534,6 +562,7 @@ export async function planProjectCapabilities(
       satisfied: evaluation.satisfied.map((leaf) => [leaf.factId, leaf.path]),
       failed: evaluation.failed.map((leaf) => [leaf.factId, leaf.reason]),
       deferred: evaluation.deferred.map((entry) => [entry.factId, entry.deferredTo]),
+      undeclared: evaluation.undeclared,
     })),
     selected,
     nearMissOrder,

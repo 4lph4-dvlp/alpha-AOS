@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/fact-vocabulary.schema.json",
+  "title": "alpha-AOS declared fact vocabulary",
+  "description": "Closed-world contract for catalog/facts.yaml. Every fact a pack predicate may name is declared here, with one of six bounded detector kinds plus that kind's parameters. Detector kinds are code; detector instances are data, so adding a fact needs no TypeScript edit and no rebuild. Content-match vocabularies are declared here — in a repository-owned reviewed file — and are never taken from the scanned project.",
+  "type": "object",
+  "required": ["schemaVersion", "facts"],
+  "additionalProperties": false,
+  "$defs": {
+    "stringList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "facts": {
+      "description": "Every declared fact. A pack predicate naming a fact absent from this array is refused at load rather than being permanently unselectable.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind"],
+        "additionalProperties": false,
+        "patternProperties": {
+          "^x-[a-z0-9]+(?:-[a-z0-9]+)*$": {
+            "description": "A namespaced extension. Preserved verbatim and inert; nothing in alpha-AOS reads it."
+          }
+        },
+        "properties": {
+          "id": {
+            "description": "Stable fact identifier, referenced by pack predicates and by evidence records.",
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9-]*$"
+          },
+          "kind": {
+            "description": "Which of the six bounded detectors observes this fact. The enum is closed: a seventh kind is an additive schema change, never a silent extension.",
+            "enum": ["dependency", "file", "directory", "manifestKey", "fileAbsent", "fileContent"]
+          },
+          "packages": {
+            "description": "kind=dependency: package names to look for in a declared dependency manifest.",
+            "$ref": "#/$defs/stringList"
+          },
+          "files": {
+            "description": "kind=file and kind=fileAbsent: the alternative paths, relative to the canonical root. kind=fileContent: the search set the declared patterns are applied to.",
+            "$ref": "#/$defs/stringList"
+          },
+          "directories": {
+            "description": "kind=directory: the alternative directory paths, relative to the canonical root.",
+            "$ref": "#/$defs/stringList"
+          },
+          "manifestKey": {
+            "description": "kind=manifestKey: the project-manifest key that carries this fact. Only a current, valid manifest contributes.",
+            "type": "string",
+            "minLength": 1
+          },
+          "patterns": {
+            "description": "kind=fileContent: the match vocabulary. Declared here so it is reviewable and correctable without a rebuild, and so it is never read from the scanned project.",
+            "$ref": "#/$defs/stringList"
+          },
+          "broad": {
+            "description": "This fact also exists in repositories that are not this kind of project, so it must never be a pack's only satisfied leaf.",
+            "type": "boolean"
+          },
+          "description": {
+            "description": "Why this fact is declared the way it is. Read by humans reviewing the vocabulary, never by the evaluator.",
+            "type": "string",
+            "minLength": 1
+          },
+          "deferredTo": {
+            "description": "The requirement id that owns a fact declared here but not implemented in this phase. Declaring it keeps the near-miss line honest instead of silently omitting the pack's leaf.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

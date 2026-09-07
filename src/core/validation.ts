@@ -19,7 +19,8 @@ export type ManagedDocumentKind =
   | "evidence"
   | "receipt"
   | "native-config"
-  | "pack-catalog";
+  | "pack-catalog"
+  | "fact-vocabulary";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -299,6 +300,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   receipt: null,
   "native-config": "alphaAos",
   "pack-catalog": null,
+  "fact-vocabulary": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -367,6 +369,10 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
   "pack-catalog": coreObject(["schemaVersion", "packs"], {
     schemaVersion: { type: "integer" },
     packs: { type: "array" },
+  }),
+  "fact-vocabulary": coreObject(["schemaVersion", "facts"], {
+    schemaVersion: { type: "integer" },
+    facts: { type: "array" },
   }),
 };
 

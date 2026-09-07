@@ -1,0 +1,348 @@
+# The declared fact vocabulary.
+#
+# Every fact id a pack predicate in `catalog/packs/*.yaml` may name is declared
+# here. Adding a fact is a YAML edit: only the six detector KINDS are code, and
+# a pack naming a fact absent from this file is refused at load rather than
+# becoming permanently, silently unselectable.
+#
+# Two rules this file encodes mechanically:
+#   - `broad: true` marks a fact that also exists in repositories that are not
+#     this kind of project, so it may never be a pack's only satisfied leaf.
+#   - every `fileContent` pattern lives HERE, in a reviewed repository-owned
+#     file, and is never read from the scanned project. That is the ReDoS
+#     boundary; the patterns below are anchored or literal, with no nested
+#     quantifier, so match cost stays linear in the input.
+schemaVersion: 1
+facts:
+  # --- AI / agent runtime ---------------------------------------------------
+  - id: mcp-sdk-dependency
+    kind: dependency
+    description: An MCP server or client SDK is a declared dependency.
+    packages:
+      - "@modelcontextprotocol/sdk"
+      - mcp
+      - fastmcp
+      - mcp-server
+
+  - id: mcp-server-manifest
+    kind: file
+    description: A repository-level MCP server declaration.
+    files:
+      - mcp.json
+      - .mcp.json
+      - mcp-server.json
+
+  - id: agent-sdk-dependency
+    kind: dependency
+    description: An agent-orchestration framework is a declared dependency.
+    packages:
+      - langchain
+      - "@langchain/core"
+      - "@langchain/langgraph"
+      - langgraph
+      - crewai
+      - autogen
+      - pyautogen
+      - pydantic-ai
+      - "@anthropic-ai/claude-agent-sdk"
+
+  - id: agent-runtime-config
+    kind: file
+    broad: true
+    description: >-
+      A generic agent-instruction file or skill directory. This repository is
+      its own negative fixture — it carries a 21 KB AGENTS.md — so presence
+      alone must never activate an agent-runtime pack.
+    files:
+      - AGENTS.md
+      - .claude/skills
+      - .agents/skills
+
+  - id: model-sdk
+    kind: dependency
+    description: A model-provider SDK is a declared dependency.
+    packages:
+      - openai
+      - "@anthropic-ai/sdk"
+      - anthropic
+      - google-generativeai
+      - "@google/generative-ai"
+      - cohere-ai
+      - mistralai
+
+  - id: eval-assets
+    kind: directory
+    description: A directory holding evaluation or benchmark assets.
+    directories:
+      - evals
+      - eval
+      - benchmarks
+
+  # --- Backend --------------------------------------------------------------
+  - id: server-framework
+    kind: dependency
+    description: An HTTP server framework is a declared dependency, across ecosystems.
+    packages:
+      - express
+      - fastify
+      - "@nestjs/core"
+      - koa
+      - "@hapi/hapi"
+      - fastapi
+      - django
+      - djangorestframework
+      - flask
+      - starlette
+      - github.com/gin-gonic/gin
+      - github.com/labstack/echo/v4
+      - actix-web
+      - axum
+
+  - id: openapi
+    kind: file
+    description: A checked-in OpenAPI or Swagger description.
+    files:
+      - openapi.yaml
+      - openapi.yml
+      - openapi.json
+      - swagger.yaml
+      - swagger.yml
+      - swagger.json
+      - docs/openapi.yaml
+      - api/openapi.yaml
+
+  - id: route-controller
+    kind: directory
+    description: A directory holding HTTP route or controller modules.
+    directories:
+      - routes
+      - controllers
+      - src/routes
+      - src/controllers
+      - app/api
+
+  - id: migration-directory
+    kind: directory
+    description: A directory holding ordered schema migrations.
+    directories:
+      - migrations
+      - prisma/migrations
+      - alembic
+      - db/migrate
+
+  - id: orm-migration-config
+    kind: file
+    description: An ORM's migration configuration file.
+    files:
+      - prisma/schema.prisma
+      - alembic.ini
+      - knexfile.js
+      - knexfile.ts
+      - drizzle.config.ts
+      - ormconfig.json
+
+  - id: postgres-driver
+    kind: dependency
+    description: >-
+      A PostgreSQL driver is a declared dependency. The Python names are
+      declared here because plan 02-06 adds the pyproject.toml and
+      requirements.txt readers that first make them reachable.
+    packages:
+      - pg
+      - postgres
+      - postgres.js
+      - psycopg
+      - psycopg2
+      - psycopg2-binary
+      - asyncpg
+      - pg-promise
+
+  - id: postgres-dsn
+    kind: fileContent
+    description: >-
+      A PostgreSQL connection URL appears in a declared configuration file. The
+      patterns describe the scheme prefix only and never a credential shape, so
+      a match records that a DSN exists without describing its contents.
+    files:
+      - .env.example
+      - .env.sample
+      - docker-compose.yml
+      - docker-compose.yaml
+      - compose.yml
+      - compose.yaml
+    patterns:
+      - "postgres://"
+      - "postgresql://"
+
+  - id: redis-client
+    kind: dependency
+    description: A Redis client is a declared dependency.
+    packages:
+      - redis
+      - ioredis
+      - aioredis
+      - github.com/redis/go-redis/v9
+
+  - id: redis-dsn
+    kind: fileContent
+    description: >-
+      A Redis connection URL appears in a declared configuration file. Scheme
+      prefix only, never a credential shape.
+    files:
+      - .env.example
+      - .env.sample
+      - docker-compose.yml
+      - docker-compose.yaml
+      - compose.yml
+      - compose.yaml
+    patterns:
+      - "redis://"
+      - "rediss://"
+
+  # --- Brownfield -----------------------------------------------------------
+  - id: existing-source
+    kind: directory
+    description: The repository already holds source code, so it is not a greenfield start.
+    directories:
+      - src
+      - lib
+      - app
+      - pkg
+      - internal
+
+  - id: missing-conventions-document
+    kind: fileAbsent
+    description: >-
+      Detected means the conventions document is ABSENT. Expressing the
+      negation as its own detector kind is what removes the need for a `not`
+      operator in the predicate grammar.
+    files:
+      - docs/ai/CONVENTIONS.md
+      - CONVENTIONS.md
+      - docs/CONVENTIONS.md
+
+  # --- Infrastructure -------------------------------------------------------
+  - id: deploy-workflow
+    kind: fileContent
+    description: >-
+      A CI workflow that actually deploys, rather than one that merely exists.
+      Seeded conservatively: a declared deployment environment and a small named
+      set of well-known deploy actions. A false negative is acceptable here; a
+      false positive is not. Narrowing or widening this list is a YAML edit.
+    files:
+      - .github/workflows
+    patterns:
+      - "^\\s{2,}environment:\\s*\\S"
+      - "actions/deploy-pages@"
+      - "aws-actions/amazon-ecs-deploy-task-definition@"
+      - "azure/webapps-deploy@"
+      - "google-github-actions/deploy-cloudrun@"
+      - "superfly/flyctl-actions@"
+      - "cloudflare/wrangler-action@"
+      - "amondnet/vercel-action@"
+
+  - id: release-workflow
+    kind: fileContent
+    description: >-
+      A CI workflow triggered by, or performing, a release. Same conservative
+      rule as deploy-workflow.
+    files:
+      - .github/workflows
+    patterns:
+      - "^\\s{2,}release:\\s*$"
+      - "^\\s{2,}- published$"
+      - "softprops/action-gh-release@"
+      - "actions/create-release@"
+      - "changesets/action@"
+      - "semantic-release"
+
+  - id: kubernetes
+    kind: file
+    description: A Kubernetes or Helm deployment description is checked in.
+    files:
+      - kustomization.yaml
+      - Chart.yaml
+      - k8s
+      - deploy/k8s
+      - helm
+
+  - id: terraform
+    kind: file
+    description: Terraform configuration is checked in.
+    files:
+      - main.tf
+      - terraform.tf
+      - versions.tf
+      - .terraform.lock.hcl
+
+  # --- Web ------------------------------------------------------------------
+  - id: web-framework
+    kind: dependency
+    description: A browser-facing UI framework is a declared dependency.
+    packages:
+      - react
+      - next
+      - vue
+      - nuxt
+      - svelte
+      - "@sveltejs/kit"
+
+  - id: browser-entrypoint
+    kind: directory
+    broad: true
+    description: >-
+      A directory a browser entrypoint conventionally lives in. A bare `src/`
+      satisfies this, so it must never be a pack's only satisfied leaf.
+    directories:
+      - app
+      - pages
+      - src
+      - public
+
+  # --- Change-risk facts, deferred to Phase 4 GATE-01 -----------------------
+  #
+  # These eight are change-risk semantics rather than repository-state facts:
+  # they describe what a proposed change touches, not what a directory holds.
+  # Two of them would require credential-scanning a user's repository, which
+  # collides with the secrets constraint. Phase 4's GATE-01 already owns
+  # deterministic risk evidence, so they are declared — keeping the near-miss
+  # line honest — and carry `deferredTo` rather than a detector parameter set.
+  - id: auth-change
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change touches authentication or session handling.
+
+  - id: user-input
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change introduces or widens an untrusted input path.
+
+  - id: secrets
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change touches credential handling.
+
+  - id: payments
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change touches a payment or billing path.
+
+  - id: sensitive-data
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change touches personal or otherwise regulated data.
+
+  - id: command-execution
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change introduces process or shell execution.
+
+  - id: trust-boundary
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change moves or widens a trust boundary.
+
+  - id: public-api
+    kind: fileContent
+    deferredTo: GATE-01
+    description: A proposed change alters a publicly reachable interface.

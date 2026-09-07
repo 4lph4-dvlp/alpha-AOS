@@ -55,7 +55,7 @@ import {
   type ReviewedComponentPlan,
   type ReviewedPlanBoundary,
 } from "./component-session.js";
-import type { DeclaredDependencies, SubProject } from "./evidence.js";
+import type { DeclaredDependencies, SubProject, UndecidableEvidence } from "./evidence.js";
 import {
   collectProjectEvidenceDetail,
   digestableEvidence,
@@ -63,6 +63,7 @@ import {
   isOptedIn,
   lookupDependency,
   normalizeRelativePosix,
+  parseUndecidableReason,
   PROJECT_MANIFEST_PATH,
   resolveCanonicalRoot,
 } from "./evidence.js";
@@ -70,6 +71,7 @@ import { loadFactVocabularyStrict, loadPackCatalogStrict } from "./pack-catalog.
 import { proveOperationPaths, requiredRolesForFileMutation } from "./path-boundary.js";
 import { inspectProjectManifest } from "./project.js";
 import { applyFileTransaction } from "./transaction.js";
+import { validateManagedDocument } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
 
 function sha256(content: string): string {
@@ -1529,4 +1531,384 @@ async function explainPlanDrift(
     "plan-drift",
     `${drift.kind}: ${drift.detail} (${digests}). Re-approve in place with: ${command}`,
   );
+}
+
+// ---------------------------------------------------------------------------
+// DETC-06: reconciling what is installed against what is true NOW
+// ---------------------------------------------------------------------------
+//
+// `status` answers one question per installed pack: is what is on disk still
+// what the evidence supports? Three rules hold across everything below.
+//
+//   1. Evidence is RECOMPUTED, never read back from `.alpha-aos/plan.json`.
+//      The artifact is a record of what was approved, not an authority about
+//      what is true now, and a hostile or simply stale checkout can contain
+//      one. An artifact whose evidence digest disagrees with freshly collected
+//      evidence is reported `CHANGED` and is not honoured.
+//   2. Absence and unreadability are different facts, one layer up from where
+//      plan 02-06 first drew that line. `STALE` asserts the evidence is GONE;
+//      a permission error does not establish that, so an unreadable evidence
+//      file is `UNDECIDABLE` carrying the errno and the path — and therefore
+//      never motivates a removal.
+//   3. Reconciliation is a READ. It writes nothing, creates nothing and
+//      deletes nothing, which is what makes the phase's standing constraint —
+//      stale evidence never triggers automatic deletion — a property of the
+//      code rather than a promise about it.
+
+/**
+ * What one installed pack's evidence and bytes say about it now.
+ *
+ * Six states, checked in order of consequence. The order is the point: a pack
+ * whose evidence cannot be READ must not be reported as a pack whose evidence
+ * is GONE, and a pack the stored artifact claims without support must not be
+ * reported as one the evidence still selects.
+ */
+export type PackState = "CURRENT" | "STALE" | "DRIFTED" | "CHANGED" | "CONFLICT" | "UNDECIDABLE";
+
+/** One target a receipt claims, compared against the bytes on disk. */
+export interface ReconciledTarget {
+  /** Relative POSIX path from the canonical root. */
+  readonly path: string;
+  readonly harness: HarnessId;
+  /** The hash the receipt recorded when the pack was materialized. */
+  readonly expectedHash: string;
+  /** The hash of the bytes there now, or null when absent or unreadable. */
+  readonly currentHash: string | null;
+  readonly exists: boolean;
+  readonly matches: boolean;
+}
+
+/**
+ * One fact that selected a pack and is now absent.
+ *
+ * `sentence` is the whole of what a user reads. Naming only the pack is the
+ * defect this closes: a user told "the pack is stale" cannot tell whether the
+ * dependency was removed, the branch changed, or the file became unreadable.
+ */
+export interface StaleReason {
+  readonly packId: string;
+  readonly factId: string;
+  /** The package, file or manifest key the fact was ABOUT, without its operator prefix. */
+  readonly named: string;
+  /** Why the fresh run says it is not detected. */
+  readonly reason: string;
+  readonly sentence: string;
+}
+
+export interface PackReconciliation {
+  readonly packId: string;
+  readonly state: PackState;
+  /** Relative POSIX path of the receipt that makes this pack "installed". */
+  readonly receiptPath: string;
+  /** One sentence naming why this state and not another. */
+  readonly detail: string;
+  readonly targets: readonly ReconciledTarget[];
+  /** One entry per fact that selected this pack and is now absent. Empty unless STALE. */
+  readonly stale: readonly StaleReason[];
+  /** Paths that exist but could not be read. Empty unless UNDECIDABLE. */
+  readonly undecidable: readonly UndecidableEvidence[];
+}
+
+/** Whether the stored approval is absent, still describes this world, or does not. */
+export type ApprovedArtifactState = "absent" | "current" | "changed";
+
+export interface ProjectReconciliation {
+  /** Freshly recomputed. The reconciliation is derived from THIS, never from the artifact. */
+  readonly plan: ProjectCapabilityPlan;
+  /** The plan the last approval recorded, or null when there is none to read. */
+  readonly approved: ProjectCapabilityPlan | null;
+  readonly artifactState: ApprovedArtifactState;
+  readonly artifactPath: string;
+  /** Pack ids the stored artifact claims that freshly collected evidence does not select. */
+  readonly unsupportedClaims: readonly string[];
+  /** One entry per INSTALLED pack — one that has a receipt. Sorted by pack id. */
+  readonly packs: readonly PackReconciliation[];
+}
+
+/** One receipt, as read through the strict validator. */
+export interface PackReceipt {
+  readonly packId: string;
+  /** Relative POSIX path of the receipt file itself. */
+  readonly path: string;
+  readonly sourceHash: string;
+  /** The evidence envelope that selected this pack, when the receipt records one. */
+  readonly evidenceHash: string | null;
+  readonly targets: readonly { readonly harness: HarnessId; readonly path: string; readonly targetHash: string }[];
+}
+
+let receiptSchema: Record<string, unknown> | null = null;
+
+/**
+ * Every receipt under the receipt directory, read through the ONE managed
+ * document route.
+ *
+ * A malformed receipt is a REFUSAL naming the receipt path, never a partially
+ * trusted state: a receipt decides whether alpha-AOS owns a file, and half of
+ * that answer is worse than none of it. This is deliberately stricter than
+ * `readReceiptClaims`, which tolerates an unreadable receipt because its only
+ * question is ownership and its fail-closed answer is "do not touch that path".
+ */
+export async function readPackReceiptsStrict(root: string, packageRoot: string): Promise<PackReceipt[]> {
+  const directory = join(root, ...PROJECT_RECEIPT_DIRECTORY.split("/"));
+  if (!existsSync(directory)) return [];
+
+  let names: string[];
+  try {
+    names = (await readdir(directory)).filter((name) => name.endsWith(".json")).sort(byCodePoint);
+  } catch (error) {
+    throw new Error(`${PROJECT_RECEIPT_DIRECTORY} exists but could not be listed: ${String(error)}`);
+  }
+
+  receiptSchema ??= JSON.parse(await readFile(join(packageRoot, "schemas", "receipt.schema.json"), "utf8")) as Record<
+    string,
+    unknown
+  >;
+
+  const receipts: PackReceipt[] = [];
+  for (const name of names) {
+    const relativePath = `${PROJECT_RECEIPT_DIRECTORY}/${name}`;
+    let text: string;
+    try {
+      text = await readFile(join(directory, name), "utf8");
+    } catch (error) {
+      throw new Error(`${relativePath} exists but could not be read: ${String(error)}`);
+    }
+    const result = validateManagedDocument<PackReceipt>({
+      text,
+      format: "json",
+      kind: "receipt",
+      schema: receiptSchema,
+    });
+    if (!result.ok || result.value === null) {
+      const codes = result.issues.map((entry) => `${entry.code}@${entry.documentPath}`).join(", ");
+      throw new Error(`${relativePath} is not a valid receipt, so what it claims is refused rather than partly trusted: ${codes || result.status}`);
+    }
+    const value = result.value as unknown as {
+      packId: string;
+      sourceHash: string;
+      evidenceHash?: string;
+      targets: ReadonlyArray<{ harness: HarnessId; path: string; targetHash: string }>;
+    };
+    const targets: PackReceipt["targets"] = value.targets.flatMap((entry) => {
+      const normalized = normalizeRelativePosix(entry.path);
+      return normalized === null ? [] : [{ harness: entry.harness, path: normalized, targetHash: entry.targetHash }];
+    });
+    receipts.push({
+      packId: value.packId,
+      path: relativePath,
+      sourceHash: value.sourceHash,
+      evidenceHash: value.evidenceHash ?? null,
+      targets: [...targets].sort((left, right) => byCodePoint(left.path, right.path)),
+    });
+  }
+  return receipts.sort((left, right) => byCodePoint(left.packId, right.packId));
+}
+
+/** A synthesized leaf id carries its operator; the rest of it is the thing named. */
+function namedByLeaf(factId: string): string {
+  const separator = factId.indexOf(":");
+  return separator === -1 ? factId : factId.slice(separator + 1);
+}
+
+/**
+ * How one missing fact is described, in the shape the CONTEXT asked for.
+ *
+ * "`postgres-patterns` — the `pg` dependency that selected it is gone." The
+ * operator prefix a synthesized leaf id already carries is what decides the
+ * noun, so a dependency, a file and a manifest opt-in each read as themselves
+ * without a per-pack string anywhere.
+ */
+function describeMissingFact(factId: string): string {
+  const named = namedByLeaf(factId);
+  if (factId.startsWith("dependency:")) return `\`${named}\` dependency`;
+  if (factId.startsWith("file:")) return `\`${named}\` file`;
+  if (factId.startsWith("manifest:")) return `\`${named}\` manifest opt-in`;
+  return `\`${factId}\` fact`;
+}
+
+function staleReasonFor(packId: string, leaf: LeafResult, fresh: LeafResult | undefined): StaleReason {
+  const reason = fresh?.reason ?? "the fresh run reports it as not detected and gave no further reason";
+  return {
+    packId,
+    factId: leaf.factId,
+    named: namedByLeaf(leaf.factId),
+    reason,
+    sentence: `${packId} — the ${describeMissingFact(leaf.factId)} that selected it is gone: ${reason}`,
+  };
+}
+
+function evaluationOf(plan: ProjectCapabilityPlan | null, packId: string): PackEvaluation | null {
+  if (plan === null || !Array.isArray(plan.evaluations)) return null;
+  return plan.evaluations.find((evaluation) => evaluation.packId === packId) ?? null;
+}
+
+/**
+ * The whole reconciliation: every installed pack, one honest state each.
+ *
+ * Nothing here writes. `planProjectCapabilities` is what recomputes evidence,
+ * so the states below are derived from a fresh read of the repository and the
+ * stored artifact contributes exactly one thing — the fact set that was
+ * approved, which is what lets a `STALE` line name WHICH fact disappeared.
+ */
+export async function reconcileProjectState(
+  options: PlanProjectCapabilitiesOptions,
+): Promise<ProjectReconciliation> {
+  const plan = await planProjectCapabilities(options);
+  const root = plan.scope.canonicalRoot;
+  const artifactPath = join(root, ...PROJECT_PLAN_ARTIFACT.split("/"));
+  const artifact = await readApprovedProjectPlan(artifactPath);
+  const approved = artifact?.plan ?? null;
+
+  const artifactState: ApprovedArtifactState =
+    approved === null ? "absent" : approved.evidenceDigest === plan.evidenceDigest ? "current" : "changed";
+
+  const selectedNow = new Set(plan.selected);
+  const claimed = Array.isArray(approved?.applicable) ? (approved.applicable as string[]) : [];
+  const unsupportedClaims = [...new Set(claimed.filter((packId) => !selectedNow.has(packId)))].sort(byCodePoint);
+
+  const receipts = await readPackReceiptsStrict(root, options.packageRoot);
+  const packs: PackReconciliation[] = [];
+
+  for (const receipt of receipts) {
+    const targets: ReconciledTarget[] = [];
+    for (const claim of receipt.targets) {
+      const absolute = join(root, ...claim.path.split("/"));
+      const exists = existsSync(absolute);
+      let currentHash: string | null = null;
+      if (exists) {
+        try {
+          currentHash = sha256(await readFile(absolute, "utf8"));
+        } catch {
+          // Present but unreadable: the hash is unknown, so the target cannot
+          // be proven to match and is reported as not matching.
+          currentHash = null;
+        }
+      }
+      targets.push({
+        path: claim.path,
+        harness: claim.harness,
+        expectedHash: claim.targetHash,
+        currentHash,
+        exists,
+        matches: exists && currentHash === claim.targetHash,
+      });
+    }
+
+    packs.push(classifyInstalledPack({ receipt, targets, plan, approved, selected: selectedNow.has(receipt.packId) }));
+  }
+
+  return {
+    plan,
+    approved,
+    artifactState,
+    artifactPath,
+    unsupportedClaims,
+    packs,
+  };
+}
+
+interface InstalledPackInput {
+  readonly receipt: PackReceipt;
+  readonly targets: readonly ReconciledTarget[];
+  readonly plan: ProjectCapabilityPlan;
+  readonly approved: ProjectCapabilityPlan | null;
+  readonly selected: boolean;
+}
+
+/**
+ * One installed pack's state, decided in order of consequence.
+ *
+ * The pack is still selected: a conflicting unowned target outranks drifted
+ * bytes, because a conflict means alpha-AOS would not be the writer at all.
+ * The pack is NOT selected: an unreadable fact outranks a missing one, because
+ * `STALE` asserts absence and a read failure does not establish it; and a fact
+ * that CAN be named outranks a bare artifact claim, because naming the fact is
+ * the whole difference between an actionable report and an unexplained one.
+ */
+function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
+  const { receipt, targets, plan, approved, selected } = input;
+  const freshEvaluation = evaluationOf(plan, receipt.packId);
+  const approvedEvaluation = evaluationOf(approved, receipt.packId);
+  const base = { packId: receipt.packId, receiptPath: receipt.path, targets };
+
+  if (selected) {
+    const conflicts = plan.targetPreState.filter(
+      (target) => target.packId === receipt.packId && target.exists && !target.ownedByReceipt,
+    );
+    if (conflicts.length > 0) {
+      return {
+        ...base,
+        state: "CONFLICT",
+        detail: `${receipt.packId} is still selected, but ${conflicts
+          .map((target) => target.path)
+          .join(", ")} already holds a file alpha-AOS did not write; nothing was overwritten or renamed`,
+        stale: [],
+        undecidable: [],
+      };
+    }
+    const drifted = targets.filter((target) => !target.matches);
+    if (drifted.length > 0) {
+      return {
+        ...base,
+        state: "DRIFTED",
+        detail: `${receipt.packId} is still selected, but the bytes at ${drifted
+          .map((target) => (target.exists ? target.path : `${target.path} (absent)`))
+          .join(", ")} no longer match the hash its receipt recorded`,
+        stale: [],
+        undecidable: [],
+      };
+    }
+    return {
+      ...base,
+      state: "CURRENT",
+      detail: `${receipt.packId} is still selected and every target it claims matches the hash its receipt recorded`,
+      stale: [],
+      undecidable: [],
+    };
+  }
+
+  const freshSatisfied = new Set((freshEvaluation?.satisfied ?? []).map((leaf) => leaf.factId));
+  const freshFailed = new Map((freshEvaluation?.failed ?? []).map((leaf) => [leaf.factId, leaf]));
+  const disappeared = (approvedEvaluation?.satisfied ?? []).filter((leaf) => !freshSatisfied.has(leaf.factId));
+
+  const undecidable = disappeared
+    .map((leaf) => parseUndecidableReason(freshFailed.get(leaf.factId)?.reason ?? null))
+    .filter((entry): entry is UndecidableEvidence => entry !== null);
+
+  if (undecidable.length > 0) {
+    return {
+      ...base,
+      state: "UNDECIDABLE",
+      detail: `${receipt.packId} cannot be decided: ${undecidable
+        .map((entry) => `${entry.path} exists but could not be read (errno=${entry.errno})`)
+        .join("; ")} — that is not evidence that the pack's basis is gone, so it is not reported STALE`,
+      stale: [],
+      undecidable,
+    };
+  }
+
+  if (disappeared.length > 0) {
+    const stale = disappeared.map((leaf) => staleReasonFor(receipt.packId, leaf, freshFailed.get(leaf.factId)));
+    return {
+      ...base,
+      state: "STALE",
+      detail: stale.map((entry) => entry.sentence).join(" | "),
+      stale,
+      undecidable: [],
+    };
+  }
+
+  // Not selected, and no approved fact set names what disappeared. The honest
+  // answer is that the record and the world disagree — not that some
+  // unidentified fact went away.
+  return {
+    ...base,
+    state: "CHANGED",
+    detail:
+      approved === null
+        ? `${receipt.packId} has a receipt but freshly collected evidence does not select it, and no approved plan records which facts selected it, so the fact that changed cannot be named`
+        : `${receipt.packId} is claimed by ${PROJECT_PLAN_ARTIFACT} but freshly collected evidence does not select it; the artifact is a record of what was approved, not an authority about what is true now`,
+    stale: [],
+    undecidable: [],
+  };
 }

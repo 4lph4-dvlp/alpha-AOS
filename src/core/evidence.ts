@@ -1530,8 +1530,40 @@ function ingestManifest(manifest: string, text: string, index: Map<string, Decla
 
 export const PROJECT_MANIFEST_PATH = ".alpha-aos/stack.yaml";
 
+/**
+ * The one prefix that marks a negative record as "could not be decided" rather
+ * than "is absent". A reader that wants the distinction matches on this and on
+ * `parseUndecidableReason` below, so the sentence has exactly one producer and
+ * exactly one parser and the two cannot drift apart.
+ */
+export const UNDECIDABLE_REASON_PREFIX = "UNDECIDABLE: ";
+
+/** Matches whatever `undecidableReason` writes, and nothing else. */
+const UNDECIDABLE_REASON_PATTERN = /^UNDECIDABLE: (.+?) exists but could not be read as declared \(errno=([^)]*)\)/u;
+
 function undecidableReason(evidence: UndecidableEvidence): string {
-  return `UNDECIDABLE: ${evidence.path} exists but could not be read as declared (errno=${evidence.errno})`;
+  return `${UNDECIDABLE_REASON_PREFIX}${evidence.path} exists but could not be read as declared (errno=${evidence.errno})`;
+}
+
+/**
+ * Reads back the path and errno an undecidable record carries.
+ *
+ * The envelope's `EvidenceFact` is a closed schema shape with no structured
+ * `undecidable` field — only `reason` survives into it — so a consumer one
+ * layer up recovers the two values from the sentence. Recovering them HERE,
+ * beside the producer, is what keeps "unreadable" from being re-derived by a
+ * regex written somewhere else against a sentence this module owns.
+ *
+ * Returns null for an absent, empty or differently-shaped reason: a caller that
+ * cannot parse one must treat the record as an ordinary absence, never guess.
+ */
+export function parseUndecidableReason(reason: string | null | undefined): UndecidableEvidence | null {
+  if (typeof reason !== "string") return null;
+  const match = UNDECIDABLE_REASON_PATTERN.exec(reason);
+  if (match === null) return null;
+  const [, path, errno] = match;
+  if (path === undefined || errno === undefined || path.length === 0) return null;
+  return { path, errno };
 }
 
 /**

@@ -337,8 +337,14 @@ export type PackStatus =
   | "forced-on"
   | "forced-off";
 
-/** The two values a `packOverrides` entry may carry. */
-export type PackOverride = "on" | "off";
+/**
+ * The two values a `packOverrides` entry may carry.
+ *
+ * Spelled `force-on` / `force-off` rather than `on` / `off` because YAML 1.1
+ * resolves bare `on` and `off` as booleans, and a user who wrote the obvious
+ * thing would have had their override silently refused by the enum.
+ */
+export type PackOverride = "force-on" | "force-off";
 
 /** A fact declared but deliberately unimplemented, with the requirement that owns it. */
 export interface DeferredFact {

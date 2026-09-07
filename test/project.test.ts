@@ -254,3 +254,26 @@ test("no manifest at all is not an error", async (context) => {
   assert.equal(await inspectProjectManifest(root), null);
   assert.equal(await manifestOptIn(root, "scientificResearch"), false);
 });
+
+test("a packOverrides entry naming an undeclared pack id is refused, not silently ignored", async (context) => {
+  const root = await withManifest(context, "schemaVersion: 1\npackOverrides:\n  NOT_A_PACK: force-on\n");
+  const inspection = await inspectProjectManifest(root);
+
+  assert.ok(inspection);
+  assert.equal(inspection.status, "invalid");
+  assert.equal(inspection.value, null);
+  const issue = inspection.issues.find((entry) => entry.code === "domain.unknown-pack-override");
+  assert.ok(issue, JSON.stringify(inspection.issues));
+  assert.equal(issue.documentPath, "/packOverrides/NOT_A_PACK");
+  assert.match(issue.expected, /declared pack/u);
+  // No issue carries the offending value: only its shape is reported.
+  assert.match(issue.actualShape, /^string\(length=\d+\)$/u);
+
+  // A refused manifest applies no override at all.
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.deepEqual(plan.selected, []);
+
+  // A declared pack id under the same key is accepted.
+  const valid = await withManifest(context, "schemaVersion: 1\npackOverrides:\n  CACHE_REDIS: force-on\n");
+  assert.equal((await inspectProjectManifest(valid))?.status, "current");
+});

@@ -370,8 +370,8 @@ export interface PackClassification {
  * because that pack's `all` also demands a framework dependency.
  */
 export function classifyPack(classification: PackClassification): PackStatus {
-  if (classification.override === "off") return "forced-off";
-  if (classification.override === "on") return "forced-on";
+  if (classification.override === "force-off") return "forced-off";
+  if (classification.override === "force-on") return "forced-on";
 
   const broadOnly = classification.satisfied.length > 0 && classification.satisfied.every((leaf) => leaf.broad);
   if (classification.value && !broadOnly) return "selected";
@@ -389,10 +389,13 @@ export function evaluatePack(pack: PackDeclaration, environment: PackEvaluationE
   const override = environment.overrides.get(pack.id) ?? null;
 
   const status = classifyPack({ value: result.value, satisfied, failed, deferred, override });
+  // D-06: the override is recorded as EVIDENCE, in the same structure as every
+  // other reason, so "why did this pack attach?" can answer "the user
+  // specified it explicitly" rather than leaving an unexplained deviation.
   const overrideReason =
     override === null
       ? null
-      : `${PROJECT_MANIFEST_PATH} forces this pack ${override} through packOverrides`;
+      : `${PROJECT_MANIFEST_PATH} explicitly forces this pack ${override === "force-on" ? "on" : "off"} through packOverrides`;
 
   const evaluation: PackEvaluation = {
     packId: pack.id,
@@ -592,7 +595,7 @@ function overridesOf(manifest: ProjectStackManifest | null): ReadonlyMap<string,
   const safe = Object.assign(Object.create(null) as Record<string, unknown>, manifest.packOverrides);
   for (const key of Object.keys(safe).sort(byCodePoint)) {
     const value = safe[key];
-    if (value === "on" || value === "off") overrides.set(key, value);
+    if (value === "force-on" || value === "force-off") overrides.set(key, value);
   }
   return overrides;
 }

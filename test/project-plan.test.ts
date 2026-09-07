@@ -654,3 +654,87 @@ test("from a repository root with no --project, each sub-project reports its own
   assert.equal(targeted.scope.subProjectPath, "packages/web");
   assert.ok(targeted.selected.includes("WEB_REACT"));
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-07 Task 3: D-06 pack overrides recorded as evidence
+// ---------------------------------------------------------------------------
+
+/** Mirrors `withManifest` in test/project.test.ts: a root carrying one manifest. */
+async function withManifest(context: TestContext, manifest: string, extras: Record<string, string> = {}): Promise<string> {
+  const root = await scratchRoot(context, "override");
+  await mkdir(join(root, ".alpha-aos"), { recursive: true });
+  await writeFile(join(root, ".alpha-aos", "stack.yaml"), manifest, "utf8");
+  for (const [name, content] of Object.entries(extras)) {
+    await writeFile(join(root, name), content, "utf8");
+  }
+  return root;
+}
+
+const REACT_PACKAGE = JSON.stringify({ name: "override-fixture", dependencies: { react: "19.0.0" } });
+
+test("a manifest forcing a pack on selects it, with the manifest recorded as the reason", async (context) => {
+  const root = await withManifest(context, "schemaVersion: 1\npackOverrides:\n  CACHE_REDIS: force-on\n");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const cache = plan.evaluations.find((evaluation) => evaluation.packId === "CACHE_REDIS");
+
+  assert.ok(plan.selected.includes("CACHE_REDIS"), `not selected: ${plan.selected.join(", ")}`);
+  assert.equal(cache?.status, "forced-on");
+  assert.match(cache?.overrideReason ?? "", /\.alpha-aos\/stack\.yaml/u);
+  assert.match(cache?.overrideReason ?? "", /packOverrides/u);
+  assert.match(cache?.explanation ?? "", /packOverrides/u);
+});
+
+test("a manifest forcing a pack off leaves it unselected even when its predicate holds", async (context) => {
+  const root = await withManifest(
+    context,
+    "schemaVersion: 1\npackOverrides:\n  WEB_REACT: force-off\n",
+    { "package.json": REACT_PACKAGE },
+  );
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const web = plan.evaluations.find((evaluation) => evaluation.packId === "WEB_REACT");
+
+  assert.equal(plan.selected.includes("WEB_REACT"), false, `selected: ${plan.selected.join(", ")}`);
+  assert.equal(web?.status, "forced-off");
+  assert.match(web?.overrideReason ?? "", /packOverrides/u);
+});
+
+test("a forced pack still carries its full satisfied and failed leaf arrays", async (context) => {
+  const root = await withManifest(
+    context,
+    "schemaVersion: 1\npackOverrides:\n  WEB_REACT: force-off\n",
+    { "package.json": REACT_PACKAGE },
+  );
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const web = plan.evaluations.find((evaluation) => evaluation.packId === "WEB_REACT");
+
+  // The override was applied AFTER evaluation, not instead of it.
+  assert.deepEqual(leafIds(web?.satisfied ?? []), ["dependency:react"]);
+  assert.deepEqual(leafIds(web?.failed ?? []), ["dependency:next"]);
+  assert.equal(web?.satisfied[0]?.path, "package.json");
+});
+
+test("a manifest that fails validation contributes zero overrides", async (context) => {
+  // A duplicate key makes the document ambiguous, so it is invalid and adds
+  // nothing rather than partially applying whatever happened to parse.
+  const root = await withManifest(
+    context,
+    "schemaVersion: 1\npackOverrides:\n  CACHE_REDIS: force-on\nschemaVersion: 1\n",
+  );
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const cache = plan.evaluations.find((evaluation) => evaluation.packId === "CACHE_REDIS");
+
+  assert.equal(plan.selected.includes("CACHE_REDIS"), false);
+  assert.equal(cache?.status, "silent");
+  assert.equal(cache?.overrideReason, null);
+});
+
+test("--why states the manifest as the reason a forced pack attached", async (context) => {
+  const root = await withManifest(context, "schemaVersion: 1\npackOverrides:\n  CACHE_REDIS: force-on\n");
+  const result = await runCli(["project", "plan", root, "--why"]);
+
+  assert.equal(result.status, 0, result.stderr);
+  const line = result.stdout.split("\n").find((entry) => entry.startsWith("WHY CACHE_REDIS"));
+  assert.ok(line, result.stdout);
+  assert.match(line, /forced-on/u);
+  assert.match(line, /packOverrides/u);
+});

@@ -1,10 +1,14 @@
 import { createHash } from "node:crypto";
 import type {
   EvidenceEnvelope,
+  EvidenceFact,
+  FactDeclaration,
   LeafResult,
   PackDeclaration,
   PackEvaluation,
+  PackOverride,
   ProjectCapabilityPlan,
+  ProjectStackManifest,
 } from "../types.js";
 import { reviewedDigest } from "./component-session.js";
 import type { DeclaredDependencies } from "./evidence.js";
@@ -39,7 +43,7 @@ function byFactId(left: LeafResult, right: LeafResult): number {
  * the envelope carries exactly the vocabulary declared in `catalog/facts.yaml`
  * and an inline literal is deliberately not part of it.
  */
-function evaluatePack(pack: PackDeclaration, dependencies: DeclaredDependencies): PackEvaluation | null {
+function evaluateTracerPack(pack: PackDeclaration, dependencies: DeclaredDependencies): PackEvaluation | null {
   const literals = pack.evidence.anyDependencies;
   if (literals === undefined) return null;
 
@@ -51,20 +55,30 @@ function evaluatePack(pack: PackDeclaration, dependencies: DeclaredDependencies)
     const factId = `dependency:${literal}`;
     const declared = lookupDependency(dependencies, literal);
     if (declared !== null) {
-      satisfied.push({ factId, detected: true, path: declared.path, reason: null });
+      satisfied.push({ factId, detected: true, path: declared.path, reason: null, broad: false, phrase: factId });
     } else {
       failed.push({
         factId,
         detected: false,
         path: null,
         reason: `${literal} is not declared by a dependency manifest at the canonical root`,
+        broad: false,
+        phrase: factId,
       });
     }
   }
 
   satisfied.sort(byFactId);
   failed.sort(byFactId);
-  return { packId: pack.id, status: satisfied.length > 0 ? "selected" : "silent", satisfied, failed };
+  return {
+    packId: pack.id,
+    status: satisfied.length > 0 ? "selected" : "silent",
+    satisfied,
+    failed,
+    deferred: [],
+    explanation: "",
+    overrideReason: null,
+  };
 }
 
 /**
@@ -94,13 +108,14 @@ export async function planProjectCapabilities(options: {
 
   const evaluations: PackEvaluation[] = [];
   for (const pack of catalog.value.packs) {
-    const evaluation = evaluatePack(pack, evidence.dependencies);
+    const evaluation = evaluateTracerPack(pack, evidence.dependencies);
     if (evaluation !== null) evaluations.push(evaluation);
   }
 
   const selected = evaluations
     .filter((evaluation) => evaluation.status === "selected")
-    .sort((left, right) => left.packId.localeCompare(right.packId));
+    .map((evaluation) => evaluation.packId)
+    .sort();
 
   const inputsDigest = envelope.sourceHash;
   const evidenceDigest = evidenceDigestOf(envelope);
@@ -118,12 +133,7 @@ export async function planProjectCapabilities(options: {
     },
     inputsDigest,
     evidenceDigest,
-    selected: selected.map((evaluation) => ({
-      packId: evaluation.packId,
-      status: evaluation.status,
-      satisfied: evaluation.satisfied.map((leaf) => [leaf.factId, leaf.path]),
-      failed: evaluation.failed.map((leaf) => [leaf.factId, leaf.reason]),
-    })),
+    selected,
   };
 
   return {
@@ -134,9 +144,52 @@ export async function planProjectCapabilities(options: {
       projectId: scope.projectId,
       subProjectPath: null,
     },
+    evaluations,
     selected,
+    nearMissOrder: [],
+    subProjects: [],
     inputsDigest,
     evidenceDigest,
     planDigest: reviewedDigest("project-capability-plan", digestableView),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Plan 02-07 Task 1: the surface the evaluate-all evaluator will fill
+// ---------------------------------------------------------------------------
+
+/**
+ * Everything one pack's predicate is evaluated against, as a value.
+ *
+ * Passing an environment rather than a repository is what lets a nested node,
+ * a deferred fact and a broad-only match be asserted without inventing a
+ * repository shape for each.
+ */
+export interface PackEvaluationEnvironment {
+  /** Declared facts, keyed by id. Leaf phrases render from this and nothing else. */
+  readonly vocabulary: ReadonlyMap<string, FactDeclaration>;
+  /** One evidence record per declared fact, positive and negative. */
+  readonly facts: ReadonlyMap<string, EvidenceFact>;
+  /** Scannable relative POSIX paths, for `anyFiles`. */
+  readonly paths: ReadonlySet<string>;
+  readonly dependencies: DeclaredDependencies;
+  /** Only a CURRENT, VALID manifest reaches here. */
+  readonly manifest: ProjectStackManifest | null;
+  /** Why the manifest contributes nothing, when it does not. */
+  readonly manifestReason: string;
+  readonly overrides: ReadonlyMap<string, PackOverride>;
+}
+
+/** Not yet implemented: every leaf, every operator, and the classification. */
+export function evaluatePack(pack: PackDeclaration, environment: PackEvaluationEnvironment): PackEvaluation {
+  void environment;
+  return {
+    packId: pack.id,
+    status: "silent",
+    satisfied: [],
+    failed: [],
+    deferred: [],
+    explanation: "",
+    overrideReason: null,
   };
 }

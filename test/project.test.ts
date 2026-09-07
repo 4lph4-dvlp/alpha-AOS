@@ -34,7 +34,7 @@ async function scratch(context: TestContext, label: string): Promise<string> {
 /** The pack ids the plan actually selected, sorted. */
 async function selectedPacks(root: string): Promise<string[]> {
   const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
-  return plan.selected.map((evaluation) => evaluation.packId).sort();
+  return [...plan.selected].sort();
 }
 
 async function factsOf(root: string): Promise<Map<string, EvidenceFact>> {

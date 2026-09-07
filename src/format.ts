@@ -36,15 +36,18 @@ export function formatDoctor(findings: DoctorFinding[]): string {
 
 /** Names the fact and the file that carried it, never a bare fact id. */
 function describeLeaf(leaf: LeafResult): string {
-  return leaf.path === null ? leaf.factId : `${leaf.factId} (${leaf.path})`;
+  return leaf.path === null ? leaf.phrase : `${leaf.phrase} (${leaf.path})`;
 }
 
 export function formatProjectPlan(plan: ProjectCapabilityPlan): string {
   const lines = [`Project: ${plan.scope.canonicalRoot} (${plan.scope.rootReason})`, `Project id: ${plan.scope.projectId}`];
+  const byId = new Map(plan.evaluations.map((evaluation) => [evaluation.packId, evaluation]));
   if (plan.selected.length === 0) {
     lines.push("No pack qualified on the evidence found.");
   } else {
-    for (const pack of plan.selected) {
+    for (const packId of plan.selected) {
+      const pack = byId.get(packId);
+      if (pack === undefined) continue;
       lines.push(`SELECT ${pack.packId} — ${pack.satisfied.map(describeLeaf).join(", ")}`);
     }
   }

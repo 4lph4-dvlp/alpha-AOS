@@ -7,12 +7,27 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import type {
+  EvidenceFact,
+  FactDeclaration,
+  LeafResult,
+  PackDeclaration,
+  PackOverride,
+  ProjectStackManifest,
+} from "../src/types.js";
+import type { DeclaredDependency } from "../src/core/evidence.js";
 import { collectProjectEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
+import { loadFactVocabularyStrict } from "../src/core/pack-catalog.js";
+import {
+  evaluatePack,
+  planProjectCapabilities,
+  type PackEvaluationEnvironment,
+} from "../src/core/project-plan.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -62,6 +77,13 @@ async function reactFixture(context: TestContext): Promise<string> {
   return root;
 }
 
+/** A bare temporary directory the caller fills with exactly the evidence under test. */
+async function scratchRoot(context: TestContext, label: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), `alpha-aos-${label}-`));
+  context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  return root;
+}
+
 /** Directory symlink creation differs by platform and may need privileges. */
 async function tryDirectorySymlink(target: string, linkPath: string): Promise<boolean> {
   try {
@@ -91,17 +113,18 @@ test("project plan --json emits the same decision as a redacted JSON envelope", 
   assert.equal(result.status, 0, result.stderr);
   const plan = JSON.parse(result.stdout) as {
     scope: { canonicalRoot: string; rootReason: string; projectId: string };
-    selected: Array<{ packId: string; satisfied: Array<{ factId: string; path: string | null }> }>;
+    evaluations: Array<{ packId: string; satisfied: Array<{ factId: string; path: string | null }> }>;
+    selected: string[];
     inputsDigest: string;
     evidenceDigest: string;
     planDigest: string;
   };
 
-  assert.deepEqual(plan.selected.map((pack) => pack.packId), ["WEB_REACT"]);
+  assert.deepEqual(plan.selected, ["WEB_REACT"]);
   assert.match(plan.scope.projectId, /^[0-9a-f]{16}$/u);
   assert.equal(plan.scope.rootReason, "standalone-directory");
   assert.deepEqual(
-    plan.selected[0]?.satisfied.map((leaf) => [leaf.factId, leaf.path]),
+    plan.evaluations.find((evaluation) => evaluation.packId === "WEB_REACT")?.satisfied.map((leaf) => [leaf.factId, leaf.path]),
     [["dependency:react", "package.json"]],
   );
   for (const digest of [plan.inputsDigest, plan.evidenceDigest, plan.planDigest]) {
@@ -149,4 +172,270 @@ test("a symlinked alias of the same repository yields the same canonical root an
 
   assert.equal(aliased.scope.canonicalRoot, direct.scope.canonicalRoot);
   assert.equal(aliased.scope.projectId, direct.scope.projectId);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-07 Task 1: evaluate-all predicate evaluation over the full operator set
+// ---------------------------------------------------------------------------
+//
+// The assertions below run the PURE evaluator wherever the claim is about the
+// predicate algebra, and the built CLI wherever the claim is about the whole
+// path. A synthetic pack plus a synthetic environment is what lets a nested
+// node, a deferred fact and a broad-only match be asserted without inventing a
+// repository shape for each.
+
+/** The real declared vocabulary, keyed by fact id. Phrases render from it. */
+async function vocabularyIndex(): Promise<Map<string, FactDeclaration>> {
+  const loaded = await loadFactVocabularyStrict(repositoryRoot);
+  return new Map(loaded.value.facts.map((fact) => [fact.id, fact]));
+}
+
+interface EnvironmentOptions {
+  readonly vocabulary: Map<string, FactDeclaration>;
+  /** Declared fact id to the path that carried it, or `true` for a pathless positive. */
+  readonly detected?: Record<string, string | true>;
+  /** Scannable relative paths, for `anyFiles`. */
+  readonly paths?: readonly string[];
+  /** Package name to the manifest that declared it. */
+  readonly dependencies?: Record<string, string>;
+  readonly manifest?: ProjectStackManifest | null;
+  readonly overrides?: Record<string, PackOverride>;
+}
+
+/**
+ * A whole evaluation environment as a value. Every fact the vocabulary
+ * declares gets a record — positive for the named ones, negative WITH A REASON
+ * for the rest — because a failed leaf with no reason is the exact defect
+ * DETC-03 exists to prevent.
+ */
+function environment(options: EnvironmentOptions): PackEvaluationEnvironment {
+  const facts = new Map<string, EvidenceFact>();
+  for (const [id, declaration] of options.vocabulary) {
+    const hit = options.detected?.[id];
+    if (hit === undefined) {
+      facts.set(id, { id, kind: declaration.kind, detected: false, reason: `${id} was not detected in this fixture` });
+      continue;
+    }
+    const fact: EvidenceFact = { id, kind: declaration.kind, detected: true };
+    if (typeof hit === "string") fact.path = hit;
+    facts.set(id, fact);
+  }
+
+  const byName = new Map<string, DeclaredDependency>();
+  for (const [name, path] of Object.entries(options.dependencies ?? {})) {
+    byName.set(name, { name, path, version: "1.0.0" });
+  }
+
+  return {
+    vocabulary: options.vocabulary,
+    facts,
+    paths: new Set(options.paths ?? []),
+    dependencies: { byName, undecidable: [], bounded: [] },
+    manifest: options.manifest ?? null,
+    manifestReason: ".alpha-aos/stack.yaml does not exist at the canonical root",
+    overrides: new Map(Object.entries(options.overrides ?? {})),
+  };
+}
+
+function leafIds(leaves: readonly LeafResult[]): string[] {
+  return leaves.map((leaf) => leaf.factId);
+}
+
+test("an all pack selects only when every leaf holds, and records the failed leaf either way", async () => {
+  const vocabulary = await vocabularyIndex();
+  const pack: PackDeclaration = { id: "AI_EVAL", evidence: { all: ["model-sdk", "eval-assets"] } };
+
+  const partial = evaluatePack(pack, environment({ vocabulary, detected: { "model-sdk": "package.json" } }));
+  assert.notEqual(partial.status, "selected");
+  assert.deepEqual(leafIds(partial.satisfied), ["model-sdk"]);
+  assert.deepEqual(leafIds(partial.failed), ["eval-assets"]);
+
+  const complete = evaluatePack(
+    pack,
+    environment({ vocabulary, detected: { "model-sdk": "package.json", "eval-assets": "evals" } }),
+  );
+  assert.equal(complete.status, "selected");
+  assert.deepEqual(leafIds(complete.satisfied), ["eval-assets", "model-sdk"]);
+  assert.deepEqual(complete.failed, []);
+});
+
+test("an any pack selects on one leaf and still records the leaves that failed", async () => {
+  const vocabulary = await vocabularyIndex();
+  const pack: PackDeclaration = { id: "MCP_SERVER", evidence: { any: ["mcp-sdk-dependency", "mcp-server-manifest"] } };
+  const evaluation = evaluatePack(
+    pack,
+    environment({ vocabulary, detected: { "mcp-sdk-dependency": "package.json" } }),
+  );
+
+  assert.equal(evaluation.status, "selected");
+  // No short-circuit: the second leaf is still computed, and it says why.
+  assert.deepEqual(leafIds(evaluation.failed), ["mcp-server-manifest"]);
+  assert.ok((evaluation.failed[0]?.reason ?? "").length > 0);
+});
+
+test("anyFiles and anyDependencies synthesize their leaf ids from operator plus matched literal", async () => {
+  const vocabulary = await vocabularyIndex();
+
+  const container = evaluatePack(
+    { id: "CONTAINER", evidence: { anyFiles: ["Dockerfile", "compose.yml"] } },
+    environment({ vocabulary, paths: ["Dockerfile"] }),
+  );
+  assert.equal(container.status, "selected");
+  assert.deepEqual(leafIds(container.satisfied), ["file:Dockerfile"]);
+  assert.deepEqual(leafIds(container.failed), ["file:compose.yml"]);
+  assert.equal(container.satisfied[0]?.path, "Dockerfile");
+
+  const web = evaluatePack(
+    { id: "WEB_REACT", evidence: { anyDependencies: ["react", "next"] } },
+    environment({ vocabulary, dependencies: { react: "package.json" } }),
+  );
+  assert.equal(web.status, "selected");
+  assert.deepEqual(leafIds(web.satisfied), ["dependency:react"]);
+  assert.deepEqual(leafIds(web.failed), ["dependency:next"]);
+});
+
+test("manifestOptIn synthesizes a leaf id with the manifest prefix already in use", async () => {
+  const vocabulary = await vocabularyIndex();
+  const pack: PackDeclaration = { id: "RESEARCH_SCIENTIFIC", evidence: { manifestOptIn: "scientificResearch" } };
+
+  const absent = evaluatePack(pack, environment({ vocabulary }));
+  assert.deepEqual(leafIds(absent.failed), ["manifest:scientificResearch"]);
+  assert.equal(absent.status, "silent");
+
+  const optedIn = evaluatePack(
+    pack,
+    environment({ vocabulary, manifest: { schemaVersion: 1, scientificResearch: true } }),
+  );
+  assert.equal(optedIn.status, "selected");
+  assert.deepEqual(leafIds(optedIn.satisfied), ["manifest:scientificResearch"]);
+});
+
+test("a nested evidence node inside any evaluates and contributes its flattened leaves", async () => {
+  const vocabulary = await vocabularyIndex();
+  const pack: PackDeclaration = {
+    id: "NESTED",
+    evidence: { any: ["web-framework", { all: ["existing-source", "openapi"] }] },
+  };
+
+  const partial = evaluatePack(pack, environment({ vocabulary, detected: { "existing-source": "src" } }));
+  assert.equal(partial.status, "near-miss");
+  assert.deepEqual(leafIds(partial.satisfied), ["existing-source"]);
+  assert.deepEqual(leafIds(partial.failed), ["openapi", "web-framework"]);
+
+  const whole = evaluatePack(
+    pack,
+    environment({ vocabulary, detected: { "existing-source": "src", openapi: "openapi.yaml" } }),
+  );
+  assert.equal(whole.status, "selected");
+  assert.deepEqual(leafIds(whole.satisfied), ["existing-source", "openapi"]);
+});
+
+test("a pack naming a deliberately unimplemented fact is unimplemented and names the requirement", async () => {
+  const vocabulary = await vocabularyIndex();
+  const evaluation = evaluatePack(
+    { id: "SECURITY_REVIEW", evidence: { any: ["auth-change", "secrets"] } },
+    environment({ vocabulary }),
+  );
+
+  assert.equal(evaluation.status, "unimplemented");
+  assert.deepEqual(evaluation.deferred, [
+    { factId: "auth-change", deferredTo: "GATE-01" },
+    { factId: "secrets", deferredTo: "GATE-01" },
+  ]);
+  assert.match(evaluation.explanation, /GATE-01/u);
+});
+
+test("a pack whose only satisfied leaf is a broad fact is never selected on that leaf alone", async () => {
+  const vocabulary = await vocabularyIndex();
+  assert.equal(vocabulary.get("agent-runtime-config")?.broad, true);
+
+  const broadOnly = evaluatePack(
+    { id: "AGENT_RUNTIME", evidence: { any: ["agent-sdk-dependency", "agent-runtime-config"] } },
+    environment({ vocabulary, detected: { "agent-runtime-config": "AGENTS.md" } }),
+  );
+  assert.notEqual(broadOnly.status, "selected");
+  assert.deepEqual(leafIds(broadOnly.satisfied), ["agent-runtime-config"]);
+  assert.deepEqual(leafIds(broadOnly.failed), ["agent-sdk-dependency"]);
+
+  // The same pack WITH a non-broad leaf selects: the rule bounds the broad
+  // fact, it does not disqualify the pack.
+  const withSdk = evaluatePack(
+    { id: "AGENT_RUNTIME", evidence: { any: ["agent-sdk-dependency", "agent-runtime-config"] } },
+    environment({
+      vocabulary,
+      detected: { "agent-runtime-config": "AGENTS.md", "agent-sdk-dependency": "package.json" },
+    }),
+  );
+  assert.equal(withSdk.status, "selected");
+});
+
+test("every failed leaf carries a reason sourced from the evidence envelope's negative record", async () => {
+  const vocabulary = await vocabularyIndex();
+  const evaluation = evaluatePack(
+    { id: "DEPLOYMENT", evidence: { any: ["deploy-workflow", "release-workflow", "kubernetes", "terraform"] } },
+    environment({ vocabulary }),
+  );
+
+  assert.equal(evaluation.failed.length, 4);
+  for (const leaf of evaluation.failed) {
+    assert.equal(leaf.reason, `${leaf.factId} was not detected in this fixture`);
+  }
+});
+
+test("every one of the 15 declared packs is evaluated with both a satisfied and a failed array", async (context) => {
+  const root = await reactFixture(context);
+  const result = await runCli(["project", "plan", root, "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+
+  const plan = JSON.parse(result.stdout) as {
+    evaluations: Array<{ packId: string; status: string; satisfied: unknown[]; failed: unknown[] }>;
+  };
+  assert.equal(plan.evaluations.length, 15);
+  for (const evaluation of plan.evaluations) {
+    assert.ok(Array.isArray(evaluation.satisfied), `${evaluation.packId} has no satisfied array`);
+    assert.ok(Array.isArray(evaluation.failed), `${evaluation.packId} has no failed array`);
+  }
+});
+
+test("an instructions document alone leaves AGENT_RUNTIME unselected against a real repository", async (context) => {
+  const root = await scratchRoot(context, "agents");
+  await writeFile(join(root, "AGENTS.md"), "# Instructions\n", "utf8");
+
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const agentRuntime = plan.evaluations.find((evaluation) => evaluation.packId === "AGENT_RUNTIME");
+
+  assert.ok(agentRuntime);
+  assert.notEqual(agentRuntime.status, "selected");
+  assert.deepEqual(leafIds(agentRuntime.satisfied), ["agent-runtime-config"]);
+  assert.deepEqual(leafIds(agentRuntime.failed), ["agent-sdk-dependency"]);
+  assert.equal(plan.selected.includes("AGENT_RUNTIME"), false);
+});
+
+test("the API and DEPLOYMENT packs both evaluate and select on their declared evidence", async (context) => {
+  const root = await scratchRoot(context, "api");
+  await mkdir(join(root, "src", "routes"), { recursive: true });
+  await writeFile(join(root, "terraform.tf"), "# terraform\n", "utf8");
+
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  assert.ok(plan.selected.includes("API"), `API not selected: ${plan.selected.join(", ")}`);
+  assert.ok(plan.selected.includes("DEPLOYMENT"), `DEPLOYMENT not selected: ${plan.selected.join(", ")}`);
+});
+
+test("MCP_SERVER selects on a declared MCP SDK dependency", async (context) => {
+  const root = await scratchRoot(context, "mcp");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "mcp-fixture", dependencies: { "@modelcontextprotocol/sdk": "1.30.0" } }),
+    "utf8",
+  );
+
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(plan.selected.includes("MCP_SERVER"), `MCP_SERVER not selected: ${plan.selected.join(", ")}`);
+  const mcp = plan.evaluations.find((evaluation) => evaluation.packId === "MCP_SERVER");
+  assert.ok(mcp);
+  assert.deepEqual(
+    mcp.satisfied.map((leaf) => [leaf.factId, leaf.path]),
+    [["mcp-sdk-dependency", "package.json"]],
+  );
 });

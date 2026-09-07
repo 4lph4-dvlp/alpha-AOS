@@ -138,6 +138,9 @@ export interface ProjectStackManifest {
   packs?: string[];
   criticalUserFlows?: string[];
   scientificResearch?: boolean;
+  securityReview?: boolean;
+  /** D-06: force any declared pack on or off. The override is recorded as evidence. */
+  packOverrides?: Record<string, PackOverride>;
   isolation?: ProjectIsolationPolicy;
 }
 
@@ -312,15 +315,59 @@ export interface LeafResult {
   detected: boolean;
   path: string | null;
   reason: string | null;
+  /** This fact also exists in repositories that are not this kind of project. */
+  broad: boolean;
+  /** The leaf rendered from the declared vocabulary, never from a per-pack string. */
+  phrase: string;
+}
+
+/**
+ * How a pack ended up where it did.
+ *
+ * `unimplemented` is deliberately distinct from `silent`: a pack naming a fact
+ * the vocabulary declares with `deferredTo` can NEVER select, and reporting it
+ * as an ordinary non-match would make a permanently unselectable pack
+ * indistinguishable from an unqualified repository.
+ */
+export type PackStatus =
+  | "selected"
+  | "near-miss"
+  | "silent"
+  | "unimplemented"
+  | "forced-on"
+  | "forced-off";
+
+/** The two values a `packOverrides` entry may carry. */
+export type PackOverride = "on" | "off";
+
+/** A fact declared but deliberately unimplemented, with the requirement that owns it. */
+export interface DeferredFact {
+  factId: string;
+  deferredTo: string;
 }
 
 export interface PackEvaluation {
   packId: string;
-  status: "selected" | "silent";
+  status: PackStatus;
   /** Every leaf that held. */
   satisfied: LeafResult[];
   /** Every leaf that did not, each with a reason. */
   failed: LeafResult[];
+  /** Leaves whose fact is declared but has no detector in this phase. */
+  deferred: DeferredFact[];
+  /** The whole outcome as one line, rendered from the fact vocabulary. */
+  explanation: string;
+  /** Why the project manifest forced this pack, when it did. */
+  overrideReason: string | null;
+}
+
+/** One discovered sub-project and the decision it reaches on its own evidence. */
+export interface SubProjectDecision {
+  /** Relative POSIX path from the canonical root. */
+  path: string;
+  /** The project-declaration file that proves it is a project. */
+  declarationFile: string;
+  selected: string[];
 }
 
 export interface ProjectCapabilityPlan {
@@ -331,7 +378,14 @@ export interface ProjectCapabilityPlan {
     projectId: string;
     subProjectPath: string | null;
   };
-  selected: PackEvaluation[];
+  /** Every declared pack, evaluated in full. Never short-circuited, never filtered. */
+  evaluations: PackEvaluation[];
+  /** Pack ids the evidence (or an explicit manifest force-on) selected, sorted. */
+  selected: string[];
+  /** Near-miss pack ids, ranked: descending satisfied-leaf count, then ascending id. */
+  nearMissOrder: string[];
+  /** Discovered sub-projects and their own decisions. Empty unless a workspace was found. */
+  subProjects: SubProjectDecision[];
   /** Did anything we looked at change? Carries the evidence envelope's sourceHash. */
   inputsDigest: string;
   /** Did the selection-relevant observations change? */

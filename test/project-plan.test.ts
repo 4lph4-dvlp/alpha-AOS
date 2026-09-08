@@ -3445,3 +3445,130 @@ test("an empty directory is a complete answer: exit 0, nothing selected, and bot
   assert.deepEqual(parsed.scanBounds, []);
   assert.deepEqual(parsed.undecidableBoundaries, []);
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-13 Task 2: dropped members, boundary exclusions, and a refused glob
+// ---------------------------------------------------------------------------
+//
+// 02-REVIEW WR-08: `discoverSubProjects` builds a precise `DroppedMember[]`
+// that no code path could reach, so a typo'd workspace entry, a member behind
+// a boundary and a hostile `../../..` all vanished identically and silently.
+// 02-REVIEW IN-03: `globToRegExp` splices three control-character sentinels
+// into the pattern string on the stated assumption that they cannot occur in a
+// path segment; on POSIX they can, and an entry carrying one is mis-compiled
+// into a wildcard rather than refused.
+
+/**
+ * A workspace declaring one glob that matches nothing and one entry that
+ * escapes the canonical root, beside a `packages/*` that legitimately
+ * resolves — so the screen can be shown NOT to reject ordinary globs.
+ *
+ * `node_modules` is present so the fixture also carries an ordinary, DECIDED
+ * boundary exclusion, which belongs under `--why` and nowhere else.
+ */
+async function droppedMemberFixture(context: TestContext): Promise<string> {
+  const root = await scratchRoot(context, "dropped-member");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({
+      name: "monorepo",
+      private: true,
+      workspaces: ["packages/*", "packages/nothing-*", "../../outside-the-root"],
+    }),
+    "utf8",
+  );
+  await mkdir(join(root, "packages", "api"), { recursive: true });
+  await writeFile(
+    join(root, "packages", "api", "package.json"),
+    JSON.stringify({ name: "api", dependencies: { express: "4.0.0" } }),
+    "utf8",
+  );
+  await mkdir(join(root, "node_modules", "left-pad"), { recursive: true });
+  await writeFile(join(root, "node_modules", "left-pad", "package.json"), JSON.stringify({ name: "left-pad" }), "utf8");
+  return root;
+}
+
+test("a dropped workspace member is named with the entry as written, its ecosystem and its reason", async (context) => {
+  const root = await droppedMemberFixture(context);
+
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+  const json = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(plain.status, 0, plain.stderr);
+  const dropped = linesStartingWith(plain.stdout, "DROPPED-MEMBER ");
+  assert.equal(dropped.length, 2, `the default rendering named no dropped member:\n${plain.stdout}`);
+  assert.ok(
+    dropped.some((line) => line.includes("packages/nothing-*")),
+    `the typo'd entry was not named verbatim:\n${dropped.join("\n")}`,
+  );
+  assert.ok(
+    dropped.some((line) => line.includes("../../outside-the-root")),
+    `the escaping entry was not named verbatim:\n${dropped.join("\n")}`,
+  );
+  assert.ok(dropped.every((line) => line.includes("npm")), dropped.join("\n"));
+
+  assert.equal(linesStartingWith(why.stdout, "DROPPED-MEMBER ").length, 2, why.stdout);
+
+  const parsed = JSON.parse(json.stdout) as {
+    droppedMembers: Array<{ declared: string; ecosystem: string; reason: string }>;
+    excludedBoundaries: Array<{ path: string; reason: string; detail: string | null }>;
+  };
+  assert.equal(parsed.droppedMembers.length, 2, JSON.stringify(parsed.droppedMembers));
+  assert.ok(parsed.excludedBoundaries.length >= 1, JSON.stringify(parsed.excludedBoundaries));
+});
+
+test("boundary exclusions render under --why only, so the boundary-walk comment is true of the shipped code", async (context) => {
+  const root = await droppedMemberFixture(context);
+
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+
+  const rendered = linesStartingWith(why.stdout, "EXCLUDED-BOUNDARY ");
+  assert.ok(rendered.length >= 1, `--why rendered no boundary exclusion:\n${why.stdout}`);
+  assert.ok(
+    rendered.some((line) => line.includes("node_modules")),
+    rendered.join("\n"),
+  );
+  // An ordinary repository excludes many paths for ordinary reasons; flooding
+  // the default rendering with them would bury Task 1's disclosure.
+  assert.deepEqual(linesStartingWith(plain.stdout, "EXCLUDED-BOUNDARY "), []);
+});
+
+/**
+ * `LEADING_GLOBSTAR` as a repository would write it. Built from a code point
+ * rather than typed, so this source file stays free of control characters
+ * while the fixture on disk carries a real one.
+ */
+const SENTINEL_ENTRY = `packages/${String.fromCharCode(1)}*`;
+
+test("a workspace entry carrying a glob sentinel is dropped by name rather than compiled into a wildcard", async (context) => {
+  const root = await scratchRoot(context, "glob-sentinel");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "monorepo", private: true, workspaces: ["packages/*", SENTINEL_ENTRY] }),
+    "utf8",
+  );
+  await mkdir(join(root, "packages", "api"), { recursive: true });
+  await writeFile(
+    join(root, "packages", "api", "package.json"),
+    JSON.stringify({ name: "api", dependencies: { express: "4.0.0" } }),
+    "utf8",
+  );
+
+  const json = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(json.status, 0, json.stderr);
+  const parsed = JSON.parse(json.stdout) as {
+    droppedMembers: Array<{ declared: string; ecosystem: string; reason: string }>;
+    subProjects: Array<{ path: string }>;
+  };
+  const refused = parsed.droppedMembers.filter((member) => /control character/iu.test(member.reason));
+  assert.equal(refused.length, 1, JSON.stringify(parsed.droppedMembers));
+  assert.equal(refused[0]?.declared, SENTINEL_ENTRY);
+  // The screen refuses one entry; it does not reject ordinary globs.
+  assert.deepEqual(
+    parsed.subProjects.map((member) => member.path),
+    ["packages/api"],
+  );
+});

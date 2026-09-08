@@ -10,6 +10,7 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { once } from "node:events";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -54,6 +55,17 @@ interface CrashFixture {
   readonly stateRoot: string;
   readonly target: string;
   readonly childScript: string;
+  /**
+   * Hand a long-lived holder process to the fixture so teardown kills it and
+   * waits for the OS to release its handles BEFORE removing the tree.
+   *
+   * node:test runs `after` hooks in registration order, and this fixture
+   * registers its cleanup first. A holder killed in a hook the test registers
+   * later would therefore still own `state/` when the tree is removed, which
+   * on Windows is ENOTEMPTY — a teardown failure that reads as a product
+   * failure. Killing is also asynchronous: the handle outlives the call.
+   */
+  readonly adoptHolder: (child: ChildProcess) => void;
 }
 
 /**
@@ -62,7 +74,17 @@ interface CrashFixture {
  */
 async function createCrashFixture(context: { after: (fn: () => Promise<unknown> | unknown) => void }): Promise<CrashFixture> {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-crash-"));
-  context.after(async () => rm(root, { recursive: true, force: true }));
+  const holders: ChildProcess[] = [];
+  context.after(async () => {
+    for (const child of holders) {
+      if (child.exitCode !== null || child.signalCode !== null) continue;
+      child.kill("SIGKILL");
+      await once(child, "exit").catch(() => undefined);
+    }
+    // maxRetries covers the residual lag between a process exiting and Windows
+    // releasing its last handle.
+    await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  });
 
   const targetRoot = join(root, "target");
   const stateRoot = join(root, "state");
@@ -115,7 +137,14 @@ async function createCrashFixture(context: { after: (fn: () => Promise<unknown> 
     "utf8",
   );
 
-  return { root, targetRoot, stateRoot, target, childScript };
+  return {
+    root,
+    targetRoot,
+    stateRoot,
+    target,
+    childScript,
+    adoptHolder: (child: ChildProcess) => holders.push(child),
+  };
 }
 
 function runChild(
@@ -199,7 +228,7 @@ test("a second writer fails immediately instead of waiting or clearing the lock"
     [fixture.childScript, fixture.stateRoot, fixture.targetRoot, fixture.target, AFTER_BYTES],
     { env: { ...process.env, ALPHA_AOS_HOLD_MS: "5000" }, stdio: "ignore", windowsHide: true },
   );
-  context.after(() => holder.kill("SIGKILL"));
+  fixture.adoptHolder(holder);
   const lockPath = await waitForWriterLock(holder, fixture.stateRoot);
 
   const startedAt = Date.now();
@@ -479,7 +508,7 @@ test("an in-process transaction serializes against a held session", async (conte
     [fixture.childScript, fixture.stateRoot, fixture.targetRoot, fixture.target, AFTER_BYTES],
     { env: { ...process.env, ALPHA_AOS_HOLD_MS: "4000" }, stdio: "ignore", windowsHide: true },
   );
-  context.after(() => holder.kill("SIGKILL"));
+  fixture.adoptHolder(holder);
   // Without this the holder may not yet own the lock, the in-process
   // transaction below simply SUCCEEDS, and the failure surfaces as a confusing
   // "expected a writer conflict" rather than as the timing precondition it is.

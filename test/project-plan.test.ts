@@ -4168,3 +4168,167 @@ test("an offered removal still applies through its own digest from the CLI, repo
   assert.match(applied.stdout, /Transaction: \S+/u, applied.stdout);
   assert.equal(existsSync(target), false, "the approved removal did not remove its named target");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-15 Task 1: the plan digest depends on the repository, never on the host
+// ---------------------------------------------------------------------------
+//
+// `discoverPersonalSkillNames` reads the reviewer's HOME-directory skill roots
+// on the preview path, and a hit used to append a `SKILL_SHADOWED` approval —
+// which `digestablePlan` folds in. Two people reviewing the identical commit of
+// the identical repository therefore computed DIFFERENT `planDigest` values, so
+// a digest reviewed on a laptop could not be approved on CI (02-REVIEW WR-01).
+//
+// The assertions below run the built CLI with the personal-skill roots pointed
+// at a fixture, because the defect is only observable across two hosts and a
+// fixture root is the only honest way to have two hosts inside one test run.
+
+/** The skill `reactFixture`'s selected pack ships, and therefore the one a personal skill can shadow. */
+const SHADOWED_SKILL = "frontend-a11y";
+
+/** A personal-scope config directory holding exactly the named skills under `skills/`. */
+async function personalSkillRoot(context: TestContext, label: string, skills: readonly string[]): Promise<string> {
+  const configDirectory = await scratchRoot(context, `personal-${label}`);
+  await mkdir(join(configDirectory, "skills"), { recursive: true });
+  for (const skill of skills) {
+    await mkdir(join(configDirectory, "skills", skill), { recursive: true });
+    await writeFile(join(configDirectory, "skills", skill, "SKILL.md"), `# ${skill}\n`, "utf8");
+  }
+  return configDirectory;
+}
+
+/** Points every environment-overridable personal-skill root at one fixture directory. */
+function personalSkillEnvironment(configDirectory: string): Record<string, string> {
+  return {
+    CLAUDE_CONFIG_DIR: configDirectory,
+    ANTIGRAVITY_CONFIG_DIR: configDirectory,
+    HERMES_HOME: configDirectory,
+  };
+}
+
+/** The plan value as `--json` emits it, plus the field this plan adds to it. */
+type PlanWithHostNotes = ProjectCapabilityPlan & { readonly hostNotes?: readonly string[] };
+
+async function planOnHost(root: string, configDirectory: string): Promise<PlanWithHostNotes> {
+  const result = await runCli(["project", "plan", root, "--json"], personalSkillEnvironment(configDirectory));
+  assert.equal(result.status, 0, result.stderr);
+  return JSON.parse(result.stdout) as PlanWithHostNotes;
+}
+
+test("two project plan runs differing only in the personal-skill root agree on every digest", async (context) => {
+  const root = await reactFixture(context);
+  const colliding = await personalSkillRoot(context, "colliding", [SHADOWED_SKILL]);
+  const empty = await personalSkillRoot(context, "empty", []);
+
+  const shadowed = await planOnHost(root, colliding);
+  const clean = await planOnHost(root, empty);
+
+  assert.ok(
+    shadowed.selected.includes("WEB_REACT"),
+    `the fixture did not select WEB_REACT: ${shadowed.selected.join(", ")}`,
+  );
+  assert.equal(shadowed.inputsDigest, clean.inputsDigest, "inputsDigest moved with the reviewer's home directory");
+  assert.equal(shadowed.evidenceDigest, clean.evidenceDigest, "evidenceDigest moved with the reviewer's home directory");
+  assert.equal(
+    shadowed.planDigest,
+    clean.planDigest,
+    "planDigest moved with the reviewer's home directory, so a digest reviewed on a laptop cannot be approved on CI",
+  );
+});
+
+test("a shadowed personal skill is still reported, as a host note rather than an approval", async (context) => {
+  const root = await reactFixture(context);
+  const colliding = await personalSkillRoot(context, "colliding-note", [SHADOWED_SKILL]);
+  const empty = await personalSkillRoot(context, "empty-note", []);
+
+  const shadowed = await planOnHost(root, colliding);
+  const clean = await planOnHost(root, empty);
+
+  assert.ok(Array.isArray(shadowed.hostNotes), "the plan carries no hostNotes array");
+  assert.ok(Array.isArray(clean.hostNotes), "the plan carries no hostNotes array");
+  assert.ok(
+    (shadowed.hostNotes ?? []).length > (clean.hostNotes ?? []).length,
+    `the collision was not reported at all: ${JSON.stringify(shadowed.hostNotes ?? [])}`,
+  );
+  assert.ok(
+    (shadowed.hostNotes ?? []).some((note) => note.includes(SHADOWED_SKILL)),
+    `no host note names the shadowed skill: ${JSON.stringify(shadowed.hostNotes ?? [])}`,
+  );
+  assert.equal(
+    (clean.hostNotes ?? []).some((note) => note.includes(SHADOWED_SKILL)),
+    false,
+    "a host with no colliding personal skill still reported one",
+  );
+  // Removing the collision from the digest must not remove it from the record.
+  assert.equal(
+    shadowed.approvals.some((approval) => approval.code === "SKILL_SHADOWED"),
+    false,
+    "the host-derived collision is still an approval, so it still reaches the digest",
+  );
+});
+
+test("project plan names a shadowed personal skill in text mode and stays silent without one", async (context) => {
+  const root = await reactFixture(context);
+  const colliding = await personalSkillRoot(context, "colliding-text", [SHADOWED_SKILL]);
+  const empty = await personalSkillRoot(context, "empty-text", []);
+
+  const shadowed = await runCli(["project", "plan", root], personalSkillEnvironment(colliding));
+  const clean = await runCli(["project", "plan", root], personalSkillEnvironment(empty));
+  assert.equal(shadowed.status, 0, shadowed.stderr);
+  assert.equal(clean.status, 0, clean.stderr);
+
+  const shadowedLine = /^SHADOWED .*$/mu.exec(shadowed.stdout);
+  assert.ok(shadowedLine, `no SHADOWED line in:\n${shadowed.stdout.slice(-800)}`);
+  assert.ok(
+    (shadowedLine[0] as string).includes(SHADOWED_SKILL),
+    `the SHADOWED line does not name the skill: ${shadowedLine[0] as string}`,
+  );
+  assert.equal(/^SHADOWED /mu.test(clean.stdout), false, "a host with no collision printed a SHADOWED line");
+});
+
+test("digestablePlan omits hostNotes, so two plans differing only in it digest identically", async (context) => {
+  const root = await reactFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const noted: PlanWithHostNotes = {
+    ...plan,
+    hostNotes: ["a note true of this machine and of no repository"],
+  };
+
+  assert.deepEqual(
+    digestablePlan(noted),
+    digestablePlan(plan),
+    "hostNotes reached the digestable view, so the digest is host-dependent again",
+  );
+  assert.equal(
+    JSON.stringify(digestablePlan(noted)).includes("hostNotes"),
+    false,
+    "the digestable view names hostNotes",
+  );
+});
+
+test("an approved plan carrying hostNotes reads back as current", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+
+  const preview = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: stateRoot });
+  assert.equal(preview.status, 0, preview.stderr);
+  const digest = planDigestOf(preview.stdout);
+
+  const applied = await runCli(["project", "approve", root, "--plan-digest", digest, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+  assert.equal(applied.status, 0, applied.stderr);
+
+  const artifact = await readArtifact(join(root, ".alpha-aos", "plan.json"));
+  const artifactPlan = asRecord(artifact.plan);
+  assert.ok(Array.isArray(artifactPlan.hostNotes), "the written artifact carries no hostNotes array");
+
+  const status = await runCli(["project", "status", root, "--json"], { ALPHA_AOS_STATE_DIR: stateRoot });
+  assert.equal(status.status, 0, status.stderr);
+  const report = JSON.parse(status.stdout) as { reconciliation: ProjectReconciliationLike };
+  assert.equal(
+    report.reconciliation.artifactState,
+    "current",
+    `an approval carrying hostNotes did not read back as current: ${JSON.stringify(report.reconciliation.artifactIssues)}`,
+  );
+  assert.equal(report.reconciliation.artifactIssues.length, 0, JSON.stringify(report.reconciliation.artifactIssues));
+});

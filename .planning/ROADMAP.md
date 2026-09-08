@@ -135,7 +135,7 @@ Plans:
   4. Applying a reviewed plan is refused if evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes changed after review.
   5. When evidence for an installed pack disappears, the user sees `STALE` with the missing evidence identified and no automatic deletion.
 
-**Plans**: 10/10 plans executed; 5 gap-closure plans added (02-11 … 02-15), 0/5 executed
+**Plans**: 10/10 plans executed; 6 gap-closure plans added (02-11 … 02-16), 0/6 executed
 
 Plans:
 
@@ -181,29 +181,41 @@ Plans:
 **Gap closure** *(`02-VERIFICATION.md` status `gaps_found`, 2/5 truths verified; run with `/gsd-execute-phase 2 --gaps-only`)*
 
 Gap-closure waves are numbered independently of the waves above, because a `--gaps-only` run schedules
-only these five plans.
+only these six plans.
 
 **Gap wave 1**
 
 - [ ] 02-11-PLAN.md — CR-01 canonical-root descent that terminates, and CR-02 an alias that cannot evict its target
-- [ ] 02-12-PLAN.md — bounded-input honesty at the leaves: ignore-list caps, the output byte budget, and three contradicted contracts
 
 **Gap wave 2** *(blocked on gap wave 1)*
 
-- [ ] 02-13-PLAN.md — CR-03 scan completeness reaches the user in text, `--why` and `--json`, and the negative-reason invariant
+- [ ] 02-12-PLAN.md — bounded-input honesty at the leaves: ignore-list caps, the output byte budget, and three contradicted contracts
 
 **Gap wave 3** *(blocked on gap wave 2)*
 
-- [ ] 02-14-PLAN.md — CR-04 `.alpha-aos/plan.json` through the strict validator, plus the receipt-driven crash and claim defects
+- [ ] 02-13-PLAN.md — CR-03 scan completeness reaches the user in text, `--why` and `--json`, and the negative-reason invariant
 
 **Gap wave 4** *(blocked on gap wave 3)*
 
-- [ ] 02-15-PLAN.md — host-independent plan digest, honest safe inverse, root-keyed catalogs, paste-safe refusal command
+- [ ] 02-14-PLAN.md — CR-04 `.alpha-aos/plan.json` through the strict validator, plus the receipt-driven crash and claim defects
 
-> 02-11 and 02-12 are parallel because their file sets are disjoint: 02-11 owns `src/core/evidence.ts`,
-> `src/core/project-plan.ts` and their two test files, while 02-12 owns the ignore-list, redaction, CLI,
-> schema and catalog surfaces. 02-13, 02-14 and 02-15 serialize for the same reason the original waves 3
-> through 8 did — each extends `src/core/project-plan.ts`, and a shared file is an implicit dependency.
+**Gap wave 5** *(blocked on gap wave 4)*
+
+- [ ] 02-15-PLAN.md — host-independent plan digest, honest safe inverse, paste-safe refusal command, and the approve-then-read round trip
+
+**Gap wave 6** *(blocked on gap wave 5)*
+
+- [ ] 02-16-PLAN.md — root-keyed catalog and manifest-schema caches, and a home for the catalog/lock drift check
+
+> The gap-closure plans run fully serially. 02-13 through 02-16 serialize for the same reason the original
+> waves 3 through 8 did — each extends `src/core/project-plan.ts`, and a shared file is an implicit
+> dependency. 02-11 and 02-12 have disjoint file sets and could in principle run in parallel, but both run
+> `npm run build` and then `node --test dist/...` against the same `dist/` output tree, so a parallel run
+> can have one plan's build overwrite `dist/` mid-test-run for the other; 02-12 therefore declares an
+> ordering-only `depends_on: ["02-11"]`. 02-14 authors the closed `schemas/approved-plan.schema.json`
+> against the plan shape 02-15 will produce (`hostNotes`, a nullable guard hash, an open approval code),
+> and 02-15 asserts the approve-then-status round trip, so `project approve` can never emit an artifact its
+> own reader rejects.
 
 ### Phase 3: Transactional Project Packs and Native Optional Use
 

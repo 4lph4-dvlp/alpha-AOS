@@ -13,6 +13,7 @@ import {
   planProjectCapabilities,
   reconcileProjectState,
   revalidateProjectPlan,
+  type RemovalPlan,
 } from "./core/project-plan.js";
 import {
   applyIsolationManifest,
@@ -685,11 +686,33 @@ async function main(): Promise<void> {
         throw new Error(`project approve --apply requires the digest that was reviewed. The current plan digest is ${revalidated.plan.planDigest}. Run: ${command}`);
       }
       // A removal is approved through this same verb and this same digest
-      // contract, so the offered removals are consulted first. Only a digest
-      // that is not one of them is a plan approval.
-      const removal = planPackRemoval(await reconcileProjectState(planOptions)).find(
-        (entry) => entry.removalDigest === reviewed,
-      );
+      // contract, so the offered removals are consulted — but only when the
+      // supplied digest is not the CURRENT plan digest.
+      //
+      // The removal set is computed through `readPackReceiptsStrict`, which
+      // refuses any receipt that fails its schema. Consulting it unconditionally
+      // made one corrupt receipt block plan approval outright, silently
+      // overriding the approve flow's deliberate `RECEIPT_UNREADABLE` tolerance
+      // (02-REVIEW WR-02). A digest that IS the current plan digest is
+      // unambiguously a plan approval, so there is nothing to disambiguate and
+      // no reason to read a receipt at all.
+      const current = await revalidateProjectPlan({ ...planOptions, stateRoot });
+      let removal: RemovalPlan | undefined;
+      if (reviewed !== current.plan.planDigest) {
+        try {
+          removal = planPackRemoval(await reconcileProjectState(planOptions)).find(
+            (entry) => entry.removalDigest === reviewed,
+          );
+        } catch (error) {
+          // Both halves, because a user who supplied a stale digest AND has a
+          // corrupt receipt needs both to know what to do next.
+          throw new Error(
+            `the supplied digest is not the current plan digest (${current.plan.planDigest}), and the removal set ` +
+              `could not be computed, so it cannot be told from a removal digest either: ` +
+              `${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+      }
       if (removal !== undefined) {
         const removed = await applyPackRemoval({ ...planOptions, stateRoot, removalDigest: reviewed });
         print(

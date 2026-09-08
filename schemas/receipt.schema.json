@@ -34,7 +34,10 @@
         "required": ["harness", "path", "targetHash"],
         "additionalProperties": false,
         "properties": {
-          "harness": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] },
+          "harness": {
+            "description": "Exactly the harnesses that have a project-local skill root, i.e. the keys of PROJECT_SKILL_ROOTS in src/core/project-plan.ts. A receipt naming any other harness describes a target no removal could ever be confined to, so it is refused at the door rather than at the removal (02-REVIEW WR-03). Phase 3 WRITES receipts and must honour this narrowing: adding a harness here without adding it to PROJECT_SKILL_ROOTS reopens the crash.",
+            "enum": ["claude", "codex", "pi"]
+          },
           "path": { "type": "string", "minLength": 1 },
           "targetHash": { "$ref": "#/$defs/sha256" }
         }

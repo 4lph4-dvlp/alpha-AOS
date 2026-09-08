@@ -2561,13 +2561,29 @@ export interface PackRemovalResult {
  * Passing the canonical root would make the transaction's containment check
  * vacuous. Deriving the roots from `PROJECT_SKILL_ROOTS` keeps a removal
  * confined to the same three directories a materialization can reach.
+ *
+ * A harness with no project-local root is a NAMED refusal rather than a bare
+ * `Error`, because the value that reaches here came out of a repository-supplied
+ * receipt. `schemas/receipt.schema.json` narrows its `harness` enum to exactly
+ * the keys of `PROJECT_SKILL_ROOTS`, so this state is unreachable through the
+ * validated route — the schema is the primary defence and this is the backstop
+ * for a future harness added to one table and not the other (02-REVIEW WR-03).
  */
-function removalAllowedRoots(canonicalRoot: string, targets: readonly RemovalTarget[]): string[] {
+export function removalAllowedRoots(
+  canonicalRoot: string,
+  targets: readonly RemovalTarget[],
+  receiptPath: string,
+): string[] {
   const roots = new Set<string>();
   for (const target of targets) {
     const skillRoot = PROJECT_SKILL_ROOTS[target.harness];
     if (skillRoot === undefined) {
-      throw new Error(`${target.harness} has no project-local skill root, so ${target.path} cannot be removed`);
+      throw new ComponentPlanError(
+        "plan-incomplete",
+        `${receiptPath} names the harness ${target.harness}, which has no project-local skill root, so ` +
+          `${target.path} is a target no removal could be confined to and nothing was removed. A receipt may only ` +
+          `name a harness that has a project-local skill root: ${Object.keys(PROJECT_SKILL_ROOTS).sort(byCodePoint).join(", ")}.`,
+      );
     }
     roots.add(join(canonicalRoot, ...skillRoot.split("/")));
   }
@@ -2610,7 +2626,7 @@ export async function applyPackRemoval(options: ApplyPackRemovalOptions): Promis
   }
 
   const stateRoot = resolve(options.stateRoot);
-  const allowedRoots = removalAllowedRoots(canonicalRoot, present);
+  const allowedRoots = removalAllowedRoots(canonicalRoot, present, removal.receiptPath);
   const absolute = present.map((target) => join(canonicalRoot, ...target.path.split("/")));
 
   // Every role declared up front and as one set, exactly as an approval does.

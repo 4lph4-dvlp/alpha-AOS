@@ -459,12 +459,24 @@ async function readDeclaredSubmodulePaths(root: string, excluded: ExcludedBounda
  * before its target claimed that target's identity and evicted the real
  * directory from the walk (CR-02). Cycle termination is unaffected: a walk that
  * goes through the same link twice still meets the same `link:` key.
+ *
+ * The identity is read with `{ bigint: true }`, and that is a CORRECTNESS
+ * requirement rather than a style choice. A Windows file index is a 64-bit
+ * value; Node's default `Stats.ino` is a double, so any index above 2^53 is
+ * ROUNDED. Measured on this host, a temp directory's index is 68398419340753788
+ * and its double is 68398419340753790 — one ulp is 16 there, so two directories
+ * whose indices differ by less than 16 collapse to the same key. Sibling
+ * directories created in one burst routinely land that close, and the second
+ * one was then excluded as `visited-identity`: a directory that exists and was
+ * never visited, refused on a false identity match, silently truncating the
+ * walk. Broken-windows ledger #13 is that failure, observed as a MAX_SCAN_DEPTH
+ * bound that was never reached because the chain stopped early.
  */
-async function identityKeys(absolutePath: string, canonicalPath: string, isAlias: boolean): Promise<string[]> {
+export async function identityKeys(absolutePath: string, canonicalPath: string, isAlias: boolean): Promise<string[]> {
   const keys = isAlias ? [] : [`path:${canonicalPath}`];
   try {
-    const own = await lstat(absolutePath);
-    if (own.ino !== 0) keys.push(`${isAlias ? "link" : "identity"}:${own.dev}:${own.ino}`);
+    const own = await lstat(absolutePath, { bigint: true });
+    if (own.ino !== 0n) keys.push(`${isAlias ? "link" : "identity"}:${own.dev}:${own.ino}`);
   } catch {
     // The boundary proof already classified this path; an identity we cannot
     // read simply contributes no extra key.

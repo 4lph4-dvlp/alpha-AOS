@@ -14,7 +14,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -38,6 +38,7 @@ import {
   matchDeclaredContent,
   MAX_EVIDENCE_FILE_BYTES,
   MAX_SCAN_DEPTH,
+  identityKeys,
   openDetectionContext,
   ProjectReadCache,
   readWorkspaceDeclaration,
@@ -384,12 +385,27 @@ test("exceeding MAX_SCAN_DEPTH is reported as a named bound rather than a silent
   const root = await resolveCanonicalRoot(workspace);
   const scan = await scanProjectTree(root);
 
-  assert.equal(scan.paths.includes("keep.txt"), true, "the shallow file is scanned");
-  assert.equal(scan.paths.includes(`${segments.join("/")}/deep.txt`), false, "the over-deep file is not scanned");
+  // Broken-windows ledger #13: this assertion has flaked on Windows under
+  // concurrent suite execution. The walk records a transient `readdir` or
+  // `stat` failure as an `unreadable` boundary and stops descending, so the
+  // depth bound is never reached and the assertion below fails with nothing
+  // to look at. Naming the boundary in the failure message is what turns a
+  // recurrence from a mystery into a statement of which path failed and why.
+  const diagnosis =
+    ` — walk record: bounds=${JSON.stringify(scan.bounds)}` +
+    ` directories=${JSON.stringify(scan.directories)}` +
+    ` excluded=${JSON.stringify(scan.excludedBoundaries)}`;
+
+  assert.equal(scan.paths.includes("keep.txt"), true, `the shallow file is scanned${diagnosis}`);
+  assert.equal(
+    scan.paths.includes(`${segments.join("/")}/deep.txt`),
+    false,
+    `the over-deep file is not scanned${diagnosis}`,
+  );
   assert.equal(
     scan.bounds.some((record) => record.bound === "MAX_SCAN_DEPTH" && record.limit === MAX_SCAN_DEPTH),
     true,
-    "the bound that was reached is named in the result",
+    `the bound that was reached is named in the result${diagnosis}`,
   );
 });
 
@@ -1261,4 +1277,38 @@ test("the other detector kinds' reasons are unchanged on the same excluded-direc
     dependencyKind.reason,
     "no dependency manifest at the canonical root declares any of: redis, ioredis",
   );
+});
+
+test("a directory identity key carries the host's exact 64-bit index, never a rounded double", async (context) => {
+  const workspace = await scratch(context, "identity-precision");
+  await mkdir(join(workspace, "one"), { recursive: true });
+  await mkdir(join(workspace, "two"), { recursive: true });
+  const one = join(workspace, "one");
+  const two = join(workspace, "two");
+
+  const exact = await lstat(one, { bigint: true });
+  const keys = await identityKeys(one, one, false);
+  const identity = keys.find((key) => key.startsWith("identity:"));
+
+  assert.ok(identity !== undefined, `no identity key was produced: ${JSON.stringify(keys)}`);
+  // The precision property, asserted on the DIGITS rather than on a number:
+  // a Windows file index above 2^53 rounds when it passes through a double,
+  // and two directories whose indices differ by less than one ulp then share
+  // an identity — which excludes the second as `visited-identity` although it
+  // exists and was never visited (broken-windows ledger #13).
+  assert.equal(identity, `identity:${exact.dev}:${exact.ino}`);
+  // Fires only on a host whose index actually loses information in a double,
+  // and asserts the key is NOT the one the rounded read would have produced.
+  if (BigInt(Number(exact.ino)) !== exact.ino) {
+    assert.notEqual(
+      identity,
+      `identity:${exact.dev}:${Number(exact.ino)}`,
+      `the identity key carried the rounded double rather than ${exact.ino}`,
+    );
+  }
+
+  // Two distinct directories never share a key, which is the property the
+  // rounding broke.
+  const otherKeys = await identityKeys(two, two, false);
+  for (const key of keys) assert.equal(otherKeys.includes(key), false, `two directories share the key ${key}`);
 });

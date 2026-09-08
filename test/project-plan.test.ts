@@ -3396,8 +3396,16 @@ test("a scan that reached MAX_SCAN_DEPTH names the bound, its limit and where it
 
   const parsed = JSON.parse(json.stdout) as {
     scanBounds: Array<{ bound: string; limit: number; at: string }>;
+    undecidableBoundaries: Array<{ path: string; reason: string; detail: string | null }>;
   };
-  assert.deepEqual(parsed.scanBounds, [{ bound: "MAX_SCAN_DEPTH", limit: MAX_SCAN_DEPTH, at: DEEPEST_BOUNDED_PATH }]);
+  // Broken-windows ledger #13's shape at the CLI: anything that stops the
+  // descent early means the bound is never reached. The disclosure this plan
+  // added is also the diagnosis, so a recurrence names its own cause.
+  assert.deepEqual(
+    parsed.scanBounds,
+    [{ bound: "MAX_SCAN_DEPTH", limit: MAX_SCAN_DEPTH, at: DEEPEST_BOUNDED_PATH }],
+    JSON.stringify(parsed.undecidableBoundaries),
+  );
 });
 
 test("the scan-completeness record takes part in the plan digest", () => {

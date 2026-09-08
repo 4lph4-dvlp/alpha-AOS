@@ -78,7 +78,7 @@ import { loadFactVocabularyStrict, loadPackCatalogStrict } from "./pack-catalog.
 import { proveOperationPaths, requiredRolesForFileMutation } from "./path-boundary.js";
 import { inspectProjectManifest } from "./project.js";
 import { applyFileTransaction } from "./transaction.js";
-import { validateManagedDocument } from "./validation.js";
+import { validateManagedDocument, type ValidationIssue } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
 
 function sha256(content: string): string {
@@ -1460,20 +1460,82 @@ function approvalArtifactBytes(plan: ProjectCapabilityPlan, gitContext: GitConte
   return `${JSON.stringify(artifact, null, 2)}\n`;
 }
 
-/** The last approved plan at a path, or `null` when there is none to read. */
-export async function readApprovedProjectPlan(artifactPath: string): Promise<ApprovedProjectPlanArtifact | null> {
-  if (!existsSync(artifactPath)) return null;
-  let parsed: unknown;
+/**
+ * What one read of `.alpha-aos/plan.json` established.
+ *
+ * Three answers, not two. Returning `null` for both an absent artifact and a
+ * malformed one is precisely what hid the difference: a user told there is no
+ * approved plan could not tell a missing approval from a rejected one, and a
+ * rejected one is a fact about the repository they need (02-REVIEW CR-04).
+ */
+export type ApprovedPlanRead =
+  | { readonly state: "present"; readonly artifact: ApprovedProjectPlanArtifact }
+  | { readonly state: "absent" }
+  | { readonly state: "unreadable"; readonly issues: readonly ValidationIssue[] };
+
+let approvedPlanSchema: Record<string, unknown> | null = null;
+
+/**
+ * The last approved plan at a path, read through the ONE managed document route.
+ *
+ * `.alpha-aos/plan.json` is the single managed document in this system designed
+ * to be COMMITTED — `.gitignore` selectively ignores `install-state.json`,
+ * `journal/`, `snapshots/` and `evidence/` and deliberately does not ignore
+ * this one — so it is attacker-supplied on every clone. It therefore travels
+ * `validateManagedDocument` against a closed schema exactly as a receipt does,
+ * rather than a bare parse with three shallow checks. A malformed artifact is
+ * REPORTED, never partially trusted.
+ */
+export async function readApprovedProjectPlan(
+  artifactPath: string,
+  packageRoot: string,
+): Promise<ApprovedPlanRead> {
+  if (!existsSync(artifactPath)) return { state: "absent" };
+  let text: string;
   try {
-    parsed = JSON.parse(await readFile(artifactPath, "utf8"));
-  } catch {
-    return null;
+    text = await readFile(artifactPath, "utf8");
+  } catch (error) {
+    return {
+      state: "unreadable",
+      issues: [
+        {
+          code: "io.unreadable",
+          documentPath: "/",
+          expected: `${PROJECT_PLAN_ARTIFACT} to be readable`,
+          actualShape: `read error(name=${error instanceof Error ? error.name : "Error"})`,
+        },
+      ],
+    };
   }
-  const artifact = parsed as ApprovedProjectPlanArtifact | null;
-  if (artifact === null || typeof artifact !== "object") return null;
-  if (typeof artifact.approvedDigest !== "string" || artifact.approvedDigest.length === 0) return null;
-  if (artifact.plan === null || typeof artifact.plan !== "object") return null;
-  return artifact;
+
+  // Memoized the way `receiptSchema` is: the schema file is repository content
+  // that cannot change inside one process, and re-reading it per call would put
+  // a filesystem read on the reconciliation's hot path.
+  approvedPlanSchema ??= JSON.parse(
+    await readFile(join(packageRoot, "schemas", "approved-plan.schema.json"), "utf8"),
+  ) as Record<string, unknown>;
+
+  const result = validateManagedDocument<ApprovedProjectPlanArtifact>({
+    text,
+    format: "json",
+    kind: "approved-plan",
+    schema: approvedPlanSchema,
+  });
+  if (!result.ok || result.value === null) {
+    const issues =
+      result.issues.length > 0
+        ? result.issues
+        : [
+            {
+              code: `status.${result.status}`,
+              documentPath: "/",
+              expected: "a current, valid approved-plan artifact",
+              actualShape: `document(status=${result.status})`,
+            },
+          ];
+    return { state: "unreadable", issues };
+  }
+  return { state: "present", artifact: result.value };
 }
 
 /**
@@ -1498,8 +1560,14 @@ export async function approveProjectPlan(options: ApproveProjectPlanOptions): Pr
   // Idempotency: the same plan already on disk is not rewritten. Writing
   // identical bytes would still churn the file's mtime and add a journal entry
   // that undoes nothing.
-  const existing = await readApprovedProjectPlan(revalidated.artifactPath);
-  if (existing !== null && existing.approvedDigest === revalidated.plan.planDigest) {
+  //
+  // The verdict is derived from a VALIDATED artifact only. An unreadable one
+  // never matches, whatever digest it carries: an attacker-chosen
+  // `approvedDigest` that happens to equal the current plan digest would
+  // otherwise produce a false already-current answer, which is a denial a
+  // repository could inflict on its own users (02-REVIEW W-1).
+  const existing = await readApprovedProjectPlan(revalidated.artifactPath, options.packageRoot);
+  if (existing.state === "present" && existing.artifact.approvedDigest === revalidated.plan.planDigest) {
     return {
       status: "already-current",
       operationId: null,
@@ -1660,11 +1728,12 @@ export function classifyPlanDrift(reviewed: ProjectCapabilityPlan, revalidated: 
 /** The reviewed plan, when the last approved artifact IS the plan under review. */
 async function reviewedPlanFromArtifact(
   artifactPath: string,
+  packageRoot: string,
   expectedDigest: string,
 ): Promise<ProjectCapabilityPlan | null> {
-  const artifact = await readApprovedProjectPlan(artifactPath);
-  if (artifact === null || artifact.approvedDigest !== expectedDigest) return null;
-  return artifact.plan;
+  const read = await readApprovedProjectPlan(artifactPath, packageRoot);
+  if (read.state !== "present" || read.artifact.approvedDigest !== expectedDigest) return null;
+  return read.artifact.plan;
 }
 
 /**
@@ -1688,7 +1757,8 @@ async function explainPlanDrift(
   });
   const digests = `reviewed ${options.expectedDigest.slice(0, 12)}, observed ${revalidated.plan.planDigest.slice(0, 12)}`;
   const reviewed =
-    options.reviewedPlan ?? (await reviewedPlanFromArtifact(revalidated.artifactPath, options.expectedDigest));
+    options.reviewedPlan ??
+    (await reviewedPlanFromArtifact(revalidated.artifactPath, options.packageRoot, options.expectedDigest));
 
   if (reviewed === null) {
     return new ComponentPlanError(
@@ -1781,8 +1851,16 @@ export interface PackReconciliation {
   readonly undecidable: readonly UndecidableEvidence[];
 }
 
-/** Whether the stored approval is absent, still describes this world, or does not. */
-export type ApprovedArtifactState = "absent" | "current" | "changed";
+/**
+ * Whether the stored approval is absent, rejected, still describes this world,
+ * or does not.
+ *
+ * `unreadable` is deliberately distinct from `absent`, one layer up from where
+ * plan 02-06 first drew that line: an artifact that failed its closed schema is
+ * a fact ABOUT the repository, and reporting it as a missing approval would
+ * hide a rejected document behind a routine one (02-REVIEW CR-04).
+ */
+export type ApprovedArtifactState = "absent" | "unreadable" | "current" | "changed";
 
 export interface ProjectReconciliation {
   /** Freshly recomputed. The reconciliation is derived from THIS, never from the artifact. */
@@ -1790,6 +1868,12 @@ export interface ProjectReconciliation {
   /** The plan the last approval recorded, or null when there is none to read. */
   readonly approved: ProjectCapabilityPlan | null;
   readonly artifactState: ApprovedArtifactState;
+  /**
+   * Why the artifact was rejected. Non-empty exactly when `artifactState` is
+   * `unreadable`, and empty in every other state — so a caller never has to
+   * infer the reason from the state or the state from the reason.
+   */
+  readonly artifactIssues: readonly ValidationIssue[];
   readonly artifactPath: string;
   /** Pack ids the stored artifact claims that freshly collected evidence does not select. */
   readonly unsupportedClaims: readonly string[];
@@ -1942,13 +2026,25 @@ export async function reconcileProjectState(
   const plan = await planProjectCapabilities(options);
   const root = plan.scope.canonicalRoot;
   const artifactPath = join(root, ...PROJECT_PLAN_ARTIFACT.split("/"));
-  const artifact = await readApprovedProjectPlan(artifactPath);
+  const read = await readApprovedProjectPlan(artifactPath, options.packageRoot);
+  const artifact = read.state === "present" ? read.artifact : null;
   const approved = artifact?.plan ?? null;
   const approvedGit = artifact?.gitContext ?? null;
   const git = await readGitContext(root);
 
+  // A rejected artifact contributes NOTHING to the reconciliation — not its
+  // claims, not its fact set, not its git context. It is reported as its own
+  // state and then set aside, which is what stops a document that failed its
+  // schema from being partly trusted anyway.
   const artifactState: ApprovedArtifactState =
-    approved === null ? "absent" : approved.evidenceDigest === plan.evidenceDigest ? "current" : "changed";
+    read.state === "unreadable"
+      ? "unreadable"
+      : approved === null
+        ? "absent"
+        : approved.evidenceDigest === plan.evidenceDigest
+          ? "current"
+          : "changed";
+  const artifactIssues: readonly ValidationIssue[] = read.state === "unreadable" ? read.issues : [];
 
   const selectedNow = new Set(plan.selected);
   const claimed = Array.isArray(approved?.applicable) ? (approved.applicable as string[]) : [];
@@ -1989,6 +2085,7 @@ export async function reconcileProjectState(
     plan,
     approved,
     artifactState,
+    artifactIssues,
     artifactPath,
     unsupportedClaims,
     packs,

@@ -1,0 +1,311 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/approved-plan.schema.json",
+  "title": "alpha-AOS approved project capability plan",
+  "description": "Closed contract for .alpha-aos/plan.json. This is the one managed document in the system that is designed to be committed, so it arrives attacker-supplied on every clone and must travel validateManagedDocument exactly as a receipt does. Every array the reconciliation indexes or filters is typed here, because the crash this schema prevents (02-REVIEW CR-04) is a type confusion inside one of them.",
+  "type": "object",
+  "required": ["schemaVersion", "kind", "approvedDigest", "plan"],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sha256OrNull": {
+      "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
+    "harness": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] },
+    "surfaceSupport": { "enum": ["supported", "unsupported", "unverified"] },
+    "stringArray": { "type": "array", "items": { "type": "string" } },
+    "leafResult": {
+      "type": "object",
+      "required": ["factId", "detected", "path", "reason", "broad", "phrase"],
+      "additionalProperties": false,
+      "properties": {
+        "factId": { "type": "string" },
+        "detected": { "type": "boolean" },
+        "path": { "type": ["string", "null"] },
+        "reason": { "type": ["string", "null"] },
+        "broad": { "type": "boolean" },
+        "phrase": { "type": "string" }
+      }
+    },
+    "deferredFact": {
+      "type": "object",
+      "required": ["factId", "deferredTo"],
+      "additionalProperties": false,
+      "properties": {
+        "factId": { "type": "string" },
+        "deferredTo": { "type": "string" }
+      }
+    },
+    "packEvaluation": {
+      "description": "The shape CR-04 crashed inside. satisfied and failed are typed as arrays of typed leaves rather than left open, because the reproduced defect was a string reaching a .filter guarded only against nullish values.",
+      "type": "object",
+      "required": ["packId", "status", "satisfied", "failed", "deferred", "undeclared", "explanation", "overrideReason"],
+      "additionalProperties": false,
+      "properties": {
+        "packId": { "type": "string" },
+        "status": { "enum": ["selected", "near-miss", "silent", "unimplemented", "forced-on", "forced-off"] },
+        "satisfied": { "type": "array", "items": { "$ref": "#/$defs/leafResult" } },
+        "failed": { "type": "array", "items": { "$ref": "#/$defs/leafResult" } },
+        "deferred": { "type": "array", "items": { "$ref": "#/$defs/deferredFact" } },
+        "undeclared": { "$ref": "#/$defs/stringArray" },
+        "explanation": { "type": "string" },
+        "overrideReason": { "type": ["string", "null"] }
+      }
+    },
+    "packSource": {
+      "type": "object",
+      "required": ["packId", "skill", "package", "version", "integrity", "sourceSha256"],
+      "additionalProperties": false,
+      "properties": {
+        "packId": { "type": "string" },
+        "skill": { "type": "string" },
+        "package": { "type": "string" },
+        "version": { "type": "string" },
+        "integrity": { "type": "string" },
+        "sourceSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "targetPreState": {
+      "type": "object",
+      "required": ["packId", "skill", "harness", "path", "exists", "currentHash", "ownedByReceipt", "expectedHash", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "packId": { "type": "string" },
+        "skill": { "type": "string" },
+        "harness": { "$ref": "#/$defs/harness" },
+        "path": { "type": "string" },
+        "exists": { "type": "boolean" },
+        "currentHash": { "$ref": "#/$defs/sha256OrNull" },
+        "ownedByReceipt": { "type": "boolean" },
+        "expectedHash": { "$ref": "#/$defs/sha256" },
+        "action": { "enum": ["create", "update", "current"] }
+      }
+    },
+    "adapterSupportEntry": {
+      "type": "object",
+      "required": ["harness", "support", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "harness": { "$ref": "#/$defs/harness" },
+        "support": { "$ref": "#/$defs/surfaceSupport" },
+        "reason": { "type": "string" }
+      }
+    },
+    "planApproval": {
+      "type": "object",
+      "required": ["code", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "description": "A PLAIN STRING and deliberately not an enum. Plan 02-15 adds TARGET_UNREADABLE and Phase 3 will add more; an enum here would turn each future approval code into an unreadable-artifact incident, so do NOT narrow this.",
+          "type": "string"
+        },
+        "detail": { "type": "string" }
+      }
+    },
+    "safeInverse": {
+      "type": "object",
+      "required": ["packId", "operation", "guard"],
+      "additionalProperties": false,
+      "properties": {
+        "packId": { "type": "string" },
+        "operation": { "enum": ["remove", "restore"] },
+        "guard": {
+          "type": "object",
+          "required": ["path", "expectedHash"],
+          "additionalProperties": false,
+          "properties": {
+            "path": { "type": "string" },
+            "expectedHash": {
+              "description": "Nullable ON PURPOSE. Plan 02-15 widens this field so a target that exists and whose bytes could not be read carries an explicit unknown instead of a fabricated source hash (02-REVIEW WR-04); a string-only schema would reject every artifact carrying one. Do NOT narrow this back to a bare string.",
+              "type": ["string", "null"]
+            }
+          }
+        }
+      }
+    },
+    "subProjectDecision": {
+      "type": "object",
+      "required": ["path", "declarationFile", "selected"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "declarationFile": { "type": "string" },
+        "selected": { "$ref": "#/$defs/stringArray" }
+      }
+    },
+    "scanBound": {
+      "type": "object",
+      "required": ["bound", "limit", "at"],
+      "additionalProperties": false,
+      "properties": {
+        "bound": { "enum": ["MAX_SCAN_DEPTH", "MAX_SCAN_ENTRIES", "MAX_SUB_PROJECTS"] },
+        "limit": { "type": "integer" },
+        "at": { "type": "string" }
+      }
+    },
+    "excludedBoundary": {
+      "type": "object",
+      "required": ["path", "reason", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "reason": {
+          "enum": [
+            "git-entry",
+            "declared-submodule",
+            "vendored-directory",
+            "ignored",
+            "undecidable",
+            "outside-canonical-root",
+            "alias-entry",
+            "visited-identity",
+            "depth-bound",
+            "unreadable"
+          ]
+        },
+        "detail": { "type": ["string", "null"] }
+      }
+    },
+    "droppedMember": {
+      "type": "object",
+      "required": ["declared", "ecosystem", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "declared": { "type": "string" },
+        "ecosystem": { "enum": ["npm", "pnpm", "cargo", "go", "uv"] },
+        "reason": { "type": "string" }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "kind": { "type": "string", "minLength": 1 },
+    "approvedDigest": { "$ref": "#/$defs/sha256" },
+    "gitContext": {
+      "description": "The branch and commit the approval was recorded on. CONTEXT ONLY: it sits beside plan rather than inside it, which is what keeps it out of every digest. Optional, so an artifact written before the field existed still reads.",
+      "type": "object",
+      "required": ["available", "branch", "commit", "detached", "source", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "available": { "type": "boolean" },
+        "branch": { "type": ["string", "null"] },
+        "commit": { "type": ["string", "null"] },
+        "detached": { "type": "boolean" },
+        "source": { "enum": ["loose", "packed", "detached", null] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "plan": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "scope",
+        "owner",
+        "source",
+        "renderer",
+        "targetPreState",
+        "adapterSupport",
+        "adapterSupportEvidence",
+        "approvals",
+        "safeInverse",
+        "executable",
+        "executableDisposition",
+        "receiptDirectory",
+        "evaluations",
+        "selected",
+        "applicable",
+        "nearMissOrder",
+        "subProjects",
+        "scanBounds",
+        "undecidableBoundaries",
+        "excludedBoundaries",
+        "droppedMembers",
+        "manifestDigest",
+        "inputsDigest",
+        "evidenceDigest",
+        "planDigest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "type": "integer" },
+        "scope": {
+          "type": "object",
+          "required": ["canonicalRoot", "rootReason", "projectId", "subProjectPath"],
+          "additionalProperties": false,
+          "properties": {
+            "canonicalRoot": { "type": "string" },
+            "rootReason": {
+              "enum": ["explicit-override", "project-declaration", "git-root", "standalone-directory"]
+            },
+            "projectId": { "type": "string" },
+            "subProjectPath": { "type": ["string", "null"] }
+          }
+        },
+        "owner": {
+          "type": "object",
+          "required": ["id", "producer"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "producer": {
+              "type": "object",
+              "required": ["name", "version"],
+              "additionalProperties": false,
+              "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+            }
+          }
+        },
+        "source": { "type": "array", "items": { "$ref": "#/$defs/packSource" } },
+        "renderer": {
+          "type": "object",
+          "required": ["id", "version", "identity", "note"],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "string" },
+            "version": { "type": "string" },
+            "identity": { "type": "boolean" },
+            "note": { "type": "string" }
+          }
+        },
+        "targetPreState": { "type": "array", "items": { "$ref": "#/$defs/targetPreState" } },
+        "adapterSupport": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/harness" },
+          "additionalProperties": { "$ref": "#/$defs/surfaceSupport" }
+        },
+        "adapterSupportEvidence": { "type": "array", "items": { "$ref": "#/$defs/adapterSupportEntry" } },
+        "approvals": { "type": "array", "items": { "$ref": "#/$defs/planApproval" } },
+        "safeInverse": { "type": "array", "items": { "$ref": "#/$defs/safeInverse" } },
+        "executable": {
+          "description": "DETC-05's executable noun. Phase 2 spawns nothing, so the honest value is null — not a placeholder path and not an empty array.",
+          "type": "null"
+        },
+        "executableDisposition": {
+          "type": "object",
+          "required": ["deferredTo", "reason"],
+          "additionalProperties": false,
+          "properties": { "deferredTo": { "type": "string" }, "reason": { "type": "string" } }
+        },
+        "receiptDirectory": { "type": "string" },
+        "evaluations": { "type": "array", "items": { "$ref": "#/$defs/packEvaluation" } },
+        "selected": { "$ref": "#/$defs/stringArray" },
+        "applicable": { "$ref": "#/$defs/stringArray" },
+        "nearMissOrder": { "$ref": "#/$defs/stringArray" },
+        "subProjects": { "type": "array", "items": { "$ref": "#/$defs/subProjectDecision" } },
+        "hostNotes": {
+          "description": "Observations true of the HOST rather than of the repository. Declared here up front, and deliberately ABSENT from plan.required, so an artifact written before plan 02-15 lands validates exactly as well as one written after. Plan 02-15 owns tightening it into required once every plan value carries it. Do NOT remove this property: approvalArtifactBytes serializes the entire plan value, so a closed schema that does not know a field project approve writes is a schema project status then rejects.",
+          "$ref": "#/$defs/stringArray"
+        },
+        "scanBounds": { "type": "array", "items": { "$ref": "#/$defs/scanBound" } },
+        "undecidableBoundaries": { "type": "array", "items": { "$ref": "#/$defs/excludedBoundary" } },
+        "excludedBoundaries": { "type": "array", "items": { "$ref": "#/$defs/excludedBoundary" } },
+        "droppedMembers": { "type": "array", "items": { "$ref": "#/$defs/droppedMember" } },
+        "manifestDigest": { "$ref": "#/$defs/sha256OrNull" },
+        "inputsDigest": { "$ref": "#/$defs/sha256" },
+        "evidenceDigest": { "$ref": "#/$defs/sha256" },
+        "planDigest": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  }
+}

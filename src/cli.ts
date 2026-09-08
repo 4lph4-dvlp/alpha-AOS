@@ -655,6 +655,12 @@ async function main(): Promise<void> {
         formatProjectStatus(reconciliation, removals, { path: target, subProject }),
         context,
       );
+      // A repository-supplied artifact that failed its closed schema is a
+      // refusal, not a routine absence. The whole report is still printed —
+      // the reconciliation itself is derived from freshly recomputed evidence
+      // and stays true — and the exit status is what says the artifact was
+      // REJECTED rather than merely missing (02-REVIEW CR-04).
+      if (reconciliation.artifactState === "unreadable") process.exitCode = 2;
       return;
     }
 

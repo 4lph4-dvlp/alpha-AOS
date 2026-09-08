@@ -20,7 +20,14 @@ export type ManagedDocumentKind =
   | "receipt"
   | "native-config"
   | "pack-catalog"
-  | "fact-vocabulary";
+  | "fact-vocabulary"
+  /**
+   * `.alpha-aos/plan.json`. It is the one managed document designed to be
+   * COMMITTED, so it arrives attacker-supplied on every clone and is a
+   * first-class kind here rather than a caller-supplied schema smuggled
+   * through a generic route (02-REVIEW CR-04).
+   */
+  | "approved-plan";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -301,6 +308,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "native-config": "alphaAos",
   "pack-catalog": null,
   "fact-vocabulary": null,
+  "approved-plan": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -320,12 +328,19 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     channel: { enum: ["stable", "candidate", "pinned"] },
     components: anyObject,
   }),
+  // IN-05: this entry is closed-world, so every field the external
+  // `schemas/project-stack.schema.json` gains must be mirrored here or a caller
+  // that validates a manifest WITHOUT passing the external schema rejects a
+  // valid document. `inspectProjectManifest` always passes it, which is exactly
+  // why the divergence was a latent trap rather than a live failure.
   "project-manifest": coreObject(["schemaVersion"], {
     schemaVersion: { type: "integer" },
     trusted: { type: "boolean" },
     packs: { type: "array", items: { type: "string" } },
     criticalUserFlows: { type: "array", items: { type: "string" } },
     scientificResearch: { type: "boolean" },
+    packOverrides: { type: "object", additionalProperties: { enum: ["force-on", "force-off"] } },
+    securityReview: { type: "boolean" },
     isolation: anyObject,
   }),
   journal: coreObject(["schemaVersion", "id", "createdAt", "status", "allowedRoots", "files"], {
@@ -373,6 +388,16 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
   "fact-vocabulary": coreObject(["schemaVersion", "facts"], {
     schemaVersion: { type: "integer" },
     facts: { type: "array" },
+  }),
+  // The built-in envelope check only. `schemas/approved-plan.schema.json` is
+  // the closed contract for the artifact's interior, and every supported route
+  // passes it — the same arrangement `receipt` already uses.
+  "approved-plan": coreObject(["schemaVersion", "kind", "approvedDigest", "plan"], {
+    schemaVersion: { type: "integer" },
+    kind: { type: "string" },
+    approvedDigest: { type: "string" },
+    gitContext: anyObject,
+    plan: anyObject,
   }),
 };
 

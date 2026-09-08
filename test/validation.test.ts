@@ -616,3 +616,206 @@ test("validateAgainstSchema roots its issues at the owned subtree", () => {
   assert.equal(issues.length > 0, true);
   assert.equal(issues[0]?.documentPath.startsWith("/mcpServers/exa"), true);
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-14: the approved-plan artifact is a first-class managed document
+// ---------------------------------------------------------------------------
+//
+// `.alpha-aos/plan.json` is the one managed document designed to be committed,
+// so it is attacker-supplied on every clone. It joins the same closed-world
+// route as a receipt, and the two cases that matter are asserted here beside
+// the rest of the matrix: a well-formed artifact is accepted, and each shape
+// 02-REVIEW CR-04 reproduced is refused with a stable code.
+
+const VALID_LEAF = {
+  factId: "dependency:pg",
+  detected: true,
+  path: "package.json",
+  reason: null,
+  broad: false,
+  phrase: "a postgres client dependency",
+};
+
+const VALID_APPROVED_PLAN = {
+  schemaVersion: 1,
+  kind: "project-capability-plan",
+  approvedDigest: "a".repeat(64),
+  gitContext: { available: false, branch: null, commit: null, detached: false, source: null, reason: "no .git" },
+  plan: {
+    schemaVersion: 1,
+    scope: { canonicalRoot: "/tmp/project", rootReason: "git-root", projectId: "0123456789abcdef", subProjectPath: null },
+    owner: { id: "alpha-aos", producer: { name: "alpha-aos", version: "0.1.0" } },
+    source: [],
+    renderer: { id: "ecc-skill/identity", version: "0.1.0", identity: true, note: "identity render" },
+    targetPreState: [],
+    adapterSupport: { claude: "supported" },
+    adapterSupportEvidence: [{ harness: "claude", support: "supported", reason: "documented project-scope location" }],
+    approvals: [{ code: "PACKAGE_SOURCE", detail: "alpha-aos-ecc@0.1.0" }],
+    safeInverse: [],
+    executable: null,
+    executableDisposition: { deferredTo: "phase-3-capability-materialization", reason: "nothing is spawned" },
+    receiptDirectory: ".alpha-aos/receipts",
+    evaluations: [
+      {
+        packId: "DB_POSTGRES",
+        status: "selected",
+        satisfied: [VALID_LEAF],
+        failed: [],
+        deferred: [],
+        undeclared: [],
+        explanation: "selected on a declared dependency",
+        overrideReason: null,
+      },
+    ],
+    selected: ["DB_POSTGRES"],
+    applicable: ["DB_POSTGRES"],
+    nearMissOrder: [],
+    subProjects: [],
+    scanBounds: [],
+    undecidableBoundaries: [],
+    excludedBoundaries: [],
+    droppedMembers: [],
+    manifestDigest: null,
+    inputsDigest: "b".repeat(64),
+    evidenceDigest: "c".repeat(64),
+    planDigest: "d".repeat(64),
+  },
+};
+
+test("a well-formed approved-plan artifact validates as a closed current document", async () => {
+  const result = validateManagedDocument({
+    text: JSON.stringify(VALID_APPROVED_PLAN),
+    format: "json",
+    kind: "approved-plan",
+    schema: await schema("approved-plan.schema.json"),
+  });
+
+  assert.equal(result.ok, true, JSON.stringify(result.issues));
+  assert.equal(result.status, "current");
+});
+
+test("the approved-plan schema admits the two shapes plan 02-15 introduces", async () => {
+  const approvedPlanSchema = await schema("approved-plan.schema.json");
+
+  // `hostNotes` is declared and deliberately NOT required, so an artifact
+  // written before 02-15 lands and one written after both validate.
+  const withHostNotes = validateManagedDocument({
+    text: JSON.stringify({
+      ...VALID_APPROVED_PLAN,
+      plan: { ...VALID_APPROVED_PLAN.plan, hostNotes: ["a personal-scope skill shadows postgres-patterns"] },
+    }),
+    format: "json",
+    kind: "approved-plan",
+    schema: approvedPlanSchema,
+  });
+  assert.equal(withHostNotes.ok, true, JSON.stringify(withHostNotes.issues));
+
+  // A guard hash that is an explicit unknown, which 02-15's WR-04 fix writes
+  // for a target that exists and whose bytes could not be read.
+  const withNullGuard = validateManagedDocument({
+    text: JSON.stringify({
+      ...VALID_APPROVED_PLAN,
+      plan: {
+        ...VALID_APPROVED_PLAN.plan,
+        safeInverse: [
+          { packId: "DB_POSTGRES", operation: "restore", guard: { path: ".claude/skills/x/SKILL.md", expectedHash: null } },
+        ],
+      },
+    }),
+    format: "json",
+    kind: "approved-plan",
+    schema: approvedPlanSchema,
+  });
+  assert.equal(withNullGuard.ok, true, JSON.stringify(withNullGuard.issues));
+
+  // An approval code nobody has written yet. `code` is a plain string on
+  // purpose: an enum would turn each future code into an unreadable artifact.
+  const withFutureCode = validateManagedDocument({
+    text: JSON.stringify({
+      ...VALID_APPROVED_PLAN,
+      plan: {
+        ...VALID_APPROVED_PLAN.plan,
+        approvals: [{ code: "TARGET_UNREADABLE", detail: "the bytes at a planned target could not be read" }],
+      },
+    }),
+    format: "json",
+    kind: "approved-plan",
+    schema: approvedPlanSchema,
+  });
+  assert.equal(withFutureCode.ok, true, JSON.stringify(withFutureCode.issues));
+});
+
+test("each reproduced approved-plan poisoning is refused with a stable code", async () => {
+  const approvedPlanSchema = await schema("approved-plan.schema.json");
+
+  const cases: ReadonlyArray<{ name: string; document: string }> = [
+    {
+      name: "a leaf array replaced with a string",
+      document: JSON.stringify({
+        ...VALID_APPROVED_PLAN,
+        plan: {
+          ...VALID_APPROVED_PLAN.plan,
+          evaluations: [{ ...VALID_APPROVED_PLAN.plan.evaluations[0], satisfied: "the pg dependency" }],
+        },
+      }),
+    },
+    {
+      name: "an undeclared top-level plan key",
+      document: JSON.stringify({
+        ...VALID_APPROVED_PLAN,
+        plan: { ...VALID_APPROVED_PLAN.plan, somethingNobodyDeclared: { anything: 1 } },
+      }),
+    },
+    {
+      name: "selected replaced with an object",
+      document: JSON.stringify({
+        ...VALID_APPROVED_PLAN,
+        plan: { ...VALID_APPROVED_PLAN.plan, selected: { DB_POSTGRES: true } },
+      }),
+    },
+    {
+      name: "an undeclared key beside the plan",
+      document: JSON.stringify({ ...VALID_APPROVED_PLAN, unknownCoreField: true }),
+    },
+    { name: "bytes that are not JSON at all", document: "this is not JSON at all\n" },
+    {
+      name: "a duplicate key, which JSON.parse would silently resolve",
+      document: `{"schemaVersion":1,"kind":"project-capability-plan","approvedDigest":"${"a".repeat(64)}","plan":{},"plan":{}}`,
+    },
+  ];
+
+  for (const entry of cases) {
+    const result = validateManagedDocument({
+      text: entry.document,
+      format: "json",
+      kind: "approved-plan",
+      schema: approvedPlanSchema,
+    });
+    assert.equal(result.ok, false, `${entry.name} should have been refused`);
+    assert.ok(result.issues.length > 0, `${entry.name} was refused with no issue`);
+    assert.match(
+      result.issues[0]?.code ?? "",
+      /^(?:schema|syntax|version|domain)\.[a-z-]+$/u,
+      `${entry.name} carried no stable issue code: ${JSON.stringify(result.issues)}`,
+    );
+  }
+});
+
+test("the built-in project-manifest core schema accepts every field the external contract declares", async () => {
+  // IN-05: the built-in route is closed-world, so a caller that validates a
+  // manifest WITHOUT passing schemas/project-stack.schema.json must not reject
+  // a document that file accepts.
+  const external = await schema("project-stack.schema.json");
+  const document = JSON.stringify({
+    schemaVersion: 1,
+    trusted: false,
+    packOverrides: { WEB_REACT: "force-on" },
+    securityReview: true,
+  });
+
+  const withExternal = validateManagedDocument({ text: document, format: "json", kind: "project-manifest", schema: external });
+  const builtIn = validateManagedDocument({ text: document, format: "json", kind: "project-manifest" });
+
+  assert.equal(withExternal.ok, true, JSON.stringify(withExternal.issues));
+  assert.equal(builtIn.ok, true, JSON.stringify(builtIn.issues));
+});

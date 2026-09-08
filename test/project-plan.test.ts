@@ -2735,6 +2735,13 @@ test("a planted plan artifact claiming a pack the evidence does not support repo
     body: "# security-review\n",
   });
   // A hand-planted artifact: a record of an approval, never an authority.
+  //
+  // It is built from a REAL plan value for this root and then edited, because
+  // the artifact now travels the same closed schema every other managed
+  // document travels — a four-key stub is a rejected document rather than a
+  // planted one, and this case is about a schema-valid record disagreeing with
+  // the world, not about a malformed one.
+  const genuine = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
   await writeFile(
     join(root, ".alpha-aos", "plan.json"),
     `${JSON.stringify(
@@ -2743,9 +2750,9 @@ test("a planted plan artifact claiming a pack the evidence does not support repo
         kind: "project-capability-plan",
         approvedDigest: "f".repeat(64),
         plan: {
+          ...genuine,
           selected: ["SECURITY_REVIEW"],
           applicable: ["SECURITY_REVIEW"],
-          evaluations: [],
           evidenceDigest: "0".repeat(64),
         },
       },

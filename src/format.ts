@@ -369,6 +369,17 @@ export function formatProjectStatus(
   // tell a checkout from a real removal.
   if (reconciliation.gitNote !== null) lines.push(`BRANCH-DIFFERS ${reconciliation.gitNote}`);
 
+  // A rejected artifact and a superseded one are different facts about
+  // different problems, so they get different lines. Reusing the `changed`
+  // wording would tell a user their approval was overtaken by new evidence
+  // when what actually happened is that the document itself was refused.
+  if (reconciliation.artifactState === "unreadable") {
+    const codes = reconciliation.artifactIssues.map((entry) => `${entry.code}@${entry.documentPath}`).join(", ");
+    lines.push(
+      `UNREADABLE-APPROVAL ${PROJECT_PLAN_ARTIFACT} exists and did not pass its closed schema, so it is refused rather than partly trusted: ${codes || "no issue code was recorded"}`,
+    );
+  }
+
   if (reconciliation.artifactState === "changed") {
     lines.push(
       `CHANGED ${PROJECT_PLAN_ARTIFACT} records an approval taken against different evidence, so it is read as a record of what was approved and never as an authority about what is true now`,

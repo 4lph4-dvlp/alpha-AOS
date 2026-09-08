@@ -3623,3 +3623,199 @@ test("a near-miss reason rendered by the CLI names the ignored directory rather 
     assert.equal(/exists under the canonical root/u.test(line), false, `the CLI still claims non-existence: ${line}`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-14 Task 1: the one committed managed document travels the strict route
+// ---------------------------------------------------------------------------
+//
+// `.gitignore` ignores `.alpha-aos/install-state.json`, `journal/`, `snapshots/`
+// and `evidence/` and deliberately does NOT ignore `plan.json`, which is what
+// confirms the approval artifact is meant to be committed — and therefore
+// arrives attacker-supplied on every clone. 02-REVIEW CR-04 reproduced a raw
+// JavaScript type error from `project status` against one whose
+// `evaluations[i].satisfied` was a string, on exactly the stale branch DETC-06
+// exists to report on.
+
+/** The exact bytes one poisoned-artifact case writes over `.alpha-aos/plan.json`. */
+type ArtifactMutation = (artifact: Record<string, unknown>) => string;
+
+/** Rewrites the artifact's `plan` subtree in place and re-serializes the whole artifact. */
+function mutateApprovedPlan(mutate: (plan: Record<string, unknown>) => void): ArtifactMutation {
+  return (artifact) => {
+    const plan = asRecord(artifact.plan);
+    mutate(plan);
+    return `${JSON.stringify({ ...artifact, plan }, null, 2)}\n`;
+  };
+}
+
+/** The reproduced CR-04 mutation: a leaf array replaced with a string. */
+const POISON_NON_ARRAY_SATISFIED = mutateApprovedPlan((plan) => {
+  const evaluations = asRecordArray(plan.evaluations, "plan.evaluations");
+  const target = evaluations.find((entry) => entry.packId === POSTGRES_PACK);
+  assert.ok(target, `the approved artifact carried no ${POSTGRES_PACK} evaluation`);
+  target.satisfied = "the pg dependency, according to this repository";
+  plan.evaluations = evaluations;
+});
+
+const POISON_UNDECLARED_KEY = mutateApprovedPlan((plan) => {
+  plan.somethingNobodyDeclared = { anything: 1 };
+});
+
+const POISON_SELECTED_IS_OBJECT = mutateApprovedPlan((plan) => {
+  plan.selected = { [POSTGRES_PACK]: true };
+});
+
+const POISON_NOT_JSON: ArtifactMutation = () => "this is not JSON at all\n";
+
+/**
+ * A real approval over a real fixture, then a hostile rewrite of the artifact,
+ * then the removal of the evidence that selected the pack.
+ *
+ * The order matters: the artifact must be a genuine approval before it is
+ * poisoned, and the evidence must go away afterwards, so the branch under test
+ * is exactly the stale branch rather than the still-selected one.
+ */
+async function poisonedApprovalFixture(
+  context: TestContext,
+  mutation: ArtifactMutation,
+): Promise<{ root: string; stateRoot: string; artifactPath: string }> {
+  const fixture = await installedPostgresFixture(context);
+  const artifactPath = join(fixture.root, ".alpha-aos", "plan.json");
+  await writeFile(artifactPath, mutation(await readArtifact(artifactPath)), "utf8");
+  await writeFile(
+    join(fixture.root, "package.json"),
+    `${JSON.stringify({ name: "reconcile-fixture", private: true, dependencies: {} }, null, 2)}\n`,
+    "utf8",
+  );
+  return { root: fixture.root, stateRoot: fixture.stateRoot, artifactPath };
+}
+
+/** An installed pack whose plan was never approved: no artifact exists at all. */
+async function unapprovedPostgresFixture(context: TestContext): Promise<string> {
+  const root = await scratchRoot(context, "unapproved");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "reconcile-fixture", private: true, dependencies: { pg: "^8.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  await writeInstalledPack(root, { packId: POSTGRES_PACK, target: POSTGRES_TARGET, body: "# postgres-patterns\n" });
+  return root;
+}
+
+interface StatusEnvelope {
+  readonly reconciliation: {
+    readonly artifactState: string;
+    readonly artifactIssues: ReadonlyArray<{ readonly code: string; readonly documentPath: string }>;
+  };
+}
+
+async function statusJson(root: string): Promise<{ status: number | null; envelope: StatusEnvelope; raw: string }> {
+  const result = await runCli(["project", "status", root, "--json"]);
+  const raw = `${result.stdout}\n${result.stderr}`;
+  assert.ok(result.stdout.trim().length > 0, `project status --json printed nothing:\n${raw}`);
+  return { status: result.status, envelope: JSON.parse(result.stdout) as StatusEnvelope, raw };
+}
+
+test("a poisoned approval artifact makes project status a named refusal on the stale path", async (context) => {
+  const { root } = await poisonedApprovalFixture(context, POISON_NON_ARRAY_SATISFIED);
+
+  const result = await runCli(["project", "status", root]);
+  const output = `${result.stdout}\n${result.stderr}`;
+
+  // The refusal is asserted by its own shape, never by scanning for the text of
+  // the runtime error it replaced: an assertion against a crash message stops
+  // being a regression the moment that message is reworded upstream.
+  assert.equal(result.status, 2, `expected the domain-refusal status, got ${result.status}:\n${output}`);
+  const line = output.split("\n").find((entry) => entry.startsWith("UNREADABLE-APPROVAL "));
+  assert.ok(line, `project status emitted no UNREADABLE-APPROVAL line:\n${output}`);
+  assert.ok(line.includes(PLAN_ARTIFACT_RELATIVE), `the refusal did not name the artifact: ${line}`);
+  assert.match(line, /\b(?:schema|syntax|version|domain)\.[a-z-]+/u, `the refusal carried no stable issue code: ${line}`);
+});
+
+test("project status --json reports a poisoned artifact as unreadable with its validation issues", async (context) => {
+  const { root } = await poisonedApprovalFixture(context, POISON_NON_ARRAY_SATISFIED);
+
+  const { envelope, raw } = await statusJson(root);
+
+  assert.equal(envelope.reconciliation.artifactState, "unreadable", raw);
+  assert.ok(envelope.reconciliation.artifactIssues.length > 0, `artifactIssues was empty:\n${raw}`);
+  assert.ok((envelope.reconciliation.artifactIssues[0]?.code ?? "").length > 0, raw);
+});
+
+test("every poisoned artifact shape is reported unreadable rather than absent", async (context) => {
+  const cases: ReadonlyArray<{ name: string; mutation: ArtifactMutation }> = [
+    { name: "a leaf array replaced with a string", mutation: POISON_NON_ARRAY_SATISFIED },
+    { name: "an undeclared top-level plan key", mutation: POISON_UNDECLARED_KEY },
+    { name: "selected replaced with an object", mutation: POISON_SELECTED_IS_OBJECT },
+    { name: "bytes that are not JSON at all", mutation: POISON_NOT_JSON },
+  ];
+
+  for (const entry of cases) {
+    const { root } = await poisonedApprovalFixture(context, entry.mutation);
+    const { envelope, raw } = await statusJson(root);
+    assert.equal(envelope.reconciliation.artifactState, "unreadable", `${entry.name}:\n${raw}`);
+    assert.ok(envelope.reconciliation.artifactIssues.length > 0, `${entry.name} carried no issues:\n${raw}`);
+  }
+});
+
+test("an absent approval artifact stays absent, with no validation issues", async (context) => {
+  const root = await unapprovedPostgresFixture(context);
+
+  const { status, envelope, raw } = await statusJson(root);
+
+  assert.equal(status, 0, raw);
+  assert.equal(envelope.reconciliation.artifactState, "absent", raw);
+  assert.deepEqual([...envelope.reconciliation.artifactIssues], [], raw);
+});
+
+test("a well-formed approval artifact over unchanged evidence still reports current", async (context) => {
+  const { root } = await installedPostgresFixture(context);
+
+  const { status, envelope, raw } = await statusJson(root);
+
+  assert.equal(status, 0, raw);
+  assert.equal(envelope.reconciliation.artifactState, "current", raw);
+  assert.deepEqual([...envelope.reconciliation.artifactIssues], [], raw);
+});
+
+test("approving the same reviewed plan twice writes once, and the verdict comes from a validated artifact", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const first = await runCli(["project", "approve", root, "--plan-digest", plan.planDigest, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+  assert.equal(first.status, 0, first.stderr);
+  const artifactPath = join(root, ".alpha-aos", "plan.json");
+  const afterFirst = await readFile(artifactPath, "utf8");
+
+  const second = await runCli(["project", "approve", root, "--plan-digest", plan.planDigest, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+  assert.equal(second.status, 0, second.stderr);
+  assert.match(second.stdout, /Already current/u, second.stdout);
+  assert.equal(await readFile(artifactPath, "utf8"), afterFirst, "the second approve rewrote the artifact");
+});
+
+test("an unreadable artifact whose approvedDigest matches the current plan never reports already-current", async (context) => {
+  const { root, stateRoot } = await approvalFixture(context);
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  await approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest });
+  const artifactPath = join(root, ".alpha-aos", "plan.json");
+  // W-1: the digest an attacker keeps correct while poisoning everything else.
+  // A false already-current is a denial a repository can inflict on its users.
+  await writeFile(artifactPath, POISON_UNDECLARED_KEY(await readArtifact(artifactPath)), "utf8");
+
+  const again = await approveProjectPlan({
+    path: root,
+    packageRoot: repositoryRoot,
+    stateRoot,
+    expectedDigest: plan.planDigest,
+  });
+
+  assert.equal(again.status, "written", "an unreadable artifact was accepted as already-current");
+  const rewritten = await readArtifact(artifactPath);
+  assert.equal(rewritten.somethingNobodyDeclared, undefined, "the poisoned key survived the rewrite");
+});

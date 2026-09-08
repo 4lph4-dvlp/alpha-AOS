@@ -29,7 +29,7 @@
 - [x] **DETC-03**: User can see why a near-match did not select a pack, and generic files such as `AGENTS.md` alone cannot activate agent-runtime capabilities
 - [ ] **DETC-04**: User receives stable text and JSON plans that identify scope, owner, exact source version and hash, renderer, target pre-state, adapter support, approvals, and safe inverse
 - [ ] **DETC-05**: User cannot apply a reviewed plan after its evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes have changed
-- [ ] **DETC-06**: User sees a previously installed project pack marked `STALE` when its evidence disappears, with no automatic deletion
+- [x] **DETC-06**: User sees a previously installed project pack marked `STALE` when its evidence disappears, with no automatic deletion
 
 ### Optional Capabilities and Project Packs
 
@@ -137,7 +137,7 @@
 | DETC-03 | Phase 2 | Complete |
 | DETC-04 | Phase 2 | Gaps Found |
 | DETC-05 | Phase 2 | Gaps Found |
-| DETC-06 | Phase 2 | Gaps Found |
+| DETC-06 | Phase 2 | Complete |
 | CAPA-01 | Phase 3 | Pending |
 | CAPA-02 | Phase 3 | Pending |
 | CAPA-03 | Phase 3 | Pending |

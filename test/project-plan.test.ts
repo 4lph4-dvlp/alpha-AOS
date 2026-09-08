@@ -38,6 +38,7 @@ import {
   scanProjectTree,
 } from "../src/core/evidence.js";
 import { IGNORE_FILE_BYTE_CAP } from "../src/core/ignore-list.js";
+import { REDACTED_STRING_LENGTH_BUDGET } from "../src/core/redaction.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
@@ -2568,6 +2569,7 @@ interface ProjectReconciliationLike {
   readonly plan: ProjectCapabilityPlan;
   readonly approved: ProjectCapabilityPlan | null;
   readonly artifactState: string;
+  readonly artifactIssues: ReadonlyArray<{ readonly code: string; readonly documentPath: string }>;
   readonly artifactPath: string;
   readonly unsupportedClaims: readonly string[];
   readonly packs: readonly PackReconciliationLike[];
@@ -3825,4 +3827,186 @@ test("an unreadable artifact whose approvedDigest matches the current plan never
   assert.equal(again.status, "written", "an unreadable artifact was accepted as already-current");
   const rewritten = await readArtifact(artifactPath);
   assert.equal(rewritten.somethingNobodyDeclared, undefined, "the poisoned key survived the rewrite");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-14 Task 2: a validated document still cannot crash the reconciliation
+// ---------------------------------------------------------------------------
+//
+// The closed schema is the primary defence and these are the second. Two
+// independent defences against a repository-supplied document is the posture
+// this codebase already takes for every other managed document, and the schema
+// can be edited by a future change that does not notice this consumer.
+
+interface ClassifyInstalledPackInput {
+  readonly receipt: {
+    readonly packId: string;
+    readonly path: string;
+    readonly sourceHash: string;
+    readonly evidenceHash: string | null;
+    readonly targets: readonly { readonly harness: string; readonly path: string; readonly targetHash: string }[];
+  };
+  readonly targets: readonly ReconciledTargetLike[];
+  readonly plan: ProjectCapabilityPlan;
+  readonly approved: unknown;
+  readonly selected: boolean;
+}
+
+type ClassifyInstalledPack = (input: ClassifyInstalledPackInput) => PackReconciliationLike;
+
+/** A leaf that is schema-shaped but whose fact id is far past any per-value bound. */
+function oversizedLeaf(length: number): Record<string, unknown> {
+  return {
+    factId: `dependency:${"n".repeat(length)}`,
+    detected: true,
+    path: "package.json",
+    reason: null,
+    broad: false,
+    phrase: "z".repeat(length),
+  };
+}
+
+test("a non-array leaf collection inside an approved plan is reported, never thrown", async (context) => {
+  const classifyInstalledPack = await planExport<ClassifyInstalledPack>("classifyInstalledPack");
+  const { root } = await installedPostgresFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  // The schema Task 1 added refuses this shape at the door. This asserts the
+  // SECOND defence: the consumer itself does not throw when handed one anyway.
+  const approved = {
+    ...plan,
+    evaluations: [
+      { packId: POSTGRES_PACK, status: "selected", satisfied: "the pg dependency", failed: [], deferred: [], undeclared: [], explanation: "", overrideReason: null },
+    ],
+  };
+
+  const result = classifyInstalledPack({
+    receipt: { packId: POSTGRES_PACK, path: `.alpha-aos/receipts/${POSTGRES_PACK}.json`, sourceHash: "a".repeat(64), evidenceHash: null, targets: [] },
+    targets: [],
+    plan,
+    approved,
+    selected: false,
+  });
+
+  assert.ok(result.state.length > 0, "a non-conforming artifact field produced no reported state");
+  assert.ok(result.detail.length > 0, "a non-conforming artifact field produced no explanatory detail");
+  assert.ok(
+    result.detail.includes(PLAN_ARTIFACT_RELATIVE),
+    `the reported detail did not name the artifact: ${result.detail}`,
+  );
+});
+
+test("project status on an artifact carrying a non-array satisfied leaf reports rather than crashes", async (context) => {
+  const { root } = await poisonedApprovalFixture(context, POISON_NON_ARRAY_SATISFIED);
+
+  const result = await runCli(["project", "status", root]);
+  const output = `${result.stdout}\n${result.stderr}`;
+
+  assert.equal(result.status, 2, `expected the domain-refusal status, got ${result.status}:\n${output}`);
+  const row = output.split("\n").find((line) => line.includes(POSTGRES_PACK) && /^(?:CURRENT|STALE|DRIFTED|CHANGED|CONFLICT|UNDECIDABLE)\s/u.test(line));
+  assert.ok(row, `project status reported no state for ${POSTGRES_PACK}:\n${output}`);
+  assert.ok(row.trim().split(/\s{2,}/u).length >= 3, `the reported row carried no explanatory detail: ${row}`);
+});
+
+test("a stale sentence composed from an oversized artifact leaf renders a bounded line", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+
+  // A leaf name a repository authored, 100000 characters long, and every field
+  // of it schema-valid: the closed schema bounds SHAPE, not length, so the
+  // rendering is what must bound this.
+  const { root } = await poisonedApprovalFixture(
+    context,
+    mutateApprovedPlan((plan) => {
+      const evaluations = asRecordArray(plan.evaluations, "plan.evaluations");
+      const target = evaluations.find((entry) => entry.packId === POSTGRES_PACK);
+      assert.ok(target, `the approved artifact carried no ${POSTGRES_PACK} evaluation`);
+      target.satisfied = [...asRecordArray(target.satisfied, "satisfied"), oversizedLeaf(100000)];
+      plan.evaluations = evaluations;
+    }),
+  );
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  // The point is that this artifact PASSED its closed schema — length is not a
+  // shape — so the rendering is the only thing that can bound it.
+  assert.notEqual(reconciliation.artifactState, "unreadable", "the oversized leaf was refused instead of rendered");
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+  assert.equal(pack.state, "STALE", pack.detail);
+
+  const rendered = formatProjectStatus(reconciliation, planPackRemoval(reconciliation), { path: root });
+  const staleLines = rendered.split("\n").filter((line) => line.startsWith("STALE-FACT "));
+  assert.ok(staleLines.length > 0, `no STALE-FACT line was rendered:\n${rendered.slice(0, 400)}`);
+  for (const line of staleLines) {
+    assert.ok(
+      line.length <= REDACTED_STRING_LENGTH_BUDGET + 256,
+      `a STALE-FACT line ran to ${line.length} characters, past the ${REDACTED_STRING_LENGTH_BUDGET} per-value bound`,
+    );
+  }
+  for (const reason of pack.stale) {
+    assert.ok(reason.sentence.length <= REDACTED_STRING_LENGTH_BUDGET + 64, `a stale sentence ran to ${reason.sentence.length} characters`);
+    assert.ok(reason.named.length <= REDACTED_STRING_LENGTH_BUDGET + 64, `a stale subject ran to ${reason.named.length} characters`);
+  }
+});
+
+test("a pack that is still selected but newly conflicted is not reported as supported", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+
+  // A second harness root for the same skill, holding bytes no receipt claims.
+  // D-11 drops the pack from `applicable` while leaving it in `selected`, which
+  // is exactly the distinction the claim comparison used to lose.
+  const foreign = join(root, ".agents", "skills", POSTGRES_SKILL, "SKILL.md");
+  await mkdir(dirname(foreign), { recursive: true });
+  await writeFile(foreign, "# a file alpha-AOS did not write\n", "utf8");
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+
+  assert.ok(reconciliation.plan.selected.includes(POSTGRES_PACK), "the fixture no longer selects the pack at all");
+  assert.equal(reconciliation.plan.applicable.includes(POSTGRES_PACK), false, "the conflict did not drop the pack from applicable");
+  assert.ok(
+    reconciliation.unsupportedClaims.includes(POSTGRES_PACK),
+    `a still-selected but newly conflicted pack was reported as supported: ${JSON.stringify(reconciliation.unsupportedClaims)}`,
+  );
+});
+
+test("a pack the artifact claims and current evidence does not select is still reported", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await stalePostgresFixture(context);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+
+  assert.equal(reconciliation.plan.selected.includes(POSTGRES_PACK), false, "the fixture still selects the pack");
+  assert.ok(
+    reconciliation.unsupportedClaims.includes(POSTGRES_PACK),
+    `a no-longer-selected claimed pack stopped being reported: ${JSON.stringify(reconciliation.unsupportedClaims)}`,
+  );
+});
+
+test("the DETC-06 happy path is unchanged: STALE names the fact, a removal is offered, nothing is deleted", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root, target } = await stalePostgresFixture(context);
+  const receiptPath = join(root, ".alpha-aos", "receipts", `${POSTGRES_PACK}.json`);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+  assert.equal(pack.state, "STALE", pack.detail);
+
+  const result = await runCli(["project", "status", root]);
+  assert.equal(result.status, 0, `project status failed:\n${result.stderr}`);
+  const staleLines = result.stdout.split("\n").filter((line) => line.startsWith("STALE-FACT "));
+  assert.ok(staleLines.length > 0, `project status printed no STALE-FACT line:\n${result.stdout}`);
+  // The line names the MISSING FACT, never merely the pack.
+  assert.ok(
+    staleLines.some((line) => pack.stale.some((reason) => line.includes(reason.named))),
+    `no STALE-FACT line named the missing fact: ${staleLines.join("\n")}`,
+  );
+
+  const removals = planPackRemoval(reconciliation);
+  assert.equal(removals.length, 1, `expected one removal plan, got ${removals.map((entry) => entry.packId).join(", ")}`);
+  assert.match(removals[0]?.removalDigest ?? "", /^[0-9a-f]{64}$/u);
+
+  assert.equal(existsSync(target), true, "reporting STALE deleted the installed target");
+  assert.equal(existsSync(receiptPath), true, "reporting STALE deleted the receipt");
 });

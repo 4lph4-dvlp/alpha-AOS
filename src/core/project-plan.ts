@@ -77,6 +77,7 @@ import {
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "./pack-catalog.js";
 import { proveOperationPaths, requiredRolesForFileMutation } from "./path-boundary.js";
 import { inspectProjectManifest } from "./project.js";
+import { createRedactionContext, redactString } from "./redaction.js";
 import { applyFileTransaction } from "./transaction.js";
 import { validateManagedDocument, type ValidationIssue } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -1966,6 +1967,33 @@ export async function readPackReceiptsStrict(root: string, packageRoot: string):
   return receipts.sort((left, right) => byCodePoint(left.packId, right.packId));
 }
 
+/**
+ * The redaction context every string lifted out of the approved artifact leaves
+ * through.
+ *
+ * It carries no secrets and no project root because there is nothing here to
+ * alias: its whole job is to apply the SAME per-value bound
+ * (`REDACTED_STRING_LENGTH_BUDGET`) and the same structural replacements every
+ * other observable string already gets. A repository cannot be stopped from
+ * writing whatever prose it likes into `.alpha-aos/plan.json`, but it must not
+ * be able to write UNBOUNDED prose, and it must not get a rendering path of its
+ * own that skips the seam everything else goes through.
+ */
+const ARTIFACT_TEXT_CONTEXT = createRedactionContext({});
+
+/**
+ * One string read out of the approved artifact, bounded and redacted.
+ *
+ * This does not make the text trustworthy — nothing could; the artifact is
+ * repository-supplied. It makes the text BOUNDED and consistent with every
+ * other observable string, which is what stops a crafted artifact putting
+ * 100 KB of its own prose immediately above a removal digest a user is being
+ * asked to approve (02-REVIEW CR-04, T-02-56).
+ */
+function boundedArtifactText(value: unknown): string {
+  return redactString(typeof value === "string" ? value : "", ARTIFACT_TEXT_CONTEXT);
+}
+
 /** A synthesized leaf id carries its operator; the rest of it is the thing named. */
 function namedByLeaf(factId: string): string {
   const separator = factId.indexOf(":");
@@ -1996,20 +2024,66 @@ function describeMissingFact(factId: string, phrase: string | null): string {
   return phrase === null || phrase.length === 0 ? `\`${factId}\` fact` : `\`${factId}\` fact (${phrase})`;
 }
 
+/**
+ * One missing fact, described in bounded, redacted text.
+ *
+ * `leaf` comes from the APPROVED artifact, which is repository-supplied, and
+ * `sentence` is rendered verbatim immediately above the removal digest a user is
+ * asked to approve. Every component is therefore bounded before composition and
+ * the composed sentence is bounded again, so no combination of hostile leaf
+ * fields can produce an unbounded line.
+ */
 function staleReasonFor(packId: string, leaf: LeafResult, fresh: LeafResult | undefined): StaleReason {
-  const reason = fresh?.reason ?? "the fresh run reports it as not detected and gave no further reason";
+  const factId = boundedArtifactText(leaf.factId);
+  const reason = boundedArtifactText(
+    fresh?.reason ?? "the fresh run reports it as not detected and gave no further reason",
+  );
+  const phrase = boundedArtifactText(fresh?.phrase ?? leaf.phrase);
   return {
     packId,
-    factId: leaf.factId,
-    named: namedByLeaf(leaf.factId),
+    factId,
+    named: namedByLeaf(factId),
     reason,
-    sentence: `${packId} — the ${describeMissingFact(leaf.factId, fresh?.phrase ?? leaf.phrase)} that selected it is gone: ${reason}`,
+    sentence: boundedArtifactText(
+      `${packId} — the ${describeMissingFact(factId, phrase)} that selected it is gone: ${reason}`,
+    ),
   };
+}
+
+// ---------------------------------------------------------------------------
+// The second defence over a repository-supplied artifact
+// ---------------------------------------------------------------------------
+//
+// `schemas/approved-plan.schema.json` already guarantees the shape of every
+// field read below, and that is exactly WHY these guards exist rather than
+// instead of it. Two independent defences against a repository-supplied
+// document is the posture this codebase already takes for every other managed
+// document, and a schema is a separate file that a future change can widen —
+// or a future caller can reach this code past — without the editor ever reading
+// this consumer. A non-conforming field is REPORTED, naming the artifact, and
+// is never allowed to become an exception (02-REVIEW CR-04).
+
+/** Establishes array-ness before iteration. `null` means "not an array at all". */
+function artifactLeaves(value: unknown): LeafResult[] | null {
+  if (!Array.isArray(value)) return null;
+  // A non-object entry carries no leaf fields to read, so it is dropped rather
+  // than dereferenced: `null.factId` is the same class of crash one level down.
+  return (value as unknown[]).filter((entry): entry is LeafResult => typeof entry === "object" && entry !== null);
+}
+
+/** The string members of an artifact-derived collection, and nothing else. */
+function artifactStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return (value as unknown[]).filter((entry): entry is string => typeof entry === "string");
 }
 
 function evaluationOf(plan: ProjectCapabilityPlan | null, packId: string): PackEvaluation | null {
   if (plan === null || !Array.isArray(plan.evaluations)) return null;
-  return plan.evaluations.find((evaluation) => evaluation.packId === packId) ?? null;
+  const found = (plan.evaluations as unknown[]).find(
+    (evaluation) =>
+      typeof evaluation === "object" && evaluation !== null && (evaluation as PackEvaluation).packId === packId,
+  );
+  return (found as PackEvaluation | undefined) ?? null;
 }
 
 /**
@@ -2047,8 +2121,14 @@ export async function reconcileProjectState(
   const artifactIssues: readonly ValidationIssue[] = read.state === "unreadable" ? read.issues : [];
 
   const selectedNow = new Set(plan.selected);
-  const claimed = Array.isArray(approved?.applicable) ? (approved.applicable as string[]) : [];
-  const unsupportedClaims = [...new Set(claimed.filter((packId) => !selectedNow.has(packId)))].sort(byCodePoint);
+  // WR-10: both sides are the POST-CONFLICT noun. `applicable` is `selected`
+  // minus the D-11 target conflicts, so filtering the artifact's `applicable`
+  // against the current plan's `selected` mixed the two nouns at the one place
+  // the distinction matters — and a pack still selected but newly conflicted
+  // reported as supported, which is precisely the case a user needs told.
+  const applicableNow = new Set(artifactStringArray(plan.applicable));
+  const claimed = artifactStringArray(approved?.applicable);
+  const unsupportedClaims = [...new Set(claimed.filter((packId) => !applicableNow.has(packId)))].sort(byCodePoint);
 
   const receipts = await readPackReceiptsStrict(root, options.packageRoot);
   const packs: PackReconciliation[] = [];
@@ -2113,7 +2193,7 @@ interface InstalledPackInput {
  * that CAN be named outranks a bare artifact claim, because naming the fact is
  * the whole difference between an actionable report and an unexplained one.
  */
-function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
+export function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
   const { receipt, targets, plan, approved, selected } = input;
   const freshEvaluation = evaluationOf(plan, receipt.packId);
   const approvedEvaluation = evaluationOf(approved, receipt.packId);
@@ -2155,9 +2235,27 @@ function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
     };
   }
 
-  const freshSatisfied = new Set((freshEvaluation?.satisfied ?? []).map((leaf) => leaf.factId));
-  const freshFailed = new Map((freshEvaluation?.failed ?? []).map((leaf) => [leaf.factId, leaf]));
-  const disappeared = (approvedEvaluation?.satisfied ?? []).filter((leaf) => !freshSatisfied.has(leaf.factId));
+  // Array-ness is ESTABLISHED, not assumed, for every collection lifted out of
+  // the approved artifact. `?? []` guards only null and undefined, which is how
+  // a string reached `.filter` and turned `project status` into a raw
+  // JavaScript type error on exactly this branch.
+  const approvedSatisfied = approvedEvaluation === null ? [] : artifactLeaves(approvedEvaluation.satisfied);
+  if (approvedSatisfied === null) {
+    return {
+      ...base,
+      state: "CHANGED",
+      detail:
+        `${receipt.packId} is claimed by ${PROJECT_PLAN_ARTIFACT}, but the evaluation recorded there does not have the ` +
+        "shape a plan evaluation has — its satisfied leaf set is not an array — so the artifact contributes nothing " +
+        "and the fact that changed cannot be named",
+      stale: [],
+      undecidable: [],
+    };
+  }
+
+  const freshSatisfied = new Set((artifactLeaves(freshEvaluation?.satisfied) ?? []).map((leaf) => leaf.factId));
+  const freshFailed = new Map((artifactLeaves(freshEvaluation?.failed) ?? []).map((leaf) => [leaf.factId, leaf]));
+  const disappeared = approvedSatisfied.filter((leaf) => !freshSatisfied.has(leaf.factId));
 
   const undecidable = disappeared
     .map((leaf) => parseUndecidableReason(freshFailed.get(leaf.factId)?.reason ?? null))

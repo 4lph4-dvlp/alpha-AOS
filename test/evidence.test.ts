@@ -12,6 +12,7 @@
 // produces (see `.planning/research/PITFALLS.md` §Pitfall 4).
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -326,7 +327,7 @@ test("a directory link resolving outside the canonical root is refused and its s
   assert.equal(excludedFor(scan, "escape")?.reason, "outside-canonical-root");
 });
 
-test("a self-referential directory link terminates the walk on visited identity", async (context) => {
+test("a self-referential directory link still terminates the walk", async (context) => {
   const workspace = await scratch(context, "scan-cycle");
   await writeFile(join(workspace, "keep.txt"), "kept\n", "utf8");
 
@@ -342,7 +343,10 @@ test("a self-referential directory link terminates the walk on visited identity"
 
   assert.equal(scan.paths.includes("keep.txt"), true, "the walk still produced the real file");
   assert.equal(scan.paths.includes("loop/loop"), false, "the cycle did not recurse");
-  assert.equal(excludedFor(scan, "loop")?.reason, "visited-identity");
+  // Plan 02-11 Task 3: a link is now refused as an alias BEFORE identity is
+  // marked, so the cycle stops one rung earlier and with a more precise reason.
+  // Termination is the property under test and it is unchanged.
+  assert.equal(excludedFor(scan, "loop")?.reason, "alias-entry");
 });
 
 test("exceeding MAX_SCAN_DEPTH is reported as a named bound rather than a silent truncation", async (context) => {
@@ -383,6 +387,154 @@ test("a path whose ignore decision is undecidable is excluded with its reason", 
   const excluded = excludedFor(scan, "sub/f.txt");
   assert.equal(excluded?.reason, "undecidable");
   assert.equal(typeof excluded?.detail, "string", "the reason that stopped the decision is carried");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-11 Task 3 (CR-02) — an alias can neither evict nor impersonate the
+// directory it points at
+// ---------------------------------------------------------------------------
+//
+// The walk used to mark a directory's identity by its CANONICAL target at the
+// moment it was LISTED, in ascending name order. A junction `aaa -> src` is
+// listed first, claims `src`'s identity, and the real `src` is then dropped as
+// already-visited — so every `kind: directory` fact answers negatively and the
+// emitted reason states that `src` does not exist while it demonstrably does.
+// The truth being restored is that adding a link inside the canonical root
+// changes NEITHER the collected fact set NOR the pack selection, in either sort
+// position.
+
+/**
+ * A real project directory, optionally with a directory alias to `src` beside
+ * it. `alias` is the alias's NAME, so a caller can put it either side of `src`
+ * in ascending order and prove that name order decides nothing.
+ */
+async function aliasFixture(context: TestContext, alias: string | null): Promise<string | null> {
+  const workspace = await scratch(context, "scan-alias");
+  await writeFile(
+    join(workspace, "package.json"),
+    JSON.stringify({ name: "aliased", private: true, dependencies: { react: "19.0.0" } }),
+    "utf8",
+  );
+  await mkdir(join(workspace, "src"), { recursive: true });
+  await writeFile(join(workspace, "src", "index.ts"), "export {};\n", "utf8");
+  if (alias !== null && !(await tryDirectoryLink(join(workspace, "src"), join(workspace, alias)))) {
+    notRun.push({ fixture: "scan-alias", reason: "this host cannot create directory links without privileges" });
+    context.skip("scan-alias fixture not run: directory links unavailable");
+    return null;
+  }
+  return workspace;
+}
+
+test("an alias beside its target is excluded and the real directory survives", async (context) => {
+  const workspace = await aliasFixture(context, "aaa");
+  if (workspace === null) return;
+
+  const root = await resolveCanonicalRoot(workspace);
+  const scan = await scanProjectTree(root);
+
+  assert.equal(scan.directories.includes("src"), true, "the alias evicted the real directory");
+  assert.equal(scan.directories.includes("aaa"), false, "the alias was walked as if it were content");
+  assert.equal(scan.paths.includes("src/index.ts"), true, "the real directory's file is scanned");
+  assert.equal(scan.paths.includes("aaa/index.ts"), false, "the alias added a second path for one file");
+
+  const excluded = excludedFor(scan, "aaa");
+  assert.equal(excluded?.reason, "alias-entry");
+  assert.ok(
+    (excluded?.detail ?? "").includes("src"),
+    `the exclusion record does not name what the alias pointed at: ${String(excluded?.detail)}`,
+  );
+});
+
+test("an alias sorting after its target produces the identical scan as one sorting before it", async (context) => {
+  const before = await aliasFixture(context, "aaa");
+  if (before === null) return;
+  const after = await aliasFixture(context, "zzz");
+  if (after === null) return;
+  const none = await aliasFixture(context, null);
+  if (none === null) return;
+
+  const scanBefore = await scanProjectTree(await resolveCanonicalRoot(before));
+  const scanAfter = await scanProjectTree(await resolveCanonicalRoot(after));
+  const scanNone = await scanProjectTree(await resolveCanonicalRoot(none));
+
+  assert.deepEqual(scanBefore.directories, scanNone.directories, "an alias before its target changed the walk");
+  assert.deepEqual(scanAfter.directories, scanNone.directories, "an alias after its target changed the walk");
+  assert.deepEqual(scanBefore.paths, scanNone.paths);
+  assert.deepEqual(scanAfter.paths, scanNone.paths);
+});
+
+test("an aliased FILE adds no second path for the file it points at", async (context) => {
+  const workspace = await scratch(context, "scan-file-alias");
+  await writeFile(join(workspace, "package.json"), JSON.stringify({ name: "f" }), "utf8");
+  await writeFile(join(workspace, "real.ts"), "export {};\n", "utf8");
+  let linked = false;
+  try {
+    await symlink(join(workspace, "real.ts"), join(workspace, "aaa.ts"), "file");
+    linked = existsSync(join(workspace, "aaa.ts"));
+  } catch {
+    linked = false;
+  }
+  if (!linked) {
+    notRun.push({ fixture: "scan-file-alias", reason: "this host cannot create file links without privileges" });
+    context.skip("scan-file-alias fixture not run: file links unavailable");
+    return;
+  }
+
+  const scan = await scanProjectTree(await resolveCanonicalRoot(workspace));
+
+  assert.equal(scan.files.includes("real.ts"), true, "the real file was dropped");
+  assert.equal(scan.files.includes("aaa.ts"), false, "a linked file added a second path for one file");
+  assert.equal(excludedFor(scan, "aaa.ts")?.reason, "alias-entry");
+});
+
+test("two directories named in NFD and NFC form are two scan entries and two digest inputs", async (context) => {
+  const workspace = await scratch(context, "scan-unicode");
+  await writeFile(join(workspace, "package.json"), JSON.stringify({ name: "u" }), "utf8");
+  // "é": composed (NFC, one code point) and decomposed (NFD, e + U+0301).
+  const composed = "café";
+  const decomposed = "café";
+  await mkdir(join(workspace, composed), { recursive: true });
+  await writeFile(join(workspace, composed, "index.ts"), "export {};\n", "utf8");
+  await mkdir(join(workspace, decomposed), { recursive: true });
+  await writeFile(join(workspace, decomposed, "index.ts"), "export {};\n", "utf8");
+
+  const scan = await scanProjectTree(await resolveCanonicalRoot(workspace));
+  const both = scan.directories.includes(composed) && scan.directories.includes(decomposed);
+  if (!both) {
+    // The contract asserted here is that alpha-AOS applies NO normalization of
+    // its own. A host whose filesystem folds the two forms into one entry
+    // cannot observe it; the cross-host case belongs to the Phase 7 three-OS
+    // matrix, not to a silent pass here.
+    notRun.push({
+      fixture: "scan-unicode",
+      reason: "this host folds Unicode names, so NFD and NFC resolve to one directory",
+    });
+    context.skip("scan-unicode fixture not run: this host folds Unicode path names");
+    return;
+  }
+
+  assert.notEqual(composed, decomposed, "the two forms are distinct strings before any digest sees them");
+  assert.equal(scan.paths.includes(`${composed}/index.ts`), true);
+  assert.equal(scan.paths.includes(`${decomposed}/index.ts`), true);
+  // No normalization of alpha-AOS's own: the two entries are distinct as
+  // reported, and only a normalization the tool never applies would fold them.
+  assert.equal(
+    scan.paths.filter((path) => path.normalize("NFC") === `${composed}/index.ts`).length,
+    2,
+    "the two forms did not survive as two distinct entries",
+  );
+
+  // `scan.paths` is the input every path predicate and every path-bearing fact
+  // is decided from, so two fixtures differing only in normalization form must
+  // hash differently. Same-host only; the cross-host case is Phase 7's.
+  const single = await scratch(context, "scan-unicode-one");
+  await writeFile(join(single, "package.json"), JSON.stringify({ name: "u" }), "utf8");
+  await mkdir(join(single, composed), { recursive: true });
+  await writeFile(join(single, composed, "index.ts"), "export {};\n", "utf8");
+  const singleScan = await scanProjectTree(await resolveCanonicalRoot(single));
+  const digestOf = (paths: readonly string[]): string =>
+    createHash("sha256").update(JSON.stringify(paths), "utf8").digest("hex");
+  assert.notEqual(digestOf(scan.paths), digestOf(singleScan.paths), "the two forms produced one digest input");
 });
 
 // ---------------------------------------------------------------------------

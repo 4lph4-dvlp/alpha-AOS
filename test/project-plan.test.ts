@@ -184,6 +184,58 @@ test("two concurrent project plan invocations are byte-identical", async (contex
   assert.equal(first.status, 0, first.stderr);
   assert.equal(second.status, 0, second.stderr);
   assert.equal(first.stdout, second.stdout);
+  // `plan` is a READ. Two reads that overlap in time leave no residue, so the
+  // artifact directory an approval would create must not exist.
+  assert.equal(existsSync(join(root, ".alpha-aos")), false, "an overlapping pair of reads persisted something");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-11 Task 3 (CR-02): a repository cannot steer its own pack selection
+// by adding a link inside itself
+// ---------------------------------------------------------------------------
+
+/**
+ * A react project with a real `src`, optionally with a directory alias to it
+ * named `alias` — so the same target can be made to sort before or after `src`.
+ */
+async function aliasSelectionFixture(context: TestContext, alias: string | null): Promise<string | null> {
+  const root = await scratchRoot(context, "alias-selection");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "aliased", private: true, dependencies: { react: "^19.0.0" } }),
+    "utf8",
+  );
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src", "index.ts"), "export {};\n", "utf8");
+  if (alias !== null && !(await tryDirectorySymlink(join(root, "src"), join(root, alias)))) {
+    context.skip("alias-selection fixture not run: this host cannot create directory links");
+    return null;
+  }
+  return root;
+}
+
+async function selectedSet(root: string): Promise<string[]> {
+  const result = await runCli(["project", "plan", root, "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+  return (JSON.parse(result.stdout) as { selected: string[] }).selected;
+}
+
+test("adding a directory alias inside the canonical root changes neither the fact set nor the selection", async (context) => {
+  const plain = await aliasSelectionFixture(context, null);
+  if (plain === null) return;
+  const before = await aliasSelectionFixture(context, "aaa");
+  if (before === null) return;
+  const after = await aliasSelectionFixture(context, "zzz");
+  if (after === null) return;
+
+  const expected = await selectedSet(plain);
+  // The pre-fix observation this pins: BROWNFIELD_INIT and WEB_BASE were both
+  // selected without the alias and both LOST when `aaa` sorted before `src`,
+  // because the alias claimed `src`'s identity and the real `src` was then
+  // dropped as already-visited.
+  assert.ok(expected.includes("BROWNFIELD_INIT"), `the fixture no longer exercises the defect: ${expected.join(",")}`);
+  assert.deepEqual(await selectedSet(before), expected, "an alias sorting BEFORE its target changed the selection");
+  assert.deepEqual(await selectedSet(after), expected, "an alias sorting AFTER its target changed the selection");
 });
 
 test("a symlinked alias of the same repository yields the same canonical root and project id", async (context) => {

@@ -6,7 +6,7 @@
 // or neither, and only an explicit repair may move it.
 
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
@@ -138,6 +138,43 @@ function runChild(
   return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
+// Wait for the observable event — the lock file — instead of assuming a fixed
+// spawn budget. A hard-coded sleep encodes a guess about how long Windows takes
+// to create a process and load the built modules; measured at ~100ms on an idle
+// host, it crossed the former 400ms budget once the suite grew past ~400 tests
+// and began failing deterministically under full-suite contention, on a
+// PRECONDITION rather than on anything under test.
+//
+// Polling is safe here because the holder acquires a MutationSession before
+// applyFileTransaction and keeps it open for ALPHA_AOS_HOLD_MS afterwards, so
+// the lock persists for seconds after it first appears — detecting it late
+// costs runway, it does not miss the window.
+async function waitForWriterLock(
+  holder: ChildProcess,
+  stateRoot: string,
+  timeoutMs = 15_000,
+): Promise<string> {
+  const lockPath = writerLockPath(stateRoot);
+  const deadline = Date.now() + timeoutMs;
+  while (!existsSync(lockPath)) {
+    // A holder that died never took the lock; say that, rather than reporting
+    // the timeout that follows from it.
+    assert.equal(
+      holder.exitCode,
+      null,
+      `the holder exited with code ${String(holder.exitCode)} before taking the writer lock`,
+    );
+    if (Date.now() >= deadline) break;
+    await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+  }
+  assert.equal(
+    existsSync(lockPath),
+    true,
+    `the holder must have taken the lock before the competitor runs (waited ${String(timeoutMs)}ms)`,
+  );
+  return lockPath;
+}
+
 async function readJournals(stateRoot: string): Promise<Array<Record<string, unknown>>> {
   const journalRoot = join(stateRoot, "journal");
   if (!existsSync(journalRoot)) return [];
@@ -163,10 +200,7 @@ test("a second writer fails immediately instead of waiting or clearing the lock"
     { env: { ...process.env, ALPHA_AOS_HOLD_MS: "5000" }, stdio: "ignore", windowsHide: true },
   );
   context.after(() => holder.kill("SIGKILL"));
-  await new Promise((resolveWait) => setTimeout(resolveWait, 400));
-
-  const lockPath = writerLockPath(fixture.stateRoot);
-  assert.equal(existsSync(lockPath), true, "the holder must have taken the lock before the competitor runs");
+  const lockPath = await waitForWriterLock(holder, fixture.stateRoot);
 
   const startedAt = Date.now();
   const competitor = runChild(fixture, "competitor\n");
@@ -446,7 +480,10 @@ test("an in-process transaction serializes against a held session", async (conte
     { env: { ...process.env, ALPHA_AOS_HOLD_MS: "4000" }, stdio: "ignore", windowsHide: true },
   );
   context.after(() => holder.kill("SIGKILL"));
-  await new Promise((resolveWait) => setTimeout(resolveWait, 400));
+  // Without this the holder may not yet own the lock, the in-process
+  // transaction below simply SUCCEEDS, and the failure surfaces as a confusing
+  // "expected a writer conflict" rather than as the timing precondition it is.
+  await waitForWriterLock(holder, fixture.stateRoot);
 
   await assert.rejects(
     () =>

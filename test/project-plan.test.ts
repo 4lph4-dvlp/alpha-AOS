@@ -3574,3 +3574,44 @@ test("a workspace entry carrying a glob sentinel is dropped by name rather than 
     ["packages/api"],
   );
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-13 Task 3: the negative reason, where a user actually meets it
+// ---------------------------------------------------------------------------
+//
+// The module-level assertions live in test/evidence.test.ts. This one drives
+// the CLI, because the rendering is where a user reads the claim and acts on
+// it. `--why` is the mode that carries a leaf's REASON: the default
+// `NEAR-MISS` line carries the vocabulary PHRASE only, by D-09's design, so
+// the reason under test cannot appear on it.
+
+test("a near-miss reason rendered by the CLI names the ignored directory rather than claiming it is absent", async (context) => {
+  const root = await scratchRoot(context, "ignored-directory");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "ignored-src", private: true, dependencies: { react: "^19.0.0" } }),
+    "utf8",
+  );
+  await writeFile(join(root, ".gitignore"), "src/\n", "utf8");
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src", "index.ts"), "export {};\n", "utf8");
+
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+
+  assert.equal(why.status, 0, why.stderr);
+  // The affected pack is still reported as a near miss in the default mode.
+  assert.ok(
+    linesStartingWith(plain.stdout, "NEAR-MISS ").some((line) => line.includes("BROWNFIELD_INIT")),
+    plain.stdout,
+  );
+
+  const leafLines = why.stdout.split("\n").filter((line) => line.trimStart().startsWith("- "));
+  const sourceLeaf = leafLines.filter((line) => line.includes("already holds source code"));
+  assert.ok(sourceLeaf.length > 0, why.stdout);
+  for (const line of sourceLeaf) {
+    assert.ok(line.includes("src"), line);
+    assert.ok(line.includes("ignored"), line);
+    assert.equal(/exists under the canonical root/u.test(line), false, `the CLI still claims non-existence: ${line}`);
+  }
+});

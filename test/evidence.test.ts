@@ -1130,3 +1130,135 @@ test("facts are emitted in one total order — ascending id, then ascending path
 
   assert.deepEqual(keys, sorted, "no Set, Map or readdir order may reach the emitted array");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-13 Task 3: a negative reason names the exclusion it observed
+// ---------------------------------------------------------------------------
+//
+// 02-REVIEW CR-02 reproduced a directory-kind failure reason asserting that
+// none of the declared directories exists under the canonical root, on a
+// fixture where one of them demonstrably did and had been detected moments
+// earlier. A reason that can be FALSE is worse than a reason that is missing,
+// because a user acts on it.
+//
+// The invariant these assertions pin, stated so it can be tested directly: the
+// non-existence claim is emitted ONLY about names that appear in NEITHER the
+// scan's paths NOR its exclusion records.
+
+const SOURCE_DIRECTORY_FACT: FactDeclaration = {
+  id: "test:source-directory",
+  kind: "directory",
+  directories: ["src"],
+};
+
+/** The reason the current tree emits when the name genuinely is not there. */
+const ABSENT_DIRECTORY_REASON = "none of the declared directories exists under the canonical root: src";
+
+function assertsNonExistence(reason: string): boolean {
+  return /exists under the canonical root/u.test(reason);
+}
+
+test("a directory-kind reason names an IGNORED declared directory instead of asserting it is not there", async (context) => {
+  const detection = await detectFact(
+    await contextIn(context, { ".gitignore": "src/\n", "src/index.ts": "export {};\n" }),
+    SOURCE_DIRECTORY_FACT,
+  );
+
+  assert.equal(detection.detected, false);
+  const reason = detection.reason ?? "";
+  assert.ok(reason.includes("src"), reason);
+  assert.ok(reason.includes("ignored"), reason);
+  assert.equal(assertsNonExistence(reason), false, `the reason still claims non-existence: ${reason}`);
+});
+
+test("a directory-kind reason names a declared directory excluded as another project's root", async (context) => {
+  const detection = await detectFact(
+    await contextIn(context, { "src/.git": "gitdir: /elsewhere\n", "src/index.ts": "export {};\n" }),
+    SOURCE_DIRECTORY_FACT,
+  );
+
+  assert.equal(detection.detected, false);
+  const reason = detection.reason ?? "";
+  assert.ok(reason.includes("src"), reason);
+  assert.ok(reason.includes("git-entry"), reason);
+  assert.equal(assertsNonExistence(reason), false, `the reason still claims non-existence: ${reason}`);
+});
+
+test("a directory-kind reason names a declared directory excluded as an alias", async (context) => {
+  const workspace = await scratch(context, "reason-alias");
+  await mkdir(join(workspace, "real"), { recursive: true });
+  await writeFile(join(workspace, "real", "index.ts"), "export {};\n", "utf8");
+  if (!(await tryDirectoryLink(join(workspace, "real"), join(workspace, "src")))) {
+    notRun.push({ fixture: "reason-alias", reason: "this host cannot create directory links without privileges" });
+    context.skip("reason-alias fixture not run: directory links unavailable");
+    return;
+  }
+
+  const canonical = await resolveCanonicalRoot(workspace);
+  const detectionContext = await openDetectionContext(canonical, await scanProjectTree(canonical));
+  const detection = await detectFact(detectionContext, SOURCE_DIRECTORY_FACT);
+
+  assert.equal(detection.detected, false);
+  const reason = detection.reason ?? "";
+  assert.ok(reason.includes("src"), reason);
+  assert.ok(reason.includes("alias-entry"), reason);
+  assert.equal(assertsNonExistence(reason), false, `the reason still claims non-existence: ${reason}`);
+});
+
+test("a directory-kind reason still asserts non-existence when the walk neither scanned nor excluded the name", async (context) => {
+  const detection = await detectFact(await contextIn(context, { "readme.md": "hi\n" }), SOURCE_DIRECTORY_FACT);
+
+  assert.equal(detection.detected, false);
+  // Byte-identical to what the current tree emits, recorded as an explicit
+  // expected value so a future change to this wording is a deliberate act.
+  assert.equal(detection.reason, ABSENT_DIRECTORY_REASON);
+});
+
+test("a directory-kind reason reports both the excluded names and the names that are genuinely not there", async (context) => {
+  const detection = await detectFact(
+    await contextIn(context, { ".gitignore": "src/\n", "src/index.ts": "export {};\n" }),
+    { id: "test:mixed-directories", kind: "directory", directories: ["src", "nowhere"] },
+  );
+
+  const reason = detection.reason ?? "";
+  assert.ok(reason.includes("src"), reason);
+  assert.ok(reason.includes("ignored"), reason);
+  assert.ok(reason.includes("nowhere"), reason);
+});
+
+test("a directory-kind reason over the name cap is bounded and says so", async (context) => {
+  const names = Array.from({ length: 12 }, (_unused, index) => `d${index}`);
+  const files: Record<string, string> = { ".gitignore": `${names.map((name) => `${name}/`).join("\n")}\n` };
+  for (const name of names) files[`${name}/index.ts`] = "export {};\n";
+
+  const detection = await detectFact(await contextIn(context, files), {
+    id: "test:many-directories",
+    kind: "directory",
+    directories: names,
+  });
+
+  const reason = detection.reason ?? "";
+  assert.ok(/\(\+\d+ more\)/u.test(reason), `the reason was not bounded: ${reason}`);
+  assert.equal(reason.includes("d11"), false, `the reason listed past the cap: ${reason}`);
+});
+
+test("the other detector kinds' reasons are unchanged on the same excluded-directory fixture", async (context) => {
+  const detectionContext = await contextIn(context, { ".gitignore": "src/\n", "src/index.ts": "export {};\n" });
+
+  const fileKind = await detectFact(detectionContext, {
+    id: "test:openapi",
+    kind: "file",
+    files: ["openapi.yaml", "openapi.json"],
+  });
+  assert.equal(fileKind.reason, "none of the declared paths exists under the canonical root: openapi.yaml, openapi.json");
+
+  const dependencyKind = await detectFact(detectionContext, {
+    id: "test:redis",
+    kind: "dependency",
+    packages: ["redis", "ioredis"],
+  });
+  assert.equal(
+    dependencyKind.reason,
+    "no dependency manifest at the canonical root declares any of: redis, ioredis",
+  );
+});

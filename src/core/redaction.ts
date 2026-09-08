@@ -10,10 +10,27 @@ import { aliasPath, createPathAliases } from "./paths.js";
 const LIMITS = {
   depth: 12,
   items: 200,
+  /** UTF-16 code units — the unit `String.prototype.length` is expressed in. */
   stringLength: 2048,
+  /** UTF-8 bytes. */
   totalBytes: 256 * 1024,
+  /** UTF-8 bytes. */
   excerptBytes: 4096,
 } as const;
+
+/**
+ * The byte budget a serialized envelope and a rendered document are both
+ * measured against, in UTF-8 BYTES. Exported so a caller refusing an
+ * over-budget envelope can name the number that decided rather than restate it.
+ */
+export const OBSERVABLE_BYTE_BUDGET = LIMITS.totalBytes;
+
+/**
+ * The bound on a single redacted value, in UTF-16 CODE UNITS — the unit it is
+ * both measured and applied in. It is deliberately not a byte budget: it bounds
+ * one field inside an envelope, and the envelope's own bound is the byte one.
+ */
+export const REDACTED_STRING_LENGTH_BUDGET = LIMITS.stringLength;
 
 /** Key names whose *value* is a secret regardless of what the value looks like. */
 const SECRET_KEY_PATTERN =

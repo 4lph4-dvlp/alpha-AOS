@@ -15,7 +15,16 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { aliasPath, createPathAliases, redactHome } from "../src/core/paths.js";
-import { createRedactedExcerpt, createRedactionContext, redactValue, serializeObservable } from "../src/core/redaction.js";
+import {
+  OBSERVABLE_BYTE_BUDGET,
+  REDACTED_STRING_LENGTH_BUDGET,
+  createRedactedExcerpt,
+  createRedactionContext,
+  redactDocument,
+  redactString,
+  redactValue,
+  serializeObservable,
+} from "../src/core/redaction.js";
 import { planSupportBundle, renderSupportBundleBytes } from "../src/core/support-bundle.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -450,4 +459,196 @@ test("the repair diagnosis is readable and changes nothing", async (context) => 
   assertNoSecrets(corpus, "repair diagnosis");
   assert.match(corpus, /"status"/u);
   assert.equal(await readAllFiles(sandbox.stateRoot), before, "a diagnosis mutates no state");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-12 Task 2 (02-REVIEW WR-06, WR-07) — the output seam refuses rather
+// than truncates, and every byte budget is enforced in bytes
+// ---------------------------------------------------------------------------
+
+interface RunParts {
+  readonly status: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/**
+ * Like `runCli`, but keeps the two streams apart. The contract under test is
+ * precisely about which stream carries what: a pipeline reads stdout, so a
+ * partial document there plus a refusal on stderr is worse than a refusal
+ * alone.
+ */
+function runCliParts(args: readonly string[], sandbox: SecretSandbox): RunParts {
+  const result = spawnSync(process.execPath, [cliEntry, ...args], {
+    cwd: sandbox.projectRoot,
+    env: sandbox.env,
+    encoding: "utf8",
+    timeout: 180_000,
+    windowsHide: true,
+  });
+  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+}
+
+/**
+ * Drives a real observable surface past `OBSERVABLE_BYTE_BUDGET`.
+ *
+ * `support-bundle --json` previews every diagnostic source under the state
+ * root, one bounded excerpt each, so a state root carrying many operation
+ * journals is the realistic shape the reviewer named — the same one
+ * `project status --json` reaches on a repository with many installed packs.
+ * The count stays under the redactor's own 200-item array bound, so it is the
+ * envelope and not the walk that the budget stops.
+ */
+async function overBudgetStateRoot(sandbox: SecretSandbox): Promise<void> {
+  const journal = join(sandbox.stateRoot, "journal");
+  await mkdir(journal, { recursive: true });
+  const filler = `${"diagnostic-line-".repeat(300)}\n`;
+  for (let index = 0; index < 160; index += 1) {
+    await writeFile(join(journal, `j${String(index).padStart(3, "0")}.json`), filler, "utf8");
+  }
+}
+
+test("a --json envelope over the observable byte budget is refused, not truncated", async (context) => {
+  const sandbox = await createSecretSandbox(context);
+  await overBudgetStateRoot(sandbox);
+
+  const result = runCliParts(["support-bundle", "--json"], sandbox);
+
+  assert.notEqual(result.status, 0, "an envelope cut mid-token must not be reported as a successful result");
+  assert.equal(
+    result.stdout.includes("{"),
+    false,
+    `stdout carried a partial JSON document: ${JSON.stringify(result.stdout.slice(0, 120))}`,
+  );
+  assert.equal(
+    result.stderr.includes(String(OBSERVABLE_BYTE_BUDGET)),
+    true,
+    `the refusal must name the byte budget numerically: ${result.stderr}`,
+  );
+  assert.match(result.stderr, /\b[0-9a-f]{64}\b/u, "the refusal must name the envelope's sha256");
+});
+
+test("an under-budget --json envelope is written unchanged with exit 0", async (context) => {
+  const sandbox = await createSecretSandbox(context);
+
+  const result = runCliParts(["doctor", "--json"], sandbox);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(Buffer.byteLength(result.stdout, "utf8") <= OBSERVABLE_BYTE_BUDGET + 1, true);
+  JSON.parse(result.stdout);
+});
+
+test("redactDocument measures and cuts in UTF-8 bytes, and never emits half a code point", () => {
+  const redaction = createRedactionContext({});
+  // One 3-byte code point per character, so a code-unit cut retains roughly
+  // three times the declared byte bound — the WR-07 shape.
+  const wide = "端".repeat(OBSERVABLE_BYTE_BUDGET);
+  const document = redactDocument(wide, redaction);
+
+  assert.equal(document.endsWith("[truncated]"), true, "an over-budget document must say it was cut");
+  const marker = document.slice(document.indexOf("…[truncated]"));
+  assert.equal(
+    Buffer.byteLength(document, "utf8") <= OBSERVABLE_BYTE_BUDGET + Buffer.byteLength(marker, "utf8"),
+    true,
+    `the retained document is ${Buffer.byteLength(document, "utf8")} bytes against a ${OBSERVABLE_BYTE_BUDGET}-byte budget`,
+  );
+  // A lone surrogate does not survive a UTF-8 round trip: it decodes to U+FFFD.
+  assert.equal(Buffer.from(document, "utf8").toString("utf8"), document, "the cut emitted an unpaired surrogate");
+
+  // A document inside the budget is returned whole, exactly as before.
+  const small = "端".repeat(16);
+  assert.equal(redactDocument(small, redaction), small);
+});
+
+test("redactDocument cutting through an astral code point emits neither half of it", () => {
+  const redaction = createRedactionContext({});
+  // 4 UTF-8 bytes, 2 UTF-16 code units — the pair a naive cut splits.
+  const astral = "\u{1D362}".repeat(OBSERVABLE_BYTE_BUDGET);
+  const document = redactDocument(astral, redaction);
+
+  assert.equal(Buffer.from(document, "utf8").toString("utf8"), document);
+  assert.equal(
+    /[\uD800-\uDFFF]/u.test(document.replaceAll(/[\uD800-\uDBFF][\uDC00-\uDFFF]/gu, "")),
+    false,
+    "an unpaired surrogate half survived the cut",
+  );
+});
+
+test("redactString observes its declared bound in the unit that bound is declared in", () => {
+  const redaction = createRedactionContext({});
+  const wide = "端".repeat(REDACTED_STRING_LENGTH_BUDGET * 2);
+  const value = redactString(wide, redaction);
+
+  assert.equal(value.includes("[truncated:"), true);
+  const retained = value.slice(0, value.indexOf("…[truncated:"));
+  assert.equal(retained.length <= REDACTED_STRING_LENGTH_BUDGET, true, `retained ${retained.length} code units`);
+  assert.equal(Buffer.from(value, "utf8").toString("utf8"), value, "the cut emitted an unpaired surrogate");
+
+  const astral = "\u{1D362}".repeat(REDACTED_STRING_LENGTH_BUDGET);
+  const astralValue = redactString(astral, redaction);
+  assert.equal(Buffer.from(astralValue, "utf8").toString("utf8"), astralValue);
+});
+
+test("a bounded excerpt is bounded in bytes and survives a UTF-8 round trip", () => {
+  const redaction = createRedactionContext({});
+  const excerpt = createRedactedExcerpt("端".repeat(8192), redaction);
+
+  assert.equal(excerpt.capped, true);
+  assert.equal(
+    Buffer.byteLength(excerpt.excerpt, "utf8") <= 4096,
+    true,
+    `excerpt is ${Buffer.byteLength(excerpt.excerpt, "utf8")} bytes`,
+  );
+  assert.equal(Buffer.from(excerpt.excerpt, "utf8").toString("utf8"), excerpt.excerpt);
+});
+
+/** One field per DETC-04 noun, mirroring test/project-plan.test.ts. */
+const DETC04_ENVELOPE_FIELDS = [
+  "scope",
+  "owner",
+  "source",
+  "renderer",
+  "targetPreState",
+  "adapterSupport",
+  "approvals",
+  "safeInverse",
+  "inputsDigest",
+  "evidenceDigest",
+  "planDigest",
+] as const;
+
+test("an empty answer is still a complete answer — a plan-shaped envelope with nothing selected parses and names every DETC-04 noun", () => {
+  const redaction = createRedactionContext({});
+  const planShaped = {
+    schemaVersion: 1,
+    scope: { canonicalRoot: "/tmp/empty", rootReason: "git-root", projectId: "empty", subProjectPath: null },
+    owner: { id: "alpha-aos", producer: { name: "alpha-aos", version: "0.1.0" } },
+    source: [],
+    renderer: { id: "alpha-aos-ecc", version: "0.1.0" },
+    targetPreState: [],
+    adapterSupport: { claude: "unverified" },
+    approvals: [],
+    safeInverse: [],
+    executable: null,
+    receiptDirectory: ".alpha-aos/receipts",
+    evaluations: [],
+    selected: [],
+    applicable: [],
+    nearMissOrder: [],
+    subProjects: [],
+    manifestDigest: null,
+    inputsDigest: "0".repeat(64),
+    evidenceDigest: "1".repeat(64),
+    planDigest: "2".repeat(64),
+  };
+
+  const envelope = serializeObservable(planShaped, redaction);
+  assert.equal(envelope.truncated, false);
+  const parsed = JSON.parse(envelope.text) as Record<string, unknown>;
+
+  for (const field of DETC04_ENVELOPE_FIELDS) {
+    assert.equal(Object.hasOwn(parsed, field), true, `the envelope has no ${field} field`);
+  }
+  // Empty, not absent: an omitted key is indistinguishable from a bug.
+  assert.deepEqual(parsed.selected, []);
+  assert.deepEqual(parsed.applicable, []);
 });

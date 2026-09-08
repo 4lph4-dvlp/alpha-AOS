@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 10
+open_count: 12
 waived_count: 1
 fixed_count: 8
-total_count: 19
-last_updated: 2026-09-07T21:46:07.003Z
+total_count: 21
+last_updated: 2026-09-08T08:25:09.121Z
 ---
 
 # Broken Windows Ledger
@@ -34,6 +34,8 @@ last_updated: 2026-09-07T21:46:07.003Z
 | 17 | 02 | unmet-truth | src/core/evidence.ts |  | CR-02 BLOCKER: a directory symlink/junction erases the real directory and emits a FALSE negative reason. identityKeys claims path:<canonical target> on listing in ascending name order, so a junction aaa -> src takes src's identity and the real src is dropped as visited-identity. Reproduced: adding the junction flipped BROWNFIELD_INIT from selected to near-miss with the reason 'none of the declared directories exists under the canonical root: src, lib, app, pkg, internal' while src had just been detected in the same fixture. Repository-controlled input. Breaks ROADMAP criterion 1 (aliases) and criterion 2 (evidence honesty). | open |  | 2026-09-07T21:46:05.331Z |  |
 | 18 | 02 | unmet-truth | src/core/evidence.ts |  | CR-03 BLOCKER: a refused or truncated scan is reported as a confident 'No pack qualified on the evidence found.' scanProjectTree populates bounds and excludedBoundaries but nothing outside evidence.ts reads them; text, --why and --json all omit the disclosure. Same silence for MAX_SCAN_ENTRIES=50000 and MAX_SCAN_DEPTH=12. The comment at evidence.ts:205-208 claims --why exposes this; verified false. Breaks ROADMAP criterion 2. | open |  | 2026-09-07T21:46:06.146Z |  |
 | 19 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-04 BLOCKER: .alpha-aos/plan.json bypasses validateManagedDocument (bare JSON.parse plus three field checks) while receipts, manifest, catalog and vocabulary all take the strict route. At project-plan.ts:1905 (approvedEvaluation?.satisfied ?? []).filter(...) guards only nullish, so a non-array crashes project status with exit 2 in DETC-06's own STALE branch. .gitignore excludes install-state.json, journal/, snapshots/ and evidence/ but NOT plan.json, so the file is committed and therefore attacker-supplied on clone; StaleReason.sentence is then rendered verbatim into a deletion offer. Breaks ROADMAP criteria 4 and 5. | open |  | 2026-09-07T21:46:07.003Z |  |
+| 20 | 02 | unrun-verify | test/evidence.test.ts |  | an aliased FILE adds no second path: skipped on this host (file symlinks need privileges on Windows); the directory-alias case runs | open |  | 2026-09-08T08:25:02.428Z |  |
+| 21 | 02 | deviation | test/project-plan.test.ts |  | one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics | open |  | 2026-09-08T08:25:09.121Z |  |
 
 ````json
 [
@@ -263,6 +265,30 @@ last_updated: 2026-09-07T21:46:07.003Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-07T21:46:07.003Z",
+    "resolved_at": null
+  },
+  {
+    "id": 20,
+    "kind": "unrun-verify",
+    "phase": "02",
+    "file": "test/evidence.test.ts",
+    "line": null,
+    "description": "an aliased FILE adds no second path: skipped on this host (file symlinks need privileges on Windows); the directory-alias case runs",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:25:02.428Z",
+    "resolved_at": null
+  },
+  {
+    "id": 21,
+    "kind": "deviation",
+    "phase": "02",
+    "file": "test/project-plan.test.ts",
+    "line": null,
+    "description": "one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T08:25:09.121Z",
     "resolved_at": null
   }
 ]

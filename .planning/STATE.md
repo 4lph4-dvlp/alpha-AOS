@@ -2,18 +2,18 @@
 gsd_state_version: "1.0"
 milestone: v0.1.0
 current_phase: 02
-current_phase_name: evidence-bound-project-planning
+current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-10-PLAN.md
-last_updated: "2026-09-08T06:49:30.452Z"
-last_activity: 2026-09-07
+stopped_at: Completed 02-11-PLAN.md
+last_updated: "2026-09-08T08:27:52.675Z"
+last_activity: 2026-09-08
 last_activity_desc: Phase 02 execution started
-state_head: 69b5e68de6dbd7b350ac33818099d879c4663c43
+state_head: c31311071b2c1286bf9695feedbb097390a90d64
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 43
-  completed_plans: 37
+  completed_plans: 38
   percent: 14
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 ## Current Position
 
-Phase: 02 (evidence-bound-project-planning) — READY TO EXECUTE
-Plan: 10 of 10
+Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
+Plan: 2 of 16
 Status: Ready to execute
-Last activity: 2026-09-07 — Phase 02 execution started
+Last activity: 2026-09-08 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
 
 ## Performance Metrics
@@ -78,6 +78,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P08 | 28 min | 3 tasks | 5 files |
 | Phase 02 P09 | 40 min | 3 tasks | 6 files |
 | Phase 02 P10 | 118 min | 3 tasks | 7 files |
+| Phase 02 P11 | 45 min | 3 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -134,6 +135,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: 02-10: the branch and commit are recorded BESIDE the plan in .alpha-aos/plan.json, so digestablePlan cannot reach them — digestablePlan is a literal listing exactly what a reviewer reviewed. Putting gitContext at the artifact top level makes exclusion from every digest structural rather than a rule someone must remember; a test commits an irrelevant change and observes inputsDigest, evidenceDigest and planDigest all unchanged.
 - [Phase 02]: 02-10: a removal is approved through the EXISTING approve verb with the removal digest; project status has no apply flag — D-14 requires that stale evidence never trigger automatic deletion. Reusing the approve verb and the same digest contract keeps exactly one writer in the phase and one command shape, instead of a second drift mechanism that would drift from the first.
 - [Phase 02]: 02-10: only a STALE pack is offered a removal plan; DRIFTED, CONFLICT, CHANGED and UNDECIDABLE never are — Only STALE means the evidence that selected the pack is gone. An UNDECIDABLE evidence file is a read failure, not an absence, so it must never motivate a deletion - the same resolution 02-06 applied one layer down.
+- [Phase 02]: Canonical-root ladder (02-11 Task 1, user option-a): explicit-override > project-declaration > git-root > standalone-directory; a descent reports project-declaration; worktree-root and submodule-root removed from RootReason — scope.rootReason folds into planDigest and D-10 commits approved plans under .alpha-aos/, so the union is contract and must contain only values the code produces (WR-11). isGitBoundary already matches the .git FILE of a worktree and a submodule, so git-root covers both.
+- [Phase 02]: An alias inside the canonical root is refused unconditionally (alias-entry) before identity is marked, for files as well as directories — Only unconditional exclusion makes "adding a link changes neither the fact set nor the selection" true without a traversal-order tie-break, and stops a repository steering its own pack selection (T-02-41).
 
 ### Pending Todos
 
@@ -188,6 +191,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-07T20:58:23.284Z
-Stopped at: Completed 02-10-PLAN.md
+Last session: 2026-09-08T08:27:27.324Z
+Stopped at: Completed 02-11-PLAN.md
 Resume file: None

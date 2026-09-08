@@ -22,6 +22,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import type { EvidenceEnvelope, FactDeclaration, FactVocabulary } from "../src/types.js";
 import type {
+  CanonicalRoot,
   DetectionContext,
   ExcludedBoundary,
   FactDetection,
@@ -190,6 +191,24 @@ async function tryDirectoryLink(target: string, linkPath: string): Promise<boole
   }
 }
 
+/**
+ * `scanProjectTree` under a wall-clock bound. Resolves null on expiry, so a
+ * walk that fails to terminate is a red assertion rather than a stalled suite.
+ * The walk itself is not cancellable, so the losing promise is left to settle
+ * on its own — it touches nothing this test asserts on.
+ */
+async function boundedScan(root: CanonicalRoot, timeoutMs: number): Promise<ProjectTreeScan | null> {
+  let timer: NodeJS.Timeout | undefined;
+  const expiry = new Promise<null>((resolveExpiry) => {
+    timer = setTimeout(() => resolveExpiry(null), timeoutMs);
+  });
+  try {
+    return await Promise.race([scanProjectTree(root), expiry]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 function excludedFor(scan: ProjectTreeScan, path: string): ExcludedBoundary | undefined {
   return scan.excludedBoundaries.find((entry) => entry.path === path);
 }
@@ -339,8 +358,12 @@ test("a self-referential directory link still terminates the walk", async (conte
   }
 
   const root = await resolveCanonicalRoot(workspace);
-  const scan = await scanProjectTree(root);
+  // Bounded, because the property under test is TERMINATION: a walk that never
+  // returns must fail this assertion loudly rather than stall the suite.
+  const scan = await boundedScan(root, 30000);
 
+  assert.notEqual(scan, null, "the walk did not terminate within its budget");
+  if (scan === null) return;
   assert.equal(scan.paths.includes("keep.txt"), true, "the walk still produced the real file");
   assert.equal(scan.paths.includes("loop/loop"), false, "the cycle did not recurse");
   // Plan 02-11 Task 3: a link is now refused as an alias BEFORE identity is

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Dirent, Stats } from "node:fs";
 import { existsSync } from "node:fs";
-import { readdir, readFile, stat } from "node:fs/promises";
+import { lstat, readdir, readFile, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type {
@@ -307,6 +307,14 @@ export type BoundaryReason =
   | "ignored"
   | "undecidable"
   | "outside-canonical-root"
+  /**
+   * The entry resolves to a path other than the one the walk joined — a
+   * symlink, a junction or any other reparse point. An alias is refused
+   * whatever it points at, including a target inside the canonical root, so
+   * that adding a link inside a repository can change neither the collected
+   * fact set nor the pack selection (T-02-41).
+   */
+  | "alias-entry"
   | "visited-identity"
   | "depth-bound"
   | "unreadable";
@@ -431,18 +439,26 @@ async function readDeclaredSubmodulePaths(root: string, excluded: ExcludedBounda
 /**
  * Identity keys for a directory the walk is about to descend into.
  *
- * Two keys, because neither alone terminates every cycle. `lstat` of a link is
- * the LINK's own identity, so a chain through one link repeats it and stops;
- * but two distinct links onto the same real directory have distinct link
- * identities. The canonical path from the boundary proof closes that case, and
- * catches `loop -> .` on the first encounter. A host that reports inode `0`
- * (some Windows filesystems) still has the canonical key.
+ * Two keys, because neither alone terminates every cycle. The entry's OWN
+ * identity is read with `lstat`, so a link contributes the LINK's identity and
+ * a chain through one link repeats it and stops; but two distinct links onto
+ * the same real directory have distinct link identities. The canonical path
+ * from the boundary proof closes that case, and catches `loop -> .` on the
+ * first encounter. A host that reports inode `0` (some Windows filesystems)
+ * still has the canonical key.
+ *
+ * `isAlias` is what stops an alias impersonating its target. An alias
+ * contributes ONLY its own `link:` key and never the canonical `path:` key,
+ * because contributing the canonical key is exactly how a junction listed
+ * before its target claimed that target's identity and evicted the real
+ * directory from the walk (CR-02). Cycle termination is unaffected: a walk that
+ * goes through the same link twice still meets the same `link:` key.
  */
-async function identityKeys(absolutePath: string, canonicalPath: string): Promise<string[]> {
-  const keys = [`path:${canonicalPath}`];
+async function identityKeys(absolutePath: string, canonicalPath: string, isAlias: boolean): Promise<string[]> {
+  const keys = isAlias ? [] : [`path:${canonicalPath}`];
   try {
-    const followed = await stat(absolutePath);
-    if (followed.ino !== 0) keys.push(`identity:${followed.dev}:${followed.ino}`);
+    const own = await lstat(absolutePath);
+    if (own.ino !== 0) keys.push(`${isAlias ? "link" : "identity"}:${own.dev}:${own.ino}`);
   } catch {
     // The boundary proof already classified this path; an identity we cannot
     // read simply contributes no extra key.
@@ -480,7 +496,8 @@ export async function scanProjectTree(
 
   const declaredSubmodules = await readDeclaredSubmodulePaths(root.root, excluded);
 
-  for (const key of await identityKeys(root.root, root.root)) visited.add(key);
+  // The root is addressed by its canonical form, so it is never an alias.
+  for (const key of await identityKeys(root.root, root.root, false)) visited.add(key);
 
   interface Frame {
     readonly absolute: string;
@@ -532,6 +549,35 @@ export async function scanProjectTree(
       const proof = await proveInsideRoot(root.root, absolute);
       if (!proof.proven) {
         excluded.push({ path: relativePath, reason: "outside-canonical-root", detail: proof.code });
+        continue;
+      }
+
+      // An entry whose canonical form is not the path the walk joined is an
+      // ALIAS — a symlink, a junction, or any other reparse point — and it is
+      // refused here, before any identity is marked and for files as well as
+      // directories.
+      //
+      // Refused unconditionally, including when the target is inside the
+      // canonical root, because the stated truth is that adding a link changes
+      // neither the fact set nor the pack selection. The rejected alternative
+      // was to admit an alias whose target the walk did not otherwise reach;
+      // that preserves more behaviour for a repository whose real source
+      // directory IS a link, but it makes the outcome depend on traversal
+      // order and it leaves a repository able to add evidence to itself by
+      // adding a link. Only unconditional exclusion delivers the truth without
+      // a tie-break rule.
+      //
+      // Before identity marking, and never contributing the canonical key: an
+      // alias listed before its target used to claim that target's identity, so
+      // the real directory was then dropped as already-visited and every
+      // `kind: directory` fact answered negatively with a reason stating that a
+      // demonstrably present directory did not exist (CR-02).
+      if (proof.canonical !== absolute) {
+        excluded.push({
+          path: relativePath,
+          reason: "alias-entry",
+          detail: `the entry resolves to ${toPosixPath(relative(root.root, proof.canonical))}, so it is an alias rather than content`,
+        });
         continue;
       }
 
@@ -592,7 +638,7 @@ export async function scanProjectTree(
         continue;
       }
 
-      const keys = await identityKeys(absolute, proof.canonical);
+      const keys = await identityKeys(absolute, proof.canonical, false);
       if (keys.some((key) => visited.has(key))) {
         excluded.push({ path: relativePath, reason: "visited-identity", detail: "already visited in this walk" });
         continue;

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { DetectorKind, EvidenceNode, FactVocabulary, PackCatalog, PackDeclaration } from "../types.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
+import { RootKeyedCache } from "./paths.js";
 import {
   createMigrationPlan,
   validateManagedDocument,
@@ -12,8 +13,12 @@ import {
 /** Mirrors ISSUE_CAP in validation.ts: a refusal is bounded, never a flood. */
 const ISSUE_CAP = 50;
 
-let packCatalogSchema: Record<string, unknown> | null = null;
-let factVocabularySchema: Record<string, unknown> | null = null;
+// Keyed by the caller-supplied root, under the one keying rule this phase
+// applies to every process-wide cache whose value depends on a package root:
+// a memo keyed on nothing lets the first caller decide the schema for every
+// later caller with a different root (WR-09).
+const packCatalogSchemas = new RootKeyedCache<Record<string, unknown>>();
+const factVocabularySchemas = new RootKeyedCache<Record<string, unknown>>();
 
 /**
  * The six bounded detectors, mirroring the `kind` enum in
@@ -68,7 +73,7 @@ export async function loadPackCatalogStrict(
   root: string,
   files: readonly string[] = PACK_FILES,
 ): Promise<StrictLoadResult<PackCatalog>> {
-  packCatalogSchema ??= await loadSchema(root, "pack-catalog.schema.json");
+  const schema = await packCatalogSchemas.load(root, async () => loadSchema(root, "pack-catalog.schema.json"));
 
   const packs: PackDeclaration[] = [];
   const extensions: Record<string, unknown> = {};
@@ -80,7 +85,7 @@ export async function loadPackCatalogStrict(
       text,
       format: "yaml",
       kind: "pack-catalog",
-      schema: packCatalogSchema,
+      schema,
     });
 
     if (!result.ok || result.value === null) {
@@ -152,13 +157,13 @@ function factVocabularyInvariants(value: unknown): ValidationIssue[] {
  * evidence is genuinely absent.
  */
 export async function loadFactVocabularyStrict(root: string): Promise<StrictLoadResult<FactVocabulary>> {
-  factVocabularySchema ??= await loadSchema(root, "fact-vocabulary.schema.json");
+  const schema = await factVocabularySchemas.load(root, async () => loadSchema(root, "fact-vocabulary.schema.json"));
   const text = await readFile(join(root, "catalog", "facts.yaml"), "utf8");
   const result = validateManagedDocument<FactVocabulary>({
     text,
     format: "yaml",
     kind: "fact-vocabulary",
-    schema: factVocabularySchema,
+    schema,
     domain: factVocabularyInvariants,
   });
 

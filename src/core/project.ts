@@ -21,7 +21,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ProjectStackManifest } from "../types.js";
 import { loadPackCatalogStrict } from "./pack-catalog.js";
-import { findPackageRoot } from "./paths.js";
+import { findPackageRoot, RootKeyedCache } from "./paths.js";
 import {
   createMigrationPlan,
   validateManagedDocument,
@@ -31,36 +31,65 @@ import {
 } from "./validation.js";
 
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
-let manifestSchema: Record<string, unknown> | null = null;
-let declaredPackIds: ReadonlySet<string> | null = null;
 
+// Both caches are keyed by the RESOLVED package root, not by nothing. Keyed by
+// nothing, the first caller in a process decided the manifest schema and the
+// declared pack id set for every later caller with a different root, so an
+// override could be refused by a catalog that never evaluated the packs
+// (WR-09). See `RootKeyedCache` for what happens at the bound.
+const manifestSchemas = new RootKeyedCache<Record<string, unknown>>();
+const declaredPackIdSets = new RootKeyedCache<ReadonlySet<string>>();
+
+/**
+ * The discovery fallback, for a caller that genuinely has no root to supply.
+ *
+ * Exported shape: callers state `null` at the call site to ask for this, so
+ * the fallback is a choice someone wrote down rather than the silent default
+ * an omitted argument used to be.
+ */
 function packageDirectoryOrThrow(): string {
   const packageDirectory = findPackageRoot(moduleDirectory) ?? findPackageRoot(process.cwd());
   if (packageDirectory === null) throw new Error("Could not locate the alpha-AOS package root");
   return packageDirectory;
 }
 
-async function loadManifestSchema(): Promise<Record<string, unknown>> {
-  if (manifestSchema !== null) return manifestSchema;
-  manifestSchema = JSON.parse(
-    await readFile(join(packageDirectoryOrThrow(), "schemas", "project-stack.schema.json"), "utf8"),
-  ) as Record<string, unknown>;
-  return manifestSchema;
+async function loadManifestSchema(packageRoot: string): Promise<Record<string, unknown>> {
+  return manifestSchemas.load(
+    packageRoot,
+    async () =>
+      JSON.parse(await readFile(join(packageRoot, "schemas", "project-stack.schema.json"), "utf8")) as Record<
+        string,
+        unknown
+      >,
+  );
 }
 
 /**
- * The declared pack id set a `packOverrides` key is checked against.
+ * The declared pack id set a `packOverrides` key is checked against, for ONE
+ * package root.
  *
- * Memoized: the catalog is repository-owned and does not change within a
- * process, and the invariant must be unconditional. Making the check optional
- * would let an unknown override key through on whichever route forgot to pass
- * the set, which is exactly the silent acceptance D-06 must not have.
+ * Memoized per root: a catalog is repository-owned and does not change within
+ * a process, and the invariant must be unconditional. Making the check
+ * optional would let an unknown override key through on whichever route forgot
+ * to pass the set, which is exactly the silent acceptance D-06 must not have —
+ * but memoizing it globally was the mirror-image failure, letting a KNOWN key
+ * through, or refusing one, on the strength of a catalog the caller never named.
  */
-async function loadDeclaredPackIds(): Promise<ReadonlySet<string>> {
-  if (declaredPackIds !== null) return declaredPackIds;
-  const catalog = await loadPackCatalogStrict(packageDirectoryOrThrow());
-  declaredPackIds = new Set(catalog.value.packs.map((pack) => pack.id));
-  return declaredPackIds;
+async function loadDeclaredPackIds(packageRoot: string): Promise<ReadonlySet<string>> {
+  return declaredPackIdSets.load(packageRoot, async () => {
+    const catalog = await loadPackCatalogStrict(packageRoot);
+    return new Set(catalog.value.packs.map((pack) => pack.id));
+  });
+}
+
+/**
+ * How many roots each manifest cache currently holds.
+ *
+ * Exported so the declared bound is PROVEN by loading more roots than it
+ * admits and observing the size, rather than asserted in a comment.
+ */
+export function manifestCacheSizes(): { readonly schemas: number; readonly packIds: number } {
+  return { schemas: manifestSchemas.size, packIds: declaredPackIdSets.size };
 }
 
 function manifestInvariants(value: unknown, packIds: ReadonlySet<string>): ValidationIssue[] {
@@ -123,17 +152,28 @@ export interface ProjectManifestInspection {
 /**
  * Reads a project manifest through the strict route and reports what it is,
  * without acting on it. Returns null when no manifest exists.
+ *
+ * `packageRoot` names the alpha-AOS package root whose catalog and schema
+ * decide this manifest — the SAME root the caller hands `loadPackCatalogStrict`
+ * to evaluate packs, so an override and the packs are judged by one catalog.
+ * It is required rather than optional: `null` is the explicit request for the
+ * discovery fallback, which follows `readPackReceiptsStrict`'s convention of
+ * taking the root it needs rather than rediscovering one.
  */
-export async function inspectProjectManifest(inputRoot: string): Promise<ProjectManifestInspection | null> {
+export async function inspectProjectManifest(
+  inputRoot: string,
+  packageRoot: string | null,
+): Promise<ProjectManifestInspection | null> {
   const manifestPath = join(resolve(inputRoot), ".alpha-aos", "stack.yaml");
   if (!existsSync(manifestPath)) return null;
 
-  const packIds = await loadDeclaredPackIds();
+  const resolvedPackageRoot = packageRoot ?? packageDirectoryOrThrow();
+  const packIds = await loadDeclaredPackIds(resolvedPackageRoot);
   const result = validateManagedDocument<ProjectStackManifest>({
     text: await readFile(manifestPath, "utf8"),
     format: "yaml",
     kind: "project-manifest",
-    schema: await loadManifestSchema(),
+    schema: await loadManifestSchema(resolvedPackageRoot),
     domain: (value) => manifestInvariants(value, packIds),
   });
 

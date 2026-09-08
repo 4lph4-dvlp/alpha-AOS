@@ -144,7 +144,7 @@ test("a current manifest keeps its existing detection behavior", async (context)
   assert.equal(await manifestOptIn(root, "scientificResearch"), true);
   assert.equal(await manifestOptIn(root, "criticalUserFlows"), true);
 
-  const inspection = await inspectProjectManifest(root);
+  const inspection = await inspectProjectManifest(root, repositoryRoot);
   assert.equal(inspection?.status, "current");
   assert.equal(inspection?.migration, null);
 });
@@ -170,7 +170,7 @@ test("an invalid manifest contributes no detection evidence at all", async (cont
 
   for (const entry of cases) {
     const root = await withManifest(context, entry.manifest);
-    const inspection = await inspectProjectManifest(root);
+    const inspection = await inspectProjectManifest(root, repositoryRoot);
     assert.equal(inspection?.issues[0]?.code, entry.code, `${entry.name} produced ${inspection?.issues[0]?.code}`);
 
     // Partial application is the failure mode this guards against: the
@@ -187,7 +187,7 @@ test("an invalid manifest contributes no detection evidence at all", async (cont
 test("a supported older manifest is inspection-only and yields a migration plan", async (context) => {
   const root = await withManifest(context, "schemaVersion: 0\nscientificResearch: true\n");
 
-  const inspection = await inspectProjectManifest(root);
+  const inspection = await inspectProjectManifest(root, repositoryRoot);
   assert.equal(inspection?.status, "migratable");
   assert.equal(inspection?.value, null, "a migratable manifest is not consumed as current");
   assert.notEqual(inspection?.readOnlyValue, null, "a migratable manifest is still readable");
@@ -214,7 +214,7 @@ test("an unregistered manifest extension cannot select capabilities or change de
   assert.equal((await selectedPacks(extendedRoot)).includes("SECURITY_REVIEW"), false);
   assert.equal(await manifestOptIn(extendedRoot, "x-vendor-packs"), false);
 
-  const inspection = await inspectProjectManifest(extendedRoot);
+  const inspection = await inspectProjectManifest(extendedRoot, repositoryRoot);
   assert.deepEqual(inspection?.extensions, { "x-team-owner": "platform", "x-vendor-packs": ["SECURITY_REVIEW"] });
   assert.equal(Object.hasOwn(inspection?.value ?? {}, "x-vendor-packs"), false);
 });
@@ -242,7 +242,7 @@ test("an isolation mode without an adapter fails closed rather than degrading", 
   ].join("\n");
 
   const root = await withManifest(context, sealed);
-  const inspection = await inspectProjectManifest(root);
+  const inspection = await inspectProjectManifest(root, repositoryRoot);
 
   assert.equal(inspection?.status, "invalid");
   assert.equal(inspection?.issues[0]?.code, "domain.sealed-unsupported");
@@ -251,13 +251,13 @@ test("an isolation mode without an adapter fails closed rather than degrading", 
 test("no manifest at all is not an error", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-manifest-"));
   context.after(async () => rm(root, { recursive: true, force: true }));
-  assert.equal(await inspectProjectManifest(root), null);
+  assert.equal(await inspectProjectManifest(root, repositoryRoot), null);
   assert.equal(await manifestOptIn(root, "scientificResearch"), false);
 });
 
 test("a packOverrides entry naming an undeclared pack id is refused, not silently ignored", async (context) => {
   const root = await withManifest(context, "schemaVersion: 1\npackOverrides:\n  NOT_A_PACK: force-on\n");
-  const inspection = await inspectProjectManifest(root);
+  const inspection = await inspectProjectManifest(root, repositoryRoot);
 
   assert.ok(inspection);
   assert.equal(inspection.status, "invalid");
@@ -275,5 +275,5 @@ test("a packOverrides entry naming an undeclared pack id is refused, not silentl
 
   // A declared pack id under the same key is accepted.
   const valid = await withManifest(context, "schemaVersion: 1\npackOverrides:\n  CACHE_REDIS: force-on\n");
-  assert.equal((await inspectProjectManifest(valid))?.status, "current");
+  assert.equal((await inspectProjectManifest(valid, repositoryRoot))?.status, "current");
 });

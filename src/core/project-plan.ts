@@ -76,6 +76,7 @@ import {
 } from "./evidence.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "./pack-catalog.js";
 import { proveOperationPaths, requiredRolesForFileMutation } from "./path-boundary.js";
+import { RootKeyedCache } from "./paths.js";
 import { inspectProjectManifest } from "./project.js";
 import { createRedactionContext, redactString } from "./redaction.js";
 import { applyFileTransaction } from "./transaction.js";
@@ -1049,7 +1050,11 @@ export async function planProjectCapabilities(
     return planSubProject(discovery.selected, options, scope.root);
   }
 
-  const inspection = await inspectProjectManifest(scope.root);
+  // The SAME package root that loaded the catalog above decides the manifest,
+  // so a `packOverrides` key is judged by the catalog that evaluated the packs
+  // rather than by whichever root some earlier caller in this process happened
+  // to supply (WR-09).
+  const inspection = await inspectProjectManifest(scope.root, options.packageRoot);
   const manifest = inspection !== null && inspection.status === "current" ? inspection.value : null;
   const manifestReason =
     inspection === null
@@ -1561,7 +1566,9 @@ export type ApprovedPlanRead =
   | { readonly state: "absent" }
   | { readonly state: "unreadable"; readonly issues: readonly ValidationIssue[] };
 
-let approvedPlanSchema: Record<string, unknown> | null = null;
+// Root-keyed under the one rule this phase applies to every process-wide
+// cache whose value depends on a package root (WR-09).
+const approvedPlanSchemas = new RootKeyedCache<Record<string, unknown>>();
 
 /**
  * The last approved plan at a path, read through the ONE managed document route.
@@ -1596,12 +1603,19 @@ export async function readApprovedProjectPlan(
     };
   }
 
-  // Memoized the way `receiptSchema` is: the schema file is repository content
-  // that cannot change inside one process, and re-reading it per call would put
-  // a filesystem read on the reconciliation's hot path.
-  approvedPlanSchema ??= JSON.parse(
-    await readFile(join(packageRoot, "schemas", "approved-plan.schema.json"), "utf8"),
-  ) as Record<string, unknown>;
+  // Memoized the way `receiptSchema` is, and keyed by the package root the
+  // caller supplied: the schema file is repository content that cannot change
+  // inside one process, and re-reading it per call would put a filesystem read
+  // on the reconciliation's hot path — but two roots in one process must not
+  // share one answer.
+  const approvedPlanSchema = await approvedPlanSchemas.load(
+    packageRoot,
+    async () =>
+      JSON.parse(await readFile(join(packageRoot, "schemas", "approved-plan.schema.json"), "utf8")) as Record<
+        string,
+        unknown
+      >,
+  );
 
   const result = validateManagedDocument<ApprovedProjectPlanArtifact>({
     text,
@@ -1986,7 +2000,8 @@ export interface PackReceipt {
   readonly targets: readonly { readonly harness: HarnessId; readonly path: string; readonly targetHash: string }[];
 }
 
-let receiptSchema: Record<string, unknown> | null = null;
+// Root-keyed for the same reason `approvedPlanSchemas` is (WR-09).
+const receiptSchemas = new RootKeyedCache<Record<string, unknown>>();
 
 /**
  * Every receipt under the receipt directory, read through the ONE managed
@@ -2009,10 +2024,14 @@ export async function readPackReceiptsStrict(root: string, packageRoot: string):
     throw new Error(`${PROJECT_RECEIPT_DIRECTORY} exists but could not be listed: ${String(error)}`);
   }
 
-  receiptSchema ??= JSON.parse(await readFile(join(packageRoot, "schemas", "receipt.schema.json"), "utf8")) as Record<
-    string,
-    unknown
-  >;
+  const receiptSchema = await receiptSchemas.load(
+    packageRoot,
+    async () =>
+      JSON.parse(await readFile(join(packageRoot, "schemas", "receipt.schema.json"), "utf8")) as Record<
+        string,
+        unknown
+      >,
+  );
 
   const receipts: PackReceipt[] = [];
   for (const name of names) {

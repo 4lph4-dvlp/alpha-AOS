@@ -1836,7 +1836,11 @@ export function parseUndecidableReason(reason: string | null | undefined): Undec
  * decision — `.alpha-aos/` is routinely gitignored and an opt-in a user wrote
  * on purpose must not vanish because of that.
  */
-async function readManifestEvidence(root: CanonicalRoot, ledger: ReadLedger): Promise<ManifestEvidence> {
+async function readManifestEvidence(
+  root: CanonicalRoot,
+  ledger: ReadLedger,
+  packageRoot: string | null,
+): Promise<ManifestEvidence> {
   const read = await readEvidenceFile(root.root, PROJECT_MANIFEST_PATH, MAX_EVIDENCE_FILE_BYTES);
   const empty = { present: false, current: false, value: null, schemaVersion: null } as const;
 
@@ -1857,7 +1861,11 @@ async function readManifestEvidence(root: CanonicalRoot, ledger: ReadLedger): Pr
   }
 
   ledger.recordRelative(PROJECT_MANIFEST_PATH, read.text);
-  const inspection = await inspectProjectManifest(root.root);
+  // The manifest is judged by the package root the caller supplied, so the
+  // `manifestKey` detector and the pack evaluator read one catalog (WR-09).
+  // `null` is the explicit request for the discovery fallback, taken only by a
+  // caller that genuinely has no root to hand down.
+  const inspection = await inspectProjectManifest(root.root, packageRoot);
 
   // The gating rule survives verbatim from the retired detector: a migratable
   // manifest is readable but is not consumed as current, and an invalid one
@@ -1933,10 +1941,14 @@ export async function readDeclaredDependencies(
   return { byName: index, undecidable, bounded };
 }
 
-export async function openDetectionContext(root: CanonicalRoot, scan: ProjectTreeScan): Promise<DetectionContext> {
+export async function openDetectionContext(
+  root: CanonicalRoot,
+  scan: ProjectTreeScan,
+  packageRoot: string | null = null,
+): Promise<DetectionContext> {
   const ledger = new ReadLedger();
   const dependencies = await readDeclaredDependencies(root, scan, ledger);
-  const manifest = await readManifestEvidence(root, ledger);
+  const manifest = await readManifestEvidence(root, ledger, packageRoot);
   return {
     root,
     paths: new Set(scan.paths),
@@ -2212,8 +2224,9 @@ export async function detectProjectFacts(
   root: CanonicalRoot,
   scan: ProjectTreeScan,
   vocabulary: FactVocabulary,
+  packageRoot: string | null = null,
 ): Promise<EvidenceDetection> {
-  const context = await openDetectionContext(root, scan);
+  const context = await openDetectionContext(root, scan, packageRoot);
   const detections: FactDetection[] = [];
   for (const declaration of [...vocabulary.facts].sort(byDeclarationId)) {
     detections.push(await detectFact(context, declaration));
@@ -2321,7 +2334,7 @@ export async function collectProjectEvidenceDetail(
 
   const vocabulary = (await loadFactVocabularyStrict(packageRoot)).value;
   const scan = await scanProjectTree(root);
-  const detected = await detectProjectFacts(root, scan, vocabulary);
+  const detected = await detectProjectFacts(root, scan, vocabulary, packageRoot);
   const envelope = await buildEvidenceEnvelope(root, vocabulary, detected);
 
   return {

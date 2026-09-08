@@ -42,6 +42,8 @@ import { IGNORE_FILE_BYTE_CAP } from "../src/core/ignore-list.js";
 import { REDACTED_STRING_LENGTH_BUDGET } from "../src/core/redaction.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
+import { ROOT_CACHE_LIMIT } from "../src/core/paths.js";
+import { inspectProjectManifest, manifestCacheSizes } from "../src/core/project.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
 import {
   digestablePlan,
@@ -4578,4 +4580,104 @@ test("approvalCommand quotes the --project value, which is equally user-supplied
     `the --project value was emitted unquoted: ${command}`,
   );
   assert.ok(command.includes(shellQuoted(subProject)), `the --project value was not quoted: ${command}`);
+});
+
+// ---------------------------------------------------------------------------
+// WR-09: one package root decides one catalog
+//
+// Pre-fix, `inspectProjectManifest` took ONE argument and both of its loaders
+// were memoized on nothing, so the root that decided a `packOverrides` refusal
+// was the one this module rediscovered — never the one the caller supplied.
+// Observed before the fix, against the same fixtures these tests build:
+//
+//   inspectProjectManifest.length (declared params) = 1
+//   override BROWNFIELD_INIT   -> current (no issues)
+//   override BROWNFIELD_INIT_B -> invalid domain.unknown-pack-override
+//
+// Both answers came from the repository's own catalog. Neither supplied root
+// was consulted, so the second test below could not have passed.
+// ---------------------------------------------------------------------------
+
+/**
+ * Two package roots whose catalogs declare DIFFERENT pack id sets.
+ *
+ * Root B renames the single pack in `catalog/packs/brownfield.yaml`, which no
+ * other catalog file references, so the two roots differ in exactly one id and
+ * a test can name which root decided an answer.
+ */
+async function divergentPackageRoots(context: TestContext): Promise<{ rootA: string; rootB: string }> {
+  const rootA = await packageRootCopy(context);
+  const rootB = await packageRootCopy(context);
+  const brownfield = join(rootB, "catalog", "packs", "brownfield.yaml");
+  const text = await readFile(brownfield, "utf8");
+  const renamed = text.replace("id: BROWNFIELD_INIT", "id: BROWNFIELD_INIT_B");
+  assert.notEqual(renamed, text, "the brownfield pack id fixture no longer matches catalog/packs/brownfield.yaml");
+  await writeFile(brownfield, renamed, "utf8");
+  return { rootA, rootB };
+}
+
+/** A project whose manifest forces one pack on by id, and declares nothing else. */
+async function projectOverriding(context: TestContext, packId: string): Promise<string> {
+  const root = await scratchRoot(context, "override-project");
+  await mkdir(join(root, ".alpha-aos"), { recursive: true });
+  await writeFile(
+    join(root, ".alpha-aos", "stack.yaml"),
+    `schemaVersion: 1
+packOverrides:
+  ${packId}: force-on
+`,
+    "utf8",
+  );
+  return root;
+}
+
+test("two package roots in one process declare two different pack id sets", async (context) => {
+  const { rootA, rootB } = await divergentPackageRoots(context);
+
+  const idsA = new Set((await loadPackCatalogStrict(rootA)).value.packs.map((pack) => pack.id));
+  const idsB = new Set((await loadPackCatalogStrict(rootB)).value.packs.map((pack) => pack.id));
+
+  assert.notDeepEqual([...idsA].sort(), [...idsB].sort(), "the two fixture roots declare the same pack ids");
+  assert.ok(idsA.has("BROWNFIELD_INIT") && !idsB.has("BROWNFIELD_INIT"));
+  assert.ok(idsB.has("BROWNFIELD_INIT_B") && !idsA.has("BROWNFIELD_INIT_B"));
+});
+
+test("a packOverrides key is judged by the package root the caller supplied, not by the first root in the process", async (context) => {
+  const { rootA, rootB } = await divergentPackageRoots(context);
+  const project = await projectOverriding(context, "BROWNFIELD_INIT");
+
+  // Order matters: root A answers first, and must not decide for root B.
+  const againstA = await inspectProjectManifest(project, rootA);
+  const againstB = await inspectProjectManifest(project, rootB);
+
+  assert.equal(againstA?.status, "current", "root A declares BROWNFIELD_INIT, so its own catalog must accept the override");
+  assert.equal(againstA?.issues.length, 0);
+
+  assert.equal(againstB?.status, "invalid", "root B does not declare BROWNFIELD_INIT, so its own catalog must refuse the override");
+  const refusal = againstB?.issues.find((issue) => issue.code === "domain.unknown-pack-override");
+  assert.equal(refusal?.documentPath, "/packOverrides/BROWNFIELD_INIT");
+
+  // And the reverse key, so neither answer is an accident of ordering.
+  const reverse = await projectOverriding(context, "BROWNFIELD_INIT_B");
+  assert.equal((await inspectProjectManifest(reverse, rootB))?.status, "current");
+  assert.equal((await inspectProjectManifest(reverse, rootA))?.status, "invalid");
+});
+
+test("the root-keyed manifest caches stop at their bound, and an evicted root still answers with its own catalog", async (context) => {
+  const { rootB } = await divergentPackageRoots(context);
+  const project = await projectOverriding(context, "BROWNFIELD_INIT_B");
+
+  assert.equal((await inspectProjectManifest(project, rootB))?.status, "current");
+
+  // More roots than the bound admits, so root B is certainly evicted.
+  for (let index = 0; index < ROOT_CACHE_LIMIT + 2; index += 1) {
+    await inspectProjectManifest(project, await packageRootCopy(context));
+  }
+
+  const sizes = manifestCacheSizes();
+  assert.equal(sizes.packIds, ROOT_CACHE_LIMIT, "the declared pack id cache grew past its declared bound");
+  assert.equal(sizes.schemas, ROOT_CACHE_LIMIT, "the manifest schema cache grew past its declared bound");
+
+  // Eviction costs a re-read and nothing else: it cannot change WHICH catalog answers.
+  assert.equal((await inspectProjectManifest(project, rootB))?.status, "current");
 });

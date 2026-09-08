@@ -29,6 +29,67 @@ export function packageRoot(): string {
   throw new Error("Could not locate catalog/stack.yaml");
 }
 
+/**
+ * The bound every root-keyed process cache shares.
+ *
+ * One process asking about many package roots is a test harness or a
+ * long-lived server, never a user: eight is generous for both and small
+ * enough that a caller iterating roots cannot grow the map without limit
+ * (T-02-67).
+ */
+export const ROOT_CACHE_LIMIT = 8;
+
+/**
+ * A process-wide cache whose value is DERIVED FROM a package root.
+ *
+ * Keyed by the resolved root, never by nothing. A memo keyed on nothing lets
+ * the first caller in a process decide the answer for every later caller with
+ * a different root — which is how a `packOverrides` key could be validated
+ * against a different catalog than the one that evaluated the packs (WR-09).
+ *
+ * Behaviour at the bound is stated rather than implied: the OLDEST INSERTED
+ * entry is evicted, and eviction is deliberately not a correctness hazard,
+ * because the value is re-derived from that same root on the next request. An
+ * eviction costs one re-read and can never change WHICH root's answer a caller
+ * receives. That is the whole point of keying by root: the identity of the
+ * answer is the key, not the cache's occupancy.
+ */
+export class RootKeyedCache<T> {
+  private readonly entries = new Map<string, T>();
+  private readonly limit: number;
+
+  constructor(limit: number = ROOT_CACHE_LIMIT) {
+    this.limit = limit;
+  }
+
+  /** How many roots are currently held. Bounded by `limit`, observable so the bound is proven rather than asserted in prose. */
+  get size(): number {
+    return this.entries.size;
+  }
+
+  async load(root: string, read: () => Promise<T>): Promise<T> {
+    const key = resolve(root);
+    const cached = this.entries.get(key);
+    if (cached !== undefined) return cached;
+
+    const value = await read();
+
+    // Two callers may await the same root concurrently. The first to land
+    // wins, so every caller in the process sees ONE value for one root rather
+    // than two structurally-equal ones.
+    const raced = this.entries.get(key);
+    if (raced !== undefined) return raced;
+
+    this.entries.set(key, value);
+    while (this.entries.size > this.limit) {
+      const oldest = this.entries.keys().next();
+      if (oldest.done === true) break;
+      this.entries.delete(oldest.value);
+    }
+    return value;
+  }
+}
+
 export function userStateRoot(): string {
   const override = process.env.ALPHA_AOS_STATE_DIR?.trim();
   if (override) return resolve(override);

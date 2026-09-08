@@ -869,10 +869,19 @@ export function buildSafeInverse(target: TargetPreState): SafeInverse {
  * Everything a reviewer would look at, as ONE object literal in ONE place.
  *
  * Built as a literal rather than derived by deleting fields from the plan:
- * that is what keeps `createdAt` and the git branch/commit context out of
- * every digest BY CONSTRUCTION, and what stops two code paths building the
- * same logical object with keys in different orders. Every array reaching here
- * is already sorted by its producer.
+ * that is what keeps `createdAt`, the git branch/commit context and
+ * `hostNotes` out of every digest BY CONSTRUCTION, and what stops two code
+ * paths building the same logical object with keys in different orders. Every
+ * array reaching here is already sorted by its producer.
+ *
+ * Those three omissions are deliberate and they are the same decision made
+ * three times: a digest must depend on the repository and the pinned lock
+ * alone. `createdAt` is the clock, the git context is the checkout, and
+ * `hostNotes` is the reviewer's own machine — a personal-scope skill
+ * collision is true of one home directory and of no commit, so digesting it
+ * made two people reviewing the identical commit compute different digests
+ * (02-REVIEW WR-01). Each is still REPORTED; none is digested. A
+ * repository-derived fact, such as a `TARGET_CONFLICT` approval, is digested.
  */
 export function digestablePlan(plan: Omit<ProjectCapabilityPlan, "planDigest">): Record<string, unknown> {
   return {
@@ -1137,18 +1146,31 @@ export async function planProjectCapabilities(
     });
   }
 
-  // A personal skill overrides a project one, so a collision means the pack
-  // would not be the skill that loads. Reported only when actually observed.
-  const personalSkills = source.length === 0 ? new Set<string>() : await discoverPersonalSkillNames();
-  for (const skill of [...new Set(source.map((entry) => entry.skill))].sort(byCodePoint)) {
-    if (!personalSkills.has(skill)) continue;
-    approvals.push({
-      code: "SKILL_SHADOWED",
-      detail: `${skill} already exists as a personal-scope skill, and a personal skill overrides a project one, so the project pack would not be the skill that loads`,
-    });
-  }
-
   approvals.sort((left, right) => byCodePoint(left.code, right.code) || byCodePoint(left.detail, right.detail));
+
+  // A personal skill overrides a project one, so a collision means the pack
+  // would not be the skill that loads. Reported only when actually observed —
+  // and reported as a HOST note rather than as an approval.
+  //
+  // The discovery is unchanged and stays on the preview path; only where its
+  // output lands moved. `approvals` folds into `digestablePlan`, so while this
+  // collision lived there two people reviewing the identical commit of the
+  // identical repository computed different `planDigest` values and a digest
+  // reviewed on a laptop could not be approved on CI (02-REVIEW WR-01). The
+  // `TARGET_CONFLICT` entries above stay in `approvals` and stay digested:
+  // they are facts about a file in the TREE, and a reviewer who accepted a
+  // plan carrying one must not be able to apply it once the conflict resolves.
+  const personalSkills = source.length === 0 ? new Set<string>() : await discoverPersonalSkillNames();
+  const hostNotes: string[] = [];
+  for (const skill of [...new Set(source.map((entry) => entry.skill))]) {
+    if (!personalSkills.has(skill)) continue;
+    hostNotes.push(
+      `${skill} already exists as a personal-scope skill, and a personal skill overrides a project one, so the project pack would not be the skill that loads`,
+    );
+  }
+  // Sorted so the value is stable for a given host, exactly as every other
+  // array in the plan is stable for a given repository.
+  hostNotes.sort(byCodePoint);
 
   // ---- What the scan could NOT decide, carried into the plan value --------
   //
@@ -1219,6 +1241,7 @@ export async function planProjectCapabilities(
     applicable,
     nearMissOrder,
     subProjects,
+    hostNotes,
     scanBounds,
     undecidableBoundaries,
     excludedBoundaries,

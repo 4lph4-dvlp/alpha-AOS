@@ -226,6 +226,18 @@ export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: 
 
   for (const approval of plan.approvals) lines.push(`APPROVAL ${approval.code} ${approval.detail}`);
 
+  // Host-derived observations, rendered beside the approvals and deliberately
+  // under a different prefix. An `APPROVAL` line is a fact about the
+  // REPOSITORY that `planDigest` binds; a `SHADOWED` line is a fact about THIS
+  // MACHINE that it deliberately does not (02-REVIEW WR-01), so a reader can
+  // tell the two apart at a glance rather than by knowing the digest's inputs.
+  //
+  // This loop is the other half of the WR-01 fix and must not be dropped:
+  // taking a host-dependent input out of the digest is only correct if the
+  // report of it stays in the output. Every note carried today is a
+  // personal-scope skill collision, which is what the prefix names.
+  for (const note of plan.hostNotes) lines.push(`SHADOWED ${note}`);
+
   lines.push(
     `Manifest digest: ${plan.manifestDigest ?? "none"}`,
     `Inputs digest: ${plan.inputsDigest}`,

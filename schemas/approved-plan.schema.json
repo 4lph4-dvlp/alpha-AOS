@@ -217,6 +217,7 @@
         "applicable",
         "nearMissOrder",
         "subProjects",
+        "hostNotes",
         "scanBounds",
         "undecidableBoundaries",
         "excludedBoundaries",
@@ -294,7 +295,7 @@
         "nearMissOrder": { "$ref": "#/$defs/stringArray" },
         "subProjects": { "type": "array", "items": { "$ref": "#/$defs/subProjectDecision" } },
         "hostNotes": {
-          "description": "Observations true of the HOST rather than of the repository. Declared here up front, and deliberately ABSENT from plan.required, so an artifact written before plan 02-15 lands validates exactly as well as one written after. Plan 02-15 owns tightening it into required once every plan value carries it. Do NOT remove this property: approvalArtifactBytes serializes the entire plan value, so a closed schema that does not know a field project approve writes is a schema project status then rejects.",
+          "description": "Observations true of the HOST rather than of the repository, and therefore the one plan field digestablePlan deliberately omits (02-REVIEW WR-01). Declared by plan 02-14 and left out of plan.required so an artifact written before 02-15 landed still validated; plan 02-15 introduced the field on every plan value and tightened it into required here, so an artifact missing it is now a rejected artifact rather than a silently half-typed one. Do NOT remove this property and do NOT loosen it back out of required: approvalArtifactBytes serializes the entire plan value, so a closed schema that does not know a field project approve writes is a schema project status then rejects.",
           "$ref": "#/$defs/stringArray"
         },
         "scanBounds": { "type": "array", "items": { "$ref": "#/$defs/scanBound" } },

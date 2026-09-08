@@ -671,6 +671,7 @@ const VALID_APPROVED_PLAN = {
     applicable: ["DB_POSTGRES"],
     nearMissOrder: [],
     subProjects: [],
+    hostNotes: [],
     scanBounds: [],
     undecidableBoundaries: [],
     excludedBoundaries: [],
@@ -697,8 +698,10 @@ test("a well-formed approved-plan artifact validates as a closed current documen
 test("the approved-plan schema admits the two shapes plan 02-15 introduces", async () => {
   const approvedPlanSchema = await schema("approved-plan.schema.json");
 
-  // `hostNotes` is declared and deliberately NOT required, so an artifact
-  // written before 02-15 lands and one written after both validate.
+  // `hostNotes` is carried by every plan value from 02-15 onward, so 02-15
+  // tightened it into `plan.required`. Both halves of that tightening are
+  // asserted: an artifact carrying it validates, and one missing it is now a
+  // REJECTED artifact rather than a silently half-typed one.
   const withHostNotes = validateManagedDocument({
     text: JSON.stringify({
       ...VALID_APPROVED_PLAN,
@@ -709,6 +712,15 @@ test("the approved-plan schema admits the two shapes plan 02-15 introduces", asy
     schema: approvedPlanSchema,
   });
   assert.equal(withHostNotes.ok, true, JSON.stringify(withHostNotes.issues));
+
+  const { hostNotes: _omitted, ...planWithoutHostNotes } = VALID_APPROVED_PLAN.plan;
+  const withoutHostNotes = validateManagedDocument({
+    text: JSON.stringify({ ...VALID_APPROVED_PLAN, plan: planWithoutHostNotes }),
+    format: "json",
+    kind: "approved-plan",
+    schema: approvedPlanSchema,
+  });
+  assert.equal(withoutHostNotes.ok, false, "an artifact missing hostNotes was accepted by the tightened schema");
 
   // A guard hash that is an explicit unknown, which 02-15's WR-04 fix writes
   // for a target that exists and whose bytes could not be read.

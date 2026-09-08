@@ -520,6 +520,25 @@ export interface ProjectCapabilityPlan {
   /** Discovered sub-projects and their own decisions. Empty unless a workspace was found. */
   subProjects: SubProjectDecision[];
   /**
+   * Observations about the MACHINE this plan was computed on, rather than
+   * about the repository. Sorted, rendered to the reviewer — and deliberately
+   * OMITTED from `digestablePlan`, exactly as `createdAt` and the git
+   * branch/commit context already are.
+   *
+   * The omission is a decision, not an oversight, and those two are the
+   * precedent for it. A personal-scope skill that shadows a project pack is a
+   * fact about one reviewer's home directory and about no commit, so folding
+   * it into `approvals` made two people reviewing the identical commit of the
+   * identical repository compute different `planDigest` values — a digest
+   * reviewed on a laptop could not be approved on CI (02-REVIEW WR-01).
+   *
+   * The line the split follows is repository-derived versus host-derived, not
+   * important versus unimportant: a `TARGET_CONFLICT` is a fact about a file
+   * in the tree and stays in `approvals`, digested. Anything landing here must
+   * still be REPORTED, or the fix trades a stability defect for a silence one.
+   */
+  hostNotes: string[];
+  /**
    * Every scan bound reached, sorted by bound name then by the path where the
    * bound was first reached.
    *

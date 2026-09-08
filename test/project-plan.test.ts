@@ -610,6 +610,7 @@ function syntheticPlan(evaluations: PackEvaluation[]): ProjectCapabilityPlan {
     applicable: [],
     nearMissOrder: rankNearMisses(evaluations).map((evaluation) => evaluation.packId),
     subProjects: [],
+    hostNotes: [],
     scanBounds: [],
     undecidableBoundaries: [],
     excludedBoundaries: [],
@@ -1544,7 +1545,7 @@ test("no harness lacking documented project-scope discovery is reported supporte
   assert.equal(classify(["future-harness"])[0]?.support, "unverified");
 });
 
-test("a pack skill colliding with a personal-scope skill records a named shadowing approval", async (context) => {
+test("a pack skill colliding with a personal-scope skill records a named host note", async (context) => {
   const root = await reactFixture(context);
   const collidingHome = await scratchRoot(context, "personal-home");
   await mkdir(join(collidingHome, ".claude", "skills", REACT_PACK_SKILL), { recursive: true });
@@ -1559,10 +1560,21 @@ test("a pack skill colliding with a personal-scope skill records a named shadowi
     HERMES_HOME: undefined,
   });
   assert.equal(collided.status, 0, collided.stderr);
-  const shadowed = (JSON.parse(collided.stdout) as { approvals: Array<{ code: string; detail: string }> }).approvals
-    .filter((entry) => entry.code === "SKILL_SHADOWED");
-  assert.equal(shadowed.length, 1, `expected one shadowing approval, got ${shadowed.length}`);
-  assert.match(shadowed[0]?.detail ?? "", new RegExp(REACT_PACK_SKILL, "u"));
+  const collidedPlan = JSON.parse(collided.stdout) as {
+    approvals: Array<{ code: string; detail: string }>;
+    hostNotes: string[];
+  };
+  // 02-15/WR-01: the collision is a fact about this HOME DIRECTORY, so it is
+  // reported outside the digest. It used to be a `SKILL_SHADOWED` approval,
+  // and `approvals` folds into `digestablePlan` — which made two reviewers of
+  // the identical commit compute different plan digests.
+  assert.equal(collidedPlan.hostNotes.length, 1, `expected one host note, got ${collidedPlan.hostNotes.length}`);
+  assert.match(collidedPlan.hostNotes[0] ?? "", new RegExp(REACT_PACK_SKILL, "u"));
+  assert.deepEqual(
+    collidedPlan.approvals.filter((entry) => entry.code === "SKILL_SHADOWED"),
+    [],
+    "the host-derived collision is still an approval, so it still reaches the digest",
+  );
 
   // Emitted on an OBSERVED collision, never assumed.
   const quiet = await runCli(["project", "plan", root, "--json"], {
@@ -1573,10 +1585,7 @@ test("a pack skill colliding with a personal-scope skill records a named shadowi
     HERMES_HOME: undefined,
   });
   assert.equal(quiet.status, 0, quiet.stderr);
-  assert.deepEqual(
-    (JSON.parse(quiet.stdout) as { approvals: Array<{ code: string }> }).approvals.filter((entry) => entry.code === "SKILL_SHADOWED"),
-    [],
-  );
+  assert.deepEqual((JSON.parse(quiet.stdout) as { hostNotes: string[] }).hostNotes, []);
 });
 
 test("the text rendering carries the target pre-state, adapter-support and approval rows", async (context) => {

@@ -2,6 +2,7 @@ import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, Plan
 import {
   approvalCommand,
   describeLeaf,
+  MAX_DISCLOSURE_LINES,
   MAX_NEAR_MISS_LINES,
   MAX_TARGET_ROWS,
   PROJECT_PLAN_ARTIFACT,
@@ -45,6 +46,37 @@ export function formatDoctor(findings: DoctorFinding[]): string {
 }
 
 /**
+ * One capped, deterministically ordered list plus the suppression line it owes.
+ *
+ * Shared by every scan-completeness list so a disclosure can never itself
+ * become the flood that buries the rest of the rendering (T-02-54).
+ */
+function pushCapped<T>(lines: string[], items: readonly T[], render: (item: T) => string, noun: string): void {
+  const shown = items.slice(0, MAX_DISCLOSURE_LINES);
+  for (const item of shown) lines.push(render(item));
+  const suppressed = items.length - shown.length;
+  if (suppressed > 0) lines.push(`... ${suppressed} more ${noun} suppressed (use --json)`);
+}
+
+/** What the scan could not finish reading, in the walk's own vocabulary. */
+function emitDisclosure(lines: string[], plan: ProjectCapabilityPlan): void {
+  pushCapped(
+    lines,
+    plan.scanBounds,
+    (bound) =>
+      `BOUNDED ${bound.bound}=${bound.limit} was reached at ${bound.at}; the scan is INCOMPLETE, so what follows is not a complete answer`,
+    "scan bound(s)",
+  );
+  pushCapped(
+    lines,
+    plan.undecidableBoundaries,
+    (entry) =>
+      `UNDECIDABLE-PATH ${entry.path} — ${entry.detail ?? entry.reason}; nothing under it was read, so its absence below is not evidence of absence`,
+    "undecidable path(s)",
+  );
+}
+
+/**
  * D-09's default output contract, rendered.
  *
  * Full reasoning for every selected pack; one line for every pack that
@@ -62,6 +94,19 @@ export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: 
   const lines = [`Project: ${plan.scope.canonicalRoot} (${plan.scope.rootReason})`, `Project id: ${plan.scope.projectId}`];
   if (plan.scope.subProjectPath !== null) lines.push(`Sub-project: ${plan.scope.subProjectPath}`);
   const byId = new Map(plan.evaluations.map((evaluation) => [evaluation.packId, evaluation]));
+
+  // What the scan could not finish reading comes FIRST, before the branch that
+  // chooses between listing sub-projects, reporting that no pack qualified,
+  // and listing selections.
+  //
+  // The order is the point, not a preference. Each of those three is a
+  // CONCLUSION, and a conclusion drawn over a tree the walk did not read is
+  // exactly the shape 02-REVIEW CR-03 reproduced: a 351 KB `.gitignore` made
+  // every path undecidable and the rendering printed a confident "No pack
+  // qualified on the evidence found." Emitting the disclosure only under
+  // `--why` would leave the default rendering just as untrustworthy, so both
+  // renderings carry it.
+  emitDisclosure(lines, plan);
 
   if (plan.subProjects.length > 0) {
     // D-01: the user names the target rather than the tool guessing which

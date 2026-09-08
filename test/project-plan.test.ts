@@ -33,9 +33,11 @@ import {
   collectProjectEvidence,
   digestableEvidence,
   discoverSubProjects,
+  MAX_SCAN_DEPTH,
   resolveCanonicalRoot,
   scanProjectTree,
 } from "../src/core/evidence.js";
+import { IGNORE_FILE_BYTE_CAP } from "../src/core/ignore-list.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
@@ -607,6 +609,8 @@ function syntheticPlan(evaluations: PackEvaluation[]): ProjectCapabilityPlan {
     applicable: [],
     nearMissOrder: rankNearMisses(evaluations).map((evaluation) => evaluation.packId),
     subProjects: [],
+    scanBounds: [],
+    undecidableBoundaries: [],
     manifestDigest: null,
     inputsDigest: "0".repeat(64),
     evidenceDigest: "1".repeat(64),
@@ -3282,4 +3286,162 @@ test("project sync --apply is still refused, so this phase did not open the Phas
   const result = await runCli(["project", "sync", ".", "--apply"]);
   assert.notEqual(result.status, 0, "`project sync --apply` was accepted at phase close");
   assert.match(result.stderr, /not enabled until trust and transaction support are implemented/u);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-13 Task 1: a bounded or undecidable scan says so, in every rendering
+// ---------------------------------------------------------------------------
+//
+// 02-REVIEW CR-03 reproduced the opposite: a fixture whose whole tree was
+// refused printed `No pack qualified on the evidence found.` with no trace of
+// the refusal in text, in `--why`, or in `--json`. The assertions below are
+// written against the user-visible seam for that reason — the record already
+// existed inside `scanProjectTree`, and being carried in a value no consumer
+// reads is exactly the state that looked honest and was not.
+
+/**
+ * A tree whose root `.gitignore` exceeds `IGNORE_FILE_BYTE_CAP`, so the rule
+ * set cannot be taken on and every entry beneath the root is `undecidable`.
+ *
+ * Every line is a comment, so the file carries ZERO effective rules: what the
+ * scan loses here is decidability itself, not any pattern's meaning. The
+ * fixture therefore holds real evidence (`react`, a `src` directory) that a
+ * complete scan would have selected on.
+ */
+async function boundedScanFixture(context: TestContext): Promise<string> {
+  const root = await scratchRoot(context, "bounded-scan");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "bounded", private: true, dependencies: { react: "^19.0.0" } }),
+    "utf8",
+  );
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src", "index.ts"), "export const value = 1;\n", "utf8");
+  const line = `# ${"x".repeat(78)}\n`;
+  await writeFile(join(root, ".gitignore"), line.repeat(Math.ceil((IGNORE_FILE_BYTE_CAP + 4096) / line.length)), "utf8");
+  return root;
+}
+
+/** A tree with exactly one chain nested one level past `MAX_SCAN_DEPTH`. */
+async function deepScanFixture(context: TestContext): Promise<string> {
+  const root = await scratchRoot(context, "deep-scan");
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "deep", private: true, dependencies: { react: "^19.0.0" } }),
+    "utf8",
+  );
+  const segments = Array.from({ length: MAX_SCAN_DEPTH + 1 }, (_unused, index) => `d${index}`);
+  await mkdir(join(root, ...segments), { recursive: true });
+  return root;
+}
+
+/** The relative POSIX path of the directory `deepScanFixture` puts past the bound. */
+const DEEPEST_BOUNDED_PATH = Array.from({ length: MAX_SCAN_DEPTH + 1 }, (_unused, index) => `d${index}`).join("/");
+
+function linesStartingWith(text: string, prefix: string): string[] {
+  return text.split("\n").filter((line) => line.startsWith(prefix));
+}
+
+test("a scan whose root rule set could not be taken on discloses the undecidable path in text, in --why and in --json", async (context) => {
+  const root = await boundedScanFixture(context);
+
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+  const json = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(plain.status, 0, plain.stderr);
+  const disclosed = linesStartingWith(plain.stdout, "UNDECIDABLE-PATH ");
+  assert.ok(disclosed.length > 0, `the default rendering disclosed nothing:\n${plain.stdout}`);
+  assert.ok(
+    disclosed.some((line) => line.includes("src")),
+    `the disclosure did not name the refused path:\n${disclosed.join("\n")}`,
+  );
+
+  assert.equal(why.status, 0, why.stderr);
+  assert.ok(
+    linesStartingWith(why.stdout, "UNDECIDABLE-PATH ").length > 0,
+    `--why disclosed nothing:\n${why.stdout}`,
+  );
+
+  assert.equal(json.status, 0, json.stderr);
+  const parsed = JSON.parse(json.stdout) as {
+    undecidableBoundaries: Array<{ path: string; reason: string; detail: string | null }>;
+  };
+  assert.ok(Array.isArray(parsed.undecidableBoundaries), json.stdout);
+  assert.ok(parsed.undecidableBoundaries.length >= 1, json.stdout);
+  assert.ok(
+    parsed.undecidableBoundaries.some((entry) => entry.path === "src"),
+    JSON.stringify(parsed.undecidableBoundaries),
+  );
+});
+
+test("a scan that reached MAX_SCAN_DEPTH names the bound, its limit and where it was first reached", async (context) => {
+  const root = await deepScanFixture(context);
+
+  const plain = await runCli(["project", "plan", root]);
+  const why = await runCli(["project", "plan", root, "--why"]);
+  const json = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(plain.status, 0, plain.stderr);
+  const bounded = linesStartingWith(plain.stdout, "BOUNDED ");
+  assert.ok(bounded.length > 0, `the default rendering disclosed no bound:\n${plain.stdout}`);
+  const line = bounded[0] as string;
+  assert.ok(line.includes("MAX_SCAN_DEPTH"), line);
+  assert.ok(line.includes(String(MAX_SCAN_DEPTH)), line);
+  assert.ok(line.includes(DEEPEST_BOUNDED_PATH), line);
+
+  assert.ok(linesStartingWith(why.stdout, "BOUNDED ").length > 0, `--why disclosed no bound:\n${why.stdout}`);
+
+  const parsed = JSON.parse(json.stdout) as {
+    scanBounds: Array<{ bound: string; limit: number; at: string }>;
+  };
+  assert.deepEqual(parsed.scanBounds, [{ bound: "MAX_SCAN_DEPTH", limit: MAX_SCAN_DEPTH, at: DEEPEST_BOUNDED_PATH }]);
+});
+
+test("the scan-completeness record takes part in the plan digest", () => {
+  const { planDigest: _superseded, ...base } = syntheticPlan([]);
+
+  const complete = digestablePlan(base);
+  const bounded = digestablePlan({
+    ...base,
+    scanBounds: [{ bound: "MAX_SCAN_DEPTH", limit: 12, at: "a/b" }],
+  });
+  const undecidable = digestablePlan({
+    ...base,
+    undecidableBoundaries: [{ path: "src", reason: "undecidable", detail: "gitignore-byte-cap" }],
+  });
+
+  assert.notDeepEqual(complete, bounded, "a scan bound left the digestable plan unchanged");
+  assert.notDeepEqual(complete, undecidable, "an undecidable path left the digestable plan unchanged");
+});
+
+test("a complete scan reports empty scan-completeness arrays and prints no disclosure line", async (context) => {
+  const root = await reactFixture(context);
+
+  const plain = await runCli(["project", "plan", root]);
+  const json = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.deepEqual(linesStartingWith(plain.stdout, "BOUNDED "), []);
+  assert.deepEqual(linesStartingWith(plain.stdout, "UNDECIDABLE-PATH "), []);
+
+  const parsed = JSON.parse(json.stdout) as { scanBounds: unknown[]; undecidableBoundaries: unknown[] };
+  assert.deepEqual(parsed.scanBounds, []);
+  assert.deepEqual(parsed.undecidableBoundaries, []);
+});
+
+test("an empty directory is a complete answer: exit 0, nothing selected, and both completeness arrays empty", async (context) => {
+  const root = await scratchRoot(context, "empty-answer");
+
+  const json = await runCli(["project", "plan", root, "--json"]);
+
+  assert.equal(json.status, 0, json.stderr);
+  const parsed = JSON.parse(json.stdout) as {
+    selected: string[];
+    scanBounds: unknown[];
+    undecidableBoundaries: unknown[];
+  };
+  assert.deepEqual(parsed.selected, []);
+  assert.deepEqual(parsed.scanBounds, []);
+  assert.deepEqual(parsed.undecidableBoundaries, []);
 });

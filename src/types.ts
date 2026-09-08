@@ -1,6 +1,9 @@
 // `RootReason` is declared beside the ladder that produces it, so the reason
-// vocabulary and the resolver can never drift apart.
-import type { RootReason } from "./core/evidence.js";
+// vocabulary and the resolver can never drift apart. The scan-completeness
+// records are imported for the same reason: `ScanBound` and `ExcludedBoundary`
+// are produced by the walk, so the plan carries the walk's own vocabulary
+// rather than a restatement that could drift from it.
+import type { ExcludedBoundary, RootReason, ScanBound } from "./core/evidence.js";
 
 export type HarnessId = "claude" | "codex" | "antigravity" | "pi" | "hermes";
 export type McpServerId = "context7" | "exa" | "firecrawl";
@@ -516,6 +519,29 @@ export interface ProjectCapabilityPlan {
   nearMissOrder: string[];
   /** Discovered sub-projects and their own decisions. Empty unless a workspace was found. */
   subProjects: SubProjectDecision[];
+  /**
+   * Every scan bound reached, sorted by bound name then by the path where the
+   * bound was first reached.
+   *
+   * An EMPTY array means the scan was COMPLETE, not merely that nothing was
+   * reported. That sentence is the point of the field: without it a reader
+   * treats emptiness as an absence of information, and a truncated scan that
+   * looks complete is a wrong answer that still looks like a decision. A
+   * non-empty array means every conclusion in this plan was drawn over a tree
+   * the walk did not finish reading (02-REVIEW CR-03).
+   */
+  scanBounds: ScanBound[];
+  /**
+   * Paths the walk could not DECIDE — unreadable, or governed by an ignore
+   * rule set that could not be taken on. Sorted by path, then reason.
+   *
+   * An EMPTY array means every path was decided, not merely that nothing was
+   * reported. An ordinary, intended exclusion — an ignored path, a `.git`
+   * entry, a declared submodule, a vendored directory, an alias — is a
+   * DECISION and belongs in `excludedBoundaries`; only a path the walk could
+   * not answer for belongs here.
+   */
+  undecidableBoundaries: ExcludedBoundary[];
   /**
    * DETC-05's manifest noun: sha256 of `.alpha-aos/stack.yaml`'s bytes, or
    * `null` when the project declares none.

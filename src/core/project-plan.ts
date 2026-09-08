@@ -55,7 +55,7 @@ import {
   type ReviewedComponentPlan,
   type ReviewedPlanBoundary,
 } from "./component-session.js";
-import type { DeclaredDependencies, RootPin, SubProject, UndecidableEvidence } from "./evidence.js";
+import type { DeclaredDependencies, RootPin, ScanBound, SubProject, UndecidableEvidence } from "./evidence.js";
 import {
   collectProjectEvidenceDetail,
   digestableEvidence,
@@ -88,6 +88,27 @@ function byFactId(left: LeafResult, right: LeafResult): number {
 }
 
 /**
+ * One record per (bound, limit, path).
+ *
+ * `discoverSubProjects` seeds its own `bounds` from the scan's, so a plain
+ * concatenation would report every scan bound twice. Deduping rather than
+ * reading only one source is deliberate: discovery can reach a bound the scan
+ * never did (`MAX_SUB_PROJECTS`), so both sources are needed and only the
+ * overlap is redundant.
+ */
+function dedupeBounds(bounds: readonly ScanBound[]): ScanBound[] {
+  const seen = new Set<string>();
+  const unique: ScanBound[] = [];
+  for (const bound of bounds) {
+    const key = `${bound.bound}|${bound.limit}|${bound.at}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(bound);
+  }
+  return unique;
+}
+
+/**
  * At most this many near-miss lines print by default, with a trailing line
  * naming how many were suppressed.
  *
@@ -102,6 +123,17 @@ export const MAX_NEAR_MISS_LINES = 5;
  * catalog naming many skills must not be able to flood the rendering.
  */
 export const MAX_TARGET_ROWS = 20;
+
+/**
+ * At most this many scan-completeness disclosure lines print per list, with a
+ * trailing line naming how many were suppressed.
+ *
+ * Same discipline as `MAX_NEAR_MISS_LINES` and `MAX_TARGET_ROWS`, and needed
+ * for the same reason in reverse: a repository that refused thousands of paths
+ * must disclose that it refused them WITHOUT the disclosure itself becoming
+ * the flood that hides everything else (T-02-54).
+ */
+export const MAX_DISCLOSURE_LINES = 20;
 
 // ---------------------------------------------------------------------------
 // Rendering — one vocabulary, never a per-pack string
@@ -892,6 +924,12 @@ export function digestablePlan(plan: Omit<ProjectCapabilityPlan, "planDigest">):
     applicable: plan.applicable,
     nearMissOrder: plan.nearMissOrder,
     subProjects: plan.subProjects.map((entry) => [entry.path, entry.selected.join("+")]),
+    // DETC-05: an approval taken while a bound was in force must not be
+    // silently reusable once the bound clears. Digesting the completeness
+    // record is what makes those two situations different values rather than
+    // the same one (02-REVIEW CR-03).
+    scanBounds: plan.scanBounds.map((bound) => [bound.bound, bound.limit, bound.at]),
+    undecidableBoundaries: plan.undecidableBoundaries.map((entry) => [entry.path, entry.reason, entry.detail]),
   };
 }
 
@@ -1090,6 +1128,25 @@ export async function planProjectCapabilities(
 
   approvals.sort((left, right) => byCodePoint(left.code, right.code) || byCodePoint(left.detail, right.detail));
 
+  // ---- What the scan could NOT decide, carried into the plan value --------
+  //
+  // `scanProjectTree` has always built both records; until now nothing above
+  // it could read them, so a scan that refused an entire tree printed as a
+  // confident "No pack qualified on the evidence found." (02-REVIEW CR-03).
+  // Both lists are total and sorted here, so the digestable view never
+  // re-sorts and two runs cannot disagree on order.
+  const scanBounds = dedupeBounds([...evidence.scan.bounds, ...discovery.bounds]).sort(
+    (left, right) => byCodePoint(left.bound, right.bound) || byCodePoint(left.at, right.at),
+  );
+  // Only the two reasons that mean the walk could not ANSWER. An ignored path,
+  // a git entry, a declared submodule, a vendored directory and an alias entry
+  // are DECIDED exclusions: they belong in the full boundary list, not in the
+  // "could not read" list, or the disclosure stops meaning anything.
+  const undecidableBoundaries = evidence.scan.excludedBoundaries
+    .filter((boundary) => boundary.reason === "undecidable" || boundary.reason === "unreadable")
+    .slice()
+    .sort((left, right) => byCodePoint(left.path, right.path) || byCodePoint(left.reason, right.reason));
+
   const conflicted = new Set(conflicts.map((target) => target.packId));
   const applicable = selected.filter((packId) => !conflicted.has(packId));
   const applicableSet = new Set(applicable);
@@ -1127,6 +1184,8 @@ export async function planProjectCapabilities(
     applicable,
     nearMissOrder,
     subProjects,
+    scanBounds,
+    undecidableBoundaries,
     manifestDigest,
     inputsDigest,
     evidenceDigest,

@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-14-PLAN.md
-last_updated: "2026-09-08T19:27:05.948Z"
+stopped_at: Completed 02-15-PLAN.md
+last_updated: "2026-09-08T20:28:32.593Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 02 execution started
-state_head: f0e679c1d0fcbcf777c53536c0ec12005c394a8f
+state_head: b205cbb2d5724ecaa935b86a8c0712c2986c8fa9
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 43
-  completed_plans: 41
+  completed_plans: 42
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
-Plan: 15 of 16
+Plan: 16 of 16
 Status: Ready to execute
 Last activity: 2026-09-08 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -82,6 +82,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P12 | 56 min | 3 tasks | 11 files |
 | Phase 02 P13 | 1h 47m | 3 tasks | 6 files |
 | Phase 02 P14 | 68 min | 3 tasks | 8 files |
+| Phase 02 P15 | 62 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -150,6 +151,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: project status prints its whole report AND exits with the domain-refusal status when .alpha-aos/plan.json is unreadable — The reconciliation is derived from freshly recomputed evidence and stays true even when the artifact is refused, so suppressing the report would cost the user more than the refusal buys; the exit status is what carries REJECTED rather than merely missing.
 - [Phase 02]: schemas/receipt.schema.json narrows its harness enum to exactly the keys of PROJECT_SKILL_ROOTS (claude, codex, pi) — Phase 3 writes receipts and inherits this constraint: add a project-local skill root to PROJECT_SKILL_ROOTS first, then the enum follows. A test asserts the two tables agree.
 - [Phase 02]: The approved-plan schema is authored against the plan shape at the END of the run, not its start — approvalArtifactBytes serializes the entire ProjectCapabilityPlan, so a schema authored against today shape would make project approve emit an artifact project status rejects. hostNotes, a null guard hash and an open approval code are all admitted up front for 02-15.
+- [Phase 02]: The personal-skill collision moved from approvals into an undigested hostNotes field: planDigest must depend on the repository and the pinned lock alone, but the collision is still reported as a SHADOWED line
+- [Phase 02]: TARGET_CONFLICT stays digested — the split is repository-derived versus host-derived, not important versus unimportant
+- [Phase 02]: SafeInverse.guard.expectedHash admits an explicit null: no guard hash is invented for bytes that were never observed, and a TARGET_UNREADABLE approval tells the reviewer which undo is unguarded
+- [Phase 02]: approvalCommand quotes the path and the --project value on whitespace, a quote or a shell metacharacter, and leaves an ordinary path byte-identical
 
 ### Pending Todos
 
@@ -205,6 +210,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-08T19:26:47.194Z
-Stopped at: Completed 02-14-PLAN.md
+Last session: 2026-09-08T20:28:16.588Z
+Stopped at: Completed 02-15-PLAN.md
 Resume file: None

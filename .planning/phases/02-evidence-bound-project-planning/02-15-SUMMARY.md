@@ -312,7 +312,7 @@ None - no external service configuration required.
 ## Next Phase Readiness
 
 - **Sibling plan 02-16 is unblocked and untouched.** This plan changed `src/types.ts`, `src/core/project-plan.ts`, `src/format.ts`, `schemas/approved-plan.schema.json` and two test files; 02-16's root-keyed catalog caches (WR-09) and the `pin-pack-skills.mjs check` home decision touch `src/core/project.ts` and `scripts/`, and neither depends on anything left behind here. **The `npm test` floor 02-16 gates against is 467.**
-- **DETC-04 and DETC-05 are both closed by this plan's summary.** DETC-05 was held open by the shared-ID gate waiting on this plan; 02-14 already closed DETC-06.
+- **DETC-05 is now complete; DETC-04 stays open one more plan.** DETC-05 was held open by the shared-ID gate waiting on this summary and was marked complete here. DETC-04 is also declared by sibling plan **02-16**, so the same gate keeps it open until 02-16 produces its summary — it is not a gap, and 02-16's `update_requirements` step will close it. 02-14 already closed DETC-06.
 - **Phase 3 inherits one new constraint from here.** `SafeInverse.guard.expectedHash` may be `null`, and Phase 3 owns rollback. A rollback that reads a null guard must treat that undo as UNGUARDED — refuse it, or require an explicit human confirmation — and must not fall back to the source hash, which is exactly the defect this plan removed.
 - **Nothing deferred was picked up here.** D-13's drift classification with no prior artifact (broken-windows entry #14) remains an open product question, unchanged.
 

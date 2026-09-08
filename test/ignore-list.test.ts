@@ -11,24 +11,76 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import type { IgnoreDecision, IgnoreRuleSet } from "../src/core/ignore-list.js";
 import {
   IGNORE_FILE_BYTE_CAP,
+  IGNORE_NOTE_COUNT_CAP,
   IGNORE_PATTERN_COUNT_CAP,
   IGNORE_PATTERN_LENGTH_CAP,
   isIgnored,
   loadIgnoreRules,
 } from "../src/core/ignore-list.js";
 
+const testDirectory = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = resolve(testDirectory, "..", "..");
+const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
+
 interface TestContext {
   after: (fn: () => Promise<unknown> | unknown) => void;
+}
+
+interface RunResult {
+  readonly status: number | null;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+/**
+ * Mirrors `runCli` in test/preview.test.ts. The end-to-end assertion below has
+ * to run the built CLI rather than the module, because the defect it closes was
+ * invisible for exactly as long as this seam was only ever tested one layer
+ * down: the module reported `undecidable` honestly and the whole scan went
+ * quiet.
+ */
+function runCli(args: readonly string[], cwd: string = repositoryRoot): RunResult {
+  const result = spawnSync(process.execPath, [cliEntry, ...args], {
+    cwd,
+    encoding: "utf8",
+    timeout: 120_000,
+    windowsHide: true,
+  });
+  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
 }
 
 async function createRoot(context: TestContext, label: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `alpha-aos-ignore-${label}-`));
   context.after(async () => rm(root, { recursive: true, force: true }));
+  return root;
+}
+
+/**
+ * A real project whose root `.gitignore` is valid apart from one line past
+ * `IGNORE_PATTERN_LENGTH_CAP`. The evidence that decides `WEB_REACT` — a
+ * `package.json` declaring `react` and a `src/` tree — is deliberately NOT
+ * matched by any of the 500 valid patterns, so anything other than a selection
+ * means the over-long line blinded the scan.
+ */
+async function partialIgnoreFixture(context: TestContext): Promise<string> {
+  const root = await createRoot(context, "partial");
+  const lines: string[] = [];
+  for (let index = 0; index < 500; index += 1) lines.push(`p${index}.tmp`);
+  lines.push("z".repeat(IGNORE_PATTERN_LENGTH_CAP + 976));
+  await writeFile(join(root, ".gitignore"), `${lines.join("\n")}\n`, "utf8");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "partial-ignore-fixture", private: true, dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src", "index.ts"), "export const app = 1;\n", "utf8");
   return root;
 }
 
@@ -158,15 +210,127 @@ test("an over-long pattern is reported by shape — construct and length, never 
   await writeFile(join(root, ".gitignore"), `notes.md\n${hostile}\n`, "utf8");
 
   const ruleSet = await loadIgnoreRules(root);
-  assert.equal(ruleSet.undecidable.length, 1);
-  const reason = ruleSet.undecidable[0] ?? "";
+  // One line that could not be compiled is a NOTE, not an undecidable file:
+  // the rest of the file is still the repository's own complete rule set.
+  assert.deepEqual(ruleSet.undecidable, []);
+  assert.equal(ruleSet.notes.length, 1);
+  const reason = ruleSet.notes[0] ?? "";
   assert.equal(reason.includes("pattern-length-cap"), true);
   assert.equal(reason.includes(String(hostile.length)), true);
   assert.equal(reason.includes(hostile), false);
   assert.equal(reason.includes("ssss"), false);
 
-  // The surviving pattern is not applied on its own — the set is incomplete.
-  assert.equal(isIgnored("notes.md", false, [ruleSet]).decision, "undecidable");
+  // The patterns that DID compile keep answering — one bad line must not make
+  // a whole subtree unscannable (02-REVIEW WR-05).
+  assert.equal(isIgnored("notes.md", false, [ruleSet]).decision, "ignored");
+  assert.equal(isIgnored("keep.md", false, [ruleSet]).decision, "scannable");
+});
+
+test("an over-long line leaves the remaining patterns deciding, and is reported as a bounded note", async (context) => {
+  const root = await createRoot(context, "partialrules");
+  const lines: string[] = [];
+  for (let index = 0; index < 500; index += 1) lines.push(`p${index}.tmp`);
+  lines.push("z".repeat(IGNORE_PATTERN_LENGTH_CAP + 976));
+  await writeFile(join(root, ".gitignore"), `${lines.join("\n")}\n`, "utf8");
+
+  const ruleSet = await loadIgnoreRules(root);
+  assert.equal(ruleSet.patterns.length, 500);
+  assert.equal(ruleSet.notes.length > 0, true);
+  assert.deepEqual(ruleSet.undecidable, []);
+
+  const decided = isIgnored("p7.tmp", false, [ruleSet]);
+  assert.equal(decided.decision, "ignored");
+  assert.equal(isIgnored("src/index.ts", false, [ruleSet]).decision, "scannable");
+});
+
+test("a hostile .gitignore of over-long lines produces a bounded note list, not an unbounded one", async (context) => {
+  const root = await createRoot(context, "notecap");
+  const hostile = "q".repeat(IGNORE_PATTERN_LENGTH_CAP + 1);
+  const lines: string[] = ["notes.md"];
+  for (let index = 0; index < IGNORE_NOTE_COUNT_CAP + 50; index += 1) lines.push(hostile);
+  await writeFile(join(root, ".gitignore"), `${lines.join("\n")}\n`, "utf8");
+
+  const ruleSet = await loadIgnoreRules(root);
+  assert.equal(ruleSet.notes.length <= IGNORE_NOTE_COUNT_CAP + 1, true);
+  assert.equal(ruleSet.notes.some((note) => note.includes("note-count-cap")), true);
+  assert.deepEqual(ruleSet.undecidable, []);
+  assert.equal(isIgnored("notes.md", false, [ruleSet]).decision, "ignored");
+});
+
+test("the pattern-count cap accepts the file at the cap and refuses the one past it", async (context) => {
+  const atCapRoot = await createRoot(context, "atcap");
+  const atCap: string[] = [];
+  for (let index = 0; index < IGNORE_PATTERN_COUNT_CAP; index += 1) atCap.push(`c${index}.tmp`);
+  await writeFile(join(atCapRoot, ".gitignore"), `${atCap.join("\n")}\n`, "utf8");
+
+  const accepted = await loadIgnoreRules(atCapRoot);
+  assert.equal(accepted.patterns.length, IGNORE_PATTERN_COUNT_CAP);
+  assert.deepEqual(accepted.undecidable, []);
+
+  const pastCapRoot = await createRoot(context, "pastcap");
+  await writeFile(join(pastCapRoot, ".gitignore"), `${[...atCap, "one-too-many.tmp"].join("\n")}\n`, "utf8");
+
+  const refused = await loadIgnoreRules(pastCapRoot);
+  assert.equal(refused.patterns.length, 0);
+  assert.equal(refused.undecidable.some((reason) => reason.includes("pattern-count-cap")), true);
+  // The number in the refusal is the number that decided.
+  assert.equal(refused.undecidable.some((reason) => reason.includes(String(IGNORE_PATTERN_COUNT_CAP))), true);
+});
+
+test("a leading # escaped with a backslash names a file whose name begins with #", async (context) => {
+  const root = await createRoot(context, "escapedhash");
+  const gitignore = "\\#literal.md\n# an ordinary comment\nnotes.md\n";
+  await writeFile(join(root, ".gitignore"), gitignore, "utf8");
+  await writeFile(join(root, "#literal.md"), "literal\n", "utf8");
+
+  const ruleSet = await loadIgnoreRules(root);
+  // The unescaped comment is dropped; the escaped line survives VERBATIM,
+  // because the escape belongs to the matcher's grammar. Stripping it would
+  // hand `#literal.md` over, which the matcher discards as a comment.
+  assert.deepEqual(ruleSet.patterns, ["\\#literal.md", "notes.md"]);
+  assert.deepEqual(ruleSet.undecidable, []);
+  assert.deepEqual(ruleSet.notes, []);
+
+  // The observable contract: the file whose name begins with `#` is ignored.
+  assert.equal(isIgnored("#literal.md", false, [ruleSet]).decision, "ignored");
+  assert.equal(isIgnored("other.md", false, [ruleSet]).decision, "scannable");
+
+  // Cross-checked against the authority this module claims to match, where the
+  // host has it. A disagreement here is the regression, not the assertion.
+  if (tryGitInit(root)) {
+    const escaped = spawnSync("git", ["check-ignore", "-q", "#literal.md"], { cwd: root, stdio: "ignore" });
+    assert.equal(escaped.status, 0, "git check-ignore must also report #literal.md as ignored");
+  }
+});
+
+test("an unescaped leading # is a comment for this parser and for git alike", async (context) => {
+  const root = await createRoot(context, "hashcomment");
+  await writeFile(join(root, ".gitignore"), "#literal.md\n", "utf8");
+  await writeFile(join(root, "#literal.md"), "literal\n", "utf8");
+
+  const ruleSet = await loadIgnoreRules(root);
+  assert.deepEqual(ruleSet.patterns, []);
+  assert.equal(isIgnored("#literal.md", false, [ruleSet]).decision, "scannable");
+
+  if (tryGitInit(root)) {
+    const unescaped = spawnSync("git", ["check-ignore", "-q", "#literal.md"], { cwd: root, stdio: "ignore" });
+    assert.equal(unescaped.status, 1, "git check-ignore must report #literal.md as NOT ignored");
+  }
+});
+
+test("an over-long .gitignore line does not blind the scan — the CLI still selects the packs the evidence supports", async (context) => {
+  const root = await partialIgnoreFixture(context);
+  assert.ok(existsSync(cliEntry), `CLI entry must be built before this suite runs: ${cliEntry}`);
+
+  const result = runCli(["project", "plan", root, "--json"]);
+  assert.equal(result.status, 0, result.stderr);
+
+  const plan = JSON.parse(result.stdout) as { selected: string[] };
+  assert.equal(
+    plan.selected.includes("WEB_REACT"),
+    true,
+    `one over-long .gitignore line made the whole subtree unscannable; selected=${JSON.stringify(plan.selected)}`,
+  );
 });
 
 test("a deliberately un-ignored build directory stays scannable — membership decides, not the name", async (context) => {

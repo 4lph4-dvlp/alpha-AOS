@@ -20,6 +20,7 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
+import { IGNORE_PATTERN_COUNT_CAP } from "../src/core/ignore-list.js";
 import type { EvidenceEnvelope, FactDeclaration, FactVocabulary } from "../src/types.js";
 import type {
   CanonicalRoot,
@@ -396,10 +397,18 @@ test("a path whose ignore decision is undecidable is excluded with its reason", 
   const workspace = await scratch(context, "scan-undecidable");
   await writeFile(join(workspace, "keep.txt"), "kept\n", "utf8");
   await mkdir(join(workspace, "sub"), { recursive: true });
-  // A pattern past IGNORE_PATTERN_LENGTH_CAP makes the whole rule set
-  // unanswerable, and an unanswerable rule set must never fall through to
-  // "not ignored" (Phase 1 D-01).
-  await writeFile(join(workspace, "sub", ".gitignore"), `${"a".repeat(2048)}\n`, "utf8");
+  // A `.gitignore` past IGNORE_PATTERN_COUNT_CAP could not be taken on at all,
+  // which makes the whole rule set unanswerable, and an unanswerable rule set
+  // must never fall through to "not ignored" (Phase 1 D-01).
+  //
+  // The vehicle used to be a single pattern past IGNORE_PATTERN_LENGTH_CAP.
+  // Plan 02-12 split that case out: one over-long LINE inside an otherwise
+  // valid file is now a bounded note and the remaining patterns keep deciding,
+  // so it no longer produces the `undecidable` state this test is about. The
+  // assertion is unchanged; only the fixture that reaches it moved.
+  const overCount: string[] = [];
+  for (let index = 0; index <= IGNORE_PATTERN_COUNT_CAP; index += 1) overCount.push(`p${index}.tmp`);
+  await writeFile(join(workspace, "sub", ".gitignore"), `${overCount.join("\n")}\n`, "utf8");
   await writeFile(join(workspace, "sub", "f.txt"), "content\n", "utf8");
 
   const root = await resolveCanonicalRoot(workspace);

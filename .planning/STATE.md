@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-11-PLAN.md
-last_updated: "2026-09-08T08:27:52.675Z"
+stopped_at: Completed 02-12-PLAN.md
+last_updated: "2026-09-08T09:25:58.902Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 02 execution started
-state_head: c31311071b2c1286bf9695feedbb097390a90d64
+state_head: 5aa4a78e1d62797ac8d1f9bfaa205642c240ceaf
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 43
-  completed_plans: 38
+  completed_plans: 39
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
-Plan: 2 of 16
+Plan: 3 of 16
 Status: Ready to execute
 Last activity: 2026-09-08 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -79,6 +79,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P09 | 40 min | 3 tasks | 6 files |
 | Phase 02 P10 | 118 min | 3 tasks | 7 files |
 | Phase 02 P11 | 45 min | 3 tasks | 4 files |
+| Phase 02 P12 | 56 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -137,6 +138,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: 02-10: only a STALE pack is offered a removal plan; DRIFTED, CONFLICT, CHANGED and UNDECIDABLE never are — Only STALE means the evidence that selected the pack is gone. An UNDECIDABLE evidence file is a read failure, not an absence, so it must never motivate a deletion - the same resolution 02-06 applied one layer down.
 - [Phase 02]: Canonical-root ladder (02-11 Task 1, user option-a): explicit-override > project-declaration > git-root > standalone-directory; a descent reports project-declaration; worktree-root and submodule-root removed from RootReason — scope.rootReason folds into planDigest and D-10 commits approved plans under .alpha-aos/, so the union is contract and must contain only values the code produces (WR-11). isGitBoundary already matches the .git FILE of a worktree and a submodule, so git-root covers both.
 - [Phase 02]: An alias inside the canonical root is refused unconditionally (alias-entry) before identity is marked, for files as well as directories — Only unconditional exclusion makes "adding a link changes neither the fact set nor the selection" true without a traversal-order tie-break, and stops a repository steering its own pack selection (T-02-41).
+- [Phase 02]: [02-12]: The ignore parser has two failure channels: only a file that could not be taken on at all stays `undecidable` and fail-closed; one uncompilable line becomes a bounded `note` and the remaining patterns keep deciding. — A prefix of a rule set is a different rule set, so the pattern-count cap stays total; but one over-long line made a whole subtree unscannable on the strength of a line the parser could simply have reported (02-REVIEW WR-05).
+- [Phase 02]: [02-12]: A .gitignore line escaping a leading # is kept VERBATIM; the escape is not stripped, contrary to 02-REVIEW IN-06 and this plan own acceptance criterion. — Verified both ways before deviating: ignore@7.0.5 and a real git check-ignore agree that an escaped-hash line ignores the hash-named file and that an unescaped one is a comment. Stripping the escape hands the matcher a comment and silently un-ignores the file.
+- [Phase 02]: [02-12]: An over-budget --json envelope is a thrown refusal naming the byte budget and the envelope sha256, with NOTHING written to stdout. — A pipeline reads stdout, so a partial document there plus a refusal on stderr is worse than a refusal alone. Every byte budget in the redaction seam now measures and cuts in UTF-8 bytes through one code-point-boundary-safe helper.
+- [Phase 02]: [02-12]: ECC fixture retention is initialised FROM the caller keep option, so a failure cleans up by default; when retention was requested the rethrow names the retained root, aliased. — Retention becomes something a caller asked for rather than an accident of where a throw landed, and a kept tree is a diagnostic instead of a silent leak in the system temp directory (02-REVIEW WR-12).
 
 ### Pending Todos
 
@@ -191,6 +196,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-08T08:27:27.324Z
-Stopped at: Completed 02-11-PLAN.md
+Last session: 2026-09-08T09:25:03.589Z
+Stopped at: Completed 02-12-PLAN.md
 Resume file: None

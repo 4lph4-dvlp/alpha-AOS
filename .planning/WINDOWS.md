@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 12
+open_count: 15
 waived_count: 1
 fixed_count: 8
-total_count: 21
-last_updated: 2026-09-08T08:25:09.121Z
+total_count: 24
+last_updated: 2026-09-08T09:22:55.245Z
 ---
 
 # Broken Windows Ledger
@@ -36,6 +36,9 @@ last_updated: 2026-09-08T08:25:09.121Z
 | 19 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-04 BLOCKER: .alpha-aos/plan.json bypasses validateManagedDocument (bare JSON.parse plus three field checks) while receipts, manifest, catalog and vocabulary all take the strict route. At project-plan.ts:1905 (approvedEvaluation?.satisfied ?? []).filter(...) guards only nullish, so a non-array crashes project status with exit 2 in DETC-06's own STALE branch. .gitignore excludes install-state.json, journal/, snapshots/ and evidence/ but NOT plan.json, so the file is committed and therefore attacker-supplied on clone; StaleReason.sentence is then rendered verbatim into a deletion offer. Breaks ROADMAP criteria 4 and 5. | open |  | 2026-09-07T21:46:07.003Z |  |
 | 20 | 02 | unrun-verify | test/evidence.test.ts |  | an aliased FILE adds no second path: skipped on this host (file symlinks need privileges on Windows); the directory-alias case runs | open |  | 2026-09-08T08:25:02.428Z |  |
 | 21 | 02 | deviation | test/project-plan.test.ts |  | one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics | open |  | 2026-09-08T08:25:09.121Z |  |
+| 22 | 02 | unmet-truth | src/core/ignore-list.ts |  | Plan 02-12 must_have clause 'the escape is removed before the pattern reaches the matcher' is not implementable: ignore@7 and git check-ignore both require the backslash to survive. The observable truth (an escaped-# line ignores the #-named file) holds; the mechanism clause does not. | open |  | 2026-09-08T09:22:53.401Z |  |
+| 23 | 02 | deviation | test/evidence.test.ts |  | Plan 02-12 edited a file outside its declared files_modified: the undecidable fixture moved from an over-long line to a file past IGNORE_PATTERN_COUNT_CAP, because 02-12 reclassified the over-long-line case as a note. | open |  | 2026-09-08T09:22:54.303Z |  |
+| 24 | 02 | deviation | test/project-plan.test.ts |  | Flaky under full-suite load: 'project plan terminates on a git root holding a nested manifest and lists both members' failed once in a full npm test run and passed in isolation and on the immediate re-run. Pre-existing (02-11), not touched by 02-12. | open |  | 2026-09-08T09:22:55.245Z |  |
 
 ````json
 [
@@ -289,6 +292,42 @@ last_updated: 2026-09-08T08:25:09.121Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T08:25:09.121Z",
+    "resolved_at": null
+  },
+  {
+    "id": 22,
+    "kind": "unmet-truth",
+    "phase": "02",
+    "file": "src/core/ignore-list.ts",
+    "line": null,
+    "description": "Plan 02-12 must_have clause 'the escape is removed before the pattern reaches the matcher' is not implementable: ignore@7 and git check-ignore both require the backslash to survive. The observable truth (an escaped-# line ignores the #-named file) holds; the mechanism clause does not.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T09:22:53.401Z",
+    "resolved_at": null
+  },
+  {
+    "id": 23,
+    "kind": "deviation",
+    "phase": "02",
+    "file": "test/evidence.test.ts",
+    "line": null,
+    "description": "Plan 02-12 edited a file outside its declared files_modified: the undecidable fixture moved from an over-long line to a file past IGNORE_PATTERN_COUNT_CAP, because 02-12 reclassified the over-long-line case as a note.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T09:22:54.303Z",
+    "resolved_at": null
+  },
+  {
+    "id": 24,
+    "kind": "deviation",
+    "phase": "02",
+    "file": "test/project-plan.test.ts",
+    "line": null,
+    "description": "Flaky under full-suite load: 'project plan terminates on a git root holding a nested manifest and lists both members' failed once in a full npm test run and passed in isolation and on the immediate re-run. Pre-existing (02-11), not touched by 02-12.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T09:22:55.245Z",
     "resolved_at": null
   }
 ]

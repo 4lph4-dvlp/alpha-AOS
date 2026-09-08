@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
 status: executing
-stopped_at: Completed 02-12-PLAN.md
-last_updated: "2026-09-08T09:25:58.902Z"
+stopped_at: Completed 02-13-PLAN.md
+last_updated: "2026-09-08T17:59:02.093Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 02 execution started
-state_head: 5aa4a78e1d62797ac8d1f9bfaa205642c240ceaf
+state_head: 4335ad65f41445146ff91266ecd6bf17d0044d9a
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 43
-  completed_plans: 39
+  completed_plans: 40
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 ## Current Position
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
-Plan: 3 of 16
+Plan: 4 of 16
 Status: Ready to execute
 Last activity: 2026-09-08 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -80,6 +80,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P10 | 118 min | 3 tasks | 7 files |
 | Phase 02 P11 | 45 min | 3 tasks | 4 files |
 | Phase 02 P12 | 56 min | 3 tasks | 11 files |
+| Phase 02 P13 | 1h 47m | 3 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -142,6 +143,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: [02-12]: A .gitignore line escaping a leading # is kept VERBATIM; the escape is not stripped, contrary to 02-REVIEW IN-06 and this plan own acceptance criterion. — Verified both ways before deviating: ignore@7.0.5 and a real git check-ignore agree that an escaped-hash line ignores the hash-named file and that an unescaped one is a comment. Stripping the escape hands the matcher a comment and silently un-ignores the file.
 - [Phase 02]: [02-12]: An over-budget --json envelope is a thrown refusal naming the byte budget and the envelope sha256, with NOTHING written to stdout. — A pipeline reads stdout, so a partial document there plus a refusal on stderr is worse than a refusal alone. Every byte budget in the redaction seam now measures and cuts in UTF-8 bytes through one code-point-boundary-safe helper.
 - [Phase 02]: [02-12]: ECC fixture retention is initialised FROM the caller keep option, so a failure cleans up by default; when retention was requested the rethrow names the retained root, aliased. — Retention becomes something a caller asked for rather than an accident of where a throw landed, and a kept tree is a diagnostic instead of a silent leak in the system temp directory (02-REVIEW WR-12).
+- [Phase 02]: The scan-completeness record (bounds, undecidable paths, boundary exclusions, dropped members) is carried into the plan value, rendered in all three modes and folded into digestablePlan, so a bounded scan can never print as a confident complete answer and an approval cannot outlive the bound it was taken under.
+- [Phase 02]: A negative claim about a declared directory is emitted only about names absent from BOTH the scan paths and the exclusion records; where the walk observed and refused the name, the reason names the exclusion instead.
+- [Phase 02]: Filesystem identity is read at the host's own 64-bit width: Node's default Stats.ino is a double, so a Windows file index above 2^53 rounds and two directories within one ulp collapsed into one identity, silently truncating the walk (broken-windows #13).
 
 ### Pending Todos
 
@@ -187,6 +191,7 @@ None yet.
 - Open from 01-27 (2026-09-06): Broken Windows ledger stands at `open 2, waived 1, fixed 4, total 7`. #5 (scripts/run-tests.mjs) awaits a permanent suite test asserting the `--files` loud-failure paths on every leg; #6 (src/core/path-boundary.ts provePathBoundary:296-299) is reachable only through a TOCTOU race between :285 and :296. Neither is answerable by a green three-OS matrix. With `workflow.windows_enforce` on, /gsd-ship blocks until both are fixed or waived with a reason.
 - Open from 01-27 (2026-09-06): the two manual-only SAFE-02 canaries have DIVERGED and 01-UAT.md was deliberately not edited. The Windows unknown-reparse canary is still unanswerable by any CI leg (windows-latest reports `privileged reparse facilities unavailable`; POSIX legs correctly report it Windows-only), so 01-UAT.md item 2 stays `result: skipped`. The file-symlink escape canary, by contrast, DID execute and pass on windows-latest in both entrypoints of run 34051628180 — the plan's premise that no CI leg can produce that evidence is falsified for this fixture. The evidence now exists; whether it promotes 01-UAT.md item 3 from an accepted privilege gate to an observation is the verifier's call, and 01-UAT.md is outside 01-27's files_modified.
 - Open from 01-27 (2026-09-06): baselines updated for any later plan — `npm test` is 208 tests (fail 0; 1 skip on POSIX, 4 on Windows), the routed `Safety boundary suites` step is 131 tests (fail 0), and `npm run build:check` reports `56 inputs, 106 outputs`. Any other total is a suite that stopped compiling, not a faster run. Also: WHY the old invalid instrument tipped on that particular ubuntu run remains a HYPOTHESIS (file-set / scheduling load), explicitly not recorded as established cause.
+- src/core/path-boundary.ts records component identity as Number(info.ino) and recheckPathProof compares those doubles, so two different inodes within one ulp compare equal and a TOCTOU swap can go unnoticed. Same root cause as the identity bug 02-13 fixed in evidence.ts; left open because PathProof.inode is a typed number|null in the public shape and widening it needs its own plan.
 
 ## Deferred Items
 
@@ -196,6 +201,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-08T09:25:03.589Z
-Stopped at: Completed 02-12-PLAN.md
+Last session: 2026-09-08T17:58:15.200Z
+Stopped at: Completed 02-13-PLAN.md
 Resume file: None

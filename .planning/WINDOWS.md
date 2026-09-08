@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 15
+open_count: 12
 waived_count: 1
-fixed_count: 8
-total_count: 24
-last_updated: 2026-09-08T09:22:55.245Z
+fixed_count: 13
+total_count: 26
+last_updated: 2026-09-08T17:49:54.330Z
 ---
 
 # Broken Windows Ledger
@@ -27,18 +27,20 @@ last_updated: 2026-09-08T09:22:55.245Z
 | 10 | 02 | stub | src/core/evidence.ts |  | catalog/facts.yaml declares 31 facts across all six detector kinds, but collectProjectEvidence still implements only the dependency detector over package.json. A file / directory / manifestKey / fileAbsent / fileContent fact is now loadable, validated and referenceable by a pack predicate, yet cannot be observed, so the packs that depend on those kinds still contribute no evaluation. Closed by 02-06 (the remaining five detector kinds and the non-npm manifest readers). | fixed |  | 2026-09-07T14:02:30.976Z | 2026-09-07T18:26:54.921Z |
 | 11 | 02 | stub | catalog/facts.yaml |  | The eight SECURITY_REVIEW risk facts (auth-change, user-input, secrets, payments, sensitive-data, command-execution, trust-boundary, public-api) are declared with deferredTo: GATE-01 and no detector parameters. They are change-risk semantics rather than repository-state facts and two of them would require credential-scanning a user's repository, so Phase 4 GATE-01 owns them. Declaring them keeps the near-miss line honest instead of silent; until 02-07 renders them as unimplemented, SECURITY_REVIEW can never select. | fixed |  | 2026-09-07T14:02:31.697Z | 2026-09-07T18:26:40.624Z |
 | 12 | 02 | unmet-truth | src/core/project-plan.ts |  | project plan does not yet name each selected pack's source version and hash, though catalog/stack.lock.json can now answer for all 19 pack skills (02-04) | fixed |  | 2026-09-07T16:08:58.094Z | 2026-09-07T21:45:25.642Z |
-| 13 | 02 | unrun-verify | test/evidence.test.ts |  | MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun | open |  | 2026-09-07T17:32:45.429Z |  |
+| 13 | 02 | unrun-verify | test/evidence.test.ts |  | MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun | fixed |  | 2026-09-07T17:32:45.429Z | 2026-09-08T17:49:25.166Z |
 | 14 | 02 | unmet-truth | src/core/project-plan.ts |  | D-13 classification is complete for a caller that still holds the reviewed plan value, and PARTIAL at the CLI. approveProjectPlan classifies drift from options.reviewedPlan, or from .alpha-aos/plan.json when that artifact IS the reviewed plan; a CLI approve that drifts before any artifact exists gets a refusal that names both digests and the runnable re-approval command but cannot name WHICH noun moved. This is a consequence of D-12 plus SAFE-01 (the preview persists nothing, so two CLI invocations share only a digest), not a patchable bug: closing it needs a decision - either a reviewed-plan record the preview is allowed to write, or scoping the must-have truth to callers that hold the plan. | open |  | 2026-09-07T19:59:35.274Z |  |
 | 15 | 02 | unrun-verify | src/core/project-plan.ts |  | DETC-06's meaning of 'previously installed' is implemented as 'has a receipt under .alpha-aos/receipts/', so a pack that was approved but never materialized has NO state in reconcileProjectState — neither CURRENT nor STALE. Phase 3 is what writes receipts, so this reading cannot be confirmed against any Phase 2 source artifact. Confirm it against Phase 3's receipt writer before treating the passing 02-10 tests as agreement. | open |  | 2026-09-07T20:55:07.812Z |  |
 | 16 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-01 BLOCKER: `project plan` never terminates on a git-tracked workspace containing sub-projects. describeSubProjects/planSubProject (project-plan.ts:1104-1126) recurse with the sub-project path, but resolveCanonicalRoot (evidence.ts:97-109) climbs back to the .git root with no explicit-root argument, so the recursive call re-scans the same root forever. Reproduced twice independently: identical root+sub/package.json fixture exits 0 in <1s without .git, exits 124 with 0 bytes after 30s with .git. project plan, project plan --project, project status and project approve all hang; no CLI workaround. Test suite never sees it because every sub-project fixture is a bare mkdtemp dir (test/project-plan.test.ts:678) and no path joins git-fixture.ts with a sub-manifest. | open |  | 2026-09-07T21:46:04.468Z |  |
-| 17 | 02 | unmet-truth | src/core/evidence.ts |  | CR-02 BLOCKER: a directory symlink/junction erases the real directory and emits a FALSE negative reason. identityKeys claims path:<canonical target> on listing in ascending name order, so a junction aaa -> src takes src's identity and the real src is dropped as visited-identity. Reproduced: adding the junction flipped BROWNFIELD_INIT from selected to near-miss with the reason 'none of the declared directories exists under the canonical root: src, lib, app, pkg, internal' while src had just been detected in the same fixture. Repository-controlled input. Breaks ROADMAP criterion 1 (aliases) and criterion 2 (evidence honesty). | open |  | 2026-09-07T21:46:05.331Z |  |
-| 18 | 02 | unmet-truth | src/core/evidence.ts |  | CR-03 BLOCKER: a refused or truncated scan is reported as a confident 'No pack qualified on the evidence found.' scanProjectTree populates bounds and excludedBoundaries but nothing outside evidence.ts reads them; text, --why and --json all omit the disclosure. Same silence for MAX_SCAN_ENTRIES=50000 and MAX_SCAN_DEPTH=12. The comment at evidence.ts:205-208 claims --why exposes this; verified false. Breaks ROADMAP criterion 2. | open |  | 2026-09-07T21:46:06.146Z |  |
+| 17 | 02 | unmet-truth | src/core/evidence.ts |  | CR-02 BLOCKER: a directory symlink/junction erases the real directory and emits a FALSE negative reason. identityKeys claims path:<canonical target> on listing in ascending name order, so a junction aaa -> src takes src's identity and the real src is dropped as visited-identity. Reproduced: adding the junction flipped BROWNFIELD_INIT from selected to near-miss with the reason 'none of the declared directories exists under the canonical root: src, lib, app, pkg, internal' while src had just been detected in the same fixture. Repository-controlled input. Breaks ROADMAP criterion 1 (aliases) and criterion 2 (evidence honesty). | fixed |  | 2026-09-07T21:46:05.331Z | 2026-09-08T17:49:26.253Z |
+| 18 | 02 | unmet-truth | src/core/evidence.ts |  | CR-03 BLOCKER: a refused or truncated scan is reported as a confident 'No pack qualified on the evidence found.' scanProjectTree populates bounds and excludedBoundaries but nothing outside evidence.ts reads them; text, --why and --json all omit the disclosure. Same silence for MAX_SCAN_ENTRIES=50000 and MAX_SCAN_DEPTH=12. The comment at evidence.ts:205-208 claims --why exposes this; verified false. Breaks ROADMAP criterion 2. | fixed |  | 2026-09-07T21:46:06.146Z | 2026-09-08T17:49:27.360Z |
 | 19 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-04 BLOCKER: .alpha-aos/plan.json bypasses validateManagedDocument (bare JSON.parse plus three field checks) while receipts, manifest, catalog and vocabulary all take the strict route. At project-plan.ts:1905 (approvedEvaluation?.satisfied ?? []).filter(...) guards only nullish, so a non-array crashes project status with exit 2 in DETC-06's own STALE branch. .gitignore excludes install-state.json, journal/, snapshots/ and evidence/ but NOT plan.json, so the file is committed and therefore attacker-supplied on clone; StaleReason.sentence is then rendered verbatim into a deletion offer. Breaks ROADMAP criteria 4 and 5. | open |  | 2026-09-07T21:46:07.003Z |  |
 | 20 | 02 | unrun-verify | test/evidence.test.ts |  | an aliased FILE adds no second path: skipped on this host (file symlinks need privileges on Windows); the directory-alias case runs | open |  | 2026-09-08T08:25:02.428Z |  |
-| 21 | 02 | deviation | test/project-plan.test.ts |  | one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics | open |  | 2026-09-08T08:25:09.121Z |  |
+| 21 | 02 | deviation | test/project-plan.test.ts |  | one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics | fixed |  | 2026-09-08T08:25:09.121Z | 2026-09-08T17:49:28.406Z |
 | 22 | 02 | unmet-truth | src/core/ignore-list.ts |  | Plan 02-12 must_have clause 'the escape is removed before the pattern reaches the matcher' is not implementable: ignore@7 and git check-ignore both require the backslash to survive. The observable truth (an escaped-# line ignores the #-named file) holds; the mechanism clause does not. | open |  | 2026-09-08T09:22:53.401Z |  |
 | 23 | 02 | deviation | test/evidence.test.ts |  | Plan 02-12 edited a file outside its declared files_modified: the undecidable fixture moved from an over-long line to a file past IGNORE_PATTERN_COUNT_CAP, because 02-12 reclassified the over-long-line case as a note. | open |  | 2026-09-08T09:22:54.303Z |  |
-| 24 | 02 | deviation | test/project-plan.test.ts |  | Flaky under full-suite load: 'project plan terminates on a git root holding a nested manifest and lists both members' failed once in a full npm test run and passed in isolation and on the immediate re-run. Pre-existing (02-11), not touched by 02-12. | open |  | 2026-09-08T09:22:55.245Z |  |
+| 24 | 02 | deviation | test/project-plan.test.ts |  | Flaky under full-suite load: 'project plan terminates on a git root holding a nested manifest and lists both members' failed once in a full npm test run and passed in isolation and on the immediate re-run. Pre-existing (02-11), not touched by 02-12. | fixed |  | 2026-09-08T09:22:55.245Z | 2026-09-08T17:49:29.691Z |
+| 25 | 02 | unmet-truth | src/core/path-boundary.ts | 226 | provePathBoundary records component identity as `inode: Number(info.ino)`, and `recheckPathProof` compares those numbers for equality. A Windows file index is 64-bit and a JS number is a double, so an index above 2^53 is rounded: measured on this host a temp directory's index is 68398419340753788 and its double is 68398419340753790, one ulp being 16. Two DIFFERENT inodes within one ulp therefore compare EQUAL, so the TOCTOU recheck can miss a swap. Same root cause as ledger #13, which plan 02-13 fixed in src/core/evidence.ts identityKeys by reading lstat with { bigint: true }. Left open deliberately: path-boundary.ts is Phase 1 code outside plan 02-13's declared files, PathProof.inode is a typed `number \| null` in the public shape, and widening it to a string or bigint is an interface change that needs its own plan. | open |  | 2026-09-08T17:49:53.322Z |  |
+| 26 | 02 | deviation | test/transaction-crash.test.ts |  | Flaky on Windows independent of plan 02-13: 'an in-process transaction serializes against a held session' fails with ENOTEMPTY on rmdir of the fixture target root — a teardown race against the SIGKILLed holder child, not an assertion failure. Observed in 2 of 3 consecutive isolated runs and once in a full npm test run. Plan 02-13 touched no transaction, writer-lock or fixture-teardown code (git diff 025505b..HEAD covers only evidence.ts, project-plan.ts, format.ts, types.ts and their two test files), so it is out of scope under the executor scope boundary. The plan-base commit 025505b was itself a timing fix in this same file. | open |  | 2026-09-08T17:49:54.330Z |  |
 
 ````json
 [
@@ -193,10 +195,10 @@ last_updated: 2026-09-08T09:22:55.245Z
     "file": "test/evidence.test.ts",
     "line": null,
     "description": "MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-07T17:32:45.429Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-08T17:49:25.166Z"
   },
   {
     "id": 14,
@@ -241,10 +243,10 @@ last_updated: 2026-09-08T09:22:55.245Z
     "file": "src/core/evidence.ts",
     "line": null,
     "description": "CR-02 BLOCKER: a directory symlink/junction erases the real directory and emits a FALSE negative reason. identityKeys claims path:<canonical target> on listing in ascending name order, so a junction aaa -> src takes src's identity and the real src is dropped as visited-identity. Reproduced: adding the junction flipped BROWNFIELD_INIT from selected to near-miss with the reason 'none of the declared directories exists under the canonical root: src, lib, app, pkg, internal' while src had just been detected in the same fixture. Repository-controlled input. Breaks ROADMAP criterion 1 (aliases) and criterion 2 (evidence honesty).",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-07T21:46:05.331Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-08T17:49:26.253Z"
   },
   {
     "id": 18,
@@ -253,10 +255,10 @@ last_updated: 2026-09-08T09:22:55.245Z
     "file": "src/core/evidence.ts",
     "line": null,
     "description": "CR-03 BLOCKER: a refused or truncated scan is reported as a confident 'No pack qualified on the evidence found.' scanProjectTree populates bounds and excludedBoundaries but nothing outside evidence.ts reads them; text, --why and --json all omit the disclosure. Same silence for MAX_SCAN_ENTRIES=50000 and MAX_SCAN_DEPTH=12. The comment at evidence.ts:205-208 claims --why exposes this; verified false. Breaks ROADMAP criterion 2.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-07T21:46:06.146Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-08T17:49:27.360Z"
   },
   {
     "id": 19,
@@ -289,10 +291,10 @@ last_updated: 2026-09-08T09:22:55.245Z
     "file": "test/project-plan.test.ts",
     "line": null,
     "description": "one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-08T08:25:09.121Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-08T17:49:28.406Z"
   },
   {
     "id": 22,
@@ -325,9 +327,33 @@ last_updated: 2026-09-08T09:22:55.245Z
     "file": "test/project-plan.test.ts",
     "line": null,
     "description": "Flaky under full-suite load: 'project plan terminates on a git root holding a nested manifest and lists both members' failed once in a full npm test run and passed in isolation and on the immediate re-run. Pre-existing (02-11), not touched by 02-12.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-08T09:22:55.245Z",
+    "resolved_at": "2026-09-08T17:49:29.691Z"
+  },
+  {
+    "id": 25,
+    "kind": "unmet-truth",
+    "phase": "02",
+    "file": "src/core/path-boundary.ts",
+    "line": 226,
+    "description": "provePathBoundary records component identity as `inode: Number(info.ino)`, and `recheckPathProof` compares those numbers for equality. A Windows file index is 64-bit and a JS number is a double, so an index above 2^53 is rounded: measured on this host a temp directory's index is 68398419340753788 and its double is 68398419340753790, one ulp being 16. Two DIFFERENT inodes within one ulp therefore compare EQUAL, so the TOCTOU recheck can miss a swap. Same root cause as ledger #13, which plan 02-13 fixed in src/core/evidence.ts identityKeys by reading lstat with { bigint: true }. Left open deliberately: path-boundary.ts is Phase 1 code outside plan 02-13's declared files, PathProof.inode is a typed `number | null` in the public shape, and widening it to a string or bigint is an interface change that needs its own plan.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T17:49:53.322Z",
+    "resolved_at": null
+  },
+  {
+    "id": 26,
+    "kind": "deviation",
+    "phase": "02",
+    "file": "test/transaction-crash.test.ts",
+    "line": null,
+    "description": "Flaky on Windows independent of plan 02-13: 'an in-process transaction serializes against a held session' fails with ENOTEMPTY on rmdir of the fixture target root — a teardown race against the SIGKILLed holder child, not an assertion failure. Observed in 2 of 3 consecutive isolated runs and once in a full npm test run. Plan 02-13 touched no transaction, writer-lock or fixture-teardown code (git diff 025505b..HEAD covers only evidence.ts, project-plan.ts, format.ts, types.ts and their two test files), so it is out of scope under the executor scope boundary. The plan-base commit 025505b was itself a timing fix in this same file.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-08T17:49:54.330Z",
     "resolved_at": null
   }
 ]

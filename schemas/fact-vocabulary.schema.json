@@ -26,7 +26,7 @@
         "additionalProperties": false,
         "patternProperties": {
           "^x-[a-z0-9]+(?:-[a-z0-9]+)*$": {
-            "description": "A namespaced extension. Preserved verbatim and inert; nothing in alpha-AOS reads it."
+            "description": "A namespaced extension. Preserved verbatim and inert; nothing in alpha-AOS reads it. One rule governs every nested declared object in this repository's catalog contracts — a fact item and a pack item alike accept `x-` namespaced keys and refuse every other undeclared key — so the identical block appears in schemas/pack-catalog.schema.json and the two must be edited together."
           }
         },
         "properties": {
@@ -66,7 +66,7 @@
             "type": "boolean"
           },
           "description": {
-            "description": "Why this fact is declared the way it is. Read by humans reviewing the vocabulary, never by the evaluator.",
+            "description": "Why this fact is declared the way it is, and — load-bearing — the phrase every user-facing line renders. The FIRST SENTENCE, meaning the text up to the first period followed by whitespace or end of input, is what `declaredPhrase` puts into every SELECT, NEAR-MISS and STALE-FACT line a user reads; whitespace is collapsed first. Editing that first sentence changes shipped output, so write it as the phrase a reader should see and keep the reviewer's rationale in the sentences after it.",
             "type": "string",
             "minLength": 1
           },

@@ -134,6 +134,11 @@
         "type": "object",
         "required": ["id", "evidence"],
         "additionalProperties": false,
+        "patternProperties": {
+          "^x-[a-z0-9]+(?:-[a-z0-9]+)*$": {
+            "description": "A namespaced extension. Preserved verbatim and inert; nothing in alpha-AOS reads it. One rule governs every nested declared object in this repository's catalog contracts — a fact item and a pack item alike accept `x-` namespaced keys and refuse every other undeclared key — so the identical block appears in schemas/fact-vocabulary.schema.json and the two must be edited together."
+          }
+        },
         "properties": {
           "id": {
             "description": "Stable pack identifier, referenced by receipts and approved plans.",

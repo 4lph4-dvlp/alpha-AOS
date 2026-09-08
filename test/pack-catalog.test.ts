@@ -6,7 +6,7 @@
 // to say, and what happens when it says something ambiguous or unimplementable.
 
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -348,4 +348,118 @@ test("the real repository catalog satisfies every invariant", async () => {
 
   assert.deepEqual(packCatalogInvariants(catalog.value, vocabulary.value), []);
   assert.equal(catalog.value.packs.length, 15);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-12 Task 3 (02-REVIEW IN-01, IN-02, IN-04) — a declared contract and
+// the code that reads it say the same thing
+// ---------------------------------------------------------------------------
+
+const ONE_PACK = `schemaVersion: 1
+packs:
+  - id: WEB_THING
+    evidence:
+      all: [web-framework]
+`;
+
+test("an x- namespaced property on a PACK loads, exactly as it does on a fact", async (t) => {
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: {
+      "web.yaml": `${ONE_PACK}    x-vendor-note: kept
+`,
+    },
+  });
+
+  const catalog = await loadPackCatalogStrict(root, packFiles);
+  const pack = catalog.value.packs.find((entry) => entry.id === "WEB_THING");
+  assert.ok(pack !== undefined, "the pack declaring an x- property must still load");
+  assert.equal((pack as unknown as Record<string, unknown>)["x-vendor-note"], "kept");
+});
+
+test("a pack carrying an undeclared non-x- property is still refused", async (t) => {
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: {
+      "web.yaml": `${ONE_PACK}    vendorNote: rejected
+`,
+    },
+  });
+
+  const refusal = await rejection(async () => loadPackCatalogStrict(root, packFiles));
+  assert.equal(
+    refusal.issues.some((entry) => entry.code === "schema.unknown-core-field"),
+    true,
+    "the closed world must still be closed for a key outside the x- namespace",
+  );
+});
+
+test("the fact-vocabulary schema states that a description's first sentence is rendered", async () => {
+  const text = await readFile(join(packageRoot(), "schemas", "fact-vocabulary.schema.json"), "utf8");
+  const schema = JSON.parse(text) as {
+    properties: { facts: { items: { properties: Record<string, { description?: string }> } } };
+  };
+  const declared = schema.properties.facts.items.properties.description?.description ?? "";
+
+  assert.match(declared, /first sentence/iu, "the schema must say the first sentence is load-bearing");
+  assert.equal(
+    /never by the evaluator/iu.test(declared),
+    false,
+    "the schema must not claim a field the renderer reads is never read",
+  );
+});
+
+test("the two catalog schemas agree about namespaced extensions on a nested object", async () => {
+  const schemas = join(packageRoot(), "schemas");
+  const facts = JSON.parse(await readFile(join(schemas, "fact-vocabulary.schema.json"), "utf8")) as {
+    properties: { facts: { items: { patternProperties?: Record<string, unknown> } } };
+  };
+  const packs = JSON.parse(await readFile(join(schemas, "pack-catalog.schema.json"), "utf8")) as {
+    properties: { packs: { items: { patternProperties?: Record<string, unknown> } } };
+  };
+
+  const factPatterns = Object.keys(facts.properties.facts.items.patternProperties ?? {});
+  const packPatterns = Object.keys(packs.properties.packs.items.patternProperties ?? {});
+  assert.equal(factPatterns.length, 1, "the fact item declares exactly one extension pattern");
+  assert.deepEqual(packPatterns, factPatterns, "two sibling contracts must not disagree about the same rule");
+});
+
+/**
+ * The declared patterns as the evaluator compiles them: whole-file, `m` + `u`.
+ * That is what makes `\s` in an indentation run able to cross a line boundary,
+ * which is the defect these assertions pin (02-REVIEW IN-04).
+ */
+async function compiledPatterns(factId: string): Promise<RegExp[]> {
+  const vocabulary = await loadFactVocabularyStrict(packageRoot());
+  const fact = vocabulary.value.facts.find((entry) => entry.id === factId);
+  assert.ok(fact !== undefined, `catalog/facts.yaml declares no ${factId}`);
+  const patterns = fact.patterns ?? [];
+  assert.ok(patterns.length > 0, `${factId} declares no patterns`);
+  return patterns.map((pattern) => new RegExp(pattern, "mu"));
+}
+
+function anyMatches(patterns: readonly RegExp[], text: string): boolean {
+  return patterns.some((pattern) => pattern.test(text));
+}
+
+test("a workflow content pattern matches within one line and never straddles a line boundary", async () => {
+  const deploy = await compiledPatterns("deploy-workflow");
+
+  // Two lines: an indented run, a break, then `environment:` at column 0. The
+  // `\s{2,}` form matched this by consuming the newline as indentation.
+  assert.equal(
+    anyMatches(deploy, "jobs:\n  \nenvironment: production\n"),
+    false,
+    "an indentation run must not cross a line boundary",
+  );
+  // The genuine single-line form still matches.
+  assert.equal(anyMatches(deploy, "jobs:\n  environment: production\n"), true);
+  // And still matches on a CRLF checkout.
+  assert.equal(anyMatches(deploy, "jobs:\r\n  environment: production\r\n"), true);
+
+  const release = await compiledPatterns("release-workflow");
+  assert.equal(anyMatches(release, "on:\n  \nrelease:\n"), false, "an indentation run must not cross a line boundary");
+  assert.equal(anyMatches(release, "on:\n  release:\n"), true);
+  assert.equal(anyMatches(release, "on:\r\n  release:\r\n"), true, "a CRLF checkout must still match");
+  assert.equal(anyMatches(release, "    types:\r\n      - published\r\n"), true, "a CRLF checkout must still match");
 });

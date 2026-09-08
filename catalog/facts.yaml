@@ -12,6 +12,14 @@
 #     file, and is never read from the scanned project. That is the ReDoS
 #     boundary; the patterns below are anchored or literal, with no nested
 #     quantifier, so match cost stays linear in the input.
+#
+# Patterns are compiled with the `m` flag against the WHOLE file, so `^` and `$`
+# are line anchors and `\s` matches a newline. An indentation run written `\s`
+# can therefore straddle a blank line and match a key at column 0 of the next
+# one, which is not what "anchored" means above. Horizontal whitespace is
+# written `[^\S\r\n]` — everything that is not non-space, and not a line
+# terminator — so an indentation run stays inside its own line. A trailing run
+# before `$` is written `[^\S\n]` so a CRLF checkout still matches.
 schemaVersion: 1
 facts:
   # --- AI / agent runtime ---------------------------------------------------
@@ -232,7 +240,7 @@ facts:
     files:
       - .github/workflows
     patterns:
-      - "^\\s{2,}environment:\\s*\\S"
+      - "^[^\\S\\r\\n]{2,}environment:[^\\S\\r\\n]*\\S"
       - "actions/deploy-pages@"
       - "aws-actions/amazon-ecs-deploy-task-definition@"
       - "azure/webapps-deploy@"
@@ -249,8 +257,8 @@ facts:
     files:
       - .github/workflows
     patterns:
-      - "^\\s{2,}release:\\s*$"
-      - "^\\s{2,}- published$"
+      - "^[^\\S\\r\\n]{2,}release:[^\\S\\n]*$"
+      - "^[^\\S\\r\\n]{2,}- published[^\\S\\n]*$"
       - "softprops/action-gh-release@"
       - "actions/create-release@"
       - "changesets/action@"

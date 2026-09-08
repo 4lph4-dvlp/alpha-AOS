@@ -6,6 +6,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
 import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
+import { redactHome } from "./paths.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
 import {
@@ -330,7 +331,17 @@ export async function runEccFixture(options: {
   const sourceRoot = reviewed.sourceRoot;
   await beginFixture(reviewed, options.session);
   await mkdir(reviewed.packRoot, { mode: 0o700 });
-  let retain = true;
+  // Initialised from the CALLER's choice, not from `true`.
+  //
+  // `retain` used to start at `true` and only reach `options.keep` on the
+  // success path, so any throw between the two skipped the `rm` in `finally`
+  // and left the extracted tree and the packed tarball in the system temp
+  // directory forever, with nothing reporting where — a silent leak rather
+  // than a diagnostic retention (02-REVIEW WR-12). Starting from the option
+  // makes a failure clean up by default, and makes retention something a
+  // caller asked for. When it WAS asked for, the rethrow below names what was
+  // kept, aliased, so a failure is never silent about its leftovers either.
+  const retain = options.keep ?? false;
   try {
     const packStep = reviewed.processes.find((step) => step.step === "pack");
     const extractStep = reviewed.processes.find((step) => step.step === "extract");
@@ -368,7 +379,6 @@ export async function runEccFixture(options: {
       await mkdir(join(targetRoot, skill), { recursive: true });
       await writeFile(destination, rendered, { encoding: "utf8", mode: 0o600 });
     }
-    retain = options.keep ?? false;
     return {
       harness: reviewed.harness,
       version: options.ecc.version,
@@ -379,6 +389,13 @@ export async function runEccFixture(options: {
       targetRoot,
       retainedFixture: retain ? fixtureRoot : null,
     };
+  } catch (error) {
+    // A retained tree that nothing names is a leak; a retained tree the error
+    // points at is evidence. The path is aliased because it sits under a
+    // private root.
+    if (!retain) throw error;
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`${message} (ECC fixture retained at ${redactHome(fixtureRoot)})`, { cause: error });
   } finally {
     if (!retain) {
       const tempRoot = resolve(tmpdir());

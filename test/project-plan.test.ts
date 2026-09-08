@@ -4010,3 +4010,161 @@ test("the DETC-06 happy path is unchanged: STALE names the fact, a removal is of
   assert.equal(existsSync(target), true, "reporting STALE deleted the installed target");
   assert.equal(existsSync(receiptPath), true, "reporting STALE deleted the receipt");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 02-14 Task 3: one corrupt receipt neither blocks approval nor crashes
+// ---------------------------------------------------------------------------
+//
+// The approve flow was deliberately written to TOLERATE an unreadable receipt:
+// `readReceiptClaims` records it and the plan carries a `RECEIPT_UNREADABLE`
+// approval for exactly that. 02-REVIEW WR-02 reproduced the CLI overriding that
+// intent by running the strict removal-set lookup first on every `--apply`.
+
+type RemovalAllowedRoots = (canonicalRoot: string, targets: readonly RemovalTargetLike[], receiptPath: string) => string[];
+
+interface RemovalTargetLike {
+  readonly path: string;
+  readonly harness: string;
+  readonly expectedHash: string | null;
+  readonly exists: boolean;
+}
+
+const CORRUPT_RECEIPT_NAME = "CORRUPT.json";
+const CORRUPT_RECEIPT_PATH = `.alpha-aos/receipts/${CORRUPT_RECEIPT_NAME}`;
+
+/** An installed, unapproved pack with one corrupt receipt beside its valid one. */
+async function corruptReceiptFixture(context: TestContext): Promise<{ root: string; stateRoot: string }> {
+  const root = await scratchRoot(context, "corrupt-receipt");
+  const stateRoot = await scratchRoot(context, "corrupt-receipt-state");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "corrupt-receipt-fixture", private: true, dependencies: { pg: "^8.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  await writeInstalledPack(root, { packId: POSTGRES_PACK, target: POSTGRES_TARGET, body: "# postgres-patterns\n" });
+  await writeFile(join(root, ".alpha-aos", "receipts", CORRUPT_RECEIPT_NAME), "{ this is not a receipt", "utf8");
+  return { root, stateRoot };
+}
+
+test("one corrupt receipt does not make plan approval impossible", async (context) => {
+  const { root, stateRoot } = await corruptReceiptFixture(context);
+
+  const preview = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: stateRoot });
+  assert.equal(preview.status, 0, `the preview refused:\n${preview.stderr}`);
+  const digest = planDigestOf(preview.stdout);
+
+  const applied = await runCli(["project", "approve", root, "--plan-digest", digest, "--apply", "--json"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+
+  assert.equal(applied.status, 0, `an approve with the CURRENT plan digest refused:\n${applied.stderr}`);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), true, "the approval wrote no artifact");
+
+  // The tolerance is recorded, not merely exercised: a reviewer is told that
+  // ownership of whatever the corrupt receipt claimed is undecidable.
+  const result = asRecord(JSON.parse(applied.stdout));
+  const approvals = asRecordArray(asRecord(result.plan).approvals, "plan.approvals");
+  const unreadable = approvals.filter((entry) => entry.code === "RECEIPT_UNREADABLE");
+  assert.ok(unreadable.length > 0, `the approval recorded no unreadable receipt: ${JSON.stringify(approvals)}`);
+  assert.ok(
+    unreadable.some((entry) => String(entry.detail).includes(CORRUPT_RECEIPT_PATH)),
+    `the RECEIPT_UNREADABLE approval did not name the receipt: ${JSON.stringify(unreadable)}`,
+  );
+});
+
+test("a stale digest plus a corrupt receipt refuses naming both halves", async (context) => {
+  const { root, stateRoot } = await corruptReceiptFixture(context);
+  // Neither the plan digest nor any removal digest: the one case that legitimately
+  // has to consult the removal set, and cannot.
+  const strange = "e".repeat(64);
+
+  const result = await runCli(["project", "approve", root, "--plan-digest", strange, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+
+  assert.equal(result.status, 2, `expected the domain-refusal status, got ${result.status}:\n${result.stderr}`);
+  assert.ok(
+    /not the current plan digest/u.test(result.stderr),
+    `the refusal did not name the digest mismatch:\n${result.stderr}`,
+  );
+  assert.ok(
+    /removal set could not be computed/u.test(result.stderr),
+    `the refusal did not name the removal-set failure:\n${result.stderr}`,
+  );
+  assert.ok(result.stderr.includes(CORRUPT_RECEIPT_NAME), `the refusal did not name the receipt:\n${result.stderr}`);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), false, "a refused approve wrote the artifact");
+});
+
+test("a harness with no project-local skill root is a named refusal, not a bare crash", async () => {
+  const removalAllowedRoots = await planExport<RemovalAllowedRoots>("removalAllowedRoots");
+  const receiptPath = `.alpha-aos/receipts/${POSTGRES_PACK}.json`;
+  const targets: RemovalTargetLike[] = [
+    { path: ".hermes/skills/postgres-patterns/SKILL.md", harness: "hermes", expectedHash: "a".repeat(64), exists: true },
+  ];
+
+  let error: unknown;
+  try {
+    removalAllowedRoots("/tmp/project", targets, receiptPath);
+  } catch (caught) {
+    error = caught;
+  }
+
+  assert.ok(error instanceof Error, "a harness with no skill root did not refuse at all");
+  assert.equal(error.constructor.name, "ComponentPlanError", `the refusal was a bare ${error.constructor.name}`);
+  assert.ok(error.message.includes(receiptPath), `the refusal did not name the receipt: ${error.message}`);
+  assert.ok(error.message.includes("hermes"), `the refusal did not name the harness: ${error.message}`);
+  assert.ok(
+    error.message.includes(".hermes/skills/postgres-patterns/SKILL.md"),
+    `the refusal did not name the target path: ${error.message}`,
+  );
+});
+
+test("the receipt schema and the skill-root table agree about which harnesses exist", async () => {
+  const receiptSchema = JSON.parse(await readFile(join(repositoryRoot, "schemas", "receipt.schema.json"), "utf8")) as {
+    properties: { targets: { items: { properties: { harness: { enum: string[] } } } } };
+  };
+  const projectSkillRoots = await planExport<Readonly<Record<string, string>>>("PROJECT_SKILL_ROOTS");
+
+  assert.deepEqual(
+    [...receiptSchema.properties.targets.items.properties.harness.enum].sort(),
+    Object.keys(projectSkillRoots).sort(),
+    "the receipt schema permits a harness PROJECT_SKILL_ROOTS does not carry, so the removal path is reachable with no root",
+  );
+});
+
+test("a receipt naming a harness with no project-local root is refused at the door", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+  const receiptPath = join(root, ".alpha-aos", "receipts", `${POSTGRES_PACK}.json`);
+  const receipt = asRecord(JSON.parse(await readFile(receiptPath, "utf8")));
+  const targets = asRecordArray(receipt.targets, "receipt.targets");
+  targets[0] = { ...(targets[0] as Record<string, unknown>), harness: "hermes" };
+  await writeFile(receiptPath, `${JSON.stringify({ ...receipt, targets }, null, 2)}\n`, "utf8");
+
+  const error = await expectRefusal(
+    () => reconcileProjectState({ path: root, packageRoot: repositoryRoot }),
+    "a reconciliation over a receipt naming a harness with no project-local skill root",
+  );
+  assert.ok(
+    error.message.includes(`${POSTGRES_PACK}.json`),
+    `the refusal did not name the receipt path: ${error.message}`,
+  );
+});
+
+test("an offered removal still applies through its own digest from the CLI, reporting paths and a transaction", async (context) => {
+  const { root, stateRoot, target } = await stalePostgresFixture(context);
+
+  const status = await runCli(["project", "status", root]);
+  assert.equal(status.status, 0, `project status failed:\n${status.stderr}`);
+  const offered = /Removal digest: ([0-9a-f]{64})/u.exec(status.stdout);
+  assert.ok(offered, `project status offered no removal digest:\n${status.stdout}`);
+
+  const applied = await runCli(["project", "approve", root, "--plan-digest", offered[1] as string, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+
+  assert.equal(applied.status, 0, `the approved removal refused:\n${applied.stderr}`);
+  assert.ok(applied.stdout.includes(`removed ${POSTGRES_TARGET}`), `the removal reported no removed path:\n${applied.stdout}`);
+  assert.match(applied.stdout, /Transaction: \S+/u, applied.stdout);
+  assert.equal(existsSync(target), false, "the approved removal did not remove its named target");
+});

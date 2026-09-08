@@ -858,10 +858,18 @@ export function buildSafeInverse(target: TargetPreState): SafeInverse {
       guard: { path: target.path, expectedHash: target.expectedHash },
     };
   }
+  // `currentHash` is null exactly when the target exists and its bytes could
+  // not be read, so the hash that would guard this restore was never OBSERVED.
+  // Falling back to the source hash here asserted that the pre-existing bytes
+  // are precisely the thing nobody looked at (02-REVIEW WR-04): the restore
+  // would then either refuse confusingly or write back content that was never
+  // there. Both are worse than saying the undo is not guarded, which is what
+  // the explicit unknown says — and what the `TARGET_UNREADABLE` approval
+  // built beside it tells the reviewer.
   return {
     packId: target.packId,
     operation: "restore",
-    guard: { path: target.path, expectedHash: target.currentHash ?? target.expectedHash },
+    guard: { path: target.path, expectedHash: target.currentHash },
   };
 }
 
@@ -1145,6 +1153,25 @@ export async function planProjectCapabilities(
       detail: `${target.packId}: ${target.path} already holds a file alpha-AOS did not write, so the pack is dropped from the applicable set; nothing was overwritten or renamed`,
     });
   }
+  const conflicted = new Set(conflicts.map((target) => target.packId));
+
+  // WR-04: a target that EXISTS and whose bytes could not be read carries no
+  // guard hash, because none was observed. That is a fact about the REPOSITORY
+  // — unlike the host note below — so it belongs in `approvals` and in the
+  // digest, and the reviewer is TOLD which pack's undo is unguarded here
+  // rather than discovering it at rollback time.
+  //
+  // Scoped to the targets that actually get a safe inverse: an unowned target
+  // is already a `TARGET_CONFLICT` and its pack is dropped, so there is no
+  // undo to describe and a second line about it would only be noise.
+  for (const target of targetPreState) {
+    if (!target.exists || target.currentHash !== null) continue;
+    if (!target.ownedByReceipt || conflicted.has(target.packId)) continue;
+    approvals.push({
+      code: "TARGET_UNREADABLE",
+      detail: `${target.packId}: ${target.path} exists and its bytes could not be read, so no hash was observed to guard its undo; the safe inverse records an explicitly unknown guard rather than a fabricated one`,
+    });
+  }
 
   approvals.sort((left, right) => byCodePoint(left.code, right.code) || byCodePoint(left.detail, right.detail));
 
@@ -1204,7 +1231,6 @@ export async function planProjectCapabilities(
     (left, right) => byCodePoint(left.ecosystem, right.ecosystem) || byCodePoint(left.declared, right.declared),
   );
 
-  const conflicted = new Set(conflicts.map((target) => target.packId));
   const applicable = selected.filter((packId) => !conflicted.has(packId));
   const applicableSet = new Set(applicable);
   const safeInverse = targetPreState.filter((target) => applicableSet.has(target.packId)).map(buildSafeInverse);
@@ -1411,15 +1437,53 @@ export interface ApprovalCommandParts {
 }
 
 /**
+ * Anything that makes a bare argument unsafe in a line presented as ready to
+ * paste: whitespace, either quote character, and the metacharacters a shell
+ * would reinterpret rather than pass through.
+ *
+ * An ordinary path — including a Windows one such as `D:\repo\project` —
+ * matches none of these and is therefore emitted exactly as it is today
+ * (02-REVIEW WR-14).
+ */
+const SHELL_UNSAFE_ARGUMENT = /[\s"'$`;&|<>()[\]{}*?!~#]/u;
+
+/**
+ * One argument, quoted for the shell the user would paste this line into.
+ *
+ * Platform-aware because the two quoting rules are not interchangeable: a
+ * Windows command line doubles an embedded double quote INSIDE double quotes,
+ * while a POSIX shell wraps in single quotes and closes, escapes and reopens
+ * around an embedded single quote. Applying the wrong one to a hostile path
+ * produces exactly the unparseable line this exists to prevent.
+ */
+export function shellQuote(value: string): string {
+  return process.platform === "win32"
+    ? `"${value.replaceAll('"', '""')}"`
+    : `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+/** Quoted only when the value would otherwise be reinterpreted, so plain paths are unchanged. */
+function pasteSafe(value: string): string {
+  return SHELL_UNSAFE_ARGUMENT.test(value) ? shellQuote(value) : value;
+}
+
+/**
  * The runnable approve command for a given plan digest.
  *
  * Every refusal ends with one of these. A refusal that only says what went
  * wrong leaves the user to reconstruct the command; D-13 is explicit that the
  * refusal must be a next step rather than a dead end.
+ *
+ * Both the path and the `--project` value are USER-SUPPLIED, and this line is
+ * documented as ready to paste, so both travel `pasteSafe`. Quoting on
+ * whitespace alone meant a path containing a double quote produced a command
+ * that does not parse, and a path containing `$`, a backtick, `;` or `|` was
+ * emitted bare for the user's own shell to reinterpret (02-REVIEW WR-14).
  */
 export function approvalCommand(parts: ApprovalCommandParts): string {
-  const target = /\s/u.test(parts.path) ? `"${parts.path}"` : parts.path;
-  const project = parts.subProject === undefined || parts.subProject === null ? [] : ["--project", parts.subProject];
+  const target = pasteSafe(parts.path);
+  const project =
+    parts.subProject === undefined || parts.subProject === null ? [] : ["--project", pasteSafe(parts.subProject)];
   return ["alpha-aos", "project", "approve", target, ...project, "--plan-digest", parts.planDigest, "--apply"].join(" ");
 }
 

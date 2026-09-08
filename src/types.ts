@@ -445,7 +445,19 @@ export interface PlanApproval {
 export interface SafeInverse {
   packId: string;
   operation: "remove" | "restore";
-  guard: { path: string; expectedHash: string };
+  /**
+   * `expectedHash` is `null` when the target EXISTS and its bytes could not be
+   * read, so no guard hash was ever OBSERVED and none may be invented.
+   *
+   * The unknown is the honest value, not a missing one. Substituting the
+   * source hash asserted that the pre-existing bytes are exactly the thing
+   * nobody looked at, so the restore would either refuse confusingly or
+   * "restore" content that was never there (02-REVIEW WR-04). A reader of a
+   * null guard must treat this pack's undo as UNGUARDED, and the plan says so
+   * out loud through a `TARGET_UNREADABLE` approval rather than leaving it to
+   * be discovered at rollback time.
+   */
+  guard: { path: string; expectedHash: string | null };
 }
 
 /** Who produced the plan. Mirrors the evidence envelope's `producer` shape. */

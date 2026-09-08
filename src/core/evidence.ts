@@ -1533,6 +1533,15 @@ export interface DetectionContext {
   readonly directories: ReadonlySet<string>;
   /** `scan.files` in its sorted order, so content expansion is total-ordered. */
   readonly sortedFiles: readonly string[];
+  /**
+   * Every path the walk refused, with the reason it refused it.
+   *
+   * Carried here so a NEGATIVE detection can distinguish a name the walk never
+   * saw from a name the walk saw and excluded. Without it the only sentence a
+   * detector can compose about an absent name is a non-existence claim, and
+   * that claim is FALSE for every excluded path (02-REVIEW CR-02).
+   */
+  readonly excludedBoundaries: readonly ExcludedBoundary[];
   readonly dependencies: DeclaredDependencies;
   readonly manifest: ManifestEvidence;
   readonly ledger: ReadLedger;
@@ -1922,6 +1931,7 @@ export async function openDetectionContext(root: CanonicalRoot, scan: ProjectTre
     files: new Set(scan.files),
     directories: new Set(scan.directories),
     sortedFiles: scan.files,
+    excludedBoundaries: scan.excludedBoundaries,
     dependencies,
     manifest,
     ledger,
@@ -1987,16 +1997,65 @@ function detectFile(context: DetectionContext, declaration: FactDeclaration): Fa
   return negative(declaration, `none of the declared paths exists under the canonical root: ${nameList(declared)}`);
 }
 
+/**
+ * The walk's own record for a path, or for the nearest ancestor that stopped
+ * it. Prefix matching mirrors `boundaryReasonFor` in discovery: a name beneath
+ * a refused directory was refused by that directory, and saying so is more
+ * useful than saying nothing.
+ */
+function excludedBoundaryFor(context: DetectionContext, path: string): ExcludedBoundary | null {
+  for (const boundary of context.excludedBoundaries) {
+    if (path === boundary.path || path.startsWith(`${boundary.path}/`)) return boundary;
+  }
+  return null;
+}
+
+/**
+ * The directory kind's negative reason, with ONE invariant a future reader can
+ * test directly: the non-existence claim is emitted only about names that
+ * appear in NEITHER the scan's paths NOR its exclusion records.
+ *
+ * 02-REVIEW CR-02 reproduced the opposite — a reason asserting that none of
+ * the declared directories exists under the canonical root, on a fixture where
+ * one of them demonstrably did and had been excluded moments earlier. A reason
+ * that can be false is worse than a reason that is missing, because a user
+ * acts on it. Both groups are reported when both are non-empty: a user
+ * debugging a near miss needs to know which of their candidate directories was
+ * refused and which simply is not there.
+ */
 function detectDirectory(context: DetectionContext, declaration: FactDeclaration): FactDetection {
   const declared = declaration.directories ?? [];
   if (declared.length === 0) return negative(declaration, "the declaration names no directories to look for");
+
+  const excluded: string[] = [];
+  const unseen: string[] = [];
   for (const candidate of declared) {
     const normalized = normalizeRelativePosix(candidate);
     // Directory membership only. A file bearing the directory's name is a
     // different thing on disk and must not answer for it.
     if (normalized !== null && context.directories.has(normalized)) return positive(declaration, normalized, null);
+    const boundary = normalized === null ? null : excludedBoundaryFor(context, normalized);
+    if (boundary === null) unseen.push(candidate);
+    else excluded.push(`${candidate} (${boundary.reason}${boundary.detail === null ? "" : `: ${boundary.detail}`})`);
   }
-  return negative(declaration, `none of the declared directories exists under the canonical root: ${nameList(declared)}`);
+
+  // Nothing was observed and refused, so every declared name is genuinely
+  // absent and the existing sentence is both true and the clearest thing to
+  // say. Kept byte-identical on purpose.
+  if (excluded.length === 0) {
+    return negative(declaration, `none of the declared directories exists under the canonical root: ${nameList(declared)}`);
+  }
+
+  // `nameList` is the same cap-and-suppress discipline the near-miss rendering
+  // uses, so a pack declaring many candidates on a repository that refused most
+  // of them cannot produce an unbounded reason string.
+  const observed = `the walk observed and excluded ${nameList(excluded)}`;
+  return unseen.length === 0
+    ? negative(declaration, `no declared directory was scanned: ${observed}`)
+    : negative(
+        declaration,
+        `no declared directory was scanned: ${observed}; and no path under the canonical root carries ${nameList(unseen)}`,
+      );
 }
 
 /** A declared key counts as opted in when it carries something, not merely a slot. */

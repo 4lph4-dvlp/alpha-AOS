@@ -688,6 +688,196 @@ test("from a repository root with no --project, each sub-project reports its own
 });
 
 // ---------------------------------------------------------------------------
+// Plan 02-11 Task 2 (CR-01): every project verb terminates on a git root that
+// contains a nested manifest
+// ---------------------------------------------------------------------------
+//
+// `workspaceFixture` above is a bare `mkdtemp` directory, so the canonical-root
+// ladder answers `standalone-directory` at the member and the recursion happens
+// to bottom out. The shape a user actually has is that same workspace INSIDE a
+// repository, and there the ladder used to climb back to the `.git` root on
+// every descent, re-discover the same members, and never terminate. Every
+// assertion below therefore runs under a hard timeout: a regression must be a
+// red assertion on `timedOut`, never a stalled suite (T-02-43).
+
+interface BoundedRunResult extends RunResult {
+  /** True when the runner killed the child rather than the child exiting. */
+  readonly timedOut: boolean;
+}
+
+/**
+ * `runCli` with a wall-clock bound. On expiry the child is SIGKILLed and the
+ * result says so, so a non-termination defect fails an assertion instead of
+ * hanging `node --test` until the CI job is cancelled.
+ */
+function runCliBounded(
+  args: readonly string[],
+  options: { readonly timeoutMs: number; readonly environment?: Record<string, string | undefined> },
+): Promise<BoundedRunResult> {
+  const childEnvironment: NodeJS.ProcessEnv = { ...process.env };
+  for (const [name, value] of Object.entries(options.environment ?? {})) {
+    if (value === undefined) delete childEnvironment[name];
+    else childEnvironment[name] = value;
+  }
+  return new Promise((resolveRun) => {
+    const child = spawn(process.execPath, [cliEntry, ...args], {
+      cwd: repositoryRoot,
+      windowsHide: true,
+      env: childEnvironment,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      resolveRun({ status: null, stdout, stderr, timedOut: true });
+    }, options.timeoutMs);
+    child.on("close", (status) => {
+      clearTimeout(timer);
+      if (settled) return;
+      settled = true;
+      resolveRun({ status, stdout, stderr, timedOut: false });
+    });
+  });
+}
+
+/** The budget every bounded assertion in this plan runs under. */
+const TERMINATION_BUDGET_MS = 30000;
+
+/**
+ * `workspaceFixture`'s shape made into a REAL repository by git itself, because
+ * the defect is precisely about what the `.git` entry does to the root ladder.
+ * Returns null when git is unavailable, having already skipped the test.
+ */
+async function gitWorkspaceFixture(context: TestContext): Promise<string | null> {
+  const parent = await scratchRoot(context, "git-workspace");
+  const created = await createOrdinaryRepository(parent, "repo");
+  if (!created.ok) {
+    context.skip(created.reason);
+    return null;
+  }
+  const root = created.fixture.path;
+  await writeFile(
+    join(root, "package.json"),
+    JSON.stringify({ name: "monorepo", private: true, workspaces: ["packages/*"] }),
+    "utf8",
+  );
+  await mkdir(join(root, "packages", "api"), { recursive: true });
+  await mkdir(join(root, "packages", "web"), { recursive: true });
+  await writeFile(
+    join(root, "packages", "api", "package.json"),
+    JSON.stringify({ name: "api", dependencies: { express: "4.0.0" } }),
+    "utf8",
+  );
+  await writeFile(
+    join(root, "packages", "web", "package.json"),
+    JSON.stringify({ name: "web", dependencies: { react: "19.0.0" } }),
+    "utf8",
+  );
+  return root;
+}
+
+test("project plan terminates on a git root holding a nested manifest and lists both members", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+
+  const result = await runCliBounded(["project", "plan", root, "--json"], { timeoutMs: TERMINATION_BUDGET_MS });
+
+  assert.equal(result.timedOut, false, "project plan did not terminate on a git root holding a nested manifest");
+  assert.equal(result.status, 0, result.stderr);
+  const plan = JSON.parse(result.stdout) as {
+    selected: string[];
+    subProjects: Array<{ path: string; selected: string[] }>;
+  };
+  assert.deepEqual(plan.subProjects.map((member) => member.path), ["packages/api", "packages/web"]);
+  assert.deepEqual(plan.selected, [], "a root with sub-projects selects nothing itself");
+});
+
+test("a sub-project planned from a git root carries its own evidence, not the repository root's", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+
+  const web = await runCliBounded(["project", "plan", root, "--project", "packages/web", "--json"], {
+    timeoutMs: TERMINATION_BUDGET_MS,
+  });
+  assert.equal(web.timedOut, false, "project plan --project packages/web did not terminate");
+  assert.equal(web.status, 0, web.stderr);
+  const webPlan = JSON.parse(web.stdout) as {
+    scope: { subProjectPath: string | null; rootReason: string };
+    selected: string[];
+  };
+  assert.equal(webPlan.scope.subProjectPath, "packages/web");
+  // Task 1 decision (option-a): a root the tool DESCENDED to reports
+  // `project-declaration`, never `explicit-override`, so a reviewer can tell it
+  // apart from a root the user typed. The value is contract: it folds into
+  // `planDigest`, and an approved plan is committed under `.alpha-aos/`.
+  assert.equal(webPlan.scope.rootReason, "project-declaration");
+  assert.ok(webPlan.selected.includes("WEB_REACT"), webPlan.selected.join(","));
+  assert.equal(webPlan.selected.includes("API"), false, "the member borrowed the sibling's evidence");
+
+  const api = await runCliBounded(["project", "plan", root, "--project", "packages/api", "--json"], {
+    timeoutMs: TERMINATION_BUDGET_MS,
+  });
+  assert.equal(api.timedOut, false, "project plan --project packages/api did not terminate");
+  assert.equal(api.status, 0, api.stderr);
+  const apiPlan = JSON.parse(api.stdout) as { selected: string[] };
+  assert.ok(apiPlan.selected.includes("API"), apiPlan.selected.join(","));
+  assert.equal(apiPlan.selected.includes("WEB_REACT"), false, "the member borrowed the sibling's evidence");
+});
+
+test("project status and project approve --apply both terminate on a git root holding a nested manifest", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+  const stateRoot = await scratchRoot(context, "git-workspace-state");
+
+  const status = await runCliBounded(["project", "status", root], {
+    timeoutMs: TERMINATION_BUDGET_MS,
+    environment: { ALPHA_AOS_STATE_DIR: stateRoot },
+  });
+  assert.equal(status.timedOut, false, "project status did not terminate");
+  assert.equal(status.status, 0, status.stderr);
+
+  const preview = await runCliBounded(["project", "approve", root], {
+    timeoutMs: TERMINATION_BUDGET_MS,
+    environment: { ALPHA_AOS_STATE_DIR: stateRoot },
+  });
+  assert.equal(preview.timedOut, false, "project approve preview did not terminate");
+  assert.equal(preview.status, 0, preview.stderr);
+  const digest = planDigestOf(preview.stdout);
+
+  const applied = await runCliBounded(["project", "approve", root, "--plan-digest", digest, "--apply"], {
+    timeoutMs: TERMINATION_BUDGET_MS,
+    environment: { ALPHA_AOS_STATE_DIR: stateRoot },
+  });
+  assert.equal(applied.timedOut, false, "project approve --apply did not terminate");
+  assert.equal(applied.status, 0, applied.stderr);
+  assert.equal(existsSync(join(root, ".alpha-aos", "plan.json")), true, "the approved apply wrote no artifact");
+});
+
+test("the same git root fixture with .git removed keeps working exactly as it did", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+  await rm(join(root, ".git"), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+
+  const result = await runCliBounded(["project", "plan", root, "--json"], { timeoutMs: TERMINATION_BUDGET_MS });
+
+  assert.equal(result.timedOut, false, "the pre-existing passing case regressed into a hang");
+  assert.equal(result.status, 0, result.stderr);
+  const plan = JSON.parse(result.stdout) as { subProjects: Array<{ path: string }> };
+  assert.deepEqual(plan.subProjects.map((member) => member.path), ["packages/api", "packages/web"]);
+});
+
+// ---------------------------------------------------------------------------
 // Plan 02-07 Task 3: D-06 pack overrides recorded as evidence
 // ---------------------------------------------------------------------------
 

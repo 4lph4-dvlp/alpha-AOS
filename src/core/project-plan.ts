@@ -55,7 +55,7 @@ import {
   type ReviewedComponentPlan,
   type ReviewedPlanBoundary,
 } from "./component-session.js";
-import type { DeclaredDependencies, SubProject, UndecidableEvidence } from "./evidence.js";
+import type { DeclaredDependencies, RootPin, SubProject, UndecidableEvidence } from "./evidence.js";
 import {
   collectProjectEvidenceDetail,
   digestableEvidence,
@@ -912,6 +912,25 @@ export interface PlanProjectCapabilitiesOptions {
   packageRoot: string;
   /** A discovered sub-project path, relative to the canonical root. Never guessed (D-01). */
   subProject?: string | undefined;
+  /**
+   * Pins the canonical root for this call, so the ladder does not climb out of
+   * a descent. Without this, planning a workspace member re-resolves to the
+   * repository root, re-discovers the same members, and never terminates.
+   */
+  explicitRoot?: string | undefined;
+  /** How the pinned root was arrived at. Decides the reported rung. */
+  rootPin?: RootPin | undefined;
+  /**
+   * The canonical roots already entered on this recursion path. A root that
+   * appears twice is a named refusal, never a second scan (T-02-40).
+   */
+  visitedRoots?: ReadonlySet<string> | undefined;
+  /**
+   * Whether to describe each discovered sub-project's own decision. Default
+   * true. A descent sets it false, which bounds description to exactly one
+   * level: a member's plan is about the member, not about its children.
+   */
+  describeMembers?: boolean | undefined;
 }
 
 /**
@@ -923,7 +942,20 @@ export interface PlanProjectCapabilitiesOptions {
 export async function planProjectCapabilities(
   options: PlanProjectCapabilitiesOptions,
 ): Promise<ProjectCapabilityPlan> {
-  const scope = await resolveCanonicalRoot(options.path);
+  const scope = await resolveCanonicalRoot(options.path, options.explicitRoot, options.rootPin ?? "caller");
+
+  // The cycle guard is deliberately a THROW rather than a quiet skip: a
+  // repeated canonical root means the ladder climbed back out of a descent, and
+  // a future change that reintroduces that must fail loudly here rather than
+  // silently produce a plan that scanned one directory twice.
+  if (options.visitedRoots?.has(scope.root) === true) {
+    throw new Error(
+      `Project planning re-entered the canonical root ${scope.root}` +
+        `${options.subProject === undefined ? "" : ` through sub-project ${options.subProject}`}` +
+        ", so the descent did not make progress and the scan is refused rather than repeated.",
+    );
+  }
+
   const evidence = await collectProjectEvidenceDetail(scope, { packageRoot: options.packageRoot });
   const envelope = evidence.envelope;
   const catalog = await loadPackCatalogStrict(options.packageRoot);
@@ -937,7 +969,7 @@ export async function planProjectCapabilities(
   });
 
   if (discovery.selected !== null) {
-    return planSubProject(discovery.selected, options);
+    return planSubProject(discovery.selected, options, scope.root);
   }
 
   const inspection = await inspectProjectManifest(scope.root);
@@ -964,7 +996,8 @@ export async function planProjectCapabilities(
   // A repository root that HAS sub-projects reports each one's own decision
   // and selects nothing itself: the user names the target rather than the tool
   // guessing which member of a workspace they meant (D-01).
-  const subProjects = await describeSubProjects(discovery.subProjects, options);
+  const subProjects =
+    options.describeMembers === false ? [] : await describeSubProjects(discovery.subProjects, options, scope.root);
   const rootSelects = subProjects.length === 0;
 
   const selected = rootSelects
@@ -1100,12 +1133,41 @@ export async function planProjectCapabilities(
   });
 }
 
+/**
+ * The options a descent into `member` runs under.
+ *
+ * Three things make the recursion terminate, and each covers a case the others
+ * do not. `explicitRoot` pins the member as the canonical root, so the ladder
+ * cannot climb back to the repository root and re-discover the same members —
+ * that is the CR-01 fix. `rootPin: "descent"` makes the pinned root report
+ * `project-declaration` rather than `explicit-override`, so a root the tool
+ * descended to stays distinguishable from a root the user typed. `visitedRoots`
+ * carries the roots already entered, so any future ladder change that undoes
+ * the pin throws by name instead of looping. `describeMembers: false` bounds
+ * description to one level.
+ */
+function descentOptions(
+  member: SubProject,
+  options: PlanProjectCapabilitiesOptions,
+  currentRoot: string,
+): PlanProjectCapabilitiesOptions {
+  return {
+    path: member.absolute,
+    packageRoot: options.packageRoot,
+    explicitRoot: member.absolute,
+    rootPin: "descent",
+    visitedRoots: new Set([...(options.visitedRoots ?? []), currentRoot]),
+    describeMembers: false,
+  };
+}
+
 /** The named sub-project's own decision, recorded as the plan's scope. */
 async function planSubProject(
   target: SubProject,
   options: PlanProjectCapabilitiesOptions,
+  currentRoot: string,
 ): Promise<ProjectCapabilityPlan> {
-  const plan = await planProjectCapabilities({ path: target.absolute, packageRoot: options.packageRoot });
+  const plan = await planProjectCapabilities(descentOptions(target, options, currentRoot));
   // Re-seal: the scope this plan reports is not the one the inner run digested,
   // and a plan digest that does not cover the plan's own scope would let two
   // different sub-projects share a digest.
@@ -1117,10 +1179,11 @@ async function planSubProject(
 async function describeSubProjects(
   subProjects: readonly SubProject[],
   options: PlanProjectCapabilitiesOptions,
+  currentRoot: string,
 ): Promise<SubProjectDecision[]> {
   const decisions: SubProjectDecision[] = [];
   for (const member of subProjects) {
-    const plan = await planProjectCapabilities({ path: member.absolute, packageRoot: options.packageRoot });
+    const plan = await planProjectCapabilities(descentOptions(member, options, currentRoot));
     decisions.push({ path: member.path, declarationFile: member.declarationFile, selected: plan.selected });
   }
   return decisions.sort((left, right) => byCodePoint(left.path, right.path));

@@ -22,16 +22,41 @@ import { inspectProjectManifest } from "./project.js";
 import { parseManagedDocument } from "./validation.js";
 
 /**
- * Which rung of the root ladder answered. Recording the path alone loses the
- * reason, and the reason is what a reviewer needs to judge the scope.
+ * Which rung of the root ladder answered, highest priority first. Recording the
+ * path alone loses the reason, and the reason is what a reviewer needs to judge
+ * the scope.
+ *
+ * Every member here is a value `resolveCanonicalRoot` actually produces. The
+ * union is DIGESTED — `scope.rootReason` folds into `planDigest`, and D-10 puts
+ * an approved plan under `.alpha-aos/` for a team to commit — so a declared but
+ * unreachable member is a promise in a contract that nothing keeps (02-REVIEW
+ * WR-11). `worktree-root` and `submodule-root` were exactly that and are gone:
+ * `isGitBoundary` tests for the EXISTENCE of a `.git` entry, which matches the
+ * `.git` FILE a linked worktree and a submodule each carry, so both already
+ * stop the climb and are already reported — as `git-root`, which is what they
+ * behaviourally are.
  */
 export type RootReason =
+  /** The caller named this root. Never inferred. */
   | "explicit-override"
-  | "git-root"
-  | "worktree-root"
-  | "submodule-root"
+  /** A project-declaration file marks this directory (D-01). */
   | "project-declaration"
+  /** A `.git` entry marks this directory, of either kind. */
+  | "git-root"
+  /** Neither a declaration nor a git entry anywhere above. */
   | "standalone-directory";
+
+/**
+ * How a pinned root was arrived at, when the caller pins one.
+ *
+ * `"caller"` is a root a human typed and reports `explicit-override`.
+ * `"descent"` is a root the planner descended into and reports
+ * `project-declaration` — a discovered sub-project is a project because it
+ * carries a declaration file, and reporting it as `explicit-override` would
+ * make a root the tool chose indistinguishable in the plan from a root the user
+ * chose.
+ */
+export type RootPin = "caller" | "descent";
 
 export interface CanonicalRoot {
   /** Canonical form, native separators. The one form every later step uses. */
@@ -83,6 +108,16 @@ async function canonicalize(pathValue: string): Promise<string> {
 }
 
 /**
+ * A directory carrying one of the files that make a directory a project in its
+ * own right. The list is `PROJECT_DECLARATION_FILES`, reused rather than
+ * restated: two lists would be two answers to "is this a project?", and the
+ * sub-project discovery below already owns one.
+ */
+function isProjectDeclarationBoundary(directory: string): boolean {
+  return PROJECT_DECLARATION_FILES.some((name) => existsSync(join(directory, name)));
+}
+
+/**
  * Resolves the project root through one ordered ladder and records which rung
  * answered. `isolationProjectId` is fed the already-canonical value on
  * purpose: `resolve()` in its body does not follow links, so only a canonical
@@ -90,21 +125,45 @@ async function canonicalize(pathValue: string): Promise<string> {
  * it was addressed. That function is reused unchanged — its output names
  * existing runtime roots under `~/.alpha-aos/`.
  *
- * This tracer implements two rungs. The worktree, submodule and
- * project-declaration rungs are declared in `RootReason` and land with the
- * boundary walk in a later plan of this phase.
+ * The shipped ladder, highest priority first, is exactly the shipped
+ * `RootReason` union:
+ *
+ *  1. `explicit-override` — a root the caller pinned with `pin: "caller"`.
+ *  2. `project-declaration` — a pinned descent, or the first ancestor
+ *     deepest-first carrying a project-declaration file. This is what makes
+ *     D-01's "running inside a sub-project targets that sub-project" true.
+ *  3. `git-root` — the first ancestor deepest-first carrying a `.git` entry of
+ *     either kind. A linked worktree and a submodule both carry a `.git` FILE,
+ *     so both answer here; that is why no separate rung exists for them.
+ *  4. `standalone-directory` — neither, anywhere above.
+ *
+ * Rungs 2 and 3 are ONE walk, not two. Two walks would let a repository whose
+ * root carries no declaration file climb PAST its own `.git` boundary and adopt
+ * an unrelated `package.json` in a parent directory — the ladder must never be
+ * able to leave the repository it started inside, so a git boundary stops the
+ * climb even when it does not answer.
  */
-export async function resolveCanonicalRoot(inputPath: string, explicit?: string): Promise<CanonicalRoot> {
+export async function resolveCanonicalRoot(
+  inputPath: string,
+  explicit?: string,
+  pin: RootPin = "caller",
+): Promise<CanonicalRoot> {
   if (explicit !== undefined && explicit.trim().length > 0) {
     const root = await canonicalize(explicit);
-    return { root, reason: "explicit-override", projectId: isolationProjectId(root) };
+    const reason: RootReason = pin === "descent" ? "project-declaration" : "explicit-override";
+    return { root, reason, projectId: isolationProjectId(root) };
   }
 
   const start = await canonicalize(inputPath);
   for (const ancestor of ancestorsDeepestFirst(start)) {
-    if (!isGitBoundary(ancestor)) continue;
+    const declares = isProjectDeclarationBoundary(ancestor);
+    const gitBoundary = isGitBoundary(ancestor);
+    if (!declares && !gitBoundary) continue;
     const root = await canonicalize(ancestor);
-    return { root, reason: "git-root", projectId: isolationProjectId(root) };
+    // A declaration outranks a git entry AT THE SAME DIRECTORY, and a git entry
+    // ends the walk whether or not it answered.
+    const reason: RootReason = declares ? "project-declaration" : "git-root";
+    return { root, reason, projectId: isolationProjectId(root) };
   }
   return { root: start, reason: "standalone-directory", projectId: isolationProjectId(start) };
 }

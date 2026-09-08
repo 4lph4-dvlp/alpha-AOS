@@ -29,7 +29,13 @@ import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { reviewedDigest } from "../src/core/component-session.js";
 import { proveOperationPaths } from "../src/core/path-boundary.js";
 import { acquireMutationSession } from "../src/core/writer-lock.js";
-import { collectProjectEvidence, digestableEvidence, resolveCanonicalRoot } from "../src/core/evidence.js";
+import {
+  collectProjectEvidence,
+  digestableEvidence,
+  discoverSubProjects,
+  resolveCanonicalRoot,
+  scanProjectTree,
+} from "../src/core/evidence.js";
 import { formatProjectPlan } from "../src/format.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pack-catalog.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
@@ -145,7 +151,12 @@ test("project plan --json emits the same decision as a redacted JSON envelope", 
 
   assert.deepEqual(plan.selected, ["WEB_REACT"]);
   assert.match(plan.scope.projectId, /^[0-9a-f]{16}$/u);
-  assert.equal(plan.scope.rootReason, "standalone-directory");
+  // Plan 02-11 Task 1 (option-a): a directory carrying a project-declaration
+  // file answers the `project-declaration` rung, ABOVE `git-root`. This fixture
+  // carries a `package.json`, so it is a project in its own right and no longer
+  // reports `standalone-directory` — which now means what it says: neither a
+  // declaration nor a git entry, anywhere above.
+  assert.equal(plan.scope.rootReason, "project-declaration");
   assert.deepEqual(
     plan.evaluations.find((evaluation) => evaluation.packId === "WEB_REACT")?.satisfied.map((leaf) => [leaf.factId, leaf.path]),
     [["dependency:react", "package.json"]],
@@ -787,6 +798,41 @@ async function gitWorkspaceFixture(context: TestContext): Promise<string | null>
   return root;
 }
 
+/**
+ * Why a member the fixture wrote is missing from a plan, in the walk's and the
+ * discovery's own words.
+ *
+ * A bare `deepEqual` on the member list says only that one is absent, and an
+ * absence has at least four distinct causes here — the scan excluded it, a
+ * bound was reached, the declaration glob did not match it, or the declaration
+ * file was unreadable and reported as absent. Re-deriving the discovery from
+ * the still-present fixture turns any recurrence into a statement of which one,
+ * which is the same standard this phase holds the product to.
+ */
+async function discoveryDiagnostics(root: string): Promise<string> {
+  try {
+    const canonical = await resolveCanonicalRoot(root);
+    const scan = await scanProjectTree(canonical);
+    const discovery = await discoverSubProjects(canonical, { scan });
+    return JSON.stringify(
+      {
+        canonicalRoot: canonical.root,
+        rootReason: canonical.reason,
+        directories: scan.directories,
+        excludedBoundaries: scan.excludedBoundaries,
+        bounds: scan.bounds,
+        declarations: discovery.declarations,
+        discovered: discovery.subProjects.map((member) => member.path),
+        dropped: discovery.dropped,
+      },
+      null,
+      2,
+    );
+  } catch (error) {
+    return `diagnostics could not be gathered: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 test("project plan terminates on a git root holding a nested manifest and lists both members", async (context) => {
   const root = await gitWorkspaceFixture(context);
   if (root === null) return;
@@ -799,7 +845,12 @@ test("project plan terminates on a git root holding a nested manifest and lists 
     selected: string[];
     subProjects: Array<{ path: string; selected: string[] }>;
   };
-  assert.deepEqual(plan.subProjects.map((member) => member.path), ["packages/api", "packages/web"]);
+  const listed = plan.subProjects.map((member) => member.path);
+  assert.deepEqual(
+    listed,
+    ["packages/api", "packages/web"],
+    `the plan listed ${JSON.stringify(listed)}; discovery re-derived from the same fixture reports:\n${await discoveryDiagnostics(root)}`,
+  );
   assert.deepEqual(plan.selected, [], "a root with sub-projects selects nothing itself");
 });
 
@@ -875,6 +926,62 @@ test("the same git root fixture with .git removed keeps working exactly as it di
   assert.equal(result.status, 0, result.stderr);
   const plan = JSON.parse(result.stdout) as { subProjects: Array<{ path: string }> };
   assert.deepEqual(plan.subProjects.map((member) => member.path), ["packages/api", "packages/web"]);
+});
+
+test("a caller that names the git root reports explicit-override, which a descent never does", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+  const member = join(root, "packages", "web");
+
+  const named = await planProjectCapabilities({
+    path: member,
+    packageRoot: repositoryRoot,
+    explicitRoot: member,
+  });
+  assert.equal(named.scope.rootReason, "explicit-override", "a root the caller pinned lost its rung");
+
+  const descended = await planProjectCapabilities({
+    path: root,
+    packageRoot: repositoryRoot,
+    subProject: "packages/web",
+  });
+  assert.equal(descended.scope.rootReason, "project-declaration");
+  assert.equal(descended.scope.canonicalRoot, named.scope.canonicalRoot, "the two routes disagree on the root");
+});
+
+test("a canonical root repeated inside one recursion is a named refusal rather than another scan", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+  const canonical = await resolveCanonicalRoot(root);
+
+  await assert.rejects(
+    async () =>
+      planProjectCapabilities({
+        path: root,
+        packageRoot: repositoryRoot,
+        visitedRoots: new Set([canonical.root]),
+      }),
+    (error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      assert.ok(
+        message.includes(canonical.root),
+        `the refusal did not name the repeated canonical root:\n${message}`,
+      );
+      return true;
+    },
+  );
+});
+
+test("a descended member describes its own members once and does not fan out", async (context) => {
+  const root = await gitWorkspaceFixture(context);
+  if (root === null) return;
+
+  const member = await planProjectCapabilities({
+    path: root,
+    packageRoot: repositoryRoot,
+    subProject: "packages/web",
+  });
+  assert.deepEqual(member.subProjects, [], "a member's plan is about the member, not about its children");
 });
 
 // ---------------------------------------------------------------------------

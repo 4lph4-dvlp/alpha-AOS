@@ -135,7 +135,7 @@ Plans:
   4. Applying a reviewed plan is refused if evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes changed after review.
   5. When evidence for an installed pack disappears, the user sees `STALE` with the missing evidence identified and no automatic deletion.
 
-**Plans**: 10/10 plans executed
+**Plans**: 10/10 plans executed; 5 gap-closure plans added (02-11 … 02-15), 0/5 executed
 
 Plans:
 
@@ -177,6 +177,33 @@ Plans:
 > `src/core/evidence.ts` then `src/core/project-plan.ts` — and a shared file is an implicit dependency
 > the wave rule already forbids from being parallel. Wave 2's three plans touch disjoint file sets:
 > the catalog/schema surface, the ignore-list module and its dependency, and the lock-pinning surface.
+
+**Gap closure** *(`02-VERIFICATION.md` status `gaps_found`, 2/5 truths verified; run with `/gsd-execute-phase 2 --gaps-only`)*
+
+Gap-closure waves are numbered independently of the waves above, because a `--gaps-only` run schedules
+only these five plans.
+
+**Gap wave 1**
+
+- [ ] 02-11-PLAN.md — CR-01 canonical-root descent that terminates, and CR-02 an alias that cannot evict its target
+- [ ] 02-12-PLAN.md — bounded-input honesty at the leaves: ignore-list caps, the output byte budget, and three contradicted contracts
+
+**Gap wave 2** *(blocked on gap wave 1)*
+
+- [ ] 02-13-PLAN.md — CR-03 scan completeness reaches the user in text, `--why` and `--json`, and the negative-reason invariant
+
+**Gap wave 3** *(blocked on gap wave 2)*
+
+- [ ] 02-14-PLAN.md — CR-04 `.alpha-aos/plan.json` through the strict validator, plus the receipt-driven crash and claim defects
+
+**Gap wave 4** *(blocked on gap wave 3)*
+
+- [ ] 02-15-PLAN.md — host-independent plan digest, honest safe inverse, root-keyed catalogs, paste-safe refusal command
+
+> 02-11 and 02-12 are parallel because their file sets are disjoint: 02-11 owns `src/core/evidence.ts`,
+> `src/core/project-plan.ts` and their two test files, while 02-12 owns the ignore-list, redaction, CLI,
+> schema and catalog surfaces. 02-13, 02-14 and 02-15 serialize for the same reason the original waves 3
+> through 8 did — each extends `src/core/project-plan.ts`, and a shared file is an implicit dependency.
 
 ### Phase 3: Transactional Project Packs and Native Optional Use
 

@@ -611,6 +611,8 @@ function syntheticPlan(evaluations: PackEvaluation[]): ProjectCapabilityPlan {
     subProjects: [],
     scanBounds: [],
     undecidableBoundaries: [],
+    excludedBoundaries: [],
+    droppedMembers: [],
     manifestDigest: null,
     inputsDigest: "0".repeat(64),
     evidenceDigest: "1".repeat(64),

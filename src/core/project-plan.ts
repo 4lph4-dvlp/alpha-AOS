@@ -55,7 +55,14 @@ import {
   type ReviewedComponentPlan,
   type ReviewedPlanBoundary,
 } from "./component-session.js";
-import type { DeclaredDependencies, RootPin, ScanBound, SubProject, UndecidableEvidence } from "./evidence.js";
+import type {
+  DeclaredDependencies,
+  ExcludedBoundary,
+  RootPin,
+  ScanBound,
+  SubProject,
+  UndecidableEvidence,
+} from "./evidence.js";
 import {
   collectProjectEvidenceDetail,
   digestableEvidence,
@@ -96,6 +103,18 @@ function byFactId(left: LeafResult, right: LeafResult): number {
  * never did (`MAX_SUB_PROJECTS`), so both sources are needed and only the
  * overlap is redundant.
  */
+function dedupeBoundaries(boundaries: readonly ExcludedBoundary[]): ExcludedBoundary[] {
+  const seen = new Set<string>();
+  const unique: ExcludedBoundary[] = [];
+  for (const boundary of boundaries) {
+    const key = `${boundary.path}|${boundary.reason}|${boundary.detail ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(boundary);
+  }
+  return unique;
+}
+
 function dedupeBounds(bounds: readonly ScanBound[]): ScanBound[] {
   const seen = new Set<string>();
   const unique: ScanBound[] = [];
@@ -930,6 +949,8 @@ export function digestablePlan(plan: Omit<ProjectCapabilityPlan, "planDigest">):
     // the same one (02-REVIEW CR-03).
     scanBounds: plan.scanBounds.map((bound) => [bound.bound, bound.limit, bound.at]),
     undecidableBoundaries: plan.undecidableBoundaries.map((entry) => [entry.path, entry.reason, entry.detail]),
+    excludedBoundaries: plan.excludedBoundaries.map((entry) => [entry.path, entry.reason, entry.detail]),
+    droppedMembers: plan.droppedMembers.map((member) => [member.ecosystem, member.declared, member.reason]),
   };
 }
 
@@ -1138,14 +1159,27 @@ export async function planProjectCapabilities(
   const scanBounds = dedupeBounds([...evidence.scan.bounds, ...discovery.bounds]).sort(
     (left, right) => byCodePoint(left.bound, right.bound) || byCodePoint(left.at, right.at),
   );
+  // Discovery seeds its own boundary list from the scan's and adds the ones
+  // only IT can observe (a declaration file that exists and could not be
+  // read), so the union deduped is the total list and neither source alone is.
+  const excludedBoundaries = dedupeBoundaries([
+    ...evidence.scan.excludedBoundaries,
+    ...discovery.excludedBoundaries,
+  ]).sort((left, right) => byCodePoint(left.path, right.path) || byCodePoint(left.reason, right.reason));
+
   // Only the two reasons that mean the walk could not ANSWER. An ignored path,
   // a git entry, a declared submodule, a vendored directory and an alias entry
   // are DECIDED exclusions: they belong in the full boundary list, not in the
   // "could not read" list, or the disclosure stops meaning anything.
-  const undecidableBoundaries = evidence.scan.excludedBoundaries
-    .filter((boundary) => boundary.reason === "undecidable" || boundary.reason === "unreadable")
-    .slice()
-    .sort((left, right) => byCodePoint(left.path, right.path) || byCodePoint(left.reason, right.reason));
+  const undecidableBoundaries = excludedBoundaries.filter(
+    (boundary) => boundary.reason === "undecidable" || boundary.reason === "unreadable",
+  );
+
+  // WR-08: fully-written diagnostic work no code path could reach. Sorted by
+  // ecosystem then by the entry as declared, so two runs agree on order.
+  const droppedMembers = [...discovery.dropped].sort(
+    (left, right) => byCodePoint(left.ecosystem, right.ecosystem) || byCodePoint(left.declared, right.declared),
+  );
 
   const conflicted = new Set(conflicts.map((target) => target.packId));
   const applicable = selected.filter((packId) => !conflicted.has(packId));
@@ -1186,6 +1220,8 @@ export async function planProjectCapabilities(
     subProjects,
     scanBounds,
     undecidableBoundaries,
+    excludedBoundaries,
+    droppedMembers,
     manifestDigest,
     inputsDigest,
     evidenceDigest,

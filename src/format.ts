@@ -58,6 +58,21 @@ function pushCapped<T>(lines: string[], items: readonly T[], render: (item: T) =
   if (suppressed > 0) lines.push(`... ${suppressed} more ${noun} suppressed (use --json)`);
 }
 
+/**
+ * C0 control characters rendered as their code point rather than emitted raw.
+ *
+ * A declaration entry is repository-authored text and may carry anything a
+ * filesystem accepts. The VALUE stays verbatim in `droppedMembers.declared`;
+ * only the rendering of it is made visible, so naming a hostile entry cannot
+ * itself smuggle control bytes into a terminal.
+ */
+function visible(value: string): string {
+  return value.replace(/\p{Cc}/gu, (character) => {
+    const code = (character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0");
+    return `<U+${code}>`;
+  });
+}
+
 /** What the scan could not finish reading, in the walk's own vocabulary. */
 function emitDisclosure(lines: string[], plan: ProjectCapabilityPlan): void {
   pushCapped(
@@ -73,6 +88,16 @@ function emitDisclosure(lines: string[], plan: ProjectCapabilityPlan): void {
     (entry) =>
       `UNDECIDABLE-PATH ${entry.path} — ${entry.detail ?? entry.reason}; nothing under it was read, so its absence below is not evidence of absence`,
     "undecidable path(s)",
+  );
+  // WR-08: a typo'd entry, a member behind a boundary and a traversal escape
+  // used to vanish identically. Both renderings carry these, because a
+  // declared member the tool silently ignored is a fact about the user's own
+  // declaration rather than a diagnostic detail.
+  pushCapped(
+    lines,
+    plan.droppedMembers,
+    (member) => `DROPPED-MEMBER ${member.ecosystem} ${visible(member.declared)} — ${member.reason}`,
+    "dropped workspace member(s)",
   );
 }
 
@@ -125,6 +150,19 @@ export function formatProjectPlan(plan: ProjectCapabilityPlan, options: { why?: 
   }
 
   if (options.why === true) {
+    // The `--why`-only half of the disclosure. An ordinary repository excludes
+    // many paths for ordinary reasons, so printing every one by default would
+    // bury the BOUNDED and UNDECIDABLE-PATH lines above — the ones that change
+    // how the whole answer must be read. `--why` is the diagnostic surface a
+    // user opts into, and it is the surface the boundary-walk module comment
+    // in evidence.ts names.
+    pushCapped(
+      lines,
+      plan.excludedBoundaries,
+      (entry) =>
+        `EXCLUDED-BOUNDARY ${entry.path} — ${entry.reason}${entry.detail === null ? "" : ` (${entry.detail})`}`,
+      "boundary exclusion(s)",
+    );
     for (const evaluation of plan.evaluations) {
       lines.push(`WHY ${evaluation.packId} [${evaluation.status}] ${evaluation.explanation}`);
       for (const leaf of evaluation.satisfied) lines.push(`  + ${describeLeaf(leaf)}`);

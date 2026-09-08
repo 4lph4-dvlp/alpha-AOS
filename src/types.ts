@@ -3,7 +3,7 @@
 // records are imported for the same reason: `ScanBound` and `ExcludedBoundary`
 // are produced by the walk, so the plan carries the walk's own vocabulary
 // rather than a restatement that could drift from it.
-import type { ExcludedBoundary, RootReason, ScanBound } from "./core/evidence.js";
+import type { DroppedMember, ExcludedBoundary, RootReason, ScanBound } from "./core/evidence.js";
 
 export type HarnessId = "claude" | "codex" | "antigravity" | "pi" | "hermes";
 export type McpServerId = "context7" | "exa" | "firecrawl";
@@ -542,6 +542,29 @@ export interface ProjectCapabilityPlan {
    * not answer for belongs here.
    */
   undecidableBoundaries: ExcludedBoundary[];
+  /**
+   * EVERY boundary the walk and the discovery refused, decided ones included,
+   * sorted by path then reason. `undecidableBoundaries` is the subset of this
+   * list the walk could not answer for.
+   *
+   * An EMPTY array means nothing was refused, not merely that nothing was
+   * reported. Rendered under `--why` only: an ordinary repository excludes
+   * many paths for ordinary reasons, and printing them by default would bury
+   * the disclosure that actually changes how the answer should be read.
+   */
+  excludedBoundaries: ExcludedBoundary[];
+  /**
+   * Declared workspace members the discovery dropped, each carrying the entry
+   * as the user wrote it, its ecosystem and why it was dropped. Sorted by
+   * ecosystem then declared entry.
+   *
+   * An EMPTY array means every declared entry resolved, not merely that
+   * nothing was reported. A typo'd entry, a member behind a boundary and a
+   * traversal escape used to vanish identically and silently; naming all
+   * three is what turns them back into three different reviewable facts
+   * (02-REVIEW WR-08).
+   */
+  droppedMembers: DroppedMember[];
   /**
    * DETC-05's manifest noun: sha256 of `.alpha-aos/stack.yaml`'s bytes, or
    * `null` when the project declares none.

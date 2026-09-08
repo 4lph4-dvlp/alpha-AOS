@@ -261,10 +261,16 @@ const DEPENDENCY_SECTIONS = ["dependencies", "devDependencies", "peerDependencie
 // all. The `gitdir:` pointer inside a `.git` file may be absolute or relative;
 // it is never parsed, because its existence is the whole signal.
 //
-// D-03's exclusion is silent by decision: `excludedBoundaries` is carried in
-// the returned value for tests and for `--why`, but no "N separate
-// repositories were excluded" notice is printed. That notice is an explicitly
-// deferred idea.
+// D-03's exclusion is silent by decision, and `--why` is where that silence
+// ends. `excludedBoundaries` reaches a reader through
+// `ProjectCapabilityPlan.excludedBoundaries` and the `EXCLUDED-BOUNDARY` lines
+// `formatProjectPlan` renders under `--why` ONLY. No "N separate repositories
+// were excluded" notice is printed in the default rendering: that notice is an
+// explicitly deferred idea, and a diagnostic surface a user opts into is not
+// it. This sentence names its renderer on purpose — the claim used to be that
+// the record was carried "for `--why`" while no `--why` code path could reach
+// it, and a source comment asserting a user-facing disclosure the code does
+// not perform is itself a trust defect in a phase about honest explanation.
 
 /** Deepest directory level below the canonical root the walk will descend to. */
 export const MAX_SCAN_DEPTH = 12;
@@ -776,34 +782,70 @@ export interface SubProjectDiscovery {
 }
 
 /**
+ * What one declaration read found.
+ *
+ * `absent` and `unreadable` are DIFFERENT facts and are kept apart here for
+ * the same reason `IgnoreRuleSet` keeps `undecidable` apart from `notes`: a
+ * file that could not be read is not a file that is not there, and reporting
+ * the second as the first turns a transient failure into a confident negative.
+ */
+export type DeclarationFileRead =
+  | { readonly kind: "present"; readonly text: string }
+  | { readonly kind: "absent" }
+  | { readonly kind: "over-cap"; readonly cap: number }
+  | { readonly kind: "unreadable"; readonly code: string };
+
+/**
  * One read cache keyed by CANONICAL path, shared across sub-projects, so a
  * root `package.json` reached by three members is read once. Keying on the
  * canonical form is what makes two aliases of one file a single entry.
  */
 export class ProjectReadCache {
-  private readonly entries = new Map<string, string | null>();
+  private readonly entries = new Map<string, DeclarationFileRead>();
   /** Reads served from memory. */
   hits = 0;
   /** Reads that went to disk. */
   reads = 0;
 
-  async read(absolutePath: string): Promise<string | null> {
+  /**
+   * What the read FOUND, with an absence and a refusal kept apart.
+   *
+   * A blanket `catch { text = null }` used to collapse the two, so a file that
+   * exists and could not be taken on was reported to every caller as a file
+   * that is not there. That is the exact read-honesty defect this phase exists
+   * to remove, and it is observable: a transient read failure on a workspace
+   * member's `package.json` made the member disappear under the reason "the
+   * directory contains no project-declaration file", which was false.
+   */
+  async inspect(absolutePath: string): Promise<DeclarationFileRead> {
     const resolution = await canonicalizeWithMissingTail(resolve(absolutePath));
     const key = resolution.reason === null ? resolution.canonical : resolve(absolutePath);
-    if (this.entries.has(key)) {
+    const cached = this.entries.get(key);
+    if (cached !== undefined) {
       this.hits += 1;
-      return this.entries.get(key) ?? null;
+      return cached;
     }
     this.reads += 1;
-    let text: string | null = null;
+    let outcome: DeclarationFileRead;
     try {
       const info = await stat(absolutePath);
-      if (info.isFile() && info.size <= DECLARATION_BYTE_CAP) text = await readFile(absolutePath, "utf8");
-    } catch {
-      text = null;
+      if (!info.isFile()) outcome = { kind: "absent" };
+      else if (info.size > DECLARATION_BYTE_CAP) outcome = { kind: "over-cap", cap: DECLARATION_BYTE_CAP };
+      else outcome = { kind: "present", text: await readFile(absolutePath, "utf8") };
+    } catch (error) {
+      const code = errnoOf(error);
+      // ENOENT and ENOTDIR are the ONLY codes that mean "not there". Every
+      // other code describes a file that exists and could not be read.
+      outcome = code === "ENOENT" || code === "ENOTDIR" ? { kind: "absent" } : { kind: "unreadable", code };
     }
-    this.entries.set(key, text);
-    return text;
+    this.entries.set(key, outcome);
+    return outcome;
+  }
+
+  /** The bytes, or null for anything that is not a readable declaration. */
+  async read(absolutePath: string): Promise<string | null> {
+    const outcome = await this.inspect(absolutePath);
+    return outcome.kind === "present" ? outcome.text : null;
   }
 
   get size(): number {
@@ -838,6 +880,30 @@ const INNER_GLOBSTAR = "\u0003";
  * literally: no documented example in any of the five ecosystems uses them,
  * and quietly accepting a construct we match wrongly is worse than refusing.
  */
+const GLOB_SENTINELS: ReadonlySet<string> = new Set([LEADING_GLOBSTAR, TRAILING_GLOBSTAR, INNER_GLOBSTAR]);
+
+/**
+ * The glob sentinel a declaration entry carries, named, or null.
+ *
+ * The three sentinels above are spliced into the pattern string on the stated
+ * assumption that they cannot occur in a path segment. On POSIX any byte
+ * except the separator and NUL is a legal filename character, so the
+ * assumption is false and an entry carrying one is mis-compiled into a
+ * wildcard (02-REVIEW IN-03). Every caller screens with this BEFORE the
+ * marking step and refuses on a hit.
+ *
+ * Screening rather than tokenising is deliberate: the refusal is also the
+ * honest answer. An entry no filesystem tool would produce is more likely
+ * hostile than intended, and this phase reports rather than guesses.
+ */
+export function globSentinelIn(entry: string): string | null {
+  for (const character of entry) {
+    if (!GLOB_SENTINELS.has(character)) continue;
+    return `U+${(character.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}`;
+  }
+  return null;
+}
+
 function globToRegExp(pattern: string): RegExp {
   let text = pattern.trim();
   while (text.startsWith("./")) text = text.slice(2);
@@ -1083,14 +1149,33 @@ export async function readWorkspaceDeclaration(
   return (await readDeclarations(root, cache)).declarations;
 }
 
+interface DeclarationLookup {
+  /** The declaration file that proves the directory is a project, or null. */
+  readonly file: string | null;
+  /**
+   * A declaration file that EXISTS and could not be taken on. Never an
+   * absence: an absence is reported by `file: null` with no obstacle, and the
+   * two must stay distinguishable or the caller's reason becomes a guess.
+   */
+  readonly obstacle: { readonly file: string; readonly reason: string } | null;
+}
+
 /** The project-declaration file inside a directory, read through the cache. */
-async function declarationFileIn(directory: string, cache: ProjectReadCache): Promise<string | null> {
+async function declarationFileIn(directory: string, cache: ProjectReadCache): Promise<DeclarationLookup> {
+  let obstacle: DeclarationLookup["obstacle"] = null;
   for (const candidate of PROJECT_DECLARATION_FILES) {
-    if (!existsSync(join(directory, candidate))) continue;
-    const text = await cache.read(join(directory, candidate));
-    if (text !== null) return candidate;
+    const outcome = await cache.inspect(join(directory, candidate));
+    if (outcome.kind === "present") return { file: candidate, obstacle: null };
+    if (outcome.kind === "absent") continue;
+    obstacle ??= {
+      file: candidate,
+      reason:
+        outcome.kind === "over-cap"
+          ? `it exceeds the declaration byte cap (cap=${outcome.cap})`
+          : `it could not be read (code=${outcome.code})`,
+    };
   }
-  return null;
+  return { file: null, obstacle };
 }
 
 /**
@@ -1109,13 +1194,35 @@ export async function discoverSubProjects(
   const bounds: ScanBound[] = [...scan.bounds];
   const accepted: SubProject[] = [];
   const acceptedPaths = new Set<string>();
+  /**
+   * Boundaries discovery ITSELF observed, beside the ones the walk recorded.
+   * A declaration file that exists and could not be read is one: nothing
+   * beneath it was decidable, and the walk never saw the failure because the
+   * walk does not read declarations.
+   */
+  const discoveryBoundaries: ExcludedBoundary[] = [];
 
   const scannable = new Set(scan.directories);
-  const excludeMatchers = declarations.flatMap((declaration) =>
-    declaration.exclude
-      .filter((pattern) => pattern.length <= MAX_GLOB_PATTERN_LENGTH)
-      .map((pattern) => globToRegExp(pattern)),
-  );
+  // An exclude pattern carrying a glob sentinel would compile to a wildcard
+  // that excludes everything, so it goes through the same screen as a member
+  // entry and is reported through the same channel rather than silently
+  // widened (02-REVIEW IN-03).
+  const excludeMatchers: RegExp[] = [];
+  for (const declaration of declarations) {
+    for (const pattern of declaration.exclude) {
+      if (pattern.length > MAX_GLOB_PATTERN_LENGTH) continue;
+      const sentinel = globSentinelIn(pattern);
+      if (sentinel !== null) {
+        dropped.push({
+          declared: pattern,
+          ecosystem: declaration.ecosystem,
+          reason: `the exclude entry contains the control character ${sentinel}, which the glob compiler reserves as a sentinel, so it is refused rather than compiled into a wildcard`,
+        });
+        continue;
+      }
+      excludeMatchers.push(globToRegExp(pattern));
+    }
+  }
 
   function boundedOut(): boolean {
     if (accepted.length < MAX_SUB_PROJECTS) return false;
@@ -1146,10 +1253,27 @@ export async function discoverSubProjects(
     if (acceptedPaths.has(candidate) || underAccepted(candidate)) return { accepted: false, reason: null };
     if (excludeMatchers.some((matcher) => matcher.test(candidate))) return { accepted: false, reason: null };
     const absolute = join(root.root, ...candidate.split("/"));
-    const declarationFile = await declarationFileIn(absolute, cache);
-    if (declarationFile === null) {
-      return { accepted: false, reason: "the directory contains no project-declaration file" };
+    const lookup = await declarationFileIn(absolute, cache);
+    if (lookup.file === null) {
+      if (lookup.obstacle === null) {
+        return { accepted: false, reason: "the directory contains no project-declaration file" };
+      }
+      // Read honesty: an input that could not be READ is not an input that
+      // does not EXIST. Recorded as a boundary as well as a reason, so the
+      // undecidable-path disclosure names it rather than the member merely
+      // vanishing under a claim that is false.
+      const path = `${candidate}/${lookup.obstacle.file}`;
+      discoveryBoundaries.push({
+        path,
+        reason: "unreadable",
+        detail: `declaration-unreadable: ${lookup.obstacle.reason}`,
+      });
+      return {
+        accepted: false,
+        reason: `${path} exists and ${lookup.obstacle.reason}, so whether the directory is a project is undecidable`,
+      };
     }
+    const declarationFile = lookup.file;
     if (boundedOut()) return { accepted: false, reason: `MAX_SUB_PROJECTS=${MAX_SUB_PROJECTS} was reached` };
     accepted.push({
       path: candidate,
@@ -1166,6 +1290,16 @@ export async function discoverSubProjects(
   // ---- Declaration first: it decides ordering and naming ------------------
   for (const declaration of declarations) {
     for (const entry of declaration.members) {
+      const sentinel = globSentinelIn(entry);
+      if (sentinel !== null) {
+        dropped.push({
+          declared: entry,
+          ecosystem: declaration.ecosystem,
+          reason: `the entry contains the control character ${sentinel}, which the glob compiler reserves as a sentinel, so it is refused rather than compiled into a wildcard`,
+        });
+        continue;
+      }
+
       if (entry.length > MAX_GLOB_PATTERN_LENGTH) {
         dropped.push({
           declared: `${entry.slice(0, 32)}…`,
@@ -1276,7 +1410,11 @@ export async function discoverSubProjects(
     subProjects: accepted,
     dropped,
     bounds,
-    excludedBoundaries: scan.excludedBoundaries,
+    excludedBoundaries: [...scan.excludedBoundaries, ...discoveryBoundaries].sort(
+      (left, right) =>
+        (left.path < right.path ? -1 : left.path > right.path ? 1 : 0) ||
+        (left.reason < right.reason ? -1 : left.reason > right.reason ? 1 : 0),
+    ),
     selected,
   };
 }

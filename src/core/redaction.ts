@@ -151,12 +151,57 @@ function redactCore(value: string, context: RedactionContext): string {
   return result;
 }
 
+/**
+ * Cuts a string to a UTF-8 BYTE bound, measuring and cutting in the same unit.
+ *
+ * The guard used to be `Buffer.byteLength(value) > budget` and the cut
+ * `value.slice(0, budget)`, which removes UTF-16 code units. For text of
+ * three-byte code points that retains three times the declared bound — the
+ * bound is not enforced at all — and the cut can leave half a surrogate pair
+ * behind (02-REVIEW WR-07).
+ *
+ * The slice end walks back off any continuation byte (`10xxxxxx`), so the
+ * retained bytes always end exactly on a code-point boundary: the result is
+ * inside the budget, decodes cleanly, and contains no character the source did
+ * not have. A UTF-8 sequence is at most four bytes, so this walks back at most
+ * three times.
+ */
+function truncateToUtf8Bytes(value: string, budgetBytes: number): { text: string; truncated: boolean } {
+  const bytes = Buffer.from(value, "utf8");
+  if (bytes.byteLength <= budgetBytes) return { text: value, truncated: false };
+
+  let end = budgetBytes;
+  while (end > 0 && ((bytes[end] ?? 0) & 0xc0) === 0x80) end -= 1;
+  return { text: bytes.subarray(0, end).toString("utf8"), truncated: true };
+}
+
+/**
+ * Cuts a string to a UTF-16 CODE UNIT bound — `LIMITS.stringLength`'s own
+ * unit — without splitting a surrogate pair. A lone surrogate is not a
+ * character; it is a value that cannot round-trip through UTF-8.
+ */
+function truncateToLength(value: string, budgetUnits: number): { text: string; truncated: boolean } {
+  if (value.length <= budgetUnits) return { text: value, truncated: false };
+
+  let end = budgetUnits;
+  const lead = value.charCodeAt(end - 1);
+  if (lead >= 0xd800 && lead <= 0xdbff) end -= 1;
+  return { text: value.slice(0, end), truncated: true };
+}
+
+/**
+ * Redacts one field value and bounds it at `REDACTED_STRING_LENGTH_BUDGET`.
+ *
+ * The bound is expressed, measured and applied in UTF-16 code units — the unit
+ * `String.prototype.length` reports — and the reported remainder counts the
+ * same unit. This is deliberately NOT a byte budget: it bounds a single value
+ * inside an envelope, and the envelope carries the byte budget.
+ */
 export function redactString(value: string, context: RedactionContext): string {
   const result = redactCore(value, context);
-  if (result.length > LIMITS.stringLength) {
-    return `${result.slice(0, LIMITS.stringLength)}…[truncated:${result.length - LIMITS.stringLength}]`;
-  }
-  return result;
+  const cut = truncateToLength(result, LIMITS.stringLength);
+  if (!cut.truncated) return cut.text;
+  return `${cut.text}…[truncated:${result.length - cut.text.length}]`;
 }
 
 /**
@@ -168,14 +213,12 @@ export function redactString(value: string, context: RedactionContext): string {
  * pack with full leaf detail and legitimately exceeds 2 KiB. The redaction is
  * identical and runs over the whole text, so a multi-line structural rule such
  * as the PEM block still matches across newlines; only the cap differs, and it
- * is the same `LIMITS.totalBytes` bound the JSON envelope already uses.
+ * is the same `LIMITS.totalBytes` bound the JSON envelope already uses — in
+ * UTF-8 bytes, measured and applied in that one unit.
  */
 export function redactDocument(value: string, context: RedactionContext): string {
-  const result = redactCore(value, context);
-  if (Buffer.byteLength(result, "utf8") > LIMITS.totalBytes) {
-    return `${result.slice(0, LIMITS.totalBytes)}…[truncated]`;
-  }
-  return result;
+  const cut = truncateToUtf8Bytes(redactCore(value, context), LIMITS.totalBytes);
+  return cut.truncated ? `${cut.text}…[truncated]` : cut.text;
 }
 
 /**
@@ -257,16 +300,42 @@ export function redactValue(value: unknown, context: RedactionContext): unknown 
  * The single seam every human and JSON surface serializes through. Returning
  * an envelope rather than a string keeps the byte budget observable to the
  * caller instead of silently dropping the tail.
+ *
+ * `truncated` is not advisory. A caller that writes `.text` and discards it
+ * ships a JSON document cut mid-token with a success exit, which is exactly
+ * what 02-REVIEW WR-06 found; `describeOverBudgetEnvelope` below is the refusal
+ * such a caller owes instead. `sha256` is computed over the text the envelope
+ * actually carries, so the digest named in a refusal is one the caller can
+ * reproduce.
  */
 export function serializeObservable(value: unknown, context: RedactionContext): ObservableEnvelope {
   const redacted = redactValue(value, context);
-  let text = JSON.stringify(redacted, null, 2) ?? "null";
-  let truncated = false;
-  if (Buffer.byteLength(text, "utf8") > LIMITS.totalBytes) {
-    text = text.slice(0, LIMITS.totalBytes);
-    truncated = true;
-  }
-  return { value: redacted, text, truncated, sha256: createHash("sha256").update(text, "utf8").digest("hex") };
+  const serialized = JSON.stringify(redacted, null, 2) ?? "null";
+  const cut = truncateToUtf8Bytes(serialized, LIMITS.totalBytes);
+  return {
+    value: redacted,
+    text: cut.text,
+    truncated: cut.truncated,
+    sha256: createHash("sha256").update(cut.text, "utf8").digest("hex"),
+  };
+}
+
+/**
+ * The refusal an over-budget envelope earns, in the caller's own words.
+ *
+ * Written here rather than at the call site so every `--json` surface refuses
+ * with the same sentence: the budget as a number, the digest of what was built,
+ * and the two narrowing steps this CLI already has. Nothing may be written to
+ * stdout alongside it — a pipeline reads stdout, so a partial document there
+ * plus a refusal on stderr is worse than a refusal alone.
+ */
+export function describeOverBudgetEnvelope(envelope: ObservableEnvelope): string {
+  return [
+    `Refusing to print a JSON envelope over the observable byte budget of ${OBSERVABLE_BYTE_BUDGET} bytes.`,
+    `The envelope was built and hashed but not written: sha256=${envelope.sha256}.`,
+    "Nothing was written to stdout, because a document cut mid-token would parse as a truncated success.",
+    "Narrow the scope with --project <path>, or read the same answer without --json.",
+  ].join(" ");
 }
 
 /**
@@ -281,7 +350,9 @@ export function createRedactedExcerpt(raw: string, context: RedactionContext): R
   // the retained half. The core redactor is used directly so the excerpt is
   // bounded by its own budget rather than the generic string-length cap.
   const redacted = redactCore(raw, context);
-  const capped = Buffer.byteLength(redacted, "utf8") > LIMITS.excerptBytes;
-  const excerpt = capped ? redacted.slice(0, LIMITS.excerptBytes) : redacted;
-  return { excerpt, capped, totalBytes, sha256 };
+  // Measured and cut in the same unit the budget is declared in, for the same
+  // reason `redactDocument` is (02-REVIEW WR-07): a code-unit cut under a byte
+  // guard retains up to three times the bound and can split a code point.
+  const cut = truncateToUtf8Bytes(redacted, LIMITS.excerptBytes);
+  return { excerpt: cut.text, capped: cut.truncated, totalBytes, sha256 };
 }

@@ -38,7 +38,13 @@ import { listManagedTransactions, planManagedRollback, rollbackManagedTransactio
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
 import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
-import { createRedactionContext, redactDocument, redactString, serializeObservable } from "./core/redaction.js";
+import {
+  createRedactionContext,
+  describeOverBudgetEnvelope,
+  redactDocument,
+  redactString,
+  serializeObservable,
+} from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
 import { applySupportBundle, collectSupportSources, planSupportBundleOperation } from "./core/support-bundle.js";
@@ -162,7 +168,14 @@ function optionalHarnessList(value: string | null): HarnessId[] | undefined {
  */
 function print(value: unknown, json: boolean, formatted: string, context: RedactionContext = observableContext()): void {
   if (json) {
-    process.stdout.write(`${serializeObservable(value, context).text}\n`);
+    // The envelope reports its own byte budget so this seam can act on it. It
+    // used to write `.text` and discard `.truncated`, which shipped a document
+    // cut mid-token with exit 0 (02-REVIEW WR-06). A refusal that names the
+    // budget and the digest is the honest answer; a truncated one is not an
+    // answer at all.
+    const envelope = serializeObservable(value, context);
+    if (envelope.truncated) throw new Error(describeOverBudgetEnvelope(envelope));
+    process.stdout.write(`${envelope.text}\n`);
     return;
   }
   // A whole rendering, not one field value: `redactDocument` applies the same

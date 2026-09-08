@@ -23,6 +23,7 @@ import type {
   ProjectCapabilityPlan,
   ProjectStackManifest,
   StackLock,
+  TargetPreState,
 } from "../src/types.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
@@ -4340,4 +4341,241 @@ test("an approved plan carrying hostNotes reads back as current", async (context
     `an approval carrying hostNotes did not read back as current: ${JSON.stringify(report.reconciliation.artifactIssues)}`,
   );
   assert.equal(report.reconciliation.artifactIssues.length, 0, JSON.stringify(report.reconciliation.artifactIssues));
+});
+
+// ---------------------------------------------------------------------------
+// Plan 02-15 Task 2: an honest inverse, and a refusal safe to paste
+// ---------------------------------------------------------------------------
+//
+// WR-04: for a target that EXISTS and whose bytes could not be read,
+// `buildSafeInverse` guarded the restore with the SOURCE hash — an assertion
+// that the pre-existing bytes are precisely the thing nobody observed. WR-14:
+// `approvalCommand` quoted only on whitespace, so a path carrying a quote
+// produced a command that does not parse and a path carrying a shell
+// metacharacter was emitted bare into something documented as ready to paste.
+
+interface SafeInverseLike {
+  readonly packId: string;
+  readonly operation: string;
+  readonly guard: { readonly path: string; readonly expectedHash: string | null };
+}
+
+type BuildSafeInverse = (target: TargetPreState) => SafeInverseLike;
+type ApprovalCommand = (parts: { path: string; subProject?: string | null; planDigest: string }) => string;
+
+/** A pre-state for one target, with only the fields under test varied. */
+function preState(overrides: Partial<TargetPreState>): TargetPreState {
+  return {
+    packId: POSTGRES_PACK,
+    skill: POSTGRES_SKILL,
+    harness: "claude",
+    path: POSTGRES_TARGET,
+    exists: true,
+    currentHash: "b".repeat(64),
+    ownedByReceipt: true,
+    expectedHash: "a".repeat(64),
+    action: "update",
+    ...overrides,
+  };
+}
+
+/**
+ * A repository whose `pg` dependency selects DB_POSTGRES, whose claude target
+ * EXISTS and cannot be read, and whose receipt claims that exact path.
+ *
+ * The unreadable target is a DIRECTORY where a file belongs: `existsSync` says
+ * yes and `readFile` fails with EISDIR on every platform, which is the same
+ * observation a permission failure makes and needs no privileges to arrange.
+ * The receipt is what keeps the pack applicable — an unowned target would be a
+ * D-11 conflict, the pack would be dropped, and there would be no inverse to
+ * guard at all.
+ */
+async function unreadableTargetFixture(context: TestContext): Promise<{ root: string; stateRoot: string }> {
+  const root = await scratchRoot(context, "unreadable-target");
+  const stateRoot = await scratchRoot(context, "unreadable-target-state");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "unreadable-fixture", private: true, dependencies: { pg: "^8.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  await mkdir(join(root, ...POSTGRES_TARGET.split("/")), { recursive: true });
+  const receipt = {
+    schemaVersion: 1,
+    packId: POSTGRES_PACK,
+    producer: { name: "alpha-aos", version: "0.1.0" },
+    createdAt: "2026-01-01T00:00:00.000Z",
+    sourceHash: "a".repeat(64),
+    targets: [{ harness: "claude", path: POSTGRES_TARGET, targetHash: "b".repeat(64) }],
+  };
+  await mkdir(join(root, ".alpha-aos", "receipts"), { recursive: true });
+  await writeFile(
+    join(root, ".alpha-aos", "receipts", `${POSTGRES_PACK}.json`),
+    `${JSON.stringify(receipt, null, 2)}\n`,
+    "utf8",
+  );
+  return { root, stateRoot };
+}
+
+test("an existing target whose bytes could not be read gets an explicitly unknown guard", async () => {
+  const buildSafeInverse = await planExport<BuildSafeInverse>("buildSafeInverse");
+  const inverse = buildSafeInverse(preState({ currentHash: null }));
+
+  assert.equal(inverse.operation, "restore");
+  assert.equal(
+    inverse.guard.expectedHash,
+    null,
+    "the restore is guarded by a hash that was never observed, so it would restore bytes that were never there",
+  );
+});
+
+test("an existing target that reads is still guarded by the bytes that were observed", async () => {
+  const buildSafeInverse = await planExport<BuildSafeInverse>("buildSafeInverse");
+  const inverse = buildSafeInverse(preState({ currentHash: "b".repeat(64) }));
+
+  assert.equal(inverse.operation, "restore");
+  assert.equal(inverse.guard.expectedHash, "b".repeat(64));
+});
+
+test("a target that does not exist is still a remove guarded by the hash that will be written", async () => {
+  const buildSafeInverse = await planExport<BuildSafeInverse>("buildSafeInverse");
+  const inverse = buildSafeInverse(preState({ exists: false, currentHash: null, action: "create" }));
+
+  assert.equal(inverse.operation, "remove");
+  assert.equal(inverse.guard.expectedHash, "a".repeat(64));
+});
+
+test("an unreadable target is reported to the reviewer and its undo is left unguarded", async (context) => {
+  const { root } = await unreadableTargetFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  assert.ok(
+    plan.applicable.includes(POSTGRES_PACK),
+    `the fixture did not keep ${POSTGRES_PACK} applicable: ${plan.applicable.join(", ")}`,
+  );
+
+  const inverse = plan.safeInverse.find((entry) => entry.guard.path === POSTGRES_TARGET);
+  assert.ok(inverse, `no safe inverse for ${POSTGRES_TARGET}`);
+  assert.equal(inverse.operation, "restore");
+  assert.equal(inverse.guard.expectedHash, null, "a guard hash was invented for bytes that were never observed");
+
+  const approval = plan.approvals.find((entry) => entry.code === "TARGET_UNREADABLE");
+  assert.ok(
+    approval,
+    `no TARGET_UNREADABLE approval, so the reviewer is never told which undo is unguarded: ${plan.approvals
+      .map((entry) => entry.code)
+      .join(", ")}`,
+  );
+  assert.ok(approval.detail.includes(POSTGRES_TARGET), `the approval does not name the path: ${approval.detail}`);
+  assert.ok(approval.detail.includes(POSTGRES_PACK), `the approval does not name the pack: ${approval.detail}`);
+});
+
+test("the unknown guard reaches the digest, and a target becoming readable moves the plan digest", async (context) => {
+  const { root } = await unreadableTargetFixture(context);
+  const before = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const digestable = digestablePlan(before) as { safeInverse: unknown[][] };
+  const row = digestable.safeInverse.find((entry) => entry[2] === POSTGRES_TARGET);
+  assert.ok(row, "the digestable view carries no row for the unreadable target");
+  assert.equal(row[3], null, "the unknown guard did not reach the digestable view");
+
+  await rm(join(root, ...POSTGRES_TARGET.split("/")), { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  await writeFile(join(root, ...POSTGRES_TARGET.split("/")), "# postgres-patterns\n", "utf8");
+  const after = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  assert.notEqual(after.planDigest, before.planDigest, "a target becoming readable did not move the plan digest");
+  assert.notEqual(
+    after.safeInverse.find((entry) => entry.guard.path === POSTGRES_TARGET)?.guard.expectedHash,
+    null,
+    "a readable target still carries an unknown guard",
+  );
+});
+
+test("an approved plan carrying an unknown guard hash reads back as current", async (context) => {
+  const { root, stateRoot } = await unreadableTargetFixture(context);
+
+  const preview = await runCli(["project", "approve", root], { ALPHA_AOS_STATE_DIR: stateRoot });
+  assert.equal(preview.status, 0, preview.stderr);
+  const digest = planDigestOf(preview.stdout);
+
+  const applied = await runCli(["project", "approve", root, "--plan-digest", digest, "--apply"], {
+    ALPHA_AOS_STATE_DIR: stateRoot,
+  });
+  assert.equal(applied.status, 0, applied.stderr);
+
+  const status = await runCli(["project", "status", root, "--json"], { ALPHA_AOS_STATE_DIR: stateRoot });
+  assert.equal(status.status, 0, status.stderr);
+  const report = JSON.parse(status.stdout) as { reconciliation: ProjectReconciliationLike };
+  assert.equal(
+    report.reconciliation.artifactState,
+    "current",
+    `an approval carrying a null guard hash did not read back as current: ${JSON.stringify(report.reconciliation.artifactIssues)}`,
+  );
+  assert.equal(report.reconciliation.artifactIssues.length, 0, JSON.stringify(report.reconciliation.artifactIssues));
+});
+
+// --- WR-14: the command every refusal ends with is safe to paste ------------
+
+const PASTE_DIGEST = "e".repeat(64);
+
+/** The quoting the emitted command must use on THIS platform, and its quote character. */
+const PASTE_QUOTE = process.platform === "win32" ? '"' : "'";
+
+function shellQuoted(value: string): string {
+  return process.platform === "win32"
+    ? `"${value.replaceAll('"', '""')}"`
+    : `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+test("approvalCommand leaves an ordinary path exactly as it emits it today", async () => {
+  const approvalCommand = await planExport<ApprovalCommand>("approvalCommand");
+
+  assert.equal(
+    approvalCommand({ path: "/tmp/project", planDigest: PASTE_DIGEST }),
+    `alpha-aos project approve /tmp/project --plan-digest ${PASTE_DIGEST} --apply`,
+  );
+});
+
+test("approvalCommand quotes a path containing a double quote and leaves no unbalanced quote", async () => {
+  const approvalCommand = await planExport<ApprovalCommand>("approvalCommand");
+  const path = '/tmp/pro"ject';
+  const command = approvalCommand({ path, planDigest: PASTE_DIGEST });
+
+  assert.equal(
+    command.includes(`approve ${path} --plan-digest`),
+    false,
+    `a path containing a quote was emitted bare: ${command}`,
+  );
+  assert.ok(command.includes(shellQuoted(path)), `the path was not quoted for this platform: ${command}`);
+  assert.equal(
+    (command.match(new RegExp(PASTE_QUOTE, "gu")) ?? []).length % 2,
+    0,
+    `the emitted command carries an unbalanced quote: ${command}`,
+  );
+});
+
+test("approvalCommand quotes a path containing a shell metacharacter rather than emitting it bare", async () => {
+  const approvalCommand = await planExport<ApprovalCommand>("approvalCommand");
+
+  for (const path of ["/tmp/pro$ject", "/tmp/pro`ject", "/tmp/pro;ject", "/tmp/pro|ject"]) {
+    const command = approvalCommand({ path, planDigest: PASTE_DIGEST });
+    assert.equal(
+      command.includes(`approve ${path} --plan-digest`),
+      false,
+      `${path} was emitted bare into a command documented as ready to paste: ${command}`,
+    );
+    assert.ok(command.includes(shellQuoted(path)), `${path} was not quoted for this platform: ${command}`);
+  }
+});
+
+test("approvalCommand quotes the --project value, which is equally user-supplied", async () => {
+  const approvalCommand = await planExport<ApprovalCommand>("approvalCommand");
+  const subProject = "packages/my app";
+  const command = approvalCommand({ path: "/tmp/project", subProject, planDigest: PASTE_DIGEST });
+
+  assert.equal(
+    command.includes(`--project ${subProject} --plan-digest`),
+    false,
+    `the --project value was emitted unquoted: ${command}`,
+  );
+  assert.ok(command.includes(shellQuoted(subProject)), `the --project value was not quoted: ${command}`);
 });

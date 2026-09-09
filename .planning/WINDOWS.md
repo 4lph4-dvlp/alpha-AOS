@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 12
+open_count: 10
 waived_count: 1
-fixed_count: 13
+fixed_count: 15
 total_count: 26
-last_updated: 2026-09-08T17:49:54.330Z
+last_updated: 2026-09-09T02:33:43.377Z
 ---
 
 # Broken Windows Ledger
@@ -30,10 +30,10 @@ last_updated: 2026-09-08T17:49:54.330Z
 | 13 | 02 | unrun-verify | test/evidence.test.ts |  | MAX_SCAN_DEPTH bound test (02-05) flaked once under concurrent suite execution on Windows; passed on every rerun | fixed |  | 2026-09-07T17:32:45.429Z | 2026-09-08T17:49:25.166Z |
 | 14 | 02 | unmet-truth | src/core/project-plan.ts |  | D-13 classification is complete for a caller that still holds the reviewed plan value, and PARTIAL at the CLI. approveProjectPlan classifies drift from options.reviewedPlan, or from .alpha-aos/plan.json when that artifact IS the reviewed plan; a CLI approve that drifts before any artifact exists gets a refusal that names both digests and the runnable re-approval command but cannot name WHICH noun moved. This is a consequence of D-12 plus SAFE-01 (the preview persists nothing, so two CLI invocations share only a digest), not a patchable bug: closing it needs a decision - either a reviewed-plan record the preview is allowed to write, or scoping the must-have truth to callers that hold the plan. | open |  | 2026-09-07T19:59:35.274Z |  |
 | 15 | 02 | unrun-verify | src/core/project-plan.ts |  | DETC-06's meaning of 'previously installed' is implemented as 'has a receipt under .alpha-aos/receipts/', so a pack that was approved but never materialized has NO state in reconcileProjectState — neither CURRENT nor STALE. Phase 3 is what writes receipts, so this reading cannot be confirmed against any Phase 2 source artifact. Confirm it against Phase 3's receipt writer before treating the passing 02-10 tests as agreement. | open |  | 2026-09-07T20:55:07.812Z |  |
-| 16 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-01 BLOCKER: `project plan` never terminates on a git-tracked workspace containing sub-projects. describeSubProjects/planSubProject (project-plan.ts:1104-1126) recurse with the sub-project path, but resolveCanonicalRoot (evidence.ts:97-109) climbs back to the .git root with no explicit-root argument, so the recursive call re-scans the same root forever. Reproduced twice independently: identical root+sub/package.json fixture exits 0 in <1s without .git, exits 124 with 0 bytes after 30s with .git. project plan, project plan --project, project status and project approve all hang; no CLI workaround. Test suite never sees it because every sub-project fixture is a bare mkdtemp dir (test/project-plan.test.ts:678) and no path joins git-fixture.ts with a sub-manifest. | open |  | 2026-09-07T21:46:04.468Z |  |
+| 16 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-01 BLOCKER: `project plan` never terminates on a git-tracked workspace containing sub-projects. describeSubProjects/planSubProject (project-plan.ts:1104-1126) recurse with the sub-project path, but resolveCanonicalRoot (evidence.ts:97-109) climbs back to the .git root with no explicit-root argument, so the recursive call re-scans the same root forever. Reproduced twice independently: identical root+sub/package.json fixture exits 0 in <1s without .git, exits 124 with 0 bytes after 30s with .git. project plan, project plan --project, project status and project approve all hang; no CLI workaround. Test suite never sees it because every sub-project fixture is a bare mkdtemp dir (test/project-plan.test.ts:678) and no path joins git-fixture.ts with a sub-manifest. | fixed |  | 2026-09-07T21:46:04.468Z | 2026-09-09T02:33:42.364Z |
 | 17 | 02 | unmet-truth | src/core/evidence.ts |  | CR-02 BLOCKER: a directory symlink/junction erases the real directory and emits a FALSE negative reason. identityKeys claims path:<canonical target> on listing in ascending name order, so a junction aaa -> src takes src's identity and the real src is dropped as visited-identity. Reproduced: adding the junction flipped BROWNFIELD_INIT from selected to near-miss with the reason 'none of the declared directories exists under the canonical root: src, lib, app, pkg, internal' while src had just been detected in the same fixture. Repository-controlled input. Breaks ROADMAP criterion 1 (aliases) and criterion 2 (evidence honesty). | fixed |  | 2026-09-07T21:46:05.331Z | 2026-09-08T17:49:26.253Z |
 | 18 | 02 | unmet-truth | src/core/evidence.ts |  | CR-03 BLOCKER: a refused or truncated scan is reported as a confident 'No pack qualified on the evidence found.' scanProjectTree populates bounds and excludedBoundaries but nothing outside evidence.ts reads them; text, --why and --json all omit the disclosure. Same silence for MAX_SCAN_ENTRIES=50000 and MAX_SCAN_DEPTH=12. The comment at evidence.ts:205-208 claims --why exposes this; verified false. Breaks ROADMAP criterion 2. | fixed |  | 2026-09-07T21:46:06.146Z | 2026-09-08T17:49:27.360Z |
-| 19 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-04 BLOCKER: .alpha-aos/plan.json bypasses validateManagedDocument (bare JSON.parse plus three field checks) while receipts, manifest, catalog and vocabulary all take the strict route. At project-plan.ts:1905 (approvedEvaluation?.satisfied ?? []).filter(...) guards only nullish, so a non-array crashes project status with exit 2 in DETC-06's own STALE branch. .gitignore excludes install-state.json, journal/, snapshots/ and evidence/ but NOT plan.json, so the file is committed and therefore attacker-supplied on clone; StaleReason.sentence is then rendered verbatim into a deletion offer. Breaks ROADMAP criteria 4 and 5. | open |  | 2026-09-07T21:46:07.003Z |  |
+| 19 | 02 | unmet-truth | src/core/project-plan.ts |  | CR-04 BLOCKER: .alpha-aos/plan.json bypasses validateManagedDocument (bare JSON.parse plus three field checks) while receipts, manifest, catalog and vocabulary all take the strict route. At project-plan.ts:1905 (approvedEvaluation?.satisfied ?? []).filter(...) guards only nullish, so a non-array crashes project status with exit 2 in DETC-06's own STALE branch. .gitignore excludes install-state.json, journal/, snapshots/ and evidence/ but NOT plan.json, so the file is committed and therefore attacker-supplied on clone; StaleReason.sentence is then rendered verbatim into a deletion offer. Breaks ROADMAP criteria 4 and 5. | fixed |  | 2026-09-07T21:46:07.003Z | 2026-09-09T02:33:43.377Z |
 | 20 | 02 | unrun-verify | test/evidence.test.ts |  | an aliased FILE adds no second path: skipped on this host (file symlinks need privileges on Windows); the directory-alias case runs | open |  | 2026-09-08T08:25:02.428Z |  |
 | 21 | 02 | deviation | test/project-plan.test.ts |  | one unreproduced failure of 'project plan terminates on a git root...' observed once (subProjects listed only packages/api); not reproduced in 4 full suite runs plus 744 targeted stress iterations; assertion now self-diagnosing via discoveryDiagnostics | fixed |  | 2026-09-08T08:25:09.121Z | 2026-09-08T17:49:28.406Z |
 | 22 | 02 | unmet-truth | src/core/ignore-list.ts |  | Plan 02-12 must_have clause 'the escape is removed before the pattern reaches the matcher' is not implementable: ignore@7 and git check-ignore both require the backslash to survive. The observable truth (an escaped-# line ignores the #-named file) holds; the mechanism clause does not. | open |  | 2026-09-08T09:22:53.401Z |  |
@@ -231,10 +231,10 @@ last_updated: 2026-09-08T17:49:54.330Z
     "file": "src/core/project-plan.ts",
     "line": null,
     "description": "CR-01 BLOCKER: `project plan` never terminates on a git-tracked workspace containing sub-projects. describeSubProjects/planSubProject (project-plan.ts:1104-1126) recurse with the sub-project path, but resolveCanonicalRoot (evidence.ts:97-109) climbs back to the .git root with no explicit-root argument, so the recursive call re-scans the same root forever. Reproduced twice independently: identical root+sub/package.json fixture exits 0 in <1s without .git, exits 124 with 0 bytes after 30s with .git. project plan, project plan --project, project status and project approve all hang; no CLI workaround. Test suite never sees it because every sub-project fixture is a bare mkdtemp dir (test/project-plan.test.ts:678) and no path joins git-fixture.ts with a sub-manifest.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-07T21:46:04.468Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-09T02:33:42.364Z"
   },
   {
     "id": 17,
@@ -267,10 +267,10 @@ last_updated: 2026-09-08T17:49:54.330Z
     "file": "src/core/project-plan.ts",
     "line": null,
     "description": "CR-04 BLOCKER: .alpha-aos/plan.json bypasses validateManagedDocument (bare JSON.parse plus three field checks) while receipts, manifest, catalog and vocabulary all take the strict route. At project-plan.ts:1905 (approvedEvaluation?.satisfied ?? []).filter(...) guards only nullish, so a non-array crashes project status with exit 2 in DETC-06's own STALE branch. .gitignore excludes install-state.json, journal/, snapshots/ and evidence/ but NOT plan.json, so the file is committed and therefore attacker-supplied on clone; StaleReason.sentence is then rendered verbatim into a deletion offer. Breaks ROADMAP criteria 4 and 5.",
-    "status": "open",
+    "status": "fixed",
     "reason": "",
     "recorded_at": "2026-09-07T21:46:07.003Z",
-    "resolved_at": null
+    "resolved_at": "2026-09-09T02:33:43.377Z"
   },
   {
     "id": 20,

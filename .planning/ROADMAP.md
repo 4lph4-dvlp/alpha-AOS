@@ -135,7 +135,7 @@ Plans:
   4. Applying a reviewed plan is refused if evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes changed after review.
   5. When evidence for an installed pack disappears, the user sees `STALE` with the missing evidence identified and no automatic deletion.
 
-**Plans**: 16/16 plans executed; 6 gap-closure plans added (02-11 … 02-16), 0/6 executed
+**Plans**: 16/16 plans executed; 6 gap-closure plans added (02-11 … 02-16), 6/6 executed
 
 Plans:
 

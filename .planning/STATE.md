@@ -3,17 +3,17 @@ gsd_state_version: "1.0"
 milestone: v0.1.0
 current_phase: 02
 current_phase_name: Evidence-Bound Project Planning
-status: executing
-stopped_at: Completed 02-15-PLAN.md
-last_updated: "2026-09-08T20:28:32.593Z"
+status: verifying
+stopped_at: Completed 02-16-PLAN.md
+last_updated: "2026-09-09T01:56:52.893Z"
 last_activity: 2026-09-08
 last_activity_desc: Phase 02 execution started
-state_head: b205cbb2d5724ecaa935b86a8c0712c2986c8fa9
+state_head: ba9326652025a3316484c89e3c966db80e1ec26e
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 43
-  completed_plans: 42
+  completed_plans: 43
   percent: 14
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-03)
 
 Phase: 02 (Evidence-Bound Project Planning) — EXECUTING
 Plan: 16 of 16
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-08 — Phase 02 execution started
 Progress: [█░░░░░░░░░] 14%
 
@@ -83,6 +83,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P13 | 1h 47m | 3 tasks | 6 files |
 | Phase 02 P14 | 68 min | 3 tasks | 8 files |
 | Phase 02 P15 | 62 min | 2 tasks | 6 files |
+| Phase 02 P16 | 5h 24m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -155,6 +156,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: TARGET_CONFLICT stays digested — the split is repository-derived versus host-derived, not important versus unimportant
 - [Phase 02]: SafeInverse.guard.expectedHash admits an explicit null: no guard hash is invented for bytes that were never observed, and a TARGET_UNREADABLE approval tells the reviewer which undo is unguarded
 - [Phase 02]: approvalCommand quotes the path and the --project value on whitespace, a quote or a shell metacharacter, and leaves an ordinary path byte-identical
+- [Phase 02]: Plan 02-16 Task 2 (option-a): the catalog and lock drift check runs in a new scheduled workflow, .github/workflows/pack-skill-drift.yml, weekly on cron 17 4 * * 1, and drift fails the run red — Maintainer policy, chosen over folding it into ci.yml (which has no schedule and runs per push/PR) and over report-only. The cron hour is offset from dependency-candidate.yml (17 3 * * 1) so the two network-touching scheduled jobs do not contend. Read-only permissions because the job opens no pull request and pushes no branch. workflow_dispatch added for on-demand runs.
 
 ### Pending Todos
 
@@ -210,6 +212,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-08T20:28:16.588Z
-Stopped at: Completed 02-15-PLAN.md
+Last session: 2026-09-09T01:56:20.330Z
+Stopped at: Completed 02-16-PLAN.md
 Resume file: None

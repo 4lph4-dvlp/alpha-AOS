@@ -21,10 +21,10 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-03)
+See: .planning/PROJECT.md (updated 2026-09-09)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 02 — Evidence-Bound Project Planning
+**Current focus:** Phase 03 — Transactional Project Packs and Native Optional Use
 
 ## Current Position
 
@@ -136,6 +136,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: Cross-host Unicode path normalization is NOT proven by 02-08: the non-ASCII fixture proves same-host stability only. A macOS NFD vs Linux NFC path naming the same file is unaddressed and belongs to the Phase 7 three-OS matrix.
 - [Phase 02]: [02-09]: manifestDigest is a named plan field rather than being folded into inputsDigest, so DETC-05's manifest noun is nameable and not merely detectable. — The plan assumed 02-08 already carried a manifest content hash. It did not: readManifestEvidence records .alpha-aos/stack.yaml into the read ledger, so the hash sat inside the aggregate inputsDigest. That refuses an apply but cannot say the manifest is what moved, which makes D-13's manifest-changed classification an unreachable branch - a manifest edit that moves the selection reads as selection-changed and an inert one reads as inputs-changed.
 - [Phase 02]: [02-09]: approve journals into the managed user state root while .alpha-aos stays the only allowed WRITE root, and stateRoot is a required option rather than defaulting to userStateRoot(). — The journal and snapshots are what make the safe inverse real, and putting them where alpha-aos rollback already looks means a project approval is undoable by the command that already undoes managed writes. Requiring stateRoot rather than defaulting it stops a module-level test taking the exclusive writer lock on the developer's real ~/.alpha-aos - the ambient-write class 01-21 spent a plan closing, arriving through a convenience default.
+- [Phase 02]: [02-VERIFICATION]: D-13 drift naming is scoped to callers that hold the reviewed plan value; the preview is NOT permitted to persist a reviewed-plan record. — SAFE-01 (the preview persists nothing) and D-12 both stand. Both drift branches refuse with exit 2 and a runnable re-approval command, so ROADMAP criterion 4 holds either way; only the window before a repository's first approval cannot name the moved noun, and it closes permanently after it. Broken-windows ledger #14 closed as a DECISION, not a patchable bug. Future candidate needing its own plan: expose `ApproveProjectPlanOptions.reviewedPlan` as a `--reviewed-plan` flag.
 - [Phase 02]: [02-09]: Drift classification consumes the reviewed plan VALUE (explicit reviewedPlan, else .alpha-aos/plan.json when that artifact IS the reviewed plan); with neither available the refusal states the classification is unavailable rather than inferring one. — A digest cannot be un-hashed. D-12 plus SAFE-01 mean the CLI's two invocations share only a digest, because the preview persists nothing. Inferring which noun moved from a digest alone would be a guess presented as a finding, so the CLI branch carries both digests and the runnable re-approval command and says what it cannot name. Recorded as an open Broken Windows unmet-truth entry.
 - [Phase 02]: 02-10: STALE vs CHANGED is discriminated by whether a specific approved fact can be NAMED as having flipped, not by an evidence-digest comparison — Removing a dependency always moves evidenceDigest, so a digest comparison cannot tell a stale pack from an artifact claiming something the evidence never supported; naming the flipped fact can. The artifact-level disagreement is reported separately as artifactState plus unsupportedClaims.
 - [Phase 02]: 02-10: the branch and commit are recorded BESIDE the plan in .alpha-aos/plan.json, so digestablePlan cannot reach them — digestablePlan is a literal listing exactly what a reviewer reviewed. Putting gitContext at the artifact top level makes exclusion from every digest structural rather than a rule someone must remember; a test commits an irrelevant change and observes inputsDigest, evidenceDigest and planDigest all unchanged.
@@ -165,7 +166,7 @@ None yet.
 
 ### Blockers/Concerns
 
-- `project sync --apply` is currently blocked; no project-pack phase is complete.
+- Partially resolved by Phase 02 (2026-09-09): evidence detection, pack selection and the reviewed, digest-bound plan are complete and verified; `project sync --apply` itself is still a stub. Phase 3 owns materialization, receipt writing and the transactional apply.
 - Full uninstall, external-package compensation, and interrupted-operation recovery are absent.
 - Ordinary-entrypoint tree-off suppression remains version- and surface-sensitive and must report unsupported unless exclusion is proven before load.
 - `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected. Not phase 1 scope.
@@ -204,6 +205,7 @@ None yet.
 - Open from 01-27 (2026-09-06): the two manual-only SAFE-02 canaries have DIVERGED and 01-UAT.md was deliberately not edited. The Windows unknown-reparse canary is still unanswerable by any CI leg (windows-latest reports `privileged reparse facilities unavailable`; POSIX legs correctly report it Windows-only), so 01-UAT.md item 2 stays `result: skipped`. The file-symlink escape canary, by contrast, DID execute and pass on windows-latest in both entrypoints of run 34051628180 — the plan's premise that no CI leg can produce that evidence is falsified for this fixture. The evidence now exists; whether it promotes 01-UAT.md item 3 from an accepted privilege gate to an observation is the verifier's call, and 01-UAT.md is outside 01-27's files_modified.
 - Open from 01-27 (2026-09-06): baselines updated for any later plan — `npm test` is 208 tests (fail 0; 1 skip on POSIX, 4 on Windows), the routed `Safety boundary suites` step is 131 tests (fail 0), and `npm run build:check` reports `56 inputs, 106 outputs`. Any other total is a suite that stopped compiling, not a faster run. Also: WHY the old invalid instrument tipped on that particular ubuntu run remains a HYPOTHESIS (file-set / scheduling load), explicitly not recorded as established cause.
 - src/core/path-boundary.ts records component identity as Number(info.ino) and recheckPathProof compares those doubles, so two different inodes within one ulp compare equal and a TOCTOU swap can go unnoticed. Same root cause as the identity bug 02-13 fixed in evidence.ts; left open because PathProof.inode is a typed number|null in the public shape and widening it needs its own plan.
+- Open from 02-VERIFICATION (2026-09-09): a paste-ready re-approval command can name a path whose segment has been replaced by a redaction token, so the command as printed does not resolve. Reproduced on a scratch path with a UUID-shaped segment. The refusal, its exit code and its digests are all correct and an ordinary repository path never triggers it, so this is presentation, not safety — but CI checkout paths and temp dirs do carry UUIDs. Phase 6/7 decides whether a redacted path suppresses the runnable-command line instead of emitting an unresolvable one.
 
 ## Deferred Items
 
@@ -213,6 +215,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-09T01:56:20.330Z
-Stopped at: Phase 2 complete, ready to plan Phase 3
+Last session: 2026-09-09T12:58:00Z
+Stopped at: Phase 2 complete and verified (passed, 5/5), ready to plan Phase 3
 Resume file: None

@@ -22,11 +22,13 @@ A user can enter any supported project on any supported operating system and get
 - ✓ alpha-AOS-owned configuration writes are root-bounded, snapshotted, journaled, hash-checked, and conservatively rollbackable — existing
 - ✓ Candidate dependency updates are separated from the stable end-user lock and exercised through cross-platform CI fixtures — existing
 - ✓ `project-only` policies can generate external harness runtimes that hide many user-scoped configuration roots, while `sealed` correctly fails closed when no OS/container adapter exists — existing
+- ✓ Deterministic, boundary-bounded repository evidence selects capability packs and renders stable, digest-bound reviewed plans that explain both matches and near-misses, and refuse to apply once any bound input moves — Phase 2
+- ✓ A previously installed pack whose evidence disappears reports `STALE` naming the missing evidence, and is never deleted automatically — Phase 2
 
 ### Active
 
 - [ ] Preserve native implicit invocation for globally installed, low-risk ECC capabilities and MCP tools, and verify that each supported harness uses them naturally when task intent matches
-- [ ] Add deterministic project evidence detection and transactional project sync so matched ECC capability packs are installed only in the intended project scope, discovered natively, used during relevant work, and removable without disturbing user files
+- [ ] Add transactional project sync so the packs Phase 2 already selects and plans are actually materialized in the intended project scope, discovered natively, used during relevant work, and removable without disturbing user files
 - [ ] Add explicit GSD quality-gate integration for capabilities that must run rather than relying on probabilistic model selection, including security- and migration-sensitive checks
 - [ ] Make directory-tree alpha-AOS opt-out persistent and verifiable: after one setup action, normal supported harness entrypoints must start from a clean user baseline, inherit only local project resources, and avoid unrelated environment-secret leakage without requiring `alpha-aos project run`
 - [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack
@@ -34,6 +36,7 @@ A user can enter any supported project on any supported operating system and get
 - [ ] Harden filesystem boundaries, subprocess-output redaction, native configuration merging, and external-package recovery before public release
 - [ ] Validate Windows, macOS, and Linux through CI fixtures plus representative real-host canaries, and validate every supported harness/surface on at least one real host
 - [ ] Complete a real brownfield GSD cycle with capability-routing traces, freeze the verified lock, and publish the v0.1.0 release artifacts and documentation
+- [ ] Widen `PathProof.inode` beyond a JS double so a Windows file index above 2^53 cannot make two distinct inodes compare equal and hide a TOCTOU swap — emerged in Phase 2, currently owned by no phase
 
 ### Out of Scope
 
@@ -86,6 +89,7 @@ The authority boundaries are:
 | Use stable exact versions and source/file integrity locks | Cross-harness user configuration is supply-chain-sensitive and must be reproducible | ✓ Good |
 | Treat `project-only` as configuration isolation, not a security boundary | Process-level isolation cannot honestly guarantee filesystem, network, or host-secret containment | ✓ Good |
 | Configure opt-out once and enforce it before normal harness startup | Directory-specific global exclusion cannot be applied reliably after skills, instructions, and MCP schemas have entered a running agent context | — Pending |
+| Scope drift-naming to callers that hold the reviewed plan value, rather than letting the preview persist one | Naming which noun moved is a diagnostic property; a non-persisting preview is a stated safety property (SAFE-01). Both drift branches already refuse with a runnable next step, so the safety property was kept and the must-have narrowed | ✓ Good |
 | Defer true `sealed` isolation until after v0.1.0 | A real OS/container adapter is substantial and must not delay proving the core workflow and scoping model | — Pending |
 
 ## Evolution
@@ -106,4 +110,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-03 after initialization*
+*Last updated: 2026-09-09 after Phase 2*

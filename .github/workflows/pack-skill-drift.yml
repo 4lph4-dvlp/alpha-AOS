@@ -1,0 +1,56 @@
+name: Pack skill drift
+
+# `catalog/stack.lock.json` pins the source hash of every skill a declared pack
+# names, and `src/core/ecc-skills.ts` throws when a named skill has no pinned
+# hash. So a lock that drifts from `catalog/packs/*.yaml` does not fail here —
+# it fails for the user, at plan time, on the pack they selected.
+#
+# `node scripts/pin-pack-skills.mjs check` compares the two by acquiring the
+# locked ECC tarball, which needs the network. That is why it is deliberately
+# outside `npm test` (see 02-04-SUMMARY.md) and why it cannot live in `ci.yml`:
+# that workflow has no schedule and runs on every push and pull request, and
+# this check needs a cadence, not per-push execution.
+#
+# It runs weekly rather than per-push because the drift it detects comes from
+# the registry, not from a commit. The hour is offset from
+# `dependency-candidate.yml` (`17 3 * * 1`) so the two network-touching
+# scheduled jobs in this repository do not contend.
+#
+# Drift fails the run red. This is a deliberate maintainer policy choice
+# (plan 02-16, Task 2, option-a) and not a default: `check` exits 3 on drift,
+# 2 on bad usage and 0 when clean, and that non-zero exit is allowed to fail
+# the step. No `continue-on-error`, no `|| true`, no downgrade to an
+# annotation. A transient upstream or network fault will also show red, which
+# was weighed and accepted — a check that reports amber on real drift is a
+# check nobody acts on.
+
+on:
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+# Read-only. Unlike `dependency-candidate.yml` this job opens no pull request
+# and pushes no branch, so it gets neither `contents: write` nor
+# `pull-requests: write`.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Catalog and lock drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+
+      # The script runs the same compiled acquisition path a user's sync runs
+      # and refuses to start without it, so the build is a prerequisite rather
+      # than a convenience.
+      - run: npm run build
+
+      - name: Verify pack skills are pinned in catalog/stack.lock.json
+        run: node scripts/pin-pack-skills.mjs check

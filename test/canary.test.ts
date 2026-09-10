@@ -36,6 +36,7 @@ import {
   canaryEnvironmentPolicy,
   CanaryContextError,
   catalogCosts,
+  createCanaryLaunchSpec,
   createCanaryObservationSink,
   createCanaryRuntime,
   decideInvocation,
@@ -1582,4 +1583,96 @@ test("an INCOMPLETE unit renders INCOMPLETE and never the positive's native-use 
     "an INCOMPLETE unit rendered the positive's native-use value, which reads as a result",
   );
   assert.equal(row.axes.nativeUse, null, "an INCOMPLETE unit reported a native-use axis at all");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-08 Task 1 — the owned instruction has to be REACHABLE, not just written
+//
+// 03-07 asked 03-08 to confirm rather than assume that the new owned
+// instruction is reachable inside the isolated canary runtime. Confirming it
+// produced a negative: `createCanaryLaunchSpec` uses `project-only` isolation,
+// which points claude at a CLAUDE_CONFIG_DIR inside the runtime, so a
+// user-scope owned skill at ~/.claude/skills is invisible to the very run it
+// was written to steer. These assertions cover the repair.
+// ---------------------------------------------------------------------------
+
+test("the canary runtime carries the alpha-AOS-owned routing instruction inside the config root the launch points at", async (context: TestContext) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa", "firecrawl"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+
+  // The exact directory the launch spec sets as CLAUDE_CONFIG_DIR. Derived from
+  // the spec rather than restated, so a change to one is a failure here rather
+  // than a runtime that quietly writes to a path nothing reads.
+  const spec = createCanaryLaunchSpec({ harness: "claude", runtime, projectRoot: project });
+  const configRoot = spec.env.CLAUDE_CONFIG_DIR;
+  assert.ok(configRoot, "the canary launch sets no CLAUDE_CONFIG_DIR, so nothing here can be reachable");
+
+  const instruction = join(configRoot, "skills", "alpha-aos-research-routing", "SKILL.md");
+  assert.equal(existsSync(instruction), true, `the owned routing instruction is not under the canary's own config root: ${instruction}`);
+  assert.equal(
+    runtime.declaredFiles.includes(instruction),
+    true,
+    "the runtime wrote a file it did not declare, which is exactly what the D-02 containment assertion exists to catch",
+  );
+
+  // Byte-for-byte with the repository source: this is alpha-AOS's own document,
+  // so source hash and target hash are one fact and a second rendering here
+  // would be a second place the text could differ from the reviewed one.
+  const shipped = await readFile(join(repositoryRoot, "skills", "alpha-aos-research-routing", "SKILL.md"), "utf8");
+  assert.equal(await readFile(instruction, "utf8"), shipped, "the runtime's copy is not byte-identical to the reviewed source");
+});
+
+test("a canary runtime refuses to be created when its owned instruction is missing", async (context: TestContext) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const emptyPackage = await mkdtemp(join(tmpdir(), "alpha-aos-no-instruction-"));
+  context.after(async () => {
+    await rm(emptyPackage, { recursive: true, force: true });
+  });
+
+  await assert.rejects(
+    async () =>
+      createCanaryRuntime({
+        projectRoot: project,
+        harness: "claude",
+        servers: ["exa"],
+        stateRoot: state,
+        lock,
+        packageRoot: emptyPackage,
+        environment: {},
+      }),
+    (error: unknown) => {
+      const message = String((error as Error).message);
+      assert.ok(message.includes("alpha-aos-research-routing"), message);
+      return true;
+    },
+    "a canary that ran without its steering layer and passed would be reporting the third-party text's behaviour under alpha-AOS's name",
+  );
+});
+
+test("a harness with no reachable skill root gets no instruction rather than one written where nothing reads it", async (context: TestContext) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  // codex's canary launch is blocked before it starts (only claude has the two
+  // MCP isolation flags), so a skill root guessed for it would be a path
+  // nothing ever reads. A recorded absence, in the shape this module already
+  // uses for CANARY_MCP_ISOLATION.
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  assert.equal(
+    runtime.declaredFiles.some((file) => file.includes("alpha-aos-research-routing")),
+    false,
+    "an instruction was written for a harness whose canary launch is blocked, so it is a file nothing will read",
+  );
 });

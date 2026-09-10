@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { DoctorFinding, Inventory, StackCatalog, StackLock } from "../types.js";
 import { codexConfigRoot, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
 import { globalClaudeSettingsPath } from "./skill-policy.js";
+import { ROUTING_CONTRACT_MISMATCH } from "./mcp-proxy.js";
 import { placeholder } from "./redaction.js";
 
 function major(version: string | null): number | null {
@@ -106,5 +107,20 @@ export async function runDoctor(catalog: StackCatalog, lock: StackLock, inventor
   } catch (error) {
     findings.push({ level: "warning", code: "policy.claude-ecc-skills", message: `Claude skill policy could not be read: ${error instanceof Error ? error.message : String(error)}` });
   }
+
+  // The recorded routing-contract disagreement (plan 03-07's `narrow`
+  // decision). `info` rather than `warning`: nothing here is broken or awaiting
+  // an action — the allowlist is intact and the contract is restated in an
+  // alpha-AOS-owned instruction. What this line does is make a later runtime
+  // bump visible, which a finding nobody prints cannot do.
+  findings.push({
+    level: "info",
+    code: ROUTING_CONTRACT_MISMATCH.code,
+    message:
+      `${ROUTING_CONTRACT_MISMATCH.runtime} ${ROUTING_CONTRACT_MISMATCH.document} names ` +
+      `${ROUTING_CONTRACT_MISMATCH.namesNotPublished.join(", ")} (not published by any pinned server) and ` +
+      `${ROUTING_CONTRACT_MISMATCH.namesDeniedByPolicy.join(", ")} (denied by alpha-aos policy). ` +
+      `The allowlist is unchanged; the routing contract is stated in ${ROUTING_CONTRACT_MISMATCH.reconciledBy}.`,
+  });
   return findings;
 }

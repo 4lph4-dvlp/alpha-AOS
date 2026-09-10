@@ -34,6 +34,143 @@ export function allowedMcpTools(server: McpServerId): ReadonlySet<string> | null
   return server === "firecrawl" ? firecrawlTools : null;
 }
 
+// ---------------------------------------------------------------------------
+// The measured upstream tool surfaces, and the routing-contract finding
+// ---------------------------------------------------------------------------
+
+/**
+ * What a pinned server was OBSERVED to publish, as opposed to what any document
+ * says it publishes.
+ *
+ * This table exists because 03-RESEARCH.md Pitfall 1 found three separate
+ * documents disagreeing about the research stack's tool identifiers, and the
+ * only one of them produced by asking a server was a live `tools/list`. A
+ * canary expectation checked against a document proves that two documents
+ * agree; checked against this table it is checked against a measurement.
+ */
+export interface MeasuredToolSurface {
+  readonly server: McpServerId;
+  /** `name@version`, exactly the pinned entry in `catalog/stack.lock.json`. */
+  readonly package: string;
+  readonly tools: readonly string[];
+  /**
+   * Whether `tools` is the WHOLE published surface or only the part alpha-AOS
+   * depends on. Declared rather than implied: a partial list read as a complete
+   * one would turn "alpha-AOS does not use this tool" into "this tool does not
+   * exist", which is the exact error Pitfall 1 records the shipped third-party
+   * text making in the other direction.
+   */
+  readonly complete: boolean;
+  /** ISO date of the live probe this row was transcribed from. */
+  readonly measuredOn: string;
+  readonly note?: string;
+}
+
+/**
+ * Live `tools/list` results, transcribed from 03-RESEARCH.md's primary sources.
+ *
+ * A tool name that is not here has not been observed on the pinned server, and
+ * a declaration naming one is a declaration about a tool nobody has seen.
+ */
+export const MEASURED_UPSTREAM_TOOLS: Readonly<Record<McpServerId, MeasuredToolSurface>> = Object.freeze({
+  context7: {
+    server: "context7",
+    package: "@upstash/context7-mcp@4.0.4",
+    tools: ["resolve-library-id", "query-docs"],
+    complete: true,
+    measuredOn: "2026-09-10",
+    note: "resolve-library-id returns a Versions: list, which is what makes a version-scoped libraryId available to the second call at all",
+  },
+  exa: {
+    server: "exa",
+    package: "exa-mcp-server@3.4.1",
+    tools: ["web_search_exa", "web_fetch_exa"],
+    complete: true,
+    measuredOn: "2026-09-10",
+    note: "the discovery server ships its own fetch, so search-then-fetch entirely on this server is a correct single-server lookup",
+  },
+  firecrawl: {
+    server: "firecrawl",
+    package: "firecrawl-mcp@3.24.0",
+    // Deliberately NOT the whole surface. The server published 25 tools
+    // without a key and 27 with one; enumerating them here would be a list
+    // that rots on every upstream release while proving nothing this repository
+    // needs. What is needed is the four alpha-AOS admits, plus every further
+    // name this repository states something about: `firecrawl_search`, which
+    // the shipped third-party text directs a model at and policy denies, and
+    // `firecrawl_extract`, which the proxy fixtures use as their denied example.
+    tools: [...firecrawlTools, "firecrawl_search", "firecrawl_extract"],
+    complete: false,
+    measuredOn: "2026-09-10",
+    note: "25 tools keyless / 27 with a key; only the four in allowedMcpTools cross the alpha-AOS proxy",
+  },
+} as const);
+
+/**
+ * The stable code for the disagreement between the pinned third-party research
+ * instructions and the tool surfaces the pinned servers actually publish.
+ *
+ * UPPER_SNAKE and stable on purpose: a later ECC bump that changes the shipped
+ * text should change what this finding SAYS, never what a consumer matches on.
+ */
+export const ROUTING_CONTRACT_MISMATCH_CODE = "ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH";
+
+/**
+ * One recorded documentation disagreement, carrying the runtime version it was
+ * measured against.
+ *
+ * The version is the point of the record. A finding that says "the shipped
+ * skill names tools that do not exist" without saying WHICH shipped skill, at
+ * which version, cannot tell a future reader whether the bump they are looking
+ * at fixed it.
+ */
+export interface RoutingContractFinding {
+  readonly code: typeof ROUTING_CONTRACT_MISMATCH_CODE;
+  /** `name@version` of the pinned runtime whose text disagrees. */
+  readonly runtime: string;
+  /** The third-party document, relative to that runtime's package root. */
+  readonly document: string;
+  /** Names that document directs a model at which no pinned server publishes. */
+  readonly namesNotPublished: readonly string[];
+  /** Names that exist upstream but which the alpha-AOS proxy refuses. */
+  readonly namesDeniedByPolicy: readonly string[];
+  /** The alpha-AOS-owned instruction that states the contract instead. */
+  readonly reconciledBy: string;
+  readonly why: string;
+}
+
+/** Where the alpha-AOS-owned statement of the routing contract lives. */
+export const RESEARCH_ROUTING_INSTRUCTION_ID = "alpha-aos-research-routing";
+
+/** Its path inside this package, used to materialize it into a canary runtime. */
+export const RESEARCH_ROUTING_INSTRUCTION_SOURCE = "skills/alpha-aos-research-routing/SKILL.md";
+
+/**
+ * The recorded mismatch.
+ *
+ * Recorded rather than repaired, which is the whole of the `narrow` decision
+ * taken in plan 03-07: the four-name allowlist below does not move, the
+ * bounded-extraction claim in PROJECT.md stays true as written, the pinned
+ * third-party bytes are not touched (03-CONTEXT.md D-07 forbids it, and the
+ * identity renderer means an edited skill would fail its own exact-hash
+ * contract), and the reconciliation lands in an alpha-AOS-owned instruction.
+ * What is left over is this disagreement, and a disagreement nobody wrote down
+ * is one a future runtime bump silently resolves in either direction.
+ */
+export const ROUTING_CONTRACT_MISMATCH: RoutingContractFinding = Object.freeze({
+  code: ROUTING_CONTRACT_MISMATCH_CODE,
+  runtime: "ecc-universal@2.2.0",
+  document: "skills/deep-research/SKILL.md",
+  namesNotPublished: Object.freeze(["web_search_advanced_exa", "crawling_exa"]),
+  namesDeniedByPolicy: Object.freeze(["firecrawl_search"]),
+  reconciledBy: RESEARCH_ROUTING_INSTRUCTION_SOURCE,
+  why:
+    "the pinned research instructions direct discovery at a tool the extraction server publishes but alpha-AOS policy " +
+    "denies, and extraction at two tools the discovery server does not publish at all; the allowlist is unchanged and " +
+    "the contract is restated in an alpha-AOS-owned instruction instead",
+} as const);
+
+
 /** Exactly the names each upstream server is approved to receive. */
 const UPSTREAM_ENVIRONMENT_NAMES: Record<McpServerId, readonly string[]> = {
   firecrawl: ["FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "FIRECRAWL_OAUTH_TOKEN"],

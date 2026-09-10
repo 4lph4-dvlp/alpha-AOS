@@ -58,7 +58,12 @@ import type { PackState } from "./project-plan.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
 import { defaultIsolationPolicy, isolationProjectId } from "./isolation.js";
 import { assertNoCredentialValue, nativeConfigFormat, renderMcpConfig } from "./mcp.js";
-import { readObservationRecords, type McpObservation } from "./mcp-proxy.js";
+import {
+  readObservationRecords,
+  RESEARCH_ROUTING_INSTRUCTION_ID,
+  RESEARCH_ROUTING_INSTRUCTION_SOURCE,
+  type McpObservation,
+} from "./mcp-proxy.js";
 import {
   commandProbeEnvironment,
   materializeEnvironment,
@@ -67,7 +72,7 @@ import {
   runProcess,
   type EnvironmentPolicy,
 } from "./process.js";
-import { aliasPath, createPathAliases, RootKeyedCache } from "./paths.js";
+import { aliasPath, createPathAliases, packageRoot, RootKeyedCache } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import type { MutationSession } from "./writer-lock.js";
 import {
@@ -1341,6 +1346,39 @@ export interface CanaryRuntime {
   readonly operationId: string | null;
 }
 
+/**
+ * Where a canary runtime puts the alpha-AOS-owned steering instructions, per
+ * harness, or null when this runtime cannot reach that harness's skill root.
+ *
+ * A canary launches with `project-only` isolation, which points claude at a
+ * `CLAUDE_CONFIG_DIR` INSIDE the runtime. That is deliberate — a canary
+ * inheriting the user's global configuration would be measuring the user's
+ * machine — but it also means a user-scope owned skill is invisible to the very
+ * run it was written to steer. Writing the instruction into the runtime's own
+ * config root is what closes that gap; without it, plan 03-07's `narrow`
+ * decision would ship a steering layer that provably steers nothing.
+ *
+ * Null for the other three because their canary launch is blocked before it
+ * starts (only claude has the two MCP isolation flags), so a skill root guessed
+ * for them would be a path nothing ever reads.
+ */
+const CANARY_INSTRUCTION_ROOT: Readonly<Record<LedgerHarness, ((harnessRoot: string) => string) | null>> = Object.freeze({
+  claude: (harnessRoot: string) => join(harnessRoot, "skills"),
+  codex: null,
+  pi: null,
+  hermes: null,
+});
+
+/**
+ * The alpha-AOS-owned instructions a canary runtime carries.
+ *
+ * Exactly one today. Declared as a list rather than inlined so a second owned
+ * instruction is an entry rather than a second copy of the write.
+ */
+export const CANARY_OWNED_INSTRUCTIONS: readonly { readonly id: string; readonly source: string }[] = Object.freeze([
+  { id: RESEARCH_ROUTING_INSTRUCTION_ID, source: RESEARCH_ROUTING_INSTRUCTION_SOURCE },
+]);
+
 export interface CreateCanaryRuntimeOptions {
   readonly projectRoot: string;
   readonly harness: LedgerHarness;
@@ -1348,6 +1386,12 @@ export interface CreateCanaryRuntimeOptions {
   /** REQUIRED. There is no default, for the reason `writeCapabilityLedger` records. */
   readonly stateRoot: string;
   readonly lock: StackLock;
+  /**
+   * Where the alpha-AOS-owned instructions are read from. Defaults to this
+   * installation's own package root; a test supplies its own so the assertion
+   * is about the copy, not about the developer's checkout.
+   */
+  readonly packageRoot?: string;
   /** Supplied by a caller that wants a reproducible runtime path; otherwise fresh. */
   readonly runId?: string;
   /** Read for the credential-value refusal only. Never rendered. */
@@ -1403,7 +1447,33 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     createdAt: new Date().toISOString(),
   };
 
-  const declaredFiles = [markerPath, mcpConfigPath, observationsPath];
+  // The owned steering instructions, copied BYTE-FOR-BYTE into the runtime's
+  // own harness config root. Copied rather than rendered: this is alpha-AOS's
+  // own document, so the source hash and the target hash are the same fact, and
+  // a renderer here would be a second place its text could differ from the one
+  // a reviewer read in the repository.
+  const instructionRoot = CANARY_INSTRUCTION_ROOT[options.harness];
+  const instructionSourceRoot = resolve(options.packageRoot ?? packageRoot());
+  const instructions: { readonly target: string; readonly content: string }[] = [];
+  if (instructionRoot !== null) {
+    for (const instruction of CANARY_OWNED_INSTRUCTIONS) {
+      const source = join(instructionSourceRoot, instruction.source);
+      // A missing owned instruction is a REFUSAL, not a quietly skipped write.
+      // A canary that ran without its steering layer and passed would be
+      // reporting the third-party text's behaviour under alpha-AOS's name.
+      if (!existsSync(source)) {
+        throw new Error(
+          `Canary runtime cannot be created: the alpha-AOS-owned instruction ${instruction.source} is missing from ${instructionSourceRoot}`,
+        );
+      }
+      instructions.push({
+        target: join(instructionRoot(join(root, options.harness)), instruction.id, "SKILL.md"),
+        content: await readFile(source, "utf8"),
+      });
+    }
+  }
+
+  const declaredFiles = [markerPath, mcpConfigPath, observationsPath, ...instructions.map((entry) => entry.target)];
   // Asserted BEFORE anything is written: a runtime that would land outside the
   // managed state root is refused rather than created and then reported.
   assertRuntimeContainment({ root, stateRoot, declaredFiles });
@@ -1416,6 +1486,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
       // Created empty and owned by this run. An absent file would make
       // "nothing was observed" and "the sink was never there" the same shape.
       { target: observationsPath, content: "" },
+      ...instructions,
     ],
     ...(options.session === undefined ? {} : { session: options.session }),
   });

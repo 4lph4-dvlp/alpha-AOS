@@ -8,6 +8,16 @@
 # only works once it hints is a finding about discovery, not a prompt to revise.
 #
 # Contract: schemas/canary-catalog.schema.json (closed world).
+#
+# Expectation lists are FINAL as of plan 03-08 and were checked, name by name,
+# against `MEASURED_UPSTREAM_TOOLS` in src/core/mcp-proxy.ts — live `tools/list`
+# results, not against any document that describes those servers. The pinned
+# third-party research instructions (`ecc-universal@2.2.0`
+# `skills/deep-research/SKILL.md`) name two tools no pinned server publishes and
+# one the alpha-AOS proxy denies; that disagreement is recorded as the finding
+# ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH and is reconciled in
+# skills/alpha-aos-research-routing/SKILL.md rather than by widening the
+# allowlist. Plan 03-07 recorded that decision as option `narrow`.
 schemaVersion: 1
 canaries:
   - id: DOCUMENTATION_VERSION_SCOPED

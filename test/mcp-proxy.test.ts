@@ -12,26 +12,30 @@
 
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { loadLock } from "../src/core/catalog.js";
+import { loadCanaryCatalog, type CanaryCatalog } from "../src/core/canary.js";
 import {
   allowedMcpTools,
   BoundedStdioTransport,
   MCP_SERVER_IDS,
   mcpPolicyRefusal,
+  MEASURED_UPSTREAM_TOOLS,
   OBSERVED_UPSTREAM_LATE_EXIT,
   openObservedUpstream,
   upstreamEnvironment,
   upstreamEnvironmentPolicy,
   upstreamProcessSpec,
+  ROUTING_CONTRACT_MISMATCH,
 } from "../src/core/mcp-proxy.js";
 import { userStateRoot } from "../src/core/paths.js";
-import { PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
+import { PLATFORM_FLOOR_ENVIRONMENT, resolveNodePackageCli } from "../src/core/process.js";
 import type { LockedPackage, McpServerId } from "../src/types.js";
 
 // Compiled to dist/test, so the repository root is two levels up.
@@ -1264,4 +1268,188 @@ test("the observed close path builds no SDK transport close of its own", async (
     code.slice(start).includes("transport.closeSession()"),
     "the observed close must go through the bounded transport's session close",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-08 Task 1 — the `narrow` routing-contract decision, made checkable
+//
+// Plan 03-07 recorded option `narrow`: the four-name extraction allowlist does
+// not move, PROJECT.md's bounded-extraction claim stays true as written, the
+// reconciliation lands in an alpha-AOS-owned instruction, and the leftover
+// disagreement with the pinned third-party text becomes a named, versioned
+// finding. These assertions are what make a one-sided future edit red instead
+// of silently reopening the question.
+// ---------------------------------------------------------------------------
+
+/** The shipped canary catalog, read from the repository rather than a fixture. */
+async function shippedCanaryCatalog(): Promise<CanaryCatalog> {
+  const loaded = await loadCanaryCatalog(repositoryRoot);
+  return loaded.value;
+}
+
+test("the extraction allowlist is exactly the four names the narrow decision preserved", () => {
+  const allow = allowedMcpTools("firecrawl");
+  assert.ok(allow, "firecrawl must carry a tool allowlist");
+  assert.deepEqual(
+    [...allow].sort(),
+    ["firecrawl_check_crawl_status", "firecrawl_crawl", "firecrawl_map", "firecrawl_scrape"],
+    "plan 03-07 recorded that this set does not move; widening it changes a stated product claim in PROJECT.md",
+  );
+  // Negative control for the assertion above: the one name the pinned
+  // third-party instructions direct discovery at is the name that must NOT be
+  // here. Without this line the deepEqual could be satisfied by a set that
+  // simply spelled the four differently.
+  assert.equal(allow.has("firecrawl_search"), false);
+});
+
+test("every declared canary expectation names a tool a pinned server was measured to publish", async () => {
+  const catalog = await shippedCanaryCatalog();
+  const measured = new Set(Object.values(MEASURED_UPSTREAM_TOOLS).flatMap((surface) => surface.tools));
+  assert.equal(measured.size >= 6, true, "the measured surface table is suspiciously small; the check below would be weak");
+
+  for (const canary of catalog.canaries) {
+    for (const tool of [...canary.expectTools, ...canary.forbidTools]) {
+      assert.equal(
+        measured.has(tool),
+        true,
+        `${canary.id} names ${tool}, which no pinned server was measured to publish. An expectation checked against a ` +
+          "document rather than a tools listing is how the third-party routing text came to name two tools that do not exist.",
+      );
+    }
+  }
+
+  // Negative control: a name that reads like a tool but was never measured must
+  // fail this check, or the loop above would pass over any string at all.
+  assert.equal(measured.has("web_search_advanced_exa"), false);
+  assert.equal(measured.has("crawling_exa"), false);
+});
+
+test("the extraction allowlist and the declared research expectations agree", async () => {
+  const catalog = await shippedCanaryCatalog();
+  const allow = allowedMcpTools("firecrawl");
+  assert.ok(allow);
+  const research = catalog.canaries.find((canary) => canary.id === "RESEARCH_MULTI_SOURCE");
+  assert.ok(research, "the multi-source research canary is not declared");
+
+  const firecrawlNames = (names: readonly string[]): string[] =>
+    names.filter((name) => MEASURED_UPSTREAM_TOOLS.firecrawl.tools.includes(name));
+
+  // Expected extraction tools must be PERMITTED. An expectation the proxy would
+  // refuse can never be satisfied, so a canary declaring one would be red for a
+  // policy reason while reporting a routing failure.
+  for (const tool of firecrawlNames(research.expectTools)) {
+    assert.equal(allow.has(tool), true, `the research canary expects ${tool}, which the allowlist does not permit`);
+  }
+  // Forbidden extraction tools must be DENIED. A forbidden name the allowlist
+  // permits is a finding the proxy would never produce.
+  for (const tool of firecrawlNames(research.forbidTools)) {
+    assert.equal(allow.has(tool), false, `the research canary forbids ${tool}, but the allowlist permits it`);
+  }
+  assert.equal(
+    firecrawlNames(research.expectTools).length + firecrawlNames(research.forbidTools).length >= 2,
+    true,
+    "neither list names an extraction tool, so the agreement above was checked against nothing",
+  );
+});
+
+test("the recorded routing-contract finding carries the pinned runtime version and a stable code", () => {
+  assert.equal(ROUTING_CONTRACT_MISMATCH.code, "ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH");
+  assert.match(ROUTING_CONTRACT_MISMATCH.code, /^[A-Z][A-Z0-9_]*$/u);
+  assert.equal(
+    ROUTING_CONTRACT_MISMATCH.runtime,
+    "ecc-universal@2.2.0",
+    "the finding must carry the exact pinned runtime, or a later bump that changed the text is invisible",
+  );
+
+  const allow = allowedMcpTools("firecrawl");
+  assert.ok(allow);
+  for (const name of ROUTING_CONTRACT_MISMATCH.namesDeniedByPolicy) {
+    assert.equal(allow.has(name), false, `${name} is recorded as denied by policy but the allowlist permits it`);
+  }
+  const measured = new Set(Object.values(MEASURED_UPSTREAM_TOOLS).flatMap((surface) => surface.tools));
+  for (const name of ROUTING_CONTRACT_MISMATCH.namesNotPublished) {
+    assert.equal(measured.has(name), false, `${name} is recorded as unpublished but the measured surface table has it`);
+  }
+  assert.equal(ROUTING_CONTRACT_MISMATCH.namesNotPublished.length >= 1, true);
+  assert.equal(ROUTING_CONTRACT_MISMATCH.namesDeniedByPolicy.length >= 1, true);
+});
+
+test("the alpha-AOS-owned routing instruction names the published tools and none of the three that disagree", async () => {
+  const source = join(repositoryRoot, ROUTING_CONTRACT_MISMATCH.reconciledBy);
+  const text = await readFile(source, "utf8");
+
+  assert.ok(text.startsWith("---\n"), "an owned instruction must start with YAML frontmatter, as alpha-aos-ship does");
+  assert.ok(text.includes("name: alpha-aos-research-routing"), "the instruction does not declare its own name");
+  assert.ok(text.includes("description:"), "the instruction has no description, so nothing tells a model when it applies");
+  assert.ok(text.includes("allowed-tools:"), "the instruction declares no tool surface");
+
+  // It must state the contract in the identifiers the servers actually publish.
+  for (const tool of ["web_search_exa", "firecrawl_scrape"]) {
+    assert.ok(text.includes(tool), `the instruction does not name ${tool}, so it states no routing contract at all`);
+  }
+  // And it must not repeat the three names the third-party text got wrong: two
+  // that no pinned server publishes, one that policy denies.
+  for (const name of [...ROUTING_CONTRACT_MISMATCH.namesNotPublished, ...ROUTING_CONTRACT_MISMATCH.namesDeniedByPolicy]) {
+    assert.equal(
+      text.includes(name),
+      false,
+      `the owned instruction repeats ${name}, which is one of the names it exists to correct`,
+    );
+  }
+});
+
+test("the pinned third-party research instruction's bytes are untouched by this reconciliation", async (context: TestContext) => {
+  // 03-CONTEXT.md D-07 and the design doc forbid editing the shipped skill, and
+  // PLAN_RENDERER_ID = "ecc-skill/identity" means an edited one would fail its
+  // own exact-hash contract. Asserted rather than trusted: `narrow` is the
+  // option that touches no third-party bytes, and this is that half of it.
+  // The pinned runtime is installed globally on a real host, not into this
+  // repository, so both roots are tried before the file is called absent.
+  const npm = resolveNodePackageCli("npm");
+  const globalRoot = spawnSync(npm.executable, [...npm.argsPrefix, "root", "-g"], { encoding: "utf8" }).stdout?.trim() ?? "";
+  const candidates = [
+    join(repositoryRoot, "node_modules", "ecc-universal", ROUTING_CONTRACT_MISMATCH.document),
+    ...(globalRoot.length > 0 ? [join(globalRoot, "ecc-universal", ROUTING_CONTRACT_MISMATCH.document)] : []),
+  ];
+  const shipped = candidates.find((candidate) => existsSync(candidate));
+  if (shipped === undefined) {
+    context.skip(`${ROUTING_CONTRACT_MISMATCH.runtime} is installed in neither ${candidates.join(" nor ")}`);
+    return;
+  }
+  const text = await readFile(shipped, "utf8");
+  assert.equal(
+    text.includes("alpha-aos"),
+    false,
+    "the shipped third-party instruction mentions alpha-aos, so its bytes were modified",
+  );
+  // Positive control: the file this test is asserting about must be the one
+  // that carries the disagreement, or the absence assertion proves nothing.
+  assert.ok(
+    ROUTING_CONTRACT_MISMATCH.namesNotPublished.some((name) => text.includes(name)) ||
+      ROUTING_CONTRACT_MISMATCH.namesDeniedByPolicy.some((name) => text.includes(name)),
+    "the shipped instruction names none of the disputed tools, so the recorded finding describes a different document",
+  );
+});
+
+test("the proxy fixture's advertised tools agree with the measured upstream surfaces", () => {
+  // The fixture in this file stands in for the real servers. If it drifts from
+  // what the servers were measured to publish, every proxy assertion above is
+  // checking alpha-AOS against alpha-AOS's own idea of the upstream.
+  for (const server of MCP_SERVER_IDS) {
+    const measured = MEASURED_UPSTREAM_TOOLS[server];
+    for (const tool of FIXTURE_TOOLS[server]) {
+      assert.equal(
+        measured.tools.includes(tool),
+        true,
+        `the ${server} fixture advertises ${tool}, which is not in the measured upstream surface`,
+      );
+    }
+    if (measured.complete) {
+      assert.deepEqual(
+        [...FIXTURE_TOOLS[server]].sort(),
+        [...measured.tools].sort(),
+        `${server}'s surface was measured complete, so the fixture must advertise all of it and nothing else`,
+      );
+    }
+  }
 });

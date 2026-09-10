@@ -28,7 +28,13 @@ import type {
   SurfaceSupport,
   TargetPreState,
 } from "../src/types.js";
-import type { CapabilityLedger, LedgerHarness, NativeUseState } from "../src/core/capability-ledger.js";
+import type {
+  BlockedReason,
+  CapabilityLedger,
+  CapabilityProof,
+  LedgerHarness,
+  NativeUseState,
+} from "../src/core/capability-ledger.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { reviewedDigest } from "../src/core/component-session.js";
@@ -2570,9 +2576,18 @@ interface StaleReasonLike {
   readonly sentence: string;
 }
 
+interface CapabilityStateLike {
+  readonly deployment: string;
+  readonly nativeUse: string;
+  readonly support: string;
+  readonly nativeUseReason: string;
+  readonly supportReason: string;
+}
+
 interface PackReconciliationLike {
   readonly packId: string;
-  readonly state: string;
+  /** D-11: the composite. The deployment axis is reachable only through it. */
+  readonly capability: CapabilityStateLike;
   readonly receiptPath: string;
   readonly detail: string;
   readonly targets: readonly ReconciledTargetLike[];
@@ -2602,11 +2617,10 @@ interface ProjectReconciliationLike {
   readonly gitNote: string | null;
 }
 
-type ReconcileProjectState = (options: {
-  path: string;
-  packageRoot: string;
-  subProject?: string;
-}) => Promise<ProjectReconciliationLike>;
+type ReconcileProjectState = (
+  options: { path: string; packageRoot: string; subProject?: string },
+  host?: { readonly ledger?: CapabilityLedger | null } | null,
+) => Promise<ProjectReconciliationLike>;
 
 /** The receipt bytes Phase 3 will write, built here by hand against the real schema. */
 async function writeInstalledPack(
@@ -2673,7 +2687,7 @@ function packStateOf(reconciliation: ProjectReconciliationLike, packId: string):
   const found = reconciliation.packs.find((pack) => pack.packId === packId);
   assert.ok(
     found,
-    `the reconciliation reported no state for ${packId}: ${reconciliation.packs.map((entry) => `${entry.packId}=${entry.state}`).join(", ")}`,
+    `the reconciliation reported no state for ${packId}: ${reconciliation.packs.map((entry) => `${entry.packId}=${entry.capability.deployment}`).join(", ")}`,
   );
   return found;
 }
@@ -2685,8 +2699,8 @@ test("an installed pack whose evidence and target bytes are unchanged reports CU
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.equal(pack.state, "CURRENT", pack.detail);
-  assert.equal(reconciliation.packs.filter((entry) => entry.state === "CURRENT").length, 1);
+  assert.equal(pack.capability.deployment, "CURRENT", pack.detail);
+  assert.equal(reconciliation.packs.filter((entry) => entry.capability.deployment === "CURRENT").length, 1);
   assert.equal(pack.targets.length, 1);
   assert.equal(pack.targets[0]?.matches, true);
 });
@@ -2704,7 +2718,7 @@ test("removing the dependency that selected an installed pack reports STALE", as
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.capability.deployment, "STALE", pack.detail);
   assert.ok(pack.stale.length > 0, "a STALE pack named no missing fact");
   assert.equal(existsSync(target), true, "reporting STALE deleted the installed target");
 });
@@ -2718,7 +2732,7 @@ test("editing an installed target's bytes reports DRIFTED", async (context) => {
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.equal(pack.state, "DRIFTED", pack.detail);
+  assert.equal(pack.capability.deployment, "DRIFTED", pack.detail);
   assert.equal(pack.targets[0]?.matches, false);
   assert.notEqual(pack.targets[0]?.currentHash, pack.targets[0]?.expectedHash);
 });
@@ -2740,7 +2754,7 @@ test("an evidence file that exists but cannot be read reports UNDECIDABLE with t
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.equal(pack.state, "UNDECIDABLE", pack.detail);
+  assert.equal(pack.capability.deployment, "UNDECIDABLE", pack.detail);
   assert.ok(pack.undecidable.length > 0, "UNDECIDABLE carried no errno and no path");
   assert.equal(pack.undecidable[0]?.path, "package.json");
   assert.ok((pack.undecidable[0]?.errno ?? "").length > 0, "UNDECIDABLE carried an empty errno");
@@ -2793,7 +2807,7 @@ test("a planted plan artifact claiming a pack the evidence does not support repo
 
   assert.equal(reconciliation.artifactState, "changed", "the artifact's evidence digest did not disagree with fresh evidence");
   assert.ok(reconciliation.unsupportedClaims.includes("SECURITY_REVIEW"), "the unsupported claim was not named");
-  assert.equal(pack.state, "CHANGED", pack.detail);
+  assert.equal(pack.capability.deployment, "CHANGED", pack.detail);
 });
 
 test("a malformed receipt refuses by name rather than producing a partially trusted state", async (context) => {
@@ -2824,7 +2838,7 @@ test("a pack whose target holds a file alpha-AOS did not write reports CONFLICT"
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.equal(pack.state, "CONFLICT", pack.detail);
+  assert.equal(pack.capability.deployment, "CONFLICT", pack.detail);
   assert.ok(
     pack.detail.includes(".agents/skills"),
     `the CONFLICT detail did not name the conflicting path: ${pack.detail}`,
@@ -2937,7 +2951,7 @@ test("a STALE line names the missing fact by name, not merely the pack", async (
 
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
-  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.capability.deployment, "STALE", pack.detail);
 
   const sentence = pack.stale[0]?.sentence ?? "";
   assert.ok(sentence.includes(POSTGRES_PACK), `the STALE sentence did not name the pack: ${sentence}`);
@@ -2965,7 +2979,7 @@ test("two facts that disappeared for one pack emit two distinct STALE lines", as
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.capability.deployment, "STALE", pack.detail);
   assert.equal(pack.stale.length, 2, `expected two missing facts, got ${pack.stale.map((entry) => entry.factId).join(", ")}`);
   assert.equal(new Set(pack.stale.map((entry) => entry.sentence)).size, 2, "two missing facts produced one merged line");
 
@@ -3071,7 +3085,7 @@ test("a branch switch that removes evidence yields STALE and a branch-differs no
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
   // D-15: both facts are present, and neither replaces the other.
-  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.capability.deployment, "STALE", pack.detail);
   assert.equal(reconciliation.git.branch, fixture.branch);
   assert.ok(reconciliation.gitNote !== null, "a branch switch produced no branch-differs note");
   assert.ok((reconciliation.gitNote ?? "").includes("main"), reconciliation.gitNote ?? "");
@@ -3097,8 +3111,8 @@ test("a branch switch that removes no evidence yields no STALE and still reports
   const reconciliation = await reconcileProjectState({ path: fixture.root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
 
-  assert.notEqual(pack.state, "STALE", `a checkout that removed nothing reported STALE: ${pack.detail}`);
-  assert.equal(reconciliation.packs.filter((entry) => entry.state === "STALE").length, 0);
+  assert.notEqual(pack.capability.deployment, "STALE", `a checkout that removed nothing reported STALE: ${pack.detail}`);
+  assert.equal(reconciliation.packs.filter((entry) => entry.capability.deployment === "STALE").length, 0);
   assert.equal(reconciliation.git.branch, fixture.branch);
   assert.ok(reconciliation.gitNote !== null, "a differing branch produced no note");
 });
@@ -3221,7 +3235,7 @@ test("a pack that is not stale is offered no removal plan", async (context) => {
   const { root } = await installedPostgresFixture(context);
 
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
-  assert.equal(packStateOf(reconciliation, POSTGRES_PACK).state, "CURRENT");
+  assert.equal(packStateOf(reconciliation, POSTGRES_PACK).capability.deployment, "CURRENT");
   assert.deepEqual(planPackRemoval(reconciliation), []);
 });
 
@@ -3913,7 +3927,7 @@ test("a non-array leaf collection inside an approved plan is reported, never thr
     selected: false,
   });
 
-  assert.ok(result.state.length > 0, "a non-conforming artifact field produced no reported state");
+  assert.ok(result.capability.deployment.length > 0, "a non-conforming artifact field produced no reported state");
   assert.ok(result.detail.length > 0, "a non-conforming artifact field produced no explanatory detail");
   assert.ok(
     result.detail.includes(PLAN_ARTIFACT_RELATIVE),
@@ -3957,7 +3971,7 @@ test("a stale sentence composed from an oversized artifact leaf renders a bounde
   // shape — so the rendering is the only thing that can bound it.
   assert.notEqual(reconciliation.artifactState, "unreadable", "the oversized leaf was refused instead of rendered");
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
-  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.capability.deployment, "STALE", pack.detail);
 
   const rendered = formatProjectStatus(reconciliation, planPackRemoval(reconciliation), { path: root });
   const staleLines = rendered.split("\n").filter((line) => line.startsWith("STALE-FACT "));
@@ -4016,7 +4030,7 @@ test("the DETC-06 happy path is unchanged: STALE names the fact, a removal is of
 
   const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
   const pack = packStateOf(reconciliation, POSTGRES_PACK);
-  assert.equal(pack.state, "STALE", pack.detail);
+  assert.equal(pack.capability.deployment, "STALE", pack.detail);
 
   const result = await runCli(["project", "status", root]);
   assert.equal(result.status, 0, `project status failed:\n${result.stderr}`);
@@ -4901,4 +4915,297 @@ test("every SURFACE_CEILING reason is non-empty and carries a citation naming a 
       `${harness}'s reason does not carry its own citation, so a reader of the rendered reason cannot check it`,
     );
   }
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-09 Task 2: the composite capability state, promoted to primary
+// ---------------------------------------------------------------------------
+//
+// 03-CONTEXT.md D-11 models CAPA-07's eight states as three ORTHOGONAL AXES.
+// This plan's assumption-delta decision promotes the composite to the PRIMARY
+// value: `PackState` keeps every union member it had in Phase 2 and is demoted
+// to the `deployment` FIELD of that composite. The promotion is only real if
+// the general representation is the one a consumer gets by default, so the
+// invariant below pins that no exported reconciliation surface hands back a
+// bare deployment value at the top level.
+
+/** The Phase 2 union, spelled out here so a drift in either direction is red. */
+const PHASE_2_PACK_STATES = ["CURRENT", "STALE", "DRIFTED", "CHANGED", "CONFLICT", "UNDECIDABLE"] as const;
+
+/** A credential value has nowhere to live in a BlockedReason; this proves the renderer agrees. */
+const BLOCKED_VALUE_SENTINEL = "zzz-sentinel-credential-value-zzz";
+
+function packProof(overrides: Partial<CapabilityProof>): CapabilityProof {
+  return {
+    projectId: null,
+    harness: "claude",
+    capability: POSTGRES_PACK,
+    polarity: "positive",
+    nativeUse: "invoked",
+    blockedReason: null,
+    boundInputs: { skillSourceHash: "b".repeat(64), mcpServerVersion: null, evidenceHash: "c".repeat(64) },
+    harnessVersion: { exact: "2.1.267", minorKey: "2.1", raw: "2.1.267 (Claude Code)" },
+    ancestorFreedom: null,
+    observedAt: "2026-09-11T00:00:00.000Z",
+    oracle: {
+      command: "claude -p",
+      exitCode: 0,
+      stdoutFingerprint: "d".repeat(64),
+      stderrFingerprint: "e".repeat(64),
+    },
+    ...overrides,
+  };
+}
+
+function packLedger(proofs: readonly CapabilityProof[]): CapabilityLedger {
+  return {
+    schemaVersion: 1,
+    producer: { name: "alpha-aos", version: "0.1.0" },
+    updatedAt: "2026-09-11T00:00:00.000Z",
+    proofs,
+  };
+}
+
+/** The paired unit a COMPLETE capability needs: a positive and its asserted negative. */
+function pairedProofs(projectId: string, overrides: Partial<CapabilityProof> = {}): CapabilityProof[] {
+  const positive = packProof({ projectId, ...overrides });
+  const negative = packProof({
+    projectId,
+    ...overrides,
+    polarity: "negative",
+    nativeUse: "unverified",
+    ancestorFreedom: { asserted: true, checkedAncestors: ["/tmp/control", "/tmp", "/"] },
+    blockedReason: null,
+  });
+  return [positive, negative];
+}
+
+test("no exported reconciliation surface returns a bare deployment-axis value at the top level", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+
+  const deploymentValues = new Set<string>(PHASE_2_PACK_STATES);
+  const pack = packStateOf(reconciliation, POSTGRES_PACK);
+
+  // Runtime: nothing at the top level of the record IS a deployment value.
+  for (const [key, value] of Object.entries(pack as unknown as Record<string, unknown>)) {
+    assert.ok(
+      !(typeof value === "string" && deploymentValues.has(value)),
+      `PackReconciliation.${key} is a bare deployment-axis value (${String(value)}) at the top level; the axis must ` +
+        "be reachable only through the composite CapabilityState",
+    );
+  }
+  // ...and it IS reachable through the composite.
+  assert.ok(
+    deploymentValues.has(pack.capability.deployment),
+    `the composite does not carry a deployment axis: ${JSON.stringify(pack.capability)}`,
+  );
+
+  // Source level: adding a shortcut field later is red, not merely discouraged.
+  const source = await readFile(join(repositoryRoot, "src", "core", "project-plan.ts"), "utf8");
+  for (const name of ["PackReconciliation", "ProjectReconciliation"]) {
+    const declaration = new RegExp(`export interface ${name} \\{([\\s\\S]*?)\\n\\}`, "u").exec(source);
+    assert.ok(declaration, `src/core/project-plan.ts declares no exported interface ${name}`);
+    assert.doesNotMatch(
+      declaration[1] ?? "",
+      /^\s*readonly [A-Za-z0-9_]+: PackState;/mu,
+      `${name} declares a top-level property typed PackState, which reopens the bare deployment axis`,
+    );
+  }
+});
+
+test("the three axes are independently settable on one composite and JSON exposes all three under distinct keys", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const projectId = plan.scope.projectId;
+
+  const invoked = await reconcileProjectState(
+    { path: root, packageRoot: repositoryRoot },
+    { ledger: packLedger(pairedProofs(projectId)) },
+  );
+  const discovered = await reconcileProjectState(
+    { path: root, packageRoot: repositoryRoot },
+    { ledger: packLedger(pairedProofs(projectId, { nativeUse: "discovered" })) },
+  );
+  const bare = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+
+  const a = packStateOf(invoked, POSTGRES_PACK).capability;
+  const b = packStateOf(discovered, POSTGRES_PACK).capability;
+  const c = packStateOf(bare, POSTGRES_PACK).capability;
+
+  // The deployment axis is identical across all three; only the native-use axis
+  // moved. Two axes that moved together would not be orthogonal.
+  assert.equal(a.deployment, c.deployment);
+  assert.equal(b.deployment, c.deployment);
+  assert.equal(a.nativeUse, "invoked");
+  assert.equal(b.nativeUse, "discovered");
+  assert.equal(c.nativeUse, "unverified");
+  // The support axis is the third, independent answer: it did NOT move when the
+  // native-use axis did, because claude's ceiling already carries the product
+  // claim and host evidence has nothing above it to raise it to.
+  assert.equal(c.support, "supported", "the claude ceiling is no longer the supported one");
+  assert.equal(a.support, c.support);
+  assert.equal(b.support, c.support);
+
+  const rendered = JSON.parse(JSON.stringify(a)) as Record<string, unknown>;
+  for (const key of ["deployment", "nativeUse", "support", "nativeUseReason", "supportReason"]) {
+    assert.ok(key in rendered, `the JSON render of CapabilityState carries no ${key} key`);
+  }
+  assert.equal(
+    Object.keys(rendered).length,
+    5,
+    `CapabilityState carries ${Object.keys(rendered).join(", ")}: exactly the three axes plus their two reasons`,
+  );
+});
+
+test("project status renders one line per capability carrying all three axes, and a blocked axis renders its code and variable name", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await installedPostgresFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  const blocked = {
+    code: "EXA_KEY_MISSING",
+    variable: "EXA_API_KEY",
+    nextAction: "set EXA_API_KEY in the environment and re-run the canary",
+    // Smuggled through a cast exactly as 03-03's copy-down test does: the type
+    // and the closed schema both refuse it, so the renderer is the third layer.
+    value: BLOCKED_VALUE_SENTINEL,
+  } as unknown as BlockedReason;
+
+  const reconciliation = await reconcileProjectState(
+    { path: root, packageRoot: repositoryRoot },
+    {
+      ledger: packLedger(pairedProofs(plan.scope.projectId, { nativeUse: "unverified", blockedReason: blocked })),
+    },
+  );
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const rendered = formatProjectStatus(reconciliation, planPackRemoval(reconciliation), { path: root });
+  const lines = rendered.split("\n").filter((line: string) => line.startsWith("CAPABILITY "));
+
+  assert.equal(
+    lines.length,
+    reconciliation.packs.length,
+    `expected one CAPABILITY line per installed pack, got ${lines.length}:\n${rendered}`,
+  );
+  const line = lines[0] ?? "";
+  assert.match(line, new RegExp(`^CAPABILITY ${POSTGRES_PACK} `, "u"));
+  assert.match(line, /deployment=CURRENT/u, `the capability line carries no deployment axis: ${line}`);
+  assert.match(line, /native-use=unverified/u, `the capability line carries no native-use axis: ${line}`);
+  assert.match(line, /support=/u, `the capability line carries no support axis: ${line}`);
+  assert.match(line, /EXA_KEY_MISSING/u, `the blocked axis renders no stable code: ${line}`);
+  assert.match(line, /EXA_API_KEY/u, `the blocked axis renders no variable name: ${line}`);
+  assert.doesNotMatch(
+    rendered,
+    new RegExp(BLOCKED_VALUE_SENTINEL, "u"),
+    "a value smuggled onto a blocked reason reached the rendered status",
+  );
+});
+
+test("PackState's union members are unchanged from Phase 2 and it is declared exactly once", async () => {
+  const source = await readFile(join(repositoryRoot, "src", "core", "project-plan.ts"), "utf8");
+  const declarations = source
+    .split("\n")
+    .filter((line) => !/^\s*[/*]/u.test(line))
+    .filter((line) => line.includes("export type PackState"));
+  assert.equal(declarations.length, 1, `export type PackState is declared ${declarations.length} times, not once`);
+  assert.equal(
+    declarations[0]?.trim(),
+    `export type PackState = ${PHASE_2_PACK_STATES.map((state) => `"${state}"`).join(" | ")};`,
+    "PackState's union members moved; D-11 requires the deployment axis untouched by the promotion",
+  );
+});
+
+test("a capability whose evidence unit is INCOMPLETE renders INCOMPLETE and never the positive's native-use axis", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await installedPostgresFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+
+  // A positive with NO negative control: D-14's unpaired positive.
+  const reconciliation = await reconcileProjectState(
+    { path: root, packageRoot: repositoryRoot },
+    { ledger: packLedger([packProof({ projectId: plan.scope.projectId, nativeUse: "invoked" })]) },
+  );
+  const state = packStateOf(reconciliation, POSTGRES_PACK).capability;
+  assert.equal(state.nativeUse, "unverified", "an unpaired positive reported its own axis as the unit's answer");
+  assert.match(state.nativeUseReason, /INCOMPLETE/u, "the native-use reason does not say the unit is incomplete");
+  assert.doesNotMatch(
+    state.nativeUseReason,
+    /invoked/u,
+    "the INCOMPLETE reason prints the positive's axis, which is the unpaired-positive-as-pass failure D-14 forbids",
+  );
+
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const rendered = formatProjectStatus(reconciliation, planPackRemoval(reconciliation), { path: root });
+  const line = rendered.split("\n").find((entry: string) => entry.startsWith(`CAPABILITY ${POSTGRES_PACK} `)) ?? "";
+  assert.match(line, /INCOMPLETE/u, `the rendered capability line does not say INCOMPLETE: ${line}`);
+  assert.doesNotMatch(line, /=invoked|native-use=invoked/u, `the rendered line printed the positive's axis: ${line}`);
+});
+
+test("two renders of the same reconciliation are byte-identical in both human and JSON form", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await installedPostgresFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const ledger = packLedger(pairedProofs(plan.scope.projectId));
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger });
+  const removals = planPackRemoval(reconciliation);
+
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const first = formatProjectStatus(reconciliation, removals, { path: root });
+  const second = formatProjectStatus(reconciliation, removals, { path: root });
+  assert.equal(first, second, "two human renders of one reconciliation differ");
+  assert.equal(
+    JSON.stringify(reconciliation),
+    JSON.stringify(reconciliation),
+    "two JSON renders of one reconciliation differ",
+  );
+
+  // A second reconciliation over the same unchanged world renders the same
+  // capability lines, so the rendering carries no run-scoped value.
+  const again = await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger });
+  const capabilityLines = (text: string) => text.split("\n").filter((line) => line.startsWith("CAPABILITY "));
+  assert.deepEqual(
+    capabilityLines(formatProjectStatus(again, planPackRemoval(again), { path: root })),
+    capabilityLines(first),
+  );
+  assert.deepEqual(
+    again.packs.map((pack) => pack.capability),
+    reconciliation.packs.map((pack) => pack.capability),
+  );
+});
+
+test("changing a ledger record leaves the plan digest unchanged, so no host-derived axis enters digestablePlan", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const { root } = await installedPostgresFixture(context);
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  const projectId = plan.scope.projectId;
+
+  const bare = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const proven = await reconcileProjectState(
+    { path: root, packageRoot: repositoryRoot },
+    { ledger: packLedger(pairedProofs(projectId)) },
+  );
+
+  // The ledger DID move an axis, so the comparison below is not vacuous.
+  assert.notEqual(
+    packStateOf(bare, POSTGRES_PACK).capability.nativeUse,
+    packStateOf(proven, POSTGRES_PACK).capability.nativeUse,
+    "the ledger changed nothing, so this test would pass without proving anything",
+  );
+
+  assert.equal(
+    proven.plan.planDigest,
+    bare.plan.planDigest,
+    "a host-derived axis reached the plan digest, so two reviewers of one commit would disagree",
+  );
+  assert.equal(
+    JSON.stringify(digestablePlan(proven.plan)),
+    JSON.stringify(digestablePlan(bare.plan)),
+    "the digestable view of the plan moved with the ledger",
+  );
 });

@@ -11,19 +11,26 @@
 // fingerprinted evidence instead of terminal output.
 
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { loadLock } from "../src/core/catalog.js";
 import {
   allowedMcpTools,
   BoundedStdioTransport,
   upstreamEnvironment,
   upstreamEnvironmentPolicy,
 } from "../src/core/mcp-proxy.js";
-import { PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
+import { userStateRoot } from "../src/core/paths.js";
+import {
+  DEFAULT_MAX_MESSAGE_BYTES,
+  PLATFORM_FLOOR_ENVIRONMENT,
+  resolveNodePackageCli,
+} from "../src/core/process.js";
+import type { LockedPackage, McpServerId } from "../src/types.js";
 
 // Compiled to dist/test, so the repository root is two levels up.
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -487,4 +494,265 @@ test("the proxy builds no transport from the SDK stdio client", async () => {
   // Positive control: the assertions above must be failing for the right
   // reason. Deleting the upstream transport entirely would satisfy all three.
   assert.match(proxy, /openProtocolProcess/u, "the upstream child must be launched through the process adapter");
+});
+
+// ---------------------------------------------------------------------------
+// The three pinned servers actually start (RESEARCH.md Pitfall 8).
+//
+// `alpha-aos mcp-proxy firecrawl` did not start on this host: npm's cache
+// location is decided by names the upstream environment policy never declared,
+// so the npx child died before the JSON-RPC handshake and the harness saw
+// CONNECTION_CLOSED. Nothing that observes a real MCP call can be attempted
+// until that is closed, so the regression is asserted against the real pinned
+// packages rather than against a fixture that could never reproduce it.
+//
+// These are the only tests in this suite that reach the npm registry. A leg
+// that cannot reach it reports unsupported WITH the reason rather than
+// disappearing into a silent green.
+// ---------------------------------------------------------------------------
+
+/** One bounded budget per pinned-server test, npx download included. */
+const STARTUP_BUDGET_MS = 300_000;
+
+/** Where a proxy child is allowed to write, given a state root. */
+function expectedProxyCacheRoot(stateRoot: string): string {
+  return join(stateRoot, "mcp-cache");
+}
+
+/** The names that decide where an npx child writes, and nothing else. */
+const WRITE_LOCATION_NAMES = [
+  "npm_config_cache",
+  "APPDATA",
+  "LOCALAPPDATA",
+  "XDG_CACHE_HOME",
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_STATE_HOME",
+] as const;
+
+/** npm's own vocabulary for "the registry was not reachable". */
+const REGISTRY_UNREACHABLE =
+  /(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ERR_SOCKET_TIMEOUT|network error|getaddrinfo|registry\.npmjs\.org)/iu;
+
+async function lockedMcpPackage(server: McpServerId): Promise<LockedPackage> {
+  const lock = await loadLock(repositoryRoot);
+  const locked = lock.components.mcp?.[server];
+  assert.ok(locked, `catalog/stack.lock.json must pin an MCP component for ${server}`);
+  return locked;
+}
+
+interface StartupProbe {
+  /** Sorted tool names, or null when the registry could not be reached. */
+  readonly tools: readonly string[] | null;
+  readonly unsupportedReason: string | null;
+}
+
+/**
+ * Starts one pinned server exactly the way the proxy does and asks it for its
+ * tools. The environment is the product's own upstream policy — that is the
+ * whole point: a policy that omits a load-bearing name fails here.
+ */
+async function startPinnedServer(
+  fixture: ProxyFixture,
+  server: McpServerId,
+  source: NodeJS.ProcessEnv = process.env,
+): Promise<StartupProbe> {
+  const locked = await lockedMcpPackage(server);
+  const npx = resolveNodePackageCli("npx");
+  const transport = fixture.track(
+    new BoundedStdioTransport({
+      executable: npx.executable,
+      args: [...npx.argsPrefix, "--yes", `${locked.package}@${locked.version}`],
+      cwd: fixture.root,
+      environment: upstreamEnvironmentPolicy(server, source),
+      timeoutMs: 0,
+      maxOutputBytes: STDERR_CAP,
+      maxMessageBytes: DEFAULT_MAX_MESSAGE_BYTES,
+    }),
+  );
+
+  const client = new Client({ name: "alpha-aos-mcp-startup-probe", version: "0.1.0" });
+  try {
+    // A cold npx cache downloads the package before the server can answer, so
+    // the handshake budget is the download budget, not the protocol's.
+    await client.connect(transport, { timeout: STARTUP_BUDGET_MS });
+    const listed = await client.listTools(undefined, { timeout: STARTUP_BUDGET_MS });
+    return { tools: listed.tools.map((tool) => tool.name).sort(), unsupportedReason: null };
+  } catch (error) {
+    let stderr = "";
+    try {
+      stderr = transport.stderrEvidence().excerpt;
+    } catch {
+      stderr = "<the session never started, so there is no upstream evidence>";
+    }
+    if (REGISTRY_UNREACHABLE.test(stderr)) {
+      return {
+        tools: null,
+        unsupportedReason:
+          `the npm registry could not be reached, so ${locked.package}@${locked.version} could not be launched`,
+      };
+    }
+    throw new Error(
+      `${server} (${locked.package}@${locked.version}) did not answer a tools listing: ` +
+        `${error instanceof Error ? error.message : String(error)}; upstream stderr: ${stderr}`,
+    );
+  } finally {
+    await transport.close().catch(() => undefined);
+  }
+}
+
+test("the context7 proxy starts and lists exactly its two tools", { timeout: STARTUP_BUDGET_MS }, async (context) => {
+  const fixture = await createProxyFixture(context);
+  const probe = await startPinnedServer(fixture, "context7");
+  if (probe.tools === null) {
+    context.skip(`unsupported: ${probe.unsupportedReason}`);
+    return;
+  }
+  // The SET, not the count: a server that renames a tool must go red rather
+  // than pass silently against a number that happens to still match.
+  assert.deepEqual(probe.tools, ["query-docs", "resolve-library-id"]);
+});
+
+test("the exa proxy starts and lists exactly its two tools", { timeout: STARTUP_BUDGET_MS }, async (context) => {
+  const fixture = await createProxyFixture(context);
+  const probe = await startPinnedServer(fixture, "exa");
+  if (probe.tools === null) {
+    context.skip(`unsupported: ${probe.unsupportedReason}`);
+    return;
+  }
+  assert.deepEqual(probe.tools, ["web_fetch_exa", "web_search_exa"]);
+});
+
+test("the firecrawl proxy starts and lists its allowlisted tools", { timeout: STARTUP_BUDGET_MS }, async (context) => {
+  const fixture = await createProxyFixture(context);
+  const probe = await startPinnedServer(fixture, "firecrawl");
+  if (probe.tools === null) {
+    context.skip(`unsupported: ${probe.unsupportedReason}`);
+    return;
+  }
+  // This is the Pitfall 8 regression. Before the environment repair the same
+  // command exits with an MCP closed-connection error and never reaches here.
+  const allow = allowedMcpTools("firecrawl");
+  assert.notEqual(allow, null, "firecrawl must have an alpha-AOS tool allowlist");
+  const filtered = probe.tools.filter((name) => allow?.has(name));
+  assert.deepEqual(filtered, [
+    "firecrawl_check_crawl_status",
+    "firecrawl_crawl",
+    "firecrawl_map",
+    "firecrawl_scrape",
+  ]);
+});
+
+test("the module pins a proxy cache root under the managed state root", async () => {
+  // Read through a cast so this test compiles against the module as it is
+  // today: the assertion is that the export exists, not the compiler's.
+  const loaded = (await import("../src/core/mcp-proxy.js")) as unknown as Record<string, unknown>;
+  const cacheRootOf = loaded.proxyCacheRoot;
+  assert.equal(typeof cacheRootOf, "function", "mcp-proxy must export proxyCacheRoot");
+  const stateRoot = join(tmpdir(), "alpha-aos-state-root-fixture");
+  assert.equal(
+    (cacheRootOf as (root?: string) => string)(stateRoot),
+    expectedProxyCacheRoot(stateRoot),
+    "the proxy cache root must sit under the state root it was given",
+  );
+  assert.equal(
+    (cacheRootOf as (root?: string) => string)(),
+    expectedProxyCacheRoot(userStateRoot()),
+    "with no argument the proxy cache root must sit under the managed user state root",
+  );
+});
+
+test("the upstream child's write locations are declared, never inherited", async () => {
+  const home = join(tmpdir(), "alpha-aos-home-fixture");
+  const source: NodeJS.ProcessEnv = {
+    ...process.env,
+    APPDATA: join(home, "AppData", "Roaming"),
+    LOCALAPPDATA: join(home, "AppData", "Local"),
+    XDG_CACHE_HOME: join(home, ".cache"),
+    XDG_CONFIG_HOME: join(home, ".config"),
+    XDG_DATA_HOME: join(home, ".local", "share"),
+    XDG_STATE_HOME: join(home, ".local", "state"),
+    npm_config_cache: join(home, "npm-cache"),
+  };
+
+  const materialized = upstreamEnvironment("firecrawl", source);
+  const cacheRoot = expectedProxyCacheRoot(userStateRoot());
+
+  for (const name of WRITE_LOCATION_NAMES) {
+    const value = materialized[name];
+    assert.ok(value !== undefined, `${name} decides where the child writes and must be declared`);
+    assert.ok(
+      value.startsWith(cacheRoot),
+      `${name} must resolve under the managed cache root ${cacheRoot}, not ${value}`,
+    );
+    assert.notEqual(value, source[name], `${name} was inherited from the ambient environment`);
+  }
+  assert.equal(
+    materialized.npm_config_logs_max,
+    "0",
+    "an npm debug log is a write into the pinned root for every invocation",
+  );
+
+  // The repair must not have widened or narrowed anything else.
+  const policy = upstreamEnvironmentPolicy("firecrawl", source);
+  for (const name of ["FIRECRAWL_API_KEY", "FIRECRAWL_API_URL", "FIRECRAWL_OAUTH_TOKEN"]) {
+    assert.equal(
+      policy.optional?.includes(name),
+      true,
+      `${name} must still be an approved upstream credential name`,
+    );
+  }
+  for (const name of PLATFORM_FLOOR_ENVIRONMENT) {
+    assert.equal(
+      policy.optional?.includes(name),
+      true,
+      `${name} is delivered by the OS regardless, so the allowlist must keep naming it`,
+    );
+  }
+  assert.equal(
+    materialized.FIRECRAWL_NO_SEARCH_FEEDBACK,
+    "1",
+    "the firecrawl feedback-suppression literals must survive the repair",
+  );
+});
+
+test("a proxy launch writes nothing into the user's home", { timeout: STARTUP_BUDGET_MS }, async (context) => {
+  const fixture = await createProxyFixture(context);
+  const syntheticHome = join(fixture.root, "synthetic-home");
+  const syntheticState = join(fixture.root, "synthetic-state");
+  await mkdir(syntheticHome, { recursive: true });
+  await mkdir(syntheticState, { recursive: true });
+
+  // userStateRoot() reads this name, so the pinned cache lands in the fixture
+  // rather than in the developer's real managed root.
+  const previousStateDir = process.env.ALPHA_AOS_STATE_DIR;
+  process.env.ALPHA_AOS_STATE_DIR = syntheticState;
+  context.after(() => {
+    if (previousStateDir === undefined) delete process.env.ALPHA_AOS_STATE_DIR;
+    else process.env.ALPHA_AOS_STATE_DIR = previousStateDir;
+  });
+
+  const source: NodeJS.ProcessEnv = {
+    ...process.env,
+    HOME: syntheticHome,
+    USERPROFILE: syntheticHome,
+    ALPHA_AOS_STATE_DIR: syntheticState,
+  };
+
+  const probe = await startPinnedServer(fixture, "context7", source);
+  if (probe.tools === null) {
+    context.skip(`unsupported: ${probe.unsupportedReason}`);
+    return;
+  }
+
+  const homeEntries = await readdir(syntheticHome);
+  assert.deepEqual(homeEntries, [], `a proxy launch wrote into the user's home: ${homeEntries.join(", ")}`);
+
+  // Positive control: the pin is load-bearing rather than vacuous — npm did
+  // write, and it wrote where alpha-AOS said it could.
+  const cacheEntries = await readdir(expectedProxyCacheRoot(syntheticState)).catch(() => [] as string[]);
+  assert.ok(
+    cacheEntries.length > 0,
+    "the pinned cache root received nothing, so the empty home proves nothing about where npm writes",
+  );
 });

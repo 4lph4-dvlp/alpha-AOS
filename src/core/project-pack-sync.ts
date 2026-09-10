@@ -154,7 +154,32 @@ function surface(enabled: boolean, ground: string, evidence: string): SidecarSur
  * only — so it stays receipts-only with the reason recorded rather than the
  * tolerance assumed (03-RESEARCH.md Open Question 2, T-03-100).
  */
-export const SIDECAR_SURFACES: ReadonlyMap<HarnessId, SidecarSurface> = new Map<HarnessId, SidecarSurface>();
+export const SIDECAR_SURFACES: ReadonlyMap<HarnessId, SidecarSurface> = new Map<HarnessId, SidecarSurface>([
+  [
+    "claude",
+    surface(
+      true,
+      "a real sidecar file was placed inside a live skill directory and claude went on listing the skill unchanged, with empty stderr and no extra skill surfaced, so an unexpected file is tolerated here",
+      "03-RESEARCH.md Open Question 2, claude 2.1.267",
+    ),
+  ],
+  [
+    "codex",
+    surface(
+      true,
+      "a real sidecar file was placed inside a live skill directory and codex went on listing the skill with an unchanged description, with empty stderr and no extra skill surfaced, so an unexpected file is tolerated here",
+      "03-RESEARCH.md Open Question 2, codex-cli 0.152.0",
+    ),
+  ],
+  [
+    "pi",
+    surface(
+      false,
+      "pi's documented ignore rule covers only root Markdown files that do not look like skills, and no non-Markdown sidecar was ever placed in a pi skill directory, so tolerance here is UNPROVEN rather than unfavourable; this surface stays receipts-only and .alpha-aos/receipts remains the authoritative provenance record",
+      "03-RESEARCH.md Open Question 2, pi 0.85.1 docs/skills.md",
+    ),
+  ],
+]);
 
 /**
  * What a sidecar says, exactly as serialized.

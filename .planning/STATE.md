@@ -4,11 +4,11 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-03-PLAN.md
-last_updated: "2026-09-10T12:30:10.703Z"
+stopped_at: Completed 03-04-PLAN.md
+last_updated: "2026-09-10T13:20:10.802Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: 1d2d590dd2a9d9fe7bfb8f5ccc57ea0480a56bba
+state_head: 0fb2806b360f0f02eb56a502d706c3083f828614
 progress:
   total_phases: 7
   completed_phases: 1
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
-Plan: 4 of 12
+Plan: 5 of 12
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -88,6 +88,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P01 | 39 min | 3 tasks | 7 files |
 | Phase 03 P02 | 41 min | 3 tasks | 3 files |
 | Phase 03 P03 | 26 min | 3 tasks | 5 files |
+| Phase 03 P04 | 39 min | 3 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -213,6 +214,7 @@ None yet.
 - Open from 01-27 (2026-09-06): baselines updated for any later plan — `npm test` is 208 tests (fail 0; 1 skip on POSIX, 4 on Windows), the routed `Safety boundary suites` step is 131 tests (fail 0), and `npm run build:check` reports `56 inputs, 106 outputs`. Any other total is a suite that stopped compiling, not a faster run. Also: WHY the old invalid instrument tipped on that particular ubuntu run remains a HYPOTHESIS (file-set / scheduling load), explicitly not recorded as established cause.
 - src/core/path-boundary.ts records component identity as Number(info.ino) and recheckPathProof compares those doubles, so two different inodes within one ulp compare equal and a TOCTOU swap can go unnoticed. Same root cause as the identity bug 02-13 fixed in evidence.ts; left open because PathProof.inode is a typed number|null in the public shape and widening it needs its own plan.
 - Open from 02-VERIFICATION (2026-09-09): a paste-ready re-approval command can name a path whose segment has been replaced by a redaction token, so the command as printed does not resolve. Reproduced on a scratch path with a UUID-shaped segment. The refusal, its exit code and its digests are all correct and an ordinary repository path never triggers it, so this is presentation, not safety — but CI checkout paths and temp dirs do carry UUIDs. Phase 6/7 decides whether a redacted path suppresses the runnable-command line instead of emitting an unresolvable one.
+- Open from 03-04 (2026-09-10): the suite baseline is now 545 tests (539 pass, 0 fail, 6 skipped) and npm run build:check reports 72 inputs / 138 outputs. Plan 03-05 must raise its own baseline to 545 rather than 522.
 
 ## Deferred Items
 
@@ -222,6 +224,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T12:30:10.184Z
-Stopped at: Completed 03-03-PLAN.md
+Last session: 2026-09-10T13:19:38.691Z
+Stopped at: Completed 03-04-PLAN.md
 Resume file: None

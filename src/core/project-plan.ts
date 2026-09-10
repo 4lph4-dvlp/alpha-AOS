@@ -801,6 +801,93 @@ export function resolvePackSource(lock: StackLock, packId: string, skill: string
   return { packId, skill, package: ecc.package, version: ecc.version, integrity: ecc.integrity, sourceSha256 };
 }
 
+/**
+ * The one file D-05 materializes out of a pack skill's source directory.
+ *
+ * Stated once, here, because two things depend on it agreeing: the writer that
+ * reads `<sourceRoot>/<skill>/SKILL.md`, and the guard below that decides which
+ * entries beside it are EXTRA.
+ */
+export const PACK_SKILL_FILE = "SKILL.md";
+
+/**
+ * The stable code a multi-file pack skill source reports under.
+ *
+ * UPPER_SNAKE and branched on by callers, never the sentence — the same
+ * discipline `OracleFinding` and `PlanApproval` already use.
+ */
+export const PACK_SOURCE_MULTI_FILE = "PACK_SOURCE_MULTI_FILE";
+
+/**
+ * One pack skill whose source directory is not the single file D-05 writes.
+ *
+ * The pack, the skill and the extra entries are all named, because a finding
+ * that says only "a pack skill has more than one file" sends the reader back to
+ * a directory listing to learn anything actionable.
+ */
+export interface PackSourceFinding {
+  readonly code: typeof PACK_SOURCE_MULTI_FILE;
+  readonly packId: string;
+  readonly skill: string;
+  /** Every entry beside `SKILL.md`, sorted. Never empty when a finding exists. */
+  readonly extraEntries: readonly string[];
+  readonly detail: string;
+}
+
+/**
+ * Asserts the SHAPE of one pack skill's source directory: exactly one file.
+ *
+ * 03-RESEARCH.md Pitfall 7 measured why this exists. 21 of the 22 locked skills
+ * are a lone `SKILL.md`; `security-review` ships a companion
+ * `cloud-infrastructure-security.md` that its own `SKILL.md` never references.
+ * D-05 materializes `SKILL.md` only, so the one-file rule loses nothing TODAY —
+ * by coincidence, not by contract.
+ *
+ * That is why this returns a FINDING rather than throwing. A refusal today
+ * would break a materialization that is demonstrably complete; silence would
+ * let the next ECC bump that adds a `references/` directory ship half a pack.
+ * Once a pack skill genuinely needs a second file, escalating this to a refusal
+ * is a one-line change at the call site, and the detail below says so.
+ *
+ * A source directory that does not exist yet is NOT a finding: on the fixture
+ * route the tree is produced after planning, and reporting an absence here
+ * would fire on every run that did not supply a `verifiedSourceRoot`. The
+ * writer's own `source-drift` refusal already covers a source that never
+ * appears.
+ */
+export async function assertPackSourceShape(
+  packId: string,
+  skill: string,
+  sourceDirectory: string,
+): Promise<PackSourceFinding | null> {
+  let entries: string[];
+  try {
+    entries = (await readdir(sourceDirectory)).sort(byCodePoint);
+  } catch {
+    return null;
+  }
+  if (entries.length <= 1) return null;
+
+  const extraEntries = entries.filter((entry) => entry !== PACK_SKILL_FILE);
+  // Two entries neither of which is SKILL.md is still a shape the writer cannot
+  // materialize completely, so the whole listing is reported rather than none
+  // of it.
+  const named = extraEntries.length === 0 ? entries : extraEntries;
+  return {
+    code: PACK_SOURCE_MULTI_FILE,
+    packId,
+    skill,
+    extraEntries: named,
+    detail:
+      `${packId}: the pack skill ${skill} sources ${entries.length} entries, but only ${PACK_SKILL_FILE} is ` +
+      `materialized, so ${named.join(", ")} would not be written. This is a FINDING rather than a refusal because ` +
+      "every locked pack skill that ships a companion today is one whose own SKILL.md never references it, so " +
+      "nothing is lost; the next runtime bump that adds a references directory a skill DOES rely on is exactly what " +
+      "this guard exists to make loud, and a refusal is the right escalation once a pack skill genuinely needs a " +
+      "second file.",
+  };
+}
+
 /** One target path a receipt says alpha-AOS wrote. */
 export interface ReceiptClaim {
   readonly packId: string;

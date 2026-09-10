@@ -24,6 +24,7 @@ import {
 } from "./path-boundary.js";
 import {
   approvalCommand,
+  assertPackSourceShape,
   classifyPlanDrift,
   PLAN_OWNER,
   PLAN_RENDERER_ID,
@@ -34,6 +35,7 @@ import {
   resolvePackSource,
   revalidateProjectPlan,
   type ApprovedProjectPlanArtifact,
+  type PackSourceFinding,
   type RevalidateProjectPlanOptions,
 } from "./project-plan.js";
 import { applyFileTransaction, type FileWriteOperation } from "./transaction.js";
@@ -170,6 +172,15 @@ export interface ProjectPackSyncPlan extends ReviewedComponentPlan {
   readonly allowedRoots: readonly string[];
   /** Root the pack skills are read from, supplied or fixture-produced. */
   readonly sourceRoot: string;
+  /**
+   * Pack skills whose source directory is not the single file D-05 writes.
+   *
+   * Produced at PLAN time, before a byte is written, and carried in the plan
+   * value so the finding reaches a reviewer rather than a log line. A pack that
+   * fires one is NOT dropped: it stays in `packs` and keeps its targets, so the
+   * user is told both facts (T-03-92).
+   */
+  readonly sourceFindings: readonly PackSourceFinding[];
   /** The fixture that will produce the sources, when no tree was supplied. */
   readonly fixture: EccFixtureOperationPlan | null;
   readonly proofs: OperationPathProofSet;
@@ -192,6 +203,8 @@ export interface ProjectPackSyncResult {
   readonly current: readonly string[];
   /** Pack ids this sync materialized, sorted. */
   readonly packs: readonly string[];
+  /** The plan-time source-shape findings, carried through to the report. */
+  readonly findings: readonly PackSourceFinding[];
   readonly digest: string;
 }
 
@@ -492,6 +505,18 @@ export async function planProjectPackSync(options: ProjectPackSyncOptions): Prom
     });
   }
 
+  // The shape guard runs HERE: after the source root is resolved, and before
+  // the digest, the boundary proof and every write. It reads the same verified
+  // source root the writer will read from, so the shape asserted is the shape
+  // that would be materialized rather than some other copy of it.
+  const sourceFindings: PackSourceFinding[] = [];
+  for (const skill of skills) {
+    const packId = targets.find((target) => target.skill === skill)?.packId ?? "";
+    const finding = await assertPackSourceShape(packId, skill, join(sourceRoot, skill));
+    if (finding !== null) sourceFindings.push(finding);
+  }
+  sourceFindings.sort((left, right) => byCodePoint(left.packId, right.packId) || byCodePoint(left.skill, right.skill));
+
   const allowedRoots = packSyncAllowedRoots(canonicalRoot, targets);
   const packageRootPath = supplied ?? fixture?.extractionRoot ?? resolve(canonicalRoot);
   const proofRoots = [...allowedRoots, stateRoot, packageRootPath, sourceRoot];
@@ -525,6 +550,11 @@ export async function planProjectPackSync(options: ProjectPackSyncOptions): Prom
     renderer: approved.plan.renderer.id,
     package: { name: ecc.package, version: ecc.version, integrity: ecc.integrity },
     sourceRoot,
+    // Folded in on purpose: `sourceRoot` and `readHash` cover the SKILL.md
+    // bytes but say nothing about what sits beside them, so without this a
+    // companion file appearing between review and apply would move nothing a
+    // reviewer had agreed to.
+    sourceFindings: sourceFindings.map((finding) => [finding.code, finding.packId, finding.skill, ...finding.extraEntries]),
     fixture: fixture?.digest ?? null,
     allowedRoots,
     targets: targets.map((target) => [
@@ -555,6 +585,7 @@ export async function planProjectPackSync(options: ProjectPackSyncOptions): Prom
     packs,
     allowedRoots,
     sourceRoot,
+    sourceFindings,
     fixture,
     proofs,
     digest,
@@ -743,6 +774,7 @@ export async function applyProjectPackSync(options: ApplyProjectPackSyncOptions)
       receipts: [],
       current: currentPaths,
       packs: reviewed.packs,
+      findings: reviewed.sourceFindings,
       digest: reviewed.digest,
     };
   }
@@ -810,6 +842,7 @@ export async function applyProjectPackSync(options: ApplyProjectPackSyncOptions)
         receipts: reviewed.receipts.map((receipt) => receipt.path).sort(byCodePoint),
         current: [],
         packs: reviewed.packs,
+        findings: reviewed.sourceFindings,
         digest: reviewed.digest,
       };
     } finally {

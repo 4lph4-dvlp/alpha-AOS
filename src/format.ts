@@ -296,14 +296,20 @@ export function formatProjectApproval(result: ProjectApprovalResult): string {
  * branch's apply-result rendering so the two halves of the lifecycle read alike.
  */
 export function formatProjectPackSync(result: ProjectPackSyncResult): string {
+  // A plan-time source-shape finding is printed FIRST, above whatever the sync
+  // did. It was produced before any byte was written, and burying it under the
+  // written-paths list would make a loud guard quiet again (T-03-92).
+  const findings = result.findings.map((finding) => `${finding.code} ${finding.detail}`);
   if (result.status === "already-current") {
     return [
+      ...findings,
       `Packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
       ...result.current.map((path) => `  current ${path}`),
       "Already current. No bytes were written and no transaction was opened.",
     ].join("\n");
   }
   return [
+    ...findings,
     `Materialized packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
     ...result.written.map((path) => `  wrote ${path}`),
     ...result.receipts.map((path) => `  receipt ${path}`),

@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-06-PLAN.md
-last_updated: "2026-09-10T15:03:22.689Z"
+stopped_at: Completed 03-07-PLAN.md
+last_updated: "2026-09-10T16:50:05.504Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: 033b82f6e7f13485331fc021fc76bffdf172549f
+state_head: 76c4b493eb9a6b1570ebbf5d4efcb042615e8e09
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 55
-  completed_plans: 49
+  completed_plans: 50
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
-Plan: 7 of 12
+Plan: 8 of 12
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -91,6 +91,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P04 | 39 min | 3 tasks | 5 files |
 | Phase 03 P05 | 36 min | 3 tasks | 5 files |
 | Phase 03 P06 | 46 min | 3 tasks | 8 files |
+| Phase 03 P07 | 9 min | 1 tasks | 0 files |
 
 ## Accumulated Context
 
@@ -172,6 +173,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: Only claude can host an invocation canary: it is the one harness with both an MCP-config flag and a strict flag, so every other harness records a blocked reason rather than launching best-effort. — RESEARCH.md verified --mcp-config and --strict-mcp-config on claude only; codex --strict-config constrains how config is read, not which config is read. A canary that may have reached the user own servers proves nothing, so fail-closed is the only honest answer (T-03-50).
 - [Phase 03]: A declared canary argument pattern cannot be checked from an observation record, and is reported UNCHECKED rather than satisfied. — McpObservation deliberately has no argument field because arguments are where credentials live (T-03-52). CAPA-01 structural claim must either narrow to "the tool was called" or the record shape must change with that reasoning re-argued.
 - [Phase 03]: A canary runtime is single-use and consumption is marked BEFORE the launch, so a crashed run cannot be repeated through a runtime holding stale observation records. — A second run through one runtime would compute its verdict partly from the first run records, and those records look exactly like records the second run produced.
+- [Phase 03]: CAPA-02 routing reconciliation resolved as option `narrow`: keep the four-tool extraction allowlist, reconcile in a new alpha-AOS-owned instruction (skills/alpha-aos-research-routing/SKILL.md), and record the third-party skill mismatch as a named finding — Developer selected the researcher-recommended option; no additional prose rationale was supplied. PROJECT.md's bounded four-tool Firecrawl claim (PROJECT.md:21, repeated at README.md:5 and README.md:113) therefore stays true as written.
 
 ### Pending Todos
 
@@ -229,6 +231,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T15:03:22.280Z
-Stopped at: Completed 03-06-PLAN.md
+Last session: 2026-09-10T16:50:05.127Z
+Stopped at: Completed 03-07-PLAN.md
 Resume file: None

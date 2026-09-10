@@ -71,13 +71,17 @@ import {
   type PackDomain,
 } from "./helpers/pack-fixtures.js";
 import {
+  assertPackSourceShape,
   digestablePlan,
   evaluatePack,
   MAX_NEAR_MISS_LINES,
+  PACK_SOURCE_MULTI_FILE,
   planProjectCapabilities,
   rankNearMisses,
+  resolvePackSource,
   type PackEvaluationEnvironment,
 } from "../src/core/project-plan.js";
+import { applyProjectPackSync, planProjectPackSync } from "../src/core/project-pack-sync.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -5930,5 +5934,213 @@ test("the described shape of a twin matches what it actually writes to disk", as
       [...describeFixture(nearMissSpec(domain)).files].sort(),
       `${domain}: the twin's described shape and its materialized files disagree`,
     );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-10 Task 3: the one-file-per-pack-skill guard
+// ---------------------------------------------------------------------------
+//
+// 03-RESEARCH.md Pitfall 7 measured the situation this guard exists for: 21 of
+// the 22 locked skills are a lone SKILL.md, `security-review` ships a companion
+// `cloud-infrastructure-security.md`, and D-05 materializes SKILL.md only. The
+// companion is never referenced by `security-review/SKILL.md`, so the rule is
+// safe TODAY — by coincidence, not by contract.
+//
+// That is exactly why the guard is a FINDING and not a refusal. Refusing today
+// would break a materialization that loses nothing; staying silent would let
+// the next ECC bump that adds a `references/` directory ship a half-written
+// pack. The finding is what makes the next bump loud, and escalating it to a
+// refusal is a one-line change once a pack skill genuinely needs a second file.
+
+/** A pack-sync fixture whose source tree the test owns, so no ECC pack is fetched. */
+interface ShapeFixture {
+  readonly root: string;
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly sourceRoot: string;
+  readonly sourceHash: string;
+}
+
+const SHAPE_PACK_ID = "WEB_REACT";
+const SHAPE_PACK_SKILL = "frontend-a11y";
+
+/**
+ * A project selecting one pack, plus a package root whose lock pins the bytes
+ * of a source tree this test wrote.
+ *
+ * `companions` are extra entries placed BESIDE the skill file, which is the
+ * shape 03-RESEARCH.md Pitfall 7 found in `security-review` and the shape the
+ * guard has to notice.
+ */
+async function shapeFixture(
+  context: TestContext,
+  label: string,
+  companions: readonly string[] = [],
+): Promise<ShapeFixture> {
+  const root = await scratchRoot(context, `shape-${label}-project`);
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "shape-fixture", private: true, dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+
+  const support = await scratchRoot(context, `shape-${label}-support`);
+  const stateRoot = join(support, "state");
+  const packageRoot = join(support, "package-root");
+  await cp(join(repositoryRoot, "catalog"), join(packageRoot, "catalog"), { recursive: true });
+  await cp(join(repositoryRoot, "schemas"), join(packageRoot, "schemas"), { recursive: true });
+
+  const sourceRoot = join(support, "source");
+  const body = `---\nname: ${SHAPE_PACK_SKILL}\n---\n\n# frontend accessibility, fixture bytes\n`;
+  await mkdir(join(sourceRoot, SHAPE_PACK_SKILL), { recursive: true });
+  await writeFile(join(sourceRoot, SHAPE_PACK_SKILL, "SKILL.md"), body, "utf8");
+  for (const companion of companions) {
+    await writeFile(join(sourceRoot, SHAPE_PACK_SKILL, companion), "# a companion this SKILL.md never references\n", "utf8");
+  }
+  const sourceHash = createHash("sha256").update(body, "utf8").digest("hex");
+
+  const lockPath = join(packageRoot, "catalog", "stack.lock.json");
+  const lock = JSON.parse(await readFile(lockPath, "utf8")) as {
+    components: { ecc: { sourceSha256: Record<string, string> } };
+  };
+  lock.components.ecc.sourceSha256[SHAPE_PACK_SKILL] = sourceHash;
+  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
+
+  const plan = await planProjectCapabilities({ path: root, packageRoot });
+  assert.deepEqual(plan.applicable, [SHAPE_PACK_ID], "the shape fixture no longer selects exactly one pack");
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  const approved = await approveProjectPlan({ path: root, packageRoot, stateRoot, expectedDigest: plan.planDigest });
+  assert.equal(approved.status, "written");
+
+  return { root, stateRoot, packageRoot, sourceRoot, sourceHash };
+}
+
+test("a pack skill source directory holding exactly one file passes the shape guard", async (context) => {
+  const fixture = await shapeFixture(context, "single");
+  const finding = await assertPackSourceShape(
+    SHAPE_PACK_ID,
+    SHAPE_PACK_SKILL,
+    join(fixture.sourceRoot, SHAPE_PACK_SKILL),
+  );
+  assert.equal(finding, null, "a lone SKILL.md produced a finding");
+
+  const plan = await planProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  assert.deepEqual(plan.sourceFindings, [], "a one-file pack produced a plan-time finding");
+});
+
+test("a two-file pack skill source is loud at plan time, naming the pack, the skill and the extra entry", async (context) => {
+  const companion = "cloud-infrastructure-security.md";
+  const fixture = await shapeFixture(context, "companion", [companion]);
+
+  const finding = await assertPackSourceShape(
+    SHAPE_PACK_ID,
+    SHAPE_PACK_SKILL,
+    join(fixture.sourceRoot, SHAPE_PACK_SKILL),
+  );
+  assert.ok(finding, "a two-file source directory produced no finding");
+  assert.equal(finding.code, PACK_SOURCE_MULTI_FILE, "the finding carries no stable upper-snake code");
+  assert.match(finding.code, /^[A-Z][A-Z0-9_]*$/u);
+  assert.equal(finding.packId, SHAPE_PACK_ID);
+  assert.equal(finding.skill, SHAPE_PACK_SKILL);
+  assert.deepEqual(finding.extraEntries, [companion], "the finding does not name the extra entry");
+  for (const named of [SHAPE_PACK_ID, SHAPE_PACK_SKILL, companion]) {
+    assert.ok(finding.detail.includes(named), `the finding's detail does not name ${named}: ${finding.detail}`);
+  }
+  // The finding records WHY it is a finding rather than a refusal, so the next
+  // reader does not have to rediscover 03-RESEARCH.md Pitfall 7 to judge it.
+  assert.match(finding.detail, /refus/iu, "the finding does not say what the right escalation is");
+
+  const plan = await planProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  assert.deepEqual(
+    plan.sourceFindings.map((entry) => [entry.code, entry.packId, entry.skill]),
+    [[PACK_SOURCE_MULTI_FILE, SHAPE_PACK_ID, SHAPE_PACK_SKILL]],
+  );
+
+  // BEFORE any write. `planProjectPackSync` is a read, so the target it
+  // describes must still be absent when the finding has already been produced.
+  for (const target of plan.targets) {
+    assert.equal(existsSync(target.destination), false, `${target.path} exists, so a write preceded the finding`);
+  }
+});
+
+test("a pack whose source shape fires the finding is still listed in the plan, with the finding attached", async (context) => {
+  const fixture = await shapeFixture(context, "still-listed", ["references"]);
+  const plan = await planProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+
+  // Both facts, together. Dropping the pack would silently withhold a
+  // capability the evidence earned; withholding the finding would materialize
+  // a partial pack. The user is told both.
+  assert.deepEqual(plan.packs, [SHAPE_PACK_ID], "the pack was dropped when the finding fired");
+  assert.ok(plan.targets.length > 0, "the pack's targets were dropped when the finding fired");
+  assert.equal(plan.sourceFindings.length, 1);
+  assert.equal(plan.sourceFindings[0]?.packId, SHAPE_PACK_ID);
+});
+
+test("a materialized pack skill hashes to the locked source hash, and no code path rewrites the bytes", async (context) => {
+  const fixture = await shapeFixture(context, "bytes");
+  const result = await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  assert.equal(result.status, "written");
+
+  const lock = await loadLock(fixture.packageRoot);
+  const expected = (resolvePackSource(lock, SHAPE_PACK_ID, SHAPE_PACK_SKILL) as { sourceSha256: string }).sourceSha256;
+  assert.equal(expected, fixture.sourceHash, "the fixture lock no longer pins the bytes the fixture wrote");
+
+  const written = result.written.filter((path) => path.endsWith("SKILL.md"));
+  assert.ok(written.length > 0, "no SKILL.md was written");
+  for (const path of written) {
+    // The DIRECTORY segment of every target is the catalog-declared skill id,
+    // verbatim. A canonicalizer that resolved the frontmatter/directory
+    // divergence would show up here as a different segment, and the lock's
+    // sourceSha256 keying would break with it.
+    const segments = path.split("/");
+    assert.equal(
+      segments[segments.length - 2],
+      SHAPE_PACK_SKILL,
+      `a target path segment is not the catalog-declared skill id: ${path}`,
+    );
+    const bytes = await readFile(join(fixture.root, ...path.split("/")));
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      expected,
+      `${path} does not hash to the locked source hash, so something rewrote the bytes`,
+    );
+  }
+});
+
+test("no shipped module renames a pack skill source directory or edits its frontmatter", async () => {
+  // The byte comparison above is the runtime backstop. This is the static one:
+  // the only `rename` in the shipped source is the transaction's atomic
+  // temp-file swap, which renames alpha-AOS's OWN temporary file into place and
+  // never a source directory.
+  const suspects = ["core/project-plan.ts", "core/project-pack-sync.ts", "core/ecc-skills.ts", "adapters/capability-oracle.ts"];
+  for (const relative of suspects) {
+    const source = await readFile(join(repositoryRoot, "src", ...relative.split("/")), "utf8");
+    const code = source
+      .split("\n")
+      .filter((line) => !/^\s*(\*|\/\/|\/\*)/u.test(line))
+      .join("\n");
+    assert.doesNotMatch(code, /\brename\s*\(/u, `${relative} calls rename()`);
+    assert.doesNotMatch(code, /replace\([^)]*name:/u, `${relative} rewrites a frontmatter name`);
   }
 });

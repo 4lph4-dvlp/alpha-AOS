@@ -14,6 +14,18 @@ import { ManagedDocumentError } from "../src/core/catalog.js";
 import { loadFactVocabularyStrict, loadPackCatalogStrict, packCatalogInvariants } from "../src/core/pack-catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import type { EvidenceNode } from "../src/types.js";
+import {
+  parseClaudeInitEvent,
+  parseCodexPromptInput,
+  parsePiCommands,
+  type DiscoveredSkill,
+} from "../src/adapters/capability-oracle.js";
+import {
+  CLAUDE_INSIDE_RECORDING,
+  CODEX_INSIDE_RECORDING,
+  PI_INSIDE_RECORDING,
+  SYNTHETIC_PROJECT_ROOT,
+} from "./helpers/oracle-fixtures.js";
 
 interface TestContext {
   after: (fn: () => Promise<unknown> | unknown) => void;
@@ -535,4 +547,99 @@ test("PackLifecycle and the schema lifecycle enum agree in both directions", asy
   for (const value of declared) {
     assert.ok(members.includes(value), `the schema enum admits ${value}, which PackLifecycle refuses`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-10 Task 3: the per-harness skill-name record, bound to the catalog
+// ---------------------------------------------------------------------------
+//
+// 03-RESEARCH.md Pitfall 2: all four RESEARCH_SCIENTIFIC skills carry a
+// frontmatter `name` that differs from their directory name, and the three
+// harnesses disagree about which one they advertise — claude names the
+// DIRECTORY, codex and pi name the FRONTMATTER.
+//
+// Plan 03-04 recorded both names per harness. What is asserted here is the
+// BINDING that makes that record matter to CAPA-08: the diverging skill is one
+// the scientific PACK declares, and the lock keys its `sourceSha256` on the
+// DIRECTORY name — so a canonicalizer that picked a winner would be wrong on
+// two of three harnesses AND would break the exact-hash contract CAPA-04 rests
+// on. Both names are recorded; neither is resolved.
+
+/** The scientific pack, and the one skill whose divergence was measured live. */
+const SCIENTIFIC_PACK_ID = "RESEARCH_SCIENTIFIC";
+const DIVERGENT_SKILL_DIRECTORY = "scientific-thinking-literature-review";
+const DIVERGENT_SKILL_FRONTMATTER_NAME = "literature-review";
+
+test("the diverging skill is declared by the scientific pack and keyed in the lock by its DIRECTORY name", async () => {
+  const root = packageRoot();
+  const catalog = await loadPackCatalogStrict(root);
+  const scientific = catalog.value.packs.find((pack) => pack.id === SCIENTIFIC_PACK_ID);
+  assert.ok(scientific, `${SCIENTIFIC_PACK_ID} is not declared by catalog/packs/*.yaml`);
+  assert.ok(
+    (scientific.skills ?? []).includes(DIVERGENT_SKILL_DIRECTORY),
+    `${SCIENTIFIC_PACK_ID} no longer declares ${DIVERGENT_SKILL_DIRECTORY}`,
+  );
+
+  const lock = JSON.parse(await readFile(join(root, "catalog", "stack.lock.json"), "utf8")) as {
+    components: { ecc?: { sourceSha256?: Record<string, string> } };
+  };
+  const hashes = lock.components.ecc?.sourceSha256 ?? {};
+  // The DIRECTORY name is the lock key. Renaming the directory to agree with
+  // the frontmatter would silently orphan this hash.
+  assert.match(
+    hashes[DIVERGENT_SKILL_DIRECTORY] ?? "",
+    /^[0-9a-f]{64}$/u,
+    "the lock does not pin a source hash under the skill's directory name",
+  );
+  assert.equal(
+    Object.hasOwn(hashes, DIVERGENT_SKILL_FRONTMATTER_NAME),
+    false,
+    "the lock also carries a key under the FRONTMATTER name, so the two names have been reconciled somewhere",
+  );
+
+  // And every skill the scientific pack declares is pinned, so the pack is
+  // never planned sourceless.
+  for (const skill of scientific.skills ?? []) {
+    assert.match(hashes[skill] ?? "", /^[0-9a-f]{64}$/u, `${skill} carries no locked source hash`);
+  }
+});
+
+test("a scientific-pack skill's advertised and directory names differ, and the pair differs per harness", () => {
+  const codex = parseCodexPromptInput(CODEX_INSIDE_RECORDING, { cwd: SYNTHETIC_PROJECT_ROOT });
+  const pi = parsePiCommands(PI_INSIDE_RECORDING, { cwd: SYNTHETIC_PROJECT_ROOT });
+  const claude = parseClaudeInitEvent(CLAUDE_INSIDE_RECORDING, { cwd: SYNTHETIC_PROJECT_ROOT });
+
+  const byDirectory = (parse: { skills: readonly DiscoveredSkill[] }): DiscoveredSkill => {
+    const found = parse.skills.find((skill) => skill.directoryName === DIVERGENT_SKILL_DIRECTORY);
+    assert.ok(found, `no recorded skill with directory ${DIVERGENT_SKILL_DIRECTORY}`);
+    return found;
+  };
+
+  const recorded = {
+    codex: byDirectory(codex),
+    pi: byDirectory(pi),
+    claude: byDirectory(claude),
+  };
+
+  // Both names are on every record, for every harness. Nothing is normalised.
+  for (const [harness, skill] of Object.entries(recorded)) {
+    assert.equal(skill.directoryName, DIVERGENT_SKILL_DIRECTORY, `${harness} lost the directory name`);
+    assert.ok(skill.advertisedName.length > 0, `${harness} recorded no advertised name`);
+  }
+
+  // The direction 03-RESEARCH.md measured, harness by harness.
+  assert.equal(recorded.codex.advertisedName, DIVERGENT_SKILL_FRONTMATTER_NAME);
+  assert.equal(recorded.pi.advertisedName, `skill:${DIVERGENT_SKILL_FRONTMATTER_NAME}`);
+  assert.equal(recorded.claude.advertisedName, DIVERGENT_SKILL_DIRECTORY);
+
+  // Two of three diverge and one agrees. That inequality IS the finding: a
+  // canonicalizer would have to pick one and would be wrong twice.
+  assert.notEqual(recorded.codex.advertisedName, recorded.codex.directoryName);
+  assert.notEqual(recorded.pi.advertisedName, recorded.pi.directoryName);
+  assert.equal(recorded.claude.advertisedName, recorded.claude.directoryName);
+  assert.equal(
+    new Set([recorded.codex.advertisedName, recorded.pi.advertisedName, recorded.claude.advertisedName]).size,
+    3,
+    "the three harnesses no longer disagree, so the record has been reconciled rather than kept",
+  );
 });

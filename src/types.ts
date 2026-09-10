@@ -305,11 +305,26 @@ export interface FactVocabulary {
   facts: FactDeclaration[];
 }
 
+/**
+ * How a pack's presence ends.
+ *
+ * A closed union in lockstep with the `lifecycle` enum in
+ * `schemas/pack-catalog.schema.json`; a named test asserts the two agree in
+ * BOTH directions, so neither can admit a value the other refuses.
+ *
+ * `one-shot-remove-after-output` is 03-CONTEXT.md D-13: once the capability
+ * ledger records the pack as `invoked`, `project status` reports it as
+ * one-shot, already invoked, removal plan ready. The removal still travels the
+ * approved removal-digest path — Phase 2 D-14 and PROJECT.md's safety
+ * constraint both forbid an automatic deletion.
+ */
+export type PackLifecycle = "one-shot-remove-after-output";
+
 export interface PackDeclaration {
   id: string;
   evidence: EvidenceNode;
   skills?: string[];
-  lifecycle?: string;
+  lifecycle?: PackLifecycle;
   selectionPolicy?: string;
 }
 

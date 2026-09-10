@@ -153,9 +153,8 @@
             "items": { "type": "string", "minLength": 1 }
           },
           "lifecycle": {
-            "description": "Declared and carried by this phase; materialization acts on it in a later phase.",
-            "type": "string",
-            "minLength": 1
+            "description": "How a pack's presence ends. Narrowed to exactly the values the code implements: `one-shot-remove-after-output` reports the pack as already invoked with a removal plan ready, and the removal itself still travels the approved removal-digest path — nothing is ever deleted automatically. An unregistered lifecycle is REFUSED at load rather than silently carried, per the Phase 1 closed-world rule, and this enum must stay in lockstep with `PackLifecycle` in src/types.ts.",
+            "enum": ["one-shot-remove-after-output"]
           },
           "selectionPolicy": {
             "description": "How this pack composes with a native engine covering the same ground.",

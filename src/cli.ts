@@ -10,6 +10,7 @@ import {
   approvalCommand,
   approveProjectPlan,
   classifyAdapterSupport,
+  planOneShotOffer,
   planPackRemoval,
   planProjectCapabilities,
   reconcileProjectState,
@@ -953,10 +954,15 @@ async function main(): Promise<void> {
         ledger: statusLedgerRead.state === "present" ? statusLedgerRead.ledger : null,
       });
       const removals = planPackRemoval(reconciliation);
+      const oneShotOffers = planOneShotOffer(
+        reconciliation,
+        statusLedgerRead.state === "present" ? statusLedgerRead.ledger : null,
+        { path: target, subProject },
+      );
       print(
         { reconciliation, removals },
         json,
-        formatProjectStatus(reconciliation, removals, { path: target, subProject }),
+        formatProjectStatus(reconciliation, removals, { path: target, subProject }, oneShotOffers),
         context,
       );
       // A repository-supplied artifact that failed its closed schema is a

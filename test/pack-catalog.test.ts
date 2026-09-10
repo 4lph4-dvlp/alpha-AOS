@@ -509,7 +509,7 @@ packs:
 `,
     },
   });
-  const error = await rejection(async () => loadPackCatalogStrict(root));
+  const error = await rejection(async () => loadPackCatalogStrict(root, packFiles));
   assert.match(
     `${error.message} ${error.issues.map((issue) => `${issue.code} ${issue.documentPath} ${issue.expected}`).join(" ")}`,
     /lifecycle/u,

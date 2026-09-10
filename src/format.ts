@@ -7,6 +7,7 @@ import {
   MAX_NEAR_MISS_LINES,
   MAX_TARGET_ROWS,
   PROJECT_PLAN_ARTIFACT,
+  type OneShotOffer,
   type ProjectApprovalResult,
   type ProjectReconciliation,
   type RemovalPlan,
@@ -387,6 +388,7 @@ export function formatProjectStatus(
   reconciliation: ProjectReconciliation,
   removals: readonly RemovalPlan[],
   options: { path: string; subProject?: string | null },
+  oneShotOffers: readonly OneShotOffer[] = [],
 ): string {
   const lines = [
     `Project: ${reconciliation.plan.scope.canonicalRoot} (${reconciliation.plan.scope.rootReason})`,
@@ -487,7 +489,32 @@ export function formatProjectStatus(
     }
   }
 
+  // 03-CONTEXT.md D-13, in the register Phase 2 used for `STALE`: a STATE with
+  // an OFFER. It names the pack, the lifecycle, the invocation date, that a
+  // removal plan is READY, and the runnable command — and it says outright that
+  // nothing has been removed, because a one-shot pack that reported itself
+  // "spent" and read as though it had cleaned itself up would be the automatic
+  // deletion Phase 2 D-14 and PROJECT.md's safety constraint both forbid.
+  const oneShotPacks = new Set(oneShotOffers.map((offer) => offer.packId));
+  for (const offer of oneShotOffers) {
+    lines.push("", `ONE-SHOT ${offer.packId} — lifecycle ${offer.lifecycle}. ${offer.sentence}`);
+    if (offer.invokedAt !== null) lines.push(`  Invoked on: ${offer.invokedAt}`);
+    if (offer.corroboration !== null) {
+      lines.push(
+        `  Corroborating output ${offer.corroboration.path}: ${offer.corroboration.present ? "present" : "not observed"}`,
+        `  ${detailCell(offer.corroboration.note)}`,
+      );
+    }
+    if (offer.removalDigest !== null && offer.approveCommand !== null) {
+      lines.push(`  Removal digest: ${offer.removalDigest}`, `  Approve this removal with: ${offer.approveCommand}`);
+    }
+  }
+
   for (const removal of removals) {
+    // A one-shot offer already carried this pack's digest and command in the
+    // register D-13 asks for. Printing the generic block beside it would give
+    // one pack two offers and two ways to read them.
+    if (oneShotPacks.has(removal.packId)) continue;
     lines.push("", `REMOVAL ${removal.packId} — ${removal.targets.length} target(s). Nothing has been removed.`);
     for (const target of removal.targets) {
       lines.push(`  ${target.exists ? (target.expectedHash ?? "unreadable").slice(0, 12) : "absent      "}  ${target.path}`);

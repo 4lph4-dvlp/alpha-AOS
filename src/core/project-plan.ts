@@ -35,6 +35,7 @@ import type {
   LeafResult,
   PackDeclaration,
   PackEvaluation,
+  PackLifecycle,
   PackOverride,
   PackSource,
   PackStatus,
@@ -48,7 +49,7 @@ import type {
   TargetPreState,
 } from "../types.js";
 import type { BlockedReason, CapabilityLedger, CapabilityProof, NativeUseState } from "./capability-ledger.js";
-import { pairEvidence } from "./capability-ledger.js";
+import { capabilityLedgerPath, pairEvidence, readCapabilityLedger } from "./capability-ledger.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import {
   assertPlanUnchanged,
@@ -2015,6 +2016,50 @@ async function explainPlanDrift(
  */
 export type PackState = "CURRENT" | "STALE" | "DRIFTED" | "CHANGED" | "CONFLICT" | "UNDECIDABLE";
 
+/** The one-shot lifecycle value the code implements, spelled once. */
+export const ONE_SHOT_LIFECYCLE: PackLifecycle = "one-shot-remove-after-output";
+
+/**
+ * The project-root artifact each one-shot pack's skill is DOCUMENTED to write.
+ *
+ * 03-RESEARCH.md Open Question 7 read `ecc-universal@2.2.0`'s
+ * `inherit-legacy-style/SKILL.md` and found it generates `.ai-style-rules.md`
+ * at the project root and self-detects it on a later run. Two constraints
+ * travel with that finding and are encoded here rather than in a comment
+ * somewhere else:
+ *
+ * 1. The AGENT writes that file, not alpha-AOS. It is outside Phase 2 D-10's
+ *    `.alpha-aos/` write boundary, so alpha-AOS may only OBSERVE it.
+ * 2. Presence proves output; ABSENCE does not prove no-output, because a user
+ *    can decline a run partway (03-RESEARCH.md assumption A8). The ledger's
+ *    invocation record stays the primary signal and this stays corroboration.
+ */
+export const ONE_SHOT_OUTPUT_ARTIFACTS: Readonly<Record<string, string>> = {
+  BROWNFIELD_INIT: ".ai-style-rules.md",
+};
+
+/** What the documented output artifact says, and what it deliberately does not say. */
+export interface OneShotCorroboration {
+  /** Relative POSIX path from the canonical root. */
+  readonly path: string;
+  readonly present: boolean;
+  /** The asymmetry, stated on the record rather than left to the reader. */
+  readonly note: string;
+}
+
+function corroborationFor(packId: string, canonicalRoot: string): OneShotCorroboration | null {
+  const relative = ONE_SHOT_OUTPUT_ARTIFACTS[packId];
+  if (relative === undefined) return null;
+  const present = existsSync(join(canonicalRoot, ...relative.split("/")));
+  return {
+    path: relative,
+    present,
+    note: present
+      ? `${relative} is present, which corroborates that the one-shot skill produced its output; the capability ledger's invocation record remains the primary signal`
+      : `${relative} was not observed; its absence is NOT evidence that no output occurred, because a run can be declined partway, so the capability ledger's invocation record remains the primary signal`,
+  };
+}
+
 /** Every member of the deployment axis, so a runtime guard cannot drift from the union. */
 const PACK_STATE_MEMBERS: readonly PackState[] = [
   "CURRENT",
@@ -2192,6 +2237,15 @@ export interface PackReconciliation {
    * single misleading `installed` state CAPA-07 forbids.
    */
   readonly capability: CapabilityState;
+  /** The declared lifecycle, read from the pack catalog. Null when it declares none. */
+  readonly lifecycle: PackLifecycle | null;
+  /**
+   * The project-root artifact this pack's skill is DOCUMENTED to write, and
+   * whether it is there now. Null unless the pack declares a lifecycle that
+   * keys on output. Observed only — the agent writes it, not alpha-AOS, so it
+   * sits outside Phase 2 D-10's write boundary.
+   */
+  readonly corroboration: OneShotCorroboration | null;
   /** Relative POSIX path of the receipt that makes this pack "installed". */
   readonly receiptPath: string;
   /** One sentence naming why this state and not another. */
@@ -2501,6 +2555,14 @@ export async function reconcileProjectState(
   const unsupportedClaims = [...new Set(claimed.filter((packId) => !applicableNow.has(packId)))].sort(byCodePoint);
 
   const receipts = await readPackReceiptsStrict(root, options.packageRoot);
+  // The declared lifecycle is a CATALOG fact, so it is read from the catalog
+  // rather than carried on the receipt: a receipt records what was written, and
+  // a pack whose lifecycle changed after materialization must report the
+  // lifecycle it is declared with now.
+  const catalogForLifecycle = await loadPackCatalogStrict(options.packageRoot);
+  const lifecycles = new Map<string, PackLifecycle | null>(
+    catalogForLifecycle.value.packs.map((pack) => [pack.id, pack.lifecycle ?? null]),
+  );
   const packs: PackReconciliation[] = [];
 
   for (const receipt of receipts) {
@@ -2536,6 +2598,7 @@ export async function reconcileProjectState(
         approved,
         selected: selectedNow.has(receipt.packId),
         ledger: host?.ledger ?? null,
+        lifecycle: lifecycles.get(receipt.packId) ?? null,
       }),
     );
   }
@@ -2562,6 +2625,8 @@ interface InstalledPackInput {
   readonly selected: boolean;
   /** Host evidence. Absent on the preview path, and never digested (T-03-83). */
   readonly ledger?: CapabilityLedger | null;
+  /** The pack's declared lifecycle, read from the catalog by the caller. */
+  readonly lifecycle?: PackLifecycle | null;
 }
 
 /**
@@ -2571,7 +2636,9 @@ interface InstalledPackInput {
  * bare `state` lives for exactly as long as it takes `classifyInstalledPack` to
  * hand it to `resolveCapabilityState`.
  */
-type PackDeploymentDraft = Omit<PackReconciliation, "capability"> & { readonly state: PackState };
+type PackDeploymentDraft = Omit<PackReconciliation, "capability" | "lifecycle" | "corroboration"> & {
+  readonly state: PackState;
+};
 
 /**
  * One installed pack, on all three axes.
@@ -2589,8 +2656,11 @@ type PackDeploymentDraft = Omit<PackReconciliation, "capability"> & { readonly s
  */
 export function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
   const { state, ...rest } = classifyPackDeployment(input);
+  const lifecycle = input.lifecycle ?? null;
   return {
     ...rest,
+    lifecycle,
+    corroboration: lifecycle === null ? null : corroborationFor(input.receipt.packId, input.plan.scope.canonicalRoot),
     capability: resolveCapabilityState(
       {
         capability: input.receipt.packId,
@@ -2917,22 +2987,39 @@ function digestableRemoval(removal: Omit<RemovalPlan, "removalDigest">): Record<
   };
 }
 
+/** Whether a pack's declared lifecycle and the ledger together make a removal offerable. */
+function oneShotIsSpent(pack: PackReconciliation): boolean {
+  return pack.lifecycle === ONE_SHOT_LIFECYCLE && pack.capability.nativeUse === "invoked";
+}
+
 /**
- * A removal plan for every stale pack, and for nothing else.
+ * A removal plan for every stale pack, for every SPENT one-shot pack, and for
+ * nothing else.
  *
  * A `DRIFTED`, `CONFLICT`, `CHANGED` or `UNDECIDABLE` pack is deliberately NOT
- * offered a removal: only `STALE` means the evidence that selected the pack is
- * gone, and an unreadable evidence file must never motivate a deletion.
+ * offered a removal on the stale ground: only `STALE` means the evidence that
+ * selected the pack is gone, and an unreadable evidence file must never
+ * motivate a deletion.
+ *
+ * The second ground is 03-CONTEXT.md D-13 and is a DIFFERENT claim: a one-shot
+ * pack the capability ledger records as `invoked` has done the single job it
+ * was materialized for. That is what makes "after output" observable at all.
+ * It still only OFFERS — the removal continues to travel `applyPackRemoval`'s
+ * digest contract, so a human approves it or it does not happen. A pack with a
+ * one-shot lifecycle that nothing has invoked is offered nothing.
  *
  * The digest covers each target's CURRENT hash, so a target whose bytes move
  * between the plan and its approval produces a different digest and the
  * approval refuses — the same "recompute and compare" the plan artifact uses,
- * rather than a second drift mechanism that would drift from the first.
+ * rather than a second drift mechanism that would drift from the first. The
+ * reasons differ between the two grounds, so the two digests differ too and a
+ * user can never approve one while reading the other.
  */
 export function planPackRemoval(reconciliation: ProjectReconciliation): RemovalPlan[] {
   const plans: RemovalPlan[] = [];
   for (const pack of reconciliation.packs) {
-    if (pack.capability.deployment !== "STALE") continue;
+    const stale = pack.capability.deployment === "STALE";
+    if (!stale && !oneShotIsSpent(pack)) continue;
     const draft = {
       packId: pack.packId,
       receiptPath: pack.receiptPath,
@@ -2942,11 +3029,98 @@ export function planPackRemoval(reconciliation: ProjectReconciliation): RemovalP
         expectedHash: target.currentHash,
         exists: target.exists,
       })),
-      reasons: pack.stale.map((reason) => reason.sentence),
+      reasons: stale
+        ? pack.stale.map((reason) => reason.sentence)
+        : [
+            `${pack.packId} declares lifecycle ${ONE_SHOT_LIFECYCLE} and the capability ledger records it as invoked, ` +
+              "so the single job it was materialized for is done; nothing has been removed and nothing will be until " +
+              "this digest is approved",
+          ],
     };
     plans.push({ ...draft, removalDigest: reviewedDigest(REMOVAL_DIGEST_KIND, digestableRemoval(draft)) });
   }
   return plans;
+}
+
+/** One one-shot pack's state, and the offer that goes with it. */
+export interface OneShotOffer {
+  readonly packId: string;
+  readonly lifecycle: PackLifecycle;
+  /** When the ledger observed the invocation, or null when it records none. */
+  readonly invokedAt: string | null;
+  /** The digest `applyPackRemoval` will accept, or null when nothing is on offer. */
+  readonly removalDigest: string | null;
+  /** The command that approves it, or null when there is nothing to approve. */
+  readonly approveCommand: string | null;
+  readonly corroboration: OneShotCorroboration | null;
+  /** The whole of what a user reads. A state with an offer, never a demand. */
+  readonly sentence: string;
+}
+
+/**
+ * The one-shot REPORT: a state with an offer (03-CONTEXT.md D-13).
+ *
+ * This function COMPUTES; it does not act. It reads a reconciliation and a
+ * ledger and returns values. The removal continues to travel the existing
+ * approved removal-digest verb, so an invoked one-shot pack can never cause a
+ * deletion by accident — a named source-level test asserts this body reaches
+ * for no writer at all.
+ *
+ * The digest returned here is the one `planPackRemoval` already computed, not a
+ * second one calculated beside it. A digest the approve path would not accept
+ * is a dead end dressed as an offer.
+ */
+export function planOneShotOffer(
+  reconciliation: ProjectReconciliation,
+  ledger: CapabilityLedger | null,
+  options: { readonly path: string; readonly subProject?: string | null },
+): OneShotOffer[] {
+  const removals = new Map(planPackRemoval(reconciliation).map((removal) => [removal.packId, removal]));
+  const offers: OneShotOffer[] = [];
+
+  for (const pack of reconciliation.packs) {
+    if (pack.lifecycle !== ONE_SHOT_LIFECYCLE) continue;
+    const spent = oneShotIsSpent(pack);
+    const invokedAt = spent ? invocationInstant(ledger, reconciliation.plan.scope.projectId, pack) : null;
+    const removal = spent ? (removals.get(pack.packId) ?? null) : null;
+    const approveCommand =
+      removal === null
+        ? null
+        : approvalCommand({
+            path: options.path,
+            subProject: options.subProject ?? null,
+            planDigest: removal.removalDigest,
+          });
+
+    offers.push({
+      packId: pack.packId,
+      lifecycle: ONE_SHOT_LIFECYCLE,
+      invokedAt,
+      removalDigest: removal?.removalDigest ?? null,
+      approveCommand,
+      corroboration: pack.corroboration,
+      sentence: spent
+        ? `${pack.packId} — one-shot, invoked on ${invokedAt ?? "an unrecorded date"}, removal plan ready. ` +
+          "Nothing has been removed."
+        : `${pack.packId} — one-shot, not yet invoked. Nothing has been removed and no removal is on offer: the ` +
+          "capability ledger records no invocation for it in this project.",
+    });
+  }
+  return offers;
+}
+
+/** When the ledger observed the invocation this offer is about. */
+function invocationInstant(
+  ledger: CapabilityLedger | null,
+  projectId: string,
+  pack: PackReconciliation,
+): string | null {
+  const harnesses = [...new Set(pack.targets.map((target) => target.harness))].sort(byCodePoint);
+  for (const harness of harnesses) {
+    const proof = findProof(ledger, projectId, harness, pack.packId, "positive");
+    if (proof !== null && proof.nativeUse === "invoked") return proof.observedAt;
+  }
+  return null;
 }
 
 export interface ApplyPackRemovalOptions extends RevalidateProjectPlanOptions {
@@ -3010,7 +3184,14 @@ export function removalAllowedRoots(
  * what is on offer now, never a partial deletion.
  */
 export async function applyPackRemoval(options: ApplyPackRemovalOptions): Promise<PackRemovalResult> {
-  const reconciliation = await reconcileProjectState(options);
+  // The ledger is read from the state root the CALLER named, so the offers
+  // recomputed here are the same set the preview showed. Without it a one-shot
+  // digest a user pasted back would be refused as unknown — the offer would be
+  // a dead end rather than a next step (D-13).
+  const ledgerRead = await readCapabilityLedger(capabilityLedgerPath(resolve(options.stateRoot)));
+  const reconciliation = await reconcileProjectState(options, {
+    ledger: ledgerRead.state === "present" ? ledgerRead.ledger : null,
+  });
   const offered = planPackRemoval(reconciliation);
   const removal = offered.find((entry) => entry.removalDigest === options.removalDigest);
 

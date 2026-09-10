@@ -20,8 +20,10 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { BlockedReason, LedgerHarness } from "./capability-ledger.js";
+import { resolveDirectLaunch } from "../adapters/capability-oracle.js";
+import type { BlockedReason, LedgerHarness, NativeUseState } from "./capability-ledger.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
+import { commandProbeEnvironment, resolveCommand, runProcess } from "./process.js";
 import { RootKeyedCache } from "./paths.js";
 import {
   createMigrationPlan,
@@ -363,6 +365,14 @@ export interface ReadinessReport {
   /** Ordered, and empty exactly when `ready` is true. */
   readonly blockedReasons: readonly BlockedReason[];
   readonly identity: HarnessIdentity;
+  /**
+   * The environment variable NAMES this probe looked up, in declared order.
+   *
+   * Names only, and recorded whether or not they were present. It is what makes
+   * "the value is absent from this report" a claim with teeth rather than a
+   * vacuous one: the name is here, and the value is not, in the same document.
+   */
+  readonly checkedEnvironment: readonly string[];
   readonly connections: readonly McpConnection[];
   readonly notProbed: readonly NotProbed[];
 }
@@ -416,6 +426,8 @@ export interface ProbeReadinessOptions {
   /** The model the run would use, when the caller knows it. Null asks about the default provider. */
   readonly model?: string | null;
   readonly runner?: ReadinessRunner;
+  /** Where the readiness commands run. A harness reads project configuration from it. */
+  readonly cwd?: string;
   /**
    * Servers a prior observation recorded as REGISTERED, with the harness's own
    * word for their state.
@@ -445,28 +457,465 @@ export interface CanaryDisposition {
   readonly unverifiedReason: string | null;
 }
 
-// --- RED-phase stubs. Replaced by the implementation in the GREEN commit. ---
+// --- Parsers -------------------------------------------------------------
 
-export function parsePiAuthCheck(_stdout: string): ProviderReadiness | null {
+/**
+ * Reads a harness's provider readiness answer.
+ *
+ * FIELD-SELECTIVE on purpose. `pi auth check` has a `--credentials` flag that
+ * puts the credential itself into this JSON. alpha-AOS never passes it — see
+ * `READINESS_DEFINITIONS` — but reading three named fields rather than keeping
+ * the parsed object means a future field carrying a value cannot ride along
+ * either. The shape is the mitigation, not a redaction pass (T-03-40).
+ */
+export function parsePiAuthCheck(stdout: string): ProviderReadiness | null {
+  for (const line of stdout.split(/\r?\n/u)) {
+    const text = line.trim();
+    if (!text.startsWith("{")) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      continue;
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const record = parsed as Record<string, unknown>;
+    const status = record.status;
+    if (typeof status !== "string") continue;
+    return {
+      status: status === "ready" ? "ready" : status === "not_ready" ? "not-ready" : "unknown",
+      provider: typeof record.provider === "string" ? record.provider : null,
+      reason: typeof record.reason === "string" ? record.reason : null,
+    };
+  }
   return null;
 }
 
-export function parseClaudeMcpList(_stdout: string): readonly McpConnection[] {
-  return [];
+/**
+ * The markers a connection listing uses, in the order they must be tested.
+ *
+ * `failed` is tested before `connected` because the failure sentence contains
+ * the word the success state is named after — "Failed to connect" would match a
+ * naive connected rule.
+ */
+const CONNECTION_MARKERS: readonly { readonly test: RegExp; readonly state: McpConnectionState }[] = [
+  { test: /^[✘✗]|failed to connect|connection closed/iu, state: "failed" },
+  { test: /^!|needs authentication|authentication required/iu, state: "needs-auth" },
+  { test: /^[✔✓]|^connected\b/iu, state: "connected" },
+];
+
+/**
+ * Reads a harness's MCP connection listing into server names and states.
+ *
+ * The listing prints the full launch command line beside each server —
+ * absolute paths, package specifiers, and in the general case an argument
+ * carrying a credential. That segment is READ to locate the state marker and
+ * then dropped: nothing but the name and the state leaves this function
+ * (T-03-40).
+ *
+ * A line this parser cannot make sense of is skipped rather than guessed at,
+ * and a server it never saw is reported by the caller as unregistered — which
+ * is a different, separately-actionable cause from a server that answered badly.
+ */
+export function parseClaudeMcpList(stdout: string): readonly McpConnection[] {
+  const connections: McpConnection[] = [];
+  const seen = new Set<string>();
+
+  for (const raw of stdout.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line.length === 0) continue;
+    const cut = line.lastIndexOf(" - ");
+    if (cut === -1) continue;
+    const head = line.slice(0, cut);
+    const tail = line.slice(cut + 3).trim();
+    const colon = head.indexOf(": ");
+    if (colon === -1) continue;
+    const server = head.slice(0, colon).trim();
+    if (server.length === 0 || seen.has(server)) continue;
+    seen.add(server);
+    connections.push({
+      server,
+      state: CONNECTION_MARKERS.find((marker) => marker.test.test(tail))?.state ?? "unknown",
+    });
+  }
+
+  return connections;
 }
 
-export async function probeReadiness(options: ProbeReadinessOptions): Promise<ReadinessReport> {
+// --- The per-harness readiness table --------------------------------------
+
+/** The executable each harness is looked for under. */
+export const HARNESS_COMMANDS: Readonly<Record<LedgerHarness, string>> = {
+  claude: "claude",
+  codex: "codex",
+  pi: "pi",
+  hermes: "hermes",
+};
+
+interface ProviderProbe {
+  /** What ran, for the identity's `source`. Never an interpolated path. */
+  readonly label: string;
+  readonly defaultProvider: string;
+  readonly args: (target: ReadinessTarget) => readonly string[];
+  readonly parse: (stdout: string) => ProviderReadiness | null;
+}
+
+interface ConnectionProbe {
+  readonly label: string;
+  readonly args: readonly string[];
+  readonly parse: (stdout: string) => readonly McpConnection[];
+}
+
+interface ReadinessDefinition {
+  readonly provider: ProviderProbe | null;
+  /** Why there is no provider probe. Recorded, never silent. */
+  readonly providerAbsence: string | null;
+  readonly connection: ConnectionProbe | null;
+  readonly connectionAbsence: string | null;
+}
+
+/**
+ * What each harness can be asked, for free, BEFORE a model turn.
+ *
+ * A null is a recorded absence, not an oversight: inventing a command that has
+ * not been observed to exist would present a guess as an oracle, and the
+ * failure mode of a guessed probe is a confident wrong answer rather than a
+ * visible gap.
+ *
+ * No argument vector here carries `--credentials`, `--print-api-key` or any
+ * other flag whose documented effect is to emit a secret. A source-level test
+ * asserts that, because the flag exists on a command this table drives.
+ */
+export const READINESS_DEFINITIONS: Readonly<Record<LedgerHarness, ReadinessDefinition>> = {
+  claude: {
+    provider: null,
+    providerAbsence:
+      "claude publishes no free provider readiness command; the model a run would use is stated only in that run's own " +
+      "init event, which costs a model turn",
+    connection: {
+      label: "claude mcp list",
+      args: ["mcp", "list"],
+      parse: parseClaudeMcpList,
+    },
+    connectionAbsence: null,
+  },
+  codex: {
+    provider: null,
+    providerAbsence: "no codex provider readiness command has been observed on any host probed",
+    connection: null,
+    connectionAbsence:
+      "no codex connection listing has been observed on any host probed; naming one unverified would present a guess as an oracle",
+  },
+  pi: {
+    provider: {
+      label: "pi auth check --json",
+      // pi's own documented default. Asking about a model instead is what makes
+      // a silent free-model fallback nameable rather than anonymous (A7).
+      defaultProvider: "google",
+      args: (target) =>
+        target.kind === "model"
+          ? ["auth", "check", "--model", target.value, "--json"]
+          : ["auth", "check", "--provider", target.value, "--json"],
+      parse: parsePiAuthCheck,
+    },
+    providerAbsence: null,
+    connection: null,
+    connectionAbsence: "pi's MCP bridge publishes no connection listing alpha-AOS has observed",
+  },
+  hermes: {
+    provider: null,
+    providerAbsence: "hermes is a worker rather than a canary target in this phase, so no readiness command is defined for it",
+    connection: null,
+    connectionAbsence: "hermes is a worker rather than a canary target in this phase, so no connection listing is defined for it",
+  },
+};
+
+// --- The default runner ----------------------------------------------------
+
+/** Generous: a cold harness start plus a synchronous health check is slow, not stuck. */
+export const READINESS_TIMEOUT_MS = 120_000;
+
+/**
+ * How many bytes of a readiness answer may be READ.
+ *
+ * Larger than the diagnostic default, which is sized for something a person
+ * reads: a connection listing grows with the number of registered servers, and
+ * a truncated listing would report a registered server as absent.
+ */
+export const READINESS_EXCERPT_BYTES = 128 * 1024;
+
+async function runReadinessCommand(
+  resolved: string,
+  args: readonly string[],
+  label: string,
+  cwd: string,
+): Promise<ReadinessCommandResult> {
+  const launch = resolveDirectLaunch(resolved);
+  if (launch === null) {
+    return {
+      ran: false,
+      reason: `${label} could not be launched: the resolved executable is an interpreted shim with no proven direct equivalent, and alpha-AOS does not shell out`,
+      exitCode: null,
+      stdout: "",
+    };
+  }
+
+  const result = await runProcess({
+    executable: launch.executable,
+    args: [...launch.argsPrefix, ...args],
+    cwd,
+    timeoutMs: READINESS_TIMEOUT_MS,
+    excerptBytes: READINESS_EXCERPT_BYTES,
+    environment: commandProbeEnvironment(),
+  });
+
+  if (result.code !== "ok") {
+    return {
+      ran: false,
+      reason: `${label} did not complete cleanly (${result.code}, exit ${String(result.exitCode)})`,
+      exitCode: result.exitCode,
+      stdout: "",
+    };
+  }
+  if (result.stdout.capped) {
+    return {
+      ran: false,
+      reason: `${label} produced more than the ${READINESS_EXCERPT_BYTES}-byte read budget, so its answer was cut mid-token`,
+      exitCode: result.exitCode,
+      stdout: "",
+    };
+  }
+  return { ran: true, reason: null, exitCode: result.exitCode, stdout: result.stdout.excerpt };
+}
+
+/**
+ * The real runner: every launch goes through the bounded process adapter, so a
+ * readiness probe is not the one call that escapes the process boundary.
+ */
+export function createReadinessRunner(cwd: string = process.cwd()): ReadinessRunner {
   return {
-    harness: options.harness,
-    canary: options.canary.id,
-    ready: true,
-    blockedReasons: [],
-    identity: { provider: null, model: null, source: "not implemented" },
-    connections: [],
-    notProbed: [],
+    resolveHarness: (harness) => resolveCommand(HARNESS_COMMANDS[harness]),
+    providerReadiness: async (harness, target) => {
+      const probe = READINESS_DEFINITIONS[harness].provider;
+      const resolved = resolveCommand(HARNESS_COMMANDS[harness]);
+      if (probe === null) {
+        return { ran: false, reason: READINESS_DEFINITIONS[harness].providerAbsence, exitCode: null, stdout: "" };
+      }
+      if (resolved === null) {
+        return { ran: false, reason: `${HARNESS_COMMANDS[harness]} did not resolve on PATH`, exitCode: null, stdout: "" };
+      }
+      return runReadinessCommand(resolved, probe.args(target), probe.label, cwd);
+    },
+    connectionListing: async (harness) => {
+      const probe = READINESS_DEFINITIONS[harness].connection;
+      const resolved = resolveCommand(HARNESS_COMMANDS[harness]);
+      if (probe === null) {
+        return { ran: false, reason: READINESS_DEFINITIONS[harness].connectionAbsence, exitCode: null, stdout: "" };
+      }
+      if (resolved === null) {
+        return { ran: false, reason: `${HARNESS_COMMANDS[harness]} did not resolve on PATH`, exitCode: null, stdout: "" };
+      }
+      return runReadinessCommand(resolved, probe.args, probe.label, cwd);
+    },
   };
 }
 
-export function disposeCanary(_readiness: ReadinessReport, _failure: string | null): CanaryDisposition {
+// --- The probe -------------------------------------------------------------
+
+/**
+ * Decides whether a canary may run, and if not, WHY — entirely before any model
+ * turn is spent.
+ *
+ * The order is the point. A canary that fails because a name is unset produces
+ * the same exit code and, often, the same unhelpful output as one that failed
+ * for a reason nothing can name. Parsing that output to tell the two apart is
+ * guesswork; asking three free questions first is not (03-RESEARCH.md Pattern
+ * 4). Every answer this returns is therefore derived from a PRE-probe:
+ *
+ *   1. are the declared environment NAMES present,
+ *   2. is the harness there at all,
+ *   3. does the harness say it has a usable credential, and which provider and
+ *      model that answer is about,
+ *   4. does every server the canary needs pass the harness's own connection
+ *      check.
+ *
+ * A probe that could not run is recorded in `notProbed` and is NEVER a blocked
+ * reason: the absence of a probe is not a cause, and treating it as one would
+ * make `blocked` mean "something is missing somewhere", which is exactly the
+ * uselessness D-12 exists to prevent.
+ */
+export async function probeReadiness(options: ProbeReadinessOptions): Promise<ReadinessReport> {
+  const { harness, canary, environment } = options;
+  const cwd = options.cwd ?? process.cwd();
+  const run = options.runner ?? createReadinessRunner(cwd);
+  const definition = READINESS_DEFINITIONS[harness];
+
+  const blockedReasons: BlockedReason[] = [];
+  const notProbed: NotProbed[] = [];
+  let identity: HarnessIdentity = {
+    provider: null,
+    model: null,
+    source: definition.providerAbsence ?? `no readiness answer was read from ${harness}`,
+  };
+
+  // 1. Environment NAMES. Presence only: the value is never compared, recorded
+  //    or rendered, and `BlockedReason` has no field able to hold one.
+  for (const name of canary.requiresEnvironment ?? []) {
+    const value = environment[name];
+    if (value !== undefined && value.length > 0) continue;
+    blockedReasons.push({
+      code: "MISSING_CREDENTIAL",
+      variable: name,
+      nextAction:
+        `Set ${name} in the environment alpha-AOS launches ${harness} with, then re-run the ${canary.id} canary. ` +
+        "This probe reads only whether the name is present; it never reads, stores or compares the value.",
+    });
+  }
+
+  // 2. Is the harness there at all.
+  const resolved = run.resolveHarness(harness);
+  if (resolved === null) {
+    blockedReasons.push({
+      code: "HARNESS_NOT_INSTALLED",
+      variable: HARNESS_COMMANDS[harness],
+      nextAction:
+        `Install ${harness} so that \`${HARNESS_COMMANDS[harness]}\` resolves on PATH, then re-run the ${canary.id} canary.`,
+    });
+  }
+
+  // 3. Provider readiness, and the identity the answer is about.
+  if (resolved === null) {
+    notProbed.push({ probe: "provider readiness", reason: `${harness} did not resolve on PATH, so it could not be asked` });
+  } else if (definition.provider === null) {
+    notProbed.push({ probe: "provider readiness", reason: definition.providerAbsence ?? "no provider readiness command is defined" });
+  } else {
+    const target: ReadinessTarget =
+      options.model === undefined || options.model === null
+        ? { kind: "provider", value: definition.provider.defaultProvider }
+        : { kind: "model", value: options.model };
+    const result = await run.providerReadiness(harness, target);
+    const parsed = result.ran ? definition.provider.parse(result.stdout) : null;
+    if (parsed === null) {
+      notProbed.push({
+        probe: "provider readiness",
+        reason: result.reason ?? `${definition.provider.label} ran but its answer could not be read`,
+      });
+    } else {
+      identity = {
+        provider: parsed.provider,
+        // The model the answer is ABOUT. Null when the question was about a
+        // provider instead, which is itself interpretable.
+        model: target.kind === "model" ? target.value : null,
+        source: definition.provider.label,
+      };
+      if (parsed.status !== "ready") {
+        const named = parsed.provider ?? target.value;
+        blockedReasons.push({
+          code: "PROVIDER_NOT_CONFIGURED",
+          variable: named,
+          nextAction:
+            `Configure a credential for the ${named} provider — ${definition.provider.label} reports ` +
+            `${parsed.reason ?? "it is not ready"} — then re-run the ${canary.id} canary. ` +
+            "A run on an unconfigured provider is a finding about the model, not about discovery.",
+        });
+      }
+    }
+  }
+
+  // 4. Connections. A registered-but-pending server is a registration fact and
+  //    never a fault: at one harness's init event every server is legitimately
+  //    pending with zero tools, so a rule evaluated there reports a false
+  //    failure (03-RESEARCH.md Pitfall 5). The listing is the oracle, and where
+  //    it answers it overrides the registration observation.
+  const observed = new Map<string, McpConnectionState>();
+  for (const entry of options.registeredServers ?? []) observed.set(entry.server, entry.state);
+
+  if (resolved === null) {
+    notProbed.push({ probe: "MCP connection listing", reason: `${harness} did not resolve on PATH, so it could not be asked` });
+  } else if (definition.connection === null) {
+    notProbed.push({
+      probe: "MCP connection listing",
+      reason: definition.connectionAbsence ?? "no connection listing command is defined",
+    });
+  } else {
+    const result = await run.connectionListing(harness);
+    if (!result.ran) {
+      notProbed.push({
+        probe: "MCP connection listing",
+        reason: result.reason ?? `${definition.connection.label} did not run`,
+      });
+    } else {
+      for (const entry of definition.connection.parse(result.stdout)) observed.set(entry.server, entry.state);
+    }
+  }
+
+  for (const server of canary.requiresMcpServers ?? []) {
+    const state = observed.get(server);
+    if (state === undefined) {
+      blockedReasons.push({
+        code: "MCP_SERVER_NOT_REGISTERED",
+        variable: server,
+        nextAction:
+          `Register the ${server} MCP server with ${harness} — \`alpha-aos mcp sync\` renders it — then re-run the ${canary.id} canary.`,
+      });
+      continue;
+    }
+    if (state === "failed" || state === "needs-auth") {
+      blockedReasons.push({
+        code: "MCP_SERVER_NOT_CONNECTED",
+        variable: server,
+        nextAction:
+          `The ${server} MCP server is registered with ${harness} but its connection check reports ${state}. ` +
+          `Resolve that — \`alpha-aos doctor\` reports what it found — then re-run the ${canary.id} canary.`,
+      });
+    }
+  }
+
+  return {
+    harness,
+    canary: canary.id,
+    ready: blockedReasons.length === 0,
+    blockedReasons,
+    identity,
+    checkedEnvironment: [...(canary.requiresEnvironment ?? [])],
+    connections: [...observed].map(([server, state]) => ({ server, state })),
+    notProbed,
+  };
+}
+
+/**
+ * The ONE place `blocked` and `unverified` are told apart.
+ *
+ * Three branches, mutually exclusive by construction, so one cause can never
+ * produce both. A known cause wins over a trailing failure: once a probe has
+ * named why a run could not work, the run's own failure adds nothing, and
+ * downgrading a named cause to `unverified` would throw away the only
+ * actionable thing anyone learned (03-CONTEXT.md D-12).
+ */
+export function disposeCanary(readiness: ReadinessReport, failure: string | null): CanaryDisposition {
+  if (readiness.blockedReasons.length > 0) {
+    return { outcome: "blocked", blockedReasons: readiness.blockedReasons, unverifiedReason: null };
+  }
+  if (failure !== null) {
+    return { outcome: "unverified", blockedReasons: [], unverifiedReason: failure };
+  }
   return { outcome: "ready", blockedReasons: [], unverifiedReason: null };
+}
+
+/**
+ * The ledger fields a disposition maps to.
+ *
+ * `ready` and `unverified` both map to the `unverified` native-use axis, and
+ * that is not a bug: readiness is not evidence of use, and a probe that found
+ * nothing wrong has proven nothing about what the harness did. The axis moves
+ * only when a run produces evidence.
+ */
+export function ledgerFieldsFor(disposition: CanaryDisposition): {
+  readonly nativeUse: NativeUseState;
+  readonly blockedReason: BlockedReason | null;
+} {
+  return {
+    nativeUse: "unverified",
+    blockedReason: disposition.outcome === "blocked" ? disposition.blockedReasons[0] ?? null : null,
+  };
 }

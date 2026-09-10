@@ -600,3 +600,22 @@ test("a BlockedReason has exactly code, variable and nextAction, and no field ab
   assert.ok(reason, "no blocked reason was produced, so the shape below proves nothing");
   assert.deepEqual(Object.keys(reason).sort(), ["code", "nextAction", "variable"]);
 });
+
+test("no readiness argument vector carries a flag whose documented effect is to emit a secret", async () => {
+  // `pi auth check` really does have a --credentials flag that puts the
+  // credential into the JSON this module parses, and a sibling verb that
+  // prints an API key outright. The table must never reach for either.
+  const source = await readFile(join(repositoryRoot, "src", "core", "canary.ts"), "utf8");
+  const start = source.indexOf("export const READINESS_DEFINITIONS");
+  assert.notEqual(start, -1, "READINESS_DEFINITIONS is no longer declared as an exported const");
+  const end = source.indexOf("\n};", start);
+  assert.notEqual(end, -1, "the READINESS_DEFINITIONS table is not terminated where expected");
+  const region = source.slice(start, end);
+  assert.equal(region.length >= 200, true, "the table region could not be extracted; the control below would be vacuous");
+
+  for (const flag of ["--credentials", "print-api-key", "print-bearer-token"]) {
+    assert.equal(region.includes(flag), false, `a readiness argument vector reaches for ${flag}`);
+  }
+  // Positive control: the slice really does contain the vectors it is judging.
+  assert.equal(region.includes('"auth", "check"'), true, "the extracted region contains no argument vector at all");
+});

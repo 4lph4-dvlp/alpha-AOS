@@ -17,9 +17,9 @@
 //    more reliable than reading a failure's output and the only way `blocked`
 //    can name a variable and a next action.
 
-import { randomUUID } from "node:crypto";
-import { constants, existsSync } from "node:fs";
-import { access, readFile, rm } from "node:fs/promises";
+import { createHash, randomUUID } from "node:crypto";
+import { constants, existsSync, type Dirent } from "node:fs";
+import { access, readdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { createIsolationLaunchSpec } from "../adapters/isolation.js";
@@ -75,6 +75,7 @@ import {
   runProcess,
   type EnvironmentPolicy,
 } from "./process.js";
+import { canonicalizeWithMissingTail } from "./path-boundary.js";
 import { aliasPath, createPathAliases, packageRoot, RootKeyedCache } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -2381,24 +2382,186 @@ export const PLANNING_TREE_MAX_DEPTH = 24;
 /** A planning tree is documents. Fifty thousand entries is already pathological. */
 export const PLANNING_TREE_MAX_ENTRIES = 50_000;
 
-export async function hashPlanningTree(_root: string): Promise<PlanningTreeDigest> {
+function planningErrno(error: unknown): string {
+  const code = (error as NodeJS.ErrnoException | null)?.code;
+  return typeof code === "string" && code.length > 0 ? code : "UNKNOWN";
+}
+
+/**
+ * Hashes every regular file under `root`, reading and writing nothing else.
+ *
+ * Two decisions carry the whole design:
+ *
+ * - **Relative POSIX paths, sorted in code-point order.** The absolute root, the
+ *   host's separator and the order a directory happens to enumerate in are all
+ *   host facts, and folding any of them in would make two hosts disagree about
+ *   identical content. This is the discipline that made the plan digest
+ *   host-independent in Phase 2, applied to a tree.
+ * - **An unreadable path withholds the aggregate.** `digest` is null the moment
+ *   anything under the tree could not be read. A digest that silently skipped a
+ *   file would let a change INSIDE that file pass the immutability check, and
+ *   preventing exactly that is the only reason this function exists.
+ *
+ * A symbolic link is not followed. `readFile` through a link would hash bytes
+ * from outside the root the caller named, which would turn a boundary check into
+ * a boundary hole; a link is therefore recorded as unreadable with its errno (or
+ * `NOT_A_REGULAR_FILE`) and the digest is incomplete, which is the fail-closed
+ * direction.
+ */
+export async function hashPlanningTree(root: string): Promise<PlanningTreeDigest> {
+  const resolution = await canonicalizeWithMissingTail(resolve(root));
+  const canonical = resolution.reason === null ? resolution.canonical : resolve(root);
+  const aliasedRoot = aliasPath(canonical, createPathAliases());
+
+  const files: PlanningTreeFile[] = [];
+  const unreadable: PlanningTreeUnreadable[] = [];
+  const bounds: string[] = [];
+  let entriesSeen = 0;
+  let rootPresent = true;
+
+  const relativePosix = (absolutePath: string): string => relative(canonical, absolutePath).split("\\").join("/");
+
+  async function walk(directory: string, depth: number): Promise<void> {
+    if (depth > PLANNING_TREE_MAX_DEPTH) {
+      bounds.push(`PLANNING_TREE_MAX_DEPTH (${PLANNING_TREE_MAX_DEPTH}) reached at ${relativePosix(directory) || "."}`);
+      return;
+    }
+    let entries: Dirent[];
+    try {
+      entries = await readdir(directory, { withFileTypes: true });
+    } catch (error) {
+      const code = planningErrno(error);
+      if (directory === canonical && code === "ENOENT") {
+        rootPresent = false;
+        return;
+      }
+      unreadable.push({ path: relativePosix(directory) || ".", errno: code });
+      return;
+    }
+
+    // Sorted here as well as at the end: a stable walk order keeps the bound
+    // messages deterministic, which is what makes a truncated scan reproducible.
+    const sorted = [...entries].sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
+    for (const entry of sorted) {
+      entriesSeen += 1;
+      if (entriesSeen > PLANNING_TREE_MAX_ENTRIES) {
+        if (bounds.length === 0) bounds.push(`PLANNING_TREE_MAX_ENTRIES (${PLANNING_TREE_MAX_ENTRIES}) reached`);
+        return;
+      }
+      const absolutePath = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await walk(absolutePath, depth + 1);
+        continue;
+      }
+      if (!entry.isFile()) {
+        // A link, socket or device. Read it only to obtain the host's own errno
+        // where there is one; a link that WOULD have resolved is still refused,
+        // because following it leaves the root.
+        let errno = "NOT_A_REGULAR_FILE";
+        try {
+          await readFile(absolutePath);
+        } catch (error) {
+          errno = planningErrno(error);
+        }
+        unreadable.push({ path: relativePosix(absolutePath), errno });
+        continue;
+      }
+      try {
+        const bytes = await readFile(absolutePath);
+        files.push({ path: relativePosix(absolutePath), sha256: createHash("sha256").update(bytes).digest("hex") });
+      } catch (error) {
+        unreadable.push({ path: relativePosix(absolutePath), errno: planningErrno(error) });
+      }
+    }
+  }
+
+  if (resolution.reason !== null) {
+    unreadable.push({ path: ".", errno: "UNRESOLVABLE_ROOT" });
+  } else {
+    await walk(canonical, 0);
+  }
+
+  files.sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
+  unreadable.sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
+  const complete = unreadable.length === 0 && bounds.length === 0;
+
   return {
-    root: _root,
-    digest: null,
-    complete: false,
-    files: [],
-    unreadable: [],
-    rootPresent: false,
-    bounds: ["not implemented"],
+    root: aliasedRoot,
+    // Withheld, not approximated. See the doc comment above.
+    digest: complete
+      ? createHash("sha256")
+          .update(files.map((entry) => `${entry.path}\u0000${entry.sha256}`).join("\n"))
+          .digest("hex")
+      : null,
+    complete,
+    files,
+    unreadable,
+    rootPresent,
+    bounds,
   };
 }
 
+/**
+ * Says WHICH paths differ between two digests, not merely that they differ.
+ *
+ * A report that the planning tree changed without naming the file is not
+ * actionable, and naming it is what turns this check from an assertion into
+ * evidence. Two incomplete digests are never reported equal: agreeing about the
+ * files both of them managed to read says nothing about the file neither did.
+ */
 export function comparePlanningTrees(
-  _before: PlanningTreeDigest,
-  _after: PlanningTreeDigest,
+  before: PlanningTreeDigest,
+  after: PlanningTreeDifferenceInput,
 ): PlanningTreeDifference {
-  return { equal: false, comparable: false, modified: [], added: [], removed: [], reasons: ["not implemented"] };
+  const reasons: string[] = [];
+  const comparable = before.complete && after.complete;
+  if (!before.complete) {
+    reasons.push(
+      `the earlier digest is incomplete (${before.unreadable.length} unreadable path(s), ${before.bounds.length} bound(s) ` +
+        "reached), so it cannot be compared",
+    );
+  }
+  if (!after.complete) {
+    reasons.push(
+      `the later digest is incomplete (${after.unreadable.length} unreadable path(s), ${after.bounds.length} bound(s) ` +
+        "reached), so it cannot be compared",
+    );
+  }
+
+  const beforeByPath = new Map(before.files.map((entry) => [entry.path, entry.sha256]));
+  const afterByPath = new Map(after.files.map((entry) => [entry.path, entry.sha256]));
+  const modified: string[] = [];
+  const added: string[] = [];
+  const removed: string[] = [];
+
+  for (const [path, hash] of beforeByPath) {
+    const now = afterByPath.get(path);
+    if (now === undefined) removed.push(path);
+    else if (now !== hash) modified.push(path);
+  }
+  for (const path of afterByPath.keys()) {
+    if (!beforeByPath.has(path)) added.push(path);
+  }
+  modified.sort();
+  added.sort();
+  removed.sort();
+
+  for (const path of modified) reasons.push(`modified: ${path}`);
+  for (const path of added) reasons.push(`added: ${path}`);
+  for (const path of removed) reasons.push(`removed: ${path}`);
+
+  return {
+    equal: comparable && modified.length === 0 && added.length === 0 && removed.length === 0,
+    comparable,
+    modified,
+    added,
+    removed,
+    reasons,
+  };
 }
+
+/** The digest fields a comparison reads. Named so a caller cannot pass half of one. */
+type PlanningTreeDifferenceInput = PlanningTreeDigest;
 
 // ---------------------------------------------------------------------------
 // Two sweeps — the free evidence and the paid evidence, kept apart

@@ -20,7 +20,8 @@
 // that module's header for the exact substitutions.
 
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -51,7 +52,9 @@ import type {
   RunPairedDiscoveryOptions,
 } from "../src/adapters/capability-oracle.js";
 import type { BoundInputs, HarnessVersion } from "../src/core/capability-ledger.js";
-import { PROJECT_SKILL_ROOTS } from "../src/core/project-plan.js";
+import { runDiscoverySweep, loadCanaryCatalog } from "../src/core/canary.js";
+import { applyProjectPackSync } from "../src/core/project-pack-sync.js";
+import { approveProjectPlan, planProjectCapabilities, PROJECT_SKILL_ROOTS } from "../src/core/project-plan.js";
 import {
   CLAUDE_INSIDE_RECORDING,
   CLAUDE_OUTSIDE_RECORDING,
@@ -673,4 +676,265 @@ test("this module cannot produce the invocation axis, at the type level and in i
   // Every result this module returns carries one of the two, and only those.
   const result = await runDiscoveryOracle({ harness: "hermes", cwd: process.cwd() });
   assert.ok(DISCOVERY_AXES.includes(result.nativeUse));
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-11 Task 3: the representative pack, exercised inside the project and
+// provably not discoverable outside it — ONE evidence unit (D-14)
+// ---------------------------------------------------------------------------
+//
+// CAPA-05 asks that a synced project capability be discoverable and usable
+// where task intent matches; CAPA-06 asks that the same request outside the
+// project cannot reach it. D-14 makes those ONE unit: an unpaired positive does
+// not satisfy CAPA-06, and a static check that the file is absent is rejected
+// outright as the mirror image of the configuration-file-presence-is-success
+// error. So the negative below is an ORACLE RESULT — what the harness itself
+// says it loaded, run from a constructed control directory — and never a
+// directory listing.
+//
+// Only the FREE oracles run here. `runDiscoverySweep` skips any harness whose
+// oracle spends a model turn and records the reason, so this costs nothing and
+// CI (which has no credential at all) takes the same path.
+
+const PACK_UNDER_TEST = "WEB_REACT";
+const PACK_SKILL_UNDER_TEST = "frontend-a11y";
+
+function digest(content: string): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+/**
+ * A project with the representative pack actually MATERIALIZED into every
+ * project-local skill root, offline.
+ *
+ * The bytes come from a tree this test wrote and a lock this test re-pinned to
+ * those bytes, so the writer's exact-hash contract still holds and no `npm pack`
+ * of the ECC runtime is ever reached. Driving `applyProjectPackSync` directly
+ * rather than the built CLI is what keeps that possible: the CLI resolves its
+ * package root from its own module directory and has no flag for a verified
+ * source root (recorded in plan 03-01's summary).
+ */
+async function materializedPackFixture(
+  context: { after: (fn: () => Promise<void>) => void },
+  label: string,
+): Promise<{ projectRoot: string; stateRoot: string; written: readonly string[] }> {
+  const base = await mkdtemp(join(tmpdir(), `alpha-aos-capa05-${label}-`));
+  context.after(async () => rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+
+  const projectRoot = join(base, "project");
+  const packageRoot = join(base, "package-root");
+  const stateRoot = join(base, "state");
+  const sourceRoot = join(base, "source");
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+
+  await mkdir(projectRoot, { recursive: true });
+  await writeFile(
+    join(projectRoot, "package.json"),
+    `${JSON.stringify({ name: "capa05-fixture", private: true, dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
+    "utf8",
+  );
+  await cp(join(root, "catalog"), join(packageRoot, "catalog"), { recursive: true });
+  await cp(join(root, "schemas"), join(packageRoot, "schemas"), { recursive: true });
+
+  const body = [
+    "---",
+    `name: ${PACK_SKILL_UNDER_TEST}`,
+    "description: Use when a page or form has to be operable by keyboard alone and understandable to a screen reader.",
+    "---",
+    "",
+    "# Frontend accessibility",
+    "",
+    "Walk the interactive elements, check focus order, names and roles.",
+    "",
+  ].join("\n");
+  await mkdir(join(sourceRoot, PACK_SKILL_UNDER_TEST), { recursive: true });
+  await writeFile(join(sourceRoot, PACK_SKILL_UNDER_TEST, "SKILL.md"), body, "utf8");
+
+  const lockPath = join(packageRoot, "catalog", "stack.lock.json");
+  const lock = JSON.parse(await readFile(lockPath, "utf8")) as {
+    components: { ecc: { sourceSha256: Record<string, string> } };
+  };
+  lock.components.ecc.sourceSha256[PACK_SKILL_UNDER_TEST] = digest(body);
+  await writeFile(lockPath, `${JSON.stringify(lock, null, 2)}\n`, "utf8");
+
+  const options = { path: projectRoot, packageRoot, stateRoot };
+  const plan = await planProjectCapabilities(options);
+  assert.deepEqual(plan.applicable, [PACK_UNDER_TEST], "the fixture no longer selects exactly the representative pack");
+  await approveProjectPlan({ ...options, expectedDigest: plan.planDigest });
+  const applied = await applyProjectPackSync({ ...options, verifiedSourceRoot: sourceRoot });
+
+  // Materialization is asserted from the WRITER's own result, not from a
+  // directory listing: this task's acceptance forbids a file-absence check from
+  // standing in for an oracle, and the same discipline applies to the presence
+  // half.
+  assert.equal(applied.status, "written");
+  for (const harness of Object.keys(PROJECT_SKILL_ROOTS) as Array<"claude" | "codex" | "pi">) {
+    const expected = `${PROJECT_SKILL_ROOTS[harness] ?? ""}/${PACK_SKILL_UNDER_TEST}/SKILL.md`;
+    assert.ok(applied.written.includes(expected), `${expected} was not materialized: ${applied.written.join(", ")}`);
+  }
+  return { projectRoot, stateRoot, written: applied.written };
+}
+
+test("the pack-exercise canary is declared for the representative pack and names neither the skill nor a tool", async () => {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const catalog = (await loadCanaryCatalog(root)).value;
+  const canary = catalog.canaries.find((entry) => entry.id === "PACK_EXERCISE_FRONTEND_A11Y");
+
+  assert.ok(canary, "the pack-exercise canary is not declared in the shipped catalog");
+  assert.equal(canary.capability, "CAPA-05");
+  assert.equal(canary.readOnly, true);
+  // Declared for the pass-bar harness: catalog/stack.yaml names claude as
+  // policy.canaryHarness (D-09), and claude is also the harness whose oracle
+  // actually spends, so the cost the catalog reports for it is a real number.
+  assert.deepEqual([...canary.harnesses], ["claude"]);
+
+  // `loadCanaryCatalog` refuses a prompt naming an expected tool or a locked
+  // skill id, so a catalog that LOADS has already passed the hygiene rule. This
+  // asserts the rest: the prompt does not hint at the pack or the subject.
+  const prompt = canary.prompt.toLowerCase();
+  for (const term of [PACK_SKILL_UNDER_TEST, PACK_UNDER_TEST.toLowerCase(), "a11y", "accessib", "skill"]) {
+    assert.equal(prompt.includes(term), false, `the pack-exercise prompt hints at ${term}: ${canary.prompt}`);
+  }
+  // An expectation about FAN-OUT rather than about a tool, because a pack skill
+  // is not an MCP tool and MCP-side observation cannot see one being followed.
+  assert.deepEqual([...canary.expectTools], []);
+  assert.equal(canary.maxDistinctServers, 1);
+  assert.ok((canary.why ?? "").length > 0, "the pack-exercise canary records no reason for a reviewer");
+});
+
+test("the materialized pack is discovered inside the project and not in a constructed control directory", async (t) => {
+  const { projectRoot } = await materializedPackFixture(t, "paired");
+  const control = await scratchRoot(t, "capa06-control");
+  const unknownVersion: HarnessVersion = { exact: null, minorKey: null, raw: "" };
+
+  const sweep = await runDiscoverySweep({
+    projectRoot,
+    controlRoot: control,
+    capability: PACK_UNDER_TEST,
+    skillDirectories: [PACK_SKILL_UNDER_TEST],
+    projectId: "0".repeat(16),
+    boundInputs: { skillSourceHash: "b".repeat(64), mcpServerVersion: null, evidenceHash: null },
+    harnessVersions: { claude: unknownVersion, codex: unknownVersion, pi: unknownVersion, hermes: unknownVersion },
+  });
+
+  // Nothing here spends. A harness whose oracle costs a model turn is recorded
+  // as skipped WITH its reason rather than run.
+  for (const entry of sweep.entries.filter((candidate) => candidate.costsModelTurn === true)) {
+    assert.equal(entry.ran, false, `${entry.harness} spends a model turn and this sweep ran it`);
+    assert.ok(entry.skippedReason !== null && entry.skippedReason.length > 0);
+  }
+
+  const ran = sweep.entries.filter((entry) => entry.ran && entry.discovery !== null);
+  assert.ok(ran.length > 0, "no free oracle ran at all, so this proves nothing about the free half");
+
+  let complete = 0;
+  for (const entry of ran) {
+    const discovery = entry.discovery;
+    assert.ok(discovery, `${entry.harness} reported it ran and carried no discovery`);
+
+    if (discovery.unit === null) {
+      // A host without this harness records UNSUPPORTED with its reason. This
+      // task's precondition is that at least one harness with a project-local
+      // skill root resolves; a harness that does not is asserted as a RECORDED
+      // absence rather than skipped over.
+      assert.ok(
+        discovery.unsupportedReason !== null && discovery.unsupportedReason.length > 0,
+        `${entry.harness} produced neither a unit nor a recorded reason`,
+      );
+      assert.equal(
+        discovery.positive?.skills,
+        null,
+        `${entry.harness} reported an EMPTY skill list for an unsupported oracle`,
+      );
+      continue;
+    }
+
+    // Every unit is recorded either COMPLETE or INCOMPLETE naming the missing
+    // half. There is no third state and no silent one.
+    assert.ok(
+      discovery.unit.completeness === "COMPLETE" || discovery.unit.completeness === "INCOMPLETE",
+      `${entry.harness}'s unit has no completeness`,
+    );
+    if (discovery.unit.completeness === "INCOMPLETE") {
+      assert.ok(discovery.incompleteReasons.length > 0, `${entry.harness}'s unit is INCOMPLETE and names no missing half`);
+      // An INCOMPLETE unit never reports the positive's axis.
+      assert.equal(discovery.unit.nativeUse, null);
+      continue;
+    }
+    complete += 1;
+
+    // THE POSITIVE: the harness says it loaded the pack's skill, and the record
+    // names the ABSOLUTE path it came from, under this project.
+    const loaded = discovery.positive?.skills?.filter((skill) => skill.directoryName === PACK_SKILL_UNDER_TEST) ?? [];
+    assert.ok(loaded.length > 0, `${entry.harness} did not report loading ${PACK_SKILL_UNDER_TEST} inside the project`);
+    const located = loaded.find((skill) => skill.root !== null || skill.path !== null);
+    assert.ok(located, `${entry.harness} reported the skill with no path at all, so nothing names where it came from`);
+    const absolute = located.path ?? located.root ?? "";
+    assert.equal(
+      isAbsoluteEitherPlatform(absolute),
+      true,
+      `${entry.harness} reported a non-absolute location for the loaded skill: ${absolute}`,
+    );
+    assert.ok(
+      absolute.replaceAll("\\", "/").toLowerCase().includes(projectRoot.replaceAll("\\", "/").toLowerCase()),
+      `${entry.harness} loaded ${PACK_SKILL_UNDER_TEST} from ${absolute}, which is not under the project root`,
+    );
+
+    // THE NEGATIVE: an ORACLE RESULT from the constructed control, never a file
+    // check, and carrying the ancestor walk that makes it meaningful.
+    const negative = discovery.negatives.find((candidate) => candidate.kind === "different-directory");
+    assert.ok(negative, `${entry.harness}'s unit has no different-directory negative`);
+    assert.notEqual(negative.result.cwd, discovery.positive?.cwd);
+    assert.equal(
+      negative.result.skills?.some((skill) => skill.directoryName === PACK_SKILL_UNDER_TEST) ?? false,
+      false,
+      `${entry.harness} discovered ${PACK_SKILL_UNDER_TEST} outside the project, which falsifies CAPA-06`,
+    );
+    assert.ok(
+      (discovery.unit.negative?.ancestorFreedom?.checkedAncestors.length ?? 0) > 0,
+      `${entry.harness}'s negative carries an EMPTY checked-ancestor list, so the control was never actually walked`,
+    );
+    assert.equal(discovery.unit.negative?.ancestorFreedom?.asserted, true);
+
+    // Same command, two directories, and nothing else different.
+    assert.equal(discovery.positive?.oracle?.command, negative.result.oracle?.command);
+
+    // T-03-100, re-proven LIVE on the sidecar this plan actually writes rather
+    // than inherited from 03-RESEARCH.md's probe. The two runs differ only by
+    // the project, so the difference in what the harness listed is exactly the
+    // project-scope skills the pack contributes. If the harness had mistaken
+    // `.alpha-aos-provenance.json` for a skill, this difference would be larger
+    // than the number of skill directories materialized.
+    const positiveCount = discovery.positive?.skills?.length ?? 0;
+    const negativeCount = negative.result.skills?.length ?? 0;
+    assert.equal(
+      positiveCount - negativeCount,
+      1,
+      `${entry.harness} listed ${positiveCount - negativeCount} more skills inside the project than outside it, ` +
+        "but the pack materializes exactly one — so something beside the SKILL.md was counted as a skill",
+    );
+
+    // The trust-gated harness gets a SECOND, independent negative: the same
+    // directory with trust withheld. It does not depend on a temp path's
+    // ancestry at all, which is what makes it the stronger of the two.
+    if (ORACLE_DEFINITIONS[entry.harness]?.trustWithheldArgs != null) {
+      const withheld = discovery.negatives.find((candidate) => candidate.kind === "trust-withheld");
+      assert.ok(withheld, `${entry.harness} has a per-run trust flag and its unit carries no trust-withheld negative`);
+      assert.equal(withheld.result.cwd, projectRoot, "the trust-withheld negative was taken somewhere else");
+      assert.equal(
+        withheld.result.skills?.some((skill) => skill.directoryName === PACK_SKILL_UNDER_TEST) ?? false,
+        false,
+        `${entry.harness} loaded the pack with trust withheld`,
+      );
+    }
+  }
+
+  // The precondition: at least one harness with a project-local skill root
+  // resolves here. A host where none does records `unsupported` with its reason
+  // above and asserts that recorded absence instead — the branch CI takes, and
+  // it is asserted rather than skipped.
+  assert.ok(
+    complete > 0 || ran.every((entry) => entry.discovery?.unit === null),
+    "an oracle ran and produced neither a COMPLETE unit nor a recorded unsupported reason",
+  );
 });

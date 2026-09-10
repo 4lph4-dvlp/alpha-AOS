@@ -41,9 +41,9 @@
             "pattern": "^[A-Z][A-Z0-9_]*$"
           },
           "capability": {
-            "description": "The requirement this canary is evidence for. Narrowed to the requirements this phase declares canaries for, because a canary naming a requirement nobody planned is far more likely to be a typo than a new capability.",
+            "description": "The requirement this canary is evidence for. Narrowed to the requirements this phase declares canaries for, because a canary naming a requirement nobody planned is far more likely to be a typo than a new capability. CAPA-05 joined the list in plan 03-11, which declares the pack-exercise canary: an ordinary request that a materialized project pack's skill is the natural answer to.",
             "type": "string",
-            "enum": ["CAPA-01", "CAPA-02", "CAPA-03", "CAPA-06"]
+            "enum": ["CAPA-01", "CAPA-02", "CAPA-03", "CAPA-05", "CAPA-06"]
           },
           "prompt": {
             "description": "The ordinary request handed to the harness. It MUST NOT name the skill, the MCP server or the tool it is meant to elicit — the expectation lists below exist precisely so the prompt does not have to hint. A prompt that only works when it hints is a finding about discovery, not a prompt to revise. Judged by whether a reasonable person reading it would call it an ordinary request.",

@@ -76,6 +76,34 @@ canaries:
       - claude
     readOnly: true
 
+  - id: PACK_EXERCISE_FRONTEND_A11Y
+    capability: CAPA-05
+    why: >-
+      The representative project pack (WEB_REACT) supplies exactly one skill, and
+      an ordinary complaint about a form that a keyboard and a screen reader
+      cannot get through is the natural thing that skill is for. The prompt names
+      neither the skill nor any tool, so selecting it is the harness's own act —
+      which is the whole of what CAPA-05 asks about "used during relevant work".
+      Note what this declaration does NOT assert: a pack skill is not an MCP tool,
+      so MCP-side observation cannot see it being followed. The structural
+      expectation here is the fan-out bound; that the skill was actually SELECTED
+      is read from the harness's own event stream on a deliberate paid run, and
+      the free half — that the skill is discoverable inside the project and not
+      outside it — is the paired discovery unit in test/capability-oracle.test.ts.
+    prompt: >-
+      Our checkout form works fine with a mouse, but a customer told us they
+      cannot get through it with the keyboard alone and that nothing useful is
+      announced to them as they move between the fields. Go through the form and
+      tell me what to fix.
+    expectTools: []
+    forbidTools: []
+    maxDistinctServers: 1
+    requiresEnvironment: []
+    requiresMcpServers: []
+    harnesses:
+      - claude
+    readOnly: true
+
   - id: ORDINARY_LOOKUP_CONTROL
     capability: CAPA-02
     why: >-

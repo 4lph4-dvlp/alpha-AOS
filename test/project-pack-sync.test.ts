@@ -557,6 +557,21 @@ test("applying a pack writes a provenance sidecar on every tolerance-proven surf
   for (const relative of result.sidecars) {
     assert.ok(rendered.includes(relative), `the apply rendering did not name the sidecar ${relative}`);
   }
+
+  // 03-RESEARCH.md Pitfall 4: pi loads project-local skills only after the
+  // project is trusted, and trust defaults to asking. A user who meets that
+  // prompt without warning reads it as a failure, so CAPA-05's human-facing
+  // report says up front that it is an expected step.
+  const firstUse = rendered.split("\n").find((line) => line.startsWith("FIRST-USE pi"));
+  assert.ok(firstUse !== undefined, `the report does not warn about pi's one-time trust prompt:\n${rendered}`);
+  assert.ok(/prompts? once/u.test(firstUse), firstUse);
+  assert.ok(firstUse.includes("expected step, not a failure"), firstUse);
+  assert.ok(firstUse.includes("[cited:"), `the first-use note cites nothing: ${firstUse}`);
+  assert.equal(
+    result.sidecarSurfaces.find((entry) => entry.harness === "claude")?.firstUseNote,
+    null,
+    "a surface with no trust gate was given a first-use warning it does not need",
+  );
 });
 
 test("the surface whose sidecar tolerance is unproven gets no sidecar, and the plan says so with the reason", async (context) => {

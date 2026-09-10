@@ -254,7 +254,32 @@ export interface PackSidecarDecision {
   readonly enabled: boolean;
   /** The `SIDECAR_SURFACES` reason verbatim, so a receipts-only surface is never a blank. */
   readonly reason: string;
+  /** What a user will see the FIRST time they use this pack here, or null. */
+  readonly firstUseNote: string | null;
 }
+
+/**
+ * What a user will see the FIRST time they use a materialized pack on a
+ * surface, where that is something other than "it just works".
+ *
+ * pi is the one such surface today. Its project skill roots load only after the
+ * project is TRUSTED, and trust defaults to asking — so a user who has never
+ * trusted this repository gets a one-time prompt on first use. 03-RESEARCH.md
+ * records that as an expected step, and CAPA-05's human-facing report says so
+ * rather than letting a user read a prompt they did not expect as a failure.
+ *
+ * alpha-AOS never answers that prompt for them: its own probes pass a per-RUN
+ * trust flag and persist nothing.
+ */
+export const FIRST_USE_NOTES: ReadonlyMap<HarnessId, string> = new Map<HarnessId, string>([
+  [
+    "pi",
+    "first use prompts once: pi loads project-local skills only after the project is trusted, and trust defaults to " +
+      "asking, so the first real use of this pack in this repository shows a one-time trust prompt. That is an " +
+      "expected step, not a failure. alpha-AOS never answers it for you — its own probes pass trust for a single run " +
+      "and persist nothing [cited: pi 0.85.1 docs/skills.md, docs/security.md]",
+  ],
+]);
 
 function sidecarBytes(document: PackSidecarDocument): string {
   return `${JSON.stringify(document, null, 2)}\n`;
@@ -972,6 +997,7 @@ export async function planProjectPackSync(options: ProjectPackSyncOptions): Prom
           decision?.reason ??
           `${harness} has no recorded sidecar tolerance decision at all, so nothing is written beside its skills and ` +
             `${PROJECT_RECEIPT_DIRECTORY} is the whole provenance record for it`,
+        firstUseNote: FIRST_USE_NOTES.get(harness) ?? null,
       };
     });
 

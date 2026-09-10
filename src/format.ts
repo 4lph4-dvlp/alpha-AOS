@@ -306,12 +306,19 @@ export function formatProjectPackSync(result: ProjectPackSyncResult): string {
   const surfaces = result.sidecarSurfaces
     .filter((entry) => !entry.enabled)
     .map((entry) => `RECEIPTS-ONLY ${entry.harness} — ${entry.reason}`);
+  // A prompt a user did not expect reads as a failure. Where a surface gates
+  // project-local skills behind a trust decision, the report says so BEFORE the
+  // user meets it, and says it is an expected step (03-RESEARCH.md Pitfall 4).
+  const firstUse = result.sidecarSurfaces
+    .filter((entry) => entry.firstUseNote !== null)
+    .map((entry) => `FIRST-USE ${entry.harness} — ${entry.firstUseNote ?? ""}`);
   if (result.status === "already-current") {
     return [
       ...findings,
       `Packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
       ...result.current.map((path) => `  current ${path}`),
       ...surfaces,
+      ...firstUse,
       "Already current. No bytes were written and no transaction was opened.",
     ].join("\n");
   }
@@ -322,6 +329,7 @@ export function formatProjectPackSync(result: ProjectPackSyncResult): string {
     ...result.sidecars.map((path) => `  provenance ${path}`),
     ...result.receipts.map((path) => `  receipt ${path}`),
     ...surfaces,
+    ...firstUse,
     `Transaction: ${result.operationId ?? "none"}`,
     "The transaction snapshotted every replaced file before writing it, so this materialization is reversible with `alpha-aos rollback`.",
   ].join("\n");

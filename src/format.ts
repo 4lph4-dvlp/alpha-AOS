@@ -1,5 +1,5 @@
 import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
-import type { CapabilityReportRow } from "./core/canary.js";
+import type { CapabilityReportRow, HandoffCanaryResult } from "./core/canary.js";
 import {
   approvalCommand,
   describeLeaf,
@@ -660,6 +660,78 @@ export function formatCapabilityReport(
 
   for (const note of notes) lines.push(note);
   return lines.join("\n");
+}
+
+/**
+ * The transcribed evidence one handoff canary produced.
+ *
+ * Every number the plan asks to be transcribed is on its own line rather than in
+ * a table cell, for the reason the BLOCKED convention already exists: a width
+ * bound must not be able to cut the load-bearing words. The scope limit is the
+ * LAST line so it is the thing a reader leaves with — what was proven, and just
+ * as importantly what was not.
+ */
+export function formatHandoffEvidence(result: HandoffCanaryResult): string[] {
+  const lines: string[] = [];
+  const pair = result.pair;
+  if (pair === null) {
+    lines.push(
+      `HANDOFF ${result.capability} — no pair of harnesses was available, so the run was not attempted. Considered: ` +
+        result.pairResolution.considered
+          .map(
+            (entry) =>
+              `${entry.pair.source}->${entry.pair.target} (source ${entry.sourceResolved ? "found" : "absent"}, ` +
+              `target ${entry.targetResolved ? "found" : "absent"})`,
+          )
+          .join("; "),
+    );
+    lines.push(`HANDOFF SCOPE — ${result.scopeLimit}`);
+    return lines;
+  }
+
+  lines.push(
+    `HANDOFF PAIR — source ${pair.source}${versionSuffix(result.harnessVersions.source)}, target ` +
+      `${pair.target}${versionSuffix(result.harnessVersions.target)}; ${pair.why}`,
+  );
+  lines.push(
+    `HANDOFF VAULT — memories before ${describeCount(result.vaultBefore)}, after ${describeCount(result.vaultAfter)}; ` +
+      `sentinel title ${result.sentinelTitle ?? "(none written)"}; written at ${result.writtenPath ?? "(nothing written)"}`,
+  );
+  lines.push(
+    `HANDOFF RECALL — a filtered recall for ${pair.target} returned ${describeCount(result.recallCount)} entr(ies) and ` +
+      `${result.recalled === true ? "DID" : result.recalled === false ? "did NOT" : "was not reached to"} include the sentinel`,
+  );
+  lines.push(
+    `HANDOFF PLANNING — before ${describeDigest(result.planningBefore?.digest ?? null)}, after ` +
+      `${describeDigest(result.planningAfter?.digest ?? null)} over ${result.planningBefore?.root ?? "(not hashed)"}; ` +
+      (result.planningDifference?.equal === true
+        ? "byte-for-byte identical"
+        : `CHANGED: ${(result.planningDifference?.reasons ?? ["the digests were not comparable"]).join(", ")}`),
+  );
+  if (result.receivingSkippedReason !== null) {
+    lines.push(`HANDOFF RECEIVING — ${result.receivingSkippedReason}`);
+  } else if (result.receiving !== null) {
+    lines.push(
+      `HANDOFF RECEIVING — ${pair.target} ran the declared prompt: outcome ${result.receiving.outcome}, exit ` +
+        `${String(result.receiving.exitCode)}. Whether it genuinely worked FROM the handed-off context is a human ` +
+        "judgement; model output text is never evidence here.",
+    );
+  }
+  lines.push(`HANDOFF UNIT — ${result.unit?.summary ?? "no evidence unit was assembled"}`);
+  lines.push(`HANDOFF SCOPE — ${result.scopeLimit}`);
+  return lines;
+}
+
+function versionSuffix(version: string | null): string {
+  return version === null ? " (version unreadable)" : ` ${version}`;
+}
+
+function describeCount(value: number | null): string {
+  return value === null ? "unread" : String(value);
+}
+
+function describeDigest(value: string | null): string {
+  return value === null ? "withheld (the digest was incomplete)" : value.slice(0, 12);
 }
 
 /** The one-cell reason a row carries, chosen in the order a reader needs it. */

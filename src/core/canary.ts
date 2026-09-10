@@ -24,6 +24,17 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { createIsolationLaunchSpec } from "../adapters/isolation.js";
 import {
+  createMemoryRunner,
+  MEMORY_COMMAND,
+  memoryDoctor,
+  memoryHandoff,
+  memorySearch,
+  type MemoryRefusal,
+  type MemoryResult,
+  type MemoryRunner,
+  type MemorySearchFacts,
+} from "../adapters/unified-memory.js";
+import {
   ORACLE_DEFINITIONS,
   ORACLE_PLACEHOLDER_PROMPT,
   resolveDirectLaunch,
@@ -39,6 +50,7 @@ import type {
   StackLock,
   SurfaceSupport,
 } from "../types.js";
+import { pairEvidence } from "./capability-ledger.js";
 import type {
   BlockedReason,
   BoundInputs,
@@ -46,6 +58,7 @@ import type {
   EvidenceCompleteness,
   EvidenceUnit,
   HarnessVersion,
+  ImmutabilityWitness,
   LedgerHarness,
   NativeUseState,
   OracleRecord,
@@ -1388,15 +1401,52 @@ const CANARY_INSTRUCTION_ROOT: Readonly<Record<LedgerHarness, ((harnessRoot: str
   hermes: null,
 });
 
+/** The identifier and source of the memory-handoff steering instruction (plan 03-12). */
+export const MEMORY_HANDOFF_INSTRUCTION_ID = "alpha-aos-memory-handoff";
+export const MEMORY_HANDOFF_INSTRUCTION_SOURCE = "skills/alpha-aos-memory-handoff/SKILL.md";
+
+export interface CanaryOwnedInstruction {
+  readonly id: string;
+  readonly source: string;
+  /**
+   * The capabilities this instruction is materialized for, or null for every
+   * canary.
+   *
+   * Scoped rather than global because a steering instruction is a change to the
+   * conditions a run happens under. Handing the memory-handoff instruction to
+   * the CAPA-01 documentation canary would quietly alter the run whose whole job
+   * is to show what a harness does WITHOUT being pointed at anything.
+   */
+  readonly capabilities: readonly string[] | null;
+}
+
 /**
  * The alpha-AOS-owned instructions a canary runtime carries.
  *
- * Exactly one today. Declared as a list rather than inlined so a second owned
- * instruction is an entry rather than a second copy of the write.
+ * Declared as a list rather than inlined so a second owned instruction is an
+ * entry rather than a second copy of the write.
  */
-export const CANARY_OWNED_INSTRUCTIONS: readonly { readonly id: string; readonly source: string }[] = Object.freeze([
-  { id: RESEARCH_ROUTING_INSTRUCTION_ID, source: RESEARCH_ROUTING_INSTRUCTION_SOURCE },
+export const CANARY_OWNED_INSTRUCTIONS: readonly CanaryOwnedInstruction[] = Object.freeze([
+  { id: RESEARCH_ROUTING_INSTRUCTION_ID, source: RESEARCH_ROUTING_INSTRUCTION_SOURCE, capabilities: null },
+  {
+    id: MEMORY_HANDOFF_INSTRUCTION_ID,
+    source: MEMORY_HANDOFF_INSTRUCTION_SOURCE,
+    // CAPA-03's truth statement is that a user can EXPLICITLY hand work over.
+    // Telling the receiving harness where handed-off context lives is therefore
+    // in scope rather than a thumb on the scale — without it the receiving leg
+    // cannot consult the handoff at all, because a canary runtime deliberately
+    // hides the user's own skills (03-08 deviation 3), and a run that could not
+    // possibly succeed proves nothing when it does not.
+    capabilities: ["CAPA-03"],
+  },
 ]);
+
+/** The owned instructions that apply to a run for `capability`. */
+export function ownedInstructionsFor(capability: string | null): readonly CanaryOwnedInstruction[] {
+  return CANARY_OWNED_INSTRUCTIONS.filter(
+    (instruction) => instruction.capabilities === null || (capability !== null && instruction.capabilities.includes(capability)),
+  );
+}
 
 export interface CreateCanaryRuntimeOptions {
   readonly projectRoot: string;
@@ -1413,6 +1463,12 @@ export interface CreateCanaryRuntimeOptions {
   readonly packageRoot?: string;
   /** Supplied by a caller that wants a reproducible runtime path; otherwise fresh. */
   readonly runId?: string;
+  /**
+   * Which capability this runtime is being built for, so only the owned
+   * instructions declared for it are materialized. Null (the default) carries
+   * the unscoped instructions and nothing else.
+   */
+  readonly capability?: string | null;
   /** Read for the credential-value refusal only. Never rendered. */
   readonly environment?: NodeJS.ProcessEnv;
   readonly context?: ExecutionContext;
@@ -1475,7 +1531,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
   const instructionSourceRoot = resolve(options.packageRoot ?? packageRoot());
   const instructions: { readonly target: string; readonly content: string }[] = [];
   if (instructionRoot !== null) {
-    for (const instruction of CANARY_OWNED_INSTRUCTIONS) {
+    for (const instruction of ownedInstructionsFor(options.capability ?? null)) {
       const source = join(instructionSourceRoot, instruction.source);
       // A missing owned instruction is a REFUSAL, not a quietly skipped write.
       // A canary that ran without its steering layer and passed would be
@@ -2564,6 +2620,477 @@ export function comparePlanningTrees(
 type PlanningTreeDifferenceInput = PlanningTreeDigest;
 
 // ---------------------------------------------------------------------------
+// The handoff canary — one run, both halves (plan 03-12 Task 3)
+// ---------------------------------------------------------------------------
+
+/** The declared handoff canary's id, so the CLI and the catalog cannot drift. */
+export const HANDOFF_CANARY_ID = "CROSS_HARNESS_HANDOFF";
+
+/** The capability the handoff canary is evidence for. */
+export const HANDOFF_CAPABILITY = "CAPA-03";
+
+/** Where the planning tree lives, relative to a project root. */
+export const PLANNING_DIRECTORY = ".planning";
+
+/**
+ * Short, DECLARED names for a capability route, so `--capability handoff`
+ * resolves to something a reader can look up rather than to a magic string
+ * matched inside a command branch.
+ */
+export const CANARY_CAPABILITY_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  handoff: HANDOFF_CAPABILITY,
+});
+
+/** Resolves a `--capability` value through the declared aliases. Case-insensitive. */
+export function resolveCapabilityFilter(filter: string | null): string | null {
+  if (filter === null) return null;
+  return CANARY_CAPABILITY_ALIASES[filter.toLowerCase()] ?? filter;
+}
+
+/**
+ * What this canary proves and, just as importantly, what it does not.
+ *
+ * Recorded on the result and on the ledger row rather than left in a comment,
+ * because a reader who is told only the positive will read the check as broader
+ * than it is. 03-CONTEXT.md D-16 draws this line explicitly.
+ */
+export const HANDOFF_SCOPE_LIMIT =
+  "alpha-AOS proved the state of the project's planning tree across the round trip, byte for byte. It did NOT observe " +
+  "or restrict what the memory tool did elsewhere on the filesystem: policing that would require being an invocation " +
+  "proxy for every tool call, which PROJECT.md's control-plane decision and 03-CONTEXT.md D-02 rule out.";
+
+/** A source harness that writes a handoff and a target harness that receives it. */
+export interface HandoffPair {
+  readonly source: LedgerHarness;
+  readonly target: LedgerHarness;
+  readonly why: string;
+}
+
+/**
+ * The declared pairs, preferred first.
+ *
+ * The TARGET is claude in both, and that is not a preference: only claude has
+ * the two strict MCP-isolation flags a canary runtime needs (plan 03-06), so
+ * every other harness's canary launch is a recorded blocked reason. The SOURCE
+ * is where 03-RESEARCH.md's Environment Availability table has a choice — it
+ * names hermes as the CAPA-03 handoff peer and `claude<->codex` as the fallback.
+ */
+export const HANDOFF_HARNESS_PAIRS: readonly HandoffPair[] = Object.freeze([
+  {
+    source: "hermes",
+    target: "claude",
+    why: "03-RESEARCH.md Environment Availability names hermes as the CAPA-03 handoff peer",
+  },
+  {
+    source: "codex",
+    target: "claude",
+    why: "the fallback the same table names when the handoff peer is unavailable: claude <-> codex",
+  },
+]);
+
+/** One pair that was considered, and whether each end of it resolved. */
+export interface HandoffPairCandidate {
+  readonly pair: HandoffPair;
+  readonly sourceResolved: boolean;
+  readonly targetResolved: boolean;
+}
+
+export interface HandoffPairResolution {
+  readonly pair: HandoffPair | null;
+  /** Every pair considered, in declaration order. A choice nobody can audit is a guess. */
+  readonly considered: readonly HandoffPairCandidate[];
+  readonly blockedReasons: readonly BlockedReason[];
+}
+
+/**
+ * Picks the first declared pair whose BOTH ends resolve on PATH.
+ *
+ * A host that cannot run two harnesses records `blocked` naming the requirement
+ * and the run is not attempted — a handoff canary with one harness would be
+ * measuring a harness talking to itself.
+ */
+export function resolveHandoffPair(
+  options: {
+    readonly resolveHarness?: (harness: LedgerHarness) => string | null;
+    readonly source?: LedgerHarness | null;
+    readonly target?: LedgerHarness | null;
+  } = {},
+): HandoffPairResolution {
+  const resolveHarness = options.resolveHarness ?? ((harness: LedgerHarness) => resolveCommand(HARNESS_COMMANDS[harness]));
+  const declared =
+    options.source != null && options.target != null
+      ? [{ source: options.source, target: options.target, why: "the pair the caller named explicitly" }]
+      : HANDOFF_HARNESS_PAIRS;
+
+  const considered: HandoffPairCandidate[] = [];
+  for (const pair of declared) {
+    if (pair.source === pair.target) {
+      considered.push({ pair, sourceResolved: false, targetResolved: false });
+      continue;
+    }
+    const candidate: HandoffPairCandidate = {
+      pair,
+      sourceResolved: resolveHarness(pair.source) !== null,
+      targetResolved: resolveHarness(pair.target) !== null,
+    };
+    considered.push(candidate);
+    if (candidate.sourceResolved && candidate.targetResolved) {
+      return { pair, considered, blockedReasons: [] };
+    }
+  }
+
+  return {
+    pair: null,
+    considered,
+    blockedReasons: [
+      {
+        code: "HANDOFF_PAIR_UNAVAILABLE",
+        variable: considered.map((entry) => `${entry.pair.source}->${entry.pair.target}`).join(", "),
+        nextAction:
+          "A cross-harness handoff needs TWO harnesses with non-interactive entrypoints on PATH, and the receiving one " +
+          "must be a harness a canary runtime can isolate. Install one of the declared pairs above, or name a pair " +
+          "explicitly with --harness, and re-run. The run was not attempted: a handoff measured with one harness would " +
+          "be a harness talking to itself.",
+      },
+    ],
+  };
+}
+
+/** The body alpha-AOS hands over. Ordinary working context, and nothing sensitive. */
+export const HANDOFF_BODY_TEMPLATE = [
+  "Handed over mid-task by the source harness named on this memory.",
+  "",
+  "What was already decided: the next step is to re-read the project's own planning documents",
+  "before proposing anything new, because the decision that matters was recorded there and not",
+  "in this note. Do not write to the planning tree; it belongs to the project's lifecycle tool.",
+  "",
+  "This memory was written by alpha-AOS as a cross-harness handoff canary. It is unreviewed",
+  "context, never policy.",
+].join("\n");
+
+/** Everything one handoff canary established, and how. */
+export interface HandoffCanaryResult {
+  readonly canary: string;
+  readonly capability: string;
+  readonly pair: HandoffPair | null;
+  readonly pairResolution: HandoffPairResolution;
+  readonly harnessVersions: { readonly source: string | null; readonly target: string | null };
+  /** The vault's memory count before and after the write. Null when it could not be read. */
+  readonly vaultBefore: number | null;
+  readonly vaultAfter: number | null;
+  readonly sentinelTitle: string | null;
+  readonly writtenMemoryId: string | null;
+  readonly writtenPath: string | null;
+  /** Whether the target-filtered recall returned the sentinel title. Null when not reached. */
+  readonly recalled: boolean | null;
+  readonly recallCount: number | null;
+  /** The first vault refusal, if any. Recorded rather than collapsed into "it failed". */
+  readonly vaultRefusal: MemoryRefusal | null;
+  readonly planningBefore: PlanningTreeDigest | null;
+  readonly planningAfter: PlanningTreeDigest | null;
+  readonly planningDifference: PlanningTreeDifference | null;
+  /** The receiving harness's run, or null when the paid leg was not attempted. */
+  readonly receiving: CanaryRunResult | null;
+  readonly receivingSkippedReason: string | null;
+  readonly positive: CapabilityProof | null;
+  readonly negative: CapabilityProof | null;
+  readonly unit: EvidenceUnit | null;
+  readonly outcome: CanaryOutcome;
+  readonly blockedReasons: readonly BlockedReason[];
+  readonly scopeLimit: string;
+}
+
+export interface RunHandoffCanaryOptions {
+  readonly declaration: CanaryDeclaration;
+  readonly projectRoot: string;
+  /** Defaults to `<projectRoot>/.planning`. */
+  readonly planningRoot?: string;
+  readonly source?: LedgerHarness | null;
+  readonly target?: LedgerHarness | null;
+  readonly projectId?: string | null;
+  readonly boundInputs?: BoundInputs;
+  readonly harnessVersions?: Readonly<Partial<Record<LedgerHarness, HarnessVersion>>>;
+  readonly memoryRunner?: MemoryRunner;
+  readonly resolveHarness?: (harness: LedgerHarness) => string | null;
+  /**
+   * Runs the receiving harness against the declared prompt.
+   *
+   * OMITTED BY DEFAULT, and that is the cost decision made explicit: this is the
+   * only leg of the canary that spends a model turn. Every other step — the
+   * baseline, the write, the filtered recall and both planning-tree digests — is
+   * deterministic and offline, so the free half of D-16 runs anywhere.
+   */
+  readonly receive?: ((pair: HandoffPair) => Promise<CanaryRunResult>) | null;
+  /** Supplied by a caller that wants a reproducible sentinel; otherwise fresh. */
+  readonly sentinel?: string;
+  readonly now?: () => Date;
+  readonly context?: ExecutionContext;
+}
+
+/**
+ * The digest over an EMPTY set of pack skills.
+ *
+ * `boundInputs.skillSourceHash` is a sha256 by contract, and an empty string is
+ * not one: a proof carrying `""` is writable and then UNREADABLE, so the command
+ * that wrote it bricks its own ledger on the next run. That is the defect plan
+ * 03-08 found in `harnessVersion.raw` and fixed there; this is the same shape one
+ * field over, and it had never surfaced only because no canary proof had ever
+ * been written.
+ *
+ * The honest value is the digest of the empty set, which is what
+ * `packSkillSourceHash([])` computes. A capability that binds to no pack skill —
+ * CAPA-03 binds to the memory vault, not to a skill — keeps that value across
+ * runs, so `resolveNativeUse` never demotes it for a change that did not happen.
+ */
+export const NO_PACK_SKILL_SOURCE_HASH = createHash("sha256").update("").digest("hex");
+
+export const EMPTY_BOUND_INPUTS: BoundInputs = Object.freeze({
+  skillSourceHash: NO_PACK_SKILL_SOURCE_HASH,
+  mcpServerVersion: null,
+  evidenceHash: null,
+});
+
+const NO_HARNESS_VERSION: HarnessVersion = Object.freeze({ exact: null, minorKey: null, raw: "" });
+
+function handoffRefusalReason(refusal: MemoryRefusal): BlockedReason {
+  return refusal.state === "unsupported"
+    ? {
+        code: "MEMORY_VAULT_UNAVAILABLE",
+        variable: MEMORY_COMMAND,
+        nextAction:
+          `${refusal.reason}. CAPA-03 is a claim about the Memory Vault, so there is no fallback: install the vault ` +
+          "runtime and re-run. Nothing was written and nothing was proven.",
+      }
+    : {
+        code: "MEMORY_VAULT_UNREADABLE",
+        variable: refusal.code,
+        nextAction:
+          `${refusal.reason}. A vault whose answer this build cannot read is a different fact from a vault that is ` +
+          "absent, and it is reported rather than treated as an empty one.",
+      };
+}
+
+/**
+ * Runs the cross-harness handoff canary: the positive and the negative in ONE
+ * run.
+ *
+ * The sequence is 03-RESEARCH.md Pattern 5's, in its order, and the order is the
+ * design. Both planning-tree digests bracket everything the vault does, so the
+ * immutability claim covers the whole round trip rather than a moment inside it.
+ *
+ * The write is made BY alpha-AOS on the source harness's behalf, through the
+ * vault's own `--from` attribution, rather than by driving the source harness
+ * through a model turn. That is deliberate: driving it would spend a second turn
+ * and would prove nothing extra about the boundary D-16 is asking about, and
+ * RESEARCH.md records every step except "the receiving harness is asked" as
+ * deterministic and offline for exactly that reason. The summary says so rather
+ * than letting a reader assume two model turns happened.
+ */
+export async function runHandoffCanary(options: RunHandoffCanaryOptions): Promise<HandoffCanaryResult> {
+  assertCanaryContext(options.context ?? "canary", "runHandoffCanary");
+
+  const declaration = options.declaration;
+  const projectRoot = resolve(options.projectRoot);
+  const planningRoot = options.planningRoot ?? join(projectRoot, PLANNING_DIRECTORY);
+  const runner = options.memoryRunner ?? createMemoryRunner();
+  const versions = options.harnessVersions ?? {};
+  const now = options.now ?? (() => new Date());
+
+  const pairResolution = resolveHandoffPair({
+    ...(options.resolveHarness === undefined ? {} : { resolveHarness: options.resolveHarness }),
+    ...(options.source === undefined ? {} : { source: options.source }),
+    ...(options.target === undefined ? {} : { target: options.target }),
+  });
+
+  const base = {
+    canary: declaration.id,
+    capability: declaration.capability,
+    pair: pairResolution.pair,
+    pairResolution,
+    harnessVersions: {
+      source: pairResolution.pair === null ? null : versions[pairResolution.pair.source]?.exact ?? null,
+      target: pairResolution.pair === null ? null : versions[pairResolution.pair.target]?.exact ?? null,
+    },
+    scopeLimit: HANDOFF_SCOPE_LIMIT,
+  } as const;
+
+  const refused = (blockedReasons: readonly BlockedReason[], extra: Partial<HandoffCanaryResult> = {}): HandoffCanaryResult => ({
+    ...base,
+    vaultBefore: null,
+    vaultAfter: null,
+    sentinelTitle: null,
+    writtenMemoryId: null,
+    writtenPath: null,
+    recalled: null,
+    recallCount: null,
+    vaultRefusal: null,
+    planningBefore: null,
+    planningAfter: null,
+    planningDifference: null,
+    receiving: null,
+    receivingSkippedReason: null,
+    positive: null,
+    negative: null,
+    unit: null,
+    outcome: "blocked",
+    blockedReasons,
+    ...extra,
+  });
+
+  if (pairResolution.pair === null) {
+    return refused(pairResolution.blockedReasons);
+  }
+  const pair = pairResolution.pair;
+
+  // 1. The vault baseline, taken in THIS run. Never an absolute count: a
+  //    developer host with existing memories changes the arithmetic, so the
+  //    claim is always "increased by exactly one" against a baseline just taken.
+  const before = await memoryDoctor({ cwd: projectRoot, runner });
+  if (before.state !== "ok") {
+    return refused([handoffRefusalReason(before)], { vaultRefusal: before });
+  }
+
+  // 2. The planning tree BEFORE anything the vault does.
+  const planningBefore = await hashPlanningTree(planningRoot);
+
+  // 3. The handoff, with a sentinel title unique to this run.
+  const sentinelTitle = options.sentinel ?? `ALPHA-AOS-HANDOFF-CANARY-${randomUUID()}`;
+  const written = await memoryHandoff({
+    cwd: projectRoot,
+    runner,
+    source: pair.source,
+    target: pair.target,
+    title: sentinelTitle,
+    body: HANDOFF_BODY_TEMPLATE,
+  });
+
+  // 4. The count after, and the target-filtered recall. Both are read even when
+  //    the write refused, because the planning tree must still be re-hashed: a
+  //    failed write that moved `.planning/` is precisely the event D-16 is about.
+  const after = written.state === "ok" ? await memoryDoctor({ cwd: projectRoot, runner }) : before;
+  const recall =
+    written.state === "ok" ? await memorySearch({ cwd: projectRoot, runner, targetHarness: pair.target }) : null;
+  const recalledTitles = recall?.state === "ok" ? recall.value.results.map((entry) => entry.title) : [];
+  const recalled = recall === null ? null : recall.state === "ok" && recalledTitles.includes(sentinelTitle);
+
+  // 5. The receiving harness. The one leg that spends.
+  let receiving: CanaryRunResult | null = null;
+  let receivingSkippedReason: string | null = null;
+  if (options.receive == null) {
+    receivingSkippedReason =
+      `the receiving leg drives ${pair.target} with the declared prompt and spends a model turn, and it was not ` +
+      "requested; every other leg of this canary is deterministic and offline";
+  } else {
+    receiving = await options.receive(pair);
+  }
+
+  // 6. The planning tree AFTER. Bracketing everything above is what makes the
+  //    immutability claim about the round trip rather than about a moment.
+  const planningAfter = await hashPlanningTree(planningRoot);
+  const planningDifference = comparePlanningTrees(planningBefore, planningAfter);
+
+  const vaultBefore = before.value.memoryCount;
+  const vaultAfter = after.state === "ok" ? after.value.memoryCount : null;
+  const grewByExactlyOne = vaultAfter !== null && vaultAfter - vaultBefore === 1;
+  const vaultRefusal: MemoryRefusal | null =
+    written.state !== "ok" ? written : after.state !== "ok" ? after : recall !== null && recall.state !== "ok" ? recall : null;
+
+  const observedAt = now().toISOString();
+  const witness: ImmutabilityWitness = {
+    asserted: planningDifference.equal && planningBefore.complete && planningAfter.complete,
+    root: planningBefore.root,
+    beforeDigest: planningBefore.digest,
+    afterDigest: planningAfter.digest,
+    complete: planningBefore.complete && planningAfter.complete,
+    changedPaths: [...planningDifference.modified, ...planningDifference.added, ...planningDifference.removed],
+    scopeLimit: HANDOFF_SCOPE_LIMIT,
+  };
+
+  const negative: CapabilityProof = {
+    projectId: options.projectId ?? null,
+    harness: pair.target,
+    capability: declaration.capability,
+    polarity: "negative",
+    // The negative half's own axis says nothing about use: it is a claim that
+    // the planning tree did not move, and `unverified` is the honest value for
+    // an axis this half did not measure.
+    nativeUse: "unverified",
+    blockedReason: null,
+    boundInputs: options.boundInputs ?? EMPTY_BOUND_INPUTS,
+    harnessVersion: versions[pair.target] ?? NO_HARNESS_VERSION,
+    ancestorFreedom: null,
+    immutabilityWitness: witness,
+    observedAt,
+    oracle: {
+      command: `${MEMORY_COMMAND} memory handoff --from ${pair.source} --target ${pair.target} (planning-tree digest, before and after)`,
+      exitCode: 0,
+      stdoutFingerprint: createHash("sha256").update(planningBefore.digest ?? "incomplete").digest("hex"),
+      stderrFingerprint: createHash("sha256").update(planningAfter.digest ?? "incomplete").digest("hex"),
+    },
+  };
+
+  // The positive exists only when the handoff really happened: written, counted,
+  // and returned by the RECEIVING harness's own filter. Anything short of that
+  // is the absence of a positive, and inventing one would put a proof in the
+  // ledger for something no run established (T-03-20).
+  const positive: CapabilityProof | null =
+    written.state === "ok" && grewByExactlyOne && recalled === true
+      ? {
+          projectId: options.projectId ?? null,
+          harness: pair.target,
+          capability: declaration.capability,
+          polarity: "positive",
+          // `discovered`, never `invoked`. The handed-off context is provably
+          // there and provably reachable through the target's own filter; that
+          // the receiving MODEL worked from it is a judgement no record makes,
+          // and D-01 keeps model output out of the verdict entirely.
+          nativeUse: "discovered",
+          blockedReason: null,
+          boundInputs: options.boundInputs ?? EMPTY_BOUND_INPUTS,
+          harnessVersion: versions[pair.target] ?? NO_HARNESS_VERSION,
+          ancestorFreedom: null,
+          observedAt,
+          oracle: {
+            command: `${MEMORY_COMMAND} memory search --json --target-harness ${pair.target}`,
+            exitCode: 0,
+            stdoutFingerprint: createHash("sha256").update(sentinelTitle).digest("hex"),
+            stderrFingerprint: createHash("sha256").update(String(recallCountOf(recall))).digest("hex"),
+          },
+        }
+      : null;
+
+  const blockedReasons: BlockedReason[] = [];
+  if (vaultRefusal !== null) blockedReasons.push(handoffRefusalReason(vaultRefusal));
+
+  return {
+    ...base,
+    vaultBefore,
+    vaultAfter,
+    sentinelTitle,
+    writtenMemoryId: written.state === "ok" ? written.value.memory.id : null,
+    writtenPath: written.state === "ok" ? written.value.path : null,
+    recalled,
+    recallCount: recallCountOf(recall),
+    vaultRefusal,
+    planningBefore,
+    planningAfter,
+    planningDifference,
+    receiving,
+    receivingSkippedReason,
+    positive,
+    negative,
+    unit: pairEvidence(positive, negative),
+    outcome: blockedReasons.length > 0 ? "blocked" : positive === null ? "unverified" : "ready",
+    blockedReasons,
+    scopeLimit: HANDOFF_SCOPE_LIMIT,
+  };
+}
+
+function recallCountOf(recall: MemoryResult<MemorySearchFacts> | null): number | null {
+  return recall === null ? null : recall.state === "ok" ? recall.value.results.length : null;
+}
+
+// ---------------------------------------------------------------------------
 // Two sweeps — the free evidence and the paid evidence, kept apart
 // ---------------------------------------------------------------------------
 //
@@ -2735,11 +3262,36 @@ export function canaryCostLines(selections: readonly CanarySelection[]): readonl
   return lines;
 }
 
+/** A selection the sweep deliberately did not run, and why. */
+export interface SkippedCanary {
+  readonly selection: CanarySelection;
+  readonly reason: string;
+}
+
 export interface CanarySweep {
   readonly selections: readonly CanarySelection[];
   readonly costLines: readonly string[];
   readonly results: readonly CanaryRunResult[];
+  /** CAPA-03 selections, which are a different shape of run. */
+  readonly handoffResults: readonly HandoffCanaryResult[];
+  readonly skipped: readonly SkippedCanary[];
 }
+
+/**
+ * What `--no-spend` records for a leg it did not attempt.
+ *
+ * `unverified`, never `blocked`: 03-CONTEXT.md D-12 reserves `blocked` for a
+ * KNOWN, actionable cause, and "nobody asked to spend" is not something the user
+ * has to fix. Reporting it as blocked would send someone hunting for a
+ * prerequisite that is not missing.
+ */
+export const CANARY_NOT_ATTEMPTED_REASON =
+  "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to " +
+  "spend deliberately; nothing here is missing or misconfigured.";
+
+/** Printed with the cost lines, so a no-spend run announces itself before it starts. */
+export const CANARY_NO_SPEND_NOTICE =
+  "  --no-spend: every leg above that spends a model turn will be recorded `unverified` (not attempted) instead of run.";
 
 export interface RunCanarySweepOptions {
   readonly catalog: CanaryCatalog;
@@ -2749,6 +3301,22 @@ export interface RunCanarySweepOptions {
   readonly announce: (line: string) => void;
   /** How one selection is run. Supplied by the caller that holds the lock and the state root. */
   readonly run: (selection: CanarySelection) => Promise<CanaryRunResult>;
+  /**
+   * How a CAPA-03 selection is run. A handoff canary is not a plain canary run:
+   * most of it is deterministic and offline, and only the receiving leg spends.
+   * Omitted, a handoff selection is SKIPPED with that as the reason rather than
+   * forced through a shape that does not fit it.
+   */
+  readonly runHandoff?: (selection: CanarySelection) => Promise<HandoffCanaryResult>;
+  /**
+   * Whether a leg that costs a model turn may run. Default true.
+   *
+   * False attempts only what is free — which for the handoff canary is the vault
+   * round trip and both planning-tree digests, i.e. the whole of D-16's
+   * immutability half. That is what makes the free half of CAPA-03 runnable on a
+   * host, and in CI, without a credential.
+   */
+  readonly spend?: boolean;
   readonly context?: ExecutionContext;
 }
 
@@ -2766,11 +3334,38 @@ export async function runCanarySweep(options: RunCanarySweepOptions): Promise<Ca
     ...(options.capability === undefined ? {} : { capability: options.capability }),
   });
   const costLines = canaryCostLines(selections);
-  for (const line of costLines) options.announce(line);
+  const spend = options.spend !== false;
+  const announced = spend ? costLines : [...costLines, CANARY_NO_SPEND_NOTICE];
+  for (const line of announced) options.announce(line);
 
   const results: CanaryRunResult[] = [];
-  for (const selection of selections) results.push(await options.run(selection));
-  return { selections, costLines, results };
+  const handoffResults: HandoffCanaryResult[] = [];
+  const skipped: SkippedCanary[] = [];
+
+  for (const selection of selections) {
+    if (selection.declaration.capability === HANDOFF_CAPABILITY) {
+      // The handoff canary decides for itself which of its legs are free; the
+      // sweep only tells it whether spending is permitted.
+      if (options.runHandoff === undefined) {
+        skipped.push({
+          selection,
+          reason:
+            "this is a cross-harness handoff canary and no handoff runner was supplied, so it was not run. It is a " +
+            "different shape of run, not a plain canary, and forcing it through one would report something else.",
+        });
+        continue;
+      }
+      handoffResults.push(await options.runHandoff(selection));
+      continue;
+    }
+    if (!spend && selection.costsModelTurn !== false) {
+      skipped.push({ selection, reason: CANARY_NOT_ATTEMPTED_REASON });
+      continue;
+    }
+    results.push(await options.run(selection));
+  }
+
+  return { selections, costLines: announced, results, handoffResults, skipped };
 }
 
 // ---------------------------------------------------------------------------
@@ -2898,6 +3493,52 @@ export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): Cap
       nativeUse: result.verdict.reasons[0] ?? result.unverifiedReason,
     },
     blockedReason: result.blockedReasons[0] ?? null,
+    unsupportedReason: null,
+    incompleteReasons: [],
+  };
+}
+
+/**
+ * A row from one handoff canary.
+ *
+ * Unlike `canaryRow` this one DOES report a completeness, because a handoff
+ * canary really is one evidence unit: its negative control is the planning-tree
+ * digest it took itself, not another command's business.
+ */
+export function handoffRow(result: HandoffCanaryResult, support: SurfaceSupport): CapabilityReportRow {
+  const unit = result.unit;
+  return {
+    capability: `${result.capability} (${result.canary})`,
+    harness: result.pair?.target ?? "claude",
+    completeness: unit?.completeness ?? null,
+    axes: {
+      deployment: null,
+      support,
+      nativeUse: unit?.nativeUse ?? null,
+    },
+    axisNotes: {
+      deployment: DEPLOYMENT_AXIS_NOT_MEASURED_HERE,
+      // The receiving leg's absence is the FIRST thing a reader needs, because
+      // it is the half a human still has to close.
+      nativeUse: result.receivingSkippedReason ?? unit?.incompleteReasons[0] ?? null,
+    },
+    blockedReason: result.blockedReasons[0] ?? null,
+    unsupportedReason: result.pair === null ? result.pairResolution.blockedReasons[0]?.nextAction ?? null : null,
+    incompleteReasons: unit?.incompleteReasons ?? [],
+  };
+}
+
+/** A row for a selection a sweep deliberately did not attempt. */
+export function skippedCanaryRow(entry: SkippedCanary, support: SurfaceSupport): CapabilityReportRow {
+  return {
+    capability: `${entry.selection.declaration.capability} (${entry.selection.declaration.id})`,
+    harness: entry.selection.harness,
+    completeness: null,
+    axes: { deployment: null, support, nativeUse: "unverified" },
+    axisNotes: { deployment: DEPLOYMENT_AXIS_NOT_MEASURED_HERE, nativeUse: entry.reason },
+    // Deliberately NOT a blocked reason. D-12: `blocked` is a known, actionable
+    // cause the user can clear, and "nobody asked to spend" is neither.
+    blockedReason: null,
     unsupportedReason: null,
     incompleteReasons: [],
   };

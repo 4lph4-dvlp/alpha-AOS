@@ -132,6 +132,41 @@
               }
             }
           },
+          "immutabilityWitness": {
+            "description": "The ALTERNATIVE negative-control witness, added by plan 03-12 for CAPA-03. A negative control has to be a thing that could genuinely have come out the other way, and it has to carry the artifact that proves it. For CAPA-06 that artifact is the walked ancestor list in ancestorFreedom above. For CAPA-03 the negative is a different claim — 03-CONTEXT.md D-16 asks whether Memory Vault content became authoritative project policy — and the artifact is a digest of the planning tree taken before and after the round trip. pairEvidence accepts EITHER witness; a negative carrying neither is INCOMPLETE. Optional rather than required, because every proof written before this plan has no such witness and inventing one for them would be a claim no run made.",
+            "type": ["object", "null"],
+            "required": ["asserted", "root", "beforeDigest", "afterDigest", "complete", "changedPaths", "scopeLimit"],
+            "additionalProperties": false,
+            "properties": {
+              "asserted": {
+                "description": "True only when the digest was COMPLETE, the two digests are equal, and no path differs. An incomplete digest can never assert immutability: the change could be inside the file that was never read.",
+                "type": "boolean"
+              },
+              "root": {
+                "description": "The tree that was hashed, path-aliased. A planning root routinely sits under a private home directory.",
+                "type": "string",
+                "minLength": 1
+              },
+              "beforeDigest": {
+                "description": "Null when the digest was incomplete and the aggregate was deliberately withheld rather than computed over a partial set.",
+                "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+              },
+              "afterDigest": {
+                "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+              },
+              "complete": { "type": "boolean" },
+              "changedPaths": {
+                "description": "Every relative POSIX path that moved. A witness that will not say WHICH file changed is not actionable, and naming it is what turns the check from an assertion into evidence.",
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "scopeLimit": {
+                "description": "What this witness does NOT cover, recorded on the row rather than left to be assumed. alpha-AOS proves the state of the named tree; it does not police the memory tool's other filesystem access, because doing so would require being an invocation proxy for every tool call (03-CONTEXT.md D-02/D-16, PROJECT.md's control-plane key decision).",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
           "observedAt": { "type": "string", "minLength": 1 },
           "oracle": {
             "description": "What was actually run and what it returned. Output is recorded as a FINGERPRINT and never as raw bytes, because a harness transcript is the most likely place for a credential or a user's private prompt to reach persisted state (T-03-22).",

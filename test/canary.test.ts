@@ -45,8 +45,19 @@ import {
   disposeCanary,
   disposeCanaryRuntime,
   findPromptHints,
+  HANDOFF_CANARY_ID,
+  HANDOFF_CAPABILITY,
+  HANDOFF_HARNESS_PAIRS,
+  HANDOFF_SCOPE_LIMIT,
+  handoffRow,
   hashPlanningTree,
   loadCanaryCatalog,
+  MEMORY_HANDOFF_INSTRUCTION_ID,
+  ownedInstructionsFor,
+  resolveCapabilityFilter,
+  resolveHandoffPair,
+  runHandoffCanary,
+  skippedCanaryRow,
   matchExpectations,
   parseClaudeMcpList,
   parsePiAuthCheck,
@@ -75,8 +86,17 @@ import {
   type MemoryCommandResult,
   type MemoryRunner,
 } from "../src/adapters/unified-memory.js";
-import { pairEvidence, upsertProof, type CapabilityProof, type LedgerHarness } from "../src/core/capability-ledger.js";
-import { formatCapabilityReport } from "../src/format.js";
+import {
+  CAPABILITY_LEDGER_SCHEMA_VERSION,
+  harnessMinorKey,
+  pairEvidence,
+  readCapabilityLedger,
+  upsertProof,
+  writeCapabilityLedger,
+  type CapabilityProof,
+  type LedgerHarness,
+} from "../src/core/capability-ledger.js";
+import { formatCapabilityReport, formatHandoffEvidence } from "../src/format.js";
 import {
   createFileObservationSink,
   identifierShapeOf,
@@ -1476,7 +1496,22 @@ test("the canary sweep prints what it would spend before it runs anything", asyn
 
   assert.equal(sweep.selections.length >= 3, true, "the sweep selected nothing, so the ordering proves nothing");
   assert.equal(announced.length >= 1, true, "nothing was announced at all");
-  assert.equal(announcedWhenRunStarted.length, sweep.selections.length);
+  // Every selection is accounted for EXACTLY once — run, routed to the handoff
+  // runner, or skipped with a reason. A selection that simply vanished would be
+  // a canary nobody was told did not happen.
+  assert.equal(
+    announcedWhenRunStarted.length + sweep.handoffResults.length + sweep.skipped.length,
+    sweep.selections.length,
+    `runs ${announcedWhenRunStarted.length}, handoffs ${sweep.handoffResults.length}, skipped ${sweep.skipped.length}`,
+  );
+  // With no handoff runner supplied, the CAPA-03 declaration is skipped WITH a
+  // reason rather than forced through the plain-canary shape.
+  assert.equal(sweep.handoffResults.length, 0);
+  assert.equal(
+    sweep.skipped.every((entry) => entry.selection.declaration.capability === "CAPA-03" && entry.reason.length > 0),
+    true,
+    "a skipped selection must carry the reason it was skipped",
+  );
   for (const seen of announcedWhenRunStarted) {
     assert.equal(seen, announced.length, "a run started before every cost line had been announced");
   }
@@ -2641,4 +2676,474 @@ test("hashing the planning tree writes nothing: bytes and modification times are
       "phases/03-x/notes/deferred.md",
     ],
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-12 Task 3: the handoff canary — one run, both halves
+// ---------------------------------------------------------------------------
+
+interface FakeVault {
+  readonly runner: MemoryRunner;
+  readonly recorded: RecordedMemoryCommand[];
+  count: () => number;
+}
+
+/**
+ * A vault whose whole state is in this process.
+ *
+ * `onWrite` is the seam that makes the negative half falsifiable: it fires
+ * between the two planning-tree digests, which is exactly where a memory tool
+ * that DID reach into `.planning/` would do its damage.
+ */
+function fakeVault(options: { readonly start?: number; readonly onWrite?: () => Promise<void> | void } = {}): FakeVault {
+  let count = options.start ?? 0;
+  const entries: { title: string; target: string; source: string }[] = [];
+  const recorded: RecordedMemoryCommand[] = [];
+
+  const ok = (document: unknown): MemoryCommandResult => ({
+    ran: true,
+    reason: null,
+    unsupported: null,
+    exitCode: 0,
+    stdout: JSON.stringify(document),
+    stderr: "",
+  });
+  const memoryOf = (entry: { title: string; target: string; source: string }, id: string): unknown => ({
+    id,
+    title: entry.title,
+    kind: "handoff",
+    scope: "project",
+    sourceHarness: entry.source,
+    targetHarnesses: [entry.target],
+  });
+
+  const runner: MemoryRunner = async (command) => {
+    recorded.push({ args: [...command.args], stdin: command.stdin, cwd: command.cwd });
+    const value = (flag: string): string => command.args[command.args.indexOf(flag) + 1] ?? "";
+    switch (command.args[1]) {
+      case "doctor":
+        return ok({ schemaVersion: "ecc.memory.doctor.v1", ok: true, memoryCount: count, invalidFileCount: 0 });
+      case "handoff": {
+        await options.onWrite?.();
+        const entry = { title: value("--title"), target: value("--target"), source: value("--from") };
+        entries.push(entry);
+        count += 1;
+        return ok({
+          schemaVersion: "ecc.memory.write.v1",
+          memory: memoryOf(entry, `mem_${entries.length}`),
+          path: `project:handoffs/mem_${entries.length}.md`,
+        });
+      }
+      case "search": {
+        const target = value("--target-harness");
+        return ok({
+          schemaVersion: "ecc.memory.search.v1",
+          query: "",
+          results: entries
+            .map((entry, index) => ({ entry, id: `mem_${index + 1}` }))
+            .filter(({ entry }) => entry.target === target)
+            .map(({ entry, id }) => ({ memory: memoryOf(entry, id), score: 0, excerpt: "a body" })),
+        });
+      }
+      default:
+        return { ran: false, reason: "unknown verb", unsupported: null, exitCode: 1, stdout: "", stderr: "" };
+    }
+  };
+
+  return { runner, recorded, count: () => count };
+}
+
+/** Every declared harness resolves. The suite never depends on what a host has. */
+const everyHarnessResolves = (harness: LedgerHarness): string | null => `/fake/${harness}`;
+
+async function handoffDeclaration(): Promise<CanaryDeclaration> {
+  const catalog = await shippedCatalog();
+  const found = catalog.canaries.find((entry) => entry.id === HANDOFF_CANARY_ID);
+  assert.notEqual(found, undefined, `the shipped catalog does not declare ${HANDOFF_CANARY_ID}`);
+  return found as CanaryDeclaration;
+}
+
+test("the handoff canary is declared in the shipped catalog and names neither a harness pair nor a tool", async () => {
+  const declaration = await handoffDeclaration();
+  assert.equal(declaration.capability, HANDOFF_CAPABILITY);
+  assert.deepEqual([...declaration.expectTools], []);
+  assert.deepEqual([...declaration.harnesses], ["claude"], "only claude can host a canary runtime (plan 03-06)");
+  assert.equal(declaration.readOnly, true);
+
+  // The prompt must read as an ordinary handover. The wider hygiene test already
+  // walks every declaration against the lock; this one names the terms a handoff
+  // prompt is specifically tempted to leak.
+  for (const term of ["ecc", "memory", "vault", "unified-memory", "handoff", "search", "skill", "mcp"]) {
+    assert.equal(
+      promptNamesTerm(declaration.prompt, term),
+      false,
+      `the handoff prompt names "${term}", which is the reword this catalog exists to make visible`,
+    );
+  }
+  // `--capability handoff` resolves through the DECLARED alias table.
+  assert.equal(resolveCapabilityFilter("handoff"), HANDOFF_CAPABILITY);
+  assert.equal(resolveCapabilityFilter("HANDOFF"), HANDOFF_CAPABILITY);
+  assert.equal(resolveCapabilityFilter("CAPA-01"), "CAPA-01", "an unaliased value passes through untouched");
+  assert.equal(resolveCapabilityFilter(null), null);
+});
+
+test("a handoff run pairs the vault positive with the planning-tree negative into one COMPLETE unit", async (context) => {
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault({ start: 4 });
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: vault.runner,
+    resolveHarness: everyHarnessResolves,
+    harnessVersions: { claude: harnessMinorKey("2.1.267"), hermes: harnessMinorKey("0.20.6") },
+    now: () => new Date("2026-09-11T00:00:00.000Z"),
+  });
+
+  // The pair, and both exact versions — a result that does not say which two
+  // harnesses were involved is uninterpretable.
+  assert.deepEqual(result.pair, HANDOFF_HARNESS_PAIRS[0], "the preferred declared pair should have been chosen");
+  assert.equal(result.harnessVersions.source, "0.20.6");
+  assert.equal(result.harnessVersions.target, "2.1.267");
+
+  // The positive: increased by EXACTLY one against a baseline taken in this run,
+  // and the filtered recall returned the sentinel.
+  assert.equal(result.vaultBefore, 4);
+  assert.equal(result.vaultAfter, 5);
+  assert.equal(result.recalled, true);
+  assert.match(result.sentinelTitle ?? "", /^ALPHA-AOS-HANDOFF-CANARY-/u);
+  assert.equal(result.positive?.polarity, "positive");
+  assert.equal(result.positive?.nativeUse, "discovered", "a vault recall proves the context is reachable, not invoked");
+
+  // The negative: BOTH digests, present and equal.
+  const witness = result.negative?.immutabilityWitness ?? null;
+  assert.notEqual(witness, null);
+  assert.equal(witness?.asserted, true);
+  assert.equal(witness?.complete, true);
+  assert.match(witness?.beforeDigest ?? "", /^[0-9a-f]{64}$/u);
+  assert.equal(witness?.beforeDigest, witness?.afterDigest, "the unit must carry two digests, and they must be equal");
+  assert.deepEqual([...(witness?.changedPaths ?? [])], []);
+  assert.equal(result.planningDifference?.equal, true);
+
+  assert.equal(result.unit?.completeness, "COMPLETE", result.unit?.summary);
+  assert.equal(result.unit?.nativeUse, "discovered");
+  assert.equal(result.outcome, "ready");
+
+  // The receiving leg is the one that spends, and it was not requested.
+  assert.equal(result.receiving, null);
+  assert.match(result.receivingSkippedReason ?? "", /spends a model turn/u);
+});
+
+test("a planning file that moves during the handoff makes the negative fail and the unit INCOMPLETE, naming the file", async (context) => {
+  // The falsification test the whole negative half rests on. Without it, "the
+  // planning tree did not change" is an assertion that passes because nothing
+  // was ever capable of changing it — vacuous by construction.
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault({
+    start: 0,
+    onWrite: async () => {
+      // Exactly what a memory tool treating its content as authoritative policy
+      // would do, at exactly the moment it would do it.
+      await writeFile(join(planningRoot, "STATE.md"), "current plan: 12\nrewritten from a memory\n", "utf8");
+    },
+  });
+
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: vault.runner,
+    resolveHarness: everyHarnessResolves,
+  });
+
+  // The positive still holds — the handoff really did happen. That is the point:
+  // the two halves are independent, and only the pairing makes the claim.
+  assert.notEqual(result.positive, null, "the positive half must be unaffected, or the test proves the wrong thing");
+  assert.equal(result.recalled, true);
+
+  const witness = result.negative?.immutabilityWitness ?? null;
+  assert.equal(witness?.asserted, false, "a changed planning tree that still asserts immutability is the whole failure");
+  assert.deepEqual([...(witness?.changedPaths ?? [])], ["STATE.md"], "the witness must name the file that moved");
+  assert.equal(result.planningDifference?.equal, false);
+  assert.notEqual(result.planningBefore?.digest, result.planningAfter?.digest);
+
+  assert.equal(result.unit?.completeness, "INCOMPLETE");
+  assert.equal(result.unit?.nativeUse, null, "an INCOMPLETE unit never reports the positive's axis");
+  assert.equal(
+    result.unit?.incompleteReasons.some((reason) => reason.includes("STATE.md")),
+    true,
+    `reasons were ${JSON.stringify(result.unit?.incompleteReasons)}`,
+  );
+  assert.equal(
+    formatHandoffEvidence(result).some((line) => line.startsWith("HANDOFF PLANNING") && line.includes("STATE.md")),
+    true,
+    "the rendered report must name the file, not merely say the tree changed",
+  );
+});
+
+test("a handoff whose recall does not return the sentinel yields no positive, and the unit says which half is missing", async (context) => {
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  // A vault that writes but addresses the memory to somebody else: the filtered
+  // recall for the target then returns nothing, which is the case a check that
+  // only counted memories would have passed.
+  const vault = fakeVault();
+  const misdirected: MemoryRunner = async (command) => {
+    const args = command.args.map((value, index) =>
+      index === command.args.indexOf("--target") + 1 && command.args[1] === "handoff" ? "somebody-else" : value,
+    );
+    return vault.runner({ ...command, args });
+  };
+
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: misdirected,
+    resolveHarness: everyHarnessResolves,
+  });
+
+  assert.equal(result.vaultAfter, 1, "the memory count still grew, which is exactly why a count alone is not the check");
+  assert.equal(result.recalled, false);
+  assert.equal(result.recallCount, 0);
+  assert.equal(result.positive, null);
+  assert.equal(result.unit?.completeness, "INCOMPLETE");
+  assert.equal(result.unit?.missingHalf, "positive", "the unit must name WHICH half is missing");
+  assert.equal(result.outcome, "unverified", "not attempted is not the same as blocked");
+  // The negative half was still taken and is still asserted: the planning tree
+  // genuinely did not move, and saying otherwise would be a second error.
+  assert.equal(result.negative?.immutabilityWitness?.asserted, true);
+});
+
+test("a vault that gained TWO memories yields no positive: the claim is exactly one, not at least one", async (context) => {
+  // The arithmetic has to be exact. A vault that gained two during one canary
+  // means something else wrote as well, and a proof that binds a handoff to a
+  // count nobody can attribute is not evidence about this handoff.
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault();
+  const writesTwice: MemoryRunner = async (command) => {
+    const first = await vault.runner(command);
+    if (command.args[1] !== "handoff") return first;
+    // A second, unrelated write lands in the same window.
+    await vault.runner({ ...command, args: command.args.map((v, i) => (i === command.args.indexOf("--title") + 1 ? "an unrelated memory" : v)) });
+    return first;
+  };
+
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: writesTwice,
+    resolveHarness: everyHarnessResolves,
+  });
+
+  assert.equal(result.vaultBefore, 0);
+  assert.equal(result.vaultAfter, 2, "the fixture must really have written twice, or this proves nothing");
+  assert.equal(result.recalled, true, "the sentinel IS recallable — only the arithmetic is wrong");
+  assert.equal(result.positive, null, "at-least-one would have passed here; exactly-one is what is claimed");
+  assert.equal(result.unit?.completeness, "INCOMPLETE");
+});
+
+test("a host that cannot run two harnesses records blocked with the requirement named, and nothing is attempted", async (context) => {
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault();
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: vault.runner,
+    // Only the target resolves. A handoff measured with one harness would be a
+    // harness talking to itself.
+    resolveHarness: (harness) => (harness === "claude" ? "/fake/claude" : null),
+  });
+
+  assert.equal(result.outcome, "blocked");
+  assert.equal(result.pair, null);
+  assert.equal(result.blockedReasons[0]?.code, "HANDOFF_PAIR_UNAVAILABLE");
+  assert.match(result.blockedReasons[0]?.nextAction ?? "", /TWO harnesses/u);
+  assert.equal(vault.recorded.length, 0, "the run must not be attempted: nothing was written to the vault");
+  assert.equal(result.planningBefore, null, "and nothing was hashed either");
+  assert.equal(
+    result.pairResolution.considered.length,
+    HANDOFF_HARNESS_PAIRS.length,
+    "every declared pair must be reported as considered, or the choice is unauditable",
+  );
+});
+
+test("the handoff report names both harnesses with their versions and states the scope limit last", async (context) => {
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault();
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: vault.runner,
+    resolveHarness: everyHarnessResolves,
+    harnessVersions: { claude: harnessMinorKey("2.1.267"), hermes: harnessMinorKey("0.20.6") },
+  });
+
+  const lines = formatHandoffEvidence(result);
+  const pairLine = lines.find((line) => line.startsWith("HANDOFF PAIR")) ?? "";
+  assert.match(pairLine, /hermes 0\.20\.6/u, "the source harness and its exact version");
+  assert.match(pairLine, /claude 2\.1\.267/u, "the target harness and its exact version");
+
+  const vaultLine = lines.find((line) => line.startsWith("HANDOFF VAULT")) ?? "";
+  assert.match(vaultLine, /before 0, after 1/u);
+  assert.match(vaultLine, new RegExp(result.sentinelTitle ?? "IMPOSSIBLE", "u"));
+  assert.match(lines.find((line) => line.startsWith("HANDOFF RECALL")) ?? "", /DID include the sentinel/u);
+  assert.match(lines.find((line) => line.startsWith("HANDOFF PLANNING")) ?? "", /byte-for-byte identical/u);
+
+  // The scope limit is the last thing a reader sees, and it says what was NOT
+  // proven rather than leaving it to be assumed.
+  const last = lines.at(-1) ?? "";
+  assert.equal(last.startsWith("HANDOFF SCOPE"), true, `the last line was ${JSON.stringify(last)}`);
+  assert.match(last, /did NOT observe or restrict what the memory tool did elsewhere/u);
+  assert.match(last, /invocation proxy/u);
+  assert.equal(last.includes(HANDOFF_SCOPE_LIMIT), true);
+  // And the scope limit rides on the ledger row too, so it survives the report.
+  assert.equal(result.negative?.immutabilityWitness?.scopeLimit, HANDOFF_SCOPE_LIMIT);
+});
+
+test("the memory-handoff steering instruction is materialized for CAPA-03 and for nothing else", async () => {
+  const forHandoff = ownedInstructionsFor(HANDOFF_CAPABILITY).map((entry) => entry.id);
+  const forDocumentation = ownedInstructionsFor("CAPA-01").map((entry) => entry.id);
+  const forNothing = ownedInstructionsFor(null).map((entry) => entry.id);
+
+  assert.equal(forHandoff.includes(MEMORY_HANDOFF_INSTRUCTION_ID), true);
+  assert.equal(
+    forDocumentation.includes(MEMORY_HANDOFF_INSTRUCTION_ID),
+    false,
+    "handing this instruction to the documentation canary would quietly change the run whose job is to show what a " +
+      "harness does WITHOUT being pointed at anything",
+  );
+  assert.equal(forNothing.includes(MEMORY_HANDOFF_INSTRUCTION_ID), false);
+  // The unscoped research-routing instruction still reaches every run.
+  assert.equal(forDocumentation.length >= 1, true);
+  assert.equal(forNothing.length, forDocumentation.length);
+
+  // The instruction exists where the runtime will look for it, or a runtime
+  // build REFUSES — the refusal plan 03-08 added.
+  const source = await readFile(join(repositoryRoot, "skills", "alpha-aos-memory-handoff", "SKILL.md"), "utf8");
+  assert.match(source, /^---\r?\nname: alpha-aos-memory-handoff\r?\n/u);
+  assert.match(source, /ecc memory search --json --target-harness/u, "it has to say HOW to read a handoff");
+  assert.match(source, /never executable policy/u, "and that a memory is not policy");
+  assert.match(source, /\.planning/u, "and that the planning tree is not its to write");
+});
+
+test("an unavailable preferred pair falls back to the declared fallback, and the row says which pair actually ran", async (context) => {
+  // Only the fallback source is present. A result that did not say which two
+  // harnesses were involved would be uninterpretable, so the fallback has to be
+  // visible in the resolution AND in the rendered row.
+  const withoutHermes = (harness: LedgerHarness): string | null => (harness === "hermes" ? null : `/fake/${harness}`);
+  const resolution = resolveHandoffPair({ resolveHarness: withoutHermes });
+  assert.deepEqual(resolution.pair, HANDOFF_HARNESS_PAIRS[1], "the declared fallback pair should have been chosen");
+  assert.deepEqual(
+    resolution.considered.map((entry) => [entry.pair.source, entry.sourceResolved]),
+    [
+      ["hermes", false],
+      ["codex", true],
+    ],
+    "every pair considered is recorded, so the choice is auditable rather than a guess",
+  );
+  assert.deepEqual([...resolution.blockedReasons], []);
+
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault();
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: vault.runner,
+    resolveHarness: withoutHermes,
+    harnessVersions: { claude: harnessMinorKey("2.1.267"), codex: harnessMinorKey("0.152.0") },
+  });
+  assert.equal(result.pair?.source, "codex");
+  assert.match(
+    formatHandoffEvidence(result).find((line) => line.startsWith("HANDOFF PAIR")) ?? "",
+    /source codex 0\.152\.0, target claude 2\.1\.267/u,
+  );
+
+  // The rendering layer is where a green-looking result has relapsed before, so
+  // the row is asserted directly rather than inferred from the result.
+  const row = handoffRow(result, "supported");
+  assert.equal(row.harness, "claude", "the row's harness is the RECEIVING one");
+  assert.equal(row.capability, `${HANDOFF_CAPABILITY} (${HANDOFF_CANARY_ID})`);
+  assert.equal(row.completeness, "COMPLETE");
+  assert.equal(row.axes.nativeUse, "discovered");
+  assert.equal(row.blockedReason, null);
+  assert.match(row.axisNotes.nativeUse ?? "", /spends a model turn/u, "the unrun receiving leg is the first thing a reader needs");
+  assert.equal(
+    formatCapabilityReport("Invocation canaries", [row], formatHandoffEvidence(result)).includes(HANDOFF_SCOPE_LIMIT),
+    true,
+    "the scope limit must survive into the rendered report, not only the result object",
+  );
+});
+
+test("both handoff proofs survive the ledger write-then-read round trip", async (context) => {
+  // The property whose absence let plan 03-08's ledger-bricking defect ship, and
+  // which this plan hit again one field over: a proof that is WRITABLE but not
+  // READABLE turns a one-shot command into one that refuses its own file for
+  // ever after. Asserting the round trip is the only thing that catches it.
+  const planningRoot = await planningFixture(context, PLANNING_FILES);
+  const vault = fakeVault();
+  const result = await runHandoffCanary({
+    declaration: await handoffDeclaration(),
+    projectRoot: dirname(planningRoot),
+    planningRoot,
+    memoryRunner: vault.runner,
+    resolveHarness: everyHarnessResolves,
+  });
+
+  const proofs = [result.positive, result.negative].filter((proof): proof is CapabilityProof => proof !== null);
+  assert.equal(proofs.length, 2, "both halves of the unit must reach the ledger, or nobody can reassemble it later");
+
+  const stateRoot = await mkdtemp(join(tmpdir(), "alpha-aos-handoff-ledger-"));
+  context.after(async () => rm(stateRoot, { recursive: true, force: true }));
+  const write = await writeCapabilityLedger({
+    stateRoot,
+    ledger: {
+      schemaVersion: CAPABILITY_LEDGER_SCHEMA_VERSION,
+      producer: { name: "alpha-aos", version: "0.1.0" },
+      updatedAt: new Date().toISOString(),
+      proofs,
+    },
+  });
+  assert.equal(write.status, "written");
+
+  const read = await readCapabilityLedger(write.path);
+  assert.equal(read.state, "present", read.state === "unreadable" ? JSON.stringify(read.issues) : read.state);
+  const negative = read.state === "present" ? read.ledger.proofs.find((proof) => proof.polarity === "negative") : null;
+  assert.equal(negative?.immutabilityWitness?.asserted, true, "the witness must survive the round trip, not just the write");
+  assert.equal(negative?.immutabilityWitness?.beforeDigest, result.negative?.immutabilityWitness?.beforeDigest);
+  assert.equal(negative?.immutabilityWitness?.scopeLimit, HANDOFF_SCOPE_LIMIT);
+  // And the pair reassembles into the same unit it was written from.
+  const positive = read.state === "present" ? read.ledger.proofs.find((proof) => proof.polarity === "positive") : null;
+  assert.equal(pairEvidence(positive ?? null, negative ?? null).completeness, "COMPLETE");
+});
+
+test("a no-spend sweep records every spending leg unverified with its reason, and never blocked", async () => {
+  const catalog = await shippedCatalog();
+  const announced: string[] = [];
+  const sweep = await runCanarySweep({
+    catalog,
+    spend: false,
+    announce: (line) => announced.push(line),
+    run: async () => {
+      throw new Error("a no-spend sweep must not run a leg that spends");
+    },
+  });
+
+  assert.equal(sweep.results.length, 0);
+  assert.equal(sweep.skipped.length, sweep.selections.length, "every selection must be accounted for");
+  assert.equal(
+    announced.some((line) => line.includes("--no-spend")),
+    true,
+    "a no-spend run announces itself with the cost lines, before anything starts",
+  );
+
+  const rows = sweep.skipped.map((entry) => skippedCanaryRow(entry, "supported"));
+  for (const row of rows) {
+    assert.equal(row.axes.nativeUse, "unverified");
+    assert.equal(row.blockedReason, null, "D-12: not attempted is not a known, actionable cause a user can clear");
+    assert.match(row.axisNotes.nativeUse ?? "", /not attempted|no handoff runner/u);
+  }
 });

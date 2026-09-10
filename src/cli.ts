@@ -24,6 +24,7 @@ import {
   cleanIsolationRuntime,
   createIsolationPlan,
   doctorIsolation,
+  isolationProjectId,
   renderIsolationManifest,
   selectIsolationLaunch,
   syncIsolationRuntime,
@@ -52,14 +53,20 @@ import {
   createCanaryRuntime,
   disposeCanaryRuntime,
   discoveryRow,
+  EMPTY_BOUND_INPUTS,
+  handoffRow,
   HARNESS_COMMANDS,
   loadCanaryCatalog,
+  resolveCapabilityFilter,
   runCanary,
   runCanarySweep,
   runDiscoverySweep,
+  runHandoffCanary,
+  skippedCanaryRow,
   SWEEP_HARNESSES,
   type CapabilityReportRow,
   type DiscoverySweep,
+  type HandoffPair,
 } from "./core/canary.js";
 import {
   CAPABILITY_LEDGER_SCHEMA_VERSION,
@@ -72,7 +79,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
 import {
   createRedactionContext,
   describeOverBudgetEnvelope,
@@ -108,7 +115,7 @@ Usage:
   alpha-aos status [--json]
   alpha-aos doctor [--json]
   alpha-aos doctor --discovery [path] [--json]
-  alpha-aos doctor --canary [path] [--harness <id>] [--capability <id>] [--json]
+  alpha-aos doctor --canary [path] [--harness <id>] [--capability <id>] [--no-spend] [--json]
   alpha-aos fixture gsd <claude|codex|antigravity|pi> [--apply] [--keep] [--json]
   alpha-aos fixture ecc <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
   alpha-aos fixture mcp <context7|exa|firecrawl> <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
@@ -130,6 +137,19 @@ spends a model turn where the harness costs one, and persists a ledger record. I
 prints which canaries would spend before it runs anything, and refuses with the
 readiness report — naming the variable and the next action, never a value — when a
 required credential is absent.
+
+"doctor --canary --no-spend" attempts only the legs that cost nothing. Every leg
+that would spend a model turn is recorded "unverified" — NOT ATTEMPTED, which is
+not the same as blocked — with that as the reason. It exists because one canary
+is mostly free: --capability handoff (CAPA-03) writes a real cross-harness
+handoff through the memory vault, recalls it under the receiving harness's own
+filter, and hashes the project's .planning tree before and after, all offline.
+Only the receiving harness's run costs anything. The handoff canary leaves ONE
+memory in the project's own vault, with a sentinel title the report names.
+
+alpha-AOS proves the .planning tree unchanged across that round trip. It does NOT
+police what the memory tool does elsewhere on the filesystem: that would require
+being an invocation proxy for every tool call, which this tool deliberately is not.
 
 Every observable surface passes through one redaction seam. A value this tool
 withheld is printed as [redacted:<kind>]; a private root is printed as an alias
@@ -729,7 +749,10 @@ async function main(): Promise<void> {
     if (hasFlag(args, "--canary")) {
       const target = targetPath(args, 1, ["--harness", "--capability", "--project"]);
       const harnessFilter = ledgerHarness(optionValue(args, "--harness"));
-      const capabilityFilter = optionValue(args, "--capability");
+      // Through the DECLARED alias table, so `--capability handoff` resolves to
+      // a capability a reader can look up rather than to a string matched here.
+      const capabilityFilter = resolveCapabilityFilter(optionValue(args, "--capability"));
+      const spend = !hasFlag(args, "--no-spend");
       const canaryCatalog = (await loadCanaryCatalog(root)).value;
       const stateRoot = userStateRoot();
       const retained: string[] = [];
@@ -740,6 +763,7 @@ async function main(): Promise<void> {
         catalog: canaryCatalog,
         harness: harnessFilter,
         capability: capabilityFilter,
+        spend,
         // Written to stderr so a human watching sees the spend before it
         // happens in BOTH modes; the same lines ride in the --json envelope, so
         // a program reading stdout is not asked to parse a side channel.
@@ -761,7 +785,11 @@ async function main(): Promise<void> {
           });
           const proof = canaryProof(result, {
             projectId: null,
-            boundInputs: { skillSourceHash: "", mcpServerVersion: null, evidenceHash: null },
+            // NOT an empty string: `skillSourceHash` is a sha256 by contract, so
+            // `""` writes a row the ledger's own reader then refuses (the 03-08
+            // defect, one field over). An invocation canary binds to no pack
+            // skill, and the digest of the empty set is what says that.
+            boundInputs: EMPTY_BOUND_INPUTS,
             harnessVersion: versions[selection.harness] ?? { exact: null, minorKey: null, raw: "" },
           });
           if (proof !== null) proofs.push(proof);
@@ -772,18 +800,83 @@ async function main(): Promise<void> {
           else await disposeCanaryRuntime(runtime);
           return result;
         },
+        // The handoff canary's free legs run in EITHER mode; only its receiving
+        // leg is gated on `spend`, because that is the only part that costs.
+        runHandoff: async (selection) => {
+          const handoff = await runHandoffCanary({
+            declaration: selection.declaration,
+            projectRoot: target,
+            projectId: isolationProjectId(target),
+            harnessVersions: versions,
+            ...(spend
+              ? {
+                  receive: async (pair: HandoffPair) => {
+                    const runtime = await createCanaryRuntime({
+                      projectRoot: target,
+                      harness: pair.target,
+                      servers: mcpServerIds(),
+                      stateRoot,
+                      lock,
+                      capability: selection.declaration.capability,
+                    });
+                    const result = await runCanary({
+                      declaration: selection.declaration,
+                      harness: pair.target,
+                      projectRoot: target,
+                      runtime,
+                      sink: createCanaryObservationSink(runtime),
+                    });
+                    if (result.launched && result.outcome !== "ready") retained.push(runtime.root);
+                    else await disposeCanaryRuntime(runtime);
+                    return result;
+                  },
+                }
+              : {}),
+          });
+          // Both halves of the unit go to the ledger, exactly as the paired
+          // discovery sweep does: a positive without its negative on disk is a
+          // unit nobody could reassemble later.
+          for (const proof of [handoff.positive, handoff.negative]) {
+            if (proof !== null) proofs.push(proof);
+          }
+          return handoff;
+        },
       });
 
-      const rows = sweep.results.map((result) =>
-        canaryRow(result, classifyAdapterSupport([result.harness]).at(0)?.support ?? "unverified"),
-      );
+      const rows = [
+        ...sweep.results.map((result) =>
+          canaryRow(result, classifyAdapterSupport([result.harness]).at(0)?.support ?? "unverified"),
+        ),
+        ...sweep.handoffResults.map((result) =>
+          handoffRow(result, classifyAdapterSupport([result.pair?.target ?? "claude"]).at(0)?.support ?? "unverified"),
+        ),
+        ...sweep.skipped.map((entry) =>
+          skippedCanaryRow(entry, classifyAdapterSupport([entry.selection.harness]).at(0)?.support ?? "unverified"),
+        ),
+      ];
       const ledger = await appendCapabilityProofs(stateRoot, proofs);
-      const blocked = sweep.results.filter((result) => result.outcome === "blocked");
+      const blocked = [
+        ...sweep.results.filter((result) => result.outcome === "blocked"),
+        ...sweep.handoffResults.filter((result) => result.outcome === "blocked"),
+      ];
+      const runCount = sweep.results.length + sweep.handoffResults.length;
       print(
-        { command: "doctor --canary", project: target, cost: sweep.costLines, rows, results: sweep.results, ledger, retainedRuntimes: retained },
+        {
+          command: "doctor --canary",
+          project: target,
+          spend,
+          cost: sweep.costLines,
+          rows,
+          results: sweep.results,
+          handoffResults: sweep.handoffResults,
+          skipped: sweep.skipped,
+          ledger,
+          retainedRuntimes: retained,
+        },
         json,
-        formatCapabilityReport(`Invocation canaries: ${sweep.results.length} run(s) in ${target}`, rows, [
+        formatCapabilityReport(`Invocation canaries: ${runCount} run(s) in ${target}`, rows, [
           ...sweep.costLines,
+          ...sweep.handoffResults.flatMap((result) => formatHandoffEvidence(result)),
           `Ledger: ${ledger.status} (${ledger.recorded} proof(s) recorded at ${ledger.path}).`,
           retained.length > 0
             ? `Retained for diagnosis: ${retained.join(", ")}`

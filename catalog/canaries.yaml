@@ -104,6 +104,38 @@ canaries:
       - claude
     readOnly: true
 
+  - id: CROSS_HARNESS_HANDOFF
+    capability: CAPA-03
+    why: >-
+      One run, both halves. The positive is that a handoff written by one harness
+      and addressed to another is really there and really recallable under the
+      receiving harness's own filter; the negative is that the project's planning
+      tree is byte-for-byte what it was before the round trip — memory did not
+      become authoritative project policy. The prompt names no tool, no server
+      and no skill: it is the ordinary thing someone says when picking up work a
+      colleague left mid-task, and consulting the handed-off context is the
+      receiving harness's own act. Note what this declaration does NOT assert.
+      A vault recall is not an MCP tool call, so MCP-side observation cannot see
+      one; the structural expectation here is the fan-out bound. That the
+      receiving run genuinely WORKED from the handed-off context rather than
+      answering from general knowledge that happens to agree is a judgement no
+      test can make, and it is recorded as a human check rather than computed.
+      alpha-AOS proves the planning tree unchanged; it does not police the memory
+      tool's other filesystem access, because doing that would require being an
+      invocation proxy for every tool call.
+    prompt: >-
+      A teammate handed this over to me mid-task and left their notes behind for
+      whoever picked it up next. Work out what they had already decided and tell
+      me the next step they intended, before you suggest anything of your own.
+    expectTools: []
+    forbidTools: []
+    maxDistinctServers: 1
+    requiresEnvironment: []
+    requiresMcpServers: []
+    harnesses:
+      - claude
+    readOnly: true
+
   - id: ORDINARY_LOOKUP_CONTROL
     capability: CAPA-02
     why: >-

@@ -102,6 +102,44 @@ export interface AncestorFreedom {
   readonly checkedAncestors: readonly string[];
 }
 
+/**
+ * The OTHER thing that can make a negative control meaningful: a tree proven
+ * byte-identical across an operation.
+ *
+ * A negative control has to be a thing that COULD have come out the other way,
+ * and it has to carry the artifact that proves it. For CAPA-06 that artifact is
+ * the walked ancestor list (`AncestorFreedom` above) — the control directory was
+ * somewhere the pack could genuinely have been found. For CAPA-03 the negative
+ * is a different claim entirely: 03-CONTEXT.md D-16 asks whether Memory Vault
+ * content became authoritative project policy, and the artifact that answers it
+ * is a digest of `.planning/` taken before and after the round trip.
+ *
+ * Repurposing `checkedAncestors` to hold hashed paths would have been the
+ * convenient choice and a lie about what was checked, so this is a second,
+ * separately-named witness rather than a widened first one. `pairEvidence`
+ * accepts EITHER, and a negative carrying neither is INCOMPLETE — which is what
+ * stops "nothing contradicted the positive" from being recorded as a control.
+ *
+ * `asserted` is true only when the digest was COMPLETE (nothing under the tree
+ * went unread) AND the two digests are equal AND no path differs. An incomplete
+ * digest cannot assert immutability: the change could be inside the file that
+ * was never read.
+ */
+export interface ImmutabilityWitness {
+  readonly asserted: boolean;
+  /** The tree that was hashed, aliased — a planning root sits under a private home. */
+  readonly root: string;
+  /** Null when the digest was incomplete and the aggregate was withheld. */
+  readonly beforeDigest: string | null;
+  readonly afterDigest: string | null;
+  /** False when anything under the tree could not be read. */
+  readonly complete: boolean;
+  /** Every path that moved, named. A witness that will not say which is not evidence. */
+  readonly changedPaths: readonly string[];
+  /** What this witness does NOT cover, stated rather than left to be assumed. */
+  readonly scopeLimit: string;
+}
+
 /** What was run and what it returned. Output is a fingerprint, never bytes. */
 export interface OracleRecord {
   readonly command: string;
@@ -124,6 +162,12 @@ export interface CapabilityProof {
   readonly harnessVersion: HarnessVersion;
   /** Required on a negative half; null on a positive. */
   readonly ancestorFreedom: AncestorFreedom | null;
+  /**
+   * The alternative negative-control witness, for a control that is a tree
+   * proven unchanged rather than a directory outside the project. Absent on
+   * every proof that does not use one.
+   */
+  readonly immutabilityWitness?: ImmutabilityWitness | null;
   readonly observedAt: string;
   readonly oracle: OracleRecord;
   /**
@@ -648,13 +692,30 @@ export interface CapabilityLedgerWrite {
  * this function two reasons to return `unverified` that no reader could tell
  * apart.
  */
-export function pairEvidence(positive: CapabilityProof, negative: CapabilityProof | null): EvidenceUnit {
-  const capability = positive.capability;
-  const harness = positive.harness;
+export function pairEvidence(positive: CapabilityProof | null, negative: CapabilityProof | null): EvidenceUnit {
+  const identity = positive ?? negative;
+  if (identity === null) {
+    throw new Error(
+      "pairEvidence was given neither half. A unit with no proof at all is not an INCOMPLETE unit — it is the absence " +
+        "of a run, and there is nothing to name it after.",
+    );
+  }
+  const capability = identity.capability;
+  const harness = identity.harness;
   const reasons: string[] = [];
   let missingHalf: "positive" | "negative" | null = null;
 
-  if (positive.polarity !== "positive") {
+  if (positive === null) {
+    // A negative control taken without its positive is exactly as incomplete as
+    // the reverse, and the unit has to be able to SAY so. Before this, a caller
+    // holding only the negative had no way to record the pair at all, which
+    // pushed it toward the one thing D-14 forbids: reporting the half it has.
+    reasons.push(
+      "the positive half was never taken, so nothing shows the capability was reachable at all — a negative control on " +
+        "its own says only that something did not happen somewhere",
+    );
+    missingHalf = "positive";
+  } else if (positive.polarity !== "positive") {
     reasons.push("the half offered as the positive is not recorded with positive polarity");
     missingHalf = "positive";
   }
@@ -680,16 +741,26 @@ export function pairEvidence(positive: CapabilityProof, negative: CapabilityProo
     // constructed can therefore still see the pack, and a negative taken in one
     // proves nothing at all.
     const freedom = negative.ancestorFreedom;
-    if (freedom === null || freedom.asserted !== true) {
+    const immutability = negative.immutabilityWitness ?? null;
+    // EITHER witness makes the control auditable, and a control carrying
+    // neither is not a control. The two are different claims, so the reason
+    // names both rather than describing one and hoping the reader generalizes.
+    if (freedom?.asserted !== true && immutability?.asserted !== true) {
       reasons.push(
-        "the negative control directory was not asserted free of an ancestor project skill root, so it may have seen the pack anyway",
+        "the negative control carries no asserted witness: neither a control directory proven free of an ancestor " +
+          "project skill root, nor a tree proven byte-identical across the operation" +
+          (immutability === null
+            ? ""
+            : ` (the immutability witness over ${immutability.root} is not asserted: ` +
+              `${immutability.complete ? "" : "the digest was incomplete; "}` +
+              `${immutability.changedPaths.length > 0 ? `changed: ${immutability.changedPaths.join(", ")}` : "the two digests differ"})`),
       );
     }
   }
 
   const completeness: EvidenceCompleteness = reasons.length === 0 ? "COMPLETE" : "INCOMPLETE";
   const summary =
-    completeness === "COMPLETE"
+    completeness === "COMPLETE" && positive !== null
       ? `COMPLETE — ${capability} on ${harness}: the positive and its negative control are one unit; native use is ${positive.nativeUse}.`
       : // The axis is deliberately absent from this sentence. Printing it is
         // precisely the unpaired-positive-as-pass failure D-14 forbids, and a
@@ -705,7 +776,7 @@ export function pairEvidence(positive: CapabilityProof, negative: CapabilityProo
     negative,
     missingHalf,
     incompleteReasons: reasons,
-    nativeUse: completeness === "COMPLETE" ? positive.nativeUse : null,
+    nativeUse: completeness === "COMPLETE" && positive !== null ? positive.nativeUse : null,
     summary,
   };
 }

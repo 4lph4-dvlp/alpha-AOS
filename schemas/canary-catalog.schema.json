@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/canary-catalog.schema.json",
+  "title": "alpha-AOS canary catalog",
+  "description": "Closed-world contract for catalog/canaries.yaml. Every prompt a canary run may put in front of a model is declared here and nowhere else, so rewording one to make a capability pass is a reviewable diff rather than an invisible edit inside a code path. Namespaced x-* extensions are split out before validation, so every object described here is exhaustive.",
+  "type": "object",
+  "required": ["schemaVersion", "canaries"],
+  "additionalProperties": false,
+  "$defs": {
+    "toolName": {
+      "description": "An UPSTREAM tool name, exactly as the server publishes it. Not a harness-prefixed alias: a harness may present the same tool as mcp__<server>__<tool>, and recording the prefixed form would bind the expectation to one harness's naming convention.",
+      "type": "string",
+      "minLength": 1
+    },
+    "toolList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/toolName" }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "canaries": {
+      "description": "Every declared canary. An empty list is refused: a catalog that silently stopped declaring anything would look exactly like a host on which nothing needed proving.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["id", "capability", "prompt", "expectTools", "forbidTools", "maxDistinctServers", "harnesses", "readOnly"],
+        "additionalProperties": false,
+        "patternProperties": {
+          "^x-[a-z0-9]+(?:-[a-z0-9]+)*$": {
+            "description": "A namespaced extension. Preserved verbatim and inert; nothing in alpha-AOS reads it. The same rule governs every nested declared object in this repository's catalog contracts — see schemas/pack-catalog.schema.json and schemas/fact-vocabulary.schema.json."
+          }
+        },
+        "properties": {
+          "id": {
+            "description": "Stable canary identifier, referenced by ledger rows and by status output.",
+            "type": "string",
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "capability": {
+            "description": "The requirement this canary is evidence for. Narrowed to the requirements this phase declares canaries for, because a canary naming a requirement nobody planned is far more likely to be a typo than a new capability.",
+            "type": "string",
+            "enum": ["CAPA-01", "CAPA-02", "CAPA-03", "CAPA-06"]
+          },
+          "prompt": {
+            "description": "The ordinary request handed to the harness. It MUST NOT name the skill, the MCP server or the tool it is meant to elicit — the expectation lists below exist precisely so the prompt does not have to hint. A prompt that only works when it hints is a finding about discovery, not a prompt to revise. Judged by whether a reasonable person reading it would call it an ordinary request.",
+            "type": "string",
+            "minLength": 1
+          },
+          "expectTools": {
+            "description": "Upstream tool names an observation must show. Empty declares a canary whose expectation is about fan-out rather than about any particular tool. Order is significant only when expectOrdered is true.",
+            "$ref": "#/$defs/toolList"
+          },
+          "expectOrdered": {
+            "description": "Whether expectTools must appear in the declared order. Absent means unordered.",
+            "type": "boolean"
+          },
+          "expectArgumentPatterns": {
+            "description": "Structural facts an expected call's arguments must satisfy. A structural assertion about the call, never a judgment about the answer the model gave.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "required": ["tool", "argument", "pattern", "why"],
+              "additionalProperties": false,
+              "properties": {
+                "tool": { "$ref": "#/$defs/toolName" },
+                "argument": {
+                  "description": "The argument name on that tool call.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "pattern": {
+                  "description": "An ECMAScript regular expression source the argument value must match.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "why": {
+                  "description": "What the pattern proves, in the words a reviewer needs.",
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "forbidTools": {
+            "description": "Tool names whose appearance is a FINDING rather than a failure. Used for the fan-out control and for tools a policy proxy denies: seeing one means the routing contract and the shipped instructions disagree.",
+            "$ref": "#/$defs/toolList"
+          },
+          "maxDistinctServers": {
+            "description": "How many distinct research servers one run of this canary may touch. Written as a COUNT rather than as a required tool sequence, because more than one two-tool path is reasonable — the discovery server itself also ships a fetch tool (03-RESEARCH.md Pitfall 1, second-order note). A control declares 1.",
+            "type": "integer",
+            "minimum": 1
+          },
+          "requiresEnvironment": {
+            "description": "Environment variable NAMES this canary needs present. Names only — the readiness probe reads presence and never a value, and the blocked reason it produces has no field able to carry one.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[A-Z][A-Z0-9_]*$"
+            }
+          },
+          "requiresMcpServers": {
+            "description": "MCP server ids that must be CONNECTED before this canary runs. A registered-but-pending server is a registration fact only and does not satisfy this; the harness's own connection listing is the oracle.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          },
+          "harnesses": {
+            "description": "The surfaces this canary is declared for. Narrowed to the harnesses a ledger proof can name: antigravity has no non-interactive entrypoint, so a canary declared for it could never run.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": ["claude", "codex", "pi", "hermes"]
+            }
+          },
+          "readOnly": {
+            "description": "Whether the canary asks only for read-only work. Declared rather than assumed, and false is not currently permitted: a canary that could mutate the user's repository is not a diagnostic.",
+            "type": "boolean",
+            "const": true
+          },
+          "why": {
+            "description": "What this canary is evidence FOR, for a reviewer reading the diff rather than the code.",
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

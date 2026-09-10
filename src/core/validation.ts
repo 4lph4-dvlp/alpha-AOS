@@ -35,7 +35,15 @@ export type ManagedDocumentKind =
    * that never ran is the threat it is validated against (03-CONTEXT.md D-03,
    * T-03-20). It joins the same closed-world route a receipt uses.
    */
-  | "capability-ledger";
+  | "capability-ledger"
+  /**
+   * `catalog/canaries.yaml`. The declared canary prompts. It is a repository
+   * contract like `pack-catalog`, and it is validated closed for the same
+   * reason: a prompt is the one managed value that becomes a model-visible
+   * instruction, so an unknown key must be a refusal rather than an inert
+   * field somebody assumed was being read (03-05 T-03-44).
+   */
+  | "canary-catalog";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -320,6 +328,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   // alpha-AOS owns the whole document: nothing else writes into the ledger,
   // so there is no foreign subtree to leave alone.
   "capability-ledger": null,
+  "canary-catalog": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -420,6 +429,15 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     producer: anyObject,
     updatedAt: { type: "string" },
     proofs: { type: "array" },
+  }),
+  // The built-in envelope check only, exactly as `pack-catalog` does it:
+  // `schemas/canary-catalog.schema.json` is the closed contract for the
+  // interior — the never-name rule on `prompt`, the narrowed capability and
+  // harness enums, and the credential-NAMES-only requirement list all live
+  // there, and every supported route passes it.
+  "canary-catalog": coreObject(["schemaVersion", "canaries"], {
+    schemaVersion: { type: "integer" },
+    canaries: { type: "array" },
   }),
 };
 

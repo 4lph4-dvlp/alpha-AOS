@@ -1,0 +1,85 @@
+# The declared canary prompts.
+#
+# Every prompt a canary run may put in front of a model lives here, in ordinary
+# text, reviewable before any run spends anything. A prompt NEVER names the
+# skill, the MCP server or the tool it is meant to elicit — that is what the
+# expectation lists below are for, and the separation is what makes the
+# no-rewording prohibition enforceable instead of aspirational. A prompt that
+# only works once it hints is a finding about discovery, not a prompt to revise.
+#
+# Contract: schemas/canary-catalog.schema.json (closed world).
+schemaVersion: 1
+canaries:
+  - id: DOCUMENTATION_VERSION_SCOPED
+    capability: CAPA-01
+    why: >-
+      A version-sensitive question should be answered from a documentation source
+      resolved to the exact version asked about, rather than from recall. The
+      structural proof is the identifier the second call carries.
+    prompt: >-
+      I'm on Next.js 16.2.2 and need a route handler that streams its response.
+      What does the current API look like on that exact version, and what changed
+      from 15?
+    expectTools:
+      - resolve-library-id
+      - query-docs
+    expectOrdered: true
+    expectArgumentPatterns:
+      - tool: query-docs
+        argument: libraryId
+        pattern: "^/[^/]+/[^/]+/[^/]+$"
+        why: >-
+          A three-segment identifier is version-scoped; a two-segment one is not.
+          This is a structural fact about the call, not a judgement of the answer.
+    forbidTools: []
+    maxDistinctServers: 1
+    requiresEnvironment: []
+    requiresMcpServers:
+      - context7
+    harnesses:
+      - claude
+    readOnly: true
+
+  - id: RESEARCH_MULTI_SOURCE
+    capability: CAPA-02
+    why: >-
+      Finding candidate sources and extracting one of them in full are different
+      jobs, and the stack has a different server for each. The expectation is that
+      both legs happen, in that order.
+    prompt: >-
+      Find the two or three most credible recent write-ups on how Node.js 24
+      changed its permission model, then pull the full text of the best one so I
+      can quote it accurately.
+    expectTools:
+      - web_search_exa
+      - firecrawl_scrape
+    expectOrdered: true
+    forbidTools:
+      - firecrawl_search
+    maxDistinctServers: 2
+    requiresEnvironment:
+      - EXA_API_KEY
+    requiresMcpServers:
+      - exa
+      - firecrawl
+    harnesses:
+      - claude
+    readOnly: true
+
+  - id: ORDINARY_LOOKUP_CONTROL
+    capability: CAPA-02
+    why: >-
+      The fan-out negative. An ordinary one-fact question must not sweep the whole
+      research stack. Declared as a count of distinct research servers touched
+      rather than as a required tool sequence, because more than one reasonable
+      two-tool path exists.
+    prompt: >-
+      What port does a Vite dev server listen on by default?
+    expectTools: []
+    forbidTools: []
+    maxDistinctServers: 1
+    requiresEnvironment: []
+    requiresMcpServers: []
+    harnesses:
+      - claude
+    readOnly: true

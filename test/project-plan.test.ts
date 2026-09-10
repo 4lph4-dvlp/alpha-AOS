@@ -2869,6 +2869,7 @@ type FormatProjectStatus = (
   reconciliation: ProjectReconciliationLike,
   removals: readonly unknown[],
   options: { path: string; subProject?: string | null },
+  oneShotOffers?: readonly unknown[],
 ) => string;
 
 /** A named export from `src/format.ts`, resolved at run time for the same reason `planExport` is. */
@@ -5208,4 +5209,244 @@ test("changing a ledger record leaves the plan digest unchanged, so no host-deri
     JSON.stringify(digestablePlan(bare.plan)),
     "the digestable view of the plan moved with the ledger",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-09 Task 3: the one-shot lifecycle reports, and never deletes
+// ---------------------------------------------------------------------------
+//
+// 03-CONTEXT.md D-13: when the ledger records `invoked` for a one-shot pack,
+// `status` reports it as one-shot, already invoked, removal plan ready — and
+// the removal itself still travels the approved removal-digest path. Phase 2
+// D-14 and PROJECT.md's safety constraint both stand: nothing here deletes.
+
+const BROWNFIELD_PACK = "BROWNFIELD_INIT";
+const BROWNFIELD_SKILL = "inherit-legacy-style";
+const BROWNFIELD_TARGET = `.claude/skills/${BROWNFIELD_SKILL}/SKILL.md`;
+const ONE_SHOT_LIFECYCLE = "one-shot-remove-after-output";
+/** RESEARCH.md Open Question 7: the skill writes this at the project ROOT. */
+const BROWNFIELD_OUTPUT = ".ai-style-rules.md";
+const INVOKED_AT = "2026-09-11T00:00:00.000Z";
+
+interface OneShotOfferLike {
+  readonly packId: string;
+  readonly lifecycle: string;
+  readonly invokedAt: string | null;
+  readonly removalDigest: string | null;
+  readonly approveCommand: string | null;
+  readonly corroboration: { readonly path: string; readonly present: boolean; readonly note: string } | null;
+  readonly sentence: string;
+}
+
+type PlanOneShotOffer = (
+  reconciliation: ProjectReconciliationLike,
+  ledger: CapabilityLedger | null,
+  options: { path: string; subProject?: string | null },
+) => OneShotOfferLike[];
+
+/** A brownfield repository with the one-shot pack materialized and a receipt claiming it. */
+async function installedBrownfieldFixture(
+  context: TestContext,
+): Promise<{ root: string; stateRoot: string; projectId: string }> {
+  const root = await scratchRoot(context, "one-shot");
+  const stateRoot = await scratchRoot(context, "one-shot-state");
+  await writeFile(
+    join(root, "package.json"),
+    `${JSON.stringify({ name: "one-shot-fixture", private: true }, null, 2)}\n`,
+    "utf8",
+  );
+  // `existing-source` is a directory detector; `missing-conventions-document`
+  // is satisfied by NOT writing a conventions document.
+  await mkdir(join(root, "src"), { recursive: true });
+  await writeFile(join(root, "src", "index.ts"), "export const legacy = true;\n", "utf8");
+  await writeInstalledPack(root, {
+    packId: BROWNFIELD_PACK,
+    target: BROWNFIELD_TARGET,
+    body: "# inherit-legacy-style\n",
+  });
+  const plan = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+  assert.ok(
+    plan.selected.includes(BROWNFIELD_PACK),
+    `the fixture did not select ${BROWNFIELD_PACK}: ${plan.selected.join(", ")}`,
+  );
+  const approveProjectPlan = await planExport<ApproveProjectPlan>("approveProjectPlan");
+  await approveProjectPlan({ path: root, packageRoot: repositoryRoot, stateRoot, expectedDigest: plan.planDigest });
+  return { root, stateRoot, projectId: plan.scope.projectId };
+}
+
+function invokedBrownfieldLedger(projectId: string): CapabilityLedger {
+  return packLedger([
+    packProof({ projectId, capability: BROWNFIELD_PACK, nativeUse: "invoked", observedAt: INVOKED_AT }),
+    packProof({
+      projectId,
+      capability: BROWNFIELD_PACK,
+      polarity: "negative",
+      nativeUse: "unverified",
+      observedAt: INVOKED_AT,
+      ancestorFreedom: { asserted: true, checkedAncestors: ["/tmp/control", "/tmp", "/"] },
+    }),
+  ]);
+}
+
+/** Every file under a root, keyed by relative POSIX path, with its content hash. */
+async function treeFingerprint(root: string): Promise<Map<string, string>> {
+  const seen = new Map<string, string>();
+  const walk = async (directory: string, prefix: string): Promise<void> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const absolute = join(directory, entry.name);
+      const relative = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.isDirectory()) await walk(absolute, relative);
+      else seen.set(relative, createHash("sha256").update(await readFile(absolute)).digest("hex"));
+    }
+  };
+  await walk(root, "");
+  return seen;
+}
+
+test("a one-shot pack the ledger records as invoked reports one-shot, already invoked, with a runnable approve command", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planOneShotOffer = await planExport<PlanOneShotOffer>("planOneShotOffer");
+  const { root, projectId } = await installedBrownfieldFixture(context);
+
+  const ledger = invokedBrownfieldLedger(projectId);
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger });
+  const offers = planOneShotOffer(reconciliation, ledger, { path: root });
+
+  assert.equal(offers.length, 1, `expected one offer, got ${offers.map((offer) => offer.packId).join(", ")}`);
+  const offer = offers[0];
+  assert.ok(offer);
+  assert.equal(offer.packId, BROWNFIELD_PACK);
+  assert.equal(offer.lifecycle, ONE_SHOT_LIFECYCLE);
+  assert.equal(offer.invokedAt, INVOKED_AT);
+  assert.ok(offer.removalDigest, "an invoked one-shot pack was offered no removal digest");
+  assert.match(
+    offer.approveCommand ?? "",
+    new RegExp(`^alpha-aos project approve .*--plan-digest ${offer.removalDigest ?? ""} --apply$`, "u"),
+    `the approve command is not runnable: ${String(offer.approveCommand)}`,
+  );
+
+  // The digest is the one the APPROVE path will look for, not a second one
+  // computed beside it. A digest nothing accepts is a dead end, not an offer.
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const offered = planPackRemoval(reconciliation) as ReadonlyArray<{ removalDigest: string }>;
+  assert.ok(
+    offered.some((entry) => entry.removalDigest === offer.removalDigest),
+    `the one-shot digest ${String(offer.removalDigest)} is on no removal plan the approve path would find`,
+  );
+});
+
+test("a one-shot pack with no invocation record reports one-shot, not yet invoked, and offers nothing", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planOneShotOffer = await planExport<PlanOneShotOffer>("planOneShotOffer");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root } = await installedBrownfieldFixture(context);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot });
+  const offer = planOneShotOffer(reconciliation, null, { path: root })[0];
+
+  assert.ok(offer, "a one-shot pack with no invocation record was not reported at all");
+  assert.equal(offer.packId, BROWNFIELD_PACK);
+  assert.equal(offer.lifecycle, ONE_SHOT_LIFECYCLE);
+  assert.equal(offer.invokedAt, null);
+  assert.equal(offer.removalDigest, null, "a pack nothing has invoked was offered a removal");
+  assert.equal(offer.approveCommand, null);
+  assert.match(offer.sentence, /not yet invoked/u, `the sentence does not say it has not been invoked: ${offer.sentence}`);
+  assert.deepEqual(planPackRemoval(reconciliation), [], "an uninvoked one-shot pack was offered a removal plan");
+});
+
+test("the one-shot reporting path calls no removal and leaves the project tree byte-unchanged", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planOneShotOffer = await planExport<PlanOneShotOffer>("planOneShotOffer");
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const { root, projectId } = await installedBrownfieldFixture(context);
+  const ledger = invokedBrownfieldLedger(projectId);
+
+  const before = await treeFingerprint(root);
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger });
+  const offers = planOneShotOffer(reconciliation, ledger, { path: root });
+  formatProjectStatus(reconciliation, planPackRemoval(reconciliation), { path: root }, offers);
+  const after = await treeFingerprint(root);
+
+  assert.deepEqual([...after.entries()].sort(), [...before.entries()].sort(), "reporting changed the project tree");
+  assert.ok(existsSync(join(root, ...BROWNFIELD_TARGET.split("/"))), "the one-shot target was deleted by a report");
+
+  // Source level, so a future edit that reaches for the writer is red rather
+  // than merely discouraged.
+  const source = await readFile(join(repositoryRoot, "src", "core", "project-plan.ts"), "utf8");
+  const body = /export function planOneShotOffer\([\s\S]*?\n\}/u.exec(source);
+  assert.ok(body, "src/core/project-plan.ts exports no planOneShotOffer");
+  for (const forbidden of ["applyPackRemoval", "applyFileTransaction", "unlink(", "rm(", "rmdir("]) {
+    assert.ok(
+      !(body[0] ?? "").includes(forbidden),
+      `planOneShotOffer names ${forbidden}: an invoked one-shot pack must never cause a deletion by accident`,
+    );
+  }
+});
+
+test("the corroborating one-shot artifact is reported when present and its absence is not evidence that no output occurred", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planOneShotOffer = await planExport<PlanOneShotOffer>("planOneShotOffer");
+  const { root, projectId } = await installedBrownfieldFixture(context);
+  const ledger = invokedBrownfieldLedger(projectId);
+
+  const absent = planOneShotOffer(
+    await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger }),
+    ledger,
+    { path: root },
+  )[0];
+  assert.ok(absent);
+  assert.equal(absent.corroboration?.path, BROWNFIELD_OUTPUT);
+  assert.equal(absent.corroboration?.present, false);
+  assert.match(
+    absent.corroboration?.note ?? "",
+    /absence .*not/iu,
+    `the absent case does not state that absence proves nothing: ${String(absent.corroboration?.note)}`,
+  );
+
+  await writeFile(join(root, BROWNFIELD_OUTPUT), "# style rules\n", "utf8");
+  const present = planOneShotOffer(
+    await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger }),
+    ledger,
+    { path: root },
+  )[0];
+  assert.ok(present);
+  assert.equal(present.corroboration?.present, true);
+
+  // The artifact is CORROBORATION. The ledger's invocation record is the
+  // primary signal, so the reported state is the same either way (A8).
+  assert.equal(present.invokedAt, absent.invokedAt);
+  assert.equal(present.removalDigest, absent.removalDigest);
+});
+
+test("the one-shot offer states what is ready and never implies anything was deleted", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const planOneShotOffer = await planExport<PlanOneShotOffer>("planOneShotOffer");
+  const planPackRemoval = await planExport<PlanPackRemoval>("planPackRemoval");
+  const formatProjectStatus = await formatExport<FormatProjectStatus>("formatProjectStatus");
+  const { root, projectId } = await installedBrownfieldFixture(context);
+  const ledger = invokedBrownfieldLedger(projectId);
+
+  const reconciliation = await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, { ledger });
+  const offers = planOneShotOffer(reconciliation, ledger, { path: root });
+  const rendered = formatProjectStatus(reconciliation, planPackRemoval(reconciliation), { path: root }, offers);
+  const block = rendered.split("\n").filter((line) => /ONE-SHOT|^ {2}/u.test(line));
+  const text = block.join("\n");
+
+  assert.match(text, new RegExp(`ONE-SHOT ${BROWNFIELD_PACK}`, "u"), `no ONE-SHOT line was rendered:\n${rendered}`);
+  assert.match(text, new RegExp(ONE_SHOT_LIFECYCLE, "u"), "the offer does not name the lifecycle");
+  assert.match(text, new RegExp(INVOKED_AT, "u"), "the offer does not name the invocation date");
+  assert.match(text, /removal plan ready/u, "the offer does not say a removal plan is ready");
+  assert.match(text, /Nothing has been removed/u, "the offer does not say nothing has been removed");
+  assert.match(text, /alpha-aos project approve /u, "the offer carries no runnable command");
+
+  assert.doesNotMatch(text, /delet/iu, `the offer uses deletion wording: ${text}`);
+  for (const line of text.split("\n")) {
+    if (!/\bremoved\b/u.test(line)) continue;
+    assert.match(
+      line,
+      /Nothing has been removed/u,
+      `a one-shot line says something was removed: ${line}`,
+    );
+  }
 });

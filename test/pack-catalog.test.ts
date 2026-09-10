@@ -463,3 +463,76 @@ test("a workflow content pattern matches within one line and never straddles a l
   assert.equal(anyMatches(release, "on:\r\n  release:\r\n"), true, "a CRLF checkout must still match");
   assert.equal(anyMatches(release, "    types:\r\n      - published\r\n"), true, "a CRLF checkout must still match");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 03-09 Task 3: the declared one-shot lifecycle gets a home in the schema
+// ---------------------------------------------------------------------------
+//
+// `lifecycle: one-shot-remove-after-output` has sat in `catalog/packs/
+// brownfield.yaml` since Phase 2 validating against nothing: the property
+// admitted any non-empty string. Phase 1's closed-world rule says an
+// unregistered value is REFUSED at load rather than silently carried, so the
+// property is narrowed to exactly the values the code implements.
+
+const DECLARED_ONE_SHOT = "one-shot-remove-after-output";
+
+/** The lifecycle values `schemas/pack-catalog.schema.json` admits. */
+async function schemaLifecycleEnum(): Promise<string[]> {
+  const schema = JSON.parse(
+    await readFile(join(packageRoot(), "schemas", "pack-catalog.schema.json"), "utf8"),
+  ) as Record<string, unknown>;
+  const packs = (schema.properties as Record<string, unknown>).packs as Record<string, unknown>;
+  const items = packs.items as Record<string, unknown>;
+  const properties = items.properties as Record<string, Record<string, unknown> | undefined>;
+  const lifecycle = properties.lifecycle;
+  assert.ok(lifecycle, "the pack catalog schema declares no lifecycle property");
+  const values = lifecycle.enum;
+  assert.ok(
+    Array.isArray(values),
+    `the lifecycle property is not an enum, so an unregistered lifecycle would still be carried: ${JSON.stringify(lifecycle)}`,
+  );
+  return values as string[];
+}
+
+test("the pack catalog schema admits the declared one-shot lifecycle and refuses an undeclared one", async (t) => {
+  assert.deepEqual(await schemaLifecycleEnum(), [DECLARED_ONE_SHOT]);
+
+  const { root, packFiles } = await catalogFixture(t, {
+    facts: ONE_FACT,
+    packs: {
+      "brownfield.yaml": `schemaVersion: 1
+packs:
+  - id: BROWNFIELD_INIT
+    evidence:
+      all: [web-framework]
+    lifecycle: remove-after-a-fortnight
+`,
+    },
+  });
+  const error = await rejection(async () => loadPackCatalogStrict(root));
+  assert.match(
+    `${error.message} ${error.issues.map((issue) => `${issue.code} ${issue.documentPath} ${issue.expected}`).join(" ")}`,
+    /lifecycle/u,
+    "the refusal does not name the lifecycle property that failed",
+  );
+  assert.deepEqual(packFiles, ["catalog/packs/brownfield.yaml"]);
+});
+
+test("PackLifecycle and the schema lifecycle enum agree in both directions", async () => {
+  const declared = await schemaLifecycleEnum();
+  const source = await readFile(join(packageRoot(), "src", "types.ts"), "utf8");
+  const declaration = /export type PackLifecycle = ([^;]+);/u.exec(source);
+  assert.ok(declaration, "src/types.ts declares no PackLifecycle union");
+  const members = (declaration[1] ?? "")
+    .split("|")
+    .map((member) => member.trim().replace(/^"|"$/gu, ""))
+    .filter((member) => member.length > 0);
+
+  assert.deepEqual([...members].sort(), [...declared].sort(), "the union and the schema enum do not agree");
+  for (const member of members) {
+    assert.ok(declared.includes(member), `PackLifecycle admits ${member}, which the schema enum refuses`);
+  }
+  for (const value of declared) {
+    assert.ok(members.includes(value), `the schema enum admits ${value}, which PackLifecycle refuses`);
+  }
+});

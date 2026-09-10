@@ -36,7 +36,7 @@
 - [ ] **CAPA-01**: User can ask a version-sensitive documentation question without naming a skill or MCP and have each claimed harness surface natively select the global documentation capability and make a meaningful read-only Context7 call
 - [ ] **CAPA-02**: User can request multi-source research without naming a skill or MCP and have native deep-research routing use Exa for source discovery and Firecrawl only for bounded extraction, while ordinary lookups do not fan out across every research tool
 - [ ] **CAPA-03**: User can perform an explicit cross-harness handoff through Unified Memory without Memory Vault content modifying `.planning/` or becoming authoritative project policy
-- [ ] **CAPA-04**: User can preview and apply an evidence-matched, exact-hash project capability pack only inside the selected project scope
+- [x] **CAPA-04**: User can preview and apply an evidence-matched, exact-hash project capability pack only inside the selected project scope
 - [ ] **CAPA-05**: User can see a synced project capability in the target harness with project-local provenance and can exercise it through a representative intent-matched task
 - [ ] **CAPA-06**: User running the same task outside the project cannot discover or invoke that project-only capability
 - [ ] **CAPA-07**: User can distinguish a capability that is selected, deployed, natively discovered, actually invoked, blocked, stale, unsupported, or unverified instead of seeing a single misleading installed state
@@ -141,7 +141,7 @@
 | CAPA-01 | Phase 3 | Pending |
 | CAPA-02 | Phase 3 | Pending |
 | CAPA-03 | Phase 3 | Pending |
-| CAPA-04 | Phase 3 | Pending |
+| CAPA-04 | Phase 3 | Complete |
 | CAPA-05 | Phase 3 | Pending |
 | CAPA-06 | Phase 3 | Pending |
 | CAPA-07 | Phase 3 | Pending |

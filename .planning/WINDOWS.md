@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 9
+open_count: 10
 waived_count: 2
 fixed_count: 15
-total_count: 26
-last_updated: 2026-09-09T09:48:43.234Z
+total_count: 27
+last_updated: 2026-09-10T10:57:37.232Z
 ---
 
 # Broken Windows Ledger
@@ -41,6 +41,7 @@ last_updated: 2026-09-09T09:48:43.234Z
 | 24 | 02 | deviation | test/project-plan.test.ts |  | Flaky under full-suite load: 'project plan terminates on a git root holding a nested manifest and lists both members' failed once in a full npm test run and passed in isolation and on the immediate re-run. Pre-existing (02-11), not touched by 02-12. | fixed |  | 2026-09-08T09:22:55.245Z | 2026-09-08T17:49:29.691Z |
 | 25 | 02 | unmet-truth | src/core/path-boundary.ts | 226 | provePathBoundary records component identity as `inode: Number(info.ino)`, and `recheckPathProof` compares those numbers for equality. A Windows file index is 64-bit and a JS number is a double, so an index above 2^53 is rounded: measured on this host a temp directory's index is 68398419340753788 and its double is 68398419340753790, one ulp being 16. Two DIFFERENT inodes within one ulp therefore compare EQUAL, so the TOCTOU recheck can miss a swap. Same root cause as ledger #13, which plan 02-13 fixed in src/core/evidence.ts identityKeys by reading lstat with { bigint: true }. Left open deliberately: path-boundary.ts is Phase 1 code outside plan 02-13's declared files, PathProof.inode is a typed `number \| null` in the public shape, and widening it to a string or bigint is an interface change that needs its own plan. | open |  | 2026-09-08T17:49:53.322Z |  |
 | 26 | 02 | deviation | test/transaction-crash.test.ts |  | Flaky on Windows independent of plan 02-13: 'an in-process transaction serializes against a held session' fails with ENOTEMPTY on rmdir of the fixture target root — a teardown race against the SIGKILLed holder child, not an assertion failure. Observed in 2 of 3 consecutive isolated runs and once in a full npm test run. Plan 02-13 touched no transaction, writer-lock or fixture-teardown code (git diff 025505b..HEAD covers only evidence.ts, project-plan.ts, format.ts, types.ts and their two test files), so it is out of scope under the executor scope boundary. The plan-base commit 025505b was itself a timing fix in this same file. | open |  | 2026-09-08T17:49:54.330Z |  |
+| 27 | 03 | deviation | test/project-pack-sync.test.ts |  | Tracer drives the writer at module level rather than through the built CLI: the CLI cannot be handed a test-owned package root or a verifiedSourceRoot, so a CLI-driven sync would require the network | open |  | 2026-09-10T10:57:37.232Z |  |
 
 ````json
 [
@@ -354,6 +355,18 @@ last_updated: 2026-09-09T09:48:43.234Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-08T17:49:54.330Z",
+    "resolved_at": null
+  },
+  {
+    "id": 27,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "test/project-pack-sync.test.ts",
+    "line": null,
+    "description": "Tracer drives the writer at module level rather than through the built CLI: the CLI cannot be handed a test-owned package root or a verifiedSourceRoot, so a CLI-driven sync would require the network",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T10:57:37.232Z",
     "resolved_at": null
   }
 ]

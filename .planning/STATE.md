@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-09-10T08:47:05.246Z"
-last_activity: 2026-09-09
-last_activity_desc: Phase 2 complete, transitioned to Phase 3
-state_head: 9cbc7b41dab86173caf7b25b87aad20ce0d76c71
+stopped_at: Completed 03-01-PLAN.md
+last_updated: "2026-09-10T10:57:29.962Z"
+last_activity: 2026-09-10
+last_activity_desc: Phase 03 execution started
+state_head: 9372d47564b6bc35ad7dae1dc25358e5b0b5d6d6
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 55
-  completed_plans: 43
+  completed_plans: 44
   percent: 14
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 03 (Transactional Project Packs and Native Optional Use) — READY TO EXECUTE
-Plan: Not started
+Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
+Plan: 2 of 12
 Status: Ready to execute
-Last activity: 2026-09-09 — Phase 2 complete, transitioned to Phase 3
+Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
 
 ## Performance Metrics
@@ -85,6 +85,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 02 P14 | 68 min | 3 tasks | 8 files |
 | Phase 02 P15 | 62 min | 2 tasks | 6 files |
 | Phase 02 P16 | 5h 24m | 2 tasks | 8 files |
+| Phase 03 P01 | 39 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -159,6 +160,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 02]: SafeInverse.guard.expectedHash admits an explicit null: no guard hash is invented for bytes that were never observed, and a TARGET_UNREADABLE approval tells the reviewer which undo is unguarded
 - [Phase 02]: approvalCommand quotes the path and the --project value on whitespace, a quote or a shell metacharacter, and leaves an ordinary path byte-identical
 - [Phase 02]: Plan 02-16 Task 2 (option-a): the catalog and lock drift check runs in a new scheduled workflow, .github/workflows/pack-skill-drift.yml, weekly on cron 17 4 * * 1, and drift fails the run red — Maintainer policy, chosen over folding it into ci.yml (which has no schedule and runs per push/PR) and over report-only. The cron hour is offset from dependency-candidate.yml (17 3 * * 1) so the two network-touching scheduled jobs do not contend. Read-only permissions because the job opens no pull request and pushes no branch. workflow_dispatch added for on-demand runs.
+- [Phase 03]: Receipt sourceHash is a sha256 over the pack's sorted [skill, sourceSha256] pairs — A pack may declare several skills but the receipt carries one hash; the aggregate is recomputable from catalog/stack.lock.json alone
+- [Phase 03]: createdAt is excluded from the already-current receipt comparison — It is the only field no input derives; comparing it would make every re-run rewrite a receipt whose every claim is unchanged, defeating D-06 idempotency
+- [Phase 03]: A sync tolerates plan drift caused only by its own materialization landing — Writing the files a plan describes changes their pre-state and therefore the plan digest; without a narrow target-changed tolerance the D-06 idempotency edge is unreachable
+- [Phase 03]: The receipt kind discriminator lands in schemas/receipt.schema.json only — CORE_SCHEMAS.receipt is the envelope check; the closed interior is where a target-kind vocabulary belongs
 
 ### Pending Todos
 
@@ -215,6 +220,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T06:38:23.271Z
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-transactional-project-packs-and-native-optional-use/03-CONTEXT.md
+Last session: 2026-09-10T10:57:12.031Z
+Stopped at: Completed 03-01-PLAN.md
+Resume file: None

@@ -10,27 +10,32 @@
 // reached and a local ECC upgrade cannot change what these assertions mean.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadLock } from "../src/core/catalog.js";
-import { applyProjectPackSync } from "../src/core/project-pack-sync.js";
+import { applyProjectPackSync, planProjectPackSync } from "../src/core/project-pack-sync.js";
 import { formatProjectPackSync } from "../src/format.js";
 import {
   approveProjectPlan,
+  classifyPlanDrift,
   planProjectCapabilities,
   PROJECT_RECEIPT_DIRECTORY,
   resolvePackSource,
 } from "../src/core/project-plan.js";
-import type { HarnessId } from "../src/types.js";
+import { listManagedTransactions, rollbackManagedTransaction } from "../src/core/transaction.js";
+import type { HarnessId, ProjectCapabilityPlan } from "../src/types.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
+const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
+const packSyncModule = pathToFileURL(join(repositoryRoot, "dist", "src", "core", "project-pack-sync.js")).href;
 
 /** The one pack a bare `react` dependency selects, and the one skill it declares. */
 const PACK_ID = "WEB_REACT";
@@ -188,4 +193,258 @@ test("one approved pack's SKILL.md and its receipt both land, written by one tra
   }
   assert.ok(rendered.includes(`Transaction: ${result.operationId ?? ""}`), "the apply rendering did not name the transaction id");
   assert.match(rendered, /alpha-aos rollback/u);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-01 Task 2: the failure paths
+// ---------------------------------------------------------------------------
+//
+// D-06 is a claim about what a CRASH leaves behind, so the load-bearing test
+// below asserts on ABSENCE — zero receipts, and a tree byte-identical to the
+// one the apply started from — rather than merely on a non-zero exit status.
+// Moving the receipt write out of the single transaction makes it red.
+
+/** Files under `.alpha-aos/receipts/`, sorted. Empty when the directory is absent. */
+async function receiptFiles(root: string): Promise<string[]> {
+  const directory = join(root, ...PROJECT_RECEIPT_DIRECTORY.split("/"));
+  if (!existsSync(directory)) return [];
+  return (await readdir(directory)).sort();
+}
+
+/** Runs something expected to refuse, and hands back the Error it refused with. */
+async function expectRefusal(run: () => Promise<unknown>, label: string): Promise<Error> {
+  try {
+    await run();
+  } catch (error) {
+    assert.ok(error instanceof Error, `${label} threw a non-Error value`);
+    return error;
+  }
+  assert.fail(`${label} did not refuse`);
+}
+
+/**
+ * A child that performs exactly one `applyProjectPackSync` and honours
+ * `ALPHA_AOS_FAILPOINT` by dying at that durable boundary.
+ *
+ * The interruption is driven by the transaction's own deterministic failpoint
+ * rather than by a signal, so it lands at a boundary the product DECLARES
+ * rather than at whichever instruction a killer happened to catch.
+ */
+async function writeCrashDriver(support: string): Promise<string> {
+  const script = join(support, "pack-sync-child.mjs");
+  await writeFile(
+    script,
+    [
+      `import { applyProjectPackSync } from ${JSON.stringify(packSyncModule)};`,
+      "const [path, packageRoot, stateRoot, verifiedSourceRoot] = process.argv.slice(2);",
+      "try {",
+      "  await applyProjectPackSync({ path, packageRoot, stateRoot, verifiedSourceRoot });",
+      "  process.exit(0);",
+      "} catch (error) {",
+      "  process.stderr.write(String(error && error.message ? error.message : error));",
+      "  process.exit(3);",
+      "}",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return script;
+}
+
+test("a sync interrupted mid-transaction leaves zero receipts, and the rollback restores the tree", async (context) => {
+  const fixture = await syncFixture(context, "crash");
+  await approve(fixture);
+  const support = dirname(fixture.sourceRoot);
+  const driver = await writeCrashDriver(support);
+
+  const before = await snapshotProject(fixture.root);
+
+  const crashed = spawnSync(
+    process.execPath,
+    [driver, fixture.root, fixture.packageRoot, fixture.stateRoot, fixture.sourceRoot],
+    { encoding: "utf8", windowsHide: true, env: { ...process.env, ALPHA_AOS_FAILPOINT: "after-target-rename" } },
+  );
+  assert.equal(crashed.status, 70, `the failpoint did not trip: ${crashed.stderr}`);
+
+  // The whole point of D-06: the interruption landed after a skill file was
+  // renamed into place and before the receipts, and there is still no receipt
+  // at all. Moving the receipt write to a second transaction makes this red.
+  assert.deepEqual(await receiptFiles(fixture.root), [], "an interrupted sync left a receipt behind");
+
+  // The journal reports the operation state, so the interruption is diagnosable
+  // rather than merely observable as a half-written tree.
+  const journals = await listManagedTransactions(fixture.stateRoot);
+  const journal = journals[0];
+  assert.ok(journal, "the interrupted transaction wrote no journal");
+  assert.equal(journal.status, "applying", `the journal recorded ${journal.status} for an interrupted transaction`);
+
+  await rollbackManagedTransaction(fixture.stateRoot, journal.id);
+  assert.deepEqual(await snapshotProject(fixture.root), before, "the rollback did not restore the project tree");
+  assert.deepEqual(await receiptFiles(fixture.root), [], "the rollback left a receipt behind");
+});
+
+test("no interruption can commit skill bytes without the receipt that claims them", async (context) => {
+  const fixture = await syncFixture(context, "commit-atomicity");
+  await approve(fixture);
+  const driver = await writeCrashDriver(dirname(fixture.sourceRoot));
+
+  // `after-final-sync` trips once a transaction has applied every operation it
+  // was given AND durably marked its journal `applied`. With ONE transaction
+  // that instant is after the receipts too. With the receipts moved into a
+  // second transaction it is a COMMITTED state holding skill bytes no receipt
+  // claims — the untracked-bytes-on-a-crash state D-06 exists to forbid, and
+  // the state Phase 2's reader would go on to report as a TARGET_CONFLICT.
+  const crashed = spawnSync(
+    process.execPath,
+    [driver, fixture.root, fixture.packageRoot, fixture.stateRoot, fixture.sourceRoot],
+    { encoding: "utf8", windowsHide: true, env: { ...process.env, ALPHA_AOS_FAILPOINT: "after-final-sync" } },
+  );
+  assert.equal(crashed.status, 70, `the failpoint did not trip: ${crashed.stderr}`);
+
+  const posix = (value: string): string => value.replaceAll("\\", "/");
+  for (const journal of await listManagedTransactions(fixture.stateRoot)) {
+    if (journal.status !== "applied") continue;
+    const targets = journal.files.map((file) => posix(file.target));
+    const touchesSkill = targets.some((target) => target.endsWith(`/${PACK_SKILL}/SKILL.md`));
+    if (!touchesSkill) continue;
+    assert.equal(
+      targets.some((target) => target.includes(`/${PROJECT_RECEIPT_DIRECTORY}/`)),
+      true,
+      `transaction ${journal.id} committed skill bytes without the receipt that claims them`,
+    );
+  }
+
+  if (existsSync(join(fixture.root, ...CLAUDE_TARGET.split("/")))) {
+    assert.deepEqual(
+      await receiptFiles(fixture.root),
+      [`${PACK_ID}.json`],
+      "skill bytes are on disk that no receipt claims",
+    );
+  }
+});
+
+test("a second sync against an unchanged approved artifact is already-current, with one receipt per pack", async (context) => {
+  const fixture = await syncFixture(context, "idempotent");
+  await approve(fixture);
+  const options = {
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  };
+
+  const first = await applyProjectPackSync(options);
+  assert.equal(first.status, "written");
+  const afterFirst = await snapshotProject(fixture.root);
+
+  const second = await applyProjectPackSync(options);
+  assert.equal(second.status, "already-current", "a second sync rewrote an unchanged materialization");
+  assert.equal(second.operationId, null, "an already-current sync opened a transaction");
+  assert.deepEqual(second.written, [], "an already-current sync reported writes");
+
+  assert.deepEqual(await snapshotProject(fixture.root), afterFirst, "a second sync changed bytes on disk");
+  assert.deepEqual(
+    await receiptFiles(fixture.root),
+    [`${PACK_ID}.json`],
+    "a second sync did not leave exactly one receipt per pack",
+  );
+});
+
+test("a sync with no approved artifact refuses with a paste-ready approve command", async (context) => {
+  const fixture = await syncFixture(context, "no-artifact");
+
+  const result = spawnSync(process.execPath, [cliEntry, "project", "sync", fixture.root, "--apply"], {
+    encoding: "utf8",
+    windowsHide: true,
+    env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot },
+  });
+
+  assert.notEqual(result.status, 0, "a sync with no approved artifact was accepted");
+  assert.match(result.stderr, /plan-incomplete/u);
+  assert.ok(result.stderr.includes("project approve"), `the refusal carried no approve command: ${result.stderr}`);
+  assert.ok(result.stderr.includes("--plan-digest"), `the refusal carried no --plan-digest: ${result.stderr}`);
+  assert.ok(result.stderr.includes("--apply"), `the refusal carried no --apply: ${result.stderr}`);
+  assert.deepEqual(await receiptFiles(fixture.root), [], "a refused sync wrote a receipt");
+});
+
+test("a sync whose bound inputs moved refuses, naming the drift kind and both digests", async (context) => {
+  const fixture = await syncFixture(context, "drift");
+  const approved = await planProjectCapabilities({ path: fixture.root, packageRoot: fixture.packageRoot });
+  await approve(fixture);
+
+  await writeFile(
+    join(fixture.root, "package.json"),
+    `${JSON.stringify(
+      {
+        name: "pack-sync-fixture",
+        private: true,
+        dependencies: { react: "^19.0.0", "@modelcontextprotocol/sdk": "^1.0.0" },
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+
+  const moved = await planProjectCapabilities({ path: fixture.root, packageRoot: fixture.packageRoot });
+  assert.notEqual(approved.planDigest, moved.planDigest, "the fixture dependency change moved no digest");
+  const drift = classifyPlanDrift(approved as ProjectCapabilityPlan, moved);
+  // Taken AFTER the input moved, so this asserts the refusal wrote nothing —
+  // not that the dependency edit never happened.
+  const before = await snapshotProject(fixture.root);
+
+  const error = await expectRefusal(
+    () =>
+      applyProjectPackSync({
+        path: fixture.root,
+        packageRoot: fixture.packageRoot,
+        stateRoot: fixture.stateRoot,
+        verifiedSourceRoot: fixture.sourceRoot,
+      }),
+    "a sync whose bound inputs moved",
+  );
+
+  assert.match(error.message, /plan-drift/u);
+  assert.ok(error.message.includes(drift.kind), `the refusal did not name the drift kind ${drift.kind}: ${error.message}`);
+  assert.ok(
+    error.message.includes(approved.planDigest.slice(0, 12)),
+    `the refusal did not name the reviewed digest: ${error.message}`,
+  );
+  assert.ok(
+    error.message.includes(moved.planDigest.slice(0, 12)),
+    `the refusal did not name the observed digest: ${error.message}`,
+  );
+  assert.deepEqual(await snapshotProject(fixture.root), before, "a refused sync changed the project tree");
+});
+
+test("an approved plan naming a harness with no project-local skill root refuses before any write", async (context) => {
+  const fixture = await syncFixture(context, "harness");
+  await approve(fixture);
+
+  const artifactPath = join(fixture.root, ".alpha-aos", "plan.json");
+  const artifact = JSON.parse(await readFile(artifactPath, "utf8")) as {
+    plan: { targetPreState: Array<{ harness: string; path: string }> };
+  };
+  const first = artifact.plan.targetPreState[0];
+  assert.ok(first, "the approved artifact carries no target");
+  first.harness = "hermes";
+  first.path = `.hermes/skills/${PACK_SKILL}/SKILL.md`;
+  await writeFile(artifactPath, `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
+
+  const before = await snapshotProject(fixture.root);
+  const error = await expectRefusal(
+    () =>
+      planProjectPackSync({
+        path: fixture.root,
+        packageRoot: fixture.packageRoot,
+        stateRoot: fixture.stateRoot,
+        verifiedSourceRoot: fixture.sourceRoot,
+      }),
+    "an approved plan naming an unsupported harness",
+  );
+
+  assert.match(error.message, /plan-incomplete/u);
+  assert.ok(error.message.includes("hermes"), `the refusal did not name the harness: ${error.message}`);
+  assert.deepEqual(await snapshotProject(fixture.root), before, "a refused sync changed the project tree");
+  assert.deepEqual(await receiptFiles(fixture.root), [], "a refused sync wrote a receipt");
 });

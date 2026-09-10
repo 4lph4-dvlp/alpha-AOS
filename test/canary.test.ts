@@ -2119,3 +2119,84 @@ test("a replaced proof's superseded versions accumulate rather than overwrite, a
   assert.deepEqual([...(kept.supersededHarnessVersions ?? [])], ["0.1.0"]);
   assert.equal(kept.harnessVersion.exact, "0.3.0");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 03-08 Task 3 — the connection listing's two glyph spellings
+//
+// Found while evaluating Task 3's precondition read-only. The readiness probe
+// reported every genuinely connected server as `unknown`; `claude mcp list`
+// prints one glyph in a terminal and a different one when alpha-AOS launches
+// it through the bounded process adapter, and only the terminal spelling was
+// declared. A rule that can never observe `connected` cannot enforce what the
+// catalog's requiresMcpServers says it enforces.
+// ---------------------------------------------------------------------------
+
+/**
+ * The EXACT stdout `createReadinessRunner`'s connection listing returned on
+ * this host, 2026-09-11, transcribed rather than typed from memory. Note the
+ * `√` — U+221A — where the same command in a terminal prints `✔`.
+ */
+const CLAUDE_MCP_LIST_NON_TTY = [
+  "Checking MCP server health…",
+  "",
+  "claude.ai Notion: https://mcp.notion.com/mcp - ! Needs authentication",
+  "context7: C:\\Program Files\\nodejs\\node.exe C:\\npx-cli.js --yes @upstash/context7-mcp@4.0.4 - √ Connected",
+  "exa: C:\\Program Files\\nodejs\\node.exe C:\\npx-cli.js --yes exa-mcp-server@3.4.1 - √ Connected",
+  "firecrawl: C:\\Program Files\\nodejs\\node.exe D:\\dev\\alpha-AOS\\dist\\src\\cli.js mcp-proxy firecrawl - √ Connected",
+  "",
+].join("\n");
+
+test("a connected server is read as connected in both glyph spellings the harness prints", () => {
+  const terminal = parseClaudeMcpList(CLAUDE_MCP_LIST);
+  const nonTty = parseClaudeMcpList(CLAUDE_MCP_LIST_NON_TTY);
+
+  // The terminal spelling, which already worked.
+  assert.equal(terminal.find((entry) => entry.server === "context7")?.state, "connected");
+  // The spelling alpha-AOS's own launch actually receives. Before this, it was
+  // `unknown`, and a connected server that reads as unknown makes the whole
+  // connection gate unenforceable rather than merely imprecise.
+  assert.equal(nonTty.find((entry) => entry.server === "context7")?.state, "connected");
+  assert.equal(nonTty.find((entry) => entry.server === "exa")?.state, "connected");
+  assert.equal(nonTty.find((entry) => entry.server === "firecrawl")?.state, "connected");
+
+  // The other two states must not have been widened along with it. `Failed to
+  // connect` contains the word `connect`, and a naive unanchored rule would
+  // have swallowed it.
+  assert.equal(terminal.find((entry) => entry.server === "firecrawl")?.state, "failed");
+  assert.equal(nonTty.find((entry) => entry.server === "claude.ai Notion")?.state, "needs-auth");
+  assert.deepEqual(
+    parseClaudeMcpList("s: cmd - ✗ Failed to connect — CONNECTION_CLOSED: Connection closed"),
+    [{ server: "s", state: "failed" }],
+    "a failure sentence naming the connection was read as a success",
+  );
+  // A line with no marker and no word stays unknown rather than defaulting.
+  assert.deepEqual(parseClaudeMcpList("s: cmd - starting"), [{ server: "s", state: "unknown" }]);
+});
+
+test("the connection gate blocks on a server this host reports as needing authentication", async () => {
+  // The positive control for the fix above: `connected` now being observable is
+  // only useful if a NON-connected required server still blocks. Driven from
+  // the same measured non-TTY listing.
+  const canary = declaration({ requiresMcpServers: ["claude.ai Notion"] });
+  const report = await probeReadiness({
+    harness: "claude",
+    canary,
+    environment: {},
+    runner: runner({ connections: commandResult(CLAUDE_MCP_LIST_NON_TTY) }),
+  });
+  assert.equal(report.ready, false);
+  assert.equal(report.blockedReasons.some((reason) => reason.code === "MCP_SERVER_NOT_CONNECTED"), true);
+
+  const ok = await probeReadiness({
+    harness: "claude",
+    canary: declaration({ requiresMcpServers: ["context7", "exa", "firecrawl"] }),
+    environment: {},
+    runner: runner({ connections: commandResult(CLAUDE_MCP_LIST_NON_TTY) }),
+  });
+  assert.equal(ok.ready, true, "three servers this host reports connected must not block");
+  assert.deepEqual(
+    ok.connections.filter((entry) => ["context7", "exa", "firecrawl"].includes(entry.server)).map((entry) => entry.state),
+    ["connected", "connected", "connected"],
+    "the recorded connection states are what a ledger and a report render, so they must be the observed ones",
+  );
+});

@@ -569,12 +569,27 @@ export function parsePiAuthCheck(stdout: string): ProviderReadiness | null {
  *
  * `failed` is tested before `connected` because the failure sentence contains
  * the word the success state is named after — "Failed to connect" would match a
- * naive connected rule.
+ * naive connected rule. `connection closed` is likewise tested first.
+ *
+ * TWO spellings of every glyph, because a harness prints a different one
+ * depending on what it thinks its terminal can render. Measured on this host,
+ * 2026-09-11: `claude mcp list` in a terminal prints `✔ Connected`, and the
+ * SAME command launched by alpha-AOS through the bounded process adapter prints
+ * `√ Connected` — U+221A, the Windows console fallback. Nothing about the
+ * server changed between those two runs.
+ *
+ * That difference was not cosmetic. With only the terminal glyph declared,
+ * every genuinely connected server on Windows parsed as `unknown`, so the
+ * `connected` state could never be OBSERVED at all — and a rule that can only
+ * ever see `failed` and `needs-auth` cannot enforce what the canary catalog's
+ * `requiresMcpServers` says it enforces. The word is matched unanchored for the
+ * same reason: a glyph nobody predicted should degrade to reading the sentence,
+ * not to reading nothing.
  */
 const CONNECTION_MARKERS: readonly { readonly test: RegExp; readonly state: McpConnectionState }[] = [
-  { test: /^[✘✗]|failed to connect|connection closed/iu, state: "failed" },
-  { test: /^!|needs authentication|authentication required/iu, state: "needs-auth" },
-  { test: /^[✔✓]|^connected\b/iu, state: "connected" },
+  { test: /^[✘✗×]|failed to connect|connection closed/iu, state: "failed" },
+  { test: /^[!‼]|needs authentication|authentication required/iu, state: "needs-auth" },
+  { test: /^[✔✓√]|\bconnected\b/iu, state: "connected" },
 ];
 
 /**

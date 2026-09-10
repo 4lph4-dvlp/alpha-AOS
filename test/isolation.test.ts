@@ -448,3 +448,81 @@ test("an isolation plan reviewed before the runtime changed refuses and writes n
   assert.equal(existsSync(plan.runtimeRoot), false, "a refused sync creates nothing");
   assert.equal(existsSync(writerLockPath(state)), false);
 });
+
+// ---------------------------------------------------------------------------
+// Plan 03-06 Task 1 — the canary variant of the one launch spec builder
+// ---------------------------------------------------------------------------
+
+test("the canary launch variant points claude at the runtime configuration and excludes every other MCP source", async (context) => {
+  const { project } = await fixture(context);
+  // A project MCP configuration exists and must NOT be loaded beside the
+  // canary's own: an unfronted server in the path is the whole failure D-02
+  // exists to prevent.
+  await writeFile(join(project, ".mcp.json"), JSON.stringify({ mcpServers: { surprise: { command: "example" } } }), "utf8");
+  const policy = defaultIsolationPolicy("project-only", ["claude"]);
+  const mcpConfigPath = join("C:", "state", "canary", "run", "mcp.json");
+
+  const launch = createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: project,
+    harness: "claude",
+    policy,
+    runtimeRoot: join("C:", "state", "canary", "run"),
+    allowedSkillPaths: [],
+    canary: { mcpConfigPath },
+  });
+
+  const configs = launch.args.filter((argument, index) => launch.args[index - 1] === "--mcp-config");
+  assert.deepEqual(configs, [mcpConfigPath], "the canary launch loads an MCP configuration other than the runtime's own");
+  assert.equal(
+    launch.args.filter((argument) => argument === "--strict-mcp-config").length,
+    1,
+    "the strict flag is absent or asked for twice; one guarantee is spelled once",
+  );
+  assert.equal(
+    launch.args.some((argument) => argument.includes(".mcp.json") && argument !== mcpConfigPath),
+    false,
+    "the project's own MCP configuration is still named on the canary launch",
+  );
+
+  // The same builder, without the canary option, is unchanged.
+  const everyday = createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: project,
+    harness: "claude",
+    policy,
+    runtimeRoot: join("C:", "state", "isolated", "0123456789abcdef"),
+    allowedSkillPaths: [],
+  });
+  assert.equal(
+    everyday.args.includes(join(project, ".mcp.json")),
+    true,
+    "the everyday launch stopped loading the project's MCP configuration",
+  );
+});
+
+test("a harness with no strict MCP isolation records a blocked reason rather than claiming the canary is isolated", () => {
+  for (const harness of ["codex", "antigravity", "pi", "hermes"] as const) {
+    const launch = createIsolationLaunchSpec({
+      projectId: "0123456789abcdef",
+      projectRoot: join("C:", "work", "repo"),
+      harness,
+      policy: defaultIsolationPolicy("project-only", [harness]),
+      runtimeRoot: join("C:", "state", "canary", "run"),
+      allowedSkillPaths: [],
+      canary: { mcpConfigPath: join("C:", "state", "canary", "run", "config") },
+    });
+    const blocked = launch.blockedReasons.filter((reason) => reason.includes("canary observation front"));
+    assert.equal(blocked.length, 1, `${harness} does not record why it cannot be pointed at the observation front`);
+    assert.equal(
+      (blocked[0]?.length ?? 0) > 60,
+      true,
+      `${harness}'s blocked reason does not say what is missing`,
+    );
+    assert.equal(
+      launch.args.includes("--mcp-config"),
+      false,
+      `${harness} was handed an MCP-config flag that has not been observed on it`,
+    );
+  }
+});

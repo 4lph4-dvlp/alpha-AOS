@@ -33,7 +33,7 @@ import { applyEccSkillSync, planEccSkillSync } from "./core/ecc-skills.js";
 import { runMcpFixture } from "./core/mcp-fixture.js";
 import { applyMcpSync, mcpServerIds, planMcpSync } from "./core/mcp.js";
 import { applyClaudeSkillPolicy, planClaudeSkillPolicy } from "./core/skill-policy.js";
-import { MCP_SERVER_IDS, runMcpFilterProxy } from "./core/mcp-proxy.js";
+import { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } from "./core/mcp-proxy.js";
 import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/update.js";
 import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
@@ -220,6 +220,18 @@ async function main(): Promise<void> {
     }
     const locked = lock.components.mcp?.[server];
     if (!locked) throw new Error(`Stable lock has no MCP component: ${server}`);
+    // Observe mode is the canary runtime's front (D-02). It is reachable only
+    // from a configuration a canary runtime rendered, which names the record
+    // file it appends to — a front asked to observe with nowhere to record
+    // would front the server and prove nothing, so it refuses.
+    if (hasFlag(args, "--observe")) {
+      const observations = optionValue(args, "--observations");
+      if (observations === null || observations.length === 0) {
+        throw new Error("alpha-aos mcp-proxy <server> --observe requires --observations <path>");
+      }
+      await runMcpProxy(server, locked, { mode: "observe", sink: createFileObservationSink(observations) });
+      return;
+    }
     await runMcpFilterProxy(server, locked);
     return;
   }

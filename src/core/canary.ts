@@ -17,14 +17,36 @@
 //    more reliable than reading a failure's output and the only way `blocked`
 //    can name a variable and a next action.
 
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
+import { access, readFile, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
 
-import { ORACLE_DEFINITIONS, resolveDirectLaunch } from "../adapters/capability-oracle.js";
+import { createIsolationLaunchSpec } from "../adapters/isolation.js";
+import { ORACLE_DEFINITIONS, ORACLE_PLACEHOLDER_PROMPT, resolveDirectLaunch } from "../adapters/capability-oracle.js";
+import type {
+  HarnessId,
+  IsolationLaunchSpec,
+  McpServerId,
+  RedactedExcerpt,
+  StackLock,
+} from "../types.js";
 import type { BlockedReason, LedgerHarness, NativeUseState } from "./capability-ledger.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
-import { commandProbeEnvironment, resolveCommand, runProcess } from "./process.js";
+import { defaultIsolationPolicy, isolationProjectId } from "./isolation.js";
+import { assertNoCredentialValue, nativeConfigFormat, renderMcpConfig } from "./mcp.js";
+import { readObservationRecords, type McpObservation } from "./mcp-proxy.js";
+import {
+  commandProbeEnvironment,
+  materializeEnvironment,
+  PLATFORM_FLOOR_ENVIRONMENT,
+  resolveCommand,
+  runProcess,
+  type EnvironmentPolicy,
+} from "./process.js";
 import { RootKeyedCache } from "./paths.js";
+import { applyFileTransaction } from "./transaction.js";
+import type { MutationSession } from "./writer-lock.js";
 import {
   createMigrationPlan,
   validateManagedDocument,
@@ -315,6 +337,21 @@ export const BLOCKED_CODES = Object.freeze({
   MCP_SERVER_NOT_CONNECTED: "a required MCP server did not pass its connection check",
   MCP_SERVER_NOT_REGISTERED: "a required MCP server is not registered with the harness at all",
   HARNESS_NOT_INSTALLED: "the harness executable could not be resolved on PATH",
+  /**
+   * A run would produce no evidence, so it is refused before it spends
+   * anything. A missing observation is indistinguishable from a capability that
+   * was not selected, which makes a run with no sink strictly worse than no run
+   * at all (T-03-54).
+   */
+  OBSERVATION_SINK_UNAVAILABLE: "the observation sink a canary records through is not available",
+  /**
+   * The harness cannot be pointed at the canary's own observation front, so a
+   * run on it could not be told apart from one talking to the user's own
+   * servers. Fail-closed rather than run-and-hope (T-03-50).
+   */
+  HARNESS_ISOLATION_UNPROVEN: "the harness cannot be isolated onto the canary runtime's MCP configuration",
+  /** No proven non-interactive prompt vector exists for this harness. */
+  HARNESS_PROMPT_VECTOR_UNKNOWN: "no observed non-interactive argument vector puts a prompt in front of this harness",
 } as const);
 
 export type BlockedCode = keyof typeof BLOCKED_CODES;
@@ -1027,4 +1064,731 @@ export function catalogCosts(
     costsModelTurn: canaryCostsModelTurn(canary),
     perHarness: canaryCosts(canary),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// The canary runtime — the same servers, fronted, and only here (D-02)
+// ---------------------------------------------------------------------------
+
+/**
+ * Where canary runtimes live under the managed state root.
+ *
+ * Under `userStateRoot()` and never inside a project or a harness's own config
+ * root, which is the whole content of 03-CONTEXT.md D-02: the observation front
+ * exists for the duration of a run, in a directory alpha-AOS owns, and a user's
+ * everyday configuration keeps talking to the upstream servers directly.
+ */
+export const CANARY_RUNTIME_DIRECTORY = "canary";
+
+/** The observation record file inside a runtime. Newline-delimited JSON. */
+export const CANARY_OBSERVATIONS_FILE = "observations.jsonl";
+
+/** The runtime marker, in the shape the isolated-runtime marker already uses. */
+export const CANARY_MARKER_FILE = "runtime.json";
+
+/**
+ * The file name a harness's own configuration syntax asks for.
+ *
+ * Derived from `nativeConfigFormat` rather than restated as a second per-harness
+ * table, so a harness whose syntax changes cannot end up with two answers.
+ */
+export function canaryConfigFileName(harness: LedgerHarness): string {
+  switch (nativeConfigFormat(harness)) {
+    case "toml":
+      return "config.toml";
+    case "yaml":
+      return "config.yaml";
+    default:
+      return "mcp.json";
+  }
+}
+
+/**
+ * One canary runtime: a configuration root that exists for one run.
+ *
+ * `declaredFiles` and `declaredRoots` are first-class fields rather than
+ * knowledge a caller reconstructs, because the D-02 assertion is "the run
+ * created exactly what it said it would and nothing else" — an assertion that
+ * needs the run's own declaration to compare against.
+ */
+export interface CanaryRuntime {
+  readonly runId: string;
+  readonly harness: LedgerHarness;
+  readonly projectId: string;
+  readonly projectRoot: string;
+  readonly stateRoot: string;
+  readonly root: string;
+  readonly mcpConfigPath: string;
+  readonly observationsPath: string;
+  readonly markerPath: string;
+  readonly servers: readonly McpServerId[];
+  /** Exactly the files this runtime's creation wrote. */
+  readonly declaredFiles: readonly string[];
+  /**
+   * Every root under the managed state root this runtime's creation may write
+   * beneath. The journal and snapshot roots are named because the write travels
+   * the same journaled transaction every other owned write does, and a run that
+   * declared only its own directory would be declaring less than it does.
+   */
+  readonly declaredRoots: readonly string[];
+  readonly operationId: string | null;
+}
+
+export interface CreateCanaryRuntimeOptions {
+  readonly projectRoot: string;
+  readonly harness: LedgerHarness;
+  readonly servers: readonly McpServerId[];
+  /** REQUIRED. There is no default, for the reason `writeCapabilityLedger` records. */
+  readonly stateRoot: string;
+  readonly lock: StackLock;
+  /** Supplied by a caller that wants a reproducible runtime path; otherwise fresh. */
+  readonly runId?: string;
+  /** Read for the credential-value refusal only. Never rendered. */
+  readonly environment?: NodeJS.ProcessEnv;
+  readonly context?: ExecutionContext;
+  readonly session?: MutationSession;
+}
+
+/**
+ * Builds the isolated configuration root a canary run talks through.
+ *
+ * One MCP configuration file, rendered through the SAME per-harness renderer
+ * everyday configuration goes through — so the server-map key name is the
+ * harness's own rather than a second spelling — with every server entry
+ * launching `alpha-aos mcp-proxy <id> --observe` instead of the upstream
+ * package directly.
+ *
+ * Each runtime gets its own `runId` directory and its own empty observation
+ * file. That is what stops a second run from silently inheriting the first
+ * run's records: the two runs cannot name the same file, so there is no
+ * carried-over record for a later verdict to be computed from.
+ */
+export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): Promise<CanaryRuntime> {
+  assertCanaryContext(options.context ?? "canary", "createCanaryRuntime");
+
+  const stateRoot = resolve(options.stateRoot);
+  const projectRoot = resolve(options.projectRoot);
+  const projectId = isolationProjectId(projectRoot);
+  const runId = options.runId ?? randomUUID();
+  const root = join(stateRoot, CANARY_RUNTIME_DIRECTORY, projectId, options.harness, runId);
+  const observationsPath = join(root, CANARY_OBSERVATIONS_FILE);
+  const mcpConfigPath = join(root, canaryConfigFileName(options.harness));
+  const markerPath = join(root, CANARY_MARKER_FILE);
+  const servers = [...options.servers];
+
+  const rendered = renderMcpConfig(options.harness as HarnessId, "", options.lock, servers, {
+    front: "observe",
+    observationsPath,
+    credentialNames: true,
+  });
+  // The same refusal `planMcpSync` applies, applied here rather than reasoned
+  // about: this document is written to disk and read by a child process.
+  assertNoCredentialValue(rendered, options.environment ?? process.env);
+
+  const marker = {
+    schemaVersion: 1,
+    managedBy: "alpha-aos",
+    kind: "canary-runtime",
+    runId,
+    projectId,
+    harness: options.harness,
+    servers,
+    createdAt: new Date().toISOString(),
+  };
+
+  const declaredFiles = [markerPath, mcpConfigPath, observationsPath];
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [root],
+    operations: [
+      { target: markerPath, content: `${JSON.stringify(marker, null, 2)}\n` },
+      { target: mcpConfigPath, content: rendered },
+      // Created empty and owned by this run. An absent file would make
+      // "nothing was observed" and "the sink was never there" the same shape.
+      { target: observationsPath, content: "" },
+    ],
+    ...(options.session === undefined ? {} : { session: options.session }),
+  });
+
+  return {
+    runId,
+    harness: options.harness,
+    projectId,
+    projectRoot,
+    stateRoot,
+    root,
+    mcpConfigPath,
+    observationsPath,
+    markerPath,
+    servers,
+    declaredFiles,
+    declaredRoots: [root, join(stateRoot, "journal"), join(stateRoot, "snapshots")],
+    operationId: journal.id,
+  };
+}
+
+/**
+ * Removes a canary runtime.
+ *
+ * A runtime is ephemeral by construction — it is named after one run — so this
+ * is a convenience rather than the thing that keeps two runs apart. A caller
+ * that never calls it still cannot have one run read another's records.
+ */
+export async function disposeCanaryRuntime(runtime: CanaryRuntime): Promise<void> {
+  await rm(runtime.root, { recursive: true, force: true });
+}
+
+// --- The observation sink --------------------------------------------------
+
+/**
+ * Where a canary reads what the proxies saw.
+ *
+ * `ready` is separate from `read` and is consulted BEFORE the harness launches.
+ * A run that launches and then finds it cannot read any record has spent a
+ * model turn to produce nothing, and "no observation" is exactly the shape of
+ * "the capability was not selected" — so the two must never be confusable
+ * (T-03-54).
+ */
+export interface CanaryObservationSink {
+  /** Names the sink in a refusal, so a blocked reason can say WHICH one. */
+  readonly name: string;
+  ready(): Promise<boolean>;
+  /** Every record so far, in the order they were appended. */
+  read(): Promise<readonly McpObservation[]>;
+}
+
+/** The sink a runtime's own observation file provides. */
+export function createCanaryObservationSink(runtime: CanaryRuntime): CanaryObservationSink {
+  return createFileCanaryObservationSink(runtime.observationsPath);
+}
+
+/** The same sink over any observation file, for a caller holding only a path. */
+export function createFileCanaryObservationSink(path: string): CanaryObservationSink {
+  return {
+    name: path,
+    ready: async () => {
+      try {
+        await access(path, constants.R_OK | constants.W_OK);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    read: async () => {
+      const text = await readFile(path, "utf8").catch(() => null);
+      return text === null ? [] : readObservationRecords(text);
+    },
+  };
+}
+
+// --- The invocation verdict ------------------------------------------------
+
+/**
+ * Why a declared argument pattern was not checked.
+ *
+ * `McpObservation` has no argument field and deliberately cannot grow one:
+ * arguments are where credentials live, and a record is an observable surface
+ * that reaches a ledger and a CI log (T-03-52). A declared argument pattern is
+ * therefore reported as UNCHECKED with this reason and is never reported as
+ * satisfied — an unchecked expectation silently counted as met is the shape of
+ * every proof that proves nothing.
+ */
+export const ARGUMENT_PATTERNS_NOT_OBSERVABLE =
+  "the observation record carries a tool name and an outcome and has no argument field, so a declared argument " +
+  "pattern cannot be checked from it; it is reported unchecked rather than satisfied";
+
+/** What the observation records — and only they — say about one canary. */
+export interface InvocationVerdict {
+  /** `invoked` only when records exist and every declared expectation held. */
+  readonly nativeUse: NativeUseState;
+  readonly matched: readonly string[];
+  readonly missing: readonly string[];
+  readonly forbiddenSeen: readonly string[];
+  readonly distinctServers: number;
+  readonly maxDistinctServers: number;
+  readonly withinServerBudget: boolean;
+  /** Null when the declaration asked for no order. */
+  readonly ordered: boolean | null;
+  /** Declared argument patterns, none of which this record shape can check. */
+  readonly uncheckedArgumentPatterns: readonly string[];
+  /**
+   * Whether every declared expectation held, INDEPENDENT of whether anything
+   * was invoked. A fan-out control that observed nothing has held its
+   * expectation and invoked nothing; those are two different facts and merging
+   * them would let a control read as a proof.
+   */
+  readonly expectationsHeld: boolean;
+  readonly observationCount: number;
+  readonly reasons: readonly string[];
+}
+
+/**
+ * Decides the invocation axis from the observation records ALONE.
+ *
+ * No harness output reaches this function, and that is the point rather than an
+ * omission: 03-CONTEXT.md D-01 makes model output text inadmissible as proof, so
+ * a transcript claiming a tool was used cannot move this axis. The excerpt a run
+ * retains is evidence about the RUN — for diagnosis — and is never consulted
+ * here (T-03-51).
+ */
+export function decideInvocation(
+  canary: CanaryDeclaration,
+  observations: readonly McpObservation[],
+): InvocationVerdict {
+  // A denied call counts as a reach for the tool. The proxy records a policy
+  // refusal deliberately: that the model reached for a named tool is exactly
+  // the evidence a capability canary is after.
+  const called = observations.map((observation) => observation.tool);
+  const matched = canary.expectTools.filter((tool) => called.includes(tool));
+  const missing = canary.expectTools.filter((tool) => !called.includes(tool));
+  const forbiddenSeen = canary.forbidTools.filter((tool) => called.includes(tool));
+  const distinctServers = new Set(observations.map((observation) => observation.server)).size;
+  const withinServerBudget = distinctServers <= canary.maxDistinctServers;
+
+  let ordered: boolean | null = null;
+  if (canary.expectOrdered === true && canary.expectTools.length > 1) {
+    const positions = canary.expectTools.map((tool) => called.indexOf(tool));
+    ordered = positions.every(
+      (position, index) => position >= 0 && (index === 0 || position > (positions[index - 1] ?? -1)),
+    );
+  }
+
+  const uncheckedArgumentPatterns = (canary.expectArgumentPatterns ?? []).map(
+    (entry) => `${entry.tool}.${entry.argument}`,
+  );
+
+  const reasons: string[] = [];
+  if (missing.length > 0) reasons.push(`no observation records a call to ${missing.join(", ")}`);
+  if (forbiddenSeen.length > 0) reasons.push(`a forbidden tool was called: ${forbiddenSeen.join(", ")}`);
+  if (!withinServerBudget) {
+    reasons.push(
+      `the run touched ${distinctServers} distinct servers, past the declared maximum of ${canary.maxDistinctServers}`,
+    );
+  }
+  if (ordered === false) reasons.push("the expected tools were called, but not in the declared order");
+  if (uncheckedArgumentPatterns.length > 0) {
+    reasons.push(`${uncheckedArgumentPatterns.join(", ")}: ${ARGUMENT_PATTERNS_NOT_OBSERVABLE}`);
+  }
+  if (observations.length === 0) reasons.push("no tool call crossed the observation front at all");
+
+  const expectationsHeld = missing.length === 0 && forbiddenSeen.length === 0 && withinServerBudget && ordered !== false;
+  return {
+    nativeUse: expectationsHeld && observations.length > 0 ? "invoked" : "unverified",
+    matched,
+    missing,
+    forbiddenSeen,
+    distinctServers,
+    maxDistinctServers: canary.maxDistinctServers,
+    withinServerBudget,
+    ordered,
+    uncheckedArgumentPatterns,
+    expectationsHeld,
+    observationCount: observations.length,
+    reasons,
+  };
+}
+
+// --- The launch ------------------------------------------------------------
+
+/** A canary run's deadline. A cold harness start plus a model turn is slow, not stuck. */
+export const CANARY_TIMEOUT_MS = 300_000;
+
+/**
+ * How many bytes of harness output a canary may READ.
+ *
+ * The default excerpt budget is sized for a diagnostic a person reads, and a
+ * streaming harness transcript is far past it — a run cut at that default comes
+ * back looking unreadable. This budget is for the retained diagnostic excerpt
+ * only: it is never consulted to decide the invocation axis.
+ */
+export const CANARY_EXCERPT_BYTES = 512 * 1024;
+
+/**
+ * Names a canary child may receive BEYOND the platform floor and the canary's
+ * own declared requirements.
+ *
+ * Deliberately short, and deliberately without `HOME`: a canary must not reach
+ * the user's real harness configuration, and a home directory is how most of it
+ * is found. The platform floor is imported rather than restated — the operating
+ * system delivers it whatever this list says, and naming it keeps the allowlist
+ * honest instead of pretending the boundary is total.
+ */
+export const CANARY_ENVIRONMENT_NAMES: readonly string[] = Object.freeze([
+  "PATH",
+  "PATHEXT",
+  "COMSPEC",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "LANG",
+  "LC_ALL",
+  "TZ",
+  "NODE_EXTRA_CA_CERTS",
+]);
+
+/** Every name a canary launch declares, floor excluded. Ordered, de-duplicated. */
+export function canaryEnvironmentNames(options: {
+  readonly declaration: CanaryDeclaration;
+  readonly spec: IsolationLaunchSpec;
+  readonly runtime: CanaryRuntime;
+}): readonly string[] {
+  return [
+    ...new Set([
+      ...CANARY_ENVIRONMENT_NAMES,
+      ...(options.declaration.requiresEnvironment ?? []),
+      ...Object.keys(options.spec.env),
+      ...Object.keys(canaryWriteRoots(options.runtime)),
+    ]),
+  ];
+}
+
+/**
+ * The names that decide where a child WRITES, pinned under the runtime.
+ *
+ * Plan 01-21's rule applied to this seam: an inherited name must never choose
+ * the directory a child bootstraps into, or a canary's incidental state lands
+ * in the user's real roots and D-02 is violated by a cache rather than by a
+ * configuration file.
+ */
+function canaryWriteRoots(runtime: CanaryRuntime): Record<string, string> {
+  const writeRoot = join(runtime.root, "write");
+  return {
+    LOCALAPPDATA: join(writeRoot, "local"),
+    APPDATA: join(writeRoot, "roaming"),
+    XDG_CACHE_HOME: join(writeRoot, "cache"),
+    XDG_CONFIG_HOME: join(writeRoot, "config"),
+    XDG_DATA_HOME: join(writeRoot, "data"),
+    XDG_STATE_HOME: join(writeRoot, "state"),
+    npm_config_cache: join(writeRoot, "npm-cache"),
+    npm_config_logs_max: "0",
+  };
+}
+
+/** The environment policy one canary launch declares. */
+export function canaryEnvironmentPolicy(options: {
+  readonly declaration: CanaryDeclaration;
+  readonly spec: IsolationLaunchSpec;
+  readonly runtime: CanaryRuntime;
+  readonly source?: NodeJS.ProcessEnv;
+}): EnvironmentPolicy {
+  return {
+    optional: [
+      ...PLATFORM_FLOOR_ENVIRONMENT,
+      ...CANARY_ENVIRONMENT_NAMES,
+      // Credential NAMES the declaration asked for. The value is passed to the
+      // child because the fronted server needs it; it is never read, compared,
+      // recorded or rendered by anything here.
+      ...(options.declaration.requiresEnvironment ?? []),
+    ],
+    literal: { ...canaryWriteRoots(options.runtime), ...options.spec.env },
+    source: options.source ?? process.env,
+  };
+}
+
+/**
+ * The argument vector that puts a declared prompt in front of a harness.
+ *
+ * Derived by substituting the declared prompt into the MEASURED oracle vector
+ * rather than restating a second one, so a canary and a discovery run cannot
+ * disagree about how a harness is driven. A harness whose measured vector
+ * carries no prompt — pi is driven over stdin — returns null, which is a
+ * recorded absence and never a guess.
+ */
+export function canaryPromptArgs(harness: LedgerHarness, prompt: string): readonly string[] | null {
+  const definition = ORACLE_DEFINITIONS[harness];
+  if (definition === null || definition === undefined) return null;
+  if (!definition.args.includes(ORACLE_PLACEHOLDER_PROMPT)) return null;
+  return definition.args.map((argument) => (argument === ORACLE_PLACEHOLDER_PROMPT ? prompt : argument));
+}
+
+/** Exactly what a canary launcher is handed. */
+export interface CanaryLaunch {
+  readonly spec: IsolationLaunchSpec;
+  readonly args: readonly string[];
+  readonly environment: Record<string, string>;
+  readonly cwd: string;
+  readonly prompt: string;
+}
+
+/** What a launch reported. Output is evidence about the run, never about the axis. */
+export interface CanaryLaunchOutcome {
+  readonly ran: boolean;
+  /** Why it did not run cleanly. Null when it did. */
+  readonly reason: string | null;
+  readonly exitCode: number | null;
+  readonly excerpt: RedactedExcerpt | null;
+}
+
+export type CanaryLauncher = (launch: CanaryLaunch) => Promise<CanaryLaunchOutcome>;
+
+/**
+ * The real launcher: every launch goes through the bounded process adapter.
+ *
+ * `excerptBytes` is set DELIBERATELY. The adapter's default is sized for a
+ * diagnostic a person reads, and leaving it at that default truncates every
+ * real harness invocation into something that looks unreadable.
+ */
+export function createCanaryLauncher(timeoutMs: number = CANARY_TIMEOUT_MS): CanaryLauncher {
+  return async (launch) => {
+    const executable = launch.spec.executable;
+    if (executable === null) {
+      return { ran: false, reason: `${launch.spec.harness} has no resolved executable to launch`, exitCode: null, excerpt: null };
+    }
+    const direct = resolveDirectLaunch(executable);
+    if (direct === null) {
+      return {
+        ran: false,
+        reason:
+          `${launch.spec.harness} resolved to an interpreted shim with no proven direct equivalent, and alpha-AOS ` +
+          "does not shell out",
+        exitCode: null,
+        excerpt: null,
+      };
+    }
+    const result = await runProcess({
+      executable: direct.executable,
+      args: [...direct.argsPrefix, ...launch.args],
+      cwd: launch.cwd,
+      timeoutMs,
+      excerptBytes: CANARY_EXCERPT_BYTES,
+      environment: { literal: launch.environment },
+    });
+    return {
+      ran: result.code === "ok",
+      reason:
+        result.code === "ok"
+          ? null
+          : `the ${launch.spec.harness} canary did not complete cleanly (${result.code}, exit ${String(result.exitCode)})`,
+      exitCode: result.exitCode,
+      excerpt: result.stdout,
+    };
+  };
+}
+
+// --- The run ---------------------------------------------------------------
+
+/** Builds the launch spec a canary run uses. Injectable so the suite stays offline. */
+export type CanaryLaunchSpecBuilder = (options: {
+  readonly harness: LedgerHarness;
+  readonly runtime: CanaryRuntime;
+  readonly projectRoot: string;
+}) => IsolationLaunchSpec;
+
+/**
+ * The canary variant of the ONE launch spec builder.
+ *
+ * `project-only` rather than `managed`, because a canary that inherited the
+ * user's global configuration would be measuring the user's machine rather than
+ * the project's pack.
+ */
+export const createCanaryLaunchSpec: CanaryLaunchSpecBuilder = ({ harness, runtime, projectRoot }) =>
+  createIsolationLaunchSpec({
+    projectId: runtime.projectId,
+    projectRoot,
+    harness: harness as HarnessId,
+    policy: defaultIsolationPolicy("project-only", [harness as HarnessId]),
+    runtimeRoot: runtime.root,
+    allowedSkillPaths: [],
+    canary: { mcpConfigPath: runtime.mcpConfigPath },
+  });
+
+export interface RunCanaryOptions {
+  readonly declaration: CanaryDeclaration;
+  readonly harness: LedgerHarness;
+  readonly projectRoot: string;
+  readonly runtime: CanaryRuntime;
+  readonly sink: CanaryObservationSink;
+  readonly environment?: Readonly<Record<string, string | undefined>>;
+  /** A report the caller already took. Otherwise this run takes its own. */
+  readonly readiness?: ReadinessReport;
+  readonly runner?: ReadinessRunner;
+  readonly launcher?: CanaryLauncher;
+  readonly buildLaunchSpec?: CanaryLaunchSpecBuilder;
+  readonly model?: string | null;
+  readonly context?: ExecutionContext;
+}
+
+/** Everything one canary run established, and how. */
+export interface CanaryRunResult {
+  readonly canary: string;
+  readonly capability: string;
+  readonly harness: LedgerHarness;
+  readonly outcome: CanaryOutcome;
+  /** The native-use axis. `unverified` whenever the run did not prove use. */
+  readonly nativeUse: NativeUseState;
+  readonly verdict: InvocationVerdict;
+  readonly observations: readonly McpObservation[];
+  readonly readiness: ReadinessReport;
+  readonly identity: HarnessIdentity;
+  readonly blockedReasons: readonly BlockedReason[];
+  readonly unverifiedReason: string | null;
+  readonly launched: boolean;
+  readonly exitCode: number | null;
+  /**
+   * Bounded, redacted evidence about the RUN, for diagnosis.
+   *
+   * Never consulted to decide the invocation axis. D-01 makes model output text
+   * inadmissible as proof, and a field that is read for diagnosis and also for
+   * the verdict is a field nobody can tell apart afterwards.
+   */
+  readonly excerpt: RedactedExcerpt | null;
+  readonly runtimeRoot: string;
+  readonly costsModelTurn: boolean;
+  readonly launchArgs: readonly string[];
+}
+
+function blockedResult(options: {
+  readonly declaration: CanaryDeclaration;
+  readonly harness: LedgerHarness;
+  readonly runtime: CanaryRuntime;
+  readonly readiness: ReadinessReport;
+  readonly blockedReasons: readonly BlockedReason[];
+  readonly observations: readonly McpObservation[];
+}): CanaryRunResult {
+  return {
+    canary: options.declaration.id,
+    capability: options.declaration.capability,
+    harness: options.harness,
+    outcome: "blocked",
+    nativeUse: "unverified",
+    verdict: decideInvocation(options.declaration, options.observations),
+    observations: options.observations,
+    readiness: options.readiness,
+    identity: options.readiness.identity,
+    blockedReasons: options.blockedReasons,
+    unverifiedReason: null,
+    launched: false,
+    exitCode: null,
+    excerpt: null,
+    runtimeRoot: options.runtime.root,
+    costsModelTurn: canaryCostsModelTurn(options.declaration),
+    launchArgs: [],
+  };
+}
+
+/**
+ * Runs one declared canary through one canary runtime.
+ *
+ * The order is the whole design. Everything that can refuse for free refuses
+ * first — the readiness pre-probe, then the observation sink, then the proof
+ * that this harness can even be pointed at the observation front — and only
+ * then does anything launch. A canary that runs and cannot say what it saw has
+ * spent a model turn to produce a result nobody can interpret.
+ */
+export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunResult> {
+  const { declaration, harness, runtime, sink } = options;
+  assertCanaryContext(options.context ?? "canary", "runCanary");
+
+  const readiness =
+    options.readiness ??
+    (await probeReadiness({
+      harness,
+      canary: declaration,
+      environment: options.environment ?? process.env,
+      ...(options.runner === undefined ? {} : { runner: options.runner }),
+      ...(options.model === undefined ? {} : { model: options.model }),
+      cwd: options.projectRoot,
+    }));
+
+  if (!readiness.ready) {
+    return blockedResult({ declaration, harness, runtime, readiness, blockedReasons: readiness.blockedReasons, observations: [] });
+  }
+
+  if (!(await sink.ready())) {
+    return blockedResult({
+      declaration,
+      harness,
+      runtime,
+      readiness,
+      observations: [],
+      blockedReasons: [
+        {
+          code: "OBSERVATION_SINK_UNAVAILABLE",
+          variable: sink.name,
+          nextAction:
+            `The canary runtime's observation record could not be reached, so the run was refused before it launched ` +
+            `${harness}. Re-create the runtime with \`alpha-aos doctor --canary\`; a run that produces no observation ` +
+            "cannot be told apart from a capability that was never selected.",
+        },
+      ],
+    });
+  }
+
+  const spec = (options.buildLaunchSpec ?? createCanaryLaunchSpec)({ harness, runtime, projectRoot: options.projectRoot });
+  if (spec.blockedReasons.length > 0) {
+    return blockedResult({
+      declaration,
+      harness,
+      runtime,
+      readiness,
+      observations: [],
+      blockedReasons: spec.blockedReasons.map((reason) => ({
+        code: "HARNESS_ISOLATION_UNPROVEN",
+        variable: harness,
+        nextAction: `${reason}. A canary is refused rather than run unisolated, because a run that may have reached the user's own servers proves nothing about the project's pack.`,
+      })),
+    });
+  }
+
+  const promptArgs = canaryPromptArgs(harness, declaration.prompt);
+  if (promptArgs === null) {
+    return blockedResult({
+      declaration,
+      harness,
+      runtime,
+      readiness,
+      observations: [],
+      blockedReasons: [
+        {
+          code: "HARNESS_PROMPT_VECTOR_UNKNOWN",
+          variable: harness,
+          nextAction:
+            `No measured non-interactive argument vector puts a prompt in front of ${harness}, so this canary cannot ` +
+            "be run on it. Declare the canary for a harness that has one, or measure a vector before naming it here.",
+        },
+      ],
+    });
+  }
+
+  const launch: CanaryLaunch = {
+    spec,
+    args: [...spec.args, ...promptArgs],
+    environment: materializeEnvironment(
+      canaryEnvironmentPolicy({
+        declaration,
+        spec,
+        runtime,
+        source: (options.environment as NodeJS.ProcessEnv | undefined) ?? process.env,
+      }),
+    ),
+    cwd: options.projectRoot,
+    prompt: declaration.prompt,
+  };
+
+  const outcome = await (options.launcher ?? createCanaryLauncher())(launch);
+  const observations = await sink.read();
+  const verdict = decideInvocation(declaration, observations);
+  const disposition = disposeCanary(readiness, outcome.ran ? null : outcome.reason);
+
+  return {
+    canary: declaration.id,
+    capability: declaration.capability,
+    harness,
+    outcome: disposition.outcome,
+    // A run that did not complete cleanly proves nothing about use, whatever
+    // the records happen to contain.
+    nativeUse: disposition.outcome === "ready" ? verdict.nativeUse : "unverified",
+    verdict,
+    observations,
+    readiness,
+    identity: readiness.identity,
+    blockedReasons: disposition.blockedReasons,
+    unverifiedReason: disposition.unverifiedReason,
+    launched: true,
+    exitCode: outcome.exitCode,
+    excerpt: outcome.excerpt,
+    runtimeRoot: runtime.root,
+    costsModelTurn: canaryCostsModelTurn(declaration),
+    launchArgs: launch.args,
+  };
 }

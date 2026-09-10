@@ -14,7 +14,7 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ManagedDocumentError } from "../src/core/catalog.js";
+import { loadLock, ManagedDocumentError } from "../src/core/catalog.js";
 import {
   assertCanaryContext,
   BLOCKED_CODES,
@@ -22,22 +22,34 @@ import {
   CANARY_IN_PREVIEW_CONTEXT,
   canaryCosts,
   canaryCostsModelTurn,
+  canaryEnvironmentNames,
+  canaryEnvironmentPolicy,
   CanaryContextError,
   catalogCosts,
+  createCanaryObservationSink,
+  createCanaryRuntime,
+  decideInvocation,
   disposeCanary,
+  disposeCanaryRuntime,
   findPromptHints,
   loadCanaryCatalog,
   parseClaudeMcpList,
   parsePiAuthCheck,
   probeReadiness,
   promptNamesTerm,
+  runCanary,
   selfNamedTerms,
   type CanaryCatalog,
   type CanaryDeclaration,
+  type CanaryRuntime,
   type ReadinessCommandResult,
   type ReadinessRunner,
 } from "../src/core/canary.js";
+import { createFileObservationSink } from "../src/core/mcp-proxy.js";
+import { renderMcpConfig } from "../src/core/mcp.js";
 import { packageRoot } from "../src/core/paths.js";
+import { PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
+import type { IsolationLaunchSpec, StackLock } from "../src/types.js";
 
 /** Compiled to dist/test, so the repository root is two levels up. */
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -733,4 +745,202 @@ test("every canary declaration exposes whether a run would spend a model turn", 
   assert.deepEqual(canaryCosts(declaration({ harnesses: ["hermes"] })), [{ harness: "hermes", costsModelTurn: null }]);
   assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["hermes"] })), true);
   assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["codex"] })), false);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-06 Task 1 — the canary runtime
+// ---------------------------------------------------------------------------
+
+/** A temp project plus a temp managed state root. Nothing here touches a real root. */
+async function runtimeFixture(context: TestContext): Promise<{ project: string; state: string; lock: StackLock }> {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-runtime-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const project = join(root, "project");
+  await mkdir(project, { recursive: true });
+  return { project, state: join(root, "state"), lock: await loadLock(packageRoot()) };
+}
+
+/**
+ * A launch spec with a resolvable-looking executable.
+ *
+ * The real builder resolves the harness on PATH, and no host can be relied upon
+ * to HAVE one — so a run's own behaviour is proven against a supplied spec while
+ * the builder's canary variant is asserted directly in `test/isolation.test.ts`.
+ */
+function stubLaunchSpec(runtime: CanaryRuntime, overrides: Partial<IsolationLaunchSpec> = {}): IsolationLaunchSpec {
+  return {
+    projectId: runtime.projectId,
+    projectRoot: runtime.projectRoot,
+    harness: runtime.harness,
+    mode: "project-only",
+    runtimeRoot: join(runtime.root, runtime.harness),
+    executable: join(runtime.root, "harness-that-is-never-launched"),
+    args: ["--mcp-config", runtime.mcpConfigPath, "--strict-mcp-config"],
+    env: { CLAUDE_CONFIG_DIR: join(runtime.root, runtime.harness) },
+    guarantees: [],
+    warnings: [],
+    blockedReasons: [],
+    ...overrides,
+  };
+}
+
+/** The rendered server map, whatever the harness spells its key. */
+function renderedServers(text: string): Record<string, { command: string; args: string[] }> {
+  const document = JSON.parse(text) as { mcpServers?: Record<string, { command: string; args: string[] }> };
+  return document.mcpServers ?? {};
+}
+
+test("the canary runtime's MCP configuration points every server at the alpha-AOS observation front", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["context7", "exa", "firecrawl"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+
+  const servers = renderedServers(await readFile(runtime.mcpConfigPath, "utf8"));
+  assert.deepEqual(
+    Object.keys(servers).sort(),
+    ["context7", "exa", "firecrawl"],
+    "the runtime config does not carry every declared server under the harness's own key name",
+  );
+  for (const [id, entry] of Object.entries(servers)) {
+    assert.equal(entry.command, process.execPath, `${id} is not launched by this Node runtime`);
+    assert.equal(entry.args.includes("mcp-proxy"), true, `${id} is not fronted by the alpha-AOS proxy`);
+    assert.equal(entry.args.includes(id), true, `${id}'s front was not told which server it fronts`);
+    assert.equal(entry.args.includes("--observe"), true, `${id} is fronted but not observed`);
+    assert.equal(
+      entry.args.includes(runtime.observationsPath),
+      true,
+      `${id}'s front does not record into this runtime's own observation file`,
+    );
+    // The upstream package is reached THROUGH the front, never beside it.
+    assert.equal(
+      entry.args.some((argument) => argument.includes("npx") || argument.includes("@")),
+      false,
+      `${id} still names an upstream package directly, so a call could bypass the observation front`,
+    );
+  }
+
+  // D-02: the front exists in the canary runtime and nowhere else. The everyday
+  // rendering fronts only the server alpha-AOS holds a tool policy for.
+  const everyday = renderedServers(renderMcpConfig("claude", "", lock, ["context7", "exa", "firecrawl"]));
+  assert.equal(
+    (everyday.context7?.args ?? []).includes("--observe"),
+    false,
+    "the everyday configuration carries an observing front; the observation seam has leaked out of the canary runtime",
+  );
+});
+
+test("a credential value never reaches the rendered canary runtime configuration, and its name does", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const sentinel = "sk-canary-runtime-sentinel-93b1fd7c";
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: { EXA_API_KEY: sentinel },
+  });
+
+  const text = await readFile(runtime.mcpConfigPath, "utf8");
+  assert.equal(text.includes(sentinel), false, "a credential VALUE reached the rendered canary runtime configuration");
+  // Asserted in the same document, so the absence above is a claim with teeth
+  // rather than a file that happens to mention neither.
+  assert.equal(
+    text.includes("EXA_API_KEY"),
+    true,
+    "the credential NAME is absent too, so the sentinel assertion above proves nothing",
+  );
+});
+
+test("a second canary runtime does not inherit the first run's observation records", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const base = { projectRoot: project, harness: "claude" as const, servers: ["exa" as const], stateRoot: state, lock, environment: {} };
+
+  const first = await createCanaryRuntime(base);
+  createFileObservationSink(first.observationsPath).record({
+    server: "exa",
+    tool: "web_search_exa",
+    at: new Date().toISOString(),
+    upstreamVersion: "3.4.1",
+    outcome: "ok",
+  });
+  assert.equal((await createCanaryObservationSink(first).read()).length, 1, "the first run's record was not written");
+
+  const second = await createCanaryRuntime(base);
+  assert.notEqual(second.observationsPath, first.observationsPath, "two runs named the same observation file");
+  assert.deepEqual(
+    await createCanaryObservationSink(second).read(),
+    [],
+    "a second run read the first run's observation records, so its verdict is computed from another run's evidence",
+  );
+});
+
+test("the invocation axis is computed from observation records only, never from what the harness said", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa", "firecrawl"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const canary = declaration({ expectTools: ["web_search_exa"], maxDistinctServers: 2 });
+
+  // The harness insists, at length, that it used the tool. The observation
+  // front recorded nothing, and the observation front is the oracle (D-01).
+  const claimed =
+    '{"type":"assistant","message":"I called web_search_exa and then firecrawl_scrape to gather the sources."}';
+  const result = await runCanary({
+    declaration: canary,
+    harness: "claude",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: {},
+    runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async () => ({
+      ran: true,
+      reason: null,
+      exitCode: 0,
+      excerpt: { excerpt: claimed, capped: false, totalBytes: claimed.length, sha256: "0".repeat(64) },
+    }),
+  });
+
+  assert.equal(result.launched, true, "the run did not reach the launch, so this proves nothing about the axis");
+  assert.notEqual(result.nativeUse, "invoked", "a harness transcript claiming a tool call moved the invocation axis");
+  assert.equal(result.nativeUse, "unverified");
+  assert.deepEqual(result.observations, []);
+  assert.deepEqual(result.verdict.missing, ["web_search_exa"]);
+  // The excerpt is retained for diagnosis, and naming the tool changed nothing.
+  assert.equal(result.excerpt?.excerpt.includes("web_search_exa"), true);
+
+  // The same declaration WITH a record moves the axis, so the assertion above
+  // is about the source of the evidence rather than about an axis that never moves.
+  createFileObservationSink(runtime.observationsPath).record({
+    server: "exa",
+    tool: "web_search_exa",
+    at: new Date().toISOString(),
+    upstreamVersion: "3.4.1",
+    outcome: "ok",
+  });
+  const observed = await runCanary({
+    declaration: canary,
+    harness: "claude",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: {},
+    runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async () => ({ ran: true, reason: null, exitCode: 0, excerpt: null }),
+  });
+  assert.equal(observed.nativeUse, "invoked", "a recorded call did not move the axis, so the negative above is vacuous");
 });

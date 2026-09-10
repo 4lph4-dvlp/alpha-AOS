@@ -120,7 +120,58 @@ export function mcpProxyEntrypoint(): string {
   return fileURLToPath(new URL("../cli.js", import.meta.url));
 }
 
-export function mcpStdioCommand(server: McpServerId, locked: LockedPackage): StdioCommand {
+/**
+ * How a rendered configuration reaches each pinned server.
+ *
+ * `policy` is the everyday configuration: only the server alpha-AOS holds a
+ * tool allowlist for is fronted, and every other server is launched directly.
+ * That is 03-CONTEXT.md D-02 and PROJECT.md's key decision — alpha-AOS is a
+ * control plane, not an invocation proxy for every tool call.
+ *
+ * `observe` is the canary runtime's configuration and exists ONLY inside one:
+ * every server is fronted so the calls that cross can be recorded, because the
+ * invocation axis is decided from what the proxy saw and never from what the
+ * model said (D-01).
+ */
+export type McpFront = "policy" | "observe";
+
+export interface McpStdioOptions {
+  /** Defaults to `policy`, the everyday configuration. */
+  readonly front?: McpFront;
+  /** Where an observing front appends its records. Required when `front` is `observe`. */
+  readonly observationsPath?: string;
+}
+
+export interface McpRenderOptions extends McpStdioOptions {
+  /**
+   * Render each server's credential NAME as a `${NAME}` reference.
+   *
+   * Names only — the value is never read here, and `assertNoCredentialValue`
+   * refuses a rendering that carries one. A canary runtime turns this on so a
+   * reader of the generated configuration can see WHICH name each fronted
+   * server needs without the file ever holding one (T-03-52).
+   */
+  readonly credentialNames?: boolean;
+}
+
+export function mcpStdioCommand(
+  server: McpServerId,
+  locked: LockedPackage,
+  options: McpStdioOptions = {},
+): StdioCommand {
+  if (options.front === "observe") {
+    const observationsPath = options.observationsPath;
+    if (observationsPath === undefined || observationsPath.length === 0) {
+      throw new Error(
+        `An observing MCP front for ${server} needs the path it records through; rendering one without it would ` +
+          "front the server and record nothing, which is indistinguishable from a capability that was not selected",
+      );
+    }
+    return {
+      command: process.execPath,
+      args: [mcpProxyEntrypoint(), "mcp-proxy", server, "--observe", "--observations", observationsPath],
+    };
+  }
   if (server === "firecrawl") {
     return {
       command: process.execPath,
@@ -141,32 +192,43 @@ function jsonObject(text: string, label: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function jsonServer(command: StdioCommand, definition: McpDefinition, harness: "claude" | "antigravity" | "pi"): Record<string, unknown> {
+/** The `${NAME}` reference a harness expands, carrying the NAME and never a value. */
+function credentialReference(definition: McpDefinition): Record<string, string> {
+  return { [definition.credentialEnv]: `\${${definition.credentialEnv}}` };
+}
+
+function jsonServer(
+  command: StdioCommand,
+  definition: McpDefinition,
+  harness: "claude" | "antigravity" | "pi",
+  options: McpRenderOptions = {},
+): Record<string, unknown> {
   const fixedEnv = definition.fixedEnv ?? {};
   if (harness === "pi") {
     return {
       command: command.command,
       args: command.args,
-      env: { [definition.credentialEnv]: `\${${definition.credentialEnv}}`, ...fixedEnv },
+      env: { ...credentialReference(definition), ...fixedEnv },
       lifecycle: "lazy",
       directTools: false,
     };
   }
+  const env = { ...(options.credentialNames === true ? credentialReference(definition) : {}), ...fixedEnv };
   return {
     ...(harness === "claude" ? { type: "stdio" } : {}),
     command: command.command,
     args: command.args,
-    ...(Object.keys(fixedEnv).length > 0 ? { env: fixedEnv } : {}),
+    ...(Object.keys(env).length > 0 ? { env } : {}),
   };
 }
 
-function renderJsonConfig(harness: "claude" | "antigravity" | "pi", existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[]): string {
+function renderJsonConfig(harness: "claude" | "antigravity" | "pi", existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[], options: McpRenderOptions = {}): string {
   const root = jsonObject(existing, `${harness} MCP config`);
   const rawServers = root.mcpServers;
   const servers = typeof rawServers === "object" && rawServers !== null && !Array.isArray(rawServers)
     ? { ...(rawServers as Record<string, unknown>) }
     : {};
-  for (const id of selected) servers[id] = jsonServer(mcpStdioCommand(id, locks[id]), definitions[id], harness);
+  for (const id of selected) servers[id] = jsonServer(mcpStdioCommand(id, locks[id], options), definitions[id], harness, options);
   root.mcpServers = servers;
   if (harness === "pi") {
     const rawSettings = root.settings;
@@ -261,18 +323,18 @@ function existingCodexServerIds(text: string): McpServerId[] {
   return serverOrder.filter((id) => found.has(id));
 }
 
-function renderCodexConfig(existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[]): string {
+function renderCodexConfig(existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[], options: McpRenderOptions = {}): string {
   const base = stripManagedToml(existing);
   const blocks: string[] = ["# alpha-aos:start mcp"];
   for (const id of selected) {
     const definition = definitions[id];
-    const command = mcpStdioCommand(id, locks[id]);
+    const command = mcpStdioCommand(id, locks[id], options);
     blocks.push(
       `[mcp_servers.${id}]`,
       `command = ${tomlString(command.command)}`,
       `args = [${command.args.map(tomlString).join(", ")}]`,
     );
-    if (definition.credentialRequiredForCalls) blocks.push(`env_vars = [${tomlString(definition.credentialEnv)}]`);
+    if (definition.credentialRequiredForCalls || options.credentialNames === true) blocks.push(`env_vars = [${tomlString(definition.credentialEnv)}]`);
     blocks.push("startup_timeout_sec = 40");
     if (definition.fixedEnv) {
       blocks.push(`[mcp_servers.${id}.env]`);
@@ -284,16 +346,16 @@ function renderCodexConfig(existing: string, locks: Record<McpServerId, LockedPa
   return `${base ? `${base}\n\n` : ""}${blocks.join("\n")}\n`;
 }
 
-function renderHermesConfig(existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[]): string {
+function renderHermesConfig(existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[], options: McpRenderOptions = {}): string {
   const document = parseDocument(existing.trim() ? existing : "{}\n");
   if (document.errors.length > 0) throw new Error(`Hermes config YAML is invalid: ${document.errors[0]?.message ?? "unknown parse error"}`);
   for (const id of selected) {
     const definition = definitions[id];
-    const command = mcpStdioCommand(id, locks[id]);
+    const command = mcpStdioCommand(id, locks[id], options);
     document.setIn(["mcp_servers", id], {
       command: command.command,
       args: command.args,
-      env: { [definition.credentialEnv]: `\${${definition.credentialEnv}}`, ...(definition.fixedEnv ?? {}) },
+      env: { ...credentialReference(definition), ...(definition.fixedEnv ?? {}) },
       connect_timeout: 40,
       enabled: true,
     });
@@ -301,7 +363,7 @@ function renderHermesConfig(existing: string, locks: Record<McpServerId, LockedP
   return document.toString({ lineWidth: 0 });
 }
 
-export function renderMcpConfig(harness: HarnessId, existing: string, lock: StackLock, selected: McpServerId[] = serverOrder): string {
+export function renderMcpConfig(harness: HarnessId, existing: string, lock: StackLock, selected: McpServerId[] = serverOrder, options: McpRenderOptions = {}): string {
   // Codex stores alpha-AOS servers in a single managed TOML block. Rebuilding
   // that block for one selected server must retain the other managed servers;
   // otherwise `--server exa` would silently remove an existing Context7 entry.
@@ -310,15 +372,22 @@ export function renderMcpConfig(harness: HarnessId, existing: string, lock: Stac
     : selected;
   const locks = lockedServers(lock, renderedIds);
   switch (harness) {
-    case "claude": return renderJsonConfig("claude", existing, locks, renderedIds);
-    case "codex": return renderCodexConfig(existing, locks, renderedIds);
-    case "antigravity": return renderJsonConfig("antigravity", existing, locks, renderedIds);
-    case "pi": return renderJsonConfig("pi", existing, locks, renderedIds);
-    case "hermes": return renderHermesConfig(existing, locks, renderedIds);
+    case "claude": return renderJsonConfig("claude", existing, locks, renderedIds, options);
+    case "codex": return renderCodexConfig(existing, locks, renderedIds, options);
+    case "antigravity": return renderJsonConfig("antigravity", existing, locks, renderedIds, options);
+    case "pi": return renderJsonConfig("pi", existing, locks, renderedIds, options);
+    case "hermes": return renderHermesConfig(existing, locks, renderedIds, options);
   }
 }
 
-function assertNoCredentialValue(rendered: string, env: NodeJS.ProcessEnv): void {
+/**
+ * Refuses a rendering that carries a credential VALUE.
+ *
+ * Exported so every renderer of a native MCP document travels the same check —
+ * the canary runtime renders one outside `planMcpSync`, and a second copy of
+ * this rule is a second copy that can drift.
+ */
+export function assertNoCredentialValue(rendered: string, env: NodeJS.ProcessEnv): void {
   for (const definition of Object.values(definitions)) {
     const value = env[definition.credentialEnv];
     if (value && value.length >= 4 && rendered.includes(value)) throw new Error(`Rendered MCP config contains the value of ${definition.credentialEnv}`);

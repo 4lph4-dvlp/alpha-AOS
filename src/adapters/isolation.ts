@@ -15,6 +15,51 @@ function executableFor(harness: HarnessId): string | null {
   return commands[harness].map(resolveCommand).find((candidate) => candidate !== null) ?? null;
 }
 
+/**
+ * The flags that make a canary's own MCP configuration the ONLY one a harness
+ * loads.
+ *
+ * Two conditions, and both are required: the flag must NAME an alternative
+ * configuration file, and a second flag must EXCLUDE every other source. One
+ * without the other is not isolation — a runtime config loaded alongside the
+ * user's own would leave a canary talking to unfronted servers and reporting an
+ * invocation nobody observed.
+ *
+ * A null is a RECORDED absence, in the shape `READINESS_DEFINITIONS` already
+ * uses: the reason sits beside it and the launch spec records a blocked reason
+ * rather than pretending the isolation holds. That is the same fail-closed rule
+ * this module already applies to sealed mode.
+ */
+const CANARY_MCP_ISOLATION: Readonly<Record<HarnessId, ((configPath: string) => readonly string[]) | null>> = {
+  claude: (configPath) => ["--mcp-config", configPath, "--strict-mcp-config"],
+  codex: null,
+  antigravity: null,
+  pi: null,
+  hermes: null,
+};
+
+/** Why a harness has no canary MCP isolation. Recorded, never silent. */
+const CANARY_MCP_ISOLATION_ABSENCE: Readonly<Record<HarnessId, string | null>> = {
+  claude: null,
+  codex:
+    "codex has no observed flag that both names an alternative MCP configuration file and excludes the user's own; " +
+    "--strict-config constrains how the configuration is read, not which configuration is read",
+  antigravity: "antigravity has no documented config-root or MCP-configuration override on any host probed",
+  pi: "no pi flag has been observed that replaces the harness's MCP configuration with a named file for one run",
+  hermes: "hermes ignores user config wholesale but has no observed flag naming a replacement MCP configuration file",
+};
+
+/**
+ * A launch that points a harness at a canary runtime's observation front.
+ *
+ * The path is the canary runtime's own rendered MCP configuration, in which
+ * every server entry launches `alpha-aos mcp-proxy <id> --observe`. It exists
+ * for the duration of one run and nowhere else, which is 03-CONTEXT.md D-02.
+ */
+export interface CanaryLaunchIsolation {
+  readonly mcpConfigPath: string;
+}
+
 export function createIsolationLaunchSpec(options: {
   projectId: string;
   projectRoot: string;
@@ -22,8 +67,15 @@ export function createIsolationLaunchSpec(options: {
   policy: ProjectIsolationPolicy;
   runtimeRoot: string;
   allowedSkillPaths: string[];
+  /**
+   * Present only for a canary run. A variant of this same spec rather than a
+   * second launch construction: a canary that assembled its own equivalent
+   * could stay green against a launch the product no longer uses.
+   */
+  canary?: CanaryLaunchIsolation;
 }): IsolationLaunchSpec {
   const { harness, policy, runtimeRoot } = options;
+  const canary = options.canary;
   const env: Record<string, string> = {};
   const args: string[] = [];
   const guarantees: string[] = [];
@@ -44,7 +96,12 @@ export function createIsolationLaunchSpec(options: {
       case "claude":
         env.CLAUDE_CONFIG_DIR = harnessRoot;
         args.push("--setting-sources", "project,local");
-        if (existsSync(join(options.projectRoot, ".mcp.json"))) args.push("--mcp-config", join(options.projectRoot, ".mcp.json"));
+        // A canary supplies its own MCP configuration below, and loading the
+        // project's alongside it would leave unfronted servers in the path —
+        // which is precisely the isolation this run exists to prove.
+        if (canary === undefined && existsSync(join(options.projectRoot, ".mcp.json"))) {
+          args.push("--mcp-config", join(options.projectRoot, ".mcp.json"));
+        }
         args.push("--strict-mcp-config");
         guarantees.push("Claude user configuration, user skills, hooks, memory, and MCP are hidden by the isolated CLAUDE_CONFIG_DIR");
         break;
@@ -76,6 +133,38 @@ export function createIsolationLaunchSpec(options: {
           blockedReasons.push("Hermes project skill path allowlisting is not yet proven; use an empty allowedSkills list or keep Hermes disallowed");
         }
         break;
+    }
+  }
+
+  if (canary !== undefined) {
+    const isolate = CANARY_MCP_ISOLATION[harness];
+    if (isolate === null) {
+      blockedReasons.push(
+        `${harness} cannot be pointed at a canary observation front: ${CANARY_MCP_ISOLATION_ABSENCE[harness] ?? "no reason recorded"}`,
+      );
+    } else {
+      // Appended through the accumulator this function already builds. Only a
+      // VALUELESS flag is de-duplicated, and only against the flags this
+      // function itself pushed: the claude branch above already asked for
+      // --strict-mcp-config, and asking twice is a second spelling of one
+      // guarantee. Skipping a value-taking flag would leave its value behind
+      // as a bare argument, so those are always pushed as a pair.
+      const flags = isolate(canary.mcpConfigPath);
+      for (let index = 0; index < flags.length; index += 1) {
+        const flag = flags[index] as string;
+        const next = flags[index + 1];
+        const takesValue = next !== undefined && !next.startsWith("--");
+        if (!takesValue && args.includes(flag)) continue;
+        args.push(flag);
+        if (takesValue) {
+          args.push(next);
+          index += 1;
+        }
+      }
+      guarantees.push(
+        `${harness} loads only the canary runtime's MCP configuration, in which every server is fronted by the ` +
+          "alpha-AOS observation proxy; the user's own MCP configuration is excluded for this run",
+      );
     }
   }
 

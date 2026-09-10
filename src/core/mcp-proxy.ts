@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -294,6 +295,79 @@ export interface McpObservation {
  */
 export interface McpObservationSink {
   record(observation: McpObservation): void;
+}
+
+/**
+ * One observation as a single line of newline-delimited JSON.
+ *
+ * The record is written by a proxy child and read by the canary that launched
+ * the harness that launched it, so the two halves of that seam are declared
+ * here together — a writer and a reader that live in different modules are two
+ * places one format can drift.
+ */
+export function observationLine(observation: McpObservation): string {
+  return `${JSON.stringify({
+    server: observation.server,
+    tool: observation.tool,
+    at: observation.at,
+    upstreamVersion: observation.upstreamVersion,
+    outcome: observation.outcome,
+  })}\n`;
+}
+
+/**
+ * Reads observation records out of an append-only observation file.
+ *
+ * FIELD-SELECTIVE, for the same reason `parsePiAuthCheck` is: five named
+ * fields are read and the parsed object is never kept, so a line that grew an
+ * `arguments` field — the place a credential would live — cannot ride along
+ * into anything a ledger or a CI log renders (T-03-52).
+ *
+ * A line this reader cannot make sense of is SKIPPED rather than guessed at. A
+ * partially written final line is the ordinary shape of a file an appending
+ * child was still writing to.
+ */
+export function readObservationRecords(text: string): readonly McpObservation[] {
+  const records: McpObservation[] = [];
+  for (const raw of text.split(/\r?\n/u)) {
+    const line = raw.trim();
+    if (line.length === 0) continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) continue;
+    const record = parsed as Record<string, unknown>;
+    const server = record.server;
+    const tool = record.tool;
+    const at = record.at;
+    const upstreamVersion = record.upstreamVersion;
+    const outcome = record.outcome;
+    if (typeof server !== "string" || !MCP_SERVER_IDS.includes(server as McpServerId)) continue;
+    if (typeof tool !== "string" || typeof at !== "string" || typeof upstreamVersion !== "string") continue;
+    if (outcome !== "ok" && outcome !== "denied") continue;
+    records.push({ server: server as McpServerId, tool, at, upstreamVersion, outcome });
+  }
+  return records;
+}
+
+/**
+ * A sink that appends each observation to a file, synchronously.
+ *
+ * Synchronous on purpose: `record` is called from the proxy's request handler
+ * and the proxy child can be terminated the moment the harness that launched it
+ * exits. A queued asynchronous append is a record that may never reach the
+ * file, and a missing observation is indistinguishable from a capability that
+ * was not selected (T-03-54).
+ */
+export function createFileObservationSink(path: string): McpObservationSink {
+  return {
+    record(observation: McpObservation): void {
+      appendFileSync(path, observationLine(observation), "utf8");
+    },
+  };
 }
 
 export interface McpProxyOptions {

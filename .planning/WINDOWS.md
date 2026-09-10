@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 14
+open_count: 16
 waived_count: 2
 fixed_count: 15
-total_count: 31
-last_updated: 2026-09-10T17:54:56.937Z
+total_count: 33
+last_updated: 2026-09-10T19:18:56.626Z
 ---
 
 # Broken Windows Ledger
@@ -46,6 +46,8 @@ last_updated: 2026-09-10T17:54:56.937Z
 | 29 | 03 | deviation | src/core/canary.ts |  | A declared canary argument pattern is reported UNCHECKED: McpObservation has no argument field, so CAPA-01's version-scoped-id claim is not structurally proven (03-06 decision 2) | open |  | 2026-09-10T15:03:57.777Z |  |
 | 30 | 03 | unrun-verify | catalog/canaries.yaml |  | Task 3's paid canaries were not run: node dist/src/cli.js doctor --canary . --json is unspent, so CAPA-01 and CAPA-02 native selection is unproven (precondition met; ~$0.35) | open |  | 2026-09-10T17:54:56.149Z |  |
 | 31 | 03 | deviation | schemas/capability-ledger.schema.json |  | harnessVersion.raw minLength relaxed so a recorded absence (unprobed harness) is representable; doctor --discovery previously wrote a ledger its own reader refused | open |  | 2026-09-10T17:54:56.937Z |  |
+| 32 | 03 | deviation | src/core/project-plan.ts |  | The support axis does not demote when its ledger proof does: provenSurfaceSupport reads the recorded observation, and applying D-04's demotion would need CurrentInputs on the status path (03-09 deferred) | open |  | 2026-09-10T19:18:55.884Z |  |
+| 33 | 03 | deviation | src/core/project-plan.ts |  | The corrected codex ceiling reason names <project>/.codex/skills, which PROJECT_SKILL_ROOTS still does not target; RESEARCH.md's open question on adding it is unchanged (03-09 deferred) | open |  | 2026-09-10T19:18:56.626Z |  |
 
 ````json
 [
@@ -419,6 +421,30 @@ last_updated: 2026-09-10T17:54:56.937Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T17:54:56.937Z",
+    "resolved_at": null
+  },
+  {
+    "id": 32,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "src/core/project-plan.ts",
+    "line": null,
+    "description": "The support axis does not demote when its ledger proof does: provenSurfaceSupport reads the recorded observation, and applying D-04's demotion would need CurrentInputs on the status path (03-09 deferred)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T19:18:55.884Z",
+    "resolved_at": null
+  },
+  {
+    "id": 33,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "src/core/project-plan.ts",
+    "line": null,
+    "description": "The corrected codex ceiling reason names <project>/.codex/skills, which PROJECT_SKILL_ROOTS still does not target; RESEARCH.md's open question on adding it is unchanged (03-09 deferred)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T19:18:56.626Z",
     "resolved_at": null
   }
 ]

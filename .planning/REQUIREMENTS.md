@@ -39,7 +39,7 @@
 - [x] **CAPA-04**: User can preview and apply an evidence-matched, exact-hash project capability pack only inside the selected project scope
 - [ ] **CAPA-05**: User can see a synced project capability in the target harness with project-local provenance and can exercise it through a representative intent-matched task
 - [ ] **CAPA-06**: User running the same task outside the project cannot discover or invoke that project-only capability
-- [ ] **CAPA-07**: User can distinguish a capability that is selected, deployed, natively discovered, actually invoked, blocked, stale, unsupported, or unverified instead of seeing a single misleading installed state
+- [x] **CAPA-07**: User can distinguish a capability that is selected, deployed, natively discovered, actually invoked, blocked, stale, unsupported, or unverified instead of seeing a single misleading installed state
 - [ ] **CAPA-08**: User can use representative evidence-based packs for web, API/data, infrastructure, agent/AI, security, and scientific projects without installing broad language/framework profiles globally
 
 ### Mandatory GSD Gates
@@ -144,7 +144,7 @@
 | CAPA-04 | Phase 3 | Complete |
 | CAPA-05 | Phase 3 | Pending |
 | CAPA-06 | Phase 3 | Pending |
-| CAPA-07 | Phase 3 | Pending |
+| CAPA-07 | Phase 3 | Complete |
 | CAPA-08 | Phase 3 | Pending |
 | GATE-01 | Phase 4 | Pending |
 | GATE-02 | Phase 4 | Pending |

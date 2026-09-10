@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-08-PLAN.md
-last_updated: "2026-09-10T17:54:22.256Z"
+stopped_at: Completed 03-09-PLAN.md
+last_updated: "2026-09-10T19:18:19.574Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: 0326c2f56cb648b981f11ccc8e2ae84f2e427bee
+state_head: f646d1e1f7103e3740a82ee015a5cb39e44878da
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 55
-  completed_plans: 51
+  completed_plans: 52
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
-Plan: 9 of 12
+Plan: 10 of 12
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -93,6 +93,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P06 | 46 min | 3 tasks | 8 files |
 | Phase 03 P07 | 9 min | 1 tasks | 0 files |
 | Phase 03 P08 | 60 min | 3 tasks | 11 files |
+| Phase 03 P09 | 81 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -180,6 +181,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: McpObservation gained exactly one field, identifierShape, a closed two-value classification computed and discarded in the proxy frame; a declared argument pattern no recorded shape decides is still reported UNCHECKED
 - [Phase 03]: A capability ledger row is keyed by project/harness/capability/POLARITY and replaced in place, with the replaced row's exact harness version retained in supersededHarnessVersions
 - [Phase 03]: CAPA-01 and CAPA-02 are NOT marked complete: the machinery is proven live but no model turn was spent, so native selection is unproven
+- [Phase 03]: CAPA-07's three axes are resolved from a product CEILING (code and catalog) and a host LEDGER that are never merged: a ledger may raise a surface within its ceiling and never above it, and where the ceiling bound the result the reason says so
+- [Phase 03]: PackReconciliation.state was RENAMED to .capability so the deployment axis is reachable only through the composite CapabilityState; a stale read is a compile error, not a silent object read
+- [Phase 03]: The one-shot lifecycle reports as a state with an offer and never deletes: planPackRemoval gained a second ground so the printed digest is the one applyPackRemoval accepts, proven by pasting the command back
 
 ### Pending Todos
 
@@ -237,6 +241,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T17:53:29.944Z
-Stopped at: Completed 03-08-PLAN.md
+Last session: 2026-09-10T19:18:19.171Z
+Stopped at: Completed 03-09-PLAN.md
 Resume file: None

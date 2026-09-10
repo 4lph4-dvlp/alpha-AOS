@@ -16,7 +16,7 @@
     {
       "number": "3",
       "name": "Transactional Project Packs and Native Optional Use",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "4",
@@ -44,5 +44,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 03 of 7 · 14% · executing"
   },
-  "updated_at": "2026-09-10T10:57:08.310Z"
+  "updated_at": "2026-09-10T11:49:51.830Z"
 }

@@ -10,6 +10,7 @@ import {
   approvalCommand,
   approveProjectPlan,
   classifyAdapterSupport,
+  ledgerHostEvidence,
   planOneShotOffer,
   planPackRemoval,
   planProjectCapabilities,
@@ -950,9 +951,7 @@ async function main(): Promise<void> {
       // no state root of its own, which is what keeps a host fact from reaching
       // the plan digest by accident (T-03-83).
       const statusLedgerRead = await readCapabilityLedger(capabilityLedgerPath(userStateRoot()));
-      const reconciliation = await reconcileProjectState(planOptions, {
-        ledger: statusLedgerRead.state === "present" ? statusLedgerRead.ledger : null,
-      });
+      const reconciliation = await reconcileProjectState(planOptions, ledgerHostEvidence(statusLedgerRead));
       const removals = planPackRemoval(reconciliation);
       const oneShotOffers = planOneShotOffer(
         reconciliation,
@@ -1009,9 +1008,14 @@ async function main(): Promise<void> {
       let removal: RemovalPlan | undefined;
       if (reviewed !== current.plan.planDigest) {
         try {
-          removal = planPackRemoval(await reconcileProjectState(planOptions)).find(
-            (entry) => entry.removalDigest === reviewed,
-          );
+          // The ledger is read here too, and from the SAME state root
+          // `applyPackRemoval` will read it from. A one-shot removal digest is
+          // only on offer when the ledger records the invocation, so omitting
+          // it here would refuse a digest the preview had just printed.
+          const removalLedger = await readCapabilityLedger(capabilityLedgerPath(stateRoot));
+          removal = planPackRemoval(
+            await reconcileProjectState(planOptions, ledgerHostEvidence(removalLedger)),
+          ).find((entry) => entry.removalDigest === reviewed);
         } catch (error) {
           // Both halves, because a user who supplied a stale digest AND has a
           // corrupt receipt needs both to know what to do next.

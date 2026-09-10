@@ -48,7 +48,13 @@ import type {
   SurfaceSupport,
   TargetPreState,
 } from "../types.js";
-import type { BlockedReason, CapabilityLedger, CapabilityProof, NativeUseState } from "./capability-ledger.js";
+import type {
+  BlockedReason,
+  CapabilityLedger,
+  CapabilityLedgerRead,
+  CapabilityProof,
+  NativeUseState,
+} from "./capability-ledger.js";
 import { capabilityLedgerPath, pairEvidence, readCapabilityLedger } from "./capability-ledger.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import {
@@ -2054,9 +2060,11 @@ function corroborationFor(packId: string, canonicalRoot: string): OneShotCorrobo
   return {
     path: relative,
     present,
+    // Kept under MAX_STATUS_DETAIL_CHARS on purpose: this sentence IS the
+    // asymmetry, and a truncated one would cut the half that matters.
     note: present
-      ? `${relative} is present, which corroborates that the one-shot skill produced its output; the capability ledger's invocation record remains the primary signal`
-      : `${relative} was not observed; its absence is NOT evidence that no output occurred, because a run can be declined partway, so the capability ledger's invocation record remains the primary signal`,
+      ? "present, which corroborates the output; the ledger's invocation record remains the primary signal"
+      : "absence is NOT evidence that no output occurred — a run can be declined partway — so the ledger's invocation record remains the primary signal",
   };
 }
 
@@ -2083,6 +2091,12 @@ export interface CapabilityStateInput {
   readonly harnesses: readonly HarnessId[];
   /** The canonical project id the ledger keys host evidence by. */
   readonly projectId: string;
+  /**
+   * Why there is no ledger, when the caller read for one and found none. Kept
+   * distinct from "no ledger was supplied": an `unreadable` ledger must never
+   * read like an `absent` one.
+   */
+  readonly ledgerAbsence?: string | null;
 }
 
 /**
@@ -2149,7 +2163,8 @@ export function resolveCapabilityState(
     completeReason ??
     incompleteReason ??
     (ledger === null || ledger === undefined
-      ? `no capability ledger was supplied on this path, so nothing on this host has been read about ${input.capability}`
+      ? (input.ledgerAbsence ??
+        `no capability ledger was supplied on this path, so nothing on this host has been read about ${input.capability}`)
       : `the capability ledger records no positive proof for ${input.capability} in this project on ${harnesses.join(", ") || "any harness"}`);
 
   // A blocked axis names its code and its variable and NEVER a value: the
@@ -2515,6 +2530,44 @@ function evaluationOf(plan: ProjectCapabilityPlan | null, packId: string): PackE
  */
 export interface ReconciliationHostEvidence {
   readonly ledger?: CapabilityLedger | null;
+  /**
+   * Why there is no ledger, when the caller read for one and found none.
+   *
+   * `absent` and `unreadable` are DIFFERENT facts calling for opposite next
+   * actions, and both differ again from "this path supplied no ledger at all".
+   * Collapsing the three into one null was the defect an end-to-end run of
+   * `project status` surfaced: a host with a REFUSED ledger read exactly like a
+   * host that had never been asked. A caller that read and found nothing passes
+   * the sentence it would have printed; a caller that never read passes none.
+   */
+  readonly ledgerAbsence?: string | null;
+}
+
+/**
+ * Turns a ledger READ into host evidence, keeping its tri-state intact.
+ *
+ * `absent` says nothing has been proven on this host yet and is a legitimate
+ * starting state. `unreadable` says something is there and this tool refuses
+ * it, and it carries the path and the errno — reporting that as `absent` would
+ * hide a rejected document behind a routine one, which is the collapse
+ * `readCapabilityLedger` was written to prevent.
+ */
+export function ledgerHostEvidence(read: CapabilityLedgerRead): ReconciliationHostEvidence {
+  if (read.state === "present") return { ledger: read.ledger, ledgerAbsence: null };
+  if (read.state === "absent") {
+    return {
+      ledger: null,
+      ledgerAbsence:
+        "no capability ledger exists on this host yet, so nothing has been proven here; run `alpha-aos doctor --discovery` to record what this host can discover",
+    };
+  }
+  const codes = read.issues.map((issue) => issue.code).join(", ");
+  return {
+    ledger: null,
+    ledgerAbsence:
+      `the capability ledger at ${read.path} exists and was REFUSED rather than read (errno=${read.errno ?? "none"}` +
+      `${codes === "" ? "" : `, ${codes}`}), so its contents are unknown — this is not the same as nothing having been proven here`,
+  };
 }
 
 export async function reconcileProjectState(
@@ -2598,6 +2651,7 @@ export async function reconcileProjectState(
         approved,
         selected: selectedNow.has(receipt.packId),
         ledger: host?.ledger ?? null,
+        ledgerAbsence: host?.ledgerAbsence ?? null,
         lifecycle: lifecycles.get(receipt.packId) ?? null,
       }),
     );
@@ -2627,6 +2681,8 @@ interface InstalledPackInput {
   readonly ledger?: CapabilityLedger | null;
   /** The pack's declared lifecycle, read from the catalog by the caller. */
   readonly lifecycle?: PackLifecycle | null;
+  /** Why there is no ledger, when the caller read for one and found none. */
+  readonly ledgerAbsence?: string | null;
 }
 
 /**
@@ -2667,6 +2723,7 @@ export function classifyInstalledPack(input: InstalledPackInput): PackReconcilia
         deployment: state,
         harnesses: input.receipt.targets.map((target) => target.harness),
         projectId: input.plan.scope.projectId,
+        ledgerAbsence: input.ledgerAbsence ?? null,
       },
       input.ledger ?? null,
     ),
@@ -3100,10 +3157,10 @@ export function planOneShotOffer(
       approveCommand,
       corroboration: pack.corroboration,
       sentence: spent
-        ? `${pack.packId} — one-shot, invoked on ${invokedAt ?? "an unrecorded date"}, removal plan ready. ` +
-          "Nothing has been removed."
-        : `${pack.packId} — one-shot, not yet invoked. Nothing has been removed and no removal is on offer: the ` +
-          "capability ledger records no invocation for it in this project.",
+        ? `${pack.packId} — one-shot (${ONE_SHOT_LIFECYCLE}), invoked on ${invokedAt ?? "an unrecorded date"}, ` +
+          "removal plan ready. Nothing has been removed."
+        : `${pack.packId} — one-shot (${ONE_SHOT_LIFECYCLE}), not yet invoked. Nothing has been removed and no ` +
+          "removal is on offer: the capability ledger records no invocation for it in this project.",
     });
   }
   return offers;
@@ -3189,9 +3246,7 @@ export async function applyPackRemoval(options: ApplyPackRemovalOptions): Promis
   // digest a user pasted back would be refused as unknown — the offer would be
   // a dead end rather than a next step (D-13).
   const ledgerRead = await readCapabilityLedger(capabilityLedgerPath(resolve(options.stateRoot)));
-  const reconciliation = await reconcileProjectState(options, {
-    ledger: ledgerRead.state === "present" ? ledgerRead.ledger : null,
-  });
+  const reconciliation = await reconcileProjectState(options, ledgerHostEvidence(ledgerRead));
   const offered = planPackRemoval(reconciliation);
   const removal = offered.find((entry) => entry.removalDigest === options.removalDigest);
 

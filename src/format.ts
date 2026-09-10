@@ -497,7 +497,7 @@ export function formatProjectStatus(
   // deletion Phase 2 D-14 and PROJECT.md's safety constraint both forbid.
   const oneShotPacks = new Set(oneShotOffers.map((offer) => offer.packId));
   for (const offer of oneShotOffers) {
-    lines.push("", `ONE-SHOT ${offer.packId} — lifecycle ${offer.lifecycle}. ${offer.sentence}`);
+    lines.push("", `ONE-SHOT ${offer.sentence}`);
     if (offer.invokedAt !== null) lines.push(`  Invoked on: ${offer.invokedAt}`);
     if (offer.corroboration !== null) {
       lines.push(

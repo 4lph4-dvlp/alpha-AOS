@@ -5450,3 +5450,42 @@ test("the one-shot offer states what is ready and never implies anything was del
     );
   }
 });
+
+test("an absent ledger, a refused ledger and an unasked path give three different native-use reasons", async (context) => {
+  const reconcileProjectState = await planExport<ReconcileProjectState>("reconcileProjectState");
+  const ledgerHostEvidence = await planExport<
+    (read: Record<string, unknown>) => { ledger: CapabilityLedger | null; ledgerAbsence: string | null }
+  >("ledgerHostEvidence");
+  const { root } = await installedPostgresFixture(context);
+
+  const unasked = packStateOf(
+    await reconcileProjectState({ path: root, packageRoot: repositoryRoot }),
+    POSTGRES_PACK,
+  ).capability.nativeUseReason;
+  const absent = packStateOf(
+    await reconcileProjectState({ path: root, packageRoot: repositoryRoot }, ledgerHostEvidence({ state: "absent" })),
+    POSTGRES_PACK,
+  ).capability.nativeUseReason;
+  const refused = packStateOf(
+    await reconcileProjectState(
+      { path: root, packageRoot: repositoryRoot },
+      ledgerHostEvidence({
+        state: "unreadable",
+        path: join(root, "ledger.json"),
+        errno: "EISDIR",
+        issues: [{ code: "SCHEMA_INVALID", documentPath: "/proofs/0", expected: "a closed proof row" }],
+      }),
+    ),
+    POSTGRES_PACK,
+  ).capability.nativeUseReason;
+
+  // Three facts calling for three different next actions. Collapsing any two of
+  // them hides a REFUSED document behind a routine one, which is the same
+  // collapse `readCapabilityLedger` itself refuses to make.
+  assert.equal(new Set([unasked, absent, refused]).size, 3, `${unasked}\n${absent}\n${refused}`);
+  assert.match(unasked, /no capability ledger was supplied on this path/u);
+  assert.match(absent, /no capability ledger exists on this host yet/u);
+  assert.match(refused, /REFUSED/u);
+  assert.match(refused, /EISDIR/u, "the refusal does not carry the errno a user needs");
+  assert.doesNotMatch(refused, /exists on this host yet/u, "a refused ledger reads as an absent one");
+});

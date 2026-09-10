@@ -14,8 +14,10 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type {
+  AdapterSupportEntry,
   EvidenceFact,
   FactDeclaration,
+  HarnessId,
   LeafResult,
   PackDeclaration,
   PackEvaluation,
@@ -23,8 +25,10 @@ import type {
   ProjectCapabilityPlan,
   ProjectStackManifest,
   StackLock,
+  SurfaceSupport,
   TargetPreState,
 } from "../src/types.js";
+import type { CapabilityLedger, LedgerHarness, NativeUseState } from "../src/core/capability-ledger.js";
 import type { DeclaredDependency } from "../src/core/evidence.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { reviewedDigest } from "../src/core/component-session.js";
@@ -4717,4 +4721,184 @@ test("the root-keyed manifest caches stop at their bound, and an evicted root st
 
   // Eviction costs a re-read and nothing else: it cannot change WHICH catalog answers.
   assert.equal((await inspectProjectManifest(project, rootB))?.status, "current");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-09 Task 1: the support CEILING and the resolver bounded by it
+// ---------------------------------------------------------------------------
+//
+// 03-CONTEXT.md D-10 splits support into two axes that are never merged. Code
+// and catalog own the CEILING — the product claim that a surface can
+// structurally receive project-scope packs at all. The capability ledger owns
+// whether it was PROVEN ON THIS HOST, and may only raise a surface WITHIN its
+// ceiling. The two are never merged, and where the ceiling bound the result the
+// returned reason says so rather than silently returning the ceiling value.
+
+/** A citation names either a file it was read from or a version it was observed at. */
+const CEILING_CITATION = /[A-Za-z0-9_.-]+\.(?:md|ya?ml|json|ts)|\d+\.\d+\.\d+/u;
+
+const DECLARED_HARNESSES: readonly HarnessId[] = ["antigravity", "claude", "codex", "hermes", "pi"];
+
+type CeilingEntry = { readonly support: SurfaceSupport; readonly reason: string; readonly citation: string };
+type ClassifyAdapterSupport = (
+  declared: readonly HarnessId[],
+  ledger?: CapabilityLedger | null,
+) => AdapterSupportEntry[];
+
+async function surfaceCeiling(): Promise<ReadonlyMap<HarnessId, CeilingEntry>> {
+  return planExport<ReadonlyMap<HarnessId, CeilingEntry>>("SURFACE_CEILING");
+}
+
+/** A ledger holding one positive, project-scoped proof per named surface. */
+function provingLedger(
+  rows: readonly { readonly harness: LedgerHarness; readonly nativeUse: NativeUseState }[],
+): CapabilityLedger {
+  return {
+    schemaVersion: 1,
+    producer: { name: "alpha-aos", version: "0.1.0" },
+    updatedAt: "2026-09-11T00:00:00.000Z",
+    proofs: rows.map((row) => ({
+      projectId: "a".repeat(64),
+      harness: row.harness,
+      capability: "project-pack-delivery",
+      polarity: "positive" as const,
+      nativeUse: row.nativeUse,
+      blockedReason: null,
+      boundInputs: { skillSourceHash: "b".repeat(64), mcpServerVersion: null, evidenceHash: "c".repeat(64) },
+      harnessVersion: { exact: "0.152.0", minorKey: "0.152", raw: "codex-cli 0.152.0" },
+      ancestorFreedom: null,
+      observedAt: "2026-09-11T00:00:00.000Z",
+      oracle: {
+        command: "codex debug prompt-input",
+        exitCode: 0,
+        stdoutFingerprint: "d".repeat(64),
+        stderrFingerprint: "e".repeat(64),
+      },
+    })),
+  };
+}
+
+test("SURFACE_CEILING classifies every declared harness and an unclassified surface stays unverified", async () => {
+  const ceiling = await surfaceCeiling();
+  for (const harness of DECLARED_HARNESSES) {
+    assert.ok(ceiling.get(harness), `SURFACE_CEILING has no entry for the declared harness ${harness}`);
+  }
+  assert.equal(ceiling.size, DECLARED_HARNESSES.length, "SURFACE_CEILING carries an entry for an undeclared harness");
+
+  // The fail-closed default survives the refactor: a harness the table does not
+  // know is `unverified`, and a ledger claiming to have proven it has no
+  // ceiling to be raised within, so it is STILL unverified.
+  const classify = await planExport<ClassifyAdapterSupport>("classifyAdapterSupport");
+  const unknown = "future-harness" as HarnessId;
+  assert.equal(classify([unknown])[0]?.support, "unverified");
+
+  const forged = provingLedger([{ harness: "codex", nativeUse: "invoked" }]);
+  const claimsUnknown: CapabilityLedger = {
+    ...forged,
+    proofs: forged.proofs.map((proof) => ({ ...proof, harness: unknown as unknown as LedgerHarness })),
+  };
+  assert.equal(
+    classify([unknown], claimsUnknown)[0]?.support,
+    "unverified",
+    "a ledger row for a surface with no ceiling raised it anyway, so the fail-closed default is reachable around",
+  );
+});
+
+test("a ledger proving a surface raises it from the unverified ceiling to supported", async () => {
+  const ceiling = await surfaceCeiling();
+  assert.equal(ceiling.get("codex")?.support, "unverified", "the fixture surface is no longer the unverified one");
+
+  const classify = await planExport<ClassifyAdapterSupport>("classifyAdapterSupport");
+  assert.equal(classify(["codex"])[0]?.support, "unverified");
+
+  const raised = classify(["codex"], provingLedger([{ harness: "codex", nativeUse: "discovered" }]))[0];
+  assert.equal(raised?.support, "supported", "host evidence did not raise a surface its ceiling permits");
+  assert.match(
+    raised?.reason ?? "",
+    /capability ledger/u,
+    "the raised reason does not say the ledger is what raised it, so the two axes read as one",
+  );
+  assert.match(raised?.reason ?? "", /discovered/u, "the raised reason does not name the recorded ledger value");
+});
+
+test("a ledger proving a surface whose ceiling is unsupported does not raise it, and the reason says the ceiling bound it", async () => {
+  const ceiling = await surfaceCeiling();
+  assert.equal(ceiling.get("hermes")?.support, "unsupported", "the fixture surface is no longer the unsupported one");
+
+  const classify = await planExport<ClassifyAdapterSupport>("classifyAdapterSupport");
+  const bound = classify(["hermes"], provingLedger([{ harness: "hermes", nativeUse: "invoked" }]))[0];
+  assert.equal(bound?.support, "unsupported", "host evidence raised a surface ABOVE its ceiling");
+  assert.match(
+    bound?.reason ?? "",
+    /ceiling bound/iu,
+    "the ceiling silently returned its own value instead of stating that it bound the result",
+  );
+  assert.match(bound?.reason ?? "", /invoked/u, "the bound reason does not name the ledger value it refused to honour");
+});
+
+test("the resolver with no ledger returns exactly the ceiling values", async () => {
+  const ceiling = await surfaceCeiling();
+  const classify = await planExport<ClassifyAdapterSupport>("classifyAdapterSupport");
+
+  for (const entries of [classify(DECLARED_HARNESSES), classify(DECLARED_HARNESSES, null)]) {
+    assert.equal(entries.length, DECLARED_HARNESSES.length);
+    for (const entry of entries) {
+      const recorded = ceiling.get(entry.harness);
+      assert.ok(recorded, `the resolver classified ${entry.harness}, which the ceiling does not know`);
+      assert.equal(entry.support, recorded.support, `${entry.harness}: the no-ledger support is not the ceiling value`);
+      assert.equal(entry.reason, recorded.reason, `${entry.harness}: the no-ledger reason is not the ceiling reason`);
+    }
+  }
+});
+
+test("the codex ceiling reason cites the observed project-scope discovery and the version it was observed at", async () => {
+  const ceiling = await surfaceCeiling();
+  const codex = ceiling.get("codex");
+  assert.ok(codex);
+  // The DECISION stays with the ledger; only the REASON is corrected.
+  assert.equal(codex.support, "unverified");
+  assert.doesNotMatch(
+    codex.reason,
+    /no documented project-scope discovery has been proven/u,
+    "the codex reason still asserts what 03-RESEARCH.md Open Question 3 falsified",
+  );
+  assert.match(codex.reason, /\.agents\/skills/u, "the codex reason does not name the observed shared project skill root");
+  assert.match(codex.reason, /\.codex\/skills/u, "the codex reason does not name the second, harness-specific root");
+  assert.match(codex.reason, /0\.152\.0/u, "the codex reason does not name the version the discovery was observed at");
+});
+
+test("the hermes ceiling reason names the scoping ground and no longer cites the recorded worker strategy", async () => {
+  const ceiling = await surfaceCeiling();
+  const hermes = ceiling.get("hermes");
+  assert.ok(hermes);
+  // 03-CONTEXT.md's deferred list scopes hermes out of this phase, so the
+  // DECISION stands. The recorded REASON was falsified and does not.
+  assert.equal(hermes.support, "unsupported");
+  assert.doesNotMatch(
+    hermes.reason,
+    /worker-only/u,
+    "the hermes reason still cites the strategy the harness's own trust subcommand contradicts",
+  );
+  assert.match(
+    hermes.reason,
+    /not in scope|no .*project delivery surface/iu,
+    "the hermes reason does not state the actual ground: nothing is in scope and nothing was probed",
+  );
+});
+
+test("every SURFACE_CEILING reason is non-empty and carries a citation naming a file or a version", async () => {
+  const ceiling = await surfaceCeiling();
+  for (const [harness, entry] of ceiling) {
+    assert.ok(entry.reason.trim().length > 0, `${harness} records a classification and states no basis for it`);
+    assert.ok(entry.citation.trim().length > 0, `${harness} states a reason and cites nothing`);
+    assert.match(
+      entry.citation,
+      CEILING_CITATION,
+      `${harness} cites "${entry.citation}", which names neither a file nor a version`,
+    );
+    assert.ok(
+      entry.reason.includes(entry.citation),
+      `${harness}'s reason does not carry its own citation, so a reader of the rendered reason cannot check it`,
+    );
+  }
 });

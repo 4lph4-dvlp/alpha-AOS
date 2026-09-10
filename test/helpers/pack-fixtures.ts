@@ -93,6 +93,16 @@ export interface DomainFixtureSpec {
    */
   readonly nearMissLeafFactId: string;
   /**
+   * A substring the twin's failed-leaf reason MUST contain.
+   *
+   * A non-empty reason is not enough to prove anything: the evaluator's
+   * fallback sentence is non-empty too and says nothing. This records the
+   * evidence the reason has to name — the removed directory, the removed
+   * package, the removed literal, or the removed manifest key — so a reason
+   * that degrades into a shrug is a red test rather than a passing one.
+   */
+  readonly nearMissReasonNames: string;
+  /**
    * What the twin's pack classifies as.
    *
    * Recorded per domain rather than assumed uniform, because the declared
@@ -148,6 +158,7 @@ export const DOMAIN_FIXTURES: Readonly<Record<PackDomain, DomainFixtureSpec>> = 
     manifest: null,
     nearMissEdit: { kind: "file", path: "public/index.html" },
     nearMissLeafFactId: "browser-entrypoint",
+    nearMissReasonNames: "public",
     twinStatus: "near-miss",
   },
 
@@ -166,6 +177,7 @@ export const DOMAIN_FIXTURES: Readonly<Record<PackDomain, DomainFixtureSpec>> = 
     manifest: null,
     nearMissEdit: { kind: "file", path: "package.json" },
     nearMissLeafFactId: "postgres-driver",
+    nearMissReasonNames: "pg",
     twinStatus: "silent",
   },
 
@@ -188,6 +200,7 @@ export const DOMAIN_FIXTURES: Readonly<Record<PackDomain, DomainFixtureSpec>> = 
     manifest: null,
     nearMissEdit: { kind: "file", path: "Dockerfile" },
     nearMissLeafFactId: "file:Dockerfile",
+    nearMissReasonNames: "Dockerfile",
     twinStatus: "silent",
   },
 
@@ -211,6 +224,7 @@ export const DOMAIN_FIXTURES: Readonly<Record<PackDomain, DomainFixtureSpec>> = 
     manifest: null,
     nearMissEdit: { kind: "file", path: "evals/smoke.jsonl" },
     nearMissLeafFactId: "eval-assets",
+    nearMissReasonNames: "evals",
     twinStatus: "near-miss",
   },
 
@@ -229,6 +243,7 @@ export const DOMAIN_FIXTURES: Readonly<Record<PackDomain, DomainFixtureSpec>> = 
     manifest: { schemaVersion: 1, securityReview: true },
     nearMissEdit: { kind: "manifestKey", key: "securityReview" },
     nearMissLeafFactId: "manifest:securityReview",
+    nearMissReasonNames: "securityReview",
     twinStatus: "unimplemented",
   },
 
@@ -252,6 +267,7 @@ export const DOMAIN_FIXTURES: Readonly<Record<PackDomain, DomainFixtureSpec>> = 
     manifest: { schemaVersion: 1, scientificResearch: true },
     nearMissEdit: { kind: "manifestKey", key: "scientificResearch" },
     nearMissLeafFactId: "manifest:scientificResearch",
+    nearMissReasonNames: "scientificResearch",
     twinStatus: "silent",
   },
 };
@@ -341,6 +357,45 @@ export function nearMissSpec(domain: PackDomain): DomainFixtureSpec {
   }
   delete manifest[edit.key];
   return { ...spec, manifest: manifest as unknown as ProjectStackManifest };
+}
+
+/**
+ * What one twin actually changed, relative to its positive.
+ *
+ * Both directions are reported. A twin that ADDS something to compensate for
+ * what it removed is a different repository rather than a twin, and a
+ * difference recorded only as a removal count would not say so.
+ */
+export interface FixtureDifference {
+  readonly removedFiles: readonly string[];
+  readonly addedFiles: readonly string[];
+  readonly removedManifestKeys: readonly string[];
+  readonly addedManifestKeys: readonly string[];
+}
+
+function missingFrom(before: readonly string[], after: readonly string[]): string[] {
+  const present = new Set(after);
+  return before.filter((entry) => !present.has(entry)).sort(byCodePoint);
+}
+
+/**
+ * The structural difference between a domain's positive fixture and its twin.
+ *
+ * Computed from the two SHAPES rather than from the declared edit, so the
+ * declared edit and the materialized one cannot drift apart: the caller
+ * asserts that this difference is exactly one thing AND that it is the thing
+ * the table declares. Deriving it from `nearMissEdit` would make that second
+ * assertion tautological.
+ */
+export function nearMissDifference(domain: PackDomain): FixtureDifference {
+  const positive = describeFixture(DOMAIN_FIXTURES[domain]);
+  const twin = describeFixture(nearMissSpec(domain));
+  return {
+    removedFiles: missingFrom(positive.files, twin.files),
+    addedFiles: missingFrom(twin.files, positive.files),
+    removedManifestKeys: missingFrom(positive.manifestKeys, twin.manifestKeys),
+    addedManifestKeys: missingFrom(twin.manifestKeys, positive.manifestKeys),
+  };
 }
 
 async function materialize(spec: DomainFixtureSpec, root: string): Promise<string> {

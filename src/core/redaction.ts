@@ -342,8 +342,21 @@ export function describeOverBudgetEnvelope(envelope: ObservableEnvelope): string
  * Converts captured subprocess output into shareable evidence: a bounded,
  * redacted excerpt plus a fingerprint of the whole stream. The raw bytes are
  * deliberately not retained on the returned object.
+ *
+ * `budgetBytes` overrides the default excerpt budget for a caller that must
+ * PARSE the output rather than show it. The default is sized for a diagnostic a
+ * human reads; a machine-readable answer from a harness is routinely larger
+ * than that, and a truncated one parses as a failure rather than as an answer.
+ * Everything that makes an excerpt safe to keep is unchanged by the budget:
+ * secrets are replaced and private roots aliased BEFORE the cut, the cut is
+ * still on a UTF-8 code-point boundary, and the fingerprint is still taken over
+ * the whole stream.
  */
-export function createRedactedExcerpt(raw: string, context: RedactionContext): RedactedExcerpt {
+export function createRedactedExcerpt(
+  raw: string,
+  context: RedactionContext,
+  budgetBytes: number = LIMITS.excerptBytes,
+): RedactedExcerpt {
   const totalBytes = Buffer.byteLength(raw, "utf8");
   const sha256 = createHash("sha256").update(raw, "utf8").digest("hex");
   // Redact before truncating: a secret straddling the cut must not survive in
@@ -353,6 +366,6 @@ export function createRedactedExcerpt(raw: string, context: RedactionContext): R
   // Measured and cut in the same unit the budget is declared in, for the same
   // reason `redactDocument` is (02-REVIEW WR-07): a code-unit cut under a byte
   // guard retains up to three times the bound and can split a code point.
-  const cut = truncateToUtf8Bytes(redacted, LIMITS.excerptBytes);
+  const cut = truncateToUtf8Bytes(redacted, budgetBytes);
   return { excerpt: cut.text, capped: cut.truncated, totalBytes, sha256 };
 }

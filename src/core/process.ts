@@ -52,6 +52,17 @@ export interface ProcessSpec {
   environment?: EnvironmentPolicy;
   /** Written to the child's stdin, which is then closed. Omit for no input. */
   stdin?: string;
+  /**
+   * How many UTF-8 bytes of the redacted excerpt to retain, for a caller that
+   * must PARSE the output rather than show it to a person.
+   *
+   * Omit it and the diagnostic-sized default applies. Raising it changes what
+   * this call retains and nothing else: the excerpt is still redacted and
+   * path-aliased before the cut, the cut is still code-point safe, the
+   * whole-stream fingerprint is unchanged, and `maxOutputBytes` still bounds
+   * how much is ever held.
+   */
+  excerptBytes?: number;
 }
 
 export interface ProcessResult {
@@ -255,9 +266,9 @@ class BoundedStream {
    * is taken from a copy: `digest()` finalizes a hash permanently and would
    * make the second read throw.
    */
-  snapshot(context: RedactionContext): RedactedExcerpt {
+  snapshot(context: RedactionContext, budgetBytes?: number): RedactedExcerpt {
     const text = Buffer.concat(this.chunks).toString("utf8");
-    const excerpt = createRedactedExcerpt(text, context);
+    const excerpt = createRedactedExcerpt(text, context, budgetBytes);
     return {
       excerpt: excerpt.excerpt,
       capped: this.capped || excerpt.capped,
@@ -266,8 +277,8 @@ class BoundedStream {
     };
   }
 
-  finish(context: RedactionContext): RedactedExcerpt {
-    return this.snapshot(context);
+  finish(context: RedactionContext, budgetBytes?: number): RedactedExcerpt {
+    return this.snapshot(context, budgetBytes);
   }
 }
 
@@ -357,8 +368,8 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
         timedOut,
         outputCapped: stdout.capped || stderr.capped,
         durationMs: Date.now() - startedAt,
-        stdout: stdout.finish(redaction),
-        stderr: stderr.finish(redaction),
+        stdout: stdout.finish(redaction, spec.excerptBytes),
+        stderr: stderr.finish(redaction, spec.excerptBytes),
         treeTermination: treeDelivery,
       });
     };

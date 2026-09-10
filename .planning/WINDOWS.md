@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 20
+open_count: 23
 waived_count: 2
 fixed_count: 15
-total_count: 37
-last_updated: 2026-09-10T22:00:17.055Z
+total_count: 40
+last_updated: 2026-09-10T23:01:51.923Z
 ---
 
 # Broken Windows Ledger
@@ -52,6 +52,9 @@ last_updated: 2026-09-10T22:00:17.055Z
 | 35 | 03 | deviation | test/helpers/pack-fixtures.ts |  | Task 2's helper surface landed in Task 1's commit, so its RED was driven by nearMissDifference and nearMissReasonNames rather than by createNearMissFixture; a 10-mutation gauntlet is the substitute evidence | open |  | 2026-09-10T20:36:39.900Z |  |
 | 36 | 03 | unrun-verify | src/cli.ts |  | doctor --discovery --json renders sweeps[].entries[].unit as [redacted:cycle]; the full unit is present under entries[].discovery.unit — plan 03-08's shape, recorded not fixed | open |  | 2026-09-10T22:00:16.341Z |  |
 | 37 | 03 | skipped-test | test/evidence.test.ts |  | a directory identity key carries the host's exact 64-bit index — failed once in a full run during plan 03-11 and did not reproduce in 6 isolated + 2 full runs; the known unowned PathProof.inode precision item | open |  | 2026-09-10T22:00:17.055Z |  |
+| 38 | 03 | unrun-verify | catalog/canaries.yaml |  | CROSS_HARNESS_HANDOFF receiving leg never run: no paid canary spent a model turn, so 'the receiving harness works from the handed-off context' is unproven. Command: node dist/src/cli.js doctor --canary . --capability handoff --json (pin ALPHA_AOS_STATE_DIR first) | open |  | 2026-09-10T23:01:50.470Z |  |
+| 39 | 03 | deviation | src/cli.ts |  | doctor --canary gained --no-spend, a flag the 03-12 plan did not name. Added so the plan's own zero-exit two-digest verification could run without spending the user's money; every skipped leg records unverified/not-attempted, never blocked | open |  | 2026-09-10T23:01:51.192Z |  |
+| 40 | 03 | deviation | src/core/capability-ledger.ts |  | pairEvidence widened: it now accepts a nullable positive and an ImmutabilityWitness as an alternative negative-control witness. Existing CAPA-06 callers are unaffected; a reviewer should confirm the two witnesses stay distinct before a third is added | open |  | 2026-09-10T23:01:51.923Z |  |
 
 ````json
 [
@@ -497,6 +500,42 @@ last_updated: 2026-09-10T22:00:17.055Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T22:00:17.055Z",
+    "resolved_at": null
+  },
+  {
+    "id": 38,
+    "kind": "unrun-verify",
+    "phase": "03",
+    "file": "catalog/canaries.yaml",
+    "line": null,
+    "description": "CROSS_HARNESS_HANDOFF receiving leg never run: no paid canary spent a model turn, so 'the receiving harness works from the handed-off context' is unproven. Command: node dist/src/cli.js doctor --canary . --capability handoff --json (pin ALPHA_AOS_STATE_DIR first)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T23:01:50.470Z",
+    "resolved_at": null
+  },
+  {
+    "id": 39,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "src/cli.ts",
+    "line": null,
+    "description": "doctor --canary gained --no-spend, a flag the 03-12 plan did not name. Added so the plan's own zero-exit two-digest verification could run without spending the user's money; every skipped leg records unverified/not-attempted, never blocked",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T23:01:51.192Z",
+    "resolved_at": null
+  },
+  {
+    "id": 40,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "src/core/capability-ledger.ts",
+    "line": null,
+    "description": "pairEvidence widened: it now accepts a nullable positive and an ImmutabilityWitness as an alternative negative-control witness. Existing CAPA-06 callers are unaffected; a reviewer should confirm the two witnesses stay distinct before a third is added",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T23:01:51.923Z",
     "resolved_at": null
   }
 ]

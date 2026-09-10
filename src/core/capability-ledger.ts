@@ -294,14 +294,6 @@ export interface NativeUseResolution {
   readonly blockedReason: BlockedReason | null;
 }
 
-export function harnessMinorKey(_raw: string): HarnessVersion {
-  throw new Error("harnessMinorKey is not implemented");
-}
-
-export function resolveNativeUse(_proof: CapabilityProof, _current: CurrentInputs): NativeUseResolution {
-  throw new Error("resolveNativeUse is not implemented");
-}
-
 /** The three orthogonal axes, obtainable only together (03-CONTEXT.md D-11). */
 export interface CapabilityAxes {
   readonly deployment: PackState;
@@ -325,11 +317,234 @@ export interface ResolveCapabilityStatusOptions {
   readonly current: CurrentInputs;
 }
 
-export function resolveCapabilityStatus(_options: ResolveCapabilityStatusOptions): CapabilityStatus {
-  throw new Error("resolveCapabilityStatus is not implemented");
+/**
+ * The leading semantic version inside a decorated line.
+ *
+ * Deliberately NOT anchored: three of the four harnesses decorate their
+ * version output — a `codex-cli ` prefix, a ` (Claude Code)` suffix, and a
+ * hermes line carrying a build date and two commit shas. Only the leading
+ * version is bound, because 03-RESEARCH.md Pitfall 6 observed hermes's
+ * `upstream <sha>` token moving twice inside one session with no install
+ * change; fingerprinting the whole line would demote every hermes proof
+ * whenever the remote head moved.
+ */
+const LEADING_SEMVER = /(\d+)\.(\d+)\.(\d+)/u;
+
+/**
+ * Splits a printed version line into the three parts a proof records.
+ *
+ * A line with no extractable version is `unverified`, never an error: the raw
+ * string is kept so a human can see exactly what could not be parsed.
+ */
+export function harnessMinorKey(raw: string): HarnessVersion {
+  const match = LEADING_SEMVER.exec(raw);
+  const major = match?.[1];
+  const minor = match?.[2];
+  const patch = match?.[3];
+  if (major === undefined || minor === undefined || patch === undefined) {
+    return { exact: null, minorKey: null, raw };
+  }
+  return { exact: `${major}.${minor}.${patch}`, minorKey: `${major}.${minor}`, raw };
 }
 
-export function capabilityStatusJson(_status: CapabilityStatus): {
+/**
+ * The human phrase for each bound noun.
+ *
+ * Every demotion sentence opens with its own noun, so two demotions never read
+ * alike. A reader who is told only "the proof was demoted" has to diff two
+ * records to find out what moved; a reader told "the MCP server version moved"
+ * already knows where to look.
+ */
+const NOUN_PHRASE: Record<DemotionNoun, string> = {
+  skillSourceHash: "the skill source hash",
+  mcpServerVersion: "the MCP server version",
+  evidenceHash: "the pack evidence hash",
+  harnessVersion: "the harness version",
+};
+
+/** Hashes are not secrets, but a full pair of them makes a sentence unreadable. */
+function shortHash(value: string): string {
+  return value.length > 12 ? `${value.slice(0, 12)}...` : value;
+}
+
+function notComparable(noun: DemotionNoun): DemotionReason {
+  return {
+    code: "BOUND_INPUT_NOT_COMPARABLE",
+    noun,
+    sentence: `${NOUN_PHRASE[noun]} could not be compared, because the current value is not known; absent information is not a match`,
+  };
+}
+
+function compareBoundInput(
+  reasons: DemotionReason[],
+  noun: DemotionNoun,
+  movedCode: DemotionReason["code"],
+  proven: string,
+  now: string | null,
+  render: (value: string) => string,
+): void {
+  if (now === null) {
+    reasons.push(notComparable(noun));
+    return;
+  }
+  if (now === proven) return;
+  reasons.push({
+    code: movedCode,
+    noun,
+    sentence: `${NOUN_PHRASE[noun]} moved from ${render(proven)} to ${render(now)}`,
+  });
+}
+
+/**
+ * Copies a blocked reason down to exactly the three fields it may have.
+ *
+ * The type already has no value field, but this record is assembled from a
+ * document a user can edit, so the copy is explicit rather than a spread: a
+ * smuggled `value` reaches neither the resolved record nor anything rendered
+ * from it, and the closed schema refuses the document besides (T-03-22).
+ */
+function normalizeBlockedReason(reason: BlockedReason | null): BlockedReason | null {
+  if (reason === null || typeof reason !== "object") return null;
+  return { code: reason.code, variable: reason.variable, nextAction: reason.nextAction };
+}
+
+/**
+ * Re-resolves a stored proof against the inputs as they are NOW.
+ *
+ * 03-CONTEXT.md D-04 in code: the three bound nouns demote on any change and
+ * the harness demotes at a MINOR boundary only. The minor rule is not a
+ * softening — harnesses auto-update, so a patch-level rebinding would leave the
+ * ledger permanently red and a permanently red ledger is one nobody reads. The
+ * comparison is therefore on minor keys, never on the exact version string.
+ *
+ * A demoted proof resolves `unverified` and keeps its reasons; the exact
+ * version it was taken against stays readable, so an audit can still see what
+ * was proven and when it stopped counting.
+ */
+export function resolveNativeUse(proof: CapabilityProof, current: CurrentInputs): NativeUseResolution {
+  const reasons: DemotionReason[] = [];
+
+  compareBoundInput(
+    reasons,
+    "skillSourceHash",
+    "SKILL_SOURCE_HASH_MOVED",
+    proof.boundInputs.skillSourceHash,
+    current.skillSourceHash,
+    shortHash,
+  );
+  // The MCP server version and the pack evidence hash are bound only when the
+  // proof recorded one. A capability that involved no MCP server has nothing to
+  // compare there, and inventing a mismatch would demote it forever.
+  if (proof.boundInputs.mcpServerVersion !== null) {
+    compareBoundInput(
+      reasons,
+      "mcpServerVersion",
+      "MCP_SERVER_VERSION_MOVED",
+      proof.boundInputs.mcpServerVersion,
+      current.mcpServerVersion,
+      (value) => value,
+    );
+  }
+  if (proof.boundInputs.evidenceHash !== null) {
+    compareBoundInput(
+      reasons,
+      "evidenceHash",
+      "PACK_EVIDENCE_HASH_MOVED",
+      proof.boundInputs.evidenceHash,
+      current.evidenceHash,
+      shortHash,
+    );
+  }
+
+  const proven = proof.harnessVersion;
+  if (current.harnessVersion === null) {
+    reasons.push(notComparable("harnessVersion"));
+  } else {
+    const now = harnessMinorKey(current.harnessVersion);
+    if (proven.minorKey === null || now.minorKey === null) {
+      reasons.push({
+        code: "HARNESS_VERSION_UNPARSEABLE",
+        noun: "harnessVersion",
+        sentence:
+          `${NOUN_PHRASE.harnessVersion} could not be parsed to a minor key, so the proof is unverified rather ` +
+          `than in error: proven "${proven.raw}", now "${now.raw}"`,
+      });
+    } else if (proven.minorKey !== now.minorKey) {
+      reasons.push({
+        code: "HARNESS_MINOR_MOVED",
+        noun: "harnessVersion",
+        sentence:
+          `${NOUN_PHRASE.harnessVersion} crossed a minor boundary, from ${proven.minorKey} ` +
+          `(proven at ${proven.exact ?? "an unparseable version"}) to ${now.minorKey} (now ${now.exact ?? "unknown"}); ` +
+          `a patch bump inside one minor does not demote`,
+      });
+    }
+  }
+
+  const demoted = reasons.length > 0;
+  const blockedReason = normalizeBlockedReason(proof.blockedReason);
+  return {
+    nativeUse: demoted ? "unverified" : proof.nativeUse,
+    demoted,
+    reasons,
+    provenHarnessVersion: { exact: proven.exact, minorKey: proven.minorKey, raw: proven.raw },
+    blocked: blockedReason !== null,
+    blockedReason,
+  };
+}
+
+// The two axes this module does NOT own, listed so a caller that supplies
+// neither can be refused rather than defaulted. Both unions live elsewhere and
+// are untouched here (03-CONTEXT.md D-11).
+const PACK_STATES: readonly PackState[] = ["CURRENT", "STALE", "DRIFTED", "CHANGED", "CONFLICT", "UNDECIDABLE"];
+const SURFACE_SUPPORTS: readonly SurfaceSupport[] = ["supported", "unsupported", "unverified"];
+
+/** Shape-only description of a rejected value; never the value itself. */
+function shapeOfAxis(value: unknown): string {
+  if (value === undefined) return "undefined";
+  if (value === null) return "null";
+  return typeof value === "string" ? `string(length=${value.length})` : typeof value;
+}
+
+/**
+ * The one way to obtain a capability's state.
+ *
+ * All three axes are required, and a caller that omits one is REFUSED rather
+ * than given a default. That refusal is the whole mechanism behind D-11: a
+ * status assembled from two axes and a silent default is exactly the single
+ * misleading `installed` state CAPA-07 forbids, and it would be indistinguishable
+ * from a complete one at the call site that renders it.
+ */
+export function resolveCapabilityStatus(options: ResolveCapabilityStatusOptions): CapabilityStatus {
+  if (!PACK_STATES.includes(options?.deployment as PackState)) {
+    throw new Error(
+      `resolveCapabilityStatus requires a deployment axis (PackState); received ${shapeOfAxis(options?.deployment)}`,
+    );
+  }
+  if (!SURFACE_SUPPORTS.includes(options?.support as SurfaceSupport)) {
+    throw new Error(
+      `resolveCapabilityStatus requires a support axis (SurfaceSupport); received ${shapeOfAxis(options?.support)}`,
+    );
+  }
+
+  const resolution = resolveNativeUse(options.proof, options.current);
+  return {
+    capability: options.capability,
+    harness: options.harness,
+    axes: {
+      deployment: options.deployment,
+      support: options.support,
+      nativeUse: resolution.nativeUse,
+    },
+    resolution,
+  };
+}
+
+/**
+ * The JSON projection: axes stay separate, and the human summary that collapses
+ * them to one line is a rendering concern, never this record.
+ */
+export function capabilityStatusJson(status: CapabilityStatus): {
   readonly capability: string;
   readonly harness: LedgerHarness;
   readonly axes: CapabilityAxes;
@@ -339,5 +554,22 @@ export function capabilityStatusJson(_status: CapabilityStatus): {
   readonly blocked: boolean;
   readonly blockedReason: BlockedReason | null;
 } {
-  throw new Error("capabilityStatusJson is not implemented");
+  return {
+    capability: status.capability,
+    harness: status.harness,
+    axes: {
+      deployment: status.axes.deployment,
+      support: status.axes.support,
+      nativeUse: status.axes.nativeUse,
+    },
+    demoted: status.resolution.demoted,
+    demotionReasons: status.resolution.reasons.map((reason) => ({
+      code: reason.code,
+      noun: reason.noun,
+      sentence: reason.sentence,
+    })),
+    provenHarnessVersion: status.resolution.provenHarnessVersion,
+    blocked: status.resolution.blocked,
+    blockedReason: status.resolution.blockedReason,
+  };
 }

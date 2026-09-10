@@ -20,11 +20,18 @@
 // that module's header for the exact substitutions.
 
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import {
+  assertControlAncestorFreedom,
+  DISCOVERED_PROJECT_SKILL_ROOTS,
   DISCOVERY_AXES,
   isAbsoluteEitherPlatform,
   ORACLE_DEFINITIONS,
+  ORACLE_FINDING_CODES,
   ORACLE_PLACEHOLDER_PROMPT,
   parseClaudeInitEvent,
   parseCodexPromptInput,
@@ -32,14 +39,19 @@ import {
   PI_GET_COMMANDS_REQUEST,
   readOracleOutput,
   runDiscoveryOracle,
+  runPairedDiscovery,
   splitJsonLines,
 } from "../src/adapters/capability-oracle.js";
 import type {
   DiscoveredSkill,
+  DiscoveryAxis,
   DiscoveryResult,
   OracleDefinition,
   OracleParse,
+  RunPairedDiscoveryOptions,
 } from "../src/adapters/capability-oracle.js";
+import type { BoundInputs, HarnessVersion } from "../src/core/capability-ledger.js";
+import { PROJECT_SKILL_ROOTS } from "../src/core/project-plan.js";
 import {
   CLAUDE_INSIDE_RECORDING,
   CLAUDE_OUTSIDE_RECORDING,
@@ -53,6 +65,19 @@ import {
   SYNTHETIC_PROJECT_ROOT,
 } from "./helpers/oracle-fixtures.js";
 import type { HarnessId } from "../src/types.js";
+
+/** A minimal SKILL.md a live probe project can offer a harness. */
+const PROBE_SKILL = [
+  "---",
+  "name: zzz-canary-widget",
+  "description: Use when the user asks to reticulate a splines manifest for the ZZZQ format.",
+  "---",
+  "",
+  "# ZZZ Canary Widget",
+  "",
+  "Reticulate the splines manifest.",
+  "",
+].join("\n");
 
 /** Every harness id, so the table can be proven total rather than spot-checked. */
 const ALL_HARNESSES: readonly HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
@@ -431,4 +456,221 @@ test("a truncated recording yields an unparsed reason and NO skill list, never a
   const noOracle = readOracleOutput("hermes", "anything", { cwd: SYNTHETIC_PROJECT_ROOT });
   assert.equal(noOracle.parse, null);
   assert.ok(noOracle.unparsedReason !== null);
+});
+
+// ---------------------------------------------------------------------------
+// The paired run: one command, two directories, one evidence unit
+// ---------------------------------------------------------------------------
+
+/** The inputs a proof binds to. Fixed values — this suite proves no demotion. */
+const BOUND_INPUTS: BoundInputs = {
+  skillSourceHash: "a".repeat(64),
+  mcpServerVersion: null,
+  evidenceHash: null,
+};
+
+const HARNESS_VERSION: HarnessVersion = { exact: "0.152.0", minorKey: "0.152", raw: "codex-cli 0.152.0" };
+
+/** A bare temporary directory, removed when the test that made it finishes. */
+async function scratchRoot(context: { after: (fn: () => Promise<void>) => void }, label: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), `alpha-aos-oracle-${label}-`));
+  context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  return root;
+}
+
+function pairedOptions(overrides: {
+  harness: "claude" | "codex" | "pi" | "hermes";
+  projectRoot: string;
+  controlRoot: string;
+  skillDirectories?: readonly string[];
+}): RunPairedDiscoveryOptions {
+  return {
+    harness: overrides.harness,
+    projectRoot: overrides.projectRoot,
+    controlRoot: overrides.controlRoot,
+    capability: "RESEARCH_SCIENTIFIC",
+    skillDirectories: overrides.skillDirectories ?? ["zzz-canary-widget"],
+    projectId: "0".repeat(16),
+    boundInputs: BOUND_INPUTS,
+    harnessVersion: HARNESS_VERSION,
+    timeoutMs: 120_000,
+  };
+}
+
+test("the ancestor walk reaches the filesystem root and records every directory it checked", async (t) => {
+  const control = await scratchRoot(t, "control");
+  const assertion = assertControlAncestorFreedom("pi", control);
+
+  assert.equal(assertion.freedom.asserted, true);
+  assert.deepEqual(assertion.offendingAncestors, []);
+  // A bare boolean would be unauditable. pi walks `.agents/skills` up through
+  // ancestors and, outside a repository, does not stop at a repository root but
+  // continues to the filesystem root — so the list has to show that it did.
+  assert.ok(assertion.freedom.checkedAncestors.length >= 2);
+  const last = assertion.freedom.checkedAncestors.at(-1) ?? "";
+  assert.equal(dirname(resolve(last)), resolve(last), `the walk stopped at ${last}, not at a filesystem root`);
+  for (const ancestor of assertion.freedom.checkedAncestors) {
+    assert.ok(!/[A-Za-z]:[\\/]Users[\\/][^\\/]+[\\/]?$/u.test(ancestor) || ancestor.startsWith("~"));
+  }
+});
+
+test("a project skill root in an ancestor of the control makes the unit INCOMPLETE naming that ancestor", async (t) => {
+  const parent = await scratchRoot(t, "contaminated");
+  // pi reads `.agents/skills` from the working directory AND its ancestors, so
+  // one placed here is exactly the false negative Pitfall 3 describes.
+  await mkdir(join(parent, ".agents", "skills", "zzz-canary-widget"), { recursive: true });
+  const control = join(parent, "control");
+  await mkdir(control, { recursive: true });
+  const project = await scratchRoot(t, "project");
+
+  const assertion = assertControlAncestorFreedom("pi", control);
+  assert.equal(assertion.freedom.asserted, false);
+  assert.equal(assertion.offendingAncestors.length, 1);
+  assert.ok(assertion.offendingAncestors[0]?.includes(basename(parent)));
+  assert.ok(assertion.offendingAncestors[0]?.includes(".agents/skills"));
+
+  const paired = await runPairedDiscovery(pairedOptions({ harness: "pi", projectRoot: project, controlRoot: control }));
+  if (paired.unit === null) {
+    // No pi on this host: the recorded unsupported reason is the assertion.
+    assert.ok(paired.unsupportedReason !== null);
+    return;
+  }
+  assert.equal(paired.unit.completeness, "INCOMPLETE");
+  assert.equal(paired.unit.negative, null);
+  assert.equal(paired.negatives.length, 0, "a negative was taken in a control that was already known unusable");
+  assert.ok(
+    paired.incompleteReasons.some((reason) => reason.includes(basename(parent))),
+    `no reason named the offending ancestor: ${paired.incompleteReasons.join(" | ")}`,
+  );
+  assert.ok(
+    paired.findings.some((finding) => finding.code === ORACLE_FINDING_CODES.controlAncestorHoldsSkillRoot),
+  );
+  // INCOMPLETE means the axis is not reportable, and it is not reported.
+  assert.equal(paired.unit.nativeUse, null);
+});
+
+test("one codex command run from two directories forms one evidence unit with an asserted control", async (t) => {
+  const project = await scratchRoot(t, "codex-project");
+  const control = await scratchRoot(t, "codex-control");
+  await mkdir(join(project, ".agents", "skills", "zzz-canary-widget"), { recursive: true });
+  await writeFile(join(project, ".agents", "skills", "zzz-canary-widget", "SKILL.md"), PROBE_SKILL, "utf8");
+
+  const paired = await runPairedDiscovery(pairedOptions({ harness: "codex", projectRoot: project, controlRoot: control }));
+
+  if (paired.unit === null) {
+    // A host without codex records unsupported WITH its reason. This branch is
+    // asserted rather than skipped: "no oracle here" is a result the ledger has
+    // to be able to carry, and CI legs take exactly this path.
+    assert.ok(paired.unsupportedReason !== null && paired.unsupportedReason.length > 0);
+    assert.equal(paired.positive?.skills, null);
+    assert.equal(paired.negatives.length, 0);
+    return;
+  }
+
+  assert.equal(paired.unit.completeness, "COMPLETE", paired.incompleteReasons.join(" | "));
+  assert.equal(paired.unit.nativeUse, "discovered");
+  assert.equal(paired.unit.positive?.polarity, "positive");
+  assert.equal(paired.unit.negative?.polarity, "negative");
+
+  // The negative half carries the assertion that makes it meaningful.
+  const freedom = paired.unit.negative?.ancestorFreedom;
+  assert.equal(freedom?.asserted, true);
+  assert.ok((freedom?.checkedAncestors.length ?? 0) > 0);
+
+  // Same command, two directories, and nothing else different.
+  assert.equal(paired.positive?.oracle?.command, paired.negatives[0]?.result.oracle?.command);
+  assert.notEqual(paired.positive?.cwd, paired.negatives[0]?.result.cwd);
+  assert.ok(paired.positive?.skills?.some((skill) => skill.directoryName === "zzz-canary-widget"));
+  assert.ok(!paired.negatives[0]?.result.skills?.some((skill) => skill.directoryName === "zzz-canary-widget"));
+});
+
+test("a pi unit carries two negatives: the different directory and the same directory with trust withheld", async (t) => {
+  const project = await scratchRoot(t, "pi-project");
+  const control = await scratchRoot(t, "pi-control");
+  await mkdir(join(project, ".pi", "skills", "zzz-pi-widget"), { recursive: true });
+  await writeFile(join(project, ".pi", "skills", "zzz-pi-widget", "SKILL.md"), PROBE_SKILL, "utf8");
+
+  const paired = await runPairedDiscovery(
+    pairedOptions({ harness: "pi", projectRoot: project, controlRoot: control, skillDirectories: ["zzz-pi-widget"] }),
+  );
+
+  if (paired.unit === null) {
+    assert.ok(paired.unsupportedReason !== null && paired.unsupportedReason.length > 0);
+    return;
+  }
+
+  const kinds = paired.negatives.map((negative) => negative.kind).sort();
+  assert.deepEqual(kinds, ["different-directory", "trust-withheld"]);
+
+  // The trust-withheld run is in the SAME directory as the positive: it changes
+  // the permission pi needs to read the pack, not the location of the pack.
+  const withheld = paired.negatives.find((negative) => negative.kind === "trust-withheld");
+  assert.equal(withheld?.result.cwd, project);
+  assert.equal(withheld?.result.skills?.filter((skill) => skill.scope === "project").length, 0);
+  assert.equal(paired.unit.completeness, "COMPLETE", paired.incompleteReasons.join(" | "));
+});
+
+test("a harness with no oracle produces a recorded unsupported paired result, never a false negative", async (t) => {
+  const project = await scratchRoot(t, "hermes-project");
+  const control = await scratchRoot(t, "hermes-control");
+  const paired = await runPairedDiscovery(
+    pairedOptions({ harness: "hermes", projectRoot: project, controlRoot: control }),
+  );
+
+  assert.equal(paired.unit, null);
+  assert.ok(paired.unsupportedReason?.includes("hermes"));
+  assert.equal(paired.positive?.skills, null);
+  assert.equal(paired.negatives.length, 0);
+  // The control was still constructed and checked, so the recorded absence is
+  // about the harness rather than about an unexamined directory.
+  assert.ok(paired.ancestorFreedom.checkedAncestors.length > 0);
+});
+
+test("the second codex project root, when populated, produces the shadow finding with its stable code", () => {
+  const parse = parseCodexPromptInput(CODEX_INSIDE_RECORDING, { cwd: SYNTHETIC_PROJECT_ROOT });
+  const shadow = parse.findings.find((finding) => finding.code === ORACLE_FINDING_CODES.codexSecondProjectRoot);
+
+  assert.ok(shadow !== undefined, `no shadow finding among ${JSON.stringify(parse.findings)}`);
+  assert.equal(shadow.code, "CODEX_SECOND_PROJECT_ROOT_SHADOW");
+  assert.ok(shadow.detail.includes(`${SYNTHETIC_PROJECT_ROOT}/.codex/skills`));
+
+  // Reported, never acted on: the second root is not a write target, so the
+  // table alpha-AOS writes through still names exactly one root for codex.
+  assert.equal(PROJECT_SKILL_ROOTS.codex, ".agents/skills");
+  assert.ok(DISCOVERED_PROJECT_SKILL_ROOTS.codex.includes(".codex/skills"));
+  assert.ok(DISCOVERED_PROJECT_SKILL_ROOTS.codex.includes(".agents/skills"));
+
+  // Outside the project codex loads no project-local root at all, so there is
+  // no shadow to report and none is reported.
+  const outside = parseCodexPromptInput(CODEX_OUTSIDE_RECORDING, { cwd: SYNTHETIC_CONTROL_ROOT });
+  assert.equal(
+    outside.findings.find((finding) => finding.code === ORACLE_FINDING_CODES.codexSecondProjectRoot),
+    undefined,
+  );
+});
+
+test("this module cannot produce the invocation axis, at the type level and in its own source", async () => {
+  // The oracles prove LOADING, not selection. Treating "the harness listed the
+  // skill" as use would reintroduce the configuration-file-presence-is-success
+  // error one layer up, which is the single thing the validation constraint in
+  // PROJECT.md forbids.
+
+  // @ts-expect-error the invocation axis is not assignable from this module's axis
+  const notAssignable: DiscoveryAxis = "invoked";
+  assert.equal(notAssignable, "invoked");
+  assert.ok(!DISCOVERY_AXES.includes("invoked" as (typeof DISCOVERY_AXES)[number]));
+
+  // Compiled to dist/test, so the repository root is two levels up.
+  const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+  const source = await readFile(join(repositoryRoot, "src", "adapters", "capability-oracle.ts"), "utf8");
+  const executable = source.split("\n").filter((line) => !/^\s*[/*]/u.test(line));
+  assert.deepEqual(
+    executable.filter((line) => line.includes("invoked")),
+    [],
+    "an executable line in the oracle adapter names the invocation axis",
+  );
+
+  // Every result this module returns carries one of the two, and only those.
+  const result = await runDiscoveryOracle({ harness: "hermes", cwd: process.cwd() });
+  assert.ok(DISCOVERY_AXES.includes(result.nativeUse));
 });

@@ -18,8 +18,22 @@
 // forbids. `DiscoveryAxis` is therefore narrower than the ledger's native-use
 // union, and nothing here can widen it.
 
-import { isAbsolute, posix, win32 } from "node:path";
-import type { NativeUseState, OracleRecord } from "../core/capability-ledger.js";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { dirname, extname, isAbsolute, join, posix, resolve, sep, win32 } from "node:path";
+import type {
+  AncestorFreedom,
+  BoundInputs,
+  CapabilityProof,
+  EvidencePolarity,
+  EvidenceUnit,
+  HarnessVersion,
+  LedgerHarness,
+  NativeUseState,
+  OracleRecord,
+} from "../core/capability-ledger.js";
+import { pairEvidence } from "../core/capability-ledger.js";
+import { aliasPath, createPathAliases } from "../core/paths.js";
 import { commandProbeEnvironment, isDirectlyExecutable, resolveCommand, runProcess } from "../core/process.js";
 import type { HarnessId } from "../types.js";
 
@@ -279,6 +293,52 @@ export const ORACLE_TIMEOUT_MS = 120_000;
  */
 export const ORACLE_EXCERPT_BYTES = 512 * 1024;
 
+/** An executable that can be launched with no interpreter, plus its prefix args. */
+export interface DirectLaunch {
+  readonly executable: string;
+  readonly argsPrefix: readonly string[];
+}
+
+/** The one shim shape with a proven direct equivalent: npm's generated `.cmd`. */
+const NPM_SHIM_ENTRY = /"%dp0%\\(node_modules\\[^"]+\.(?:js|mjs|cjs))"/iu;
+
+/**
+ * Turns a resolved command into something `runProcess` may launch, or null.
+ *
+ * Directly executable paths pass through untouched. The one exception is npm's
+ * generated Windows `.cmd` shim, which is a batch file whose entire job is to
+ * run `node <script>` — the script sits beside the shim under its own
+ * `node_modules`, and launching it with the running Node binary is a PROVEN
+ * direct equivalent rather than a guess. This is the same reasoning
+ * `resolveNodePackageCli` applies to the npm and npx shims; codex and pi are
+ * both distributed this way, so without it every discovery oracle on Windows
+ * reports `unsupported` and the paired run has nothing to pair.
+ *
+ * The extracted path is verified before it is used: it must be under the shim's
+ * own directory and it must exist. Anything else returns null, and the caller
+ * reports `unsupported` — a shim this function does not understand is never
+ * handed to a shell.
+ */
+export function resolveDirectLaunch(resolvedCommand: string): DirectLaunch | null {
+  if (isDirectlyExecutable(resolvedCommand)) return { executable: resolvedCommand, argsPrefix: [] };
+  if (extname(resolvedCommand).toLowerCase() !== ".cmd") return null;
+
+  let text: string;
+  try {
+    text = readFileSync(resolvedCommand, "utf8");
+  } catch {
+    return null;
+  }
+  const match = NPM_SHIM_ENTRY.exec(text);
+  const relative = match?.[1];
+  if (relative === undefined) return null;
+
+  const directory = dirname(resolvedCommand);
+  const script = resolve(directory, relative.replace(/\\/gu, sep));
+  if (!isUnder(directory, script) || !existsSync(script)) return null;
+  return { executable: process.execPath, argsPrefix: [script] };
+}
+
 export interface RunDiscoveryOracleOptions {
   readonly harness: HarnessId;
   /** The directory to run in. This is the positive/negative switch, and nothing else is. */
@@ -357,8 +417,8 @@ export async function runDiscoveryOracle(options: RunDiscoveryOracleOptions): Pr
     );
   }
 
-  const executable = definition.command.map(resolveCommand).find((candidate) => candidate !== null) ?? null;
-  if (executable === null) {
+  const resolved = definition.command.map(resolveCommand).find((candidate) => candidate !== null) ?? null;
+  if (resolved === null) {
     return unsupported(
       harness,
       cwd,
@@ -366,21 +426,24 @@ export async function runDiscoveryOracle(options: RunDiscoveryOracleOptions): Pr
       definition.costsModelTurn,
     );
   }
-  if (!isDirectlyExecutable(executable)) {
+  const launch = resolveDirectLaunch(resolved);
+  if (launch === null) {
     return unsupported(
       harness,
       cwd,
-      `${harness} resolved to ${executable}, which would need an interpreter; alpha-AOS does not shell out`,
+      `${harness} resolved to ${aliasPath(resolved, createPathAliases())}, which would need an interpreter and has no ` +
+        "proven direct equivalent; alpha-AOS does not shell out",
       definition.costsModelTurn,
     );
   }
 
-  const args = options.trustWithheld === true && definition.trustWithheldArgs !== null
+  const declared = options.trustWithheld === true && definition.trustWithheldArgs !== null
     ? definition.trustWithheldArgs
     : definition.args;
+  const args = [...launch.argsPrefix, ...declared];
 
   const result = await runProcess({
-    executable,
+    executable: launch.executable,
     args,
     cwd,
     timeoutMs: options.timeoutMs ?? ORACLE_TIMEOUT_MS,
@@ -390,7 +453,9 @@ export async function runDiscoveryOracle(options: RunDiscoveryOracleOptions): Pr
   });
 
   const record: OracleRecord = {
-    command: [executable, ...args].join(" "),
+    // Aliased before it is recorded: this string is persisted into the ledger,
+    // and the resolved executable path routinely sits under the user's home.
+    command: [aliasPath(launch.executable, createPathAliases()), ...args].join(" "),
     exitCode: result.exitCode,
     stdoutFingerprint: result.stdout.sha256,
     stderrFingerprint: result.stderr.sha256,
@@ -610,7 +675,26 @@ export function parseCodexPromptInput(stdout: string, context: OracleParseContex
   if (roots.size === 0) {
     throw new OracleParseError("the skills-instructions block declares no skill roots");
   }
-  void context;
+
+  // codex 0.152.0 discovers a SECOND project-local root beside the shared
+  // `.agents/skills`, and `PROJECT_SKILL_ROOTS` knows only the shared one. This
+  // is reported and NOT acted on: adding it as a write target would widen the
+  // receipt schema's reach without adding a harness and complicate removal
+  // confinement. But a user whose repository already has skills there would
+  // otherwise see a shadow alpha-AOS never mentions, so it is named — only when
+  // a skill actually resolved under it, because an empty directory casts none.
+  for (const skill of skills) {
+    if (skill.root === null || !endsWithSegments(skill.root, [".codex", "skills"])) continue;
+    if (!isUnder(context.cwd, skill.root)) continue;
+    findings.push({
+      code: ORACLE_FINDING_CODES.codexSecondProjectRoot,
+      detail:
+        `codex loaded ${skill.advertisedName} from ${skill.root}, a project-local root alpha-AOS does not write to; ` +
+        "it is reported so the shadow is visible, and left alone so removal stays confined to one root per harness",
+    });
+    break;
+  }
+
   return { skills, roots: [...roots.values()], mcpServers: [], findings };
 }
 
@@ -753,6 +837,355 @@ export function parseClaudeInitEvent(stdout: string, context: OracleParseContext
 }
 
 // ---------------------------------------------------------------------------
+// The paired run and its constructed negative control
+// ---------------------------------------------------------------------------
+
+/**
+ * The project-local skill roots each harness DISCOVERS, as relative POSIX paths.
+ *
+ * Deliberately not `PROJECT_SKILL_ROOTS`, which is the table of roots alpha-AOS
+ * WRITES to. A harness reads more than alpha-AOS writes — codex discovers
+ * `.codex/skills` beside the shared `.agents/skills`, and pi and hermes both
+ * read the shared root as well as their own — and the ancestor-freedom check
+ * has to cover everything the harness would LOAD from, not everything
+ * alpha-AOS would put there. Checking only the write targets would clear a
+ * control directory whose ancestor holds a root the harness reads anyway,
+ * which is the exact false negative this check exists to prevent.
+ */
+export const DISCOVERED_PROJECT_SKILL_ROOTS: Readonly<Record<LedgerHarness, readonly string[]>> = {
+  claude: [".claude/skills"],
+  codex: [".agents/skills", ".codex/skills"],
+  pi: [".pi/skills", ".agents/skills"],
+  hermes: [".hermes/skills", ".agents/skills"],
+};
+
+/** Stable codes for the things a paired run reports without acting on them. */
+export const ORACLE_FINDING_CODES = {
+  /**
+   * codex discovers a SECOND project-local root beside the shared one, and
+   * `PROJECT_SKILL_ROOTS` knows only the shared one. This plan deliberately
+   * does not add it as a write target — one root per harness keeps removal
+   * confinement simple and `.agents/skills` is the cross-harness standard — but
+   * a repository that already has skills there would otherwise cast a shadow
+   * alpha-AOS never mentions. Reported, never acted on.
+   */
+  codexSecondProjectRoot: "CODEX_SECOND_PROJECT_ROOT_SHADOW",
+  /** An ancestor of the control directory holds a root the harness would load from. */
+  controlAncestorHoldsSkillRoot: "CONTROL_ANCESTOR_HOLDS_PROJECT_SKILL_ROOT",
+  /** The control directory saw the capability, so it is not a control for it. */
+  controlDiscoveredCapability: "CONTROL_DISCOVERED_THE_CAPABILITY",
+} as const;
+
+/** Whether `candidate` is `root` or sits beneath it, in either separator form. */
+function isUnder(root: string, candidate: string): boolean {
+  const normalize = (value: string): string => {
+    const slashed = value.replace(/[\\/]+/gu, "/").replace(/\/+$/u, "");
+    return process.platform === "win32" ? slashed.toLowerCase() : slashed;
+  };
+  const base = normalize(root);
+  const target = normalize(candidate);
+  return target === base || target.startsWith(`${base}/`);
+}
+
+/** The outcome of walking a control directory's ancestry. */
+export interface ControlAssertion {
+  readonly freedom: AncestorFreedom;
+  /** Every ancestor found holding a root the harness would load from. */
+  readonly offendingAncestors: readonly string[];
+}
+
+/**
+ * Walks a control directory and every ancestor up to the filesystem root, and
+ * reports whether any of them holds a project skill root the harness reads.
+ *
+ * pi loads `.agents/skills` from the working directory AND its ancestors, and
+ * stops at a git repository root — OR at the filesystem root when there is no
+ * repository. D-14's control is "a temporary directory that is not a
+ * repository", which is precisely the case where the walk does not stop early.
+ * A `.agents/skills` anywhere on that path therefore makes the negative
+ * silently false, and a negative that merely happened to pass on one host's
+ * temp path is not evidence.
+ *
+ * The home directory is the one EXEMPT ancestor, and the exemption is recorded
+ * on the entry rather than applied silently. `~/.agents/skills`,
+ * `~/.claude/skills` and `~/.codex/skills` all exist on an ordinary developer
+ * host, and every system temporary directory on Windows sits beneath them — so
+ * a rule without this exemption reports every control directory on such a host
+ * as contaminated and no CAPA-06 negative could ever be taken. Those roots are
+ * the harness's OWN user roots: measured, pi classifies what it loads from them
+ * as `scope: "user"`, which is the side of the line a negative control is
+ * supposed to be on. A project skill root in any OTHER ancestor is still
+ * disqualifying.
+ *
+ * The checked list is returned so the assertion is auditable rather than a bare
+ * boolean, and it names the exemption where one applied. Paths are aliased
+ * before they are recorded, because this list is persisted into the ledger.
+ */
+export function assertControlAncestorFreedom(harness: LedgerHarness, controlRoot: string): ControlAssertion {
+  const relativeRoots = DISCOVERED_PROJECT_SKILL_ROOTS[harness];
+  const aliases = createPathAliases();
+  const home = resolve(homedir());
+  const checked: string[] = [];
+  const offending: string[] = [];
+
+  let current = resolve(controlRoot);
+  for (;;) {
+    const alias = aliasPath(current, aliases);
+    const held = relativeRoots.filter((relative) => existsSync(join(current, ...relative.split("/"))));
+    if (held.length === 0) {
+      checked.push(alias);
+    } else if (current === home) {
+      checked.push(`${alias} holds ${held.join(", ")} as the harness user root, loaded as user scope — exempt`);
+    } else {
+      checked.push(`${alias} holds ${held.join(", ")}`);
+      for (const relative of held) offending.push(`${alias} holds ${relative}`);
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+
+  return {
+    freedom: { asserted: offending.length === 0, checkedAncestors: checked },
+    offendingAncestors: offending,
+  };
+}
+
+/** One negative half, and which kind of control produced it. */
+export interface PairedNegative {
+  /**
+   * `different-directory` is D-14's control: the same command, one directory
+   * over. `trust-withheld` is pi's second one: the SAME directory with project
+   * trust refused, which is arguably the stronger negative because it changes
+   * nothing except the permission the harness needs to read the pack.
+   */
+  readonly kind: "different-directory" | "trust-withheld";
+  readonly result: DiscoveryResult;
+  readonly proof: CapabilityProof | null;
+}
+
+export interface RunPairedDiscoveryOptions {
+  readonly harness: LedgerHarness;
+  readonly projectRoot: string;
+  readonly controlRoot: string;
+  readonly capability: string;
+  /**
+   * The skill DIRECTORY names this capability materializes.
+   *
+   * Directory names rather than advertised names, because the advertised name
+   * differs per harness for any skill whose frontmatter disagrees with its
+   * directory, and the directory is the one thing all three agree on.
+   */
+  readonly skillDirectories: readonly string[];
+  readonly projectId: string | null;
+  readonly boundInputs: BoundInputs;
+  readonly harnessVersion: HarnessVersion;
+  readonly timeoutMs?: number;
+}
+
+export interface PairedDiscovery {
+  readonly harness: LedgerHarness;
+  readonly capability: string;
+  /** The evidence unit, or null when no oracle ran at all. */
+  readonly unit: EvidenceUnit | null;
+  /** Why no oracle ran. Null when one did. */
+  readonly unsupportedReason: string | null;
+  readonly positive: DiscoveryResult | null;
+  readonly negatives: readonly PairedNegative[];
+  readonly ancestorFreedom: AncestorFreedom;
+  /** The unit's own reasons plus anything that made the control unusable. */
+  readonly incompleteReasons: readonly string[];
+  readonly findings: readonly OracleFinding[];
+}
+
+/** Whether a result lists every skill directory the capability materializes. */
+function sawCapability(result: DiscoveryResult, skillDirectories: readonly string[]): boolean {
+  if (result.skills === null || skillDirectories.length === 0) return false;
+  const seen = new Set(result.skills.map((skill) => skill.directoryName));
+  return skillDirectories.every((directory) => seen.has(directory));
+}
+
+function proofFor(options: {
+  readonly base: RunPairedDiscoveryOptions;
+  readonly result: DiscoveryResult;
+  readonly polarity: EvidencePolarity;
+  readonly ancestorFreedom: AncestorFreedom | null;
+  readonly observedAt: string;
+}): CapabilityProof | null {
+  const { base, result, polarity } = options;
+  if (result.oracle === null) return null;
+  return {
+    projectId: base.projectId,
+    harness: base.harness,
+    capability: base.capability,
+    polarity,
+    // A positive that listed the skills is `discovered`; anything else is
+    // `unverified`. There is no third value this module can produce.
+    nativeUse: sawCapability(result, base.skillDirectories) ? "discovered" : "unverified",
+    blockedReason: null,
+    boundInputs: base.boundInputs,
+    harnessVersion: base.harnessVersion,
+    ancestorFreedom: options.ancestorFreedom,
+    observedAt: options.observedAt,
+    oracle: result.oracle,
+  };
+}
+
+/**
+ * Runs ONE oracle definition from TWO directories and pairs the results.
+ *
+ * That is D-14 made literal: same command, two working directories, one
+ * evidence unit. Nothing else differs between the halves — not the arguments,
+ * not the environment, not the parser — so a difference in what came back is a
+ * difference the directory made.
+ *
+ * The negative control is CONSTRUCTED before it is used. Its ancestry is walked
+ * and asserted free of any root the harness would load from, and the checked
+ * list rides on the negative half. If an ancestor holds one, the control is
+ * unusable and the negative is NOT taken: the unit comes back INCOMPLETE naming
+ * the offending ancestor, because a negative from a contaminated control is
+ * worse than no negative at all — it reads as proof.
+ *
+ * For pi the trust-withheld run is added as a SECOND negative rather than as a
+ * replacement, so a pi unit carries both the different-directory control and
+ * the same-directory-without-trust one.
+ */
+export async function runPairedDiscovery(options: RunPairedDiscoveryOptions): Promise<PairedDiscovery> {
+  const { harness, capability } = options;
+  const control = assertControlAncestorFreedom(harness, options.controlRoot);
+  const findings: OracleFinding[] = [];
+  const extraReasons: string[] = [];
+
+  const timeout = options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs };
+  const positive = await runDiscoveryOracle({ harness, cwd: options.projectRoot, ...timeout });
+  findings.push(...positive.findings);
+
+  const observedAt = new Date().toISOString();
+  const positiveProof = proofFor({
+    base: options,
+    result: positive,
+    polarity: "positive",
+    ancestorFreedom: null,
+    observedAt,
+  });
+
+  if (positiveProof === null) {
+    // No oracle ran, so there is nothing to pair. Recorded as unsupported with
+    // its reason rather than reported as a capability that is not there.
+    return {
+      harness,
+      capability,
+      unit: null,
+      unsupportedReason: positive.unsupportedReason ?? positive.unparsedReason,
+      positive,
+      negatives: [],
+      ancestorFreedom: control.freedom,
+      incompleteReasons: [],
+      findings,
+    };
+  }
+
+  if (!control.freedom.asserted) {
+    for (const ancestor of control.offendingAncestors) {
+      findings.push({
+        code: ORACLE_FINDING_CODES.controlAncestorHoldsSkillRoot,
+        detail: `${ancestor}, which ${harness} would load from, so a negative taken in the control would be false`,
+      });
+      extraReasons.push(
+        `the control directory is unusable: ${ancestor}, so the negative was NOT taken rather than taken and believed`,
+      );
+    }
+    const unit = pairEvidence(positiveProof, null);
+    return {
+      harness,
+      capability,
+      unit,
+      unsupportedReason: null,
+      positive,
+      negatives: [],
+      ancestorFreedom: control.freedom,
+      incompleteReasons: [...unit.incompleteReasons, ...extraReasons],
+      findings,
+    };
+  }
+
+  const negatives: PairedNegative[] = [];
+
+  const differentDirectory = await runDiscoveryOracle({ harness, cwd: options.controlRoot, ...timeout });
+  findings.push(...differentDirectory.findings);
+  negatives.push({
+    kind: "different-directory",
+    result: differentDirectory,
+    proof: proofFor({
+      base: options,
+      result: differentDirectory,
+      polarity: "negative",
+      ancestorFreedom: control.freedom,
+      observedAt,
+    }),
+  });
+
+  // pi gates project resources behind a trust decision that defaults to asking,
+  // so withholding trust in the SAME directory is a second, independent
+  // negative: it changes only the permission, not the location.
+  if (ORACLE_DEFINITIONS[harness]?.trustWithheldArgs != null) {
+    const withheld = await runDiscoveryOracle({
+      harness,
+      cwd: options.projectRoot,
+      trustWithheld: true,
+      ...timeout,
+    });
+    findings.push(...withheld.findings);
+    negatives.push({
+      kind: "trust-withheld",
+      result: withheld,
+      proof: proofFor({
+        base: options,
+        result: withheld,
+        polarity: "negative",
+        // The trust-withheld control runs INSIDE the project, so the ancestor
+        // question does not apply to it: the pack is deliberately reachable and
+        // trust is what is withheld. The assertion is recorded as not applicable
+        // rather than asserted true, so it cannot be mistaken for one that ran.
+        ancestorFreedom: { asserted: false, checkedAncestors: [] },
+        observedAt,
+      }),
+    });
+  }
+
+  const primary = negatives.find((negative) => negative.kind === "different-directory") ?? null;
+  let primaryProof = primary?.proof ?? null;
+
+  if (primary !== null && sawCapability(primary.result, options.skillDirectories)) {
+    // The control saw the capability. That is not a negative — it is evidence
+    // the capability is reachable outside the project, which falsifies the
+    // claim the pair exists to make. Reporting it as a negative would let the
+    // unit read COMPLETE off a control that agreed with the positive.
+    findings.push({
+      code: ORACLE_FINDING_CODES.controlDiscoveredCapability,
+      detail: `the ${harness} control at ${aliasPath(resolve(options.controlRoot), createPathAliases())} listed ${capability}`,
+    });
+    extraReasons.push(
+      `the control discovered ${capability} as well, so it is not a control for it and the negative was discarded`,
+    );
+    primaryProof = null;
+  }
+
+  const unit = pairEvidence(positiveProof, primaryProof);
+  return {
+    harness,
+    capability,
+    unit,
+    unsupportedReason: null,
+    positive,
+    negatives,
+    ancestorFreedom: control.freedom,
+    incompleteReasons: [...unit.incompleteReasons, ...extraReasons],
+    findings,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Shared path helpers
 // ---------------------------------------------------------------------------
 
@@ -780,4 +1213,18 @@ export function joinDiscovered(root: string, remainder: string): string {
 /** Whether a path is absolute in either platform's terms, not only this host's. */
 export function isAbsoluteEitherPlatform(value: string): boolean {
   return isAbsolute(value) || posix.isAbsolute(value) || win32.isAbsolute(value);
+}
+
+/**
+ * Whether a path ends with these segments, whichever separator wrote it.
+ *
+ * A live run reads paths in the host's own form and a recorded one is replayed
+ * on all three platforms, so a trailing-substring comparison against one
+ * separator would answer differently depending on where the suite runs.
+ */
+export function endsWithSegments(value: string, segments: readonly string[]): boolean {
+  const parts = value.split(/[\\/]/u).filter((segment) => segment.length > 0);
+  if (parts.length < segments.length) return false;
+  const tail = parts.slice(parts.length - segments.length);
+  return segments.every((segment, index) => tail[index] === segment);
 }

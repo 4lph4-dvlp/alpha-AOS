@@ -33,7 +33,7 @@ import { applyEccSkillSync, planEccSkillSync } from "./core/ecc-skills.js";
 import { runMcpFixture } from "./core/mcp-fixture.js";
 import { applyMcpSync, mcpServerIds, planMcpSync } from "./core/mcp.js";
 import { applyClaudeSkillPolicy, planClaudeSkillPolicy } from "./core/skill-policy.js";
-import { runMcpFilterProxy } from "./core/mcp-proxy.js";
+import { MCP_SERVER_IDS, runMcpFilterProxy } from "./core/mcp-proxy.js";
 import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/update.js";
 import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
@@ -210,8 +210,14 @@ async function main(): Promise<void> {
   const lock = await loadLock(root);
 
   if (command === "mcp-proxy") {
-    const server = args[1] as McpServerId | undefined;
-    if (server !== "firecrawl") throw new Error("Usage: alpha-aos mcp-proxy firecrawl");
+    // Every pinned server can be fronted, not only the one alpha-AOS filters:
+    // a server with no tool allowlist is forwarded unfiltered, which is what
+    // makes it observable at all (D-01).
+    const requested = args[1] ?? "";
+    const server = MCP_SERVER_IDS.find((id) => id === requested);
+    if (server === undefined) {
+      throw new Error(`Usage: alpha-aos mcp-proxy <${MCP_SERVER_IDS.join("|")}>`);
+    }
     const locked = lock.components.mcp?.[server];
     if (!locked) throw new Error(`Stable lock has no MCP component: ${server}`);
     await runMcpFilterProxy(server, locked);

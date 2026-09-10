@@ -11,6 +11,7 @@
 // fingerprinted evidence instead of terminal output.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -21,6 +22,8 @@ import { loadLock } from "../src/core/catalog.js";
 import {
   allowedMcpTools,
   BoundedStdioTransport,
+  MCP_SERVER_IDS,
+  mcpPolicyRefusal,
   upstreamEnvironment,
   upstreamEnvironmentPolicy,
   upstreamProcessSpec,
@@ -402,15 +405,28 @@ test("a tool outside the allowlist is refused before it reaches upstream", async
   assert.notEqual(allow, null, "firecrawl must have an alpha-AOS tool allowlist");
   assert.equal(allow?.has(DISALLOWED_TOOL), false, `${DISALLOWED_TOOL} must not be allowlisted`);
 
-  // The guard below is the proxy's own call-path handler, reproduced verbatim.
-  // Keeping the source assertion beside it means the two cannot drift apart
-  // silently: if the refusal is ever deleted from the proxy, this test's
-  // premise fails here rather than passing against a policy nobody enforces.
+  // The guard below stands in for the proxy's own call-path handler. Keeping a
+  // source assertion beside it means the two cannot drift apart silently: if
+  // the refusal is ever deleted from the proxy, this test's premise fails here
+  // rather than passing against a policy nobody enforces. The shape moved when
+  // filtering and observation were split — a null allowlist is now forwarded
+  // rather than refused — so the assertion follows the guard, not its old text.
   const proxySource = await readFile(join(repositoryRoot, "src", "core", "mcp-proxy.ts"), "utf8");
   assert.match(
     proxySource,
-    /if \(!allow\.has\(request\.params\.name\)\) throw new Error\(`MCP tool is not allowed by alpha-aos policy: \$\{request\.params\.name\}`\);/u,
-    "the proxy's call handler must still refuse a name outside the allowlist",
+    /if \(allow && !allow\.has\(tool\)\) \{/u,
+    "the proxy's call handler must still refuse a name outside a non-null allowlist",
+  );
+  assert.match(
+    proxySource,
+    /throw new Error\(mcpPolicyRefusal\(tool\)\);/u,
+    "the refusal must still be thrown from the call handler",
+  );
+  // Byte-identical, not merely matching: Phase 1 D-11 made this a contract.
+  assert.equal(
+    mcpPolicyRefusal(DISALLOWED_TOOL),
+    `MCP tool is not allowed by alpha-aos policy: ${DISALLOWED_TOOL}`,
+    "the policy refusal string is a stable contract and may not be reworded",
   );
 
   // Positive control: an allowlisted name is forwarded and does reach upstream.
@@ -1042,5 +1058,27 @@ test("filter mode records nothing even when a sink is supplied", async (context)
     await child.observations(),
     [],
     "D-02: the everyday filter proxy is not an observation surface",
+  );
+});
+
+test("the CLI can front every pinned server, not only the filtered one", async () => {
+  // `alpha-aos mcp-proxy <id>` is what a harness config points at, so the
+  // command's own argument gate decides whether context7 and exa can be
+  // observed at all. Driven through the built CLI: a unit test of
+  // MCP_SERVER_IDS would not have caught the branch that refused them.
+  const result = spawnSync(process.execPath, [join(repositoryRoot, "dist", "src", "cli.js"), "mcp-proxy", "bogus"], {
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  assert.notEqual(result.status, 0, "an unknown server id must be refused");
+  const message = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+  for (const server of MCP_SERVER_IDS) {
+    assert.ok(message.includes(server), `the usage message must name ${server}: ${message}`);
+  }
+  assert.deepEqual(
+    [...MCP_SERVER_IDS].sort(),
+    ["context7", "exa", "firecrawl"],
+    "the frontable set is the pinned set, derived from the upstream environment table",
   );
 });

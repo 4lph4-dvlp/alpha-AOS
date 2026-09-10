@@ -34,6 +34,13 @@ const UPSTREAM_ENVIRONMENT_NAMES: Record<McpServerId, readonly string[]> = {
   context7: ["CONTEXT7_API_KEY"],
 };
 
+/**
+ * The closed set of servers alpha-AOS can front. Derived from the environment
+ * table rather than restated, so a server that gains an environment
+ * declaration cannot be forgotten here.
+ */
+export const MCP_SERVER_IDS: readonly McpServerId[] = Object.keys(UPSTREAM_ENVIRONMENT_NAMES) as McpServerId[];
+
 /** Budget for the retained, redacted excerpt of upstream stderr. */
 const UPSTREAM_STDERR_CAP = 64 * 1024;
 
@@ -227,27 +234,127 @@ export function upstreamProcessSpec(serverId: McpServerId, locked: LockedPackage
   };
 }
 
-export async function runMcpFilterProxy(serverId: McpServerId, locked: LockedPackage): Promise<void> {
+/**
+ * What a proxy session is FOR, which is not the same question as what it
+ * allows. Filtering is governed by `allowedMcpTools` in both modes; the mode
+ * decides only whether the calls that cross are recorded.
+ *
+ * `filter` is the everyday configuration a harness talks to. `observe` is the
+ * canary configuration (D-02): additive, in the path only while a capability
+ * is being proven, and never a widening of what may be called.
+ */
+export type McpProxyMode = "filter" | "observe";
+
+/**
+ * One recorded tool call. Deliberately closed: there is no argument field and
+ * no response field, because arguments are where credentials live and a
+ * record is an observable surface — it reaches a ledger and a CI log. The
+ * evidence CAPA-01 and CAPA-02 need is that a named tool was called and how
+ * it ended, not what was passed to it.
+ */
+export interface McpObservation {
+  readonly server: McpServerId;
+  readonly tool: string;
+  /** ISO-8601, when the outcome was known. */
+  readonly at: string;
+  /** The locked upstream version this call was answered by. */
+  readonly upstreamVersion: string;
+  readonly outcome: "ok" | "denied";
+}
+
+/**
+ * Where observations go. One method, so a canary can supply a file-backed or
+ * ledger-backed sink without this module knowing either exists.
+ */
+export interface McpObservationSink {
+  record(observation: McpObservation): void;
+}
+
+export interface McpProxyOptions {
+  /** Defaults to `filter`, the everyday configuration. */
+  mode?: McpProxyMode;
+  /** Consulted only in `observe` mode. */
+  sink?: McpObservationSink;
+  /**
+   * The upstream child to front. Defaults to the pinned package launched
+   * through npx; a canary runtime supplies its own so a session can be driven
+   * against a tree that was already verified rather than resolved again.
+   */
+  upstream?: ProtocolProcessSpec;
+}
+
+/**
+ * The refusal a denied tool produces.
+ *
+ * Phase 1 D-11 made this string a contract rather than a diagnostic: callers
+ * match on it. It is declared once so a reworded copy cannot drift away from
+ * the one the tests pin.
+ */
+export function mcpPolicyRefusal(tool: string): string {
+  return `MCP tool is not allowed by alpha-aos policy: ${tool}`;
+}
+
+function observe(
+  options: McpProxyOptions,
+  serverId: McpServerId,
+  locked: LockedPackage,
+  tool: string,
+  outcome: McpObservation["outcome"],
+): void {
+  if (options.mode !== "observe") return;
+  options.sink?.record({
+    server: serverId,
+    tool,
+    at: new Date().toISOString(),
+    upstreamVersion: locked.version,
+    outcome,
+  });
+}
+
+/**
+ * Fronts one pinned MCP server for a harness.
+ *
+ * A server with no allowlist is forwarded unfiltered rather than refused: a
+ * null `allowedMcpTools` means alpha-AOS has no tool policy for that server,
+ * which is a reason to pass its surface through, not a reason to refuse to
+ * stand up the proxy at all. That refusal is what kept the observation seam
+ * off context7 and exa, the two servers a capability canary reaches first.
+ */
+export async function runMcpProxy(
+  serverId: McpServerId,
+  locked: LockedPackage,
+  options: McpProxyOptions = {},
+): Promise<void> {
   const allow = allowedMcpTools(serverId);
-  if (!allow) throw new Error(`${serverId} does not require an alpha-AOS MCP filter proxy`);
-  const upstreamTransport = new BoundedStdioTransport(upstreamProcessSpec(serverId, locked));
-  const client = new Client({ name: "alpha-aos-mcp-filter", version: "0.1.0" });
+  const upstreamTransport = new BoundedStdioTransport(options.upstream ?? upstreamProcessSpec(serverId, locked));
+  const client = new Client({ name: `alpha-aos-mcp-${options.mode ?? "filter"}`, version: "0.1.0" });
   await client.connect(upstreamTransport);
 
   const server = new Server(
-    { name: `alpha-aos-${serverId}-filter`, version: "0.1.0" },
+    { name: `alpha-aos-${serverId}-${options.mode ?? "filter"}`, version: "0.1.0" },
     {
       capabilities: { tools: {} },
-      instructions: `${serverId} tool surface filtered by alpha-aos policy.`,
+      instructions: allow
+        ? `${serverId} tool surface filtered by alpha-aos policy.`
+        : `${serverId} tool surface fronted by alpha-aos.`,
     },
   );
   server.setRequestHandler(ListToolsRequestSchema, async (request) => {
     const result = await client.listTools(request.params);
+    if (!allow) return result;
     return { ...result, tools: result.tools.filter((tool) => allow.has(tool.name)) };
   });
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (!allow.has(request.params.name)) throw new Error(`MCP tool is not allowed by alpha-aos policy: ${request.params.name}`);
-    return client.callTool(request.params);
+    const tool = request.params.name;
+    if (allow && !allow.has(tool)) {
+      // Recorded BEFORE the throw: a policy refusal is evidence that the model
+      // reached for a tool, which is exactly what a capability canary needs.
+      observe(options, serverId, locked, tool, "denied");
+      throw new Error(mcpPolicyRefusal(tool));
+    }
+    const result = await client.callTool(request.params);
+    observe(options, serverId, locked, tool, "ok");
+    return result;
   });
 
   // Downstream is the harness alpha-AOS itself is inside — the trusted side of
@@ -260,4 +367,84 @@ export async function runMcpFilterProxy(serverId: McpServerId, locked: LockedPac
   process.once("SIGINT", () => { void close(); });
   process.once("SIGTERM", () => { void close(); });
   await server.connect(downstream);
+}
+
+/**
+ * @deprecated Use `runMcpProxy`. Kept so the CLI's call site keeps working
+ * while filtering stops being the module's only mode.
+ */
+export async function runMcpFilterProxy(serverId: McpServerId, locked: LockedPackage): Promise<void> {
+  return runMcpProxy(serverId, locked, { mode: "filter" });
+}
+
+/** What `openObservedUpstream` hands back. */
+export interface ObservedUpstream {
+  /**
+   * The connected upstream client. Calls made directly through it bypass the
+   * recording seam; `callTool` below is the observed path.
+   */
+  readonly client: Client;
+  readonly transport: BoundedStdioTransport;
+  /** Every observation this session has recorded, oldest first. */
+  observations(): readonly McpObservation[];
+  listTools(): Promise<Awaited<ReturnType<Client["listTools"]>>>;
+  /** Applies the same tool policy the proxy applies, and records the outcome. */
+  callTool(params: { name: string; arguments?: Record<string, unknown> }): Promise<
+    Awaited<ReturnType<Client["callTool"]>>
+  >;
+  close(): Promise<void>;
+}
+
+/**
+ * Opens an observed upstream WITHOUT standing up a downstream server.
+ *
+ * `runMcpProxy` is what a harness talks to; this is what a canary runtime
+ * drives directly. Both apply the same tool policy and produce the same
+ * closed observation record — the difference is only whether there is a
+ * downstream side at all.
+ */
+export async function openObservedUpstream(
+  serverId: McpServerId,
+  locked: LockedPackage,
+  sink: McpObservationSink,
+  upstream?: ProtocolProcessSpec,
+): Promise<ObservedUpstream> {
+  const allow = allowedMcpTools(serverId);
+  const recorded: McpObservation[] = [];
+  const options: McpProxyOptions = {
+    mode: "observe",
+    sink: {
+      record(observation: McpObservation): void {
+        recorded.push(observation);
+        sink.record(observation);
+      },
+    },
+  };
+
+  const transport = new BoundedStdioTransport(upstream ?? upstreamProcessSpec(serverId, locked));
+  const client = new Client({ name: "alpha-aos-mcp-observe", version: "0.1.0" });
+  await client.connect(transport);
+
+  return {
+    client,
+    transport,
+    observations: () => recorded,
+    listTools: async () => {
+      const result = await client.listTools();
+      if (!allow) return result;
+      return { ...result, tools: result.tools.filter((tool) => allow.has(tool.name)) };
+    },
+    callTool: async (params) => {
+      if (allow && !allow.has(params.name)) {
+        observe(options, serverId, locked, params.name, "denied");
+        throw new Error(mcpPolicyRefusal(params.name));
+      }
+      const result = await client.callTool(params);
+      observe(options, serverId, locked, params.name, "ok");
+      return result;
+    },
+    close: async () => {
+      await transport.close();
+    },
+  };
 }

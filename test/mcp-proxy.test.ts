@@ -23,13 +23,10 @@ import {
   BoundedStdioTransport,
   upstreamEnvironment,
   upstreamEnvironmentPolicy,
+  upstreamProcessSpec,
 } from "../src/core/mcp-proxy.js";
 import { userStateRoot } from "../src/core/paths.js";
-import {
-  DEFAULT_MAX_MESSAGE_BYTES,
-  PLATFORM_FLOOR_ENVIRONMENT,
-  resolveNodePackageCli,
-} from "../src/core/process.js";
+import { PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
 import type { LockedPackage, McpServerId } from "../src/types.js";
 
 // Compiled to dist/test, so the repository root is two levels up.
@@ -574,16 +571,14 @@ async function startPinnedServer(
   source: NodeJS.ProcessEnv = process.env,
 ): Promise<StartupProbe> {
   const locked = await lockedMcpPackage(server);
-  const npx = resolveNodePackageCli("npx");
+  // The product's own spec, so a launch this test proves is the launch the
+  // proxy actually performs. Only cwd and the environment source are the
+  // fixture's — the executable, the pinned package and every bound are not.
   const transport = fixture.track(
     new BoundedStdioTransport({
-      executable: npx.executable,
-      args: [...npx.argsPrefix, "--yes", `${locked.package}@${locked.version}`],
+      ...upstreamProcessSpec(server, locked),
       cwd: fixture.root,
       environment: upstreamEnvironmentPolicy(server, source),
-      timeoutMs: 0,
-      maxOutputBytes: STDERR_CAP,
-      maxMessageBytes: DEFAULT_MAX_MESSAGE_BYTES,
     }),
   );
 

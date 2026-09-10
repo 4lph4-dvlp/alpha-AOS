@@ -203,23 +203,34 @@ export class BoundedStdioTransport implements Transport {
   }
 }
 
-export async function runMcpFilterProxy(serverId: McpServerId, locked: LockedPackage): Promise<void> {
-  const allow = allowedMcpTools(serverId);
-  if (!allow) throw new Error(`${serverId} does not require an alpha-AOS MCP filter proxy`);
+/**
+ * The exact child one pinned MCP server is launched as.
+ *
+ * Declared once so the proxy and the startup regression describe the same
+ * launch: a test that assembled its own equivalent spec could stay green
+ * against a spec the product no longer uses.
+ */
+export function upstreamProcessSpec(serverId: McpServerId, locked: LockedPackage): ProtocolProcessSpec {
   const npx = resolveNodePackageCli("npx");
-  const upstreamTransport = new BoundedStdioTransport({
+  return {
     executable: npx.executable,
     args: [...npx.argsPrefix, "--yes", `${locked.package}@${locked.version}`],
     cwd: process.cwd(),
     environment: upstreamEnvironmentPolicy(serverId),
-    // A filter proxy lives as long as the harness that launched it, so the
-    // absolute session ceiling is the one bound that is deliberately off. The
-    // per-frame cap, the environment allowlist and the forced termination in
-    // close() are all unaffected by this.
+    // A proxy lives as long as the harness that launched it, so the absolute
+    // session ceiling is the one bound that is deliberately off. The per-frame
+    // cap, the environment allowlist and the forced termination in close() are
+    // all unaffected by this.
     timeoutMs: 0,
     maxOutputBytes: UPSTREAM_STDERR_CAP,
     maxMessageBytes: DEFAULT_MAX_MESSAGE_BYTES,
-  });
+  };
+}
+
+export async function runMcpFilterProxy(serverId: McpServerId, locked: LockedPackage): Promise<void> {
+  const allow = allowedMcpTools(serverId);
+  if (!allow) throw new Error(`${serverId} does not require an alpha-AOS MCP filter proxy`);
+  const upstreamTransport = new BoundedStdioTransport(upstreamProcessSpec(serverId, locked));
   const client = new Client({ name: "alpha-aos-mcp-filter", version: "0.1.0" });
   await client.connect(upstreamTransport);
 

@@ -17,8 +17,10 @@ import {
   createMigrationPlan,
   registerExtensionAdapter,
   rejectRawCredentials,
+  schemaRoutesFor,
   validateAgainstSchema,
   validateManagedDocument,
+  type ManagedDocumentKind,
 } from "../src/core/validation.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -830,4 +832,98 @@ test("the built-in project-manifest core schema accepts every field the external
 
   assert.equal(withExternal.ok, true, JSON.stringify(withExternal.issues));
   assert.equal(builtIn.ok, true, JSON.stringify(builtIn.issues));
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-03: the capability ledger is a first-class managed document
+// ---------------------------------------------------------------------------
+//
+// A new kind is only registered when all THREE tables move in lockstep, the
+// way `receipt` does: the `ManagedDocumentKind` union, `OWNED_SUBTREE`, and
+// `CORE_SCHEMAS`. None of the three is exported, so each is proven through the
+// behaviour it decides rather than by reading the table:
+//   - the union, by the compile-time annotation below;
+//   - OWNED_SUBTREE, because a kind missing from it yields `undefined` rather
+//     than `null` and every document is then refused for a missing owned
+//     subtree;
+//   - CORE_SCHEMAS, because a kind missing from it makes `ajv.compile`
+//     throw when no external schema is supplied.
+
+const VALID_CAPABILITY_LEDGER = {
+  schemaVersion: 1,
+  producer: { name: "alpha-aos", version: "0.1.0" },
+  updatedAt: "2026-09-10T12:00:00.000Z",
+  proofs: [
+    {
+      projectId: "0123456789abcdef",
+      harness: "claude",
+      capability: "ecc-skill/security-review",
+      polarity: "positive",
+      nativeUse: "invoked",
+      blockedReason: null,
+      boundInputs: { skillSourceHash: "a".repeat(64), mcpServerVersion: "4.0.4", evidenceHash: "b".repeat(64) },
+      harnessVersion: { exact: "2.1.267", minorKey: "2.1", raw: "2.1.267 (Claude Code)" },
+      ancestorFreedom: null,
+      observedAt: "2026-09-10T12:00:00.000Z",
+      oracle: {
+        command: "claude -p --output-format json",
+        exitCode: 0,
+        stdoutFingerprint: "c".repeat(64),
+        stderrFingerprint: "d".repeat(64),
+      },
+    },
+  ],
+};
+
+test("the capability-ledger kind is registered in all three validation tables", async () => {
+  // Table 1 — ManagedDocumentKind. A typo here does not compile.
+  const kind: ManagedDocumentKind = "capability-ledger";
+
+  // Table 3 — CORE_SCHEMAS. No external schema is passed, so the built-in
+  // entry is compiled; a missing entry throws inside ajv.compile.
+  const builtIn = validateManagedDocument({
+    text: JSON.stringify(VALID_CAPABILITY_LEDGER),
+    format: "json",
+    kind,
+  });
+  assert.equal(builtIn.ok, true, JSON.stringify(builtIn.issues));
+  assert.equal(builtIn.status, "current");
+
+  // Table 2 — OWNED_SUBTREE. `null` means alpha-AOS owns the whole document;
+  // an unregistered kind would look for a subtree named `undefined` and refuse.
+  assert.equal(builtIn.issues.length, 0);
+
+  // The external closed contract accepts the same document.
+  const external = validateManagedDocument({
+    text: JSON.stringify(VALID_CAPABILITY_LEDGER),
+    format: "json",
+    kind,
+    schema: await schema("capability-ledger.schema.json"),
+    domain: rejectRawCredentials,
+  });
+  assert.equal(external.ok, true, JSON.stringify(external.issues));
+  assert.equal(external.status, "current");
+});
+
+test("schemaRoutesFor yields the migratable and current routes for capability-ledger", () => {
+  const routes = schemaRoutesFor("capability-ledger");
+  assert.deepEqual(
+    routes.map((route) => [route.version, route.status]),
+    [
+      [0, "migratable"],
+      [1, "current"],
+    ],
+  );
+  for (const route of routes) assert.equal(route.kind, "capability-ledger");
+});
+
+test("a capability ledger from an unknown newer version is refused, not migrated", () => {
+  const result = validateManagedDocument({
+    text: JSON.stringify({ ...VALID_CAPABILITY_LEDGER, schemaVersion: 4 }),
+    format: "json",
+    kind: "capability-ledger",
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.status, "unknown-newer");
+  assert.equal(result.issues[0]?.code, "version.unknown-newer");
 });

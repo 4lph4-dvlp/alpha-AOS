@@ -1,0 +1,156 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/capability-ledger.schema.json",
+  "title": "alpha-AOS host capability ledger",
+  "description": "Closed contract for the ONE record of what was proven about a capability on THIS host. It lives under userStateRoot() and never inside a project, because 'this harness on this machine discovered this skill' is a host fact that becomes false on a colleague's machine the moment it is committed (03-CONTEXT.md D-03). Every proof binds to the exact inputs that produced it and is re-resolved against the current ones on read, so a hand-edited record cannot claim a proof that never ran (T-03-20).",
+  "type": "object",
+  "required": ["schemaVersion", "producer", "updatedAt", "proofs"],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "properties": {
+    "schemaVersion": { "type": "integer" },
+    "producer": {
+      "type": "object",
+      "required": ["name", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "minLength": 1 }
+      }
+    },
+    "updatedAt": { "type": "string", "minLength": 1 },
+    "proofs": {
+      "description": "One row per proven (projectId, harness, capability) triple and polarity. An array rather than a nested map so the serialization is deterministic byte-for-byte and re-writing unchanged content is idempotent.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "projectId",
+          "harness",
+          "capability",
+          "polarity",
+          "nativeUse",
+          "blockedReason",
+          "boundInputs",
+          "harnessVersion",
+          "ancestorFreedom",
+          "observedAt",
+          "oracle"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "projectId": {
+            "description": "The project this proof is about, or null for a capability that is not project-scoped at all. Nullable rather than omitted, so a global proof is a stated fact rather than a missing field a reader has to interpret.",
+            "type": ["string", "null"],
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "harness": {
+            "description": "Exactly the harnesses that have BOTH a non-interactive entrypoint and a declared surface, so a canary can be run against them with no human at a keyboard: claude (-p/--print), codex (codex exec), pi (-p/--print) and hermes (-z/--oneshot). antigravity is ABSENT deliberately: 03-RESEARCH.md Open Question 1 found no non-interactive entrypoint for it on this host (no CLI on PATH; agentapi.bat is an undocumented lead), so nothing could produce a proof for it. Narrowing the enum makes an antigravity proof UNREPRESENTABLE rather than merely unrecorded, because a record claiming one would be a record no run could have produced.",
+            "enum": ["claude", "codex", "pi", "hermes"]
+          },
+          "capability": { "type": "string", "minLength": 1 },
+          "polarity": {
+            "description": "Which half of a paired evidence unit this row is. A positive alone is exactly the claim CAPA-06 says is not enough (03-CONTEXT.md D-14), so polarity is recorded on the row rather than inferred from a result field: a reader can then see that a negative was never taken, instead of seeing only that nothing contradicted the positive.",
+            "enum": ["positive", "negative"]
+          },
+          "nativeUse": {
+            "description": "The native-use axis and ONLY that axis. Deployment (PackState) and support (SurfaceSupport) are separate axes that are never merged into this one, because a single enum cannot say 'deployed and discovered but not yet invoked' — precisely the misleading single installed state CAPA-07 forbids (03-CONTEXT.md D-11). unverified means not attempted or no evidence; it is distinct from a blocked reason, which is known and actionable (D-12).",
+            "enum": ["discovered", "invoked", "unverified"]
+          },
+          "blockedReason": {
+            "description": "Present only when a run could not complete for a KNOWN, actionable reason (03-CONTEXT.md D-12). There is deliberately no value field anywhere in this object: the shape is what keeps a credential out of the ledger, not a redaction pass over free text (T-03-22).",
+            "type": ["object", "null"],
+            "required": ["code", "variable", "nextAction"],
+            "additionalProperties": false,
+            "properties": {
+              "code": {
+                "description": "Stable upper-snake code, matching the repository's typed-finding convention. Callers branch on this, never on the sentence.",
+                "type": "string",
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "variable": {
+                "description": "The NAME of the credential variable that was not set, e.g. EXA_API_KEY. Never its value.",
+                "type": "string",
+                "minLength": 1
+              },
+              "nextAction": { "type": "string", "minLength": 1 }
+            }
+          },
+          "boundInputs": {
+            "description": "The three nouns a proof binds to under 03-CONTEXT.md D-04. Any of them moving demotes the proof immediately, and each one names itself in the demotion reason so a reader can tell a moved skill from a moved server.",
+            "type": "object",
+            "required": ["skillSourceHash", "mcpServerVersion", "evidenceHash"],
+            "additionalProperties": false,
+            "properties": {
+              "skillSourceHash": { "$ref": "#/$defs/sha256" },
+              "mcpServerVersion": {
+                "description": "The upstream MCP server version this proof observed, or null when the capability involved no MCP server at all.",
+                "type": ["string", "null"],
+                "minLength": 1
+              },
+              "evidenceHash": {
+                "description": "Digest of the pack evidence envelope that selected the capability, or null for a capability no project evidence selected.",
+                "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+              }
+            }
+          },
+          "harnessVersion": {
+            "description": "The harness version that was proven, kept in three parts. The harness demotes a proof at a MINOR boundary only, because harnesses auto-update and patch-level rebinding would leave the ledger permanently red (03-CONTEXT.md D-04) — so minorKey is what the comparison reads and exact is what an audit reads.",
+            "type": "object",
+            "required": ["exact", "minorKey", "raw"],
+            "additionalProperties": false,
+            "properties": {
+              "exact": {
+                "description": "The semantic version extracted from raw, e.g. 0.20.6. Null when no version could be extracted, which records unverified rather than raising an error (03-RESEARCH.md Pitfall 6).",
+                "type": ["string", "null"],
+                "pattern": "^\\d+\\.\\d+\\.\\d+$"
+              },
+              "minorKey": {
+                "description": "MAJOR.MINOR of exact. Null exactly when exact is null.",
+                "type": ["string", "null"],
+                "pattern": "^\\d+\\.\\d+$"
+              },
+              "raw": {
+                "description": "The whole version line as the harness printed it, kept for audit and bound to by NOTHING. hermes decorates its line with an upstream commit token that was observed moving twice inside one session with no install change (03-RESEARCH.md Pitfall 6), so fingerprinting the line would demote every proof on a remote-head push.",
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          },
+          "ancestorFreedom": {
+            "description": "Required on a NEGATIVE half, null on a positive. pi loads project skills from .agents/skills in cwd and every ancestor, and outside a repository that walk does not stop at a repo root but continues to the filesystem root (03-RESEARCH.md Pitfall 3) — so a negative control directory must be CONSTRUCTED and asserted free of an ancestor project skill root, never assumed. A negative without this assertion is INCOMPLETE, not passing.",
+            "type": ["object", "null"],
+            "required": ["asserted", "checkedAncestors"],
+            "additionalProperties": false,
+            "properties": {
+              "asserted": { "type": "boolean" },
+              "checkedAncestors": {
+                "description": "Every ancestor directory actually checked, from the control directory up to the filesystem root. Recorded so the assertion is auditable rather than a bare true.",
+                "type": "array",
+                "items": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
+          "observedAt": { "type": "string", "minLength": 1 },
+          "oracle": {
+            "description": "What was actually run and what it returned. Output is recorded as a FINGERPRINT and never as raw bytes, because a harness transcript is the most likely place for a credential or a user's private prompt to reach persisted state (T-03-22).",
+            "type": "object",
+            "required": ["command", "exitCode", "stdoutFingerprint", "stderrFingerprint"],
+            "additionalProperties": false,
+            "properties": {
+              "command": { "type": "string", "minLength": 1 },
+              "exitCode": {
+                "description": "Null when the process was terminated rather than exiting on its own terms, so a forced kill is not reported as an exit code the child never chose.",
+                "type": ["integer", "null"]
+              },
+              "stdoutFingerprint": { "$ref": "#/$defs/sha256" },
+              "stderrFingerprint": { "$ref": "#/$defs/sha256" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

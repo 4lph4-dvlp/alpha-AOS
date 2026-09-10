@@ -27,7 +27,15 @@ export type ManagedDocumentKind =
    * first-class kind here rather than a caller-supplied schema smuggled
    * through a generic route (02-REVIEW CR-04).
    */
-  | "approved-plan";
+  | "approved-plan"
+  /**
+   * The host capability ledger under `userStateRoot()`. It records what was
+   * proven about a capability on THIS machine, so it is host state a user or
+   * another process can edit at any time — a hand-edited row claiming a proof
+   * that never ran is the threat it is validated against (03-CONTEXT.md D-03,
+   * T-03-20). It joins the same closed-world route a receipt uses.
+   */
+  | "capability-ledger";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -309,6 +317,9 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "pack-catalog": null,
   "fact-vocabulary": null,
   "approved-plan": null,
+  // alpha-AOS owns the whole document: nothing else writes into the ledger,
+  // so there is no foreign subtree to leave alone.
+  "capability-ledger": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -398,6 +409,17 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     approvedDigest: { type: "string" },
     gitContext: anyObject,
     plan: anyObject,
+  }),
+  // The built-in envelope check only, exactly as `receipt` and `approved-plan`
+  // do it: `schemas/capability-ledger.schema.json` is the closed contract for
+  // the interior — the narrowed harness enum, the three axes, the bound inputs
+  // and the no-value `blockedReason` shape all live there, and every supported
+  // route passes it.
+  "capability-ledger": coreObject(["schemaVersion", "producer", "proofs"], {
+    schemaVersion: { type: "integer" },
+    producer: anyObject,
+    updatedAt: { type: "string" },
+    proofs: { type: "array" },
   }),
 };
 

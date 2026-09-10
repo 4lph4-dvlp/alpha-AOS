@@ -1588,6 +1588,55 @@ export const ARGUMENT_PATTERNS_NOT_OBSERVABLE =
   "the observation record carries a tool name and an outcome and has no argument field, so a declared argument " +
   "pattern cannot be checked from it; it is reported unchecked rather than satisfied";
 
+/** What matching one declaration's expectations against one observation list produced. */
+export interface ExpectationMatch {
+  /** The expected tools that were observed, in the order they were observed. */
+  readonly matched: readonly string[];
+  readonly missing: readonly string[];
+  readonly forbiddenSeen: readonly string[];
+  /** Null when the declaration asked for no order. */
+  readonly ordered: boolean | null;
+  readonly distinctServers: number;
+  readonly maxDistinctServers: number;
+  readonly withinServerBudget: boolean;
+  /** Declared patterns the observation's recorded shape SATISFIES. */
+  readonly satisfiedArgumentPatterns: readonly string[];
+  /** Declared patterns the recorded shape contradicts. */
+  readonly unsatisfiedArgumentPatterns: readonly string[];
+  /** Declared patterns no record carries a shape for, so neither verdict is available. */
+  readonly uncheckedArgumentPatterns: readonly string[];
+  readonly observationCount: number;
+  readonly held: boolean;
+  readonly reasons: readonly string[];
+}
+
+/** STUB — plan 03-08 Task 2 RED. */
+export function matchExpectations(
+  _observations: readonly McpObservation[],
+  _declaration: CanaryDeclaration,
+): ExpectationMatch {
+  return {
+    matched: [],
+    missing: [],
+    forbiddenSeen: [],
+    ordered: null,
+    distinctServers: 0,
+    maxDistinctServers: 0,
+    withinServerBudget: true,
+    satisfiedArgumentPatterns: [],
+    unsatisfiedArgumentPatterns: [],
+    uncheckedArgumentPatterns: [],
+    observationCount: 0,
+    held: false,
+    reasons: [],
+  };
+}
+
+/** STUB — plan 03-08 Task 2 RED. */
+export function countDistinctServers(_observations: readonly McpObservation[]): number {
+  return 0;
+}
+
 /** What the observation records — and only they — say about one canary. */
 export interface InvocationVerdict {
   /** `invoked` only when records exist and every declared expectation held. */

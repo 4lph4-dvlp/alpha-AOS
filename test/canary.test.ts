@@ -36,6 +36,7 @@ import {
   canaryEnvironmentPolicy,
   CanaryContextError,
   catalogCosts,
+  countDistinctServers,
   createCanaryLaunchSpec,
   createCanaryObservationSink,
   createCanaryRuntime,
@@ -44,6 +45,7 @@ import {
   disposeCanaryRuntime,
   findPromptHints,
   loadCanaryCatalog,
+  matchExpectations,
   parseClaudeMcpList,
   parsePiAuthCheck,
   probeReadiness,
@@ -62,13 +64,21 @@ import {
   type ReadinessCommandResult,
   type ReadinessRunner,
 } from "../src/core/canary.js";
-import { pairEvidence, type CapabilityProof, type LedgerHarness } from "../src/core/capability-ledger.js";
+import { pairEvidence, upsertProof, type CapabilityProof, type LedgerHarness } from "../src/core/capability-ledger.js";
 import { formatCapabilityReport } from "../src/format.js";
-import { createFileObservationSink } from "../src/core/mcp-proxy.js";
+import {
+  createFileObservationSink,
+  identifierShapeOf,
+  observationLine,
+  readObservationRecords,
+  type IdentifierShape,
+  type McpObservation,
+} from "../src/core/mcp-proxy.js";
 import { renderMcpConfig } from "../src/core/mcp.js";
+import { createRedactedExcerpt, createRedactionContext } from "../src/core/redaction.js";
 import { packageRoot } from "../src/core/paths.js";
 import { materializeEnvironment, PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
-import type { IsolationLaunchSpec, StackLock } from "../src/types.js";
+import type { IsolationLaunchSpec, McpServerId, StackLock } from "../src/types.js";
 
 /** Compiled to dist/test, so the repository root is two levels up. */
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -1675,4 +1685,437 @@ test("a harness with no reachable skill root gets no instruction rather than one
     false,
     "an instruction was written for a harness whose canary launch is blocked, so it is a file nothing will read",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-08 Task 2 — the ordered-sequence matcher and the fan-out judgement
+//
+// Every one of these is driven from a SYNTHETIC observation list, so the whole
+// verdict logic is provable on a CI leg with no harness, no credential and no
+// network. That is deliberate: 03-RESEARCH.md Pitfall 10 measured a paid canary
+// at roughly $0.13 a run and recorded that hosted CI has no credential at all,
+// so a verdict that could only be checked by spending would never be checked.
+// ---------------------------------------------------------------------------
+
+/** One synthetic observation. `at` is ordered by index so call order is unambiguous. */
+function observation(
+  server: McpServerId,
+  tool: string,
+  index: number,
+  extra: { readonly outcome?: "ok" | "denied"; readonly identifierShape?: IdentifierShape } = {},
+): McpObservation {
+  return {
+    server,
+    tool,
+    at: new Date(Date.UTC(2026, 8, 10, 0, 0, index)).toISOString(),
+    upstreamVersion: "0.0.0-fixture",
+    outcome: extra.outcome ?? "ok",
+    ...(extra.identifierShape === undefined ? {} : { identifierShape: extra.identifierShape }),
+  };
+}
+
+const DOCUMENTATION_CANARY = declaration({
+  id: "FIXTURE_DOCUMENTATION",
+  capability: "CAPA-01",
+  expectTools: ["resolve-library-id", "query-docs"],
+  expectOrdered: true,
+  expectArgumentPatterns: [
+    { tool: "query-docs", argument: "libraryId", pattern: "^/[^/]+/[^/]+/[^/]+$", why: "version-scoped" },
+  ],
+  maxDistinctServers: 1,
+});
+
+const RESEARCH_CANARY = declaration({
+  id: "FIXTURE_RESEARCH",
+  expectTools: ["web_search_exa", "firecrawl_scrape"],
+  expectOrdered: true,
+  forbidTools: ["firecrawl_search"],
+  maxDistinctServers: 2,
+});
+
+// --- Test 1: the version-sensitivity assertion is structural ----------------
+
+test("a documentation pair whose query carried a version-scoped identifier matches, and the same pair without one does not", () => {
+  const scoped = matchExpectations(
+    [
+      observation("context7", "resolve-library-id", 0),
+      observation("context7", "query-docs", 1, { identifierShape: "version-scoped" }),
+    ],
+    DOCUMENTATION_CANARY,
+  );
+  assert.deepEqual([...scoped.matched], ["resolve-library-id", "query-docs"]);
+  assert.deepEqual([...scoped.missing], []);
+  assert.deepEqual([...scoped.satisfiedArgumentPatterns], ["query-docs.libraryId"]);
+  assert.deepEqual([...scoped.unsatisfiedArgumentPatterns], []);
+  assert.equal(scoped.held, true, "a version-scoped documentation pair must satisfy the CAPA-01 expectation");
+
+  const unscoped = matchExpectations(
+    [
+      observation("context7", "resolve-library-id", 0),
+      observation("context7", "query-docs", 1, { identifierShape: "unscoped" }),
+    ],
+    DOCUMENTATION_CANARY,
+  );
+  assert.deepEqual([...unscoped.satisfiedArgumentPatterns], []);
+  assert.deepEqual([...unscoped.unsatisfiedArgumentPatterns], ["query-docs.libraryId"]);
+  assert.equal(
+    unscoped.held,
+    false,
+    "a two-segment identifier is not version-scoped; counting it as one is CAPA-01 proving nothing",
+  );
+  assert.equal(
+    unscoped.reasons.some((reason) => reason.includes("query-docs.libraryId")),
+    true,
+    "the verdict does not say which declared pattern went unsatisfied",
+  );
+});
+
+test("a declared pattern is still reported unchecked when the record carries no shape for it", () => {
+  // The narrowing that keeps 03-06's T-03-52 reasoning intact. The record gained
+  // ONE shape field, not a general argument channel: a call the proxy did not
+  // classify carries no shape, and a pattern over it stays unchecked with its
+  // reason rather than being counted either way.
+  const match = matchExpectations(
+    [
+      observation("context7", "resolve-library-id", 0),
+      observation("context7", "query-docs", 1),
+    ],
+    DOCUMENTATION_CANARY,
+  );
+  assert.deepEqual([...match.uncheckedArgumentPatterns], ["query-docs.libraryId"]);
+  assert.deepEqual([...match.satisfiedArgumentPatterns], []);
+  assert.deepEqual([...match.unsatisfiedArgumentPatterns], []);
+  assert.equal(
+    match.reasons.some((reason) => reason.includes("has no argument field")),
+    true,
+    "an unchecked pattern must still carry the reason it could not be checked",
+  );
+});
+
+// --- Test 2: ordering is a verdict, not a set membership --------------------
+
+test("expectations are matched as an ordered sequence, so extraction-before-discovery is a different verdict from discovery-then-extraction", () => {
+  const inOrder = matchExpectations(
+    [observation("exa", "web_search_exa", 0), observation("firecrawl", "firecrawl_scrape", 1)],
+    RESEARCH_CANARY,
+  );
+  const reversed = matchExpectations(
+    [observation("firecrawl", "firecrawl_scrape", 0), observation("exa", "web_search_exa", 1)],
+    RESEARCH_CANARY,
+  );
+
+  // The SAME two calls, the same servers, the same count — only the order
+  // differs, and the verdicts must differ with it. A set comparison cannot
+  // express the ordering claim CAPA-02 exists to make.
+  assert.equal(inOrder.ordered, true);
+  assert.equal(reversed.ordered, false);
+  assert.equal(inOrder.held, true);
+  assert.equal(reversed.held, false);
+  assert.notDeepEqual(inOrder, reversed, "two orderings of one pair produced an identical verdict");
+  assert.equal(
+    reversed.reasons.some((reason) => reason.includes("order")),
+    true,
+    "an out-of-order run does not say that order is why it failed",
+  );
+});
+
+test("the ordered match is a subsequence, so an unrelated call between the two legs does not break the order", () => {
+  const match = matchExpectations(
+    [
+      observation("exa", "web_search_exa", 0),
+      observation("exa", "web_fetch_exa", 1),
+      observation("firecrawl", "firecrawl_scrape", 2),
+    ],
+    RESEARCH_CANARY,
+  );
+  assert.equal(match.ordered, true, "a subsequence match must tolerate calls the declaration says nothing about");
+  assert.equal(match.held, true);
+});
+
+// --- Test 3 / 3b: the fan-out judgement is a COUNT --------------------------
+
+test("the distinct-server boundary passes at exactly the declared maximum and fails at one past it", () => {
+  const control = declaration({ expectTools: [], maxDistinctServers: 1 });
+  const exactlyOne = matchExpectations([observation("exa", "web_search_exa", 0)], control);
+  const exactlyTwo = matchExpectations(
+    [observation("exa", "web_search_exa", 0), observation("firecrawl", "firecrawl_scrape", 1)],
+    control,
+  );
+
+  // Asserted as a PAIR, in one test: a boundary rule checked only on the failing
+  // side is satisfied by a rule that fails everything.
+  assert.equal(exactlyOne.distinctServers, 1);
+  assert.equal(exactlyOne.withinServerBudget, true, "exactly the declared maximum must pass");
+  assert.equal(exactlyTwo.distinctServers, 2);
+  assert.equal(exactlyTwo.withinServerBudget, false, "one past the declared maximum must fail");
+  assert.equal(
+    exactlyTwo.reasons.some((reason) => reason.includes("2") && reason.includes("1")),
+    true,
+    "the fan-out finding names neither the count observed nor the count declared",
+  );
+});
+
+test("two calls to one research server count as one touch and two calls to two servers count as two", () => {
+  // Two lists of IDENTICAL LENGTH differing only in the second call's server id.
+  // 03-RESEARCH.md Pitfall 1's second-order note is why this matters: the
+  // discovery server ships its own fetch, so search-then-fetch entirely on it is
+  // a correct single-server run, and a count that summed the two calls would
+  // report this phase's own recommended routing as fan-out.
+  const oneServer = [observation("exa", "web_search_exa", 0), observation("exa", "web_fetch_exa", 1)];
+  const twoServers = [observation("exa", "web_search_exa", 0), observation("firecrawl", "firecrawl_scrape", 1)];
+  assert.equal(oneServer.length, twoServers.length, "the two lists must differ only in a server id");
+
+  assert.equal(countDistinctServers(oneServer), 1);
+  assert.equal(countDistinctServers(twoServers), 2);
+
+  const control = declaration({ expectTools: [], maxDistinctServers: 1 });
+  assert.equal(matchExpectations(oneServer, control).withinServerBudget, true);
+  assert.equal(matchExpectations(twoServers, control).withinServerBudget, false);
+});
+
+// --- Test 4: a forbidden tool is a finding regardless of the match ----------
+
+test("a forbidden tool anywhere in the observation list is a finding naming that tool, even when the expectations matched", () => {
+  const match = matchExpectations(
+    [
+      observation("exa", "web_search_exa", 0),
+      observation("firecrawl", "firecrawl_search", 1, { outcome: "denied" }),
+      observation("firecrawl", "firecrawl_scrape", 2),
+    ],
+    RESEARCH_CANARY,
+  );
+
+  assert.deepEqual([...match.matched], ["web_search_exa", "firecrawl_scrape"]);
+  assert.equal(match.ordered, true, "the expected legs did occur in the declared order");
+  assert.deepEqual([...match.forbiddenSeen], ["firecrawl_search"]);
+  assert.equal(match.held, false, "a forbidden tool must not be absorbed by an otherwise-matching run");
+  assert.equal(
+    match.reasons.some((reason) => reason.includes("firecrawl_search")),
+    true,
+    "the finding does not name the forbidden tool that produced it",
+  );
+});
+
+// --- Test 5: nothing observed is never discovery ----------------------------
+
+test("an empty observation list yields the unverified axis with the empty oracle output fingerprinted, never discovered", async (context: TestContext) => {
+  const empty = matchExpectations([], RESEARCH_CANARY);
+  assert.equal(empty.observationCount, 0);
+  assert.equal(
+    empty.reasons.some((reason) => reason.includes("no tool call")),
+    true,
+    "an empty list must say that nothing crossed the observation front",
+  );
+
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const emptyOutput = createRedactedExcerpt("", createRedactionContext());
+  const result = await runCanary({
+    declaration: RESEARCH_CANARY,
+    harness: "claude",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: {},
+    runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async () => ({ ran: true, reason: null, exitCode: 0, excerpt: emptyOutput }),
+  });
+
+  assert.equal(result.nativeUse, "unverified");
+  assert.notEqual(result.nativeUse, "discovered", "a canary decides the invocation axis and never the discovery axis");
+  assert.ok(result.oracle, "a run that launched must carry an oracle record");
+  assert.equal(
+    result.oracle.stdoutFingerprint,
+    createHash("sha256").update("", "utf8").digest("hex"),
+    "the empty oracle output was not fingerprinted, so 'nothing came back' and 'nothing was recorded' are the same shape",
+  );
+  assert.equal(result.oracle.stdoutFingerprint.length, 64);
+});
+
+// --- Test 6: a discovery leg that returned nothing ---------------------------
+
+test("a discovery leg that returned zero results is unverified with its reason and carries no invocation record for the leg that never ran", () => {
+  // The observable shape of "discovery found nothing": the discovery call
+  // crossed the front, the extraction call never did, because there was no URL
+  // to extract. The verdict must name the missing leg rather than inventing one.
+  const match = matchExpectations([observation("exa", "web_search_exa", 0)], RESEARCH_CANARY);
+
+  assert.deepEqual([...match.matched], ["web_search_exa"]);
+  assert.deepEqual([...match.missing], ["firecrawl_scrape"]);
+  assert.equal(match.held, false);
+  assert.equal(
+    match.reasons.some((reason) => reason.includes("firecrawl_scrape")),
+    true,
+    "the verdict does not name the leg that never ran",
+  );
+
+  const verdict = decideInvocation(RESEARCH_CANARY, [observation("exa", "web_search_exa", 0)]);
+  assert.equal(verdict.nativeUse, "unverified", "a half-completed route must not read as invoked");
+  // The leg that never ran carries NO record. Asserted positively, so the
+  // absence is a claim rather than an artefact of a short list.
+  assert.equal(
+    verdict.matched.includes("firecrawl_scrape"),
+    false,
+    "the extraction leg that never ran was recorded as matched anyway",
+  );
+});
+
+// --- The record shape: one field, and it carries no value -------------------
+
+test("the observation record gained exactly one new metadata field, and it records a shape rather than a value", () => {
+  const record = observation("context7", "query-docs", 0, { identifierShape: "version-scoped" });
+  const serialized = JSON.parse(observationLine(record)) as Record<string, unknown>;
+
+  assert.deepEqual(
+    Object.keys(serialized).sort(),
+    ["at", "identifierShape", "outcome", "server", "tool", "upstreamVersion"],
+    "the serialized record does not carry exactly the five original fields plus one",
+  );
+  assert.equal(serialized.identifierShape, "version-scoped");
+  assert.equal(Object.hasOwn(serialized, "arguments"), false, "a general argument channel was opened");
+});
+
+test("a version-scoped identifier's full value is absent from the serialized observation record", () => {
+  const identifier = "/vercel/next.js/v16.2.2";
+  assert.equal(identifierShapeOf("query-docs", { libraryId: identifier }), "version-scoped");
+  assert.equal(identifierShapeOf("query-docs", { libraryId: "/vercel/next.js" }), "unscoped");
+  // A tool alpha-AOS declares no identifier argument for is classified as
+  // nothing at all, which is what keeps this a declared field rather than a
+  // general argument reader.
+  assert.equal(identifierShapeOf("firecrawl_scrape", { url: "https://example.invalid/a" }), null);
+
+  // Built from the classifier's own output rather than from a literal, so the
+  // absence asserted below is about the path a real call travels.
+  const classified = identifierShapeOf("query-docs", { libraryId: identifier });
+  assert.ok(classified, "the classifier returned nothing for a declared identifier argument");
+  const line = observationLine(observation("context7", "query-docs", 0, { identifierShape: classified }));
+  assert.equal(line.includes(identifier), false, "the identifier VALUE reached the serialized record");
+  assert.equal(line.includes("next.js"), false, "part of the identifier value reached the serialized record");
+  assert.equal(line.includes("version-scoped"), true, "the shape is absent too, so the assertion above proves nothing");
+
+  // And the reader round-trips the shape without ever reconstructing a value.
+  const [read] = readObservationRecords(line);
+  assert.ok(read);
+  assert.equal(read.identifierShape, "version-scoped");
+});
+
+test("a reader skips an observation line whose identifier shape is not one this repository declared", () => {
+  // Field-selective, exactly as the five original fields are: a line that grew
+  // a shape value nobody declared is skipped rather than guessed at.
+  const forged = `${JSON.stringify({
+    server: "context7",
+    tool: "query-docs",
+    at: new Date().toISOString(),
+    upstreamVersion: "4.0.4",
+    outcome: "ok",
+    identifierShape: "/vercel/next.js/v16.2.2",
+  })}\n`;
+  assert.deepEqual(readObservationRecords(forged), [], "a forged shape carrying a value was read as a record");
+});
+
+// --- Test 7: one record per triple, and the audit survives replacement ------
+
+test("a second proof for one project-harness-capability triple replaces the first and retains the replaced exact harness version", () => {
+  const base = {
+    projectId: "project-a",
+    harness: "claude" as LedgerHarness,
+    capability: "CAPA-02",
+    polarity: "positive" as const,
+    nativeUse: "unverified" as const,
+    blockedReason: null,
+    boundInputs: {
+      skillSourceHash: "a".repeat(64),
+      mcpServerVersion: "3.4.1",
+      evidenceHash: "b".repeat(64),
+    },
+    ancestorFreedom: null,
+    observedAt: "2026-09-10T00:00:00.000Z",
+    oracle: { command: "harness -p", exitCode: 0, stdoutFingerprint: "c".repeat(64), stderrFingerprint: "d".repeat(64) },
+  };
+  const first: CapabilityProof = { ...base, harnessVersion: { exact: "2.1.252", minorKey: "2.1", raw: "2.1.252 (Claude Code)" } };
+  const second: CapabilityProof = {
+    ...base,
+    nativeUse: "invoked",
+    observedAt: "2026-09-11T00:00:00.000Z",
+    harnessVersion: { exact: "2.1.253", minorKey: "2.1", raw: "2.1.253 (Claude Code)" },
+  };
+
+  const afterFirst = upsertProof([], first);
+  assert.equal(afterFirst.replaced, null);
+  const afterSecond = upsertProof(afterFirst.proofs, second);
+  assert.ok(afterSecond.replaced, "the second write did not replace anything, so the ledger grew a duplicate row");
+
+  const forTriple = afterSecond.proofs.filter(
+    (proof) => proof.projectId === "project-a" && proof.harness === "claude" && proof.capability === "CAPA-02" && proof.polarity === "positive",
+  );
+  assert.equal(forTriple.length, 1, "the ledger holds more than one record for one triple and polarity");
+  const kept = forTriple[0];
+  assert.ok(kept);
+  assert.equal(kept.nativeUse, "invoked", "the LATER proof must be the one that survives");
+  assert.equal(kept.harnessVersion.exact, "2.1.253");
+  // D-04: the ledger always records the exact version that was proven, so an
+  // audit can still see it after a replacement or a demotion.
+  assert.deepEqual(
+    [...(kept.supersededHarnessVersions ?? [])],
+    ["2.1.252"],
+    "the replaced proof's exact harness version was dropped, so an audit cannot see what was proven before",
+  );
+
+  // The negative half is a DIFFERENT row of the same unit and must survive: a
+  // key without polarity would let a negative control evict its own positive,
+  // and D-14's evidence unit could then never be assembled.
+  const negative: CapabilityProof = {
+    ...base,
+    polarity: "negative",
+    harnessVersion: { exact: "2.1.253", minorKey: "2.1", raw: "2.1.253 (Claude Code)" },
+    ancestorFreedom: { asserted: true, checkedAncestors: ["/tmp/control"] },
+  };
+  const afterNegative = upsertProof(afterSecond.proofs, negative);
+  assert.equal(afterNegative.replaced, null);
+  assert.equal(afterNegative.proofs.length, 2);
+  assert.equal(pairEvidence(kept, afterNegative.proofs[1] as CapabilityProof).completeness, "COMPLETE");
+
+  // And a different project keys differently rather than colliding.
+  const other = upsertProof(afterNegative.proofs, { ...second, projectId: "project-b" });
+  assert.equal(other.replaced, null);
+  assert.equal(other.proofs.length, 3);
+});
+
+test("a replaced proof's superseded versions accumulate rather than overwrite, and null exact versions are not recorded", () => {
+  const base = {
+    projectId: null,
+    harness: "codex" as LedgerHarness,
+    capability: "CAPA-01",
+    polarity: "positive" as const,
+    nativeUse: "unverified" as const,
+    blockedReason: null,
+    boundInputs: { skillSourceHash: "a".repeat(64), mcpServerVersion: null, evidenceHash: "b".repeat(64) },
+    ancestorFreedom: null,
+    observedAt: "2026-09-10T00:00:00.000Z",
+    oracle: { command: "harness", exitCode: 0, stdoutFingerprint: "c".repeat(64), stderrFingerprint: "d".repeat(64) },
+  };
+  const version = (exact: string | null): CapabilityProof => ({
+    ...base,
+    harnessVersion: exact === null ? { exact: null, minorKey: null, raw: "unparsed" } : { exact, minorKey: exact.split(".").slice(0, 2).join("."), raw: exact },
+  });
+
+  let proofs = upsertProof([], version("0.1.0")).proofs;
+  proofs = upsertProof(proofs, version(null)).proofs;
+  proofs = upsertProof(proofs, version("0.3.0")).proofs;
+  const kept = proofs[0];
+  assert.ok(kept);
+  assert.equal(proofs.length, 1);
+  // The unparsed one contributes nothing: 03-RESEARCH.md Pitfall 6 records that
+  // a harness can print a version line no parser can read, and an audit trail
+  // padded with nulls is a trail that says less than an empty one.
+  assert.deepEqual([...(kept.supersededHarnessVersions ?? [])], ["0.1.0"]);
+  assert.equal(kept.harnessVersion.exact, "0.3.0");
 });

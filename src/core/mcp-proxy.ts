@@ -424,6 +424,73 @@ export interface McpObservation {
   /** The locked upstream version this call was answered by. */
   readonly upstreamVersion: string;
   readonly outcome: "ok" | "denied";
+  /**
+   * The SHAPE of the declared identifier this call carried, or absent when the
+   * call carried none that alpha-AOS classifies.
+   *
+   * The one exception to the no-arguments rule above, and deliberately shaped
+   * so it is not a hole in it. CAPA-01's claim is "version-SENSITIVE
+   * documentation", and the structural form of that claim is that the
+   * documentation query carried a version-scoped library identifier. There is
+   * no way to prove it from a record holding only a tool name. So the record
+   * gains exactly one field, it holds a two-value classification rather than
+   * any part of the identifier, and the classifier is a declared table of one
+   * (tool, argument) pair — not a general reader of whatever was passed.
+   *
+   * The T-03-52 reasoning is unchanged by this and is why the field is shaped
+   * this way: arguments are where credentials live and a record is an
+   * observable surface that reaches a ledger and a CI log. A classification
+   * carries no credential, because "version-scoped" is the same two words
+   * whatever the identifier was.
+   */
+  readonly identifierShape?: IdentifierShape;
+}
+
+/**
+ * What a declared identifier argument looked like. A classification, never a
+ * value, and closed at two members so a third could not smuggle one in.
+ */
+export type IdentifierShape = "version-scoped" | "unscoped";
+
+const IDENTIFIER_SHAPES: readonly IdentifierShape[] = ["version-scoped", "unscoped"];
+
+/**
+ * The declared table of identifier arguments alpha-AOS classifies.
+ *
+ * ONE entry, and it stays a table rather than a branch so a second entry is a
+ * row a reviewer sees rather than a condition buried in the proxy. A tool that
+ * is not here is classified as nothing at all — which is what keeps this a
+ * declared field rather than a general argument reader.
+ */
+const CLASSIFIED_IDENTIFIER_ARGUMENTS: Readonly<Record<string, string>> = Object.freeze({
+  "query-docs": "libraryId",
+});
+
+/**
+ * `/org/project/version` is version-scoped; `/org/project` is not.
+ *
+ * The same structural fact `catalog/canaries.yaml` declares for CAPA-01, and
+ * the same one 03-RESEARCH.md measured live: `resolve-library-id` returns a
+ * `Versions:` list, so a three-segment id in the following call is the model
+ * having used it.
+ */
+const VERSION_SCOPED_IDENTIFIER = /^\/[^/]+\/[^/]+\/[^/]+$/u;
+
+/**
+ * Classifies one call's declared identifier argument, WITHOUT retaining it.
+ *
+ * Returns null for a tool with no declared identifier argument, for a call
+ * carrying no arguments at all, and for an argument that is not a string. Null
+ * means "not classified", which is a different fact from "unscoped" and is
+ * reported as unchecked rather than as a failure downstream.
+ */
+export function identifierShapeOf(tool: string, args: unknown): IdentifierShape | null {
+  const argument = CLASSIFIED_IDENTIFIER_ARGUMENTS[tool];
+  if (argument === undefined) return null;
+  if (args === null || typeof args !== "object" || Array.isArray(args)) return null;
+  const value = (args as Record<string, unknown>)[argument];
+  if (typeof value !== "string") return null;
+  return VERSION_SCOPED_IDENTIFIER.test(value) ? "version-scoped" : "unscoped";
 }
 
 /**

@@ -126,6 +126,16 @@ export interface CapabilityProof {
   readonly ancestorFreedom: AncestorFreedom | null;
   readonly observedAt: string;
   readonly oracle: OracleRecord;
+  /**
+   * Exact harness versions this row's EARLIER proofs were taken on, oldest
+   * first. Audit only, and bound to by nothing.
+   *
+   * 03-CONTEXT.md D-04 says the ledger always records the exact version that
+   * was proven, so an audit can still see it. A row that is replaced in place
+   * would otherwise silently drop that fact the first time a harness
+   * auto-updated inside one minor.
+   */
+  readonly supersededHarnessVersions?: readonly string[];
 }
 
 export interface CapabilityLedger {
@@ -707,6 +717,34 @@ export function pairEvidence(positive: CapabilityProof, negative: CapabilityProo
  * construction rather than by luck, which is what makes the already-current
  * check below a real idempotency guarantee instead of a formatting race.
  */
+/**
+ * The identity of one ledger row.
+ *
+ * Project, harness and capability are the triple 03-CONTEXT.md D-03 keys
+ * evidence by. Polarity is the fourth part and is not optional: a positive and
+ * its negative control are two ROWS of one evidence unit (D-14), so a key
+ * without polarity would let a negative control evict its own positive and the
+ * unit could then never be assembled.
+ */
+function proofKey(proof: CapabilityProof): string {
+  return [proof.projectId ?? "", proof.harness, proof.capability, proof.polarity].join(" ");
+}
+
+export interface CapabilityProofUpsert {
+  readonly proofs: readonly CapabilityProof[];
+  /** The row this write displaced, or null when it was the first of its key. */
+  readonly replaced: CapabilityProof | null;
+}
+
+/** STUB - plan 03-08 Task 2 RED. */
+export function upsertProof(
+  proofs: readonly CapabilityProof[],
+  proof: CapabilityProof,
+): CapabilityProofUpsert {
+  void proofKey;
+  return { proofs: [...proofs, proof], replaced: null };
+}
+
 export function capabilityLedgerBytes(ledger: CapabilityLedger): string {
   return `${JSON.stringify(ledger, null, 2)}\n`;
 }

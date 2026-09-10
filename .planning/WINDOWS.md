@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 12
+open_count: 14
 waived_count: 2
 fixed_count: 15
-total_count: 29
-last_updated: 2026-09-10T15:03:57.777Z
+total_count: 31
+last_updated: 2026-09-10T17:54:56.937Z
 ---
 
 # Broken Windows Ledger
@@ -44,6 +44,8 @@ last_updated: 2026-09-10T15:03:57.777Z
 | 27 | 03 | deviation | test/project-pack-sync.test.ts |  | Tracer drives the writer at module level rather than through the built CLI: the CLI cannot be handed a test-owned package root or a verifiedSourceRoot, so a CLI-driven sync would require the network | open |  | 2026-09-10T10:57:37.232Z |  |
 | 28 | 03 | unrun-verify | src/core/canary.ts |  | No paid canary has been run on this host: doctor --canary never actually spent a model turn, so the launch-and-verdict path is proven only with an injected launcher (03-06 coverage D7) | open |  | 2026-09-10T15:03:57.063Z |  |
 | 29 | 03 | deviation | src/core/canary.ts |  | A declared canary argument pattern is reported UNCHECKED: McpObservation has no argument field, so CAPA-01's version-scoped-id claim is not structurally proven (03-06 decision 2) | open |  | 2026-09-10T15:03:57.777Z |  |
+| 30 | 03 | unrun-verify | catalog/canaries.yaml |  | Task 3's paid canaries were not run: node dist/src/cli.js doctor --canary . --json is unspent, so CAPA-01 and CAPA-02 native selection is unproven (precondition met; ~$0.35) | open |  | 2026-09-10T17:54:56.149Z |  |
+| 31 | 03 | deviation | schemas/capability-ledger.schema.json |  | harnessVersion.raw minLength relaxed so a recorded absence (unprobed harness) is representable; doctor --discovery previously wrote a ledger its own reader refused | open |  | 2026-09-10T17:54:56.937Z |  |
 
 ````json
 [
@@ -393,6 +395,30 @@ last_updated: 2026-09-10T15:03:57.777Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T15:03:57.777Z",
+    "resolved_at": null
+  },
+  {
+    "id": 30,
+    "kind": "unrun-verify",
+    "phase": "03",
+    "file": "catalog/canaries.yaml",
+    "line": null,
+    "description": "Task 3's paid canaries were not run: node dist/src/cli.js doctor --canary . --json is unspent, so CAPA-01 and CAPA-02 native selection is unproven (precondition met; ~$0.35)",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T17:54:56.149Z",
+    "resolved_at": null
+  },
+  {
+    "id": 31,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "schemas/capability-ledger.schema.json",
+    "line": null,
+    "description": "harnessVersion.raw minLength relaxed so a recorded absence (unprobed harness) is representable; doctor --discovery previously wrote a ledger its own reader refused",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T17:54:56.937Z",
     "resolved_at": null
   }
 ]

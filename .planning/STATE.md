@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-07-PLAN.md
-last_updated: "2026-09-10T16:50:05.504Z"
+stopped_at: Completed 03-08-PLAN.md
+last_updated: "2026-09-10T17:54:22.256Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: 76c4b493eb9a6b1570ebbf5d4efcb042615e8e09
+state_head: 0326c2f56cb648b981f11ccc8e2ae84f2e427bee
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 55
-  completed_plans: 50
+  completed_plans: 51
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
-Plan: 8 of 12
+Plan: 9 of 12
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -92,6 +92,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P05 | 36 min | 3 tasks | 5 files |
 | Phase 03 P06 | 46 min | 3 tasks | 8 files |
 | Phase 03 P07 | 9 min | 1 tasks | 0 files |
+| Phase 03 P08 | 60 min | 3 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -174,6 +175,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: A declared canary argument pattern cannot be checked from an observation record, and is reported UNCHECKED rather than satisfied. — McpObservation deliberately has no argument field because arguments are where credentials live (T-03-52). CAPA-01 structural claim must either narrow to "the tool was called" or the record shape must change with that reasoning re-argued.
 - [Phase 03]: A canary runtime is single-use and consumption is marked BEFORE the launch, so a crashed run cannot be repeated through a runtime holding stale observation records. — A second run through one runtime would compute its verdict partly from the first run records, and those records look exactly like records the second run produced.
 - [Phase 03]: CAPA-02 routing reconciliation resolved as option `narrow`: keep the four-tool extraction allowlist, reconcile in a new alpha-AOS-owned instruction (skills/alpha-aos-research-routing/SKILL.md), and record the third-party skill mismatch as a named finding — Developer selected the researcher-recommended option; no additional prose rationale was supplied. PROJECT.md's bounded four-tool Firecrawl claim (PROJECT.md:21, repeated at README.md:5 and README.md:113) therefore stays true as written.
+- [Phase 03]: The 03-07 `narrow` branch is implemented: the four-name Firecrawl allowlist is unchanged, PROJECT.md's bounded-extraction claim stands, and the routing contract is restated in skills/alpha-aos-research-routing/SKILL.md
+- [Phase 03]: A canary runtime materializes alpha-AOS-owned instructions into its own harness config root; project-only isolation hides user-scope skills, so an instruction written anywhere else would steer nothing
+- [Phase 03]: McpObservation gained exactly one field, identifierShape, a closed two-value classification computed and discarded in the proxy frame; a declared argument pattern no recorded shape decides is still reported UNCHECKED
+- [Phase 03]: A capability ledger row is keyed by project/harness/capability/POLARITY and replaced in place, with the replaced row's exact harness version retained in supersededHarnessVersions
+- [Phase 03]: CAPA-01 and CAPA-02 are NOT marked complete: the machinery is proven live but no model turn was spent, so native selection is unproven
 
 ### Pending Todos
 
@@ -231,6 +237,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T16:50:05.127Z
-Stopped at: Completed 03-07-PLAN.md
+Last session: 2026-09-10T17:53:29.944Z
+Stopped at: Completed 03-08-PLAN.md
 Resume file: None

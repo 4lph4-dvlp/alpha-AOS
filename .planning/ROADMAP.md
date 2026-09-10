@@ -231,7 +231,7 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task.
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation.
 
-**Plans**: 5/12 plans executed
+**Plans**: 6/12 plans executed
 **Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across Antigravity surfaces, Pi, and Hermes.
 
 Plans:
@@ -258,7 +258,7 @@ Plans:
 
 **Wave 6** *(blocked on Wave 5)*
 
-- [ ] 03-06-PLAN.md — The canary runtime (D-02) and the two doctor verbs: free discovery, opt-in invocation
+- [x] 03-06-PLAN.md — The canary runtime (D-02) and the two doctor verbs: free discovery, opt-in invocation
 
 **Wave 7** *(blocked on Wave 6)*
 
@@ -367,7 +367,7 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Safe Operation Boundary | 27/27 | Complete    | 2026-09-07 |
 | 2. Evidence-Bound Project Planning | 16/16 | Complete    | 2026-09-09 |
-| 3. Transactional Project Packs and Native Optional Use | 5/12 | In Progress|  |
+| 3. Transactional Project Packs and Native Optional Use | 6/12 | In Progress|  |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |
 | 5. Persistent Tree-Off Preload Isolation | 0/TBD | Not started | - |
 | 6. Managed Lifecycle, Uninstall, and Recovery | 0/TBD | Not started | - |

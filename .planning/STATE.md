@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-05-PLAN.md
-last_updated: "2026-09-10T14:00:59.518Z"
+stopped_at: Completed 03-06-PLAN.md
+last_updated: "2026-09-10T15:03:22.689Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: 31429034212cf8c0d9fb872270ad227cac159d59
+state_head: 033b82f6e7f13485331fc021fc76bffdf172549f
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 55
-  completed_plans: 47
+  completed_plans: 49
   percent: 14
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
-Plan: 6 of 12
+Plan: 7 of 12
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -90,6 +90,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P03 | 26 min | 3 tasks | 5 files |
 | Phase 03 P04 | 39 min | 3 tasks | 5 files |
 | Phase 03 P05 | 36 min | 3 tasks | 5 files |
+| Phase 03 P06 | 46 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -168,6 +169,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: createdAt is excluded from the already-current receipt comparison — It is the only field no input derives; comparing it would make every re-run rewrite a receipt whose every claim is unchanged, defeating D-06 idempotency
 - [Phase 03]: A sync tolerates plan drift caused only by its own materialization landing — Writing the files a plan describes changes their pre-state and therefore the plan digest; without a narrow target-changed tolerance the D-06 idempotency edge is unreachable
 - [Phase 03]: The receipt kind discriminator lands in schemas/receipt.schema.json only — CORE_SCHEMAS.receipt is the envelope check; the closed interior is where a target-kind vocabulary belongs
+- [Phase 03]: Only claude can host an invocation canary: it is the one harness with both an MCP-config flag and a strict flag, so every other harness records a blocked reason rather than launching best-effort. — RESEARCH.md verified --mcp-config and --strict-mcp-config on claude only; codex --strict-config constrains how config is read, not which config is read. A canary that may have reached the user own servers proves nothing, so fail-closed is the only honest answer (T-03-50).
+- [Phase 03]: A declared canary argument pattern cannot be checked from an observation record, and is reported UNCHECKED rather than satisfied. — McpObservation deliberately has no argument field because arguments are where credentials live (T-03-52). CAPA-01 structural claim must either narrow to "the tool was called" or the record shape must change with that reasoning re-argued.
+- [Phase 03]: A canary runtime is single-use and consumption is marked BEFORE the launch, so a crashed run cannot be repeated through a runtime holding stale observation records. — A second run through one runtime would compute its verdict partly from the first run records, and those records look exactly like records the second run produced.
 
 ### Pending Todos
 
@@ -225,6 +229,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T14:00:59.089Z
-Stopped at: Completed 03-05-PLAN.md
+Last session: 2026-09-10T15:03:22.280Z
+Stopped at: Completed 03-06-PLAN.md
 Resume file: None

@@ -67,8 +67,7 @@ export type MemoryUnparsedCode =
  * us nothing about handoffs; a host whose vault CLI answered in a shape this
  * build cannot read has told us something quite specific.
  */
-export type MemoryResult<T> =
-  | { readonly state: "ok"; readonly schemaVersion: string; readonly value: T }
+export type MemoryRefusal =
   | { readonly state: "unsupported"; readonly code: MemoryUnsupportedCode; readonly reason: string }
   | {
       readonly state: "unparsed";
@@ -78,6 +77,10 @@ export type MemoryResult<T> =
       readonly stdoutFingerprint: string;
       readonly stderrFingerprint: string;
     };
+
+export type MemoryResult<T> =
+  | { readonly state: "ok"; readonly schemaVersion: string; readonly value: T }
+  | MemoryRefusal;
 
 /**
  * One memory, as the vault describes it, with the fields this repository reads
@@ -242,18 +245,212 @@ export function createMemoryRunner(): MemoryRunner {
   };
 }
 
-export async function memoryDoctor(_options: MemoryCallOptions): Promise<MemoryResult<MemoryDoctorFacts>> {
-  return { state: "unsupported", code: "COMMAND_ABSENT", reason: "not implemented" };
+function unparsed(code: MemoryUnparsedCode, reason: string, stdout: string, stderr: string): MemoryRefusal {
+  return {
+    state: "unparsed",
+    code,
+    reason,
+    stdoutFingerprint: fingerprint(stdout),
+    stderrFingerprint: fingerprint(stderr),
+  };
 }
 
-export async function memoryHandoff(_options: MemoryHandoffOptions): Promise<MemoryResult<MemoryWriteFacts>> {
-  return { state: "unsupported", code: "COMMAND_ABSENT", reason: "not implemented" };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export async function memorySearch(_options: MemorySearchOptions): Promise<MemoryResult<MemorySearchFacts>> {
-  return { state: "unsupported", code: "COMMAND_ABSENT", reason: "not implemented" };
+/**
+ * Runs one command and hands back a validated envelope, or the reason there is
+ * none.
+ *
+ * The schema identifier is checked BEFORE any other field is touched. That
+ * ordering is the whole mitigation for T-03-113: read a field first and an
+ * upstream rename yields `undefined`, which arithmetic happily turns into a
+ * confident wrong answer.
+ */
+async function envelope(
+  kind: MemoryEnvelopeKind,
+  command: MemoryCommand,
+  runner: MemoryRunner,
+): Promise<{ readonly state: "ok"; readonly document: Record<string, unknown> } | MemoryRefusal> {
+  const result = await runner(command);
+
+  if (result.unsupported !== null) {
+    return {
+      state: "unsupported",
+      code: result.unsupported,
+      reason: result.reason ?? `the ${MEMORY_COMMAND} command could not be launched`,
+    };
+  }
+  if (!result.ran) {
+    return unparsed(
+      "COMMAND_FAILED",
+      `\`${MEMORY_COMMAND} ${command.args.slice(0, 2).join(" ")}\` did not produce a readable answer: ` +
+        `${result.reason ?? "no reason was recorded"}`,
+      result.stdout,
+      result.stderr,
+    );
+  }
+
+  let document: unknown;
+  try {
+    document = JSON.parse(result.stdout);
+  } catch (error) {
+    return unparsed(
+      "ENVELOPE_NOT_JSON",
+      `\`${MEMORY_COMMAND} ${command.args.slice(0, 2).join(" ")} --json\` did not answer with JSON ` +
+        `(${error instanceof Error ? error.name : "parse failure"})`,
+      result.stdout,
+      result.stderr,
+    );
+  }
+  if (!isRecord(document)) {
+    return unparsed(
+      "ENVELOPE_NOT_JSON",
+      `the ${kind} envelope was valid JSON but not an object, so it carries no schema identifier to check`,
+      result.stdout,
+      result.stderr,
+    );
+  }
+
+  const expected = MEMORY_ENVELOPES[kind];
+  const observed = document["schemaVersion"];
+  if (observed !== expected) {
+    return unparsed(
+      "ENVELOPE_SCHEMA_MISMATCH",
+      `the ${kind} envelope declares a contract this build does not know: expected ${expected}, observed ` +
+        `${typeof observed === "string" ? observed : `no schemaVersion (${typeof observed})`}. ` +
+        "Reading its fields anyway would turn an upstream version change into a confident wrong answer.",
+      result.stdout,
+      result.stderr,
+    );
+  }
+
+  return { state: "ok", document };
 }
 
-// Referenced so the stub compiles under `noUnusedLocals` until the GREEN step
-// wires it in.
-void fingerprint;
+function readEntry(value: unknown): MemoryEntry | null {
+  if (!isRecord(value)) return null;
+  const id = value["id"];
+  const title = value["title"];
+  const kind = value["kind"];
+  const scope = value["scope"];
+  const source = value["sourceHarness"];
+  const targets = value["targetHarnesses"];
+  if (typeof id !== "string" || typeof title !== "string" || typeof kind !== "string" || typeof scope !== "string") {
+    return null;
+  }
+  // Field-selective by construction: the four names above plus these two are
+  // read, and the parsed object is never retained. A future envelope field
+  // carrying a body — or a credential — therefore cannot ride along.
+  return {
+    id,
+    title,
+    kind,
+    scope,
+    sourceHarness: typeof source === "string" ? source : null,
+    targetHarnesses: Array.isArray(targets) ? targets.filter((entry): entry is string => typeof entry === "string") : [],
+  };
+}
+
+/** The vault's own health answer: is it readable, and how many memories are in it. */
+export async function memoryDoctor(options: MemoryCallOptions): Promise<MemoryResult<MemoryDoctorFacts>> {
+  const command: MemoryCommand = { args: ["memory", "doctor", "--json"], stdin: null, cwd: options.cwd };
+  const read = await envelope("doctor", command, options.runner ?? createMemoryRunner());
+  if (read.state !== "ok") return read;
+
+  const ok = read.document["ok"];
+  const memoryCount = read.document["memoryCount"];
+  const invalidFileCount = read.document["invalidFileCount"];
+  if (typeof ok !== "boolean" || typeof memoryCount !== "number") {
+    return unparsed(
+      "ENVELOPE_FIELD_MISSING",
+      `the ${MEMORY_ENVELOPES.doctor} envelope was missing its ok flag or its memoryCount, so no baseline could be taken`,
+      "",
+      "",
+    );
+  }
+  return {
+    state: "ok",
+    schemaVersion: MEMORY_ENVELOPES.doctor,
+    value: {
+      ok,
+      memoryCount,
+      invalidFileCount: typeof invalidFileCount === "number" ? invalidFileCount : 0,
+    },
+  };
+}
+
+/**
+ * Writes one handoff, attributed to a source harness and addressed to a target.
+ *
+ * The BODY goes through `--stdin`. It is never an argument, and a named test
+ * asserts a sentinel placed in it does not appear in the recorded argument
+ * vector — because that is the one place a value reliably survives into a
+ * process listing and a shell history (T-03-111).
+ */
+export async function memoryHandoff(options: MemoryHandoffOptions): Promise<MemoryResult<MemoryWriteFacts>> {
+  const command: MemoryCommand = {
+    args: [
+      "memory",
+      "handoff",
+      "--from",
+      options.source,
+      "--target",
+      options.target,
+      "--title",
+      options.title,
+      "--kind",
+      options.kind ?? "handoff",
+      "--stdin",
+      "--json",
+    ],
+    stdin: options.body,
+    cwd: options.cwd,
+  };
+  const read = await envelope("write", command, options.runner ?? createMemoryRunner());
+  if (read.state !== "ok") return read;
+
+  const memory = readEntry(read.document["memory"]);
+  const path = read.document["path"];
+  if (memory === null || typeof path !== "string") {
+    return unparsed(
+      "ENVELOPE_FIELD_MISSING",
+      `the ${MEMORY_ENVELOPES.write} envelope did not carry a readable memory record and path, so nothing proves a ` +
+        "handoff was actually written",
+      "",
+      "",
+    );
+  }
+  return { state: "ok", schemaVersion: MEMORY_ENVELOPES.write, value: { memory, path } };
+}
+
+/** Recall, optionally filtered to the entries addressed to one target harness. */
+export async function memorySearch(options: MemorySearchOptions): Promise<MemoryResult<MemorySearchFacts>> {
+  const args = ["memory", "search", "--json"];
+  if (options.targetHarness != null && options.targetHarness !== "") {
+    args.push("--target-harness", options.targetHarness);
+  }
+  if (options.limit !== undefined) args.push("--limit", String(options.limit));
+
+  const read = await envelope("search", { args, stdin: null, cwd: options.cwd }, options.runner ?? createMemoryRunner());
+  if (read.state !== "ok") return read;
+
+  const rows = read.document["results"];
+  if (!Array.isArray(rows)) {
+    return unparsed(
+      "ENVELOPE_FIELD_MISSING",
+      `the ${MEMORY_ENVELOPES.search} envelope carried no results array, which is a different fact from an empty vault`,
+      "",
+      "",
+    );
+  }
+  const results: MemoryEntry[] = [];
+  for (const row of rows) {
+    // Each row wraps its memory beside a score and a body EXCERPT. Only the
+    // memory is read; the excerpt is user content and has no field to land in.
+    const entry = readEntry(isRecord(row) ? row["memory"] : null);
+    if (entry !== null) results.push(entry);
+  }
+  return { state: "ok", schemaVersion: MEMORY_ENVELOPES.search, value: { results } };
+}

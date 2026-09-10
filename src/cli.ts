@@ -18,7 +18,7 @@ import {
   revalidateProjectPlan,
   type RemovalPlan,
 } from "./core/project-plan.js";
-import { applyProjectPackSync } from "./core/project-pack-sync.js";
+import { applyProjectPackSync, describeProjectProvenance } from "./core/project-pack-sync.js";
 import {
   applyIsolationManifest,
   cleanIsolationRuntime,
@@ -958,10 +958,14 @@ async function main(): Promise<void> {
         statusLedgerRead.state === "present" ? statusLedgerRead.ledger : null,
         { path: target, subProject },
       );
+      // The human lines live in `src/format.ts` and the raw shape leaves
+      // through `--json`, which is the split every other surface follows. The
+      // per-target receipt claim and sidecar state ride in both.
+      const provenance = describeProjectProvenance(reconciliation);
       print(
-        { reconciliation, removals },
+        { reconciliation, removals, provenance },
         json,
-        formatProjectStatus(reconciliation, removals, { path: target, subProject }, oneShotOffers),
+        formatProjectStatus(reconciliation, removals, { path: target, subProject }, oneShotOffers, provenance),
         context,
       );
       // A repository-supplied artifact that failed its closed schema is a

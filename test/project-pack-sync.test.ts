@@ -22,12 +22,14 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadLock } from "../src/core/catalog.js";
 import {
   applyProjectPackSync,
+  describeProjectProvenance,
   PACK_SIDECAR_FILE,
   planPackSidecar,
   planProjectPackSync,
+  PROVENANCE_FINDING_CODES,
   SIDECAR_SURFACES,
 } from "../src/core/project-pack-sync.js";
-import { formatProjectPackSync } from "../src/format.js";
+import { formatProjectPackSync, formatProjectStatus, MAX_STATUS_DETAIL_CHARS } from "../src/format.js";
 import {
   applyPackRemoval,
   approveProjectPlan,
@@ -41,6 +43,8 @@ import {
   resolvePackSource,
 } from "../src/core/project-plan.js";
 import { listManagedTransactions, rollbackManagedTransaction } from "../src/core/transaction.js";
+import type { PackProvenance } from "../src/core/project-pack-sync.js";
+import type { ProjectReconciliation } from "../src/core/project-plan.js";
 import type { HarnessId, ProjectCapabilityPlan } from "../src/types.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -800,6 +804,219 @@ test("a user-modified sidecar makes the removal refuse rather than delete it", a
     true,
     "a refused removal deleted the skill file anyway",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-11 Task 2: project-local provenance, visible in the report
+// ---------------------------------------------------------------------------
+//
+// CAPA-05 asks a user to SEE a synced capability with project-local provenance.
+// That means the report has to answer three questions per target: which harness
+// holds this file, who claims it, and where the record of that claim lives.
+//
+// A receipts-only surface renders its REASON. A blank there reads as a missing
+// file, and "not written here on purpose" versus "should be here and is not" is
+// the whole distinction this line exists to carry.
+
+/** A materialized fixture plus the reconciliation a report is rendered from. */
+async function materialized(context: TestContext, label: string): Promise<{
+  fixture: SyncFixture;
+  reconcile: () => Promise<ProjectReconciliation>;
+}> {
+  const fixture = await syncFixture(context, label);
+  await approve(fixture);
+  await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  return {
+    fixture,
+    reconcile: async () => reconcileProjectState({ path: fixture.root, packageRoot: fixture.packageRoot }),
+  };
+}
+
+/** Renders a status report for a fixture, with no host state consulted. */
+function renderStatus(reconciliation: ProjectReconciliation, path: string): string {
+  return formatProjectStatus(reconciliation, [], { path, subProject: null }, [], describeProjectProvenance(reconciliation));
+}
+
+test("the status report lists every target with its harness, its receipt claim and its sidecar state", async (context) => {
+  const { fixture, reconcile } = await materialized(context, "provenance-rows");
+  const reconciliation = await reconcile();
+  const provenance = describeProjectProvenance(reconciliation);
+
+  const pack: PackProvenance | undefined = provenance.find((entry) => entry.packId === PACK_ID);
+  assert.ok(pack, "the materialized pack has no provenance entry");
+  assert.equal(pack.receiptPath, RECEIPT_PATH);
+  assert.deepEqual(
+    pack.targets.map((target) => target.harness).sort(),
+    ["claude", "codex", "pi"],
+    "the provenance view does not cover every harness the pack was materialized to",
+  );
+
+  for (const target of pack.targets) {
+    assert.equal(target.claimedBy, RECEIPT_PATH, `${target.path} is not reported as claimed by its receipt`);
+  }
+  for (const harness of ["claude", "codex"] as const) {
+    const row: PackProvenance["targets"][number] | undefined = pack.targets.find(
+      (entry) => entry.harness === harness,
+    );
+    assert.equal(row?.sidecar, "present", `${harness}'s sidecar is not reported present`);
+    assert.equal(row?.sidecarPath, sidecarPathFor(harness));
+  }
+
+  const rendered = renderStatus(reconciliation, fixture.root);
+  assert.ok(rendered.includes(`PROVENANCE ${PACK_ID} — receipt ${RECEIPT_PATH}`), rendered);
+  for (const target of pack.targets) {
+    const line = rendered.split("\n").find((entry) => entry.includes(target.path) && entry.includes("harness="));
+    assert.ok(line !== undefined, `no rendered line names ${target.path}`);
+    assert.ok(line.includes(`harness=${target.harness}`), line);
+    assert.ok(line.includes("receipt=claimed"), line);
+  }
+});
+
+test("a receipts-only surface renders its reason rather than a blank sidecar state", async (context) => {
+  const { fixture, reconcile } = await materialized(context, "provenance-receipts-only");
+  const reconciliation = await reconcile();
+  const pi = describeProjectProvenance(reconciliation)
+    .find((entry) => entry.packId === PACK_ID)
+    ?.targets.find((target) => target.harness === "pi");
+
+  assert.ok(pi, "pi has a materialized target and no provenance row");
+  assert.equal(pi.sidecar, "receipts-only");
+  assert.equal(pi.sidecarPath, null, "a receipts-only surface named a sidecar path that will never exist");
+  assert.equal(pi.sidecarReason, SIDECAR_SURFACES.get("pi")?.reason, "the row does not carry the recorded reason verbatim");
+
+  const rendered = renderStatus(reconciliation, fixture.root);
+  const line = rendered.split("\n").find((entry) => entry.includes(pi.path) && entry.includes("harness=pi"));
+  assert.ok(line !== undefined, "pi has no rendered provenance line");
+  assert.ok(line.includes("sidecar=receipts-only"), line);
+  // The load-bearing words survive the status width bound. Plan 03-09 lost half
+  // a sentence to exactly this cap, so the decision leads the reason and the
+  // justification follows it.
+  assert.ok(line.includes("receipts-only on purpose"), `the reason was cut before it said this was deliberate: ${line}`);
+  assert.ok(line.includes("UNPROVEN"), `the reason was cut before it said why: ${line}`);
+  assert.ok(
+    (SIDECAR_SURFACES.get("pi")?.reason.indexOf("UNPROVEN") ?? Infinity) < MAX_STATUS_DETAIL_CHARS,
+    "pi's reason buries UNPROVEN past the status width bound, where a render would cut it",
+  );
+});
+
+test("an absent sidecar and a modified one are different reported states, never both absent", async (context) => {
+  const { fixture, reconcile } = await materialized(context, "provenance-absent-vs-modified");
+  const claude = join(fixture.root, ...sidecarPathFor("claude").split("/"));
+  const codex = join(fixture.root, ...sidecarPathFor("codex").split("/"));
+
+  // One deleted, one edited. A report that called both "absent" would be the
+  // absent-versus-unreadable collapse this repository has already fixed twice.
+  await rm(claude);
+  await writeFile(codex, `${await readFile(codex, "utf8")}\n// a human wrote this line\n`, "utf8");
+
+  const reconciliation = await reconcile();
+  const targets = describeProjectProvenance(reconciliation).find((entry) => entry.packId === PACK_ID)?.targets ?? [];
+  assert.equal(targets.find((target) => target.harness === "claude")?.sidecar, "missing");
+  assert.equal(targets.find((target) => target.harness === "codex")?.sidecar, "modified");
+
+  const rendered = renderStatus(reconciliation, fixture.root);
+  assert.ok(rendered.includes("sidecar=MISSING"), rendered);
+  assert.ok(rendered.includes("sidecar=MODIFIED"), rendered);
+  assert.ok(
+    rendered.includes("holds bytes alpha-AOS did not write"),
+    "a modified sidecar does not say what makes it different from an absent one",
+  );
+});
+
+test("a target claimed by no receipt renders a finding with a stable code", async (context) => {
+  const { fixture, reconcile } = await materialized(context, "provenance-unclaimed");
+
+  // The receipt stops claiming one target it wrote. The bytes stay exactly
+  // where they were: this is a gap in the RECORD, not a change to the tree.
+  const receiptFile = join(fixture.root, ...RECEIPT_PATH.split("/"));
+  const receipt = JSON.parse(await readFile(receiptFile, "utf8")) as {
+    targets: Array<{ harness: string; path: string; kind: string }>;
+  };
+  const dropped = receipt.targets.find((target) => target.harness === "pi" && target.kind === "skill");
+  assert.ok(dropped, "the fixture receipt claims no pi skill target to drop");
+  receipt.targets = receipt.targets.filter((target) => target !== dropped);
+  await writeFile(receiptFile, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
+
+  const reconciliation = await reconcile();
+  const pack = describeProjectProvenance(reconciliation).find((entry) => entry.packId === PACK_ID);
+  assert.ok(pack, "the pack lost its provenance entry entirely");
+
+  const finding = pack.findings.find((entry) => entry.path === dropped.path);
+  assert.ok(finding, `no finding names the unclaimed target: ${JSON.stringify(pack.findings)}`);
+  assert.equal(finding.code, PROVENANCE_FINDING_CODES.unclaimedTarget);
+  assert.equal(finding.code, "PROVENANCE_TARGET_UNCLAIMED");
+
+  const row = pack.targets.find((target) => target.path === dropped.path);
+  assert.ok(row, "an unclaimed target vanished from the rows instead of being reported");
+  assert.equal(row.claimedBy, null);
+
+  const rendered = renderStatus(reconciliation, fixture.root);
+  assert.ok(rendered.includes("PROVENANCE_TARGET_UNCLAIMED"), rendered);
+  assert.ok(
+    rendered.split("\n").some((line) => line.includes(dropped.path) && line.includes("receipt=UNCLAIMED")),
+    "the unclaimed target's row does not say it is unclaimed",
+  );
+  assert.equal(existsSync(join(fixture.root, ...dropped.path.split("/"))), true, "reporting removed a file");
+});
+
+test("two renders of the same reconciliation are byte-identical, with every list stably sorted", async (context) => {
+  const { fixture, reconcile } = await materialized(context, "provenance-stable");
+  const reconciliation = await reconcile();
+
+  assert.equal(
+    renderStatus(reconciliation, fixture.root),
+    renderStatus(reconciliation, fixture.root),
+    "two renders of one reconciliation differ",
+  );
+  assert.equal(
+    JSON.stringify(describeProjectProvenance(reconciliation)),
+    JSON.stringify(describeProjectProvenance(reconciliation)),
+    "two computations of one provenance view differ",
+  );
+
+  for (const pack of describeProjectProvenance(reconciliation)) {
+    const keys = pack.targets.map((target) => `${target.path} ${target.harness}`);
+    assert.deepEqual(keys, [...keys].sort(), `${pack.packId}'s targets are not sorted by path then harness`);
+    const paths = pack.findings.map((finding) => finding.path);
+    assert.deepEqual(paths, [...paths].sort(), `${pack.packId}'s findings are not sorted by path`);
+  }
+});
+
+test("the JSON surface carries the per-target receipt claim and sidecar state", async (context) => {
+  const { fixture } = await materialized(context, "provenance-json");
+
+  const result = spawnSync(process.execPath, [cliEntry, "project", "status", fixture.root, "--json"], {
+    encoding: "utf8",
+    windowsHide: true,
+    // Pinned, or this reads whatever the developer's real host ledger says.
+    env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot },
+  });
+  assert.equal(result.status, 0, `project status --json failed: ${result.stderr}`);
+
+  const payload = JSON.parse(result.stdout) as {
+    provenance: Array<{
+      packId: string;
+      receiptPath: string;
+      targets: Array<{ path: string; harness: string; claimedBy: string | null; sidecar: string }>;
+    }>;
+  };
+  const pack = payload.provenance.find((entry) => entry.packId === PACK_ID);
+  assert.ok(pack, `the JSON surface carries no provenance for ${PACK_ID}: ${result.stdout.slice(0, 400)}`);
+  assert.equal(pack.targets.length, 3);
+  for (const target of pack.targets) {
+    assert.equal(typeof target.claimedBy, "string", `${target.path} has no per-target receipt-claim field`);
+    assert.ok(
+      ["present", "modified", "missing", "receipts-only", "unrecorded"].includes(target.sidecar),
+      `${target.path} carries no sidecar state: ${target.sidecar}`,
+    );
+  }
+  assert.equal(pack.targets.find((target) => target.harness === "pi")?.sidecar, "receipts-only");
+  assert.equal(pack.targets.find((target) => target.harness === "claude")?.sidecar, "present");
 });
 
 test("an approved plan naming a harness with no project-local skill root refuses before any write", async (context) => {

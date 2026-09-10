@@ -12,7 +12,7 @@ import {
   type ProjectReconciliation,
   type RemovalPlan,
 } from "./core/project-plan.js";
-import type { ProjectPackSyncResult } from "./core/project-pack-sync.js";
+import type { PackProvenance, ProjectPackSyncResult } from "./core/project-pack-sync.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -399,11 +399,36 @@ function detailCell(detail: string): string {
   return detail.length <= MAX_STATUS_DETAIL_CHARS ? detail : `${detail.slice(0, MAX_STATUS_DETAIL_CHARS - 1)}\u2026`;
 }
 
+/**
+ * One target's provenance cell: where the record of who wrote it lives.
+ *
+ * A receipts-only surface renders its REASON rather than a blank. A blank reads
+ * as a missing file, and the distinction between "not written here on purpose"
+ * and "should be here and is not" is the whole point of this line. `missing`
+ * and `modified` are likewise separate words: a file that is not there and a
+ * file holding bytes alpha-AOS did not write call for opposite next actions.
+ */
+function provenanceCell(target: PackProvenance["targets"][number]): string {
+  switch (target.sidecar) {
+    case "present":
+      return `sidecar=present ${target.sidecarPath ?? ""}`.trimEnd();
+    case "modified":
+      return `sidecar=MODIFIED ${target.sidecarPath ?? ""} — it is there and holds bytes alpha-AOS did not write`.trimEnd();
+    case "missing":
+      return `sidecar=MISSING ${target.sidecarPath ?? ""} — the receipt claims it and it is not on disk`.trimEnd();
+    case "receipts-only":
+      return `sidecar=receipts-only — ${detailCell(target.sidecarReason ?? "no reason was recorded")}`;
+    default:
+      return "sidecar=unrecorded — no receipt row claims one for this target";
+  }
+}
+
 export function formatProjectStatus(
   reconciliation: ProjectReconciliation,
   removals: readonly RemovalPlan[],
   options: { path: string; subProject?: string | null },
   oneShotOffers: readonly OneShotOffer[] = [],
+  provenance: readonly PackProvenance[] = [],
 ): string {
   const lines = [
     `Project: ${reconciliation.plan.scope.canonicalRoot} (${reconciliation.plan.scope.rootReason})`,
@@ -486,6 +511,25 @@ export function formatProjectStatus(
     if (axes.support !== "supported") {
       lines.push(`SUPPORT-CEILING ${pack.packId} — ${detailCell(axes.supportReason)}`);
     }
+  }
+
+  // CAPA-05's project-local provenance: for each materialized pack, which
+  // harness holds which file, who claims it, and where the record of that
+  // claim lives. A user who is looking at their own `.claude/skills` should be
+  // able to answer "did alpha-AOS put this here, and from which pack" without
+  // reading a receipt by hand.
+  for (const pack of provenance) {
+    lines.push("", `PROVENANCE ${pack.packId} — receipt ${pack.receiptPath}`);
+    for (const target of pack.targets) {
+      lines.push(
+        `  ${target.path}  harness=${target.harness}  ` +
+          `receipt=${target.claimedBy === null ? "UNCLAIMED" : "claimed"}  ${provenanceCell(target)}`,
+      );
+    }
+    // A target nobody claims gets a stable code on its own line rather than a
+    // quiet omission from the rows above — the conflict discipline this report
+    // already applies, on the new surface.
+    for (const finding of pack.findings) lines.push(`${finding.code} ${detailCell(finding.detail)}`);
   }
 
   // One line per MISSING FACT, never a merged summary: two facts that

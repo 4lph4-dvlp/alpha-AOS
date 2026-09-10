@@ -133,7 +133,15 @@ export const PACK_SIDECAR_FILE = ".alpha-aos-provenance.json";
  */
 export interface SidecarSurface {
   readonly enabled: boolean;
-  /** One sentence stating the ground, ending in `[cited: <evidence>]`. */
+  /**
+   * One sentence stating the ground, ending in `[cited: <evidence>]`.
+   *
+   * The DECISION leads the sentence. A status line is capped at
+   * `MAX_STATUS_DETAIL_CHARS`, so a reason that buried "receipts-only on
+   * purpose" behind its justification would lose exactly the words a reader
+   * needs to tell a deliberate omission from a lost file. Plan 03-09 hit the
+   * same bound and answered it the same way: rewrite to fit rather than exempt.
+   */
   readonly reason: string;
   /** The live observation or document the decision rests on. Contained in `reason`. */
   readonly evidence: string;
@@ -159,7 +167,7 @@ export const SIDECAR_SURFACES: ReadonlyMap<HarnessId, SidecarSurface> = new Map<
     "claude",
     surface(
       true,
-      "a real sidecar file was placed inside a live skill directory and claude went on listing the skill unchanged, with empty stderr and no extra skill surfaced, so an unexpected file is tolerated here",
+      "sidecar written here: a real sidecar file was placed inside a live claude skill directory and claude went on listing the skill unchanged, with empty stderr and no extra skill surfaced, so an unexpected file is tolerated",
       "03-RESEARCH.md Open Question 2, claude 2.1.267",
     ),
   ],
@@ -167,7 +175,7 @@ export const SIDECAR_SURFACES: ReadonlyMap<HarnessId, SidecarSurface> = new Map<
     "codex",
     surface(
       true,
-      "a real sidecar file was placed inside a live skill directory and codex went on listing the skill with an unchanged description, with empty stderr and no extra skill surfaced, so an unexpected file is tolerated here",
+      "sidecar written here: a real sidecar file was placed inside a live codex skill directory and codex went on listing the skill with an unchanged description, with empty stderr and no extra skill surfaced",
       "03-RESEARCH.md Open Question 2, codex-cli 0.152.0",
     ),
   ],
@@ -175,7 +183,7 @@ export const SIDECAR_SURFACES: ReadonlyMap<HarnessId, SidecarSurface> = new Map<
     "pi",
     surface(
       false,
-      "pi's documented ignore rule covers only root Markdown files that do not look like skills, and no non-Markdown sidecar was ever placed in a pi skill directory, so tolerance here is UNPROVEN rather than unfavourable; this surface stays receipts-only and .alpha-aos/receipts remains the authoritative provenance record",
+      "receipts-only on purpose: tolerance here is UNPROVEN, so no sidecar is written and .alpha-aos/receipts is the whole provenance record for this surface — pi's documented ignore rule covers only root Markdown files that do not look like skills, and no non-Markdown sidecar was ever placed in a pi skill directory, which is unprobed rather than unfavourable",
       "03-RESEARCH.md Open Question 2, pi 0.85.1 docs/skills.md",
     ),
   ],
@@ -328,6 +336,172 @@ export function planPackSidecar(
 /** The relative POSIX receipt path for one pack. Stated once. */
 function receiptPathFor(packId: string): string {
   return `${PROJECT_RECEIPT_DIRECTORY}/${packId}.json`;
+}
+
+// ---------------------------------------------------------------------------
+// The project-local provenance VIEW: who claims which file, and where
+// provenance lives for it
+// ---------------------------------------------------------------------------
+//
+// This lives here rather than in `project-plan.ts` because it has to read
+// `SIDECAR_SURFACES`, and `project-plan.ts` is this module's dependency — the
+// other direction is an import cycle. `src/format.ts` renders the value and the
+// CLI serializes it, which is the split every other surface already follows.
+
+/** Stable codes for what the provenance view reports without acting on it. */
+export const PROVENANCE_FINDING_CODES = {
+  /** A target for this pack exists on disk and no receipt claims it. */
+  unclaimedTarget: "PROVENANCE_TARGET_UNCLAIMED",
+} as const;
+
+/**
+ * Where provenance is for one materialized target.
+ *
+ * Five values, not two, and the split that matters most is `missing` versus
+ * `modified`: a sidecar that is not there and a sidecar that is there holding
+ * bytes alpha-AOS did not write are different facts calling for different next
+ * actions, and collapsing them is exactly the absent-versus-unreadable failure
+ * this repository has already had to fix twice.
+ */
+export type SidecarPresence =
+  /** Claimed by the receipt and holding exactly the bytes it records. */
+  | "present"
+  /** Claimed and on disk, hashing to something else. NOT absent. */
+  | "modified"
+  /** Claimed by the receipt and not on disk. */
+  | "missing"
+  /** Deliberately not written on this surface. Carries the reason. */
+  | "receipts-only"
+  /** Nothing claims a sidecar here — e.g. a receipt written before D-07. */
+  | "unrecorded";
+
+/** One target path, who claims it, and where its provenance lives. */
+export interface ProvenanceTarget {
+  /** Relative POSIX path from the canonical root. */
+  readonly path: string;
+  readonly harness: HarnessId;
+  /** The receipt claiming this path, or null when no receipt does. */
+  readonly claimedBy: string | null;
+  readonly sidecar: SidecarPresence;
+  /** The sidecar path, or null where the surface writes none. */
+  readonly sidecarPath: string | null;
+  /** The `SIDECAR_SURFACES` reason, present exactly when `sidecar` is receipts-only. */
+  readonly sidecarReason: string | null;
+}
+
+export interface ProvenanceFinding {
+  readonly code: typeof PROVENANCE_FINDING_CODES.unclaimedTarget;
+  readonly packId: string;
+  readonly path: string;
+  readonly detail: string;
+}
+
+/** One installed pack's provenance, as a report renders it. */
+export interface PackProvenance {
+  readonly packId: string;
+  readonly receiptPath: string;
+  /** Sorted by path, then harness. Never directory order. */
+  readonly targets: readonly ProvenanceTarget[];
+  readonly findings: readonly ProvenanceFinding[];
+}
+
+/** The sidecar path that belongs beside one skill target. */
+function sidecarPathBeside(targetPath: string): string {
+  return `${posixDirectory(targetPath)}/${PACK_SIDECAR_FILE}`;
+}
+
+/**
+ * Per materialized pack: every target path with its harness, whether a receipt
+ * claims it, and where its provenance lives.
+ *
+ * The target set is the UNION of what the receipts claim and what this pack's
+ * planned targets show on disk. A planned target that exists and no receipt
+ * claims is a FINDING with a stable code rather than a row quietly absent from
+ * the report — the existing conflict discipline applied to this new surface.
+ *
+ * Reads the reconciliation only. Nothing here opens a file: the hashes were
+ * already taken by `reconcileProjectState`, and taking them again would let the
+ * report disagree with the state it is reporting on.
+ */
+export function describeProjectProvenance(reconciliation: {
+  readonly plan: { readonly targetPreState: readonly TargetPreState[] };
+  readonly packs: readonly {
+    readonly packId: string;
+    readonly receiptPath: string;
+    readonly targets: readonly {
+      readonly path: string;
+      readonly harness: HarnessId;
+      readonly kind: "skill" | "sidecar" | null;
+      readonly exists: boolean;
+      readonly matches: boolean;
+    }[];
+  }[];
+}): PackProvenance[] {
+  return reconciliation.packs.map((pack): PackProvenance => {
+    const sidecarRows = new Map(pack.targets.filter((target) => target.kind === "sidecar").map((target) => [target.path, target]));
+    const claimed = new Map(
+      pack.targets.filter((target) => target.kind !== "sidecar").map((target) => [target.path, target]),
+    );
+
+    // A planned target for this pack that is ON DISK but claimed by no receipt.
+    // `exists` is what makes it worth reporting: a planned-and-absent path is
+    // simply not materialized yet, which is not a provenance gap.
+    const planned = reconciliation.plan.targetPreState.filter(
+      (entry) => entry.packId === pack.packId && entry.exists && !claimed.has(entry.path),
+    );
+
+    const findings: ProvenanceFinding[] = planned.map((entry) => ({
+      code: PROVENANCE_FINDING_CODES.unclaimedTarget,
+      packId: pack.packId,
+      path: entry.path,
+      detail:
+        `${pack.packId}: ${entry.path} holds a file on disk and ${pack.receiptPath} does not claim it, so alpha-AOS ` +
+        "cannot say it wrote those bytes. That is a gap in the provenance record, not a silent omission from this " +
+        "report; nothing was overwritten, renamed or removed.",
+    }));
+    findings.sort((left, right) => byCodePoint(left.path, right.path));
+
+    const rows: ProvenanceTarget[] = [
+      ...[...claimed.values()].map((target): ProvenanceTarget => {
+        const decision = SIDECAR_SURFACES.get(target.harness);
+        const path = sidecarPathBeside(target.path);
+        const row = sidecarRows.get(path);
+        if (row !== undefined) {
+          return {
+            path: target.path,
+            harness: target.harness,
+            claimedBy: pack.receiptPath,
+            // `missing` and `modified` stay separate: one file is not there, the
+            // other is there holding bytes alpha-AOS did not write.
+            sidecar: !row.exists ? "missing" : row.matches ? "present" : "modified",
+            sidecarPath: path,
+            sidecarReason: null,
+          };
+        }
+        return {
+          path: target.path,
+          harness: target.harness,
+          claimedBy: pack.receiptPath,
+          sidecar: decision !== undefined && !decision.enabled ? "receipts-only" : "unrecorded",
+          sidecarPath: decision !== undefined && !decision.enabled ? null : path,
+          sidecarReason: decision !== undefined && !decision.enabled ? decision.reason : null,
+        };
+      }),
+      ...planned.map((entry): ProvenanceTarget => ({
+        path: entry.path,
+        harness: entry.harness,
+        claimedBy: null,
+        sidecar: "unrecorded",
+        sidecarPath: null,
+        sidecarReason: null,
+      })),
+    ];
+    // Stably sorted by path then harness, so a directory-order difference
+    // between two hosts cannot change the output.
+    rows.sort((left, right) => byCodePoint(left.path, right.path) || byCodePoint(left.harness, right.harness));
+
+    return { packId: pack.packId, receiptPath: pack.receiptPath, targets: rows, findings };
+  });
 }
 
 /** One target path a receipt this module writes will claim. */

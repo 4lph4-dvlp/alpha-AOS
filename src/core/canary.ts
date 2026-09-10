@@ -20,7 +20,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { resolveDirectLaunch } from "../adapters/capability-oracle.js";
+import { ORACLE_DEFINITIONS, resolveDirectLaunch } from "../adapters/capability-oracle.js";
 import type { BlockedReason, LedgerHarness, NativeUseState } from "./capability-ledger.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
 import { commandProbeEnvironment, resolveCommand, runProcess } from "./process.js";
@@ -429,6 +429,11 @@ export interface ProbeReadinessOptions {
   /** Where the readiness commands run. A harness reads project configuration from it. */
   readonly cwd?: string;
   /**
+   * Which act this is. Defaults to `canary`; passing `preview` is refused,
+   * because this probe launches subprocesses and a preview may not.
+   */
+  readonly context?: ExecutionContext;
+  /**
    * Servers a prior observation recorded as REGISTERED, with the harness's own
    * word for their state.
    *
@@ -746,6 +751,9 @@ export function createReadinessRunner(cwd: string = process.cwd()): ReadinessRun
  */
 export async function probeReadiness(options: ProbeReadinessOptions): Promise<ReadinessReport> {
   const { harness, canary, environment } = options;
+  // A preview launches nothing. This probe launches up to two subprocesses, so
+  // the boundary is asserted before any of them, not after.
+  assertCanaryContext(options.context ?? "canary", "probeReadiness");
   const cwd = options.cwd ?? process.cwd();
   const run = options.runner ?? createReadinessRunner(cwd);
   const definition = READINESS_DEFINITIONS[harness];
@@ -918,4 +926,105 @@ export function ledgerFieldsFor(disposition: CanaryDisposition): {
     nativeUse: "unverified",
     blockedReason: disposition.outcome === "blocked" ? disposition.blockedReasons[0] ?? null : null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The preview boundary — a canary is not a preview, and says so here
+// ---------------------------------------------------------------------------
+
+/**
+ * Which act is under way.
+ *
+ * A preview launches nothing, spends nothing and persists nothing (SAFE-01,
+ * and the plan 01-21 decision that a preview must not spawn a package manager).
+ * A canary launches a harness, may spend a model turn, and writes a ledger
+ * record. They are opposite in every one of those respects, which is why the
+ * boundary is a refusal in code rather than a convention nobody wires wrong.
+ */
+export type ExecutionContext = "preview" | "canary";
+
+/** Stable refusal code. Callers branch on this, never on the sentence. */
+export const CANARY_IN_PREVIEW_CONTEXT = "CANARY_IN_PREVIEW_CONTEXT";
+
+/** A canary entry point reached from a preview. Never recoverable in place. */
+export class CanaryContextError extends Error {
+  readonly code = CANARY_IN_PREVIEW_CONTEXT;
+  readonly operation: string;
+
+  constructor(operation: string) {
+    super(
+      `\`${operation}\` is a canary operation: it launches a harness, may spend a model turn, and writes a ledger ` +
+        "record. A preview does none of those and persists nothing, so it is refused here rather than allowed to " +
+        "spend from a dry run. Run it with `alpha-aos doctor --canary` instead.",
+    );
+    this.name = "CanaryContextError";
+    this.operation = operation;
+  }
+}
+
+/**
+ * Refuses a canary operation reached from a preview context.
+ *
+ * The register is the one the existing verb refusals use: name what was asked
+ * for, say why it is not that verb's job, and name the command that IS. The
+ * source-level assertion in the suite — that the preview module does not import
+ * this one — is the other half; a refusal alone can be bypassed by a caller
+ * that never calls it, and an import assertion alone cannot stop a caller that
+ * reaches this module by some other route.
+ */
+export function assertCanaryContext(context: ExecutionContext, operation: string): void {
+  if (context !== "preview") return;
+  throw new CanaryContextError(operation);
+}
+
+// ---------------------------------------------------------------------------
+// What a run would spend
+// ---------------------------------------------------------------------------
+
+/** What one canary would cost on one harness. */
+export interface CanaryCost {
+  readonly harness: CanaryHarness;
+  /**
+   * Whether driving this harness spends a model turn, or null when the harness
+   * has no oracle definition and the cost is therefore not derivable.
+   *
+   * READ from `ORACLE_DEFINITIONS` rather than restated in the catalog: a
+   * second table recording the same fact is a second table that can drift, and
+   * the cost of driving a harness is a property of the harness, not of the
+   * prompt. A bare model turn in an empty fixture measured about thirteen cents
+   * on this host and a full sweep about seventy, with no credential available
+   * on hosted CI at all (03-RESEARCH.md Pitfall 10) — which is why a caller
+   * must be able to list what a run would spend BEFORE running it.
+   */
+  readonly costsModelTurn: boolean | null;
+}
+
+/** What one declared canary would cost, per harness it is declared for. */
+export function canaryCosts(canary: CanaryDeclaration): readonly CanaryCost[] {
+  return canary.harnesses.map((harness) => ({
+    harness,
+    costsModelTurn: ORACLE_DEFINITIONS[harness]?.costsModelTurn ?? null,
+  }));
+}
+
+/**
+ * Whether running this canary anywhere it is declared for spends a model turn.
+ *
+ * Fail-closed on an underivable cost: a harness whose cost is unknown is
+ * treated as spending, because the failure mode of the other default is a
+ * surprise charge.
+ */
+export function canaryCostsModelTurn(canary: CanaryDeclaration): boolean {
+  return canaryCosts(canary).some((cost) => cost.costsModelTurn !== false);
+}
+
+/** What a whole sweep would spend, for a caller listing it before running it. */
+export function catalogCosts(
+  catalog: CanaryCatalog,
+): readonly { readonly id: string; readonly costsModelTurn: boolean; readonly perHarness: readonly CanaryCost[] }[] {
+  return catalog.canaries.map((canary) => ({
+    id: canary.id,
+    costsModelTurn: canaryCostsModelTurn(canary),
+    perHarness: canaryCosts(canary),
+  }));
 }

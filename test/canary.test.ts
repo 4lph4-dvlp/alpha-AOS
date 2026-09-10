@@ -16,8 +16,14 @@ import { fileURLToPath } from "node:url";
 
 import { ManagedDocumentError } from "../src/core/catalog.js";
 import {
+  assertCanaryContext,
   BLOCKED_CODES,
   CANARY_CATALOG_FILE,
+  CANARY_IN_PREVIEW_CONTEXT,
+  canaryCosts,
+  canaryCostsModelTurn,
+  CanaryContextError,
+  catalogCosts,
   disposeCanary,
   findPromptHints,
   loadCanaryCatalog,
@@ -618,4 +624,113 @@ test("no readiness argument vector carries a flag whose documented effect is to 
   }
   // Positive control: the slice really does contain the vectors it is judging.
   assert.equal(region.includes('"auth", "check"'), true, "the extracted region contains no argument vector at all");
+});
+
+// ---------------------------------------------------------------------------
+// Task 3 — the canary is not a preview, and says so at the boundary
+// ---------------------------------------------------------------------------
+
+test("the preview-context guard refuses with a stable code and names the command to run instead", () => {
+  assert.throws(
+    () => assertCanaryContext("preview", "probeReadiness"),
+    (error: unknown) => {
+      assert.ok(error instanceof CanaryContextError, `expected a CanaryContextError, got ${String(error)}`);
+      assert.equal(error.code, CANARY_IN_PREVIEW_CONTEXT, "the refusal carries no stable code");
+      assert.equal(error.operation, "probeReadiness", "the refusal does not name the operation that was refused");
+      assert.equal(
+        error.message.includes("alpha-aos doctor --canary"),
+        true,
+        "the refusal does not name the command to run instead, which is what the existing verb refusals do",
+      );
+      return true;
+    },
+  );
+
+  // Positive control: the guard is a refusal for previews only, not a blanket one.
+  assert.doesNotThrow(() => assertCanaryContext("canary", "probeReadiness"));
+});
+
+test("a canary entry point reached from a preview context is refused before it launches anything", async () => {
+  let launched = false;
+  const watchful: ReadinessRunner = {
+    resolveHarness: () => {
+      launched = true;
+      return "/usr/bin/harness";
+    },
+    providerReadiness: async () => {
+      launched = true;
+      return notRun("should never be reached");
+    },
+    connectionListing: async () => {
+      launched = true;
+      return notRun("should never be reached");
+    },
+  };
+
+  await assert.rejects(
+    async () =>
+      probeReadiness({
+        harness: "claude",
+        canary: declaration({ requiresEnvironment: ["EXA_API_KEY"] }),
+        environment: {},
+        context: "preview",
+        runner: watchful,
+      }),
+    (error: unknown) => error instanceof CanaryContextError && error.code === CANARY_IN_PREVIEW_CONTEXT,
+  );
+  assert.equal(launched, false, "the refusal came after the probe had already reached for a process");
+});
+
+test("the preview module does not import the canary module, at the source level", async () => {
+  // A refusal can be bypassed by a caller that never calls it. This assertion
+  // is the other half: the preview path cannot reach a canary even indirectly,
+  // because it does not import the module that holds one.
+  const source = await readFile(join(repositoryRoot, "src", "core", "project-plan.ts"), "utf8");
+  const imports = source
+    .split(/\r?\n/u)
+    .filter((line) => /^\s*(?:import|export)\b/u.test(line) && line.includes("from "));
+  assert.equal(imports.length >= 5, true, "no import lines were extracted, so the control below would be vacuous");
+
+  for (const line of imports) {
+    assert.equal(
+      /["'][^"']*canary\.js["']/u.test(line),
+      false,
+      `src/core/project-plan.ts imports the canary module: ${line.trim()}`,
+    );
+  }
+  // A dynamic import would evade the line filter above, so it is named too.
+  assert.equal(
+    /import\s*\(\s*["'][^"']*canary\.js["']/u.test(source),
+    false,
+    "src/core/project-plan.ts reaches the canary module through a dynamic import",
+  );
+  assert.equal(source.includes("canary.js"), false, "src/core/project-plan.ts names the canary module at all");
+});
+
+test("every canary declaration exposes whether a run would spend a model turn", async () => {
+  const catalog = await shippedCatalog();
+  const costs = catalogCosts(catalog);
+  assert.equal(costs.length, catalog.canaries.length, "not every declared canary has a cost");
+
+  for (const entry of costs) {
+    assert.equal(typeof entry.costsModelTurn, "boolean", `${entry.id} has no cost answer`);
+    assert.equal(entry.perHarness.length >= 1, true, `${entry.id} reports a cost for no harness`);
+  }
+
+  // The shipped canaries are declared for the harness whose oracle DOES spend a
+  // turn, so a caller listing a sweep sees a real number rather than a zero.
+  assert.equal(
+    costs.every((entry) => entry.costsModelTurn),
+    true,
+    "a declared canary reports that it spends nothing; the whole point of the flag is to be true where it is true",
+  );
+
+  // Read from the oracle table rather than restated, so the two cannot drift.
+  assert.deepEqual(canaryCosts(declaration({ harnesses: ["claude"] })), [{ harness: "claude", costsModelTurn: true }]);
+  assert.deepEqual(canaryCosts(declaration({ harnesses: ["codex"] })), [{ harness: "codex", costsModelTurn: false }]);
+  // A harness with no oracle definition reports an underivable cost, and the
+  // fail-closed roll-up treats an unknown cost as spending.
+  assert.deepEqual(canaryCosts(declaration({ harnesses: ["hermes"] })), [{ harness: "hermes", costsModelTurn: null }]);
+  assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["hermes"] })), true);
+  assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["codex"] })), false);
 });

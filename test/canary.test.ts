@@ -2417,7 +2417,7 @@ test("a handoff body travels the non-argument input path and its sentinel never 
   const command = recorded.at(0);
   assert.notEqual(command, undefined);
   assert.equal(
-    (command?.args ?? []).join(" ").includes(sentinel),
+    (command?.args ?? []).join(" ").includes(sentinel),
     false,
     "an argument list is the one place a value reliably reaches a process listing and a shell history",
   );

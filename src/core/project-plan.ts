@@ -2300,11 +2300,24 @@ function firstBlockedReason(
   return null;
 }
 
+/**
+ * What sort of target a receipt row claims.
+ *
+ * Mirrors `schemas/receipt.schema.json`'s `targets[].kind`. It is carried
+ * through reconciliation rather than dropped, so a report can tell a
+ * materialized `SKILL.md` from the provenance sidecar written beside it — and
+ * so a receipt written before sidecars existed reads as a row with an
+ * unrecorded kind rather than as a skill row that lost its sidecar.
+ */
+export type ReceiptTargetKind = "skill" | "sidecar";
+
 /** One target a receipt claims, compared against the bytes on disk. */
 export interface ReconciledTarget {
   /** Relative POSIX path from the canonical root. */
   readonly path: string;
   readonly harness: HarnessId;
+  /** The row's declared kind, or null when the receipt records one this build does not know. */
+  readonly kind: ReceiptTargetKind | null;
   /** The hash the receipt recorded when the pack was materialized. */
   readonly expectedHash: string;
   /** The hash of the bytes there now, or null when absent or unreadable. */
@@ -2403,7 +2416,12 @@ export interface PackReceipt {
   readonly sourceHash: string;
   /** The evidence envelope that selected this pack, when the receipt records one. */
   readonly evidenceHash: string | null;
-  readonly targets: readonly { readonly harness: HarnessId; readonly path: string; readonly targetHash: string }[];
+  readonly targets: readonly {
+    readonly harness: HarnessId;
+    readonly path: string;
+    readonly targetHash: string;
+    readonly kind: ReceiptTargetKind | null;
+  }[];
 }
 
 // Root-keyed for the same reason `approvedPlanSchemas` is (WR-09).
@@ -2462,11 +2480,17 @@ export async function readPackReceiptsStrict(root: string, packageRoot: string):
       packId: string;
       sourceHash: string;
       evidenceHash?: string;
-      targets: ReadonlyArray<{ harness: HarnessId; path: string; targetHash: string }>;
+      targets: ReadonlyArray<{ harness: HarnessId; path: string; targetHash: string; kind?: string }>;
     };
     const targets: PackReceipt["targets"] = value.targets.flatMap((entry) => {
       const normalized = normalizeRelativePosix(entry.path);
-      return normalized === null ? [] : [{ harness: entry.harness, path: normalized, targetHash: entry.targetHash }];
+      if (normalized === null) return [];
+      // A kind this build does not know is carried as `null` rather than
+      // coerced to `skill`: the closed schema is what refuses an unregistered
+      // value at the door, and guessing here would let a future row read as
+      // something it is not.
+      const kind: ReceiptTargetKind | null = entry.kind === "skill" || entry.kind === "sidecar" ? entry.kind : null;
+      return [{ harness: entry.harness, path: normalized, targetHash: entry.targetHash, kind }];
     });
     receipts.push({
       packId: value.packId,
@@ -2723,6 +2747,7 @@ export async function reconcileProjectState(
       targets.push({
         path: claim.path,
         harness: claim.harness,
+        kind: claim.kind,
         expectedHash: claim.targetHash,
         currentHash,
         exists,

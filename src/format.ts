@@ -300,11 +300,18 @@ export function formatProjectPackSync(result: ProjectPackSyncResult): string {
   // did. It was produced before any byte was written, and burying it under the
   // written-paths list would make a loud guard quiet again (T-03-92).
   const findings = result.findings.map((finding) => `${finding.code} ${finding.detail}`);
+  // A receipts-only surface says so WITH its reason. Printing nothing would
+  // leave a user comparing two skill directories and finding a provenance file
+  // in one of them, with no way to tell a deliberate omission from a lost file.
+  const surfaces = result.sidecarSurfaces
+    .filter((entry) => !entry.enabled)
+    .map((entry) => `RECEIPTS-ONLY ${entry.harness} — ${entry.reason}`);
   if (result.status === "already-current") {
     return [
       ...findings,
       `Packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
       ...result.current.map((path) => `  current ${path}`),
+      ...surfaces,
       "Already current. No bytes were written and no transaction was opened.",
     ].join("\n");
   }
@@ -312,7 +319,9 @@ export function formatProjectPackSync(result: ProjectPackSyncResult): string {
     ...findings,
     `Materialized packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
     ...result.written.map((path) => `  wrote ${path}`),
+    ...result.sidecars.map((path) => `  provenance ${path}`),
     ...result.receipts.map((path) => `  receipt ${path}`),
+    ...surfaces,
     `Transaction: ${result.operationId ?? "none"}`,
     "The transaction snapshotted every replaced file before writing it, so this materialization is reversible with `alpha-aos rollback`.",
   ].join("\n");

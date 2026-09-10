@@ -20,13 +20,24 @@ import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { loadLock } from "../src/core/catalog.js";
-import { applyProjectPackSync, planProjectPackSync } from "../src/core/project-pack-sync.js";
+import {
+  applyProjectPackSync,
+  PACK_SIDECAR_FILE,
+  planPackSidecar,
+  planProjectPackSync,
+  SIDECAR_SURFACES,
+} from "../src/core/project-pack-sync.js";
 import { formatProjectPackSync } from "../src/format.js";
 import {
+  applyPackRemoval,
   approveProjectPlan,
   classifyPlanDrift,
+  planPackRemoval,
   planProjectCapabilities,
   PROJECT_RECEIPT_DIRECTORY,
+  PROJECT_SKILL_ROOTS,
+  reconcileProjectState,
+  removalAllowedRoots,
   resolvePackSource,
 } from "../src/core/project-plan.js";
 import { listManagedTransactions, rollbackManagedTransaction } from "../src/core/transaction.js";
@@ -179,10 +190,19 @@ test("one approved pack's SKILL.md and its receipt both land, written by one tra
   };
   assert.equal(receipt.packId, PACK_ID);
   assert.equal(receipt.producer.name, "alpha-aos");
-  assert.equal(receipt.targets.length, result.written.length);
+  // Filtered by kind rather than counted whole: since plan 03-11 a receipt also
+  // claims the provenance sidecars written beside the skills (D-07), and those
+  // are alpha-AOS's own bytes rather than locked source bytes.
+  const skillRows = receipt.targets.filter((target) => target.kind === "skill");
+  assert.equal(skillRows.length, result.written.length);
   for (const target of receipt.targets) {
+    assert.ok(
+      target.kind === "skill" || target.kind === "sidecar",
+      `${target.path} carries no D-05 kind discriminator`,
+    );
+  }
+  for (const target of skillRows) {
     assert.equal(target.targetHash, expected, `${target.path} recorded a hash other than the locked source hash`);
-    assert.equal(target.kind, "skill", `${target.path} carries no D-05 kind discriminator`);
   }
 
   // A user must be able to see exactly which bytes entered their project and
@@ -416,6 +436,370 @@ test("a sync whose bound inputs moved refuses, naming the drift kind and both di
     `the refusal did not name the observed digest: ${error.message}`,
   );
   assert.deepEqual(await snapshotProject(fixture.root), before, "a refused sync changed the project tree");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-11 Task 1: the provenance sidecar (CONTEXT.md D-07)
+// ---------------------------------------------------------------------------
+//
+// The sidecar is written BESIDE a materialized SKILL.md so a user looking at the
+// harness's own skill directory can see alpha-AOS put it there — but only on a
+// surface where 03-RESEARCH.md placed a real sidecar in a live skill directory
+// and watched the harness list the skill unchanged. pi was never probed with a
+// non-Markdown sidecar, so pi is receipts-only and says why.
+//
+// The skill BYTES are never touched, and that is the reason the sidecar exists
+// at all: the identity renderer makes a provenance header unavailable.
+
+/** The provenance sidecar `PACK_SKILL`'s materialization would place for one harness. */
+function sidecarPathFor(harness: "claude" | "codex" | "pi"): string {
+  return `${PROJECT_SKILL_ROOTS[harness] ?? ""}/${PACK_SKILL}/${PACK_SIDECAR_FILE}`;
+}
+
+/** Every provenance sidecar actually on disk under the project, sorted. */
+async function sidecarFiles(root: string): Promise<string[]> {
+  return (await snapshotProject(root))
+    .map(([path]) => path)
+    .filter((path) => path.endsWith(`/${PACK_SIDECAR_FILE}`))
+    .sort();
+}
+
+/** A receipt as written, read back raw. */
+async function readReceipt(root: string): Promise<{
+  targets: Array<{ harness: string; path: string; targetHash: string; kind: string }>;
+}> {
+  return JSON.parse(await readFile(join(root, ...RECEIPT_PATH.split("/")), "utf8")) as {
+    targets: Array<{ harness: string; path: string; targetHash: string; kind: string }>;
+  };
+}
+
+test("every harness with a project-local skill root has a recorded sidecar decision carrying its evidence", () => {
+  for (const harness of Object.keys(PROJECT_SKILL_ROOTS) as Array<"claude" | "codex" | "pi">) {
+    const decision = SIDECAR_SURFACES.get(harness);
+    assert.ok(decision !== undefined, `${harness} has a project-local skill root and no sidecar decision`);
+    assert.equal(typeof decision.enabled, "boolean", `${harness}'s sidecar decision is not a decision`);
+    assert.ok(decision.reason.length > 0, `${harness}'s sidecar decision carries no reason`);
+    assert.ok(decision.evidence.length > 0, `${harness}'s sidecar decision cites nothing`);
+    // The rendered reason CARRIES its citation, so a reader of a receipts-only
+    // line can check the claim without holding this table — the same discipline
+    // SURFACE_CEILING already enforces.
+    assert.ok(
+      decision.reason.includes(decision.evidence),
+      `${harness}'s reason does not repeat its own citation: ${decision.reason}`,
+    );
+  }
+
+  // The split is the RESEARCH finding, not a convenience: two surfaces were
+  // probed with a real sidecar, the third was not.
+  assert.equal(SIDECAR_SURFACES.get("claude")?.enabled, true);
+  assert.equal(SIDECAR_SURFACES.get("codex")?.enabled, true);
+  assert.equal(SIDECAR_SURFACES.get("pi")?.enabled, false);
+});
+
+test("applying a pack writes a provenance sidecar on every tolerance-proven surface, in the same transaction", async (context) => {
+  const fixture = await syncFixture(context, "sidecar-write");
+  await approve(fixture);
+
+  const result = await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+
+  assert.equal(result.status, "written");
+  assert.deepEqual(
+    [...result.sidecars].sort(),
+    [sidecarPathFor("claude"), sidecarPathFor("codex")].sort(),
+    "the tolerance-proven surfaces did not each get exactly one sidecar",
+  );
+
+  for (const harness of ["claude", "codex"] as const) {
+    const relative = sidecarPathFor(harness);
+    const absolute = join(fixture.root, ...relative.split("/"));
+    const document = JSON.parse(await readFile(absolute, "utf8")) as Record<string, unknown>;
+    assert.equal(document.owner, "alpha-aos", `${relative} does not name alpha-AOS as the owner`);
+    assert.equal(document.packId, PACK_ID);
+    assert.equal(document.harness, harness);
+    assert.equal(document.skill, PACK_SKILL);
+    assert.equal(document.receipt, RECEIPT_PATH, `${relative} does not name the authoritative receipt`);
+    assert.deepEqual(document.source, {
+      package: "ecc-universal",
+      version: (await loadLock(fixture.packageRoot)).components.ecc?.version,
+      sha256: fixture.sourceHash,
+    });
+    assert.equal(typeof document.createdAt, "string");
+    // The sidecar says outright that it is a view of the receipt, so nobody
+    // reads it as a second source of truth.
+    assert.match(String(document.note), /receipt/u);
+  }
+
+  // ONE transaction carried the skill bytes, the sidecars and the receipts. The
+  // journal is where that is observable rather than inferable.
+  const journals = await listManagedTransactions(fixture.stateRoot);
+  const journal = journals.find((entry) => entry.id === result.operationId);
+  assert.ok(journal, "the sync recorded no journal");
+  const posix = (value: string): string => value.replaceAll("\\", "/");
+  const touched = journal.files.map((file) => posix(file.target));
+  for (const relative of result.sidecars) {
+    assert.ok(
+      touched.some((target) => target.endsWith(relative)),
+      `${relative} was not written by the same transaction as the skill bytes: ${touched.join(", ")}`,
+    );
+  }
+
+  // A path a user cannot see is a byte that entered their project unannounced.
+  const rendered = formatProjectPackSync(result);
+  for (const relative of result.sidecars) {
+    assert.ok(rendered.includes(relative), `the apply rendering did not name the sidecar ${relative}`);
+  }
+});
+
+test("the surface whose sidecar tolerance is unproven gets no sidecar, and the plan says so with the reason", async (context) => {
+  const fixture = await syncFixture(context, "sidecar-receipts-only");
+  await approve(fixture);
+
+  const plan = await planProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+
+  // pi has a target in this plan, so its absence from the sidecar list is a
+  // DECISION about a surface being written to, not an artefact of pi not
+  // appearing at all.
+  assert.ok(
+    plan.targets.some((target) => target.harness === "pi"),
+    "the fixture plans no pi target, so pi's receipts-only decision would prove nothing",
+  );
+  assert.deepEqual(
+    plan.sidecars.filter((sidecar) => sidecar.harness === "pi"),
+    [],
+    "a sidecar was planned for the surface whose tolerance is unproven",
+  );
+
+  const pi = plan.sidecarSurfaces.find((entry) => entry.harness === "pi");
+  assert.ok(pi !== undefined, "the plan records no sidecar decision for pi at all");
+  assert.equal(pi.enabled, false);
+  // A blank reads as a missing file. The reason has to say the surface is
+  // receipts-only ON PURPOSE, and cite what that rests on.
+  assert.match(pi.reason, /UNPROVEN/u);
+  assert.ok(pi.reason.includes("receipts-only"), `pi's reason does not say receipts-only: ${pi.reason}`);
+  assert.ok(pi.reason.includes("[cited:"), `pi's reason cites nothing: ${pi.reason}`);
+
+  // The same fact, at the function the decision is made in.
+  assert.equal(
+    planPackSidecar(PACK_ID, "pi", `${PROJECT_SKILL_ROOTS.pi ?? ""}/${PACK_SKILL}`, {
+      skill: PACK_SKILL,
+      path: RECEIPT_PATH,
+      sourcePackage: "ecc-universal",
+      sourceVersion: "2.2.0",
+      sourceSha256: fixture.sourceHash,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }),
+    null,
+  );
+
+  await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  assert.equal(
+    existsSync(join(fixture.root, ...sidecarPathFor("pi").split("/"))),
+    false,
+    "a sidecar landed on the surface whose tolerance is unproven",
+  );
+
+  // The receipt is the WHOLE provenance record for that surface, so it must
+  // still claim pi's skill target.
+  const receipt = await readReceipt(fixture.root);
+  assert.ok(
+    receipt.targets.some((target) => target.harness === "pi" && target.kind === "skill"),
+    "pi is receipts-only and its receipt does not claim its skill target",
+  );
+  assert.deepEqual(
+    receipt.targets.filter((target) => target.harness === "pi" && target.kind === "sidecar"),
+    [],
+  );
+});
+
+test("a materialized skill file hashes to its locked source hash with a sidecar beside it", async (context) => {
+  const fixture = await syncFixture(context, "sidecar-bytes");
+  await approve(fixture);
+
+  const result = await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+
+  const lock = await loadLock(fixture.packageRoot);
+  const locked = resolvePackSource(lock, PACK_ID, PACK_SKILL).sourceSha256;
+
+  // The sidecar has to be THERE for this assertion to mean anything: the claim
+  // is that provenance beside the file changes nothing about the file.
+  assert.ok(result.sidecars.length > 0, "no sidecar was written, so this proves nothing about writing one");
+
+  for (const relative of result.written) {
+    const written = join(fixture.root, ...relative.split("/"));
+    assert.equal(
+      sha256(await readFile(written)),
+      locked,
+      `${relative} does not hash to the locked source hash, so a byte was modified`,
+    );
+  }
+  for (const relative of result.sidecars) {
+    const directory = dirname(join(fixture.root, ...relative.split("/")));
+    assert.equal(
+      sha256(await readFile(join(directory, "SKILL.md"))),
+      locked,
+      `the skill beside ${relative} does not hash to the locked source hash`,
+    );
+  }
+  // And the receipt records that same hash for every skill row, so the claim is
+  // on the record and not only on disk.
+  const receipt = await readReceipt(fixture.root);
+  for (const target of receipt.targets.filter((entry) => entry.kind === "skill")) {
+    assert.equal(target.targetHash, locked, `${target.path} recorded a hash other than the locked source hash`);
+  }
+});
+
+test("an interrupted sync leaves no sidecar behind, and the rollback restores the skill directory", async (context) => {
+  const fixture = await syncFixture(context, "sidecar-crash");
+  await approve(fixture);
+  const driver = await writeCrashDriver(dirname(fixture.sourceRoot));
+  const before = await snapshotProject(fixture.root);
+
+  const crashed = spawnSync(
+    process.execPath,
+    [driver, fixture.root, fixture.packageRoot, fixture.stateRoot, fixture.sourceRoot],
+    { encoding: "utf8", windowsHide: true, env: { ...process.env, ALPHA_AOS_FAILPOINT: "after-target-rename" } },
+  );
+  assert.equal(crashed.status, 70, `the failpoint did not trip: ${crashed.stderr}`);
+
+  // T-03-102: a sidecar surviving a rolled-back apply would be unowned bytes
+  // claimed by no receipt. The sidecar writes join the SAME operations list, so
+  // there is no second transaction to survive in.
+  assert.deepEqual(await sidecarFiles(fixture.root), [], "an interrupted sync left a provenance sidecar behind");
+  assert.deepEqual(await receiptFiles(fixture.root), [], "an interrupted sync left a receipt behind");
+
+  const journals = await listManagedTransactions(fixture.stateRoot);
+  const journal = journals[0];
+  assert.ok(journal, "the interrupted transaction wrote no journal");
+  await rollbackManagedTransaction(fixture.stateRoot, journal.id);
+
+  assert.deepEqual(await snapshotProject(fixture.root), before, "the rollback did not restore the project tree");
+  assert.deepEqual(await sidecarFiles(fixture.root), [], "the rollback left a provenance sidecar behind");
+});
+
+test("removing a pack removes its sidecar too, inside the removal's allowed roots", async (context) => {
+  const fixture = await syncFixture(context, "sidecar-removal");
+  await approve(fixture);
+  const applied = await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  assert.ok(applied.sidecars.length > 0, "nothing wrote a sidecar, so removing one proves nothing");
+  assert.deepEqual(await sidecarFiles(fixture.root), [...applied.sidecars].sort());
+
+  // The evidence that selected the pack goes away, which is the one ground a
+  // removal is offered on. Nothing is deleted by this.
+  await writeFile(
+    join(fixture.root, "package.json"),
+    `${JSON.stringify({ name: "pack-sync-fixture", private: true }, null, 2)}\n`,
+    "utf8",
+  );
+
+  const reconciliation = await reconcileProjectState({ path: fixture.root, packageRoot: fixture.packageRoot });
+  const removal = planPackRemoval(reconciliation).find((entry) => entry.packId === PACK_ID);
+  assert.ok(removal, "a pack whose evidence disappeared is offered no removal");
+  assert.ok(
+    removal.targets.some((target) => target.path.endsWith(`/${PACK_SIDECAR_FILE}`)),
+    `the removal plan names no sidecar: ${removal.targets.map((target) => target.path).join(", ")}`,
+  );
+
+  // Every removed path — sidecars included — stays inside the roots derived from
+  // PROJECT_SKILL_ROOTS. Passing the canonical root would make this vacuous.
+  const present = removal.targets.filter((target) => target.exists);
+  const roots = removalAllowedRoots(reconciliation.plan.scope.canonicalRoot, present, removal.receiptPath);
+  for (const target of present) {
+    const absolute = join(reconciliation.plan.scope.canonicalRoot, ...target.path.split("/"));
+    assert.ok(
+      roots.some((root) => absolute.startsWith(root)),
+      `${target.path} is not confined by the removal's allowed roots: ${roots.join(", ")}`,
+    );
+  }
+
+  const removed = await applyPackRemoval({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    removalDigest: removal.removalDigest,
+  });
+  assert.ok(
+    removed.removed.some((path) => path.endsWith(`/${PACK_SIDECAR_FILE}`)),
+    `the removal did not remove a sidecar: ${removed.removed.join(", ")}`,
+  );
+  assert.deepEqual(await sidecarFiles(fixture.root), [], "a removed pack left its provenance sidecar behind");
+});
+
+test("a user-modified sidecar makes the removal refuse rather than delete it", async (context) => {
+  const fixture = await syncFixture(context, "sidecar-drift");
+  await approve(fixture);
+  const applied = await applyProjectPackSync({
+    path: fixture.root,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    verifiedSourceRoot: fixture.sourceRoot,
+  });
+  const sidecar = applied.sidecars[0];
+  assert.ok(sidecar, "nothing wrote a sidecar, so drifting one proves nothing");
+
+  await writeFile(
+    join(fixture.root, "package.json"),
+    `${JSON.stringify({ name: "pack-sync-fixture", private: true }, null, 2)}\n`,
+    "utf8",
+  );
+
+  // The digest a user would have been shown, taken BEFORE they edited anything.
+  const offered = planPackRemoval(
+    await reconcileProjectState({ path: fixture.root, packageRoot: fixture.packageRoot }),
+  ).find((entry) => entry.packId === PACK_ID);
+  assert.ok(offered, "a pack whose evidence disappeared is offered no removal");
+
+  const absolute = join(fixture.root, ...sidecar.split("/"));
+  await writeFile(absolute, `${await readFile(absolute, "utf8")}\n// a human wrote this line\n`, "utf8");
+  const edited = sha256(await readFile(absolute, "utf8"));
+
+  const error = await expectRefusal(
+    () =>
+      applyPackRemoval({
+        path: fixture.root,
+        packageRoot: fixture.packageRoot,
+        stateRoot: fixture.stateRoot,
+        removalDigest: offered.removalDigest,
+      }),
+    "a removal approved before the user edited the sidecar",
+  );
+  assert.match(error.message, /plan-drift/u);
+
+  // Refused, not deleted, and the human's bytes are still exactly theirs. This
+  // is the same guard the removal path already applies to drifted skill bytes:
+  // the digest is computed over each target's CURRENT hash, so a sidecar
+  // recorded as a receipt target sits inside it.
+  assert.equal(existsSync(absolute), true, "a removal deleted a sidecar the user had modified");
+  assert.equal(sha256(await readFile(absolute, "utf8")), edited, "a removal rewrote a sidecar the user had modified");
+  assert.equal(
+    existsSync(join(fixture.root, ...CLAUDE_TARGET.split("/"))),
+    true,
+    "a refused removal deleted the skill file anyway",
+  );
 });
 
 test("an approved plan naming a harness with no project-local skill root refuses before any write", async (context) => {

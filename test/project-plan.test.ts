@@ -59,7 +59,12 @@ import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
 import {
   AGENT_RUNTIME_PACK_ID,
   createDomainFixture,
+  createGenericInstructionsFixture,
+  createNearMissFixture,
+  describeFixture,
   DOMAIN_FIXTURES,
+  nearMissDifference,
+  nearMissSpec,
   PACK_DOMAINS,
   removeFixture,
   type DomainFixtureSpec,
@@ -5697,4 +5702,233 @@ test("every CAPA-08 domain fixture is covered, and each names its pack, its skil
     assert.deepEqual(spec.selectsExactly, [spec.packId], `${domain}: the exact selected set is not its own pack`);
   }
   assert.equal(packIds.size, 6);
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-10 Task 2: six near-miss twins, and the generic-instructions rule
+// ---------------------------------------------------------------------------
+//
+// A twin is its positive minus exactly ONE required evidence leaf. The
+// one-edit property is asserted structurally rather than trusted, because a
+// twin that drifts into differing by three things is quietly testing something
+// else and nothing would say so.
+//
+// What each twin must produce is a REASON that names the leaf that went
+// missing. DETC-03's contract is that a failed leaf is never silent; these six
+// are that contract applied to the six CAPA-08 domains, and they are the
+// difference between a useful report and a shrug.
+
+/**
+ * The recorded twin status is per domain, and deliberately not uniform.
+ *
+ * The declared catalog does not make it uniform: a pack whose predicate is
+ * `all` keeps a satisfied leaf when one is removed and is a genuine
+ * `near-miss`, a pack whose predicate is `any` over a single minimal leaf has
+ * nothing left and is `silent`, and `SECURITY_REVIEW` is `unimplemented`
+ * because its eight change-risk leaves are declared and deferred to GATE-01.
+ * Flattening the three into one expectation would hide a real property of the
+ * evaluator behind a fixture convention.
+ */
+async function assertNearMissTwin(context: TestContext, domain: PackDomain): Promise<ProjectCapabilityPlan> {
+  const spec = DOMAIN_FIXTURES[domain];
+  const root = await domainRoot(context, `twin-${domain}`);
+  await createNearMissFixture(domain, root);
+  const plan = await planFor(root);
+
+  // Non-selection, stated as the whole set: a twin that selects some OTHER
+  // pack is no longer the same repository minus one leaf.
+  assert.deepEqual(plan.selected, [], `${domain}: the twin selected something`);
+
+  const evaluation = evaluationOf(plan, spec.packId);
+  assert.equal(evaluation.status, spec.twinStatus, `${domain}: the twin's status moved`);
+
+  const leaf = evaluation.failed.find((entry) => entry.factId === spec.nearMissLeafFactId);
+  assert.ok(
+    leaf,
+    `${domain}: the removed leaf ${spec.nearMissLeafFactId} is not among the failed leaves: ` +
+      evaluation.failed.map((entry) => entry.factId).join(", "),
+  );
+  assert.equal(leaf.detected, false);
+
+  // The reason must NAME the removed evidence. A non-empty string is not
+  // enough — the fallback sentence is non-empty too, and it says nothing.
+  const reason = leaf.reason ?? "";
+  assert.notEqual(
+    reason,
+    "not detected, and the detector gave no further reason",
+    `${domain}: the removed leaf fell back to the silent reason`,
+  );
+  assert.ok(
+    reason.includes(spec.nearMissReasonNames),
+    `${domain}: the reason does not name ${spec.nearMissReasonNames}: ${reason}`,
+  );
+
+  // Where the twin IS a near-miss, the rendered top line must carry the same
+  // fact: what was found, and what was missing.
+  if (spec.twinStatus === "near-miss") {
+    assert.ok(plan.nearMissOrder.includes(spec.packId), `${domain}: a near-miss twin is not in nearMissOrder`);
+    assert.match(evaluation.explanation, /— missing: /u);
+    assert.ok(
+      evaluation.explanation.includes(leaf.phrase),
+      `${domain}: the near-miss line does not name the removed leaf: ${evaluation.explanation}`,
+    );
+  }
+  return plan;
+}
+
+test("CAPA-08 web twin: removing the browser entrypoint drops WEB_BASE and names the leaf", async (context) => {
+  await assertNearMissTwin(context, "web");
+});
+
+test("CAPA-08 API/data twin: removing the postgres driver drops DB_POSTGRES and names the leaf", async (context) => {
+  await assertNearMissTwin(context, "api-data");
+});
+
+test("CAPA-08 infrastructure twin: removing the Dockerfile drops CONTAINER and names the leaf", async (context) => {
+  await assertNearMissTwin(context, "infrastructure");
+});
+
+test("CAPA-08 agent/AI twin: removing the eval assets drops AI_EVAL and names the leaf", async (context) => {
+  await assertNearMissTwin(context, "agent-ai");
+});
+
+test("CAPA-08 security twin: removing the manifest opt-in drops SECURITY_REVIEW and names the key", async (context) => {
+  const plan = await assertNearMissTwin(context, "security");
+  // The twin is `unimplemented`, and its top line names the eight deferred
+  // change-risk facts rather than the manifest key. That is the evaluator
+  // being honest about which absence dominates — the key is still named, at
+  // leaf level, which is what `assertNearMissTwin` just checked.
+  assert.match(evaluationOf(plan, "SECURITY_REVIEW").explanation, /deferred to GATE-01/u);
+});
+
+test("CAPA-08 scientific twin: removing the manifest opt-in drops RESEARCH_SCIENTIFIC and names the key", async (context) => {
+  await assertNearMissTwin(context, "scientific");
+});
+
+test("a repository holding only a generic agent-instructions file activates no agent-runtime pack", async (context) => {
+  const root = await domainRoot(context, "generic-instructions");
+  await createGenericInstructionsFixture(root);
+  const plan = await planFor(root);
+
+  // design §5.2 and DETC-03, at the pack level: an AGENTS.md is evidence that
+  // SOMETHING reads agent instructions, never evidence of which runtime.
+  assert.deepEqual(plan.selected, [], "a bare AGENTS.md selected a pack");
+
+  const agentRuntime = evaluationOf(plan, AGENT_RUNTIME_PACK_ID);
+  assert.notEqual(agentRuntime.status, "selected");
+  assert.deepEqual(
+    agentRuntime.satisfied.map((leaf) => [leaf.factId, leaf.path]),
+    [["agent-runtime-config", "AGENTS.md"]],
+  );
+  // The rule is carried by the `broad` flag on the declared fact, not by a
+  // per-pack special case. Asserting the flag is what keeps the general form
+  // of the rule under test rather than this one pack's spelling of it.
+  assert.equal(
+    agentRuntime.satisfied.every((leaf) => leaf.broad),
+    true,
+    "the only satisfied leaf is no longer marked broad, so the rule now rests on something else",
+  );
+
+  // The reason names what was actually required, rather than merely reporting
+  // a non-selection.
+  assert.ok(
+    agentRuntime.failed.some((leaf) => leaf.factId === "agent-sdk-dependency"),
+    "the agent SDK leaf is not reported as the missing one",
+  );
+  assert.match(agentRuntime.explanation, /— missing: /u);
+  assert.match(agentRuntime.explanation, /agent-orchestration framework/u);
+
+  // The sibling AI packs must not ride along on the same file either.
+  assert.notEqual(evaluationOf(plan, "MCP_SERVER").status, "selected");
+  assert.notEqual(evaluationOf(plan, "AI_EVAL").status, "selected");
+});
+
+test("a near-miss reason is reported for a pack that came close and withheld from one nothing touched", async (context) => {
+  const root = await domainRoot(context, "distinguishable-absences");
+  await createNearMissFixture("web", root);
+  const plan = await planFor(root);
+
+  const close = evaluationOf(plan, "WEB_BASE");
+  const untouched = evaluationOf(plan, "CACHE_REDIS");
+
+  // Two ABSENCES that call for opposite next actions. Collapsing them would
+  // make "did not qualify" indistinguishable from "was never evaluated",
+  // which is the failure Phase 2 recorded when a predicate operator had no
+  // evaluator at all.
+  assert.equal(close.status, "near-miss");
+  assert.equal(untouched.status, "silent");
+  assert.ok(close.satisfied.length > 0);
+  assert.equal(untouched.satisfied.length, 0);
+
+  assert.ok(plan.nearMissOrder.includes("WEB_BASE"), "the close pack carries no near-miss reason");
+  assert.equal(
+    plan.nearMissOrder.includes("CACHE_REDIS"),
+    false,
+    "an untouched pack was given a near-miss reason it did not earn",
+  );
+  assert.deepEqual(
+    rankNearMisses(plan.evaluations).map((entry) => entry.packId),
+    [...plan.nearMissOrder],
+    "the plan's near-miss order and the ranking function disagree",
+  );
+
+  assert.match(close.explanation, /— missing: /u);
+  assert.doesNotMatch(untouched.explanation, /— missing: /u);
+  assert.match(untouched.explanation, /no declared evidence matched/u);
+});
+
+test("every near-miss twin differs from its positive by exactly one file or one manifest key", () => {
+  for (const domain of PACK_DOMAINS) {
+    const spec = DOMAIN_FIXTURES[domain];
+    const difference = nearMissDifference(domain);
+
+    // Nothing is ADDED. A twin that adds a file to compensate for the one it
+    // removed is a different repository, not a twin.
+    assert.deepEqual(difference.addedFiles, [], `${domain}: the twin adds a file`);
+    assert.deepEqual(difference.addedManifestKeys, [], `${domain}: the twin adds a manifest key`);
+
+    const removals = difference.removedFiles.length + difference.removedManifestKeys.length;
+    assert.equal(
+      removals,
+      1,
+      `${domain}: the twin differs by ${removals} things, not one: ` +
+        `files=${difference.removedFiles.join(",")} keys=${difference.removedManifestKeys.join(",")}`,
+    );
+
+    // And the ONE difference is the edit the table declares, so the recorded
+    // leaf and the materialized edit cannot drift apart.
+    if (spec.nearMissEdit.kind === "file") {
+      assert.deepEqual(difference.removedFiles, [spec.nearMissEdit.path], `${domain}: the removed file is not the declared one`);
+    } else {
+      assert.deepEqual(
+        difference.removedManifestKeys,
+        [spec.nearMissEdit.key],
+        `${domain}: the removed manifest key is not the declared one`,
+      );
+    }
+  }
+});
+
+test("the described shape of a twin matches what it actually writes to disk", async (context) => {
+  // `describeFixture` is what the one-edit assertion above compares. If it
+  // described something other than what `createNearMissFixture` materializes,
+  // that assertion would be about a table rather than about a repository.
+  for (const domain of PACK_DOMAINS) {
+    const root = await domainRoot(context, `shape-${domain}`);
+    await createNearMissFixture(domain, root);
+    const written: string[] = [];
+    const walk = async (directory: string, prefix: string): Promise<void> => {
+      for (const entry of await readdir(directory, { withFileTypes: true })) {
+        const relativePath = prefix.length === 0 ? entry.name : `${prefix}/${entry.name}`;
+        if (entry.isDirectory()) await walk(join(directory, entry.name), relativePath);
+        else if (entry.isFile()) written.push(relativePath);
+      }
+    };
+    await walk(root, "");
+    assert.deepEqual(
+      written.sort(),
+      [...describeFixture(nearMissSpec(domain)).files].sort(),
+      `${domain}: the twin's described shape and its materialized files disagree`,
+    );
+  }
 });

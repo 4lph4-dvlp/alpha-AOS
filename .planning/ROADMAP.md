@@ -231,8 +231,66 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task.
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation.
 
-**Plans**: TBD
+**Plans**: 12 plans
 **Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across Antigravity surfaces, Pi, and Hermes.
+
+Plans:
+
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Tracer: one approved pack lands in the project — skill bytes and receipt in ONE transaction
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 03-02-PLAN.md — MCP proxy environment repair, the three-server startup regression, and the observe/filter split
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 03-03-PLAN.md — The capability ledger: closed schema, three axes, the D-04 demotion binding, and the paired evidence unit
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 03-04-PLAN.md — Three free discovery oracles, their parsers, and the constructed inside/outside negative
+
+**Wave 5** *(blocked on Wave 4)*
+
+- [ ] 03-05-PLAN.md — The declared canary catalog, readiness probes, and the `blocked`-versus-`unverified` split
+
+**Wave 6** *(blocked on Wave 5)*
+
+- [ ] 03-06-PLAN.md — The canary runtime (D-02) and the two doctor verbs: free discovery, opt-in invocation
+
+**Wave 7** *(blocked on Wave 6)*
+
+- [ ] 03-07-PLAN.md — Decision: how the CAPA-02 routing contract is reconciled (blocking human gate)
+
+**Wave 8** *(blocked on Wave 7)*
+
+- [ ] 03-08-PLAN.md — CAPA-01 and CAPA-02 invocation canaries, the ordered-sequence matcher, and the recorded proofs
+
+**Wave 9** *(blocked on Wave 8)*
+
+- [ ] 03-09-PLAN.md — Capability-state promotion: the D-10 ceiling/resolver split, the D-11 axes, and the D-13 one-shot offer
+
+**Wave 10** *(blocked on Wave 9)*
+
+- [ ] 03-10-PLAN.md — CAPA-08 six-domain synthetic fixtures, their near-miss twins, and the one-file pack guard
+
+**Wave 11** *(blocked on Wave 10)*
+
+- [ ] 03-11-PLAN.md — Project-local provenance: the D-07 sidecar where tolerance is proven, and the paired CAPA-05/CAPA-06 unit
+
+**Wave 12** *(blocked on Wave 11)*
+
+- [ ] 03-12-PLAN.md — CAPA-03: the Unified Memory handoff canary and the `.planning/` immutability half
+
+> Every wave holds one plan. Phase 2 recorded the reason and it still holds: successive plans extend the
+> same modules, and even file-disjoint plans run `npm run build` and then execute compiled tests against
+> the same `dist/` tree, so a parallel run can have one plan's build overwrite `dist/` mid-test-run for
+> the other. Waves 3 through 6 additionally form a strict construction chain — the ledger is what the
+> oracles write to, the canary catalog is what the runtime runs, and the runtime is what the canaries
+> need. Wave 7 is a single blocking-human decision plan because a checkpoint and implementation never
+> share a plan.
 
 ### Phase 4: Mandatory GSD Gates
 
@@ -309,7 +367,7 @@ only these six plans.
 |-------|----------------|--------|-----------|
 | 1. Safe Operation Boundary | 27/27 | Complete    | 2026-09-07 |
 | 2. Evidence-Bound Project Planning | 16/16 | Complete    | 2026-09-09 |
-| 3. Transactional Project Packs and Native Optional Use | 0/TBD | Not started | - |
+| 3. Transactional Project Packs and Native Optional Use | 0/12 | Planned | - |
 | 4. Mandatory GSD Gates | 0/TBD | Not started | - |
 | 5. Persistent Tree-Off Preload Isolation | 0/TBD | Not started | - |
 | 6. Managed Lifecycle, Uninstall, and Recovery | 0/TBD | Not started | - |

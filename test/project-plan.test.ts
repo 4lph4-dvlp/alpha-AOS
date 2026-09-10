@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import type {
@@ -45,6 +45,7 @@ import {
   digestableEvidence,
   discoverSubProjects,
   MAX_SCAN_DEPTH,
+  PROJECT_MANIFEST_PATH,
   resolveCanonicalRoot,
   scanProjectTree,
 } from "../src/core/evidence.js";
@@ -55,6 +56,15 @@ import { loadFactVocabularyStrict, loadPackCatalogStrict } from "../src/core/pac
 import { ROOT_CACHE_LIMIT } from "../src/core/paths.js";
 import { inspectProjectManifest, manifestCacheSizes } from "../src/core/project.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
+import {
+  AGENT_RUNTIME_PACK_ID,
+  createDomainFixture,
+  DOMAIN_FIXTURES,
+  PACK_DOMAINS,
+  removeFixture,
+  type DomainFixtureSpec,
+  type PackDomain,
+} from "./helpers/pack-fixtures.js";
 import {
   digestablePlan,
   evaluatePack,
@@ -5488,4 +5498,203 @@ test("an absent ledger, a refused ledger and an unasked path give three differen
   assert.match(refused, /REFUSED/u);
   assert.match(refused, /EISDIR/u, "the refusal does not carry the errno a user needs");
   assert.doesNotMatch(refused, /exists on this host yet/u, "a refused ledger reads as an absent one");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-10 Task 1: the six CAPA-08 domains, from synthetic evidence
+// ---------------------------------------------------------------------------
+//
+// CAPA-08 asks for representative packs across web, API/data, infrastructure,
+// agent/AI, security and scientific projects, WITHOUT installing a broad
+// language or framework profile globally. 03-CONTEXT.md D-15 chooses synthetic
+// fixture repositories built by the tests for that proof, because they are
+// deterministic, offline and portable to the three-OS matrix.
+//
+// Every assertion below runs the planner MODULE rather than the CLI. That is
+// deliberate and is what makes the concurrency case expressible at all: the
+// catalog, schema and manifest caches are process-wide and root-keyed, so two
+// fixtures must be live in ONE process for the keying to be under test.
+
+/** The fixture root for one domain, removed when the test ends. */
+async function domainRoot(context: TestContext, label: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), `alpha-aos-capa08-${label}-`));
+  context.after(async () => removeFixture(root));
+  return root;
+}
+
+async function planFor(root: string): Promise<ProjectCapabilityPlan> {
+  return planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
+}
+
+function evaluationOf(plan: ProjectCapabilityPlan, packId: string): PackEvaluation {
+  const found = plan.evaluations.find((evaluation) => evaluation.packId === packId);
+  assert.ok(found, `${packId} was not evaluated at all: ${plan.evaluations.map((entry) => entry.packId).join(", ")}`);
+  return found;
+}
+
+/**
+ * Everything a positive fixture must be true of, asserted once so the six
+ * per-domain tests below differ only in their domain.
+ *
+ * The EXACT selected set is the load-bearing part. A membership assertion would
+ * pass on a fixture whose evidence had quietly started qualifying a second
+ * pack, and a fixture that selects two packs is no longer minimal evidence for
+ * one of them.
+ */
+async function assertPositiveDomain(context: TestContext, domain: PackDomain): Promise<ProjectCapabilityPlan> {
+  const spec = DOMAIN_FIXTURES[domain];
+  const root = await domainRoot(context, domain);
+  await createDomainFixture(domain, root);
+  const plan = await planFor(root);
+
+  assert.deepEqual(
+    plan.selected,
+    [...spec.selectsExactly],
+    `${domain}: the fixture no longer selects EXACTLY its declared pack`,
+  );
+  assert.equal(evaluationOf(plan, spec.packId).status, "selected");
+
+  // The rationale is data, not prose in a comment: a domain whose recorded
+  // reason was dropped is a red test rather than an unreviewable mapping.
+  assert.ok(spec.rationale.length > 40, `${domain}: no recorded reason for choosing ${spec.packId}`);
+  assert.ok(
+    spec.skills.length > 0,
+    `${domain}: ${spec.packId} supplies no skill, so it exercises no materialization target`,
+  );
+
+  // Offline and root-bounded, asserted rather than asserted-by-comment. Every
+  // evidence path a leaf names is relative and inside the fixture, and the plan
+  // names no executable, so nothing here could have spawned a harness.
+  assert.equal(plan.executable, null, `${domain}: the plan names an executable, so the preview path is not spawn-free`);
+  for (const evaluation of plan.evaluations) {
+    for (const leaf of [...evaluation.satisfied, ...evaluation.failed]) {
+      if (leaf.path === null) continue;
+      assert.equal(isAbsolute(leaf.path), false, `${domain}: ${leaf.factId} names an absolute path: ${leaf.path}`);
+      assert.equal(
+        leaf.path.split("/").includes(".."),
+        false,
+        `${domain}: ${leaf.factId} escapes the fixture: ${leaf.path}`,
+      );
+    }
+  }
+  return plan;
+}
+
+test("CAPA-08 web: a vue project with a browser entrypoint selects exactly WEB_BASE", async (context) => {
+  const plan = await assertPositiveDomain(context, "web");
+  assert.deepEqual(
+    evaluationOf(plan, "WEB_BASE").satisfied.map((leaf) => leaf.factId),
+    ["browser-entrypoint", "web-framework"],
+  );
+  // WEB_REACT declares react and next as inline literals. A vue dependency must
+  // not reach it, or the fixture would be evidence for two packs at once.
+  assert.notEqual(evaluationOf(plan, "WEB_REACT").status, "selected");
+});
+
+test("CAPA-08 API/data: a declared postgres driver selects exactly DB_POSTGRES", async (context) => {
+  const plan = await assertPositiveDomain(context, "api-data");
+  assert.deepEqual(
+    evaluationOf(plan, "DB_POSTGRES").satisfied.map((leaf) => [leaf.factId, leaf.path]),
+    [["postgres-driver", "package.json"]],
+  );
+});
+
+test("CAPA-08 infrastructure: a lone Dockerfile selects exactly CONTAINER", async (context) => {
+  const plan = await assertPositiveDomain(context, "infrastructure");
+  assert.deepEqual(
+    evaluationOf(plan, "CONTAINER").satisfied.map((leaf) => [leaf.factId, leaf.path]),
+    [["file:Dockerfile", "Dockerfile"]],
+  );
+});
+
+test("CAPA-08 agent/AI: a model SDK plus eval assets selects exactly AI_EVAL", async (context) => {
+  const plan = await assertPositiveDomain(context, "agent-ai");
+  assert.deepEqual(
+    evaluationOf(plan, "AI_EVAL").satisfied.map((leaf) => leaf.factId),
+    ["eval-assets", "model-sdk"],
+  );
+  // The agent-runtime pack must not ride along on a repository that merely
+  // holds an AI dependency. Its own rule gets its own fixture in Task 2.
+  assert.notEqual(evaluationOf(plan, AGENT_RUNTIME_PACK_ID).status, "selected");
+});
+
+/**
+ * A manifest-opt-in domain qualified through the MANIFEST branch, not through a
+ * file heuristic.
+ *
+ * Asserting the selected set alone would pass if some future file heuristic
+ * started answering for the same pack, which is precisely the confusion
+ * `manifestOptIn` exists to prevent: an opt-in is a statement the project made,
+ * and a heuristic is a guess alpha-AOS made.
+ */
+function assertManifestBranch(plan: ProjectCapabilityPlan, spec: DomainFixtureSpec): void {
+  const evaluation = evaluationOf(plan, spec.packId);
+  const edit = spec.nearMissEdit;
+  assert.equal(edit.kind, "manifestKey", `${spec.domain} is not a manifest-opt-in domain`);
+  const key = edit.kind === "manifestKey" ? edit.key : "";
+
+  assert.deepEqual(
+    evaluation.satisfied.map((leaf) => [leaf.factId, leaf.path]),
+    [[`manifest:${key}`, PROJECT_MANIFEST_PATH]],
+    `${spec.domain}: the selection did not come from the manifest branch alone`,
+  );
+  assert.match(evaluation.explanation, new RegExp(`opts in to ${key}`, "u"));
+}
+
+test("CAPA-08 security: SECURITY_REVIEW selects from the manifest opt-in, not from a file heuristic", async (context) => {
+  const plan = await assertPositiveDomain(context, "security");
+  assertManifestBranch(plan, DOMAIN_FIXTURES.security);
+});
+
+test("CAPA-08 scientific: RESEARCH_SCIENTIFIC selects from the manifest opt-in, not from a file heuristic", async (context) => {
+  const plan = await assertPositiveDomain(context, "scientific");
+  assertManifestBranch(plan, DOMAIN_FIXTURES.scientific);
+});
+
+test("two synthetic fixtures evaluated in one process do not borrow each other's selection", async (context) => {
+  // Both fixtures reach the SAME package root, so the process-wide catalog,
+  // schema and manifest caches are shared between them by construction. Both
+  // qualify through a manifest opt-in, and they opt in to DIFFERENT keys — so a
+  // cache that carried a project fact rather than a package-root fact would let
+  // one fixture select the other's pack, which is the CAPA-08 concurrency edge.
+  const securityRoot = await domainRoot(context, "concurrent-security");
+  const scientificRoot = await domainRoot(context, "concurrent-scientific");
+  await createDomainFixture("security", securityRoot);
+  await createDomainFixture("scientific", scientificRoot);
+
+  const [security, scientific] = await Promise.all([planFor(securityRoot), planFor(scientificRoot)]);
+  assert.deepEqual(security.selected, ["SECURITY_REVIEW"]);
+  assert.deepEqual(scientific.selected, ["RESEARCH_SCIENTIFIC"]);
+  assert.notEqual(security.scope.projectId, scientific.scope.projectId);
+
+  // Interleaved, and then re-read: an evaluation that changed on the second
+  // pass would mean the first pass left something behind.
+  const securityAgain = await planFor(securityRoot);
+  const scientificAgain = await planFor(scientificRoot);
+  assert.deepEqual(securityAgain.selected, ["SECURITY_REVIEW"]);
+  assert.deepEqual(scientificAgain.selected, ["RESEARCH_SCIENTIFIC"]);
+  assert.equal(securityAgain.planDigest, security.planDigest);
+  assert.equal(scientificAgain.planDigest, scientific.planDigest);
+
+  // Neither borrowed the other's manifest key.
+  assert.equal(evaluationOf(security, "RESEARCH_SCIENTIFIC").status, "silent");
+  assert.equal(evaluationOf(scientific, "SECURITY_REVIEW").status, "unimplemented");
+});
+
+test("every CAPA-08 domain fixture is covered, and each names its pack, its skills and its reason", () => {
+  assert.deepEqual(
+    [...PACK_DOMAINS],
+    ["web", "api-data", "infrastructure", "agent-ai", "security", "scientific"],
+    "the six CAPA-08 domains are no longer the six the requirement names",
+  );
+  const packIds = new Set<string>();
+  for (const domain of PACK_DOMAINS) {
+    const spec = DOMAIN_FIXTURES[domain];
+    assert.equal(spec.domain, domain, `${domain}: the table key and the recorded domain disagree`);
+    assert.ok(spec.packId.length > 0, `${domain}: no pack id`);
+    assert.equal(packIds.has(spec.packId), false, `${spec.packId} represents two domains`);
+    packIds.add(spec.packId);
+    assert.deepEqual(spec.selectsExactly, [spec.packId], `${domain}: the exact selected set is not its own pack`);
+  }
+  assert.equal(packIds.size, 6);
 });

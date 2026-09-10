@@ -23,15 +23,38 @@ import { access, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { createIsolationLaunchSpec } from "../adapters/isolation.js";
-import { ORACLE_DEFINITIONS, ORACLE_PLACEHOLDER_PROMPT, resolveDirectLaunch } from "../adapters/capability-oracle.js";
+import {
+  ORACLE_DEFINITIONS,
+  ORACLE_PLACEHOLDER_PROMPT,
+  resolveDirectLaunch,
+  runPairedDiscovery,
+  type PairedDiscovery,
+  type RunPairedDiscoveryOptions,
+} from "../adapters/capability-oracle.js";
 import type {
   HarnessId,
   IsolationLaunchSpec,
   McpServerId,
   RedactedExcerpt,
   StackLock,
+  SurfaceSupport,
 } from "../types.js";
-import type { BlockedReason, LedgerHarness, NativeUseState } from "./capability-ledger.js";
+import type {
+  BlockedReason,
+  BoundInputs,
+  CapabilityProof,
+  EvidenceCompleteness,
+  EvidenceUnit,
+  HarnessVersion,
+  LedgerHarness,
+  NativeUseState,
+  OracleRecord,
+} from "./capability-ledger.js";
+// Type-only, and deliberately so: this module READS the deployment axis's type
+// and never defines, widens or computes it — the same rule `capability-ledger`
+// applies, and the same erasure, so a status path that needs one string does
+// not drag the whole project-plan module in.
+import type { PackState } from "./project-plan.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
 import { defaultIsolationPolicy, isolationProjectId } from "./isolation.js";
 import { assertNoCredentialValue, nativeConfigFormat, renderMcpConfig } from "./mcp.js";
@@ -44,7 +67,7 @@ import {
   runProcess,
   type EnvironmentPolicy,
 } from "./process.js";
-import { RootKeyedCache } from "./paths.js";
+import { aliasPath, createPathAliases, RootKeyedCache } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import type { MutationSession } from "./writer-lock.js";
 import {
@@ -1713,7 +1736,10 @@ export interface CanaryLaunchOutcome {
   /** Why it did not run cleanly. Null when it did. */
   readonly reason: string | null;
   readonly exitCode: number | null;
+  /** The bounded, redacted stdout excerpt. */
   readonly excerpt: RedactedExcerpt | null;
+  /** The bounded, redacted stderr excerpt, when the launcher captured one. */
+  readonly stderr?: RedactedExcerpt | null;
 }
 
 export type CanaryLauncher = (launch: CanaryLaunch) => Promise<CanaryLaunchOutcome>;
@@ -1758,6 +1784,7 @@ export function createCanaryLauncher(timeoutMs: number = CANARY_TIMEOUT_MS): Can
           : `the ${launch.spec.harness} canary did not complete cleanly (${result.code}, exit ${String(result.exitCode)})`,
       exitCode: result.exitCode,
       excerpt: result.stdout,
+      stderr: result.stderr,
     };
   };
 }
@@ -1829,6 +1856,15 @@ export interface CanaryRunResult {
    * the verdict is a field nobody can tell apart afterwards.
    */
   readonly excerpt: RedactedExcerpt | null;
+  /**
+   * What ran and what came back, as FINGERPRINTS.
+   *
+   * The shape the ledger takes, so a canary and a discovery run record through
+   * one vocabulary. Null when nothing launched: a refused run has no oracle
+   * record, and inventing one would put a proof in the ledger for a run that
+   * never happened (T-03-20).
+   */
+  readonly oracle: OracleRecord | null;
   readonly runtimeRoot: string;
   readonly costsModelTurn: boolean;
   readonly launchArgs: readonly string[];
@@ -1857,6 +1893,7 @@ function blockedResult(options: {
     launched: false,
     exitCode: null,
     excerpt: null,
+    oracle: null,
     runtimeRoot: options.runtime.root,
     costsModelTurn: canaryCostsModelTurn(options.declaration),
     launchArgs: [],
@@ -1997,8 +2034,357 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
     launched: true,
     exitCode: outcome.exitCode,
     excerpt: outcome.excerpt,
+    oracle: {
+      // Aliased before it is recorded: this string is persisted into the
+      // ledger, and a resolved harness path routinely sits under the user's
+      // home directory.
+      command: [aliasPath(spec.executable ?? harness, createPathAliases()), ...launch.args].join(" "),
+      exitCode: outcome.exitCode,
+      stdoutFingerprint: outcome.excerpt?.sha256 ?? "",
+      stderrFingerprint: outcome.stderr?.sha256 ?? "",
+    },
     runtimeRoot: runtime.root,
     costsModelTurn: canaryCostsModelTurn(declaration),
     launchArgs: launch.args,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Two sweeps — the free evidence and the paid evidence, kept apart
+// ---------------------------------------------------------------------------
+//
+// 03-RESEARCH.md Pitfall 10 is why these are two functions rather than two
+// outcomes of one: the free sweep belongs in the automated suite on every
+// platform, and the paid one is an explicit opt-in that hosted CI cannot run at
+// all. A single entry point that decided between them would put a spend behind
+// a flag nobody reads.
+
+/** The harnesses a sweep considers. The ledger's narrowed set, in a stable order. */
+export const SWEEP_HARNESSES: readonly LedgerHarness[] = Object.freeze(["claude", "codex", "pi", "hermes"]);
+
+/** One harness's leg of a free discovery sweep. */
+export interface DiscoverySweepEntry {
+  readonly harness: LedgerHarness;
+  readonly ran: boolean;
+  /** Why this leg was not run. Null when it was. */
+  readonly skippedReason: string | null;
+  /** Null when the harness has no oracle definition and the cost is underivable. */
+  readonly costsModelTurn: boolean | null;
+  readonly discovery: PairedDiscovery | null;
+  readonly unit: EvidenceUnit | null;
+}
+
+export interface DiscoverySweep {
+  readonly capability: string;
+  readonly entries: readonly DiscoverySweepEntry[];
+  readonly units: readonly EvidenceUnit[];
+  readonly proofs: readonly CapabilityProof[];
+  /** False by construction: a leg that would spend a turn is skipped, not run. */
+  readonly costsModelTurn: false;
+}
+
+export interface RunDiscoverySweepOptions {
+  readonly projectRoot: string;
+  readonly controlRoot: string;
+  readonly capability: string;
+  readonly skillDirectories: readonly string[];
+  readonly projectId: string | null;
+  readonly boundInputs: BoundInputs;
+  readonly harnessVersions: Readonly<Partial<Record<LedgerHarness, HarnessVersion>>>;
+  readonly harnesses?: readonly LedgerHarness[];
+  /** Injectable so the suite can assert the sweep OFFLINE, on a host with no harness. */
+  readonly run?: (options: RunPairedDiscoveryOptions) => Promise<PairedDiscovery>;
+  readonly timeoutMs?: number;
+}
+
+/** A version line nothing could read is `unverified`, never an invented version. */
+const UNKNOWN_HARNESS_VERSION: HarnessVersion = { exact: null, minorKey: null, raw: "" };
+
+/**
+ * Runs the FREE paired discovery sweep across every harness with an oracle
+ * that spends nothing.
+ *
+ * A harness whose oracle costs a model turn is SKIPPED with that as the reason,
+ * not run: this is the command the automated suite and hosted CI exercise, and
+ * it must be true on every platform that it needs no credential and spends
+ * nothing. The paid evidence has its own command, and choosing it is the user's
+ * act rather than a consequence of running this one.
+ */
+export async function runDiscoverySweep(options: RunDiscoverySweepOptions): Promise<DiscoverySweep> {
+  const drive = options.run ?? runPairedDiscovery;
+  const entries: DiscoverySweepEntry[] = [];
+
+  for (const harness of options.harnesses ?? SWEEP_HARNESSES) {
+    const definition = ORACLE_DEFINITIONS[harness];
+    if (definition === null || definition === undefined) {
+      entries.push({
+        harness,
+        ran: false,
+        skippedReason: `no discovery oracle is defined for ${harness}, so there is nothing free to run`,
+        costsModelTurn: null,
+        discovery: null,
+        unit: null,
+      });
+      continue;
+    }
+    if (definition.costsModelTurn) {
+      entries.push({
+        harness,
+        ran: false,
+        skippedReason:
+          `driving ${harness} spends a model turn, and this sweep spends nothing; run \`alpha-aos doctor --canary\` ` +
+          "to spend deliberately",
+        costsModelTurn: true,
+        discovery: null,
+        unit: null,
+      });
+      continue;
+    }
+
+    const discovery = await drive({
+      harness,
+      projectRoot: options.projectRoot,
+      controlRoot: options.controlRoot,
+      capability: options.capability,
+      skillDirectories: options.skillDirectories,
+      projectId: options.projectId,
+      boundInputs: options.boundInputs,
+      harnessVersion: options.harnessVersions[harness] ?? UNKNOWN_HARNESS_VERSION,
+      ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
+    });
+    entries.push({
+      harness,
+      ran: true,
+      skippedReason: null,
+      costsModelTurn: false,
+      discovery,
+      unit: discovery.unit,
+    });
+  }
+
+  const units = entries.map((entry) => entry.unit).filter((unit): unit is EvidenceUnit => unit !== null);
+  const proofs = units.flatMap((unit) =>
+    [unit.positive, unit.negative].filter((proof): proof is CapabilityProof => proof !== null),
+  );
+  return { capability: options.capability, entries, units, proofs, costsModelTurn: false };
+}
+
+// --- The paid sweep --------------------------------------------------------
+
+/** One canary on one harness, and what running it would spend. */
+export interface CanarySelection {
+  readonly declaration: CanaryDeclaration;
+  readonly harness: LedgerHarness;
+  /** Null when the harness has no oracle definition and the cost is underivable. */
+  readonly costsModelTurn: boolean | null;
+}
+
+/** Every declared canary/harness pair the filters select, in catalog order. */
+export function selectCanaries(
+  catalog: CanaryCatalog,
+  filters: { readonly harness?: LedgerHarness | null; readonly capability?: string | null } = {},
+): readonly CanarySelection[] {
+  const selections: CanarySelection[] = [];
+  for (const declaration of catalog.canaries) {
+    if (filters.capability != null && declaration.capability !== filters.capability && declaration.id !== filters.capability) {
+      continue;
+    }
+    for (const cost of canaryCosts(declaration)) {
+      if (filters.harness != null && cost.harness !== filters.harness) continue;
+      selections.push({ declaration, harness: cost.harness as LedgerHarness, costsModelTurn: cost.costsModelTurn });
+    }
+  }
+  return selections;
+}
+
+/**
+ * What a sweep would spend, as lines a person reads BEFORE it spends anything.
+ *
+ * An underivable cost is stated as such and counted as spending, which is the
+ * same fail-closed roll-up `canaryCostsModelTurn` applies: the failure mode of
+ * the other default is a surprise charge.
+ */
+export function canaryCostLines(selections: readonly CanarySelection[]): readonly string[] {
+  const spending = selections.filter((selection) => selection.costsModelTurn !== false);
+  const free = selections.filter((selection) => selection.costsModelTurn === false);
+  const lines = [
+    `This run would drive ${selections.length} canary/harness pair(s): ${spending.length} spend a model turn, ` +
+      `${free.length} do not.`,
+  ];
+  for (const selection of selections) {
+    lines.push(
+      `  ${selection.costsModelTurn === false ? "free  " : selection.costsModelTurn === null ? "unknown" : "SPENDS"} ` +
+        `${selection.declaration.id} on ${selection.harness}` +
+        (selection.costsModelTurn === null ? " (cost not derivable; counted as spending)" : ""),
+    );
+  }
+  return lines;
+}
+
+export interface CanarySweep {
+  readonly selections: readonly CanarySelection[];
+  readonly costLines: readonly string[];
+  readonly results: readonly CanaryRunResult[];
+}
+
+export interface RunCanarySweepOptions {
+  readonly catalog: CanaryCatalog;
+  readonly harness?: LedgerHarness | null;
+  readonly capability?: string | null;
+  /** Where the cost summary goes. Called for every line BEFORE the first run. */
+  readonly announce: (line: string) => void;
+  /** How one selection is run. Supplied by the caller that holds the lock and the state root. */
+  readonly run: (selection: CanarySelection) => Promise<CanaryRunResult>;
+  readonly context?: ExecutionContext;
+}
+
+/**
+ * Runs the declared invocation canaries, announcing what they would cost first.
+ *
+ * The ordering is the contract, not a courtesy: every cost line is announced
+ * before the first run is started, so a user reading the output has seen the
+ * spend before it happens rather than beside it.
+ */
+export async function runCanarySweep(options: RunCanarySweepOptions): Promise<CanarySweep> {
+  assertCanaryContext(options.context ?? "canary", "runCanarySweep");
+  const selections = selectCanaries(options.catalog, {
+    ...(options.harness === undefined ? {} : { harness: options.harness }),
+    ...(options.capability === undefined ? {} : { capability: options.capability }),
+  });
+  const costLines = canaryCostLines(selections);
+  for (const line of costLines) options.announce(line);
+
+  const results: CanaryRunResult[] = [];
+  for (const selection of selections) results.push(await options.run(selection));
+  return { selections, costLines, results };
+}
+
+// ---------------------------------------------------------------------------
+// One reported capability, on three axes
+// ---------------------------------------------------------------------------
+
+/**
+ * One capability's row, on the three orthogonal axes of 03-CONTEXT.md D-11.
+ *
+ * `deployment` is nullable and carries its own note. That is deliberate and it
+ * is not a defaulted axis: `resolveCapabilityStatus` REFUSES a caller that
+ * omits an axis rather than inventing one, and the doctor verbs measure the
+ * native-use axis only — the deployment axis is a fact about receipts that
+ * `alpha-aos project status` reads. A recorded absence with its reason is the
+ * honest answer; picking `UNDECIDABLE` would claim a read failure that never
+ * happened.
+ *
+ * `nativeUse` is null on an INCOMPLETE unit, always. D-14: a positive without
+ * its negative control is not the claim the unit exists to make, and rendering
+ * the positive's axis there is exactly the unpaired-positive-as-pass failure.
+ */
+export interface CapabilityReportRow {
+  readonly capability: string;
+  readonly harness: LedgerHarness;
+  readonly completeness: EvidenceCompleteness | null;
+  readonly axes: {
+    readonly deployment: PackState | null;
+    readonly support: SurfaceSupport;
+    readonly nativeUse: NativeUseState | null;
+  };
+  readonly axisNotes: {
+    readonly deployment: string;
+    readonly nativeUse: string | null;
+  };
+  readonly blockedReason: BlockedReason | null;
+  /** Why nothing ran at all. Null when something did. */
+  readonly unsupportedReason: string | null;
+  readonly incompleteReasons: readonly string[];
+}
+
+/** The one sentence every doctor row carries about the axis it did not measure. */
+export const DEPLOYMENT_AXIS_NOT_MEASURED_HERE =
+  "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`";
+
+/** A row from one leg of a free discovery sweep. */
+export function discoveryRow(entry: DiscoverySweepEntry, capability: string, support: SurfaceSupport): CapabilityReportRow {
+  const unit = entry.unit;
+  return {
+    capability,
+    harness: entry.harness,
+    completeness: unit?.completeness ?? null,
+    axes: {
+      deployment: null,
+      support,
+      // `EvidenceUnit.nativeUse` is already null on INCOMPLETE. Read rather
+      // than recomputed, so there is one rule and not two.
+      nativeUse: unit?.nativeUse ?? null,
+    },
+    axisNotes: {
+      deployment: DEPLOYMENT_AXIS_NOT_MEASURED_HERE,
+      nativeUse: unit === null ? (entry.skippedReason ?? entry.discovery?.unsupportedReason ?? null) : null,
+    },
+    blockedReason: null,
+    unsupportedReason: entry.skippedReason ?? entry.discovery?.unsupportedReason ?? null,
+    // The paired run's reasons where there was one, and otherwise the unit's
+    // own: an INCOMPLETE unit always carries why it is incomplete, and falling
+    // back to an empty list would render "incomplete" with no reason beside it.
+    incompleteReasons: entry.discovery?.incompleteReasons ?? unit?.incompleteReasons ?? [],
+  };
+}
+
+/**
+ * The ledger row a canary run produces, or null when it produced none.
+ *
+ * A run that never launched has no `OracleRecord`, and the proof shape requires
+ * one — so a refused canary is REPORTED with its blocked code and is not
+ * recorded as a proof. The ledger records what was proven; a run that was
+ * refused proved nothing, and a row claiming otherwise is the class of defect
+ * the closed ledger schema exists to make unrepresentable (T-03-20).
+ *
+ * The polarity is `positive`, always: a canary is the positive half, and its
+ * negative control is the paired discovery sweep's business (D-14). Hence a
+ * null `ancestorFreedom` — that assertion belongs to a negative half.
+ */
+export function canaryProof(
+  result: CanaryRunResult,
+  options: {
+    readonly projectId: string | null;
+    readonly boundInputs: BoundInputs;
+    readonly harnessVersion: HarnessVersion;
+  },
+): CapabilityProof | null {
+  if (result.oracle === null) return null;
+  return {
+    projectId: options.projectId,
+    harness: result.harness,
+    capability: result.capability,
+    polarity: "positive",
+    nativeUse: result.nativeUse,
+    blockedReason: result.blockedReasons[0] ?? null,
+    boundInputs: options.boundInputs,
+    harnessVersion: options.harnessVersion,
+    ancestorFreedom: null,
+    observedAt: new Date().toISOString(),
+    oracle: result.oracle,
+  };
+}
+
+/** A row from one paid canary run. */
+export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): CapabilityReportRow {
+  return {
+    capability: `${result.capability} (${result.canary})`,
+    harness: result.harness,
+    // An invocation canary is a positive on its own; its paired negative is the
+    // discovery sweep's business, so this row reports no completeness rather
+    // than claiming one it did not compute.
+    completeness: null,
+    axes: {
+      deployment: null,
+      support,
+      nativeUse: result.nativeUse,
+    },
+    axisNotes: {
+      deployment: DEPLOYMENT_AXIS_NOT_MEASURED_HERE,
+      nativeUse: result.verdict.reasons[0] ?? result.unverifiedReason,
+    },
+    blockedReason: result.blockedReasons[0] ?? null,
+    unsupportedReason: null,
+    incompleteReasons: [],
   };
 }

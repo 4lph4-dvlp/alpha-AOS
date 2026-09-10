@@ -47,14 +47,22 @@ import {
   parsePiAuthCheck,
   probeReadiness,
   promptNamesTerm,
+  canaryRow,
+  discoveryRow,
   runCanary,
+  runCanarySweep,
+  runDiscoverySweep,
   selfNamedTerms,
   type CanaryCatalog,
   type CanaryDeclaration,
+  type CanaryRunResult,
   type CanaryRuntime,
+  type CapabilityReportRow,
   type ReadinessCommandResult,
   type ReadinessRunner,
 } from "../src/core/canary.js";
+import { pairEvidence, type CapabilityProof, type LedgerHarness } from "../src/core/capability-ledger.js";
+import { formatCapabilityReport } from "../src/format.js";
 import { createFileObservationSink } from "../src/core/mcp-proxy.js";
 import { renderMcpConfig } from "../src/core/mcp.js";
 import { packageRoot } from "../src/core/paths.js";
@@ -1321,4 +1329,257 @@ test("no environment name outside the platform floor plus the declared canary na
     },
     "an undeclared environment name was not refused",
   );
+});
+
+/** A canary result that never launched, for a sweep test that must spend nothing. */
+function blockedCanaryResult(canary: string, harness: LedgerHarness): CanaryRunResult {
+  const declared = declaration({ id: canary });
+  return {
+    canary,
+    capability: declared.capability,
+    harness,
+    outcome: "blocked",
+    nativeUse: "unverified",
+    verdict: decideInvocation(declared, []),
+    observations: [],
+    readiness: {
+      harness,
+      canary,
+      ready: false,
+      blockedReasons: [{ code: "HARNESS_NOT_INSTALLED", variable: harness, nextAction: `Install ${harness}.` }],
+      identity: { provider: null, model: null, source: "not probed in this fixture" },
+      checkedEnvironment: [],
+      connections: [],
+      notProbed: [],
+    },
+    identity: { provider: null, model: null, source: "not probed in this fixture" },
+    blockedReasons: [{ code: "HARNESS_NOT_INSTALLED", variable: harness, nextAction: `Install ${harness}.` }],
+    unverifiedReason: null,
+    launched: false,
+    exitCode: null,
+    excerpt: null,
+    oracle: null,
+    runtimeRoot: "<state>/canary/never-created",
+    costsModelTurn: true,
+    launchArgs: [],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Plan 03-06 Task 3 — two commands: the free sweep and the paid canary
+// ---------------------------------------------------------------------------
+
+/** A discovery result that listed the capability, so the sweep has something to pair. */
+function discoveryProof(harness: LedgerHarness, polarity: "positive" | "negative"): CapabilityProof {
+  return {
+    projectId: "0123456789abcdef",
+    harness,
+    capability: "WEB_BASE",
+    polarity,
+    nativeUse: polarity === "positive" ? "discovered" : "unverified",
+    blockedReason: null,
+    boundInputs: { skillSourceHash: "a".repeat(64), mcpServerVersion: null, evidenceHash: "b".repeat(64) },
+    harnessVersion: { exact: "1.2.3", minorKey: "1.2", raw: "1.2.3" },
+    ancestorFreedom: polarity === "negative" ? { asserted: true, checkedAncestors: ["<temp>"] } : null,
+    observedAt: new Date().toISOString(),
+    oracle: { command: "harness debug", exitCode: 0, stdoutFingerprint: "c".repeat(64), stderrFingerprint: "d".repeat(64) },
+  };
+}
+
+test("the free discovery sweep completes with no credential, spends no model turn, and records an evidence unit", async () => {
+  const driven: LedgerHarness[] = [];
+  const sweep = await runDiscoverySweep({
+    projectRoot: process.cwd(),
+    controlRoot: tmpdir(),
+    capability: "WEB_BASE",
+    skillDirectories: ["web-patterns"],
+    projectId: "0123456789abcdef",
+    boundInputs: { skillSourceHash: "a".repeat(64), mcpServerVersion: null, evidenceHash: "b".repeat(64) },
+    harnessVersions: {},
+    // No credential is read anywhere in this path, and the drive is supplied so
+    // the assertion holds on a host with no harness installed at all.
+    run: async (options) => {
+      driven.push(options.harness);
+      const unit = pairEvidence(discoveryProof(options.harness, "positive"), discoveryProof(options.harness, "negative"));
+      return {
+        harness: options.harness,
+        capability: options.capability,
+        unit,
+        unsupportedReason: null,
+        positive: null,
+        negatives: [],
+        ancestorFreedom: { asserted: true, checkedAncestors: [] },
+        incompleteReasons: [],
+        findings: [],
+      };
+    },
+  });
+
+  assert.equal(sweep.costsModelTurn, false, "the free sweep reports that it spends something");
+  assert.equal(sweep.units.length >= 1, true, "the free sweep recorded no evidence unit at all");
+  assert.equal(sweep.proofs.length >= 2, true, "an evidence unit reached the ledger without both of its halves");
+
+  // The harness whose oracle costs a turn is SKIPPED with that as the reason,
+  // not driven. Read from the oracle table rather than restated here.
+  assert.equal(driven.includes("claude"), false, "the free sweep drove the oracle that spends a model turn");
+  const claude = sweep.entries.find((entry) => entry.harness === "claude");
+  assert.ok(claude);
+  assert.equal(claude.ran, false);
+  assert.equal(claude.costsModelTurn, true);
+  assert.equal(
+    claude.skippedReason?.includes("doctor --canary"),
+    true,
+    "the skip does not name the command that spends deliberately",
+  );
+  for (const entry of sweep.entries) {
+    assert.notEqual(entry.ran && entry.costsModelTurn === true, true, `${entry.harness} was driven and it costs a turn`);
+  }
+});
+
+test("the canary sweep prints what it would spend before it runs anything", async () => {
+  const catalog = await shippedCatalog();
+  const announced: string[] = [];
+  const announcedWhenRunStarted: number[] = [];
+
+  const sweep = await runCanarySweep({
+    catalog,
+    announce: (line) => announced.push(line),
+    run: async (selection) => {
+      // The ordering assertion: how many cost lines had been announced by the
+      // time this run began.
+      announcedWhenRunStarted.push(announced.length);
+      return blockedCanaryResult(selection.declaration.id, selection.harness);
+    },
+  });
+
+  assert.equal(sweep.selections.length >= 3, true, "the sweep selected nothing, so the ordering proves nothing");
+  assert.equal(announced.length >= 1, true, "nothing was announced at all");
+  assert.equal(announcedWhenRunStarted.length, sweep.selections.length);
+  for (const seen of announcedWhenRunStarted) {
+    assert.equal(seen, announced.length, "a run started before every cost line had been announced");
+  }
+  assert.equal(
+    announced[0]?.includes("spend a model turn"),
+    true,
+    "the first announced line does not say how many pairs would spend a model turn",
+  );
+  // The shipped canaries are declared for the harness that DOES spend, so the
+  // summary carries a real number rather than a zero.
+  assert.equal(
+    sweep.costLines.some((line) => line.includes("SPENDS")),
+    true,
+    "no selection was reported as spending, so the cost summary proves nothing",
+  );
+});
+
+test("a canary blocked on an unset credential names the variable and the next action, and never a value", async () => {
+  const sentinel = "sk-doctor-canary-sentinel-51ac7e";
+  const canary = declaration({ requiresEnvironment: ["EXA_API_KEY", "FIRECRAWL_API_KEY"] });
+  const readiness = await probeReadiness({
+    harness: "claude",
+    canary,
+    environment: { EXA_API_KEY: sentinel },
+    runner: runner(),
+  });
+  const row = canaryRow(
+    {
+      canary: canary.id,
+      capability: canary.capability,
+      harness: "claude",
+      outcome: "blocked",
+      nativeUse: "unverified",
+      verdict: decideInvocation(canary, []),
+      observations: [],
+      readiness,
+      identity: readiness.identity,
+      blockedReasons: readiness.blockedReasons,
+      unverifiedReason: null,
+      launched: false,
+      exitCode: null,
+      excerpt: null,
+      oracle: null,
+      runtimeRoot: "<state>/canary/run",
+      costsModelTurn: true,
+      launchArgs: [],
+    },
+    "supported",
+  );
+
+  const rendered = formatCapabilityReport("Invocation canaries", [row], []);
+  assert.equal(rendered.includes("MISSING_CREDENTIAL"), true, "the rendering does not carry the stable blocked code");
+  assert.equal(rendered.includes("FIRECRAWL_API_KEY"), true, "the rendering does not name the unset variable");
+  assert.equal(rendered.includes(sentinel), false, "a credential VALUE reached the rendered report");
+  assert.equal(
+    rendered.includes("Set FIRECRAWL_API_KEY"),
+    true,
+    "the rendering does not carry a next action the reader can act on",
+  );
+});
+
+test("--json carries all three axes for every capability and the human output carries one line each", async () => {
+  const rows: CapabilityReportRow[] = [
+    discoveryRow(
+      {
+        harness: "codex",
+        ran: true,
+        skippedReason: null,
+        costsModelTurn: false,
+        discovery: null,
+        unit: pairEvidence(discoveryProof("codex", "positive"), discoveryProof("codex", "negative")),
+      },
+      "WEB_BASE",
+      "unverified",
+    ),
+    discoveryRow(
+      {
+        harness: "pi",
+        ran: true,
+        skippedReason: null,
+        costsModelTurn: false,
+        discovery: null,
+        // No negative control was taken, so the unit is INCOMPLETE.
+        unit: pairEvidence(discoveryProof("pi", "positive"), null),
+      },
+      "WEB_BASE",
+      "unverified",
+    ),
+  ];
+
+  for (const row of rows) {
+    assert.equal(Object.hasOwn(row.axes, "deployment"), true, "a reported capability carries no deployment axis");
+    assert.equal(Object.hasOwn(row.axes, "support"), true, "a reported capability carries no support axis");
+    assert.equal(Object.hasOwn(row.axes, "nativeUse"), true, "a reported capability carries no native-use axis");
+    // The axis this command did not measure is a recorded absence WITH a
+    // reason, never a value picked to fill the column.
+    assert.equal(row.axes.deployment, null);
+    assert.equal(row.axisNotes.deployment.length > 20, true, "the unmeasured axis carries no reason");
+  }
+
+  const rendered = formatCapabilityReport("Free discovery sweep", rows, []);
+  // A summary row is the TABLE line: its evidence cell is padded to the column
+  // width, so it is followed by two or more spaces. The per-reason lines below
+  // the table carry a single space and are deliberately not summary lines.
+  const summaryLines = rendered.split("\n").filter((line) => /^(COMPLETE|INCOMPLETE) {2,}/u.test(line));
+  assert.equal(summaryLines.length, rows.length, "the human output does not carry exactly one summary line per capability");
+});
+
+test("an INCOMPLETE unit renders INCOMPLETE and never the positive's native-use value", () => {
+  const incomplete = pairEvidence(discoveryProof("pi", "positive"), null);
+  assert.equal(incomplete.completeness, "INCOMPLETE");
+  assert.equal(incomplete.positive?.nativeUse, "discovered", "the positive half did not record a native-use value to withhold");
+
+  const row = discoveryRow(
+    { harness: "pi", ran: true, skippedReason: null, costsModelTurn: false, discovery: null, unit: incomplete },
+    "WEB_BASE",
+    "unverified",
+  );
+  const rendered = formatCapabilityReport("Free discovery sweep", [row], []);
+  const summary = rendered.split("\n").find((line) => /^INCOMPLETE {2,}WEB_BASE\s+pi\s/u.test(line));
+  assert.ok(summary, `no INCOMPLETE summary line was rendered:\n${rendered}`);
+  assert.equal(
+    summary.includes("discovered"),
+    false,
+    "an INCOMPLETE unit rendered the positive's native-use value, which reads as a result",
+  );
+  assert.equal(row.axes.nativeUse, null, "an INCOMPLETE unit reported a native-use axis at all");
 });

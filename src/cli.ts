@@ -9,6 +9,7 @@ import {
   applyPackRemoval,
   approvalCommand,
   approveProjectPlan,
+  classifyAdapterSupport,
   planPackRemoval,
   planProjectCapabilities,
   reconcileProjectState,
@@ -25,7 +26,7 @@ import {
   selectIsolationLaunch,
   syncIsolationRuntime,
 } from "./core/isolation.js";
-import { materializeEnvironment, runCommandInteractive } from "./core/process.js";
+import { materializeEnvironment, probeCommand, runCommandInteractive } from "./core/process.js";
 import { createGsdFixtureSpec, runGsdFixture, type GsdFixtureHarness } from "./core/gsd-fixture.js";
 import { applyCodexGsdHookCompatibility, planCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } from "./core/gsd-compat.js";
 import { runEccFixture } from "./core/ecc-fixture.js";
@@ -38,8 +39,37 @@ import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/upda
 import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
+import { createHash } from "node:crypto";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
+import {
+  canaryProof,
+  canaryRow,
+  createCanaryObservationSink,
+  createCanaryRuntime,
+  disposeCanaryRuntime,
+  discoveryRow,
+  HARNESS_COMMANDS,
+  loadCanaryCatalog,
+  runCanary,
+  runCanarySweep,
+  runDiscoverySweep,
+  SWEEP_HARNESSES,
+  type CapabilityReportRow,
+  type DiscoverySweep,
+} from "./core/canary.js";
+import {
+  CAPABILITY_LEDGER_SCHEMA_VERSION,
+  capabilityLedgerPath,
+  harnessMinorKey,
+  readCapabilityLedger,
+  writeCapabilityLedger,
+  type CapabilityProof,
+  type HarnessVersion,
+  type LedgerHarness,
+} from "./core/capability-ledger.js";
+import { formatCapabilityReport, formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
 import {
   createRedactionContext,
   describeOverBudgetEnvelope,
@@ -51,7 +81,7 @@ import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
 import { applySupportBundle, collectSupportSources, planSupportBundleOperation } from "./core/support-bundle.js";
 import { applyBootstrapOperation, createBootstrapOperationPlan, type BootstrapKind } from "./core/bootstrap.js";
-import type { HarnessId, IsolationMode, McpServerId, RedactionContext } from "./types.js";
+import type { HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext } from "./types.js";
 
 const HELP = `alpha-aos
 
@@ -74,6 +104,8 @@ Usage:
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
+  alpha-aos doctor --discovery [path] [--json]
+  alpha-aos doctor --canary [path] [--harness <id>] [--capability <id>] [--json]
   alpha-aos fixture gsd <claude|codex|antigravity|pi> [--apply] [--keep] [--json]
   alpha-aos fixture ecc <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
   alpha-aos fixture mcp <context7|exa|firecrawl> <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
@@ -85,6 +117,16 @@ Usage:
 
 Mutation commands are dry-run by default. Live apply and rollback are enabled only
 after the fixture transaction gate passes.
+
+"doctor --discovery" is the free evidence: it runs only the discovery oracles that
+spend no model turn, needs no credential, runs on every platform, and records what
+it found in the host capability ledger.
+
+"doctor --canary" is NOT a preview. It launches a harness inside a canary runtime,
+spends a model turn where the harness costs one, and persists a ledger record. It
+prints which canaries would spend before it runs anything, and refuses with the
+readiness report — naming the variable and the next action, never a value — when a
+required credential is absent.
 
 Every observable surface passes through one redaction seam. A value this tool
 withheld is printed as [redacted:<kind>]; a private root is printed as an alias
@@ -196,11 +238,100 @@ function observableContext(): RedactionContext {
   return sharedContext;
 }
 
+/**
+ * The harness version each ledger row binds to, probed once per invocation.
+ *
+ * A line nothing could read stays `unverified` rather than becoming an invented
+ * version: `harnessMinorKey` keeps the raw string so a human can see exactly
+ * what could not be parsed.
+ */
+function probedHarnessVersions(): Record<LedgerHarness, HarnessVersion> {
+  const versions = {} as Record<LedgerHarness, HarnessVersion>;
+  for (const harness of SWEEP_HARNESSES) {
+    versions[harness] = harnessMinorKey(probeCommand(HARNESS_COMMANDS[harness]).version ?? "");
+  }
+  return versions;
+}
+
+/**
+ * The bound skill-source hash for one pack: every selected skill's own source
+ * hash, in a stable order, folded into one.
+ *
+ * Folded rather than picked, so a pack whose SECOND skill moved demotes exactly
+ * as a pack whose first one did.
+ */
+function packSkillSourceHash(sources: readonly PackSource[]): string {
+  const digest = createHash("sha256");
+  for (const entry of [...sources].sort((left, right) => left.skill.localeCompare(right.skill))) {
+    digest.update(`${entry.skill}:${entry.sourceSha256}\n`);
+  }
+  return digest.digest("hex");
+}
+
+/** The narrowed harness set a ledger row may name, or null for "every one". */
+function ledgerHarness(value: string | null): LedgerHarness | null {
+  if (value === null) return null;
+  const found = SWEEP_HARNESSES.find((harness) => harness === value);
+  if (found === undefined) {
+    throw new Error(`Invalid --harness value: ${value}. A canary can be declared for ${SWEEP_HARNESSES.join(", ")}.`);
+  }
+  return found;
+}
+
+/**
+ * This tool's own version, read from its manifest rather than restated.
+ *
+ * A ledger row records WHICH producer wrote it, and a literal that drifts from
+ * the manifest would make that record quietly wrong — the same reason the
+ * catalog is the source for every other version this tool reports.
+ */
+async function alphaAosVersion(): Promise<string> {
+  const manifest = JSON.parse(await readFile(join(packageRoot(), "package.json"), "utf8")) as { version?: unknown };
+  return typeof manifest.version === "string" && manifest.version.length > 0 ? manifest.version : "0.0.0-unknown";
+}
+
+/**
+ * Appends proofs to the host capability ledger, through its one write path.
+ *
+ * A ledger that exists and does not pass its closed schema is REFUSED here
+ * rather than overwritten: overwriting would destroy a record a user may still
+ * need, and treating `unreadable` as `absent` is precisely the confusion the
+ * tri-state read exists to prevent.
+ */
+async function appendCapabilityProofs(
+  stateRoot: string,
+  proofs: readonly CapabilityProof[],
+): Promise<{ status: string; recorded: number; path: string }> {
+  const path = capabilityLedgerPath(stateRoot);
+  if (proofs.length === 0) return { status: "nothing-to-record", recorded: 0, path };
+
+  const existing = await readCapabilityLedger(path);
+  if (existing.state === "unreadable") {
+    throw new Error(
+      `The capability ledger at ${path} exists and did not pass its closed schema, so it is refused rather than ` +
+        `overwritten: ${existing.issues.map((issue) => `${issue.code}@${issue.documentPath}`).join(", ") || "no issue code recorded"}`,
+    );
+  }
+  const write = await writeCapabilityLedger({
+    stateRoot,
+    ledger: {
+      schemaVersion: CAPABILITY_LEDGER_SCHEMA_VERSION,
+      producer: { name: "alpha-aos", version: await alphaAosVersion() },
+      updatedAt: new Date().toISOString(),
+      proofs: [...(existing.state === "present" ? existing.ledger.proofs : []), ...proofs],
+    },
+  });
+  return { status: write.status, recorded: proofs.length, path: write.path };
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0] ?? "help";
   const json = hasFlag(args, "--json");
-  if (["help", "--help", "-h"].includes(command)) {
+  // `--help` anywhere is a request for help, not a flag on the command it sits
+  // beside: `alpha-aos doctor --help` must print help rather than run a doctor
+  // sweep against a machine, and one help text is the whole contract.
+  if (["help", "--help", "-h"].includes(command) || hasFlag(args, "--help") || hasFlag(args, "-h")) {
     process.stdout.write(HELP);
     return;
   }
@@ -523,6 +654,133 @@ async function main(): Promise<void> {
   }
 
   if (command === "doctor") {
+    const context = observableContext();
+
+    // The free evidence. No credential, no model turn, every platform — which
+    // is what lets the automated suite and hosted CI run it (RESEARCH Pitfall
+    // 10). Its sibling below is the paid one, and choosing it is a separate act.
+    if (hasFlag(args, "--discovery")) {
+      const target = targetPath(args, 1, ["--harness", "--capability", "--project"]);
+      const plan = await planProjectCapabilities({ path: target, packageRoot: root });
+      const stateRoot = userStateRoot();
+      // Constructed, never assumed: `runPairedDiscovery` walks this directory's
+      // ancestry and refuses to take a negative from a contaminated control.
+      const controlRoot = await mkdtemp(join(tmpdir(), "alpha-aos-control-"));
+      try {
+        const versions = probedHarnessVersions();
+        const sweeps: DiscoverySweep[] = [];
+        const rows: CapabilityReportRow[] = [];
+        for (const packId of plan.applicable) {
+          const sources = plan.source.filter((entry) => entry.packId === packId);
+          const sweep = await runDiscoverySweep({
+            projectRoot: plan.scope.canonicalRoot,
+            controlRoot,
+            capability: packId,
+            skillDirectories: sources.map((entry) => entry.skill),
+            projectId: plan.scope.projectId,
+            boundInputs: {
+              skillSourceHash: packSkillSourceHash(sources),
+              mcpServerVersion: null,
+              evidenceHash: plan.evidenceDigest,
+            },
+            harnessVersions: versions,
+          });
+          sweeps.push(sweep);
+          for (const entry of sweep.entries) {
+            rows.push(discoveryRow(entry, packId, plan.adapterSupport[entry.harness] ?? "unverified"));
+          }
+        }
+        const ledger = await appendCapabilityProofs(stateRoot, sweeps.flatMap((sweep) => sweep.proofs));
+        print(
+          { command: "doctor --discovery", project: plan.scope.canonicalRoot, packs: plan.applicable, costsModelTurn: false, rows, sweeps, ledger },
+          json,
+          formatCapabilityReport(
+            `Free discovery sweep: ${plan.applicable.length} applicable pack(s) in ${plan.scope.canonicalRoot}`,
+            rows,
+            [
+              "This sweep spent nothing: every oracle that would cost a model turn was skipped rather than run.",
+              `Ledger: ${ledger.status} (${ledger.recorded} proof(s) recorded at ${ledger.path}).`,
+            ],
+          ),
+          context,
+        );
+      } finally {
+        await rm(controlRoot, { recursive: true, force: true });
+      }
+      return;
+    }
+
+    // The paid evidence. It prints what it would spend BEFORE it spends it, and
+    // it refuses with the readiness report rather than running and failing.
+    if (hasFlag(args, "--canary")) {
+      const target = targetPath(args, 1, ["--harness", "--capability", "--project"]);
+      const harnessFilter = ledgerHarness(optionValue(args, "--harness"));
+      const capabilityFilter = optionValue(args, "--capability");
+      const canaryCatalog = (await loadCanaryCatalog(root)).value;
+      const stateRoot = userStateRoot();
+      const retained: string[] = [];
+      const proofs: CapabilityProof[] = [];
+      const versions = probedHarnessVersions();
+
+      const sweep = await runCanarySweep({
+        catalog: canaryCatalog,
+        harness: harnessFilter,
+        capability: capabilityFilter,
+        // Written to stderr so a human watching sees the spend before it
+        // happens in BOTH modes; the same lines ride in the --json envelope, so
+        // a program reading stdout is not asked to parse a side channel.
+        announce: (line) => { process.stderr.write(`${redactString(line, context)}\n`); },
+        run: async (selection) => {
+          const runtime = await createCanaryRuntime({
+            projectRoot: target,
+            harness: selection.harness,
+            servers: mcpServerIds(),
+            stateRoot,
+            lock,
+          });
+          const result = await runCanary({
+            declaration: selection.declaration,
+            harness: selection.harness,
+            projectRoot: target,
+            runtime,
+            sink: createCanaryObservationSink(runtime),
+          });
+          const proof = canaryProof(result, {
+            projectId: null,
+            boundInputs: { skillSourceHash: "", mcpServerVersion: null, evidenceHash: null },
+            harnessVersion: versions[selection.harness] ?? { exact: null, minorKey: null, raw: "" },
+          });
+          if (proof !== null) proofs.push(proof);
+          // A run that launched and did not complete cleanly is the one case
+          // worth keeping the runtime for; everything else is ephemeral by
+          // construction and is removed.
+          if (result.launched && result.outcome !== "ready") retained.push(runtime.root);
+          else await disposeCanaryRuntime(runtime);
+          return result;
+        },
+      });
+
+      const rows = sweep.results.map((result) =>
+        canaryRow(result, classifyAdapterSupport([result.harness]).at(0)?.support ?? "unverified"),
+      );
+      const ledger = await appendCapabilityProofs(stateRoot, proofs);
+      const blocked = sweep.results.filter((result) => result.outcome === "blocked");
+      print(
+        { command: "doctor --canary", project: target, cost: sweep.costLines, rows, results: sweep.results, ledger, retainedRuntimes: retained },
+        json,
+        formatCapabilityReport(`Invocation canaries: ${sweep.results.length} run(s) in ${target}`, rows, [
+          ...sweep.costLines,
+          `Ledger: ${ledger.status} (${ledger.recorded} proof(s) recorded at ${ledger.path}).`,
+          retained.length > 0
+            ? `Retained for diagnosis: ${retained.join(", ")}`
+            : "Every canary runtime was removed; a runtime is single-use and ephemeral.",
+        ]),
+        context,
+      );
+      if (blocked.length > 0) process.exitCode = 2;
+      return;
+    }
+
     const inventory = collectInventory(catalog);
     const findings = await runDoctor(catalog, lock, inventory);
     print(findings, json, formatDoctor(findings));

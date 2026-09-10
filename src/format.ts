@@ -1,4 +1,5 @@
 import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
+import type { CapabilityReportRow } from "./core/canary.js";
 import {
   approvalCommand,
   describeLeaf,
@@ -479,4 +480,75 @@ export function formatProjectStatus(
     "Read only. `project status` deletes nothing: a removal is a separate act a human approves by digest.",
   );
   return lines.join("\n");
+}
+
+/**
+ * The doctor verbs' capability report: ONE line per capability, carrying the
+ * three axes and, where an axis is blocked, its code and variable name.
+ *
+ * The human lines live here and the raw axes leave through the CLI's `--json`,
+ * which is the split every other surface in this tool already follows.
+ *
+ * An INCOMPLETE unit renders the word INCOMPLETE and does NOT render a
+ * native-use value. That is 03-CONTEXT.md D-14 at the rendering seam: an
+ * unpaired positive is not the claim the unit exists to make, and a reader who
+ * sees an axis on that line reads the whole line as a result.
+ */
+export function formatCapabilityReport(
+  title: string,
+  rows: readonly CapabilityReportRow[],
+  notes: readonly string[] = [],
+): string {
+  const lines = [title];
+  if (rows.length === 0) {
+    lines.push("", "No capability was reported: nothing was selected to run.");
+  } else {
+    lines.push(
+      "",
+      table(
+        ["EVIDENCE", "CAPABILITY", "HARNESS", "DEPLOYMENT", "SUPPORT", "NATIVE USE", "DETAIL"],
+        rows.map((row) => [
+          row.completeness ?? "-",
+          row.capability,
+          row.harness,
+          row.axes.deployment ?? "not-measured",
+          row.axes.support,
+          // The axis is withheld on an INCOMPLETE unit rather than shown with a
+          // caveat beside it.
+          row.completeness === "INCOMPLETE" ? "withheld" : row.axes.nativeUse ?? "unverified",
+          detailCell(capabilityRowDetail(row)),
+        ]),
+      ),
+      "",
+    );
+  }
+
+  // The upper-code-plus-reason convention `formatProjectStatus` already uses: a
+  // blocked axis gets its own line naming the code and the variable, so it is
+  // greppable and never merged into a table cell that a width bound can cut.
+  for (const row of rows) {
+    const blocked = row.blockedReason;
+    if (blocked !== null) {
+      lines.push(`BLOCKED ${blocked.code} ${blocked.variable} — ${blocked.nextAction}`);
+    }
+    if (row.completeness === "INCOMPLETE") {
+      for (const reason of row.incompleteReasons) {
+        lines.push(`INCOMPLETE ${row.capability} on ${row.harness} — ${reason}`);
+      }
+    }
+    if (row.unsupportedReason !== null) {
+      lines.push(`UNSUPPORTED ${row.capability} on ${row.harness} — ${row.unsupportedReason}`);
+    }
+  }
+
+  for (const note of notes) lines.push(note);
+  return lines.join("\n");
+}
+
+/** The one-cell reason a row carries, chosen in the order a reader needs it. */
+function capabilityRowDetail(row: CapabilityReportRow): string {
+  if (row.blockedReason !== null) return `${row.blockedReason.code} ${row.blockedReason.variable}`;
+  if (row.unsupportedReason !== null) return row.unsupportedReason;
+  if (row.completeness === "INCOMPLETE") return row.incompleteReasons[0] ?? "the evidence unit is incomplete";
+  return row.axisNotes.nativeUse ?? "";
 }

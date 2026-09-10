@@ -13,7 +13,13 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { SurfaceSupport } from "../types.js";
 import { packageRoot, RootKeyedCache, userStateRoot } from "./paths.js";
+// Type-only, and deliberately so: this module READS the deployment axis and
+// never defines, widens or reimplements it (03-CONTEXT.md D-11). A type-only
+// import is also erased at runtime, so the ledger does not drag the whole
+// project-plan module into a status path that only needs three strings.
+import type { PackState } from "./project-plan.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
 
 /** Directory under the user state root that holds host-scoped capability evidence. */
@@ -247,4 +253,91 @@ export async function readCapabilityLedger(path: string): Promise<CapabilityLedg
     return { state: "unreadable", path, errno: null, issues };
   }
   return { state: "present", ledger: result.value };
+}
+
+// ---------------------------------------------------------------------------
+// The native-use axis: resolution, demotion, and version parsing
+// ---------------------------------------------------------------------------
+
+/** The values a stored proof is re-resolved against. Null means "not known now". */
+export interface CurrentInputs {
+  readonly skillSourceHash: string | null;
+  readonly mcpServerVersion: string | null;
+  readonly evidenceHash: string | null;
+  /** The harness version line as the harness prints it now, unparsed. */
+  readonly harnessVersion: string | null;
+}
+
+/** Which bound noun a demotion is about. Each one demotes on its own. */
+export type DemotionNoun = "skillSourceHash" | "mcpServerVersion" | "evidenceHash" | "harnessVersion";
+
+export interface DemotionReason {
+  readonly code:
+    | "SKILL_SOURCE_HASH_MOVED"
+    | "MCP_SERVER_VERSION_MOVED"
+    | "PACK_EVIDENCE_HASH_MOVED"
+    | "HARNESS_MINOR_MOVED"
+    | "HARNESS_VERSION_UNPARSEABLE"
+    | "BOUND_INPUT_NOT_COMPARABLE";
+  readonly noun: DemotionNoun;
+  /** One sentence that NAMES its own noun, so two demotions never read alike. */
+  readonly sentence: string;
+}
+
+export interface NativeUseResolution {
+  readonly nativeUse: NativeUseState;
+  readonly demoted: boolean;
+  readonly reasons: readonly DemotionReason[];
+  /** The exact version the proof was taken against, readable after a demotion. */
+  readonly provenHarnessVersion: HarnessVersion;
+  readonly blocked: boolean;
+  readonly blockedReason: BlockedReason | null;
+}
+
+export function harnessMinorKey(_raw: string): HarnessVersion {
+  throw new Error("harnessMinorKey is not implemented");
+}
+
+export function resolveNativeUse(_proof: CapabilityProof, _current: CurrentInputs): NativeUseResolution {
+  throw new Error("resolveNativeUse is not implemented");
+}
+
+/** The three orthogonal axes, obtainable only together (03-CONTEXT.md D-11). */
+export interface CapabilityAxes {
+  readonly deployment: PackState;
+  readonly support: SurfaceSupport;
+  readonly nativeUse: NativeUseState;
+}
+
+export interface CapabilityStatus {
+  readonly capability: string;
+  readonly harness: LedgerHarness;
+  readonly axes: CapabilityAxes;
+  readonly resolution: NativeUseResolution;
+}
+
+export interface ResolveCapabilityStatusOptions {
+  readonly capability: string;
+  readonly harness: LedgerHarness;
+  readonly deployment: PackState;
+  readonly support: SurfaceSupport;
+  readonly proof: CapabilityProof;
+  readonly current: CurrentInputs;
+}
+
+export function resolveCapabilityStatus(_options: ResolveCapabilityStatusOptions): CapabilityStatus {
+  throw new Error("resolveCapabilityStatus is not implemented");
+}
+
+export function capabilityStatusJson(_status: CapabilityStatus): {
+  readonly capability: string;
+  readonly harness: LedgerHarness;
+  readonly axes: CapabilityAxes;
+  readonly demoted: boolean;
+  readonly demotionReasons: readonly DemotionReason[];
+  readonly provenHarnessVersion: HarnessVersion;
+  readonly blocked: boolean;
+  readonly blockedReason: BlockedReason | null;
+} {
+  throw new Error("capabilityStatusJson is not implemented");
 }

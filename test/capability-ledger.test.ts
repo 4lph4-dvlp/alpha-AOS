@@ -17,9 +17,14 @@ import test from "node:test";
 import {
   capabilityLedgerPath,
   capabilityLedgerRoot,
+  capabilityStatusJson,
+  harnessMinorKey,
   readCapabilityLedger,
+  resolveCapabilityStatus,
+  resolveNativeUse,
   type CapabilityLedger,
   type CapabilityProof,
+  type CurrentInputs,
 } from "../src/core/capability-ledger.js";
 import { userStateRoot } from "../src/core/paths.js";
 
@@ -183,4 +188,235 @@ test("the harness enum states why antigravity is unrepresentable", async () => {
     true,
     "the narrowing must record WHY antigravity is absent, not merely that it is",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Task 2 — three independent axes, the demotion binding, the version parsers
+// ---------------------------------------------------------------------------
+
+/** The current values a stored proof is re-resolved against on every read. */
+const CURRENT_MATCH: CurrentInputs = {
+  skillSourceHash: SKILL_HASH,
+  mcpServerVersion: "4.0.4",
+  evidenceHash: EVIDENCE_HASH,
+  harnessVersion: "2.1.267 (Claude Code)",
+};
+
+test("the three axes are independently settable and every export exposes all three", () => {
+  const status = resolveCapabilityStatus({
+    capability: VALID_POSITIVE.capability,
+    harness: "claude",
+    deployment: "CURRENT",
+    support: "supported",
+    proof: VALID_POSITIVE,
+    current: CURRENT_MATCH,
+  });
+
+  assert.deepEqual(Object.keys(status.axes).sort(), ["deployment", "nativeUse", "support"]);
+  assert.equal(status.axes.deployment, "CURRENT");
+  assert.equal(status.axes.support, "supported");
+  assert.equal(status.axes.nativeUse, "invoked");
+
+  // Independence: moving the deployment and support axes leaves the native-use
+  // axis exactly where the evidence put it. A single eight-value enum could not
+  // express this pairing at all, which is the collapse D-11 forbids.
+  const moved = resolveCapabilityStatus({
+    capability: VALID_POSITIVE.capability,
+    harness: "claude",
+    deployment: "STALE",
+    support: "unverified",
+    proof: VALID_POSITIVE,
+    current: CURRENT_MATCH,
+  });
+  assert.equal(moved.axes.deployment, "STALE");
+  assert.equal(moved.axes.support, "unverified");
+  assert.equal(moved.axes.nativeUse, "invoked");
+
+  const json = capabilityStatusJson(status);
+  assert.deepEqual(Object.keys(json.axes).sort(), ["deployment", "nativeUse", "support"]);
+
+  // There is no code path that yields a capability state without all three: a
+  // caller that omits an axis is refused rather than silently given a default.
+  assert.throws(
+    () =>
+      resolveCapabilityStatus({
+        capability: VALID_POSITIVE.capability,
+        harness: "claude",
+        deployment: "CURRENT",
+        proof: VALID_POSITIVE,
+        current: CURRENT_MATCH,
+      } as unknown as Parameters<typeof resolveCapabilityStatus>[0]),
+    /support/u,
+  );
+});
+
+test("a moved skill source hash demotes the proof and the reason names the skill source hash", () => {
+  const resolution = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, skillSourceHash: "e".repeat(64) });
+
+  assert.equal(resolution.nativeUse, "unverified");
+  assert.equal(resolution.demoted, true);
+  assert.deepEqual(
+    resolution.reasons.map((reason) => reason.noun),
+    ["skillSourceHash"],
+  );
+  assert.equal(resolution.reasons[0]?.code, "SKILL_SOURCE_HASH_MOVED");
+  assert.match(resolution.reasons[0]?.sentence ?? "", /skill source hash/u);
+});
+
+test("a moved MCP server version demotes the proof and the reason names the MCP server version", () => {
+  const resolution = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, mcpServerVersion: "4.1.0" });
+
+  assert.equal(resolution.nativeUse, "unverified");
+  assert.deepEqual(
+    resolution.reasons.map((reason) => reason.noun),
+    ["mcpServerVersion"],
+  );
+  assert.equal(resolution.reasons[0]?.code, "MCP_SERVER_VERSION_MOVED");
+  assert.match(resolution.reasons[0]?.sentence ?? "", /MCP server version/u);
+  // Each bound noun demotes on its own, so a reader can tell a moved server
+  // from a moved skill without diffing two records.
+  assert.doesNotMatch(resolution.reasons[0]?.sentence ?? "", /skill source hash/u);
+});
+
+test("a moved pack evidence hash demotes the proof and the reason names the pack evidence hash", () => {
+  const resolution = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, evidenceHash: "f".repeat(64) });
+
+  assert.equal(resolution.nativeUse, "unverified");
+  assert.deepEqual(
+    resolution.reasons.map((reason) => reason.noun),
+    ["evidenceHash"],
+  );
+  assert.equal(resolution.reasons[0]?.code, "PACK_EVIDENCE_HASH_MOVED");
+  assert.match(resolution.reasons[0]?.sentence ?? "", /pack evidence hash/u);
+});
+
+test("current information that is absent is not a match, and the reason names what could not be compared", () => {
+  const resolution = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, skillSourceHash: null });
+
+  assert.equal(resolution.nativeUse, "unverified");
+  assert.equal(resolution.reasons[0]?.code, "BOUND_INPUT_NOT_COMPARABLE");
+  assert.equal(resolution.reasons[0]?.noun, "skillSourceHash");
+  assert.match(resolution.reasons[0]?.sentence ?? "", /skill source hash/u);
+});
+
+test("a harness patch bump does not demote and a minor bump does, with the proven version still readable", () => {
+  const patched = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, harnessVersion: "2.1.301 (Claude Code)" });
+  const minorBumped = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, harnessVersion: "2.2.0 (Claude Code)" });
+
+  // The pair is asserted together on purpose: a rule that demoted on every
+  // version change would pass the second assertion alone while leaving the
+  // ledger permanently red, which is the outcome D-04 rules out.
+  assert.equal(patched.demoted, false);
+  assert.equal(patched.nativeUse, "invoked");
+  assert.equal(minorBumped.demoted, true);
+  assert.equal(minorBumped.nativeUse, "unverified");
+  assert.equal(minorBumped.reasons[0]?.code, "HARNESS_MINOR_MOVED");
+  assert.match(minorBumped.reasons[0]?.sentence ?? "", /harness version/u);
+
+  // The exact version that was proven survives the demotion, so an audit can
+  // still see what the proof was taken against.
+  assert.equal(minorBumped.provenHarnessVersion.exact, "2.1.267");
+  assert.equal(minorBumped.provenHarnessVersion.minorKey, "2.1");
+  assert.equal(minorBumped.provenHarnessVersion.raw, "2.1.267 (Claude Code)");
+});
+
+test("the four observed harness version strings parse to their recorded minor keys", () => {
+  // The four strings and their minor keys are 03-RESEARCH.md Pitfall 6 live
+  // observations, kept verbatim. The hermes line is the reason only the leading
+  // version is bound: its upstream token moved twice inside one session with no
+  // install change, so fingerprinting the line would demote every hermes proof.
+  const observed: ReadonlyArray<{ readonly raw: string; readonly exact: string; readonly minorKey: string }> = [
+    { raw: "2.1.267 (Claude Code)", exact: "2.1.267", minorKey: "2.1" },
+    { raw: "codex-cli 0.152.0", exact: "0.152.0", minorKey: "0.152" },
+    { raw: "0.85.1", exact: "0.85.1", minorKey: "0.85" },
+    {
+      raw: "Hermes Agent v0.20.6 (2026.8.27) - upstream 6e07eb48 - local 4209d371 (+1 carried commit)",
+      exact: "0.20.6",
+      minorKey: "0.20",
+    },
+  ];
+
+  for (const entry of observed) {
+    const parsed = harnessMinorKey(entry.raw);
+    assert.equal(parsed.exact, entry.exact, entry.raw);
+    assert.equal(parsed.minorKey, entry.minorKey, entry.raw);
+    assert.equal(parsed.raw, entry.raw, "the whole line is retained for audit");
+  }
+
+  // The same hermes line with a different upstream token is the SAME proof.
+  const early = harnessMinorKey("Hermes Agent v0.20.6 (2026.8.27) - upstream 9e6c4100 - local 4209d371");
+  assert.equal(early.minorKey, "0.20");
+});
+
+test("an unparseable harness version yields a null minor key and an unverified resolution carrying the raw string", () => {
+  const raw = "hermes nightly, unversioned build";
+  const parsed = harnessMinorKey(raw);
+  assert.equal(parsed.exact, null);
+  assert.equal(parsed.minorKey, null);
+  assert.equal(parsed.raw, raw);
+
+  const resolution = resolveNativeUse(VALID_POSITIVE, { ...CURRENT_MATCH, harnessVersion: raw });
+  assert.equal(resolution.nativeUse, "unverified");
+  assert.equal(resolution.reasons[0]?.code, "HARNESS_VERSION_UNPARSEABLE");
+  // Unparseable is unverified, never an error, and the raw string travels with
+  // it so a human can see what could not be parsed.
+  assert.match(resolution.reasons[0]?.sentence ?? "", /hermes nightly, unversioned build/u);
+});
+
+test("a blocked resolution names the credential variable and the next action, and carries no value", () => {
+  const SENTINEL = "sk-ant-api03-NOTAREALKEYAAAAAAAAAA";
+  const blocked: CapabilityProof = {
+    ...VALID_POSITIVE,
+    nativeUse: "unverified",
+    blockedReason: {
+      code: "CREDENTIAL_NOT_SET",
+      variable: "EXA_API_KEY",
+      nextAction: "Set EXA_API_KEY in the environment, then re-run the research canary.",
+      // A caller trying to smuggle the value in is not merely discouraged: the
+      // resolved record has nowhere to put it, and the closed schema refuses
+      // the document outright (T-03-22).
+      value: SENTINEL,
+    } as unknown as CapabilityProof["blockedReason"],
+  };
+
+  const resolution = resolveNativeUse(blocked, CURRENT_MATCH);
+  assert.equal(resolution.blocked, true);
+  assert.equal(resolution.blockedReason?.variable, "EXA_API_KEY");
+  assert.match(resolution.blockedReason?.nextAction ?? "", /re-run the research canary/u);
+  assert.deepEqual(Object.keys(resolution.blockedReason ?? {}).sort(), ["code", "nextAction", "variable"]);
+  assert.equal(
+    JSON.stringify(resolution).includes(SENTINEL),
+    false,
+    "a value-shaped sentinel must not survive into the resolved record",
+  );
+
+  // blocked and unverified are distinct and load-bearing (D-12): the axis says
+  // nothing was observed, the reason says exactly why and what to do about it.
+  assert.equal(resolution.nativeUse, "unverified");
+});
+
+test("a blocked reason carrying a value field is refused by the closed schema", async (context) => {
+  const root = await ledgerFixture(context);
+  const path = await writeLedgerBytes(
+    root,
+    JSON.stringify({
+      ...VALID_LEDGER,
+      proofs: [
+        {
+          ...VALID_POSITIVE,
+          blockedReason: {
+            code: "CREDENTIAL_NOT_SET",
+            variable: "EXA_API_KEY",
+            nextAction: "Set EXA_API_KEY in the environment.",
+            value: "sk-ant-api03-NOTAREALKEYAAAAAAAAAA",
+          },
+        },
+      ],
+    }),
+  );
+
+  const read = await readCapabilityLedger(path);
+  assert.equal(read.state, "unreadable");
+  if (read.state !== "unreadable") return;
+  assert.equal(read.issues.length > 0, true);
 });

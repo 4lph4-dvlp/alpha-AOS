@@ -4,11 +4,11 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-10-PLAN.md
-last_updated: "2026-09-10T20:36:00.478Z"
+stopped_at: Completed 03-11-PLAN.md
+last_updated: "2026-09-10T21:56:08.323Z"
 last_activity: 2026-09-10
 last_activity_desc: Phase 03 execution started
-state_head: ebf28be502576f6cf4fd83064b1a8a24270ebb57
+state_head: dea3b30c610fe2e910fca9e13f58a6a4591feef6
 progress:
   total_phases: 7
   completed_phases: 1
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
-Plan: 11 of 12
+Plan: 12 of 12
 Status: Ready to execute
 Last activity: 2026-09-10 — Phase 03 execution started
 Progress: [█░░░░░░░░░] 14%
@@ -95,6 +95,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P08 | 60 min | 3 tasks | 11 files |
 | Phase 03 P09 | 81 min | 3 tasks | 7 files |
 | Phase 03 P10 | 66 min | 3 tasks | 6 files |
+| Phase 03 P11 | 63 min | 3 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -185,6 +186,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: CAPA-07's three axes are resolved from a product CEILING (code and catalog) and a host LEDGER that are never merged: a ledger may raise a surface within its ceiling and never above it, and where the ceiling bound the result the reason says so
 - [Phase 03]: PackReconciliation.state was RENAMED to .capability so the deployment axis is reachable only through the composite CapabilityState; a stale read is a compile error, not a silent object read
 - [Phase 03]: The one-shot lifecycle reports as a state with an offer and never deletes: planPackRemoval gained a second ground so the printed digest is the one applyPackRemoval accepts, proven by pasting the command back
+- [Phase 03]: The sidecar path is a RECORDED receipt target (kind: "sidecar"), never derived at removal time, so it sits inside the drift guard planPackRemoval computes over each targets current hash — A derived path is invisible to that guard: mutation M2 (the receipt stops claiming sidecar rows) makes the removal both fail to remove the sidecar AND fail to refuse when a user has edited it. Recording it also makes the removal behaviours fall out of mechanisms that already exist rather than needing parallel new ones.
+- [Phase 03]: A sidecar whose every claim is unchanged keeps the timestamp it was written with — The receipt claims the sidecar BYTE hash, so a fresh timestamp each run would move that hash, move the receipt, and make the D-06 already-current edge permanently unreachable. Mutation M5 confirms it: forcing a fresh timestamp turns the idempotency test red.
+- [Phase 03]: pi stays receipts-only with its reason recorded, and every sidecar reason leads with the DECISION so the status width bound cannot cut it — Tolerance for a non-Markdown sidecar was never probed on pi; its documented ignore rule covers root Markdown files only. Plan 03-09 lost half a cited sentence to MAX_STATUS_DETAIL_CHARS, so the wording was rewritten to fit rather than exempted.
 
 ### Pending Todos
 
@@ -242,6 +246,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T20:36:00.043Z
-Stopped at: Completed 03-10-PLAN.md
+Last session: 2026-09-10T21:55:35.116Z
+Stopped at: Completed 03-11-PLAN.md
 Resume file: None

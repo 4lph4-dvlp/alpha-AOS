@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 18
+open_count: 20
 waived_count: 2
 fixed_count: 15
-total_count: 35
-last_updated: 2026-09-10T20:36:39.900Z
+total_count: 37
+last_updated: 2026-09-10T22:00:17.055Z
 ---
 
 # Broken Windows Ledger
@@ -50,6 +50,8 @@ last_updated: 2026-09-10T20:36:39.900Z
 | 33 | 03 | deviation | src/core/project-plan.ts |  | The corrected codex ceiling reason names <project>/.codex/skills, which PROJECT_SKILL_ROOTS still does not target; RESEARCH.md's open question on adding it is unchanged (03-09 deferred) | open |  | 2026-09-10T19:18:56.626Z |  |
 | 34 | 03 | deviation | src/core/project-pack-sync.ts |  | assertPackSourceShape is called from planProjectPackSync, a file outside plan 03-10's declared files_modified, because it is the only place the verified source root is known before any write | open |  | 2026-09-10T20:36:39.152Z |  |
 | 35 | 03 | deviation | test/helpers/pack-fixtures.ts |  | Task 2's helper surface landed in Task 1's commit, so its RED was driven by nearMissDifference and nearMissReasonNames rather than by createNearMissFixture; a 10-mutation gauntlet is the substitute evidence | open |  | 2026-09-10T20:36:39.900Z |  |
+| 36 | 03 | unrun-verify | src/cli.ts |  | doctor --discovery --json renders sweeps[].entries[].unit as [redacted:cycle]; the full unit is present under entries[].discovery.unit — plan 03-08's shape, recorded not fixed | open |  | 2026-09-10T22:00:16.341Z |  |
+| 37 | 03 | skipped-test | test/evidence.test.ts |  | a directory identity key carries the host's exact 64-bit index — failed once in a full run during plan 03-11 and did not reproduce in 6 isolated + 2 full runs; the known unowned PathProof.inode precision item | open |  | 2026-09-10T22:00:17.055Z |  |
 
 ````json
 [
@@ -471,6 +473,30 @@ last_updated: 2026-09-10T20:36:39.900Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T20:36:39.900Z",
+    "resolved_at": null
+  },
+  {
+    "id": 36,
+    "kind": "unrun-verify",
+    "phase": "03",
+    "file": "src/cli.ts",
+    "line": null,
+    "description": "doctor --discovery --json renders sweeps[].entries[].unit as [redacted:cycle]; the full unit is present under entries[].discovery.unit — plan 03-08's shape, recorded not fixed",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T22:00:16.341Z",
+    "resolved_at": null
+  },
+  {
+    "id": 37,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/evidence.test.ts",
+    "line": null,
+    "description": "a directory identity key carries the host's exact 64-bit index — failed once in a full run during plan 03-11 and did not reproduce in 6 isolated + 2 full runs; the known unowned PathProof.inode precision item",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T22:00:17.055Z",
     "resolved_at": null
   }
 ]

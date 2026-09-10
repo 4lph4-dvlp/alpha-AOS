@@ -15,6 +15,7 @@ import {
   revalidateProjectPlan,
   type RemovalPlan,
 } from "./core/project-plan.js";
+import { applyProjectPackSync } from "./core/project-pack-sync.js";
 import {
   applyIsolationManifest,
   cleanIsolationRuntime,
@@ -38,7 +39,7 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { join } from "node:path";
-import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
+import { formatDoctor, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
 import {
   createRedactionContext,
   describeOverBudgetEnvelope,
@@ -620,9 +621,6 @@ async function main(): Promise<void> {
     // everything `detect` printed and more. Keeping two entry points would
     // keep two answers to one question (plan 02-06).
     if (!["plan", "sync", "approve", "status"].includes(subcommand)) throw new Error(`Unknown project command: ${subcommand}`);
-    if (subcommand === "sync" && hasFlag(args, "--apply")) {
-      throw new Error("Project apply is not enabled until trust and transaction support are implemented");
-    }
     // D-12: previewing and persisting are two different acts, so `--apply`
     // belongs to `approve` and to nothing else. Silently ignoring the flag here
     // would let a user believe `plan` had persisted something.
@@ -646,6 +644,15 @@ async function main(): Promise<void> {
       packageRoot: root,
       ...(subProject === null ? {} : { subProject }),
     };
+
+    // D-08: `sync --apply` materializes `.alpha-aos/plan.json` and nothing
+    // else. The targets come out of the reviewed artifact, so a user who reads
+    // the approve preview has already seen every path this writes.
+    if (subcommand === "sync" && hasFlag(args, "--apply")) {
+      const result = await applyProjectPackSync({ ...planOptions, stateRoot: userStateRoot() });
+      print(result, json, formatProjectPackSync(result), context);
+      return;
+    }
 
     if (subcommand === "status") {
       const reconciliation = await reconcileProjectState(planOptions);

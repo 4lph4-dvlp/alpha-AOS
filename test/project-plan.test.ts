@@ -2230,13 +2230,21 @@ test("project plan has no --apply route and still writes nothing", async (contex
   }
 });
 
-test("project sync --apply still refuses with the Phase 3 message", async (context) => {
+// Phase 3 plan 03-01 opened this gate. What used to assert the blanket
+// "not enabled" stub now asserts the contract that replaced it: with no
+// approved artifact, `sync --apply` refuses under D-08 and hands back the
+// runnable approve command rather than a dead end.
+test("project sync --apply with no approved artifact refuses with a runnable approve command", async (context) => {
   const { root, stateRoot } = await approvalFixture(context);
 
   const result = await runCli(["project", "sync", root, "--apply"], { ALPHA_AOS_STATE_DIR: stateRoot });
 
-  assert.notEqual(result.status, 0, "the Phase 3 gate was opened early");
-  assert.match(result.stderr, /not enabled until trust and transaction support are implemented/u);
+  assert.notEqual(result.status, 0, "a sync with no approved artifact was accepted");
+  assert.match(result.stderr, /plan-incomplete/u);
+  assert.match(result.stderr, /project approve/u);
+  assert.match(result.stderr, /--plan-digest/u);
+  assert.match(result.stderr, /--apply/u);
+  assert.equal(existsSync(join(root, ".alpha-aos", "receipts")), false, "a refused sync created a receipt directory");
 });
 
 test("project approve --json carries the same decision as the text rendering", async (context) => {
@@ -3305,10 +3313,11 @@ test("approving a removal plan whose target bytes changed refuses with the drift
   assert.equal(existsSync(target), true, "a refused removal still deleted the target");
 });
 
-test("project sync --apply is still refused, so this phase did not open the Phase 3 gate", async () => {
+test("project sync --apply refuses in this repository, which has no approved artifact of its own", async () => {
   const result = await runCli(["project", "sync", ".", "--apply"]);
-  assert.notEqual(result.status, 0, "`project sync --apply` was accepted at phase close");
-  assert.match(result.stderr, /not enabled until trust and transaction support are implemented/u);
+  assert.notEqual(result.status, 0, "`project sync --apply` materialized something in a repository that approved nothing");
+  assert.match(result.stderr, /plan-incomplete/u);
+  assert.match(result.stderr, /project approve/u);
 });
 
 // ---------------------------------------------------------------------------

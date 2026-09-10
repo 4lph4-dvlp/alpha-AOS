@@ -10,6 +10,7 @@ import {
   type ProjectReconciliation,
   type RemovalPlan,
 } from "./core/project-plan.js";
+import type { ProjectPackSyncResult } from "./core/project-pack-sync.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -281,6 +282,31 @@ export function formatProjectApproval(result: ProjectApprovalResult): string {
     result.status === "already-current"
       ? "Already current. No bytes were written and no transaction was opened."
       : "Approved. Only .alpha-aos/plan.json was written; project source, package manifests, tests and build configuration stay read-only inputs.",
+  ].join("\n");
+}
+
+/**
+ * What a `project sync --apply` wrote, or did not need to write.
+ *
+ * Every written path is named, because a user must be able to see exactly which
+ * bytes entered their project, and the transaction id is named because it is
+ * the handle `alpha-aos rollback` takes. The wording shape mirrors the removal
+ * branch's apply-result rendering so the two halves of the lifecycle read alike.
+ */
+export function formatProjectPackSync(result: ProjectPackSyncResult): string {
+  if (result.status === "already-current") {
+    return [
+      `Packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
+      ...result.current.map((path) => `  current ${path}`),
+      "Already current. No bytes were written and no transaction was opened.",
+    ].join("\n");
+  }
+  return [
+    `Materialized packs: ${result.packs.join(", ") || "none"} (${result.packs.length})`,
+    ...result.written.map((path) => `  wrote ${path}`),
+    ...result.receipts.map((path) => `  receipt ${path}`),
+    `Transaction: ${result.operationId ?? "none"}`,
+    "The transaction snapshotted every replaced file before writing it, so this materialization is reversible with `alpha-aos rollback`.",
   ].join("\n");
 }
 

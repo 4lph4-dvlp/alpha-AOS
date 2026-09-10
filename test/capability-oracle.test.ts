@@ -189,12 +189,22 @@ test("a trust-withheld control is refused, not faked, on a harness that has no s
 // The parsers, against recorded output — these run with no harness installed
 // ---------------------------------------------------------------------------
 
-/** The three skills the probe project supplied, by their directory names. */
-const PROJECT_SKILL_DIRECTORIES = [
+// The probe project supplied four skill directories across four roots, and the
+// three harnesses see DIFFERENT subsets because they read different roots:
+// codex reads `.agents/skills` and `.codex/skills`, pi reads `.agents/skills`
+// and `.pi/skills`, claude reads `.claude/skills`. The per-harness sets below
+// are what each harness actually reported, and their inequality is itself the
+// reason `PROJECT_SKILL_ROOTS` is keyed per harness rather than shared.
+
+/** What codex reported as project-scope, from `.agents/skills` and `.codex/skills`. */
+const CODEX_PROJECT_SKILLS = [
   "zzz-canary-widget",
   "zzz-codexlocal-widget",
   "scientific-thinking-literature-review",
 ] as const;
+
+/** What pi reported with `scope: "project"`, from `.agents/skills` and `.pi/skills`. */
+const PI_PROJECT_SKILLS = ["zzz-canary-widget", "zzz-pi-widget", "scientific-thinking-literature-review"] as const;
 
 /** The ECC skill whose frontmatter name differs from its directory (Pitfall 2). */
 const MISMATCHED_DIRECTORY = "scientific-thinking-literature-review";
@@ -218,7 +228,7 @@ test("the recorded codex output parses to its skills with ABSOLUTE roots resolve
     assert.ok(isAbsoluteEitherPlatform(root), `root is not absolute: ${root}`);
   }
 
-  for (const directory of PROJECT_SKILL_DIRECTORIES) {
+  for (const directory of CODEX_PROJECT_SKILLS) {
     const skill = skillByDirectory(inside, directory);
     assert.ok(skill.root !== null && isAbsoluteEitherPlatform(skill.root), `${directory} has no absolute root`);
     assert.ok(skill.root.startsWith(SYNTHETIC_PROJECT_ROOT), `${directory} did not resolve under the project`);
@@ -248,7 +258,7 @@ test("the same positional codex label resolves to a different absolute root outs
   for (const root of outside.roots) {
     assert.ok(!root.startsWith(SYNTHETIC_PROJECT_ROOT), `a control root reached into the project: ${root}`);
   }
-  for (const directory of PROJECT_SKILL_DIRECTORIES) {
+  for (const directory of CODEX_PROJECT_SKILLS) {
     assert.equal(outside.skills.find((skill) => skill.directoryName === directory), undefined);
   }
   assert.ok(inside.skills.length > outside.skills.length);
@@ -261,7 +271,7 @@ test("the recorded pi output separates project scope from user scope by the harn
   assert.equal(projectScoped.length, 3);
   assert.deepEqual(
     projectScoped.map((skill) => skill.directoryName).sort(),
-    [...PROJECT_SKILL_DIRECTORIES].sort(),
+    [...PI_PROJECT_SKILLS].sort(),
   );
   assert.ok(inside.skills.some((skill) => skill.scope === "user"));
 

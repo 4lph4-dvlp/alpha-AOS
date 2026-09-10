@@ -428,14 +428,12 @@ export async function runDiscoveryOracle(options: RunDiscoveryOracleOptions): Pr
     );
   }
 
-  let parsed: OracleParse;
-  try {
-    parsed = definition.parse(result.stdout.excerpt, { cwd });
-  } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    return unreadable(
-      `the ${harness} oracle output could not be read (${detail}); stderr fingerprint ${result.stderr.sha256}`,
-    );
+  // The same reader the recorded-fixture suite exercises, so a live run and a
+  // replayed one cannot disagree about what is readable.
+  const reading = readWithDefinition(definition, harness, result.stdout.excerpt, { cwd });
+  const parsed = reading.parse;
+  if (parsed === null) {
+    return unreadable(`${reading.unparsedReason ?? "unstated"}; stderr fingerprint ${result.stderr.sha256}`);
   }
 
   return {
@@ -468,9 +466,30 @@ export interface OracleReading {
  * the same shape as an answer.
  */
 export function readOracleOutput(harness: HarnessId, stdout: string, context: OracleParseContext): OracleReading {
-  throw new OracleParseError(
-    `readOracleOutput is not implemented yet: ${harness}, ${stdout.length} bytes from ${context.cwd}`,
-  );
+  const definition = ORACLE_DEFINITIONS[harness];
+  if (definition === null) {
+    return {
+      parse: null,
+      unparsedReason:
+        NO_ORACLE_REASON[harness] ?? `no discovery oracle is defined for ${harness}, so its output cannot be read`,
+    };
+  }
+  return readWithDefinition(definition, harness, stdout, context);
+}
+
+/** The one try/catch that turns a thrown parser refusal into a recorded reason. */
+function readWithDefinition(
+  definition: OracleDefinition,
+  harness: HarnessId,
+  stdout: string,
+  context: OracleParseContext,
+): OracleReading {
+  try {
+    return { parse: definition.parse(stdout, context), unparsedReason: null };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return { parse: null, unparsedReason: `the ${harness} oracle output could not be read: ${detail}` };
+  }
 }
 
 /**
@@ -480,49 +499,257 @@ export function readOracleOutput(harness: HarnessId, stdout: string, context: Or
  * module is NOT protocol-compliant for pi's RPC framing, because it also splits
  * on U+2028 and U+2029, which are perfectly valid inside a JSON string — pi's
  * own documentation says so, and a description or a skill path containing one
- * would otherwise be torn into records that individually fail to parse.
+ * would otherwise be torn into records that individually fail to parse. A torn
+ * record is not a loud failure either: two of the three fragments would be
+ * unparseable and the third a truncated skill list, which reads exactly like a
+ * harness that loaded nothing.
+ *
+ * A trailing carriage return is dropped so a stream written with CRLF endings
+ * yields the same records as one written with LF.
  */
 export function splitJsonLines(raw: string): string[] {
-  throw new OracleParseError(`splitJsonLines is not implemented yet: ${raw.length} bytes offered`);
+  return raw
+    .split("\n")
+    .map((line) => (line.endsWith("\r") ? line.slice(0, -1) : line))
+    .filter((line) => line.trim().length > 0);
 }
+
+/** Every `- \`rN\` = \`<path>\`` line, in the order printed. */
+const CODEX_ROOT_LINE = /^-\s+`(r\d+)`\s*=\s*`([^`]+)`\s*$/u;
+
+/** A skill line: name, description, then the short path in a trailing `(file: …)`. */
+const CODEX_SKILL_LINE = /^-\s+(.+?):\s(.*)\(file:\s*(r\d+)\/(.+?)\)\s*$/u;
 
 /**
  * Reads the `<skills_instructions>` block out of a rendered codex prompt.
  *
  * The positional root labels are resolved to absolute paths here and never
- * escape as labels: `r0` is the project's own `.codex/skills` inside the
- * project and the user's `~/.agents/skills` outside it, measured on one host in
- * one session, so anything keyed on a label is keyed on the wrong thing.
+ * escape as labels: measured in one session on one host, `r0` is the project's
+ * own `.codex/skills` inside the project and the user's shared `.agents/skills`
+ * outside it. A ledger keyed on the label would call those the same root, so
+ * the resolved absolute path is the only thing this returns.
+ *
+ * A skill's advertised name is whatever codex printed — for the four ECC
+ * scientific skills that is the FRONTMATTER name, which differs from the
+ * directory. Both are recorded; neither is rewritten.
  */
 export function parseCodexPromptInput(stdout: string, context: OracleParseContext): OracleParse {
-  throw new OracleParseError(
-    `parseCodexPromptInput is not implemented yet: ${stdout.length} bytes from ${context.cwd}`,
-  );
+  let messages: unknown;
+  try {
+    messages = JSON.parse(stdout);
+  } catch (error) {
+    throw new OracleParseError(
+      `the rendered prompt is not JSON (${error instanceof Error ? error.message : String(error)})`,
+    );
+  }
+  if (!Array.isArray(messages)) {
+    throw new OracleParseError("the rendered prompt is not the expected array of messages");
+  }
+
+  const text = messages
+    .flatMap((message) => {
+      const content = (message as { content?: unknown }).content;
+      return Array.isArray(content) ? content : [];
+    })
+    .map((item) => {
+      const value = (item as { text?: unknown }).text;
+      return typeof value === "string" ? value : "";
+    })
+    .join("\n");
+
+  const open = text.indexOf("<skills_instructions>");
+  const close = text.indexOf("</skills_instructions>");
+  if (open < 0 || close < 0 || close < open) {
+    throw new OracleParseError("the rendered prompt carries no skills-instructions block");
+  }
+  const block = text.slice(open, close);
+
+  const roots = new Map<string, string>();
+  const skills: DiscoveredSkill[] = [];
+  const findings: OracleFinding[] = [];
+
+  for (const line of block.split("\n")) {
+    const rootMatch = CODEX_ROOT_LINE.exec(line.trim());
+    if (rootMatch !== null) {
+      const [, label, path] = rootMatch;
+      if (label !== undefined && path !== undefined) roots.set(label, path);
+      continue;
+    }
+    const skillMatch = CODEX_SKILL_LINE.exec(line.trim());
+    if (skillMatch === null) continue;
+    const [, advertisedName, , label, remainder] = skillMatch;
+    if (advertisedName === undefined || label === undefined || remainder === undefined) continue;
+
+    const root = roots.get(label) ?? null;
+    if (root === null) {
+      // A skill naming a root the table never declared is a shape change, not a
+      // skill: recording it as discovered would attach it to no root at all.
+      findings.push({
+        code: "CODEX_SKILL_ROOT_LABEL_UNDECLARED",
+        detail: `the skill ${advertisedName} names root label ${label}, which the roots table does not declare`,
+      });
+      continue;
+    }
+    const path = joinDiscovered(root, remainder);
+    const directory = remainder.split(/[\\/]/u).filter((segment) => segment.length > 0);
+    // The trailing segment is `SKILL.md`; the one before it is the directory.
+    const directoryName = directory.length >= 2 ? (directory[directory.length - 2] ?? null) : null;
+    const skillRoot = directoryName === null ? root : path.slice(0, path.length - `${directoryName}`.length - "SKILL.md".length - 2);
+
+    skills.push({
+      advertisedName,
+      directoryName,
+      path,
+      root: skillRoot.length > 0 ? skillRoot : root,
+      // codex publishes no scope of its own. Deriving one from a path
+      // comparison would be alpha-AOS inferring what the harness did not say.
+      scope: "unknown",
+    });
+  }
+
+  if (roots.size === 0) {
+    throw new OracleParseError("the skills-instructions block declares no skill roots");
+  }
+  void context;
+  return { skills, roots: [...roots.values()], mcpServers: [], findings };
 }
 
 /**
  * Reads pi's `get_commands` response.
  *
  * The scope discriminator comes from the nested source-info object. pi's
- * shipped documentation describes a FLAT field instead, and reading the
- * documented one yields undefined on every entry — an undefined that would look
- * exactly like "no project-scope skill", which is the CAPA-06 answer.
+ * shipped `docs/rpc.md` describes a FLAT `location` field instead, and reading
+ * the documented one yields undefined on every entry — an undefined that would
+ * look exactly like "no project-scope skill", which is the CAPA-06 answer. The
+ * nested field is read and the documented one deliberately is not.
  */
 export function parsePiCommands(stdout: string, context: OracleParseContext): OracleParse {
-  throw new OracleParseError(`parsePiCommands is not implemented yet: ${stdout.length} bytes from ${context.cwd}`);
+  const lines = splitJsonLines(stdout);
+  if (lines.length === 0) throw new OracleParseError("the RPC stream carried no records");
+
+  let response: { data?: { commands?: unknown } } | null = null;
+  let parsedAny = false;
+  for (const line of lines) {
+    let record: unknown;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      // pi interleaves extension UI requests with responses; a record this
+      // parser cannot read is skipped, but a stream with no readable record at
+      // all is a refusal rather than an empty answer.
+      continue;
+    }
+    parsedAny = true;
+    const typed = record as { type?: unknown; command?: unknown; data?: { commands?: unknown } };
+    if (typed.type === "response" && typed.command === "get_commands") {
+      response = typed;
+      break;
+    }
+  }
+  if (!parsedAny) throw new OracleParseError("no record in the RPC stream was readable JSON");
+  if (response === null) throw new OracleParseError("the RPC stream carried no get_commands response");
+
+  const commands = response.data?.commands;
+  if (!Array.isArray(commands)) throw new OracleParseError("the get_commands response carried no commands array");
+
+  const skills: DiscoveredSkill[] = [];
+  for (const entry of commands) {
+    const command = entry as {
+      name?: unknown;
+      source?: unknown;
+      sourceInfo?: { path?: unknown; scope?: unknown };
+    };
+    if (command.source !== "skill") continue;
+    const advertisedName = typeof command.name === "string" ? command.name : null;
+    if (advertisedName === null) continue;
+
+    const path = typeof command.sourceInfo?.path === "string" ? command.sourceInfo.path : null;
+    const scopeValue = command.sourceInfo?.scope;
+    const scope: DiscoveredScope = scopeValue === "project" || scopeValue === "user" ? scopeValue : "unknown";
+
+    const segments = path === null ? [] : path.split(/[\\/]/u).filter((segment) => segment.length > 0);
+    const directoryName = segments.length >= 2 ? (segments[segments.length - 2] ?? null) : null;
+    const root =
+      path !== null && directoryName !== null
+        ? path.slice(0, path.length - directoryName.length - "SKILL.md".length - 2)
+        : null;
+
+    skills.push({ advertisedName, directoryName, path, root, scope });
+  }
+
+  void context;
+  return {
+    skills,
+    roots: [...new Set(skills.map((skill) => skill.root).filter((root): root is string => root !== null))],
+    mcpServers: [],
+    findings: [],
+  };
 }
 
 /**
  * Reads the `system`/`init` event out of a claude stream.
  *
- * The init event is not the first line: hook events precede it on a host with
- * session hooks configured, so the line is found by its type and subtype rather
- * than by position.
+ * The init event is not the first line: on a host with session hooks
+ * configured, four hook events preceded it in the recording this parser is
+ * tested against, so the line is found by its type and subtype and never by
+ * position.
+ *
+ * claude publishes skill DIRECTORY names and no paths, which is the opposite of
+ * what codex and pi publish for the same files. Both name fields are still
+ * filled, because the pair itself is the finding: for a skill whose frontmatter
+ * name matches its directory the two agree everywhere, and for one that does
+ * not they agree only here.
+ *
+ * Each MCP server's status is recorded as a REGISTRATION fact. Every server is
+ * legitimately `pending` at init with no tools yet present, so the rule that a
+ * connected server with zero tools is a failure cannot be evaluated here at
+ * all; treating `pending` as a fault would report a healthy host as broken.
  */
 export function parseClaudeInitEvent(stdout: string, context: OracleParseContext): OracleParse {
-  throw new OracleParseError(
-    `parseClaudeInitEvent is not implemented yet: ${stdout.length} bytes from ${context.cwd}`,
-  );
+  const lines = splitJsonLines(stdout);
+  let init: { skills?: unknown; mcp_servers?: unknown } | null = null;
+  for (const line of lines) {
+    let event: unknown;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const typed = event as { type?: unknown; subtype?: unknown; skills?: unknown; mcp_servers?: unknown };
+    if (typed.type === "system" && typed.subtype === "init") {
+      init = typed;
+      break;
+    }
+  }
+  if (init === null) throw new OracleParseError("the stream carried no system init event");
+
+  const advertised = Array.isArray(init.skills) ? init.skills : null;
+  if (advertised === null) throw new OracleParseError("the system init event carried no skills array");
+
+  const skills: DiscoveredSkill[] = [];
+  for (const name of advertised) {
+    if (typeof name !== "string") continue;
+    skills.push({
+      advertisedName: name,
+      // What claude advertises IS the directory name; it publishes no path, so
+      // this is claude's own statement rather than an alpha-AOS inference.
+      directoryName: name,
+      path: null,
+      root: null,
+      scope: "unknown",
+    });
+  }
+
+  const mcpServers: DiscoveredMcpServer[] = [];
+  const declared = Array.isArray(init.mcp_servers) ? init.mcp_servers : [];
+  for (const entry of declared) {
+    const server = entry as { name?: unknown; status?: unknown };
+    if (typeof server.name !== "string") continue;
+    mcpServers.push({ name: server.name, status: typeof server.status === "string" ? server.status : "unknown" });
+  }
+
+  void context;
+  return { skills, roots: [], mcpServers, findings: [] };
 }
 
 // ---------------------------------------------------------------------------

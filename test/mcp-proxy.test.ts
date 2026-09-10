@@ -407,9 +407,15 @@ test("the upstream child receives only allowlisted environment names", async (co
   const observed = await reported;
 
   // Exactly what this server is approved to receive, plus the floor the OS
-  // delivers whether or not it is named.
+  // delivers whether or not it is named. The write-location names are here
+  // because they are DECLARED, not inherited — the test below asserts each
+  // one arrives carrying alpha-AOS's pinned value rather than the source's.
   const approved = new Set<string>([
     ...PLATFORM_FLOOR_ENVIRONMENT,
+    ...WRITE_LOCATION_NAMES,
+    "npm_config_logs_max",
+    "PATHEXT",
+    "COMSPEC",
     "FIRECRAWL_API_KEY",
     "FIRECRAWL_API_URL",
     "FIRECRAWL_OAUTH_TOKEN",
@@ -426,6 +432,16 @@ test("the upstream child receives only allowlisted environment names", async (co
     false,
     "an undeclared name leaked into the upstream child environment",
   );
+
+  // A declared write location is only honest if the value the child receives
+  // is alpha-AOS's, not the ambient one it would otherwise have inherited.
+  const cacheRoot = expectedProxyCacheRoot(userStateRoot());
+  for (const name of WRITE_LOCATION_NAMES) {
+    assert.ok(
+      observed[name]?.startsWith(cacheRoot),
+      `${name} reached the child as ${observed[name]}, outside the pinned root ${cacheRoot}`,
+    );
+  }
 
   // The materializing wrapper must still describe what actually crosses, so
   // its two remaining callers cannot be reading a stale picture of the policy.

@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -6,6 +7,7 @@ import { CallToolRequestSchema, JSONRPCMessageSchema, ListToolsRequestSchema } f
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import type { EnvironmentPolicy, ProtocolProcessSpec, ProtocolSession } from "./process.js";
 import type { LockedPackage, McpServerId, RedactedExcerpt } from "../types.js";
+import { userStateRoot } from "./paths.js";
 import {
   DEFAULT_MAX_MESSAGE_BYTES,
   materializeEnvironment,
@@ -36,6 +38,18 @@ const UPSTREAM_ENVIRONMENT_NAMES: Record<McpServerId, readonly string[]> = {
 const UPSTREAM_STDERR_CAP = 64 * 1024;
 
 /**
+ * Where an upstream MCP child is allowed to write.
+ *
+ * The servers are launched with `npx`, which resolves and caches a package
+ * before the server it contains ever speaks. That resolution needs somewhere
+ * to write, and the name that decides where is not the server's business to
+ * inherit.
+ */
+export function proxyCacheRoot(stateRoot: string = userStateRoot()): string {
+  return join(stateRoot, "mcp-cache");
+}
+
+/**
  * Declares — but does not yet materialize — the upstream child environment.
  *
  * The SDK's default-environment helper copies a broad slice of the ambient
@@ -43,6 +57,16 @@ const UPSTREAM_STDERR_CAP = 64 * 1024;
  * `PLATFORM_FLOOR_ENVIRONMENT` is included because the OS delivers it whether
  * or not it is listed — naming it keeps the allowlist honest rather than
  * pretending the boundary is total.
+ *
+ * The names that decide where the child WRITES are pinned as literals under
+ * `proxyCacheRoot()` rather than passed through, which is plan 01-21's
+ * recorded decision applied to this seam: a child launched by alpha-AOS gets a
+ * declared environment, and an inherited name must never choose the directory
+ * it bootstraps into. Omitting them was not a tighter boundary but a broken
+ * one — with no cache name declared, npm fell back to a home-derived cache
+ * that held no `_npx` entry and the child died before the JSON-RPC handshake.
+ * `PATHEXT` and `COMSPEC` are passthrough rather than pinned: on win32 they
+ * are needed to launch a `.cmd` shim at all and carry no user data.
  *
  * The policy is returned unmaterialized because the process adapter takes an
  * `EnvironmentPolicy`, and it — not this module — decides how a declared name
@@ -52,11 +76,27 @@ export function upstreamEnvironmentPolicy(
   server: McpServerId,
   source: NodeJS.ProcessEnv = process.env,
 ): EnvironmentPolicy {
+  const writeRoot = proxyCacheRoot();
   return {
-    optional: [...PLATFORM_FLOOR_ENVIRONMENT, ...UPSTREAM_ENVIRONMENT_NAMES[server]],
-    literal: server === "firecrawl"
-      ? { FIRECRAWL_NO_SEARCH_FEEDBACK: "1", FIRECRAWL_NO_ENDPOINT_FEEDBACK: "1" }
-      : {},
+    optional: [
+      ...PLATFORM_FLOOR_ENVIRONMENT,
+      "PATHEXT",
+      "COMSPEC",
+      ...UPSTREAM_ENVIRONMENT_NAMES[server],
+    ],
+    literal: {
+      LOCALAPPDATA: join(writeRoot, "local"),
+      APPDATA: join(writeRoot, "roaming"),
+      XDG_CACHE_HOME: join(writeRoot, "cache"),
+      XDG_CONFIG_HOME: join(writeRoot, "config"),
+      XDG_DATA_HOME: join(writeRoot, "data"),
+      XDG_STATE_HOME: join(writeRoot, "state"),
+      npm_config_cache: join(writeRoot, "npm-cache"),
+      npm_config_logs_max: "0",
+      ...(server === "firecrawl"
+        ? { FIRECRAWL_NO_SEARCH_FEEDBACK: "1", FIRECRAWL_NO_ENDPOINT_FEEDBACK: "1" }
+        : {}),
+    },
     source,
   };
 }

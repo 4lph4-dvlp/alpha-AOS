@@ -20,7 +20,7 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import { access, readFile, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, relative, resolve } from "node:path";
 
 import { createIsolationLaunchSpec } from "../adapters/isolation.js";
 import { ORACLE_DEFINITIONS, ORACLE_PLACEHOLDER_PROMPT, resolveDirectLaunch } from "../adapters/capability-oracle.js";
@@ -1086,6 +1086,119 @@ export const CANARY_OBSERVATIONS_FILE = "observations.jsonl";
 /** The runtime marker, in the shape the isolated-runtime marker already uses. */
 export const CANARY_MARKER_FILE = "runtime.json";
 
+/** Written when a runtime is spent. A runtime is single-use, by construction. */
+export const CANARY_CONSUMED_FILE = "consumed.json";
+
+// --- The D-02 boundary, as refusals ---------------------------------------
+
+/** A launch would let a harness read or write its REAL configuration root. */
+export const CANARY_LAUNCH_ISOLATION_VIOLATION = "CANARY_LAUNCH_ISOLATION_VIOLATION";
+/** A launch environment carries a name nothing declared. */
+export const CANARY_ENVIRONMENT_UNDECLARED_NAME = "CANARY_ENVIRONMENT_UNDECLARED_NAME";
+/** A runtime would be created outside the managed state root it named. */
+export const CANARY_RUNTIME_NOT_CONTAINED = "CANARY_RUNTIME_NOT_CONTAINED";
+/** A second run was asked for on a runtime that has already been spent. */
+export const CANARY_RUNTIME_ALREADY_CONSUMED = "CANARY_RUNTIME_ALREADY_CONSUMED";
+
+/**
+ * A D-02 boundary refusal.
+ *
+ * These are alpha-AOS's own invariants rather than states a user can act on, so
+ * they throw with a stable code instead of becoming a `BlockedReason`: a
+ * `blocked` a user cannot clear is a report that wastes their time, and a
+ * boundary that reports rather than refuses is a boundary that has already been
+ * crossed.
+ */
+export class CanaryBoundaryError extends Error {
+  readonly code: string;
+  /** The offending NAMES, never their values. */
+  readonly names: readonly string[];
+
+  constructor(code: string, message: string, names: readonly string[] = []) {
+    super(message);
+    this.name = "CanaryBoundaryError";
+    this.code = code;
+    this.names = names;
+  }
+}
+
+/**
+ * Environment names whose VALUE decides where a harness finds its own
+ * configuration.
+ *
+ * Exactly the names alpha-AOS controls. `HOME` and the Windows floor's
+ * `USERPROFILE`/`HOMEPATH` are deliberately absent: the operating system
+ * delivers the floor whatever an allowlist says (Phase 1's floor table), so
+ * asserting over them would be asserting over something this tool cannot
+ * decide. What it CAN decide is that every config-root name it sets points
+ * inside the canary runtime.
+ */
+export const HARNESS_CONFIG_ROOT_NAMES: readonly string[] = Object.freeze([
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
+  "ANTIGRAVITY_CONFIG_DIR",
+  "PI_CODING_AGENT_DIR",
+  "HERMES_HOME",
+]);
+
+/** Whether `candidate` is `root` or sits beneath it, on this host's own terms. */
+function withinRoot(root: string, candidate: string): boolean {
+  const relation = relative(resolve(root), resolve(candidate));
+  return relation === "" || (!relation.startsWith("..") && !isAbsolute(relation));
+}
+
+/**
+ * Refuses a runtime that would be created outside the state root it named, or
+ * that would write a file outside itself.
+ */
+export function assertRuntimeContainment(runtime: {
+  readonly root: string;
+  readonly stateRoot: string;
+  readonly declaredFiles: readonly string[];
+}): void {
+  // RED stub — plan 03-06 Task 2 GREEN implements this.
+  void runtime;
+}
+
+/**
+ * Refuses a launch whose environment would point a harness at a configuration
+ * root outside the canary runtime.
+ */
+export function assertCanaryLaunchIsolation(
+  environment: Readonly<Record<string, string>>,
+  runtime: { readonly root: string },
+): void {
+  // RED stub — plan 03-06 Task 2 GREEN implements this.
+  void environment;
+  void runtime;
+}
+
+/**
+ * Refuses a launch environment carrying a name outside the platform floor plus
+ * what this canary declared.
+ */
+export function assertCanaryEnvironmentDeclared(
+  environment: Readonly<Record<string, string>>,
+  declared: readonly string[],
+): void {
+  // RED stub — plan 03-06 Task 2 GREEN implements this.
+  void environment;
+  void declared;
+}
+
+/** Refuses a second run on a runtime that has already been spent. */
+export async function assertRuntimeUnconsumed(runtime: CanaryRuntime): Promise<void> {
+  // RED stub — plan 03-06 Task 2 GREEN implements this.
+  void runtime;
+}
+
+/** Records that a runtime has been spent, before anything is launched through it. */
+export async function markRuntimeConsumed(runtime: CanaryRuntime, session?: MutationSession): Promise<void> {
+  // RED stub — plan 03-06 Task 2 GREEN implements this.
+  void runtime;
+  void session;
+}
+
 /**
  * The file name a harness's own configuration syntax asks for.
  *
@@ -1121,6 +1234,14 @@ export interface CanaryRuntime {
   readonly mcpConfigPath: string;
   readonly observationsPath: string;
   readonly markerPath: string;
+  /**
+   * Written the moment a run commits to launching, and never removed.
+   *
+   * A runtime is single-use. Not in `declaredFiles`, because it does not exist
+   * at creation — it sits under `root`, which every containment assertion
+   * already covers.
+   */
+  readonly consumedPath: string;
   readonly servers: readonly McpServerId[];
   /** Exactly the files this runtime's creation wrote. */
   readonly declaredFiles: readonly string[];
@@ -1197,6 +1318,9 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
   };
 
   const declaredFiles = [markerPath, mcpConfigPath, observationsPath];
+  // Asserted BEFORE anything is written: a runtime that would land outside the
+  // managed state root is refused rather than created and then reported.
+  assertRuntimeContainment({ root, stateRoot, declaredFiles });
   const journal = await applyFileTransaction({
     stateRoot,
     allowedRoots: [root],
@@ -1220,6 +1344,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     mcpConfigPath,
     observationsPath,
     markerPath,
+    consumedPath: join(root, CANARY_CONSUMED_FILE),
     servers,
     declaredFiles,
     declaredRoots: [root, join(stateRoot, "journal"), join(stateRoot, "snapshots")],
@@ -1678,6 +1803,11 @@ function blockedResult(options: {
 export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunResult> {
   const { declaration, harness, runtime, sink } = options;
   assertCanaryContext(options.context ?? "canary", "runCanary");
+  // A runtime is single-use. A second run through one would compute its verdict
+  // from the first run's records, which is the same defect as reading another
+  // run's evidence — and it would be invisible, because the records look
+  // exactly like records this run produced.
+  await assertRuntimeUnconsumed(runtime);
 
   const readiness =
     options.readiness ??
@@ -1764,6 +1894,14 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
     cwd: options.projectRoot,
     prompt: declaration.prompt,
   };
+
+  // The last two things checked before anything is spent, and both are about
+  // the boundary rather than about the user: the harness must be pointed at
+  // this runtime and nothing else, and the child must receive nothing the
+  // platform floor and this canary's own declaration did not name.
+  assertCanaryLaunchIsolation(launch.environment, runtime);
+  assertCanaryEnvironmentDeclared(launch.environment, canaryEnvironmentNames({ declaration, spec, runtime }));
+  await markRuntimeConsumed(runtime);
 
   const outcome = await (options.launcher ?? createCanaryLauncher())(launch);
   const observations = await sink.read();

@@ -8,16 +8,26 @@
 // so the suite is offline, free, and portable to the three-OS matrix.
 
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { loadLock, ManagedDocumentError } from "../src/core/catalog.js";
 import {
   assertCanaryContext,
+  assertCanaryEnvironmentDeclared,
+  assertCanaryLaunchIsolation,
+  assertRuntimeContainment,
   BLOCKED_CODES,
+  CANARY_ENVIRONMENT_UNDECLARED_NAME,
+  CANARY_LAUNCH_ISOLATION_VIOLATION,
+  CANARY_RUNTIME_ALREADY_CONSUMED,
+  CANARY_RUNTIME_NOT_CONTAINED,
+  CanaryBoundaryError,
   CANARY_CATALOG_FILE,
   CANARY_IN_PREVIEW_CONTEXT,
   canaryCosts,
@@ -48,7 +58,7 @@ import {
 import { createFileObservationSink } from "../src/core/mcp-proxy.js";
 import { renderMcpConfig } from "../src/core/mcp.js";
 import { packageRoot } from "../src/core/paths.js";
-import { PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
+import { materializeEnvironment, PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
 import type { IsolationLaunchSpec, StackLock } from "../src/types.js";
 
 /** Compiled to dist/test, so the repository root is two levels up. */
@@ -943,4 +953,328 @@ test("the invocation axis is computed from observation records only, never from 
     launcher: async () => ({ ran: true, reason: null, exitCode: 0, excerpt: null }),
   });
   assert.equal(observed.nativeUse, "invoked", "a recorded call did not move the axis, so the negative above is vacuous");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-06 Task 2 — the user's real configuration survives a canary run
+// ---------------------------------------------------------------------------
+
+/**
+ * Every environment name that decides where a harness finds its OWN
+ * configuration, pointed at a temporary tree so a run that reached one is
+ * observable instead of destructive.
+ */
+const HARNESS_ROOT_OVERRIDES = [
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
+  "ANTIGRAVITY_CONFIG_DIR",
+  "PI_CODING_AGENT_DIR",
+  "HERMES_HOME",
+] as const;
+
+interface RootSnapshot {
+  readonly root: string;
+  readonly entries: readonly string[];
+  readonly hash: string;
+}
+
+async function walk(root: string): Promise<string[]> {
+  if (!existsSync(root)) return [];
+  const found: string[] = [];
+  for (const entry of await readdir(root, { withFileTypes: true, recursive: true })) {
+    found.push(join(entry.parentPath, entry.name));
+  }
+  return found.sort();
+}
+
+async function snapshotRoot(root: string): Promise<RootSnapshot> {
+  const entries = await walk(root);
+  const digest = createHash("sha256");
+  for (const path of entries) {
+    digest.update(path);
+    const stats = await stat(path);
+    if (stats.isFile()) digest.update(await readFile(path));
+  }
+  return { root, entries, hash: digest.digest("hex") };
+}
+
+/** Points every harness config root at a temp tree, seeds a sentinel, and restores after. */
+async function seededHarnessRoots(context: TestContext): Promise<Map<string, string>> {
+  const base = await mkdtemp(join(tmpdir(), "alpha-aos-harness-roots-"));
+  const previous = new Map<string, string | undefined>();
+  const roots = new Map<string, string>();
+  for (const name of HARNESS_ROOT_OVERRIDES) {
+    const root = join(base, name.toLowerCase());
+    await mkdir(root, { recursive: true });
+    await writeFile(join(root, "sentinel.txt"), `${name} was here before the canary ran\n`, "utf8");
+    previous.set(name, process.env[name]);
+    process.env[name] = root;
+    roots.set(name, root);
+  }
+  context.after(async () => {
+    for (const [name, value] of previous) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    await rm(base, { recursive: true, force: true });
+  });
+  return roots;
+}
+
+test("a canary run leaves every harness config root byte-identical and gains no entry", async (context) => {
+  const roots = await seededHarnessRoots(context);
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const before = await Promise.all([...roots.values()].map(snapshotRoot));
+
+  // A launcher that behaves like a harness: it writes into the configuration
+  // root its own environment names. If the runtime ever leaked a real root into
+  // that environment, this write lands in it and the assertions below fail.
+  let wrote: string | null = null;
+  await runCanary({
+    declaration: declaration(),
+    harness: "claude",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: {},
+    runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async (launch) => {
+      const configRoot = launch.environment.CLAUDE_CONFIG_DIR;
+      assert.ok(configRoot, "the launch named no claude configuration root at all");
+      await mkdir(configRoot, { recursive: true });
+      wrote = join(configRoot, "written-by-the-harness.json");
+      await writeFile(wrote, "{}\n", "utf8");
+      return { ran: true, reason: null, exitCode: 0, excerpt: null };
+    },
+  });
+
+  const after = await Promise.all([...roots.values()].map(snapshotRoot));
+  for (const [index, snapshot] of before.entries()) {
+    const now = after[index];
+    assert.ok(now);
+    assert.equal(snapshot.hash, now.hash, `${snapshot.root} changed during a canary run`);
+    assert.deepEqual(snapshot.entries, now.entries, `${snapshot.root} gained or lost an entry during a canary run`);
+  }
+  // The positive control: the write DID happen, and it happened inside the
+  // runtime. Without it the assertions above would pass on a run that wrote
+  // nothing anywhere, which is not the claim being made.
+  const written = wrote as string | null;
+  assert.ok(written, "the launcher never wrote anything, so the assertions above prove nothing");
+  assert.equal(existsSync(written), true);
+  assert.equal(relative(runtime.root, written).startsWith(".."), false, "the harness wrote outside the canary runtime");
+
+  // And the boundary is a refusal rather than a habit: a launch environment
+  // naming a configuration root outside the runtime is refused outright.
+  assert.throws(
+    () => assertCanaryLaunchIsolation({ CLAUDE_CONFIG_DIR: roots.get("CLAUDE_CONFIG_DIR") as string }, runtime),
+    (error: unknown) => {
+      assert.ok(error instanceof CanaryBoundaryError);
+      assert.equal(error.code, CANARY_LAUNCH_ISOLATION_VIOLATION);
+      assert.deepEqual(error.names, ["CLAUDE_CONFIG_DIR"]);
+      return true;
+    },
+    "a launch pointing claude at the user's real configuration root was not refused",
+  );
+});
+
+test("a canary run creates paths only under the managed state root, and only ones it declared", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const before = await walk(state);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+
+  await runCanary({
+    declaration: declaration(),
+    harness: "claude",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: {},
+    runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async () => ({ ran: true, reason: null, exitCode: 0, excerpt: null }),
+  });
+
+  for (const file of runtime.declaredFiles) {
+    assert.equal(existsSync(file), true, `${file} was declared and does not exist`);
+  }
+  const added = (await walk(state)).filter((path) => !before.includes(path));
+  assert.equal(added.length > 0, true, "the run created nothing at all, so this assertion proves nothing");
+  for (const path of added) {
+    assert.equal(
+      runtime.declaredRoots.some((root) => !relative(root, path).startsWith("..")),
+      true,
+      `${path} appeared under the state root and no declared root of the run contains it`,
+    );
+  }
+  // The containment rule is a refusal, not a description of what happened to
+  // work: a runtime that would sit outside the state root it named is refused.
+  assert.throws(
+    () =>
+      assertRuntimeContainment({
+        root: join(project, "escaped"),
+        stateRoot: state,
+        declaredFiles: [join(project, "escaped", "mcp.json")],
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof CanaryBoundaryError);
+      assert.equal(error.code, CANARY_RUNTIME_NOT_CONTAINED);
+      return true;
+    },
+    "a runtime outside the managed state root was not refused",
+  );
+});
+
+test("a canary runtime is single-use, so a second run cannot inherit the first run's records", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const run = async (): Promise<unknown> =>
+    runCanary({
+      declaration: declaration(),
+      harness: "claude",
+      projectRoot: project,
+      runtime,
+      sink: createCanaryObservationSink(runtime),
+      environment: {},
+      runner: runner(),
+      buildLaunchSpec: () => stubLaunchSpec(runtime),
+      launcher: async () => {
+        createFileObservationSink(runtime.observationsPath).record({
+          server: "exa",
+          tool: "web_search_exa",
+          at: new Date().toISOString(),
+          upstreamVersion: "3.4.1",
+          outcome: "ok",
+        });
+        return { ran: true, reason: null, exitCode: 0, excerpt: null };
+      },
+    });
+
+  await run();
+  assert.equal(existsSync(runtime.consumedPath), true, "a spent runtime is not marked as spent");
+  await assert.rejects(
+    run,
+    (error: unknown) => {
+      assert.ok(error instanceof CanaryBoundaryError);
+      assert.equal(error.code, CANARY_RUNTIME_ALREADY_CONSUMED);
+      return true;
+    },
+    "a second run through one runtime was allowed, and it would have read the first run's records",
+  );
+});
+
+test("a canary with an unavailable observation sink refuses before the harness launches", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+
+  let launched = false;
+  const result = await runCanary({
+    declaration: declaration(),
+    harness: "claude",
+    projectRoot: project,
+    runtime,
+    sink: { name: runtime.observationsPath, ready: async () => false, read: async () => [] },
+    environment: {},
+    runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async () => {
+      launched = true;
+      return { ran: true, reason: null, exitCode: 0, excerpt: null };
+    },
+  });
+
+  assert.equal(launched, false, "the harness was launched with nowhere to record what it did");
+  assert.equal(result.launched, false);
+  assert.equal(result.outcome, "blocked");
+  const reason = result.blockedReasons.find((entry) => entry.code === "OBSERVATION_SINK_UNAVAILABLE");
+  assert.ok(reason, `expected OBSERVATION_SINK_UNAVAILABLE, got ${result.blockedReasons.map((e) => e.code).join(", ")}`);
+  assert.equal(reason.variable, runtime.observationsPath, "the refusal does not name the sink it is about");
+  assert.equal(Object.hasOwn(BLOCKED_CODES, "OBSERVATION_SINK_UNAVAILABLE"), true, "the code is not in the stable table");
+  // A run that was refused is not a run that was spent: the block is clearable
+  // and the runtime is still usable once the sink is there.
+  assert.equal(existsSync(runtime.consumedPath), false, "a refused run consumed the runtime anyway");
+});
+
+test("no environment name outside the platform floor plus the declared canary names reaches the harness child", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const canary = declaration({ requiresEnvironment: ["EXA_API_KEY"] });
+  const spec = stubLaunchSpec(runtime);
+  const declared = canaryEnvironmentNames({ declaration: canary, spec, runtime });
+
+  const sentinel = "ALPHA_AOS_CANARY_LEAK_SENTINEL";
+  assert.equal(declared.includes(sentinel), false, "the sentinel is declared, so the assertion below is vacuous");
+  assert.equal(
+    PLATFORM_FLOOR_ENVIRONMENT.includes(sentinel),
+    false,
+    "the sentinel sits in the platform floor, so the assertion below is vacuous",
+  );
+
+  const environment = materializeEnvironment(
+    canaryEnvironmentPolicy({
+      declaration: canary,
+      spec,
+      runtime,
+      source: { [sentinel]: "a name nothing declared", EXA_API_KEY: "declared, so it travels", PATH: "declared" },
+    }),
+  );
+
+  assert.equal(environment[sentinel], undefined, "an undeclared name reached the harness child");
+  assert.equal(environment.EXA_API_KEY, "declared, so it travels", "a declared credential name did not reach the child");
+  for (const name of Object.keys(environment)) {
+    assert.equal(
+      PLATFORM_FLOOR_ENVIRONMENT.includes(name) || declared.includes(name),
+      true,
+      `${name} reached the harness child and is outside the platform floor plus this canary's declaration`,
+    );
+  }
+
+  // And the rule is enforced rather than merely satisfied: a materialized
+  // environment carrying an undeclared name is refused before any launch.
+  assert.throws(
+    () => assertCanaryEnvironmentDeclared({ ...environment, [sentinel]: "smuggled" }, declared),
+    (error: unknown) => {
+      assert.ok(error instanceof CanaryBoundaryError);
+      assert.equal(error.code, CANARY_ENVIRONMENT_UNDECLARED_NAME);
+      assert.deepEqual(error.names, [sentinel]);
+      return true;
+    },
+    "an undeclared environment name was not refused",
+  );
 });

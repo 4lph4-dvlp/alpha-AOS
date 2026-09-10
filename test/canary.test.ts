@@ -16,13 +16,20 @@ import { fileURLToPath } from "node:url";
 
 import { ManagedDocumentError } from "../src/core/catalog.js";
 import {
+  BLOCKED_CODES,
   CANARY_CATALOG_FILE,
+  disposeCanary,
   findPromptHints,
   loadCanaryCatalog,
+  parseClaudeMcpList,
+  parsePiAuthCheck,
+  probeReadiness,
   promptNamesTerm,
   selfNamedTerms,
   type CanaryCatalog,
   type CanaryDeclaration,
+  type ReadinessCommandResult,
+  type ReadinessRunner,
 } from "../src/core/canary.js";
 import { packageRoot } from "../src/core/paths.js";
 
@@ -276,4 +283,320 @@ test("a declaration's expectation lists carry the tool names so the prompt does 
     true,
     "no canary declares any tool expectation, so the separation between expectation and prompt proves nothing",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Task 2 — readiness probes, and the blocked-versus-unverified split
+// ---------------------------------------------------------------------------
+
+/** A canary declaration built in memory, so a behaviour is not coupled to the shipped catalog. */
+function declaration(overrides: Partial<CanaryDeclaration> = {}): CanaryDeclaration {
+  return {
+    id: "FIXTURE_CANARY",
+    capability: "CAPA-02",
+    prompt: "What port does a Vite dev server listen on by default?",
+    expectTools: [],
+    forbidTools: [],
+    maxDistinctServers: 1,
+    harnesses: ["claude"],
+    readOnly: true,
+    ...overrides,
+  } as CanaryDeclaration;
+}
+
+/** The measured shape of `pi auth check --provider google --json` on an unconfigured provider. */
+const PI_NOT_READY = '{"status":"not_ready","provider":"google","reason":"credentials_not_configured"}\n';
+/** The measured shape when the target IS configured — this host's silent free-model fallback. */
+const PI_READY_NVIDIA = '{"status":"ready","provider":"nvidia","authType":"api_key"}\n';
+
+/**
+ * The measured shape of `claude mcp list` on this host, 2026-09-10.
+ *
+ * Three states appear, not two: the phase's research recorded a failed server,
+ * and this host additionally produced `! Needs authentication`. Both the
+ * connected and the failed lines carry an absolute launch command, which is
+ * exactly what the parser must NOT retain.
+ */
+const CLAUDE_MCP_LIST = [
+  "Checking MCP server health…",
+  "",
+  "claude.ai Notion: https://mcp.notion.com/mcp - ! Needs authentication",
+  "context7: C:\\Program Files\\nodejs\\node.exe C:\\npx-cli.js --yes @upstash/context7-mcp@4.0.4 - ✔ Connected",
+  "exa: C:\\Program Files\\nodejs\\node.exe C:\\npx-cli.js --yes exa-mcp-server@3.4.1 - ✔ Connected",
+  "firecrawl: C:\\Program Files\\nodejs\\node.exe D:\\dev\\alpha-AOS\\dist\\src\\cli.js mcp-proxy firecrawl - ✘ Failed to connect — CONNECTION_CLOSED: Connection closed",
+  "",
+].join("\n");
+
+function commandResult(stdout: string): ReadinessCommandResult {
+  return { ran: true, reason: null, exitCode: 0, stdout };
+}
+
+function notRun(reason: string): ReadinessCommandResult {
+  return { ran: false, reason, exitCode: null, stdout: "" };
+}
+
+interface RunnerOverrides {
+  readonly resolved?: string | null;
+  readonly provider?: ReadinessCommandResult;
+  readonly connections?: ReadinessCommandResult;
+}
+
+function runner(overrides: RunnerOverrides = {}): ReadinessRunner {
+  return {
+    resolveHarness: () => (overrides.resolved === undefined ? "/usr/bin/harness" : overrides.resolved),
+    providerReadiness: async () => overrides.provider ?? notRun("no provider readiness command was supplied"),
+    connectionListing: async () => overrides.connections ?? notRun("no connection listing was supplied"),
+  };
+}
+
+test("an unset required variable is blocked with a code, the variable name and a next action", async () => {
+  const canary = declaration({ requiresEnvironment: ["EXA_API_KEY"] });
+  const report = await probeReadiness({
+    harness: "claude",
+    canary,
+    environment: {},
+    runner: runner(),
+  });
+
+  assert.equal(report.ready, false, "an unset required variable must not read as ready");
+  const reason = report.blockedReasons.find((entry) => entry.code === "MISSING_CREDENTIAL");
+  assert.ok(reason, `expected a MISSING_CREDENTIAL reason, got ${report.blockedReasons.map((e) => e.code).join(", ")}`);
+  assert.equal(reason.variable, "EXA_API_KEY", "the blocked reason must name the variable");
+  assert.equal(reason.nextAction.length > 20, true, "the next action must be something a reader can act on");
+  assert.equal(reason.nextAction.includes("EXA_API_KEY"), true, "the next action must name the variable it is about");
+});
+
+test("a set credential value never reaches the serialized readiness report", async () => {
+  const sentinel = "sk-canary-sentinel-4a91f0c2e7b3";
+  const canary = declaration({ requiresEnvironment: ["EXA_API_KEY", "FIRECRAWL_API_KEY"] });
+  const report = await probeReadiness({
+    harness: "claude",
+    canary,
+    environment: { EXA_API_KEY: sentinel },
+    runner: runner(),
+  });
+
+  const serialized = JSON.stringify(report);
+  assert.equal(
+    serialized.includes(sentinel),
+    false,
+    "a credential VALUE reached the serialized readiness report; the shape is supposed to make that unrepresentable",
+  );
+  assert.equal(serialized.includes("EXA_API_KEY"), true, "the report must still name the variables it read");
+  assert.equal(
+    report.blockedReasons.some((entry) => entry.variable === "FIRECRAWL_API_KEY"),
+    true,
+    "the unset second variable was not reported",
+  );
+  assert.equal(
+    report.blockedReasons.some((entry) => entry.variable === "EXA_API_KEY"),
+    false,
+    "the variable that IS set was reported as missing",
+  );
+});
+
+test("with every requirement satisfied the readiness report is ready and the canary may run", async () => {
+  const canary = declaration({ requiresEnvironment: ["EXA_API_KEY"], requiresMcpServers: ["exa", "context7"] });
+  const report = await probeReadiness({
+    harness: "claude",
+    canary,
+    environment: { EXA_API_KEY: "present" },
+    runner: runner({ connections: commandResult(CLAUDE_MCP_LIST) }),
+  });
+
+  assert.deepEqual(
+    report.blockedReasons.map((entry) => entry.code),
+    [],
+    "a fully satisfied requirement set produced a blocked reason",
+  );
+  assert.equal(report.ready, true);
+  assert.equal(disposeCanary(report, null).outcome, "ready");
+});
+
+test("an unconfigured provider is blocked with the provider named, from the harness's own readiness output", async () => {
+  const report = await probeReadiness({
+    harness: "pi",
+    canary: declaration({ harnesses: ["pi"] }),
+    environment: {},
+    runner: runner({ provider: commandResult(PI_NOT_READY) }),
+  });
+
+  const reason = report.blockedReasons.find((entry) => entry.code === "PROVIDER_NOT_CONFIGURED");
+  assert.ok(reason, `expected PROVIDER_NOT_CONFIGURED, got ${report.blockedReasons.map((e) => e.code).join(", ")}`);
+  assert.equal(reason.variable, "google", "the blocked reason must name the provider the harness reported on");
+  assert.equal(report.ready, false);
+  // Derived from a readiness command, never from a failed run's output.
+  assert.equal(parsePiAuthCheck(PI_NOT_READY)?.status, "not-ready");
+  assert.equal(parsePiAuthCheck(PI_NOT_READY)?.reason, "credentials_not_configured");
+});
+
+test("a failed MCP server is blocked naming the server, and a registered-but-pending one is not", async () => {
+  const failed = await probeReadiness({
+    harness: "claude",
+    canary: declaration({ requiresMcpServers: ["firecrawl"] }),
+    environment: {},
+    runner: runner({ connections: commandResult(CLAUDE_MCP_LIST) }),
+  });
+  const reason = failed.blockedReasons.find((entry) => entry.code === "MCP_SERVER_NOT_CONNECTED");
+  assert.ok(reason, `expected MCP_SERVER_NOT_CONNECTED, got ${failed.blockedReasons.map((e) => e.code).join(", ")}`);
+  assert.equal(reason.variable, "firecrawl");
+
+  // Pitfall 5: at the init event every server is legitimately pending with zero
+  // tools. Evaluating a connection rule there would report a false failure, so
+  // a pending entry is a registration fact and never a fault.
+  const pending = await probeReadiness({
+    harness: "claude",
+    canary: declaration({ requiresMcpServers: ["context7"] }),
+    environment: {},
+    runner: runner(),
+    registeredServers: [{ server: "context7", state: "pending" }],
+  });
+  assert.deepEqual(
+    pending.blockedReasons.map((entry) => entry.code),
+    [],
+    "a registered-but-pending server produced a blocked reason",
+  );
+  assert.equal(
+    pending.notProbed.some((entry) => entry.probe.includes("connection")),
+    true,
+    "the connection listing did not run, and that must be recorded rather than silently treated as a pass",
+  );
+
+  // A server nobody registered is a different, also-actionable cause.
+  const missing = await probeReadiness({
+    harness: "claude",
+    canary: declaration({ requiresMcpServers: ["nowhere"] }),
+    environment: {},
+    runner: runner({ connections: commandResult(CLAUDE_MCP_LIST) }),
+  });
+  assert.equal(
+    missing.blockedReasons.some((entry) => entry.code === "MCP_SERVER_NOT_REGISTERED"),
+    true,
+  );
+});
+
+test("the connection listing parser keeps server names and states and retains no command line", () => {
+  const parsed = parseClaudeMcpList(CLAUDE_MCP_LIST);
+  const byName = new Map(parsed.map((entry) => [entry.server, entry.state]));
+  assert.equal(byName.get("context7"), "connected");
+  assert.equal(byName.get("exa"), "connected");
+  assert.equal(byName.get("firecrawl"), "failed");
+  assert.equal(byName.get("claude.ai Notion"), "needs-auth");
+  const serialized = JSON.stringify(parsed);
+  for (const leak of ["npx-cli.js", "Program Files", "cli.js", "mcp-proxy", "https://"]) {
+    assert.equal(serialized.includes(leak), false, `the parser retained '${leak}' from the launch command line`);
+  }
+});
+
+test("an unresolvable harness is blocked, and the readiness report says which command was looked for", async () => {
+  const report = await probeReadiness({
+    harness: "codex",
+    canary: declaration({ harnesses: ["codex"] }),
+    environment: {},
+    runner: runner({ resolved: null }),
+  });
+  const reason = report.blockedReasons.find((entry) => entry.code === "HARNESS_NOT_INSTALLED");
+  assert.ok(reason, `expected HARNESS_NOT_INSTALLED, got ${report.blockedReasons.map((e) => e.code).join(", ")}`);
+  assert.equal(reason.variable, "codex");
+});
+
+test("the readiness report records the provider and model the harness would actually run on", async () => {
+  const model = "nvidia/nemotron-3-super-120b-a12b";
+  const report = await probeReadiness({
+    harness: "pi",
+    canary: declaration({ harnesses: ["pi"] }),
+    environment: {},
+    model,
+    runner: runner({ provider: commandResult(PI_READY_NVIDIA) }),
+  });
+
+  assert.equal(report.identity.provider, "nvidia", "the recorded provider is not the one the harness reported");
+  assert.equal(report.identity.model, model, "the recorded model is not the one the answer was about");
+  assert.equal(report.identity.source.length > 0, true, "an identity with no recorded source is not interpretable");
+  assert.equal(report.ready, true, "a configured fallback provider is ready; it is the anonymity that was the problem");
+
+  // A harness that reports no identity says so, rather than reporting a guess.
+  const silent = await probeReadiness({
+    harness: "claude",
+    canary: declaration(),
+    environment: {},
+    runner: runner(),
+  });
+  assert.equal(silent.identity.provider, null);
+  assert.equal(silent.identity.model, null);
+  assert.equal(
+    silent.notProbed.some((entry) => entry.probe.includes("provider")),
+    true,
+    "a harness with no free provider readiness command must record that, not leave the null unexplained",
+  );
+});
+
+test("a failure no probe named stays unverified, and no cause yields both blocked and unverified", async () => {
+  const ready = await probeReadiness({
+    harness: "claude",
+    canary: declaration(),
+    environment: {},
+    runner: runner(),
+  });
+  const nameless = disposeCanary(ready, "the harness exited 1 with no output any probe accounts for");
+  assert.equal(nameless.outcome, "unverified");
+  assert.deepEqual(nameless.blockedReasons, [], "an unverified disposition must carry no blocked reason");
+  assert.ok(nameless.unverifiedReason);
+
+  const blockedReport = await probeReadiness({
+    harness: "claude",
+    canary: declaration({ requiresEnvironment: ["EXA_API_KEY"] }),
+    environment: {},
+    runner: runner(),
+  });
+
+  // The same cause, put through the same classifier with and without a
+  // trailing failure: it is blocked either way, and never also unverified.
+  for (const failure of [null, "the run then failed for some other reason"]) {
+    const disposition = disposeCanary(blockedReport, failure);
+    assert.equal(disposition.outcome, "blocked", "a named cause must never degrade to unverified");
+    assert.equal(disposition.unverifiedReason, null, "a blocked disposition must carry no unverified reason");
+    assert.equal(disposition.blockedReasons.length > 0, true);
+  }
+
+  // Exhaustive over the classifier's inputs: the three outcomes partition, so
+  // blocked and unverified are mutually exclusive by construction.
+  for (const report of [ready, blockedReport]) {
+    for (const failure of [null, "some failure"]) {
+      const disposition = disposeCanary(report, failure);
+      const isBlocked = disposition.outcome === "blocked";
+      const isUnverified = disposition.outcome === "unverified";
+      assert.equal(isBlocked && isUnverified, false);
+      assert.equal(isBlocked, disposition.blockedReasons.length > 0);
+      assert.equal(isUnverified, disposition.unverifiedReason !== null);
+    }
+  }
+});
+
+test("BLOCKED_CODES is a frozen table of upper-snake codes covering the four named causes", () => {
+  assert.equal(Object.isFrozen(BLOCKED_CODES), true, "the code table is mutable");
+  for (const code of [
+    "MISSING_CREDENTIAL",
+    "PROVIDER_NOT_CONFIGURED",
+    "MCP_SERVER_NOT_CONNECTED",
+    "HARNESS_NOT_INSTALLED",
+  ]) {
+    assert.equal(Object.hasOwn(BLOCKED_CODES, code), true, `${code} is not declared`);
+  }
+  for (const [code, wording] of Object.entries(BLOCKED_CODES)) {
+    assert.match(code, /^[A-Z][A-Z0-9_]*$/u, `${code} is not an upper-snake identifier`);
+    assert.equal(wording.length > 0, true, `${code} has no human wording`);
+  }
+});
+
+test("a BlockedReason has exactly code, variable and nextAction, and no field able to hold a value", async () => {
+  const report = await probeReadiness({
+    harness: "claude",
+    canary: declaration({ requiresEnvironment: ["EXA_API_KEY"] }),
+    environment: {},
+    runner: runner(),
+  });
+  const reason = report.blockedReasons[0];
+  assert.ok(reason, "no blocked reason was produced, so the shape below proves nothing");
+  assert.deepEqual(Object.keys(reason).sort(), ["code", "nextAction", "variable"]);
 });

@@ -20,6 +20,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { BlockedReason, LedgerHarness } from "./capability-ledger.js";
 import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
 import { RootKeyedCache } from "./paths.js";
 import {
@@ -289,4 +290,183 @@ export function parseCanaryCatalog(text: string, schema: Record<string, unknown>
     throw new ManagedDocumentError("Canary catalog", invalid, createMigrationPlan(invalid));
   }
   return result.value;
+}
+
+// ---------------------------------------------------------------------------
+// Readiness — the pre-probe that makes `blocked` actionable (03-CONTEXT.md D-12)
+// ---------------------------------------------------------------------------
+
+/**
+ * Why a canary could not run, when the cause is KNOWN and actionable.
+ *
+ * Stable UPPER_SNAKE codes with the human wording beside them, in the shape
+ * this repository already uses for typed findings. Callers branch on the key,
+ * never on the sentence.
+ *
+ * The four causes are the four things that can be true before a model turn is
+ * ever spent: a name is missing, the harness has no usable credential, a server
+ * a canary needs is not answering, or the harness is not there at all.
+ */
+export const BLOCKED_CODES = Object.freeze({
+  MISSING_CREDENTIAL: "a required environment variable is not set",
+  PROVIDER_NOT_CONFIGURED: "the harness has no usable credential for the provider it would run on",
+  MCP_SERVER_NOT_CONNECTED: "a required MCP server did not pass its connection check",
+  MCP_SERVER_NOT_REGISTERED: "a required MCP server is not registered with the harness at all",
+  HARNESS_NOT_INSTALLED: "the harness executable could not be resolved on PATH",
+} as const);
+
+export type BlockedCode = keyof typeof BLOCKED_CODES;
+
+/** The harness's own word for a server's connection state. */
+export type McpConnectionState = "connected" | "failed" | "needs-auth" | "pending" | "unknown";
+
+/**
+ * One MCP server and its state.
+ *
+ * The NAME and the state, and nothing else. A harness's connection listing
+ * prints the full launch command line beside each server — absolute paths,
+ * package specifiers, sometimes an argument carrying a credential — and none of
+ * that is retained here (T-03-40).
+ */
+export interface McpConnection {
+  readonly server: string;
+  readonly state: McpConnectionState;
+}
+
+/**
+ * Which provider and model a harness would ACTUALLY run on.
+ *
+ * 03-RESEARCH.md assumption A7 observed one harness silently falling back to a
+ * free model when its configured providers were unavailable. A canary result
+ * from an unnamed model is uninterpretable, and a weak model failing to select
+ * a skill is a finding about the model rather than about discovery. `source`
+ * records where the answer came from, so a null is interpretable too.
+ */
+export interface HarnessIdentity {
+  readonly provider: string | null;
+  readonly model: string | null;
+  readonly source: string;
+}
+
+/** A probe that could not run. Never a blocked reason: absence of a probe is not a cause. */
+export interface NotProbed {
+  readonly probe: string;
+  readonly reason: string;
+}
+
+/** What the pre-probe established, before anything was run against a model. */
+export interface ReadinessReport {
+  readonly harness: LedgerHarness;
+  /** The canary id this report is about. */
+  readonly canary: string;
+  readonly ready: boolean;
+  /** Ordered, and empty exactly when `ready` is true. */
+  readonly blockedReasons: readonly BlockedReason[];
+  readonly identity: HarnessIdentity;
+  readonly connections: readonly McpConnection[];
+  readonly notProbed: readonly NotProbed[];
+}
+
+/** What a harness's own readiness command said, reduced to the fields alpha-AOS reads. */
+export interface ProviderReadiness {
+  readonly status: "ready" | "not-ready" | "unknown";
+  readonly provider: string | null;
+  /** The harness's own machine-readable reason, when it published one. */
+  readonly reason: string | null;
+}
+
+/** One readiness command's outcome. */
+export interface ReadinessCommandResult {
+  readonly ran: boolean;
+  /** Why it did not run. Null when it did. */
+  readonly reason: string | null;
+  readonly exitCode: number | null;
+  readonly stdout: string;
+}
+
+/** What a probe target is: the harness's default provider, or one named model. */
+export interface ReadinessTarget {
+  readonly kind: "provider" | "model";
+  readonly value: string;
+}
+
+/**
+ * The three read-only operations `probeReadiness` needs.
+ *
+ * Injectable so the suite can assert every branch OFFLINE: no host can be
+ * relied upon to lack a harness, to have an unconfigured provider, or to have a
+ * disconnected server, and none of those may be proven by spending a turn.
+ */
+export interface ReadinessRunner {
+  resolveHarness: (harness: LedgerHarness) => string | null;
+  providerReadiness: (harness: LedgerHarness, target: ReadinessTarget) => Promise<ReadinessCommandResult>;
+  connectionListing: (harness: LedgerHarness) => Promise<ReadinessCommandResult>;
+}
+
+export interface ProbeReadinessOptions {
+  readonly harness: LedgerHarness;
+  readonly canary: CanaryDeclaration;
+  /**
+   * Where variable NAMES are looked up.
+   *
+   * Presence only. A value is never compared, recorded, hashed or rendered —
+   * `BlockedReason` has no field able to hold one.
+   */
+  readonly environment: Readonly<Record<string, string | undefined>>;
+  /** The model the run would use, when the caller knows it. Null asks about the default provider. */
+  readonly model?: string | null;
+  readonly runner?: ReadinessRunner;
+  /**
+   * Servers a prior observation recorded as REGISTERED, with the harness's own
+   * word for their state.
+   *
+   * 03-RESEARCH.md Pitfall 5 measured every server `pending` with zero tools at
+   * one harness's init event, so a `pending` entry is a registration fact and
+   * never a fault. The connection listing is the oracle, and it overrides.
+   */
+  readonly registeredServers?: readonly McpConnection[];
+}
+
+/** Whether a canary run may proceed, and if not, why — decided BEFORE any model turn. */
+export type CanaryOutcome = "ready" | "blocked" | "unverified";
+
+/**
+ * The one place `blocked` and `unverified` are told apart.
+ *
+ * Exactly one branch of `disposeCanary` produces each, so a single cause can
+ * never yield both. That is 03-CONTEXT.md D-12 stated as control flow rather
+ * than as intent.
+ */
+export interface CanaryDisposition {
+  readonly outcome: CanaryOutcome;
+  /** Non-empty exactly when the outcome is `blocked`. */
+  readonly blockedReasons: readonly BlockedReason[];
+  /** Non-null exactly when the outcome is `unverified`. */
+  readonly unverifiedReason: string | null;
+}
+
+// --- RED-phase stubs. Replaced by the implementation in the GREEN commit. ---
+
+export function parsePiAuthCheck(_stdout: string): ProviderReadiness | null {
+  return null;
+}
+
+export function parseClaudeMcpList(_stdout: string): readonly McpConnection[] {
+  return [];
+}
+
+export async function probeReadiness(options: ProbeReadinessOptions): Promise<ReadinessReport> {
+  return {
+    harness: options.harness,
+    canary: options.canary.id,
+    ready: true,
+    blockedReasons: [],
+    identity: { provider: null, model: null, source: "not implemented" },
+    connections: [],
+    notProbed: [],
+  };
+}
+
+export function disposeCanary(_readiness: ReadinessReport, _failure: string | null): CanaryDisposition {
+  return { outcome: "ready", blockedReasons: [], unverifiedReason: null };
 }

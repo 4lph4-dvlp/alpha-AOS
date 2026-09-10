@@ -113,9 +113,8 @@
                 "pattern": "^\\d+\\.\\d+$"
               },
               "raw": {
-                "description": "The whole version line as the harness printed it, kept for audit and bound to by NOTHING. hermes decorates its line with an upstream commit token that was observed moving twice inside one session with no install change (03-RESEARCH.md Pitfall 6), so fingerprinting the line would demote every proof on a remote-head push.",
-                "type": "string",
-                "minLength": 1
+                "description": "The whole version line as the harness printed it, kept for audit and bound to by NOTHING. hermes decorates its line with an upstream commit token that was observed moving twice inside one session with no install change (03-RESEARCH.md Pitfall 6), so fingerprinting the line would demote every proof on a remote-head push. EMPTY is a legitimate recorded absence: a harness that is not installed, or whose version command printed nothing this tool could read, printed no line — the same state the null `exact` beside it records. It was previously required non-empty, which made that state unrepresentable and left `doctor --discovery` writing a ledger its own reader then refused.",
+                "type": "string"
               }
             }
           },

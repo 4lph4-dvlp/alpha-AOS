@@ -592,3 +592,63 @@ test("a second identical write is already-current and the bytes do not move", as
   assert.equal(afterFirst.endsWith("\n"), true);
   assert.equal(afterFirst.includes('\n  "schemaVersion"'), true);
 });
+
+// ---------------------------------------------------------------------------
+// Plan 03-08 Task 3 — what is WRITTEN must be readable by the same reader
+//
+// Found live: `alpha-aos doctor --discovery` wrote eight proofs, exited 0, and
+// then refused its own file on the next run with eight
+// schema.minLength@/proofs/N/harnessVersion/raw issues. `probedHarnessVersions`
+// records an un-probed harness as `raw: ""`, and the schema required that
+// string non-empty — so the recorded-absence state the null `exact` beside it
+// documents was unrepresentable, and the sweep became a one-shot command that
+// bricked its own ledger.
+//
+// The round trip is the property that was missing. A write-only assertion
+// cannot catch a document its reader will refuse.
+// ---------------------------------------------------------------------------
+
+/** Exactly what `harnessMinorKey("")` returns for a harness that printed nothing. */
+const UNPROBED_HARNESS_VERSION = { exact: null, minorKey: null, raw: "" };
+
+test("a proof for a harness that printed no version line survives the write-then-read round trip", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  // The shape is derived rather than typed: if `harnessMinorKey` ever stops
+  // producing an empty raw, this fixture must change with it.
+  assert.deepEqual(harnessMinorKey(""), UNPROBED_HARNESS_VERSION);
+
+  const written = await writeCapabilityLedger({
+    stateRoot,
+    ledger: {
+      ...VALID_LEDGER,
+      proofs: [{ ...VALID_POSITIVE, nativeUse: "unverified", harnessVersion: harnessMinorKey("") }],
+    },
+  });
+  assert.equal(written.status, "written");
+
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(
+    read.state,
+    "present",
+    `the sweep's own writer produced a document its own reader refuses: ${JSON.stringify(read)}`,
+  );
+  const proof = read.state === "present" ? read.ledger.proofs[0] : undefined;
+  assert.ok(proof);
+  assert.equal(proof.harnessVersion.raw, "");
+  assert.equal(proof.harnessVersion.exact, null, "an empty raw and a null exact are one recorded absence, not two");
+
+  // Positive control: the relaxation is confined to `raw`. The version fields a
+  // comparison actually reads are still closed against a non-semver value, so
+  // this did not become a schema that accepts anything.
+  const poisoned = await writeCapabilityLedger({
+    stateRoot: join(root, "state-2"),
+    ledger: {
+      ...VALID_LEDGER,
+      proofs: [{ ...VALID_POSITIVE, harnessVersion: { exact: "not-a-version", minorKey: null, raw: "x" } }],
+    },
+  });
+  const refused = await readCapabilityLedger(poisoned.path);
+  assert.equal(refused.state, "unreadable", "a non-semver exact version was accepted");
+});

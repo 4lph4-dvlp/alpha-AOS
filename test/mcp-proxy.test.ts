@@ -24,6 +24,8 @@ import {
   BoundedStdioTransport,
   MCP_SERVER_IDS,
   mcpPolicyRefusal,
+  OBSERVED_UPSTREAM_LATE_EXIT,
+  openObservedUpstream,
   upstreamEnvironment,
   upstreamEnvironmentPolicy,
   upstreamProcessSpec,
@@ -63,6 +65,8 @@ interface ProxyFixture {
   readonly toolListScript: string;
   /** Runs `runMcpProxy` as its own child, with a file-backed observation sink. */
   readonly proxyHostScript: string;
+  /** Serves its tools, then exits with the given code once stdin closes. */
+  readonly lateExitScript: string;
   /** Where a fixture server records the pid it is running as. */
   pidPath(name: string): string;
   /**
@@ -93,6 +97,7 @@ async function createProxyFixture(
   const secretEchoScript = join(root, "secret-echo-server.mjs");
   const toolListScript = join(root, "tool-list-server.mjs");
   const proxyHostScript = join(root, "proxy-host.mjs");
+  const lateExitScript = join(root, "late-exit-server.mjs");
 
   // Speaks just enough MCP to complete a handshake and a tool listing. It
   // advertises a tool alpha-AOS policy does not allow, so filtering has
@@ -263,6 +268,42 @@ async function createProxyFixture(
     "utf8",
   );
 
+  // Answers normally and then dies badly on the way out — the Pitfall 9 shape,
+  // where the useful output is already in hand when teardown faults. Exiting
+  // on stdin close means it leaves on its OWN terms, so the non-zero code is
+  // genuinely the child's rather than a forced termination's.
+  await writeFile(
+    lateExitScript,
+    [
+      "import { createInterface } from 'node:readline';",
+      "const advertised = String(process.argv[2] ?? '').split(',').filter(Boolean);",
+      "const exitCode = Number.parseInt(process.argv[3] ?? '3', 10);",
+      "const lines = createInterface({ input: process.stdin });",
+      "lines.on('close', () => { process.exit(exitCode); });",
+      "lines.on('line', (line) => {",
+      "  if (!line.trim().startsWith('{')) return;",
+      "  let message;",
+      "  try { message = JSON.parse(line); } catch { return; }",
+      "  if (typeof message.id !== 'number') return;",
+      "  if (message.method === 'initialize') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'fixture-upstream', version: '0.0.0' } } }));",
+      "    return;",
+      "  }",
+      "  if (message.method === 'tools/list') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { tools: advertised.map((name) => ({ name, description: 'fixture tool', inputSchema: { type: 'object' } })) } }));",
+      "    return;",
+      "  }",
+      "  if (message.method === 'tools/call') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: 'upstream answered' }] } }));",
+      "    return;",
+      "  }",
+      "  console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'method not found' } }));",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
   return {
     root,
     upstreamServerScript,
@@ -272,6 +313,7 @@ async function createProxyFixture(
     secretEchoScript,
     toolListScript,
     proxyHostScript,
+    lateExitScript,
     pidPath(name: string): string {
       return join(root, `${name}.pid`);
     },
@@ -1080,5 +1122,146 @@ test("the CLI can front every pinned server, not only the filtered one", async (
     [...MCP_SERVER_IDS].sort(),
     ["context7", "exa", "firecrawl"],
     "the frontable set is the pinned set, derived from the upstream environment table",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// A per-canary open/close cycle (RESEARCH.md Pitfall 9).
+//
+// An everyday filter proxy closes once per harness session. An observation
+// proxy closes once per canary run, so it exercises teardown far more often —
+// and a clean stdio MCP client close on this Windows host has already been
+// observed producing a libuv assertion AFTER the useful output was in hand.
+// A crash on the way out must not be allowed to discard a proof that already
+// exists, and must not be allowed to disappear either.
+// ---------------------------------------------------------------------------
+
+/** Every value the session's delivery union declares (src/core/process.ts). */
+const KILL_DELIVERIES = ["group", "direct", "windows-tree", "already-gone", "not-required"];
+
+test("an observed session closes through the bounded contract and keeps its proof", async (context) => {
+  const fixture = await createProxyFixture(context);
+  const sunk: Record<string, unknown>[] = [];
+
+  const upstream = await openObservedUpstream(
+    "firecrawl",
+    { package: "fixture-firecrawl", version: FIXTURE_VERSION, integrity: "sha512-fixture" },
+    { record: (observation) => void sunk.push({ ...observation }) },
+    {
+      executable: process.execPath,
+      args: [fixture.toolListScript, FIXTURE_TOOLS.firecrawl.join(",")],
+      cwd: fixture.root,
+      environment: { source: {} },
+      timeoutMs: 60_000,
+      maxOutputBytes: STDERR_CAP,
+    },
+  );
+
+  await upstream.callTool({ name: "firecrawl_scrape", arguments: {} });
+  assert.equal(upstream.observations().length, 1, "the call must be recorded before close");
+
+  const closed = await upstream.close();
+
+  assert.equal(closed.observations.length, 1, "an observation recorded before close must survive it");
+  assert.equal(closed.observations[0]?.tool, "firecrawl_scrape");
+  assert.equal(sunk.length, 1, "the caller's own sink must have received the same record");
+  assert.ok(
+    closed.treeTermination !== null && KILL_DELIVERIES.includes(closed.treeTermination),
+    `the reported delivery path must be one the session's union declares: ${String(closed.treeTermination)}`,
+  );
+  assert.equal(closed.finding, null, "a clean teardown is not a finding");
+});
+
+test("a non-zero child exit after a complete record is a named finding, not a failure", async (context) => {
+  const fixture = await createProxyFixture(context);
+
+  const upstream = await openObservedUpstream(
+    "firecrawl",
+    { package: "fixture-firecrawl", version: FIXTURE_VERSION, integrity: "sha512-fixture" },
+    { record: () => undefined },
+    {
+      executable: process.execPath,
+      args: [fixture.lateExitScript, FIXTURE_TOOLS.firecrawl.join(","), "3"],
+      cwd: fixture.root,
+      environment: { source: {} },
+      timeoutMs: 60_000,
+      maxOutputBytes: STDERR_CAP,
+    },
+  );
+
+  await upstream.callTool({ name: "firecrawl_scrape", arguments: {} });
+
+  // Not a rejection: the proof was already complete when the child crashed.
+  const closed = await upstream.close();
+
+  assert.equal(closed.observations.length, 1, "the record must survive a child that exits badly");
+  assert.notEqual(closed.finding, null, "a non-zero exit after a complete record must be reported");
+  assert.equal(
+    closed.finding?.code,
+    OBSERVED_UPSTREAM_LATE_EXIT,
+    "the finding must carry a stable upper-snake code, not only a message",
+  );
+  assert.equal(closed.finding?.reason, "non-zero-exit");
+  assert.equal(closed.finding?.exitCode, 3);
+  assert.equal(
+    closed.finding?.completed.length,
+    1,
+    "the finding must state which observations were already complete when it fired",
+  );
+  assert.equal(closed.finding?.completed[0]?.tool, "firecrawl_scrape");
+});
+
+test("a non-zero child exit with no complete record is a genuine failure", async (context) => {
+  const fixture = await createProxyFixture(context);
+
+  const upstream = await openObservedUpstream(
+    "firecrawl",
+    { package: "fixture-firecrawl", version: FIXTURE_VERSION, integrity: "sha512-fixture" },
+    { record: () => undefined },
+    {
+      executable: process.execPath,
+      args: [fixture.lateExitScript, FIXTURE_TOOLS.firecrawl.join(","), "3"],
+      cwd: fixture.root,
+      environment: { source: {} },
+      timeoutMs: 60_000,
+      maxOutputBytes: STDERR_CAP,
+    },
+  );
+
+  // Nothing was observed, so there is no proof to protect and the fault is
+  // simply a failed run.
+  await assert.rejects(
+    async () => upstream.close(),
+    /exited 3 with no complete observation record/u,
+  );
+});
+
+test("the observed close path builds no SDK transport close of its own", async () => {
+  const proxy = await readFile(join(repositoryRoot, "src", "core", "mcp-proxy.ts"), "utf8");
+  const code = proxy
+    .split(/\r?\n/u)
+    .filter((line) => !/^\s*(\/\/|\/\*|\*)/u.test(line))
+    .join("\n");
+
+  assert.ok(
+    code.includes("session.close()"),
+    "teardown must route through the process adapter's bounded session close",
+  );
+
+  // Positive control: the block being checked must actually be there, or the
+  // absence assertion below would pass against nothing.
+  const start = code.indexOf("close: async (): Promise<ObservedUpstreamClose>");
+  assert.notEqual(start, -1, "the observed-upstream close must exist to be checked");
+
+  // The SDK client's own close tears down its transport its way, bypassing the
+  // descendant termination Phase 1 hardened across three operating systems.
+  assert.equal(
+    code.slice(start).includes("client.close()"),
+    false,
+    "the observed close must not reach the SDK client's own transport teardown",
+  );
+  assert.ok(
+    code.slice(start).includes("transport.closeSession()"),
+    "the observed close must go through the bounded transport's session close",
   );
 });

@@ -5,7 +5,13 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import type { MessageExtraInfo, JSONRPCMessage } from "@modelcontextprotocol/sdk/types.js";
 import { CallToolRequestSchema, JSONRPCMessageSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
-import type { EnvironmentPolicy, ProtocolProcessSpec, ProtocolSession } from "./process.js";
+import type {
+  EnvironmentPolicy,
+  KillDelivery,
+  ProcessResult,
+  ProtocolProcessSpec,
+  ProtocolSession,
+} from "./process.js";
 import type { LockedPackage, McpServerId, RedactedExcerpt } from "../types.js";
 import { userStateRoot } from "./paths.js";
 import {
@@ -183,9 +189,29 @@ export class BoundedStdioTransport implements Transport {
   }
 
   async close(): Promise<void> {
+    await this.closeSession();
+  }
+
+  /**
+   * The same close, with what the session reported about it.
+   *
+   * Descendant termination is the process adapter's contract, hardened across
+   * three operating systems in Phase 1, and it is the only close this
+   * transport performs — the SDK transport's own close is never reached. The
+   * settled result carries the delivery path that actually terminated the
+   * tree, and a caller that discards it cannot say afterwards which mechanism
+   * ran. An observation proxy closes once per canary run rather than once per
+   * harness session, so that answer is worth keeping.
+   */
+  async closeSession(): Promise<ProcessResult | null> {
     const session = this.#session;
-    if (session !== null) await session.close();
+    if (session === null) {
+      this.#announceClose();
+      return null;
+    }
+    const result = await session.close();
     this.#announceClose();
+    return result;
   }
 
   /**
@@ -377,6 +403,47 @@ export async function runMcpFilterProxy(serverId: McpServerId, locked: LockedPac
   return runMcpProxy(serverId, locked, { mode: "filter" });
 }
 
+/**
+ * A teardown fault that arrived AFTER the proof was already complete.
+ *
+ * A stable upper-snake code rather than a message, because the distinction is
+ * something a caller acts on: a crash at close after a complete observation
+ * record is survivable and must not be reported as a failed canary, but it
+ * still happened and must not vanish either. RESEARCH.md Pitfall 9 recorded a
+ * Windows libuv assertion firing on a clean stdio MCP client close, after the
+ * useful output had already been produced.
+ */
+export const OBSERVED_UPSTREAM_LATE_EXIT = "OBSERVED_UPSTREAM_LATE_EXIT";
+
+export interface ObservedUpstreamFinding {
+  readonly code: typeof OBSERVED_UPSTREAM_LATE_EXIT;
+  /** Coded, never a value: which half of teardown faulted. */
+  readonly reason: "close-failed" | "non-zero-exit";
+  readonly exitCode: number | null;
+  readonly signal: NodeJS.Signals | null;
+  /**
+   * The observations that were already complete when this fired. This is what
+   * makes the finding a footnote on a proof rather than the loss of one.
+   */
+  readonly completed: readonly McpObservation[];
+  readonly message: string;
+}
+
+/** What a bounded close of an observed session reports. */
+export interface ObservedUpstreamClose {
+  /**
+   * Which delivery path terminated the child tree, as the session reported
+   * it, or null when close itself faulted before reporting one. Reported
+   * rather than assumed: a POSIX group signal that was refused and fell back
+   * to the direct child terminated strictly less than was asked for.
+   */
+  readonly treeTermination: KillDelivery | null;
+  readonly exitCode: number | null;
+  readonly observations: readonly McpObservation[];
+  /** Non-null only when teardown faulted after a complete record. */
+  readonly finding: ObservedUpstreamFinding | null;
+}
+
 /** What `openObservedUpstream` hands back. */
 export interface ObservedUpstream {
   /**
@@ -392,7 +459,7 @@ export interface ObservedUpstream {
   callTool(params: { name: string; arguments?: Record<string, unknown> }): Promise<
     Awaited<ReturnType<Client["callTool"]>>
   >;
-  close(): Promise<void>;
+  close(): Promise<ObservedUpstreamClose>;
 }
 
 /**
@@ -443,8 +510,68 @@ export async function openObservedUpstream(
       observe(options, serverId, locked, params.name, "ok");
       return result;
     },
-    close: async () => {
-      await transport.close();
+    /**
+     * Ends the session through the Phase 1 bounded close and reports what it
+     * cost.
+     *
+     * The asymmetry is deliberate. Before any record is complete there is no
+     * proof to protect, so a teardown fault is simply a failed run and
+     * propagates. After one, the proof exists and discarding it because the
+     * child crashed on the way out would be the repudiation this finding
+     * exists to prevent — so the fault is named, carries the records that
+     * were already complete, and the run stands.
+     */
+    close: async (): Promise<ObservedUpstreamClose> => {
+      const completed = [...recorded];
+      let result: ProcessResult | null;
+      try {
+        result = await transport.closeSession();
+      } catch (error) {
+        if (completed.length === 0) throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          treeTermination: null,
+          exitCode: null,
+          observations: completed,
+          finding: {
+            code: OBSERVED_UPSTREAM_LATE_EXIT,
+            reason: "close-failed",
+            exitCode: null,
+            signal: null,
+            completed,
+            message: `closing the observed ${serverId} upstream faulted after ${completed.length} complete observation(s): ${message}`,
+          },
+        };
+      }
+
+      const treeTermination = result?.treeTermination ?? null;
+      const exitCode = result?.exitCode ?? null;
+      // A forced termination's exit code is alpha-AOS's, not the child's:
+      // taskkill /T /F leaves a non-zero code on win32 for a child that was
+      // behaving perfectly. Only a child that left on its OWN terms can be
+      // said to have exited badly.
+      const leftVoluntarily = treeTermination === "not-required";
+      const exitedBadly = leftVoluntarily && exitCode !== null && exitCode !== 0;
+      if (exitedBadly && completed.length === 0) {
+        throw new Error(
+          `the observed ${serverId} upstream exited ${exitCode} with no complete observation record`,
+        );
+      }
+      return {
+        treeTermination,
+        exitCode,
+        observations: completed,
+        finding: exitedBadly
+          ? {
+            code: OBSERVED_UPSTREAM_LATE_EXIT,
+            reason: "non-zero-exit",
+            exitCode,
+            signal: result?.signal ?? null,
+            completed,
+            message: `the observed ${serverId} upstream exited ${exitCode} after ${completed.length} complete observation(s)`,
+          }
+          : null,
+      };
     },
   };
 }

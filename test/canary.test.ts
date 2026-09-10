@@ -64,6 +64,15 @@ import {
   type ReadinessCommandResult,
   type ReadinessRunner,
 } from "../src/core/canary.js";
+import {
+  MEMORY_ENVELOPES,
+  memoryDoctor,
+  memoryHandoff,
+  memorySearch,
+  type MemoryCommand,
+  type MemoryCommandResult,
+  type MemoryRunner,
+} from "../src/adapters/unified-memory.js";
 import { pairEvidence, upsertProof, type CapabilityProof, type LedgerHarness } from "../src/core/capability-ledger.js";
 import { formatCapabilityReport } from "../src/format.js";
 import {
@@ -2199,4 +2208,264 @@ test("the connection gate blocks on a server this host reports as needing authen
     ["connected", "connected", "connected"],
     "the recorded connection states are what a ledger and a report render, so they must be the observed ones",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-12 Task 1: the bounded adapter over the Memory Vault's own envelopes
+// ---------------------------------------------------------------------------
+//
+// Every assertion below drives an INJECTED runner, so nothing here launches the
+// vault CLI: the suite stays offline, free and portable. The one live check —
+// that the shipped `MEMORY_ENVELOPES` identifiers match what this host's vault
+// actually emits — is transcribed into the plan summary rather than run here,
+// for the reason 03-08 recorded about live `tools/list` results.
+
+interface RecordedMemoryCommand {
+  readonly args: readonly string[];
+  readonly stdin: string | null;
+  readonly cwd: string;
+}
+
+/** A runner that records what it was asked to launch and replies from a table. */
+function memoryRunner(
+  reply: (command: MemoryCommand) => Partial<MemoryCommandResult>,
+  recorded: RecordedMemoryCommand[] = [],
+): MemoryRunner {
+  return async (command) => {
+    recorded.push({ args: [...command.args], stdin: command.stdin, cwd: command.cwd });
+    return {
+      ran: true,
+      reason: null,
+      unsupported: null,
+      exitCode: 0,
+      stdout: "",
+      stderr: "",
+      ...reply(command),
+    };
+  };
+}
+
+const DOCTOR_ENVELOPE = JSON.stringify({
+  schemaVersion: "ecc.memory.doctor.v1",
+  ok: true,
+  memoryCount: 3,
+  invalidFiles: [],
+  invalidFileCount: 0,
+});
+
+test("the vault doctor envelope is read through its declared schema identifier, and a mismatch is refused naming both", async () => {
+  const ok = await memoryDoctor({ cwd: process.cwd(), runner: memoryRunner(() => ({ stdout: DOCTOR_ENVELOPE })) });
+  assert.equal(ok.state, "ok");
+  assert.equal(ok.state === "ok" ? ok.schemaVersion : null, MEMORY_ENVELOPES.doctor);
+  assert.equal(ok.state === "ok" ? ok.value.memoryCount : null, 3);
+  assert.equal(ok.state === "ok" ? ok.value.ok : null, true);
+
+  // A version bump must arrive as a refusal, not as `undefined` where a count
+  // belongs. Both identifiers are named so the reader knows what moved.
+  const bumped = await memoryDoctor({
+    cwd: process.cwd(),
+    runner: memoryRunner(() => ({
+      stdout: JSON.stringify({ schemaVersion: "ecc.memory.doctor.v2", ok: true, memoryCount: 3 }),
+    })),
+  });
+  assert.equal(bumped.state, "unparsed");
+  assert.equal(bumped.state === "unparsed" ? bumped.code : null, "ENVELOPE_SCHEMA_MISMATCH");
+  const reason = bumped.state === "unparsed" ? bumped.reason : "";
+  assert.match(reason, /ecc\.memory\.doctor\.v1/u, "the refusal must name the identifier that was expected");
+  assert.match(reason, /ecc\.memory\.doctor\.v2/u, "the refusal must name the identifier that was observed");
+});
+
+test("a handoff is written for a named source and target harness and returns the envelope the vault produced", async () => {
+  const recorded: RecordedMemoryCommand[] = [];
+  const written = await memoryHandoff({
+    cwd: process.cwd(),
+    source: "codex",
+    target: "claude",
+    title: "ALPHA-AOS-HANDOFF-CANARY-abc123",
+    body: "the work so far",
+    runner: memoryRunner(
+      () => ({
+        stdout: JSON.stringify({
+          schemaVersion: "ecc.memory.write.v1",
+          memory: {
+            id: "mem_20260911_0000",
+            title: "ALPHA-AOS-HANDOFF-CANARY-abc123",
+            kind: "handoff",
+            scope: "project",
+            sourceHarness: "codex",
+            targetHarnesses: ["claude"],
+          },
+          path: "project:handoffs/mem_20260911_0000.md",
+        }),
+      }),
+      recorded,
+    ),
+  });
+
+  assert.equal(written.state, "ok");
+  assert.equal(written.state === "ok" ? written.schemaVersion : null, MEMORY_ENVELOPES.write);
+  assert.equal(written.state === "ok" ? written.value.memory.id : null, "mem_20260911_0000");
+  assert.equal(written.state === "ok" ? written.value.memory.sourceHarness : null, "codex");
+  assert.deepEqual(written.state === "ok" ? written.value.memory.targetHarnesses : null, ["claude"]);
+  assert.equal(written.state === "ok" ? written.value.path : null, "project:handoffs/mem_20260911_0000.md");
+
+  const args = recorded.at(0)?.args ?? [];
+  assert.deepEqual(args.slice(0, 2), ["memory", "handoff"], "the write primitive is the vault's own handoff verb");
+  assert.equal(args.includes("--from"), true);
+  assert.equal(args[args.indexOf("--from") + 1], "codex");
+  assert.equal(args.includes("--target"), true);
+  assert.equal(args[args.indexOf("--target") + 1], "claude");
+  assert.equal(args.includes("--json"), true, "the closed envelope is what is parsed, never human text");
+});
+
+test("a filtered recall returns only the entries whose target is the named harness", async () => {
+  const recorded: RecordedMemoryCommand[] = [];
+  const found = await memorySearch({
+    cwd: process.cwd(),
+    targetHarness: "claude",
+    runner: memoryRunner(
+      (command) => ({
+        stdout: JSON.stringify({
+          schemaVersion: "ecc.memory.search.v1",
+          query: "",
+          results: [
+            {
+              memory: {
+                id: "mem_a",
+                title: "for claude",
+                kind: "handoff",
+                scope: "project",
+                sourceHarness: "codex",
+                targetHarnesses: [command.args[command.args.indexOf("--target-harness") + 1] ?? "?"],
+              },
+              score: 0,
+              excerpt: "a body that must not survive into the record",
+            },
+          ],
+        }),
+      }),
+      recorded,
+    ),
+  });
+
+  assert.equal(found.state, "ok");
+  assert.equal(found.state === "ok" ? found.schemaVersion : null, MEMORY_ENVELOPES.search);
+  const results = found.state === "ok" ? found.value.results : [];
+  assert.equal(results.length, 1);
+  assert.deepEqual(results[0]?.targetHarnesses, ["claude"], "the filter the caller named is the one that was sent");
+  // The body excerpt is USER CONTENT and has no field to land in. Serializing
+  // the whole result and searching it is the check that survives a refactor.
+  assert.equal(
+    JSON.stringify(found).includes("a body that must not survive into the record"),
+    false,
+    "a search result's body excerpt must not enter the parsed record",
+  );
+
+  const args = recorded.at(0)?.args ?? [];
+  assert.deepEqual(args.slice(0, 2), ["memory", "search"]);
+  assert.equal(args[args.indexOf("--target-harness") + 1], "claude");
+});
+
+test("the memory adapter makes no direct child-process call and travels the bounded process adapter", async () => {
+  const source = await readFile(join(repositoryRoot, "src", "adapters", "unified-memory.ts"), "utf8");
+  const code = source
+    .split(/\r?\n/u)
+    .filter((line) => !/^\s*(\/\/|\/\*|\*)/u.test(line))
+    .join("\n");
+
+  assert.equal(
+    /child_process/u.test(code),
+    false,
+    "a direct child-process import here would make the vault the one command that escapes the process boundary",
+  );
+  assert.equal(/\bspawnSync?\s*\(/u.test(code), false, "no direct spawn");
+  assert.equal(/\bexecFile\b|\bexecSync\b/u.test(code), false, "no direct exec");
+  // The positive control: the check above is only meaningful if this file really
+  // does launch something, and does it through the bounded adapter.
+  assert.equal(/runProcess\(/u.test(code), true, "the adapter must launch through runProcess");
+  assert.equal(/environment:\s*commandProbeEnvironment\(/u.test(code), true, "with a DECLARED environment");
+});
+
+test("a handoff body travels the non-argument input path and its sentinel never reaches the recorded arguments", async () => {
+  const sentinel = "SENTINEL-BODY-VALUE-9f3c2ae1";
+  const recorded: RecordedMemoryCommand[] = [];
+  await memoryHandoff({
+    cwd: process.cwd(),
+    source: "codex",
+    target: "claude",
+    title: "a handoff",
+    body: `context before\n${sentinel}\ncontext after`,
+    runner: memoryRunner(
+      () => ({
+        stdout: JSON.stringify({
+          schemaVersion: "ecc.memory.write.v1",
+          memory: {
+            id: "mem_b",
+            title: "a handoff",
+            kind: "handoff",
+            scope: "project",
+            sourceHarness: "codex",
+            targetHarnesses: ["claude"],
+          },
+          path: "project:handoffs/mem_b.md",
+        }),
+      }),
+      recorded,
+    ),
+  });
+
+  const command = recorded.at(0);
+  assert.notEqual(command, undefined);
+  assert.equal(
+    (command?.args ?? []).join(" ").includes(sentinel),
+    false,
+    "an argument list is the one place a value reliably reaches a process listing and a shell history",
+  );
+  assert.equal((command?.args ?? []).includes("--stdin"), true, "the vault's non-argument input path is declared");
+  assert.equal(
+    (command?.stdin ?? "").includes(sentinel),
+    true,
+    "the body must actually have been delivered — a check that passes because nothing was sent is vacuous",
+  );
+});
+
+test("an absent vault CLI is unsupported with its reason and an unreadable envelope is unparsed, never a success", async () => {
+  const absent = await memoryDoctor({
+    cwd: process.cwd(),
+    runner: async () => ({
+      ran: false,
+      reason: "ecc did not resolve on PATH",
+      unsupported: "COMMAND_ABSENT" as const,
+      exitCode: null,
+      stdout: "",
+      stderr: "",
+    }),
+  });
+  assert.equal(absent.state, "unsupported", "an absent tool is not an absent capability, and it is not a failure either");
+  assert.equal(absent.state === "unsupported" ? absent.code : null, "COMMAND_ABSENT");
+  assert.match(absent.state === "unsupported" ? absent.reason : "", /PATH/u);
+
+  const garbage = await memorySearch({
+    cwd: process.cwd(),
+    runner: memoryRunner(() => ({ stdout: "not json at all", stderr: "warning: something" })),
+  });
+  assert.equal(garbage.state, "unparsed");
+  assert.equal(garbage.state === "unparsed" ? garbage.code : null, "ENVELOPE_NOT_JSON");
+  assert.match(
+    garbage.state === "unparsed" ? garbage.stdoutFingerprint : "",
+    /^[0-9a-f]{64}$/u,
+    "an unreadable envelope is recorded as a fingerprint, never as bytes",
+  );
+  assert.match(garbage.state === "unparsed" ? garbage.stderrFingerprint : "", /^[0-9a-f]{64}$/u);
+
+  const failed = await memoryHandoff({
+    cwd: process.cwd(),
+    source: "codex",
+    target: "claude",
+    title: "t",
+    body: "b",
+    runner: async () => ({ ran: false, reason: "exit 1", unsupported: null, exitCode: 1, stdout: "", stderr: "boom" }),
+  });
+  assert.equal(failed.state, "unparsed", "a non-zero exit is a refusal, never a fabricated write");
+  assert.equal(failed.state === "unparsed" ? failed.code : null, "COMMAND_FAILED");
 });

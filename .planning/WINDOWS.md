@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 16
+open_count: 18
 waived_count: 2
 fixed_count: 15
-total_count: 33
-last_updated: 2026-09-10T19:18:56.626Z
+total_count: 35
+last_updated: 2026-09-10T20:36:39.900Z
 ---
 
 # Broken Windows Ledger
@@ -48,6 +48,8 @@ last_updated: 2026-09-10T19:18:56.626Z
 | 31 | 03 | deviation | schemas/capability-ledger.schema.json |  | harnessVersion.raw minLength relaxed so a recorded absence (unprobed harness) is representable; doctor --discovery previously wrote a ledger its own reader refused | open |  | 2026-09-10T17:54:56.937Z |  |
 | 32 | 03 | deviation | src/core/project-plan.ts |  | The support axis does not demote when its ledger proof does: provenSurfaceSupport reads the recorded observation, and applying D-04's demotion would need CurrentInputs on the status path (03-09 deferred) | open |  | 2026-09-10T19:18:55.884Z |  |
 | 33 | 03 | deviation | src/core/project-plan.ts |  | The corrected codex ceiling reason names <project>/.codex/skills, which PROJECT_SKILL_ROOTS still does not target; RESEARCH.md's open question on adding it is unchanged (03-09 deferred) | open |  | 2026-09-10T19:18:56.626Z |  |
+| 34 | 03 | deviation | src/core/project-pack-sync.ts |  | assertPackSourceShape is called from planProjectPackSync, a file outside plan 03-10's declared files_modified, because it is the only place the verified source root is known before any write | open |  | 2026-09-10T20:36:39.152Z |  |
+| 35 | 03 | deviation | test/helpers/pack-fixtures.ts |  | Task 2's helper surface landed in Task 1's commit, so its RED was driven by nearMissDifference and nearMissReasonNames rather than by createNearMissFixture; a 10-mutation gauntlet is the substitute evidence | open |  | 2026-09-10T20:36:39.900Z |  |
 
 ````json
 [
@@ -445,6 +447,30 @@ last_updated: 2026-09-10T19:18:56.626Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T19:18:56.626Z",
+    "resolved_at": null
+  },
+  {
+    "id": 34,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "src/core/project-pack-sync.ts",
+    "line": null,
+    "description": "assertPackSourceShape is called from planProjectPackSync, a file outside plan 03-10's declared files_modified, because it is the only place the verified source root is known before any write",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T20:36:39.152Z",
+    "resolved_at": null
+  },
+  {
+    "id": 35,
+    "kind": "deviation",
+    "phase": "03",
+    "file": "test/helpers/pack-fixtures.ts",
+    "line": null,
+    "description": "Task 2's helper surface landed in Task 1's commit, so its RED was driven by nearMissDifference and nearMissReasonNames rather than by createNearMissFixture; a 10-mutation gauntlet is the substitute evidence",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-10T20:36:39.900Z",
     "resolved_at": null
   }
 ]

@@ -20,6 +20,7 @@ import { packageRoot, RootKeyedCache, userStateRoot } from "./paths.js";
 // import is also erased at runtime, so the ledger does not drag the whole
 // project-plan module into a status path that only needs three strings.
 import type { PackState } from "./project-plan.js";
+import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
 
@@ -602,10 +603,6 @@ export interface EvidenceUnit {
   readonly summary: string;
 }
 
-export function pairEvidence(_positive: CapabilityProof, _negative: CapabilityProof | null): EvidenceUnit {
-  throw new Error("pairEvidence is not implemented");
-}
-
 export interface WriteCapabilityLedgerOptions {
   /** REQUIRED. There is no default, and that is the point. */
   readonly stateRoot: string;
@@ -620,12 +617,137 @@ export interface CapabilityLedgerWrite {
   readonly path: string;
 }
 
-export function capabilityLedgerBytes(_ledger: CapabilityLedger): string {
-  throw new Error("capabilityLedgerBytes is not implemented");
+/**
+ * Joins a positive proof to its negative control and reports whether the pair
+ * is a claim anyone may act on.
+ *
+ * 03-CONTEXT.md D-14: a positive and its negative are ONE evidence unit, and an
+ * unpaired positive does not satisfy CAPA-06. Completeness is therefore a
+ * first-class FIELD rather than an inference a caller may skip, and the axis is
+ * null whenever the unit is INCOMPLETE — a consumer cannot obtain the axis
+ * without also obtaining the verdict that says the axis is not reportable
+ * (T-03-24).
+ *
+ * INCOMPLETE is not a failed negative. A control that ran and disagreed is a
+ * fact; a control that was never taken is the absence of one, and the summary
+ * says which.
+ *
+ * The demotion binding is deliberately NOT applied here: `resolveNativeUse` is
+ * what re-resolves a proof against the inputs as they are now, and a caller
+ * that wants the demotion-aware axis composes the two. Fusing them would give
+ * this function two reasons to return `unverified` that no reader could tell
+ * apart.
+ */
+export function pairEvidence(positive: CapabilityProof, negative: CapabilityProof | null): EvidenceUnit {
+  const capability = positive.capability;
+  const harness = positive.harness;
+  const reasons: string[] = [];
+  let missingHalf: "positive" | "negative" | null = null;
+
+  if (positive.polarity !== "positive") {
+    reasons.push("the half offered as the positive is not recorded with positive polarity");
+    missingHalf = "positive";
+  }
+
+  if (negative === null) {
+    reasons.push(
+      "the negative control was never taken, so nothing shows the capability was unreachable outside the project",
+    );
+    missingHalf = missingHalf ?? "negative";
+  } else {
+    if (negative.polarity !== "negative") {
+      reasons.push("the half offered as the negative control is not recorded with negative polarity");
+    }
+    if (negative.capability !== capability) {
+      reasons.push(`the negative control is for capability ${negative.capability}, not ${capability}`);
+    }
+    if (negative.harness !== harness) {
+      reasons.push(`the negative control was taken on ${negative.harness}, not ${harness}`);
+    }
+    // 03-RESEARCH.md Pitfall 3: pi walks `.agents/skills` up through ancestors
+    // and, outside a repository, does not stop at a repo root but continues to
+    // the filesystem root. A control directory that was assumed rather than
+    // constructed can therefore still see the pack, and a negative taken in one
+    // proves nothing at all.
+    const freedom = negative.ancestorFreedom;
+    if (freedom === null || freedom.asserted !== true) {
+      reasons.push(
+        "the negative control directory was not asserted free of an ancestor project skill root, so it may have seen the pack anyway",
+      );
+    }
+  }
+
+  const completeness: EvidenceCompleteness = reasons.length === 0 ? "COMPLETE" : "INCOMPLETE";
+  const summary =
+    completeness === "COMPLETE"
+      ? `COMPLETE — ${capability} on ${harness}: the positive and its negative control are one unit; native use is ${positive.nativeUse}.`
+      : // The axis is deliberately absent from this sentence. Printing it is
+        // precisely the unpaired-positive-as-pass failure D-14 forbids, and a
+        // reader who sees it here will read the whole line as a result.
+        `INCOMPLETE — ${capability} on ${harness}: ${reasons.join("; ")}. No native-use state is reported, ` +
+        `because a positive on its own is not the claim this unit exists to make.`;
+
+  return {
+    capability,
+    harness,
+    completeness,
+    positive,
+    negative,
+    missingHalf,
+    incompleteReasons: reasons,
+    nativeUse: completeness === "COMPLETE" ? positive.nativeUse : null,
+    summary,
+  };
 }
 
+/**
+ * The ledger's canonical bytes: two-space JSON with a trailing newline.
+ *
+ * Declared once so a re-write of unchanged content is byte-identical by
+ * construction rather than by luck, which is what makes the already-current
+ * check below a real idempotency guarantee instead of a formatting race.
+ */
+export function capabilityLedgerBytes(ledger: CapabilityLedger): string {
+  return `${JSON.stringify(ledger, null, 2)}\n`;
+}
+
+/**
+ * Writes the ledger through the one journaled, snapshotted transaction.
+ *
+ * `stateRoot` is REQUIRED and this function resolves NOTHING without it. Plan
+ * 02-09 recorded why: a convenience default lets a module-level test take the
+ * exclusive writer lock on the developer's real state root, which is the
+ * ambient-write class plan 01-21 spent a whole plan closing. `allowedRoots`
+ * holds the ledger root alone, so a target anywhere else under the state root
+ * refuses inside the transaction rather than being trusted here.
+ *
+ * Identical content is not rewritten. Writing the same bytes would still churn
+ * the file's mtime and add a journal entry that undoes nothing — the same
+ * idempotency `approveProjectPlan` applies to the approved plan artifact.
+ */
 export async function writeCapabilityLedger(
-  _options: WriteCapabilityLedgerOptions,
+  options: WriteCapabilityLedgerOptions,
 ): Promise<CapabilityLedgerWrite> {
-  throw new Error("writeCapabilityLedger is not implemented");
+  const ledgerRoot = capabilityLedgerRoot(options.stateRoot);
+  const path = capabilityLedgerPath(options.stateRoot);
+  const content = capabilityLedgerBytes(options.ledger);
+
+  if (existsSync(path)) {
+    const existing = await readFile(path, "utf8").catch(() => null);
+    if (existing === content) {
+      return { status: "already-current", operationId: null, path };
+    }
+  }
+
+  const journal = await applyFileTransaction({
+    stateRoot: options.stateRoot,
+    allowedRoots: [ledgerRoot],
+    operations: [{ target: path, content }],
+    // Spread rather than assigned: under exactOptionalPropertyTypes an explicit
+    // `undefined` is not the same as an absent property, and a standalone write
+    // must take its own session rather than be handed a missing one.
+    ...(options.session === undefined ? {} : { session: options.session }),
+  });
+
+  return { status: "written", operationId: journal.id, path };
 }

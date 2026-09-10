@@ -736,13 +736,45 @@ export interface CapabilityProofUpsert {
   readonly replaced: CapabilityProof | null;
 }
 
-/** STUB - plan 03-08 Task 2 RED. */
+/**
+ * Writes one proof into a proof list, REPLACING the row of the same identity.
+ *
+ * A ledger that appended would grow one row per run, and "what is proven about
+ * this capability on this harness" would become a question about which of
+ * several rows to read — a question no consumer has a rule for. One row per
+ * identity keeps `resolveNativeUse` looking at the proof that was actually
+ * taken last.
+ *
+ * The replaced row's EXACT harness version is carried forward rather than
+ * dropped. D-04 makes the exact version an audit fact precisely because the
+ * comparison reads the minor key: two proofs a patch apart replace each other
+ * silently, and without this an audit could no longer see which patch versions
+ * had been proven. An unparsed version contributes nothing — a trail padded
+ * with nulls says less than an empty one (03-RESEARCH.md Pitfall 6).
+ */
 export function upsertProof(
   proofs: readonly CapabilityProof[],
   proof: CapabilityProof,
 ): CapabilityProofUpsert {
-  void proofKey;
-  return { proofs: [...proofs, proof], replaced: null };
+  const key = proofKey(proof);
+  const index = proofs.findIndex((candidate) => proofKey(candidate) === key);
+  if (index < 0) return { proofs: [...proofs, proof], replaced: null };
+
+  const replaced = proofs[index] as CapabilityProof;
+  const carried = [...(replaced.supersededHarnessVersions ?? [])];
+  const exact = replaced.harnessVersion.exact;
+  if (exact !== null && !carried.includes(exact)) carried.push(exact);
+
+  const next: CapabilityProof = {
+    ...proof,
+    // Spread rather than assigned: under exactOptionalPropertyTypes an explicit
+    // `undefined` is not the same as an absent property, and a first proof must
+    // not carry an empty audit array.
+    ...(carried.length === 0 ? {} : { supersededHarnessVersions: carried }),
+  };
+  const updated = [...proofs];
+  updated[index] = next;
+  return { proofs: updated, replaced };
 }
 
 export function capabilityLedgerBytes(ledger: CapabilityLedger): string {

@@ -59,9 +59,12 @@ import { ManagedDocumentError, type StrictLoadResult } from "./catalog.js";
 import { defaultIsolationPolicy, isolationProjectId } from "./isolation.js";
 import { assertNoCredentialValue, nativeConfigFormat, renderMcpConfig } from "./mcp.js";
 import {
+  classifiedIdentifierArgument,
   readObservationRecords,
   RESEARCH_ROUTING_INSTRUCTION_ID,
   RESEARCH_ROUTING_INSTRUCTION_SOURCE,
+  VERSION_SCOPED_IDENTIFIER_PATTERN,
+  type IdentifierShape,
   type McpObservation,
 } from "./mcp-proxy.js";
 import {
@@ -1585,8 +1588,9 @@ export function createFileCanaryObservationSink(path: string): CanaryObservation
  * every proof that proves nothing.
  */
 export const ARGUMENT_PATTERNS_NOT_OBSERVABLE =
-  "the observation record carries a tool name and an outcome and has no argument field, so a declared argument " +
-  "pattern cannot be checked from it; it is reported unchecked rather than satisfied";
+  "the observation record carries a tool name, an outcome and at most one declared identifier SHAPE; it has no " +
+  "argument field, so a declared argument pattern that no recorded shape decides cannot be checked from it and is " +
+  "reported unchecked rather than satisfied";
 
 /** What matching one declaration's expectations against one observation list produced. */
 export interface ExpectationMatch {
@@ -1610,31 +1614,172 @@ export interface ExpectationMatch {
   readonly reasons: readonly string[];
 }
 
-/** STUB — plan 03-08 Task 2 RED. */
-export function matchExpectations(
-  _observations: readonly McpObservation[],
-  _declaration: CanaryDeclaration,
-): ExpectationMatch {
-  return {
-    matched: [],
-    missing: [],
-    forbiddenSeen: [],
-    ordered: null,
-    distinctServers: 0,
-    maxDistinctServers: 0,
-    withinServerBudget: true,
-    satisfiedArgumentPatterns: [],
-    unsatisfiedArgumentPatterns: [],
-    uncheckedArgumentPatterns: [],
-    observationCount: 0,
-    held: false,
-    reasons: [],
-  };
+/**
+ * Whether `needle` appears inside `haystack` in order, allowing gaps.
+ *
+ * A SUBSEQUENCE rather than a contiguous run: a correct route may make calls
+ * the declaration says nothing about between its two legs — a documentation
+ * lookup mid-research, a retry — and a contiguity requirement would report
+ * those as an ordering failure.
+ */
+function isOrderedSubsequence(needle: readonly string[], haystack: readonly string[]): boolean {
+  let cursor = 0;
+  for (const item of haystack) {
+    if (cursor < needle.length && needle[cursor] === item) cursor += 1;
+  }
+  return cursor === needle.length;
 }
 
-/** STUB — plan 03-08 Task 2 RED. */
-export function countDistinctServers(_observations: readonly McpObservation[]): number {
-  return 0;
+/**
+ * The fan-out judgement: how many DISTINCT research servers one run touched.
+ *
+ * Keyed on server id alone, so repeated calls to one server collapse to a
+ * single touch. That collapse is load-bearing, not a simplification:
+ * 03-RESEARCH.md Pitfall 1's second-order note records that the discovery
+ * server ships its own fetch tool, so a run that searches and then fetches
+ * entirely on the discovery server makes two calls and is a correct
+ * single-server lookup. A count that summed those two would report this
+ * phase's own recommended routing as fan-out.
+ *
+ * It is a count and not a required tool sequence for the same reason: more
+ * than one reasonable two-tool path exists, and pinning one would fail a
+ * correct run.
+ */
+export function countDistinctServers(observations: readonly McpObservation[]): number {
+  return new Set(observations.map((observation) => observation.server)).size;
+}
+
+/**
+ * Whether a declared argument pattern is one a RECORDED SHAPE can decide.
+ *
+ * Two conditions, and both are required: the (tool, argument) pair must be the
+ * one the observation front classifies, and the declared pattern must be the
+ * version-scoped pattern that classification implements. A declaration naming
+ * some other argument, or the same argument with a different regular
+ * expression, is checking something the record does not carry — and is
+ * reported unchecked rather than approximated.
+ */
+function shapeDecides(pattern: CanaryArgumentPattern): boolean {
+  return (
+    classifiedIdentifierArgument(pattern.tool) === pattern.argument &&
+    pattern.pattern === VERSION_SCOPED_IDENTIFIER_PATTERN
+  );
+}
+
+/**
+ * Matches one declaration's expectations against one observation list.
+ *
+ * The ONE matcher: `decideInvocation` computes its verdict from this rather
+ * than from a second copy of the rules, so a canary cannot hold one opinion
+ * about an observation list while the ledger holds another.
+ *
+ * Ordering is a first-class verdict. CAPA-02's claim is that discovery happens
+ * and THEN extraction — an ordering claim — and a set comparison cannot express
+ * it: an extraction-first run would satisfy a set of the same two names
+ * (T-03-72).
+ */
+export function matchExpectations(
+  observations: readonly McpObservation[],
+  declaration: CanaryDeclaration,
+): ExpectationMatch {
+  // A denied call counts as a reach for the tool. The proxy records a policy
+  // refusal deliberately: that the model reached for a named tool is exactly
+  // the evidence a capability canary is after.
+  const called = observations.map((observation) => observation.tool);
+  const expected = new Set(declaration.expectTools);
+
+  // Reported in OBSERVED order, not in declared order: this list is what a
+  // reader compares against `ordered` below, and a list silently re-sorted into
+  // the order that was expected would make a failing order look like a passing
+  // one.
+  const seen = new Set<string>();
+  const matched: string[] = [];
+  for (const tool of called) {
+    if (expected.has(tool) && !seen.has(tool)) {
+      seen.add(tool);
+      matched.push(tool);
+    }
+  }
+  const missing = declaration.expectTools.filter((tool) => !seen.has(tool));
+  const forbiddenSeen = declaration.forbidTools.filter((tool) => called.includes(tool));
+
+  const distinctServers = countDistinctServers(observations);
+  const withinServerBudget = distinctServers <= declaration.maxDistinctServers;
+
+  // Null when the declaration asked for no order, and when one tool is expected
+  // — a single call is in order by construction, and reporting `true` there
+  // would be an ordering verdict nothing established.
+  const ordered =
+    declaration.expectOrdered === true && declaration.expectTools.length > 1
+      ? isOrderedSubsequence(declaration.expectTools, called)
+      : null;
+
+  const satisfiedArgumentPatterns: string[] = [];
+  const unsatisfiedArgumentPatterns: string[] = [];
+  const uncheckedArgumentPatterns: string[] = [];
+  for (const pattern of declaration.expectArgumentPatterns ?? []) {
+    const key = `${pattern.tool}.${pattern.argument}`;
+    if (!shapeDecides(pattern)) {
+      uncheckedArgumentPatterns.push(key);
+      continue;
+    }
+    const shapes = observations
+      .filter((observation) => observation.tool === pattern.tool)
+      .map((observation) => observation.identifierShape)
+      .filter((shape): shape is IdentifierShape => shape !== undefined);
+    if (shapes.length === 0) {
+      // The call was not classified — no observation of it carries a shape —
+      // so neither verdict is available. Unchecked, with the reason, exactly as
+      // before this field existed.
+      uncheckedArgumentPatterns.push(key);
+    } else if (shapes.includes("version-scoped")) {
+      satisfiedArgumentPatterns.push(key);
+    } else {
+      unsatisfiedArgumentPatterns.push(key);
+    }
+  }
+
+  const reasons: string[] = [];
+  if (missing.length > 0) reasons.push(`no observation records a call to ${missing.join(", ")}`);
+  if (forbiddenSeen.length > 0) reasons.push(`a forbidden tool was called: ${forbiddenSeen.join(", ")}`);
+  if (!withinServerBudget) {
+    reasons.push(
+      `the run touched ${distinctServers} distinct servers, past the declared maximum of ${declaration.maxDistinctServers}`,
+    );
+  }
+  if (ordered === false) reasons.push("the expected tools were called, but not in the declared order");
+  if (unsatisfiedArgumentPatterns.length > 0) {
+    reasons.push(
+      `${unsatisfiedArgumentPatterns.join(", ")}: the recorded identifier shape does not satisfy the declared pattern`,
+    );
+  }
+  if (uncheckedArgumentPatterns.length > 0) {
+    reasons.push(`${uncheckedArgumentPatterns.join(", ")}: ${ARGUMENT_PATTERNS_NOT_OBSERVABLE}`);
+  }
+  if (observations.length === 0) reasons.push("no tool call crossed the observation front at all");
+
+  const held =
+    missing.length === 0 &&
+    forbiddenSeen.length === 0 &&
+    withinServerBudget &&
+    ordered !== false &&
+    unsatisfiedArgumentPatterns.length === 0;
+
+  return {
+    matched,
+    missing,
+    forbiddenSeen,
+    ordered,
+    distinctServers,
+    maxDistinctServers: declaration.maxDistinctServers,
+    withinServerBudget,
+    satisfiedArgumentPatterns,
+    unsatisfiedArgumentPatterns,
+    uncheckedArgumentPatterns,
+    observationCount: observations.length,
+    held,
+    reasons,
+  };
 }
 
 /** What the observation records — and only they — say about one canary. */
@@ -1649,7 +1794,11 @@ export interface InvocationVerdict {
   readonly withinServerBudget: boolean;
   /** Null when the declaration asked for no order. */
   readonly ordered: boolean | null;
-  /** Declared argument patterns, none of which this record shape can check. */
+  /** Declared argument patterns the recorded identifier shape SATISFIES. */
+  readonly satisfiedArgumentPatterns: readonly string[];
+  /** Declared argument patterns the recorded shape contradicts. */
+  readonly unsatisfiedArgumentPatterns: readonly string[];
+  /** Declared argument patterns no recorded shape can decide, reported with the reason. */
   readonly uncheckedArgumentPatterns: readonly string[];
   /**
    * Whether every declared expectation held, INDEPENDENT of whether anything
@@ -1675,56 +1824,29 @@ export function decideInvocation(
   canary: CanaryDeclaration,
   observations: readonly McpObservation[],
 ): InvocationVerdict {
-  // A denied call counts as a reach for the tool. The proxy records a policy
-  // refusal deliberately: that the model reached for a named tool is exactly
-  // the evidence a capability canary is after.
-  const called = observations.map((observation) => observation.tool);
-  const matched = canary.expectTools.filter((tool) => called.includes(tool));
-  const missing = canary.expectTools.filter((tool) => !called.includes(tool));
-  const forbiddenSeen = canary.forbidTools.filter((tool) => called.includes(tool));
-  const distinctServers = new Set(observations.map((observation) => observation.server)).size;
-  const withinServerBudget = distinctServers <= canary.maxDistinctServers;
-
-  let ordered: boolean | null = null;
-  if (canary.expectOrdered === true && canary.expectTools.length > 1) {
-    const positions = canary.expectTools.map((tool) => called.indexOf(tool));
-    ordered = positions.every(
-      (position, index) => position >= 0 && (index === 0 || position > (positions[index - 1] ?? -1)),
-    );
-  }
-
-  const uncheckedArgumentPatterns = (canary.expectArgumentPatterns ?? []).map(
-    (entry) => `${entry.tool}.${entry.argument}`,
-  );
-
-  const reasons: string[] = [];
-  if (missing.length > 0) reasons.push(`no observation records a call to ${missing.join(", ")}`);
-  if (forbiddenSeen.length > 0) reasons.push(`a forbidden tool was called: ${forbiddenSeen.join(", ")}`);
-  if (!withinServerBudget) {
-    reasons.push(
-      `the run touched ${distinctServers} distinct servers, past the declared maximum of ${canary.maxDistinctServers}`,
-    );
-  }
-  if (ordered === false) reasons.push("the expected tools were called, but not in the declared order");
-  if (uncheckedArgumentPatterns.length > 0) {
-    reasons.push(`${uncheckedArgumentPatterns.join(", ")}: ${ARGUMENT_PATTERNS_NOT_OBSERVABLE}`);
-  }
-  if (observations.length === 0) reasons.push("no tool call crossed the observation front at all");
-
-  const expectationsHeld = missing.length === 0 && forbiddenSeen.length === 0 && withinServerBudget && ordered !== false;
+  // Computed by the ONE matcher rather than by a second copy of the rules. Two
+  // implementations of "did the expectations hold" is two verdicts nobody can
+  // tell apart when they disagree.
+  const match = matchExpectations(observations, canary);
   return {
-    nativeUse: expectationsHeld && observations.length > 0 ? "invoked" : "unverified",
-    matched,
-    missing,
-    forbiddenSeen,
-    distinctServers,
-    maxDistinctServers: canary.maxDistinctServers,
-    withinServerBudget,
-    ordered,
-    uncheckedArgumentPatterns,
-    expectationsHeld,
-    observationCount: observations.length,
-    reasons,
+    // `invoked` needs both halves: the expectations held AND something was
+    // actually observed. A fan-out control that observed nothing has held its
+    // expectation and invoked nothing, and merging those would let a control
+    // read as a proof.
+    nativeUse: match.held && observations.length > 0 ? "invoked" : "unverified",
+    matched: match.matched,
+    missing: match.missing,
+    forbiddenSeen: match.forbiddenSeen,
+    distinctServers: match.distinctServers,
+    maxDistinctServers: match.maxDistinctServers,
+    withinServerBudget: match.withinServerBudget,
+    ordered: match.ordered,
+    satisfiedArgumentPatterns: match.satisfiedArgumentPatterns,
+    unsatisfiedArgumentPatterns: match.unsatisfiedArgumentPatterns,
+    uncheckedArgumentPatterns: match.uncheckedArgumentPatterns,
+    expectationsHeld: match.held,
+    observationCount: match.observationCount,
+    reasons: match.reasons,
   };
 }
 

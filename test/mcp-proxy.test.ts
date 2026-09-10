@@ -1453,3 +1453,72 @@ test("the proxy fixture's advertised tools agree with the measured upstream surf
     }
   }
 });
+
+test("an observed call records the identifier's SHAPE and never the identifier itself", async (context) => {
+  // The end-to-end half of plan 03-08 Task 2's offline matcher assertions: a
+  // real call through a real observing proxy, so the classification is proven
+  // on the path a canary actually travels rather than only on a synthetic
+  // record. Added as a regression guard after the offline behaviours were
+  // green, and recorded as such rather than counted as a RED.
+  const fixture = await createProxyFixture(context);
+  const child = await startProxyChild(fixture, { server: "context7", mode: "observe" });
+  const identifier = "/vercel/next.js/v16.2.2";
+
+  await child.client.callTool(
+    { name: "resolve-library-id", arguments: { libraryName: "Next.js" } },
+    undefined,
+    { timeout: 30_000 },
+  );
+  await child.client.callTool(
+    { name: "query-docs", arguments: { libraryId: identifier, query: "streaming route handlers" } },
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const records = await child.observations();
+  assert.equal(records.length, 2, `exactly one record per observed call: ${JSON.stringify(records)}`);
+
+  const queried = records.find((record) => record.tool === "query-docs");
+  assert.ok(queried, "the observed query-docs call produced no record");
+  assert.deepEqual(
+    Object.keys(queried).sort(),
+    ["at", "identifierShape", "outcome", "server", "tool", "upstreamVersion"],
+    "the record is still closed: the five original fields plus exactly one classification, and no argument field",
+  );
+  assert.equal(queried.identifierShape, "version-scoped");
+
+  // A tool alpha-AOS declares no identifier argument for carries no shape at
+  // all, so the field stays a declared classification rather than a reader of
+  // whatever was passed.
+  const resolved = records.find((record) => record.tool === "resolve-library-id");
+  assert.ok(resolved);
+  assert.equal(Object.hasOwn(resolved, "identifierShape"), false);
+
+  // And the identifier VALUE is nowhere in what a ledger or a CI log reads.
+  const serialized = JSON.stringify(records);
+  assert.equal(serialized.includes(identifier), false, "the identifier value reached the observation record");
+  assert.equal(serialized.includes("next.js"), false, "part of the identifier value reached the observation record");
+  assert.equal(
+    serialized.includes("version-scoped"),
+    true,
+    "the shape is absent too, so the two assertions above prove nothing",
+  );
+});
+
+test("an unscoped identifier is classified as unscoped rather than left unrecorded", async (context) => {
+  // The negative control for the assertion above: without it, "version-scoped"
+  // could be a constant the proxy writes for every classified call.
+  const fixture = await createProxyFixture(context);
+  const child = await startProxyChild(fixture, { server: "context7", mode: "observe" });
+
+  await child.client.callTool(
+    { name: "query-docs", arguments: { libraryId: "/vercel/next.js" } },
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const records = await child.observations();
+  const queried = records.find((record) => record.tool === "query-docs");
+  assert.ok(queried);
+  assert.equal(queried.identifierShape, "unscoped");
+});

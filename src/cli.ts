@@ -64,6 +64,7 @@ import {
   capabilityLedgerPath,
   harnessMinorKey,
   readCapabilityLedger,
+  upsertProof,
   writeCapabilityLedger,
   type CapabilityProof,
   type HarnessVersion,
@@ -301,9 +302,9 @@ async function alphaAosVersion(): Promise<string> {
 async function appendCapabilityProofs(
   stateRoot: string,
   proofs: readonly CapabilityProof[],
-): Promise<{ status: string; recorded: number; path: string }> {
+): Promise<{ status: string; recorded: number; replaced: number; path: string }> {
   const path = capabilityLedgerPath(stateRoot);
-  if (proofs.length === 0) return { status: "nothing-to-record", recorded: 0, path };
+  if (proofs.length === 0) return { status: "nothing-to-record", recorded: 0, replaced: 0, path };
 
   const existing = await readCapabilityLedger(path);
   if (existing.state === "unreadable") {
@@ -312,16 +313,27 @@ async function appendCapabilityProofs(
         `overwritten: ${existing.issues.map((issue) => `${issue.code}@${issue.documentPath}`).join(", ") || "no issue code recorded"}`,
     );
   }
+  // Replaced in place, never appended: one row per project/harness/capability/
+  // polarity identity, so "what is proven here" stays a question with one
+  // answer. The replaced row's exact harness version is carried into the audit
+  // field D-04 requires.
+  let merged: readonly CapabilityProof[] = existing.state === "present" ? existing.ledger.proofs : [];
+  let replaced = 0;
+  for (const proof of proofs) {
+    const upsert = upsertProof(merged, proof);
+    merged = upsert.proofs;
+    if (upsert.replaced !== null) replaced += 1;
+  }
   const write = await writeCapabilityLedger({
     stateRoot,
     ledger: {
       schemaVersion: CAPABILITY_LEDGER_SCHEMA_VERSION,
       producer: { name: "alpha-aos", version: await alphaAosVersion() },
       updatedAt: new Date().toISOString(),
-      proofs: [...(existing.state === "present" ? existing.ledger.proofs : []), ...proofs],
+      proofs: merged,
     },
   });
-  return { status: write.status, recorded: proofs.length, path: write.path };
+  return { status: write.status, recorded: proofs.length, replaced, path: write.path };
 }
 
 async function main(): Promise<void> {

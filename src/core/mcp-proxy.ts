@@ -474,7 +474,21 @@ const CLASSIFIED_IDENTIFIER_ARGUMENTS: Readonly<Record<string, string>> = Object
  * `Versions:` list, so a three-segment id in the following call is the model
  * having used it.
  */
-const VERSION_SCOPED_IDENTIFIER = /^\/[^/]+\/[^/]+\/[^/]+$/u;
+export const VERSION_SCOPED_IDENTIFIER_PATTERN = "^/[^/]+/[^/]+/[^/]+$";
+
+const VERSION_SCOPED_IDENTIFIER = new RegExp(VERSION_SCOPED_IDENTIFIER_PATTERN, "u");
+
+/**
+ * The argument name alpha-AOS classifies on this tool, or null when it
+ * classifies none.
+ *
+ * Exported so a consumer can ask whether a DECLARED expectation is one a
+ * recorded shape is able to decide, rather than assuming it is. An expectation
+ * over an argument nothing classifies must stay unchecked with its reason.
+ */
+export function classifiedIdentifierArgument(tool: string): string | null {
+  return CLASSIFIED_IDENTIFIER_ARGUMENTS[tool] ?? null;
+}
 
 /**
  * Classifies one call's declared identifier argument, WITHOUT retaining it.
@@ -516,6 +530,10 @@ export function observationLine(observation: McpObservation): string {
     at: observation.at,
     upstreamVersion: observation.upstreamVersion,
     outcome: observation.outcome,
+    // Omitted entirely when the call carried no classified identifier, so a
+    // record for a tool alpha-AOS classifies nothing on stays byte-identical
+    // to what it was before this field existed.
+    ...(observation.identifierShape === undefined ? {} : { identifierShape: observation.identifierShape }),
   })}\n`;
 }
 
@@ -552,7 +570,21 @@ export function readObservationRecords(text: string): readonly McpObservation[] 
     if (typeof server !== "string" || !MCP_SERVER_IDS.includes(server as McpServerId)) continue;
     if (typeof tool !== "string" || typeof at !== "string" || typeof upstreamVersion !== "string") continue;
     if (outcome !== "ok" && outcome !== "denied") continue;
-    records.push({ server: server as McpServerId, tool, at, upstreamVersion, outcome });
+    // Field-selective for the sixth field exactly as for the first five, and
+    // closed against its two declared members: a line that grew an
+    // `identifierShape` holding anything else — an identifier VALUE, say — is
+    // skipped rather than guessed at, so a forged record cannot smuggle a value
+    // through the one field that was opened.
+    const identifierShape = record.identifierShape;
+    if (identifierShape !== undefined && !IDENTIFIER_SHAPES.includes(identifierShape as IdentifierShape)) continue;
+    records.push({
+      server: server as McpServerId,
+      tool,
+      at,
+      upstreamVersion,
+      outcome,
+      ...(identifierShape === undefined ? {} : { identifierShape: identifierShape as IdentifierShape }),
+    });
   }
   return records;
 }
@@ -604,14 +636,21 @@ function observe(
   locked: LockedPackage,
   tool: string,
   outcome: McpObservation["outcome"],
+  args?: unknown,
 ): void {
   if (options.mode !== "observe") return;
+  // Classified HERE and discarded immediately. The arguments object exists in
+  // this frame and in no other, so there is no point at which a caller could
+  // reach a value through the record. That is the whole of how the one new
+  // field stays a classification rather than a channel.
+  const identifierShape = identifierShapeOf(tool, args);
   options.sink?.record({
     server: serverId,
     tool,
     at: new Date().toISOString(),
     upstreamVersion: locked.version,
     outcome,
+    ...(identifierShape === null ? {} : { identifierShape }),
   });
 }
 
@@ -653,11 +692,11 @@ export async function runMcpProxy(
     if (allow && !allow.has(tool)) {
       // Recorded BEFORE the throw: a policy refusal is evidence that the model
       // reached for a tool, which is exactly what a capability canary needs.
-      observe(options, serverId, locked, tool, "denied");
+      observe(options, serverId, locked, tool, "denied", request.params.arguments);
       throw new Error(mcpPolicyRefusal(tool));
     }
     const result = await client.callTool(request.params);
-    observe(options, serverId, locked, tool, "ok");
+    observe(options, serverId, locked, tool, "ok", request.params.arguments);
     return result;
   });
 

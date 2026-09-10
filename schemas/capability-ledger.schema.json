@@ -148,6 +148,12 @@
               "stdoutFingerprint": { "$ref": "#/$defs/sha256" },
               "stderrFingerprint": { "$ref": "#/$defs/sha256" }
             }
+          },
+          "supersededHarnessVersions": {
+            "description": "Exact harness versions this row's EARLIER proofs were taken on, oldest first. Audit only, and bound to by NOTHING. A row is replaced in place so the ledger holds one record per project/harness/capability/polarity identity; 03-CONTEXT.md D-04 nevertheless requires the ledger to keep recording the exact version that was proven, and two proofs a patch apart replace each other silently because the comparison reads the minor key. Optional: a row that has never been replaced has nothing to carry, and absent is not the same fact as an empty list.",
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" }
           }
         }
       }

@@ -46,6 +46,7 @@ import type {
   SurfaceSupport,
   TargetPreState,
 } from "../types.js";
+import type { CapabilityLedger, NativeUseState } from "./capability-ledger.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import {
   assertPlanUnchanged,
@@ -597,69 +598,171 @@ export const PROJECT_SKILL_ROOTS: Readonly<Partial<Record<HarnessId, string>>> =
 };
 
 /**
- * What is actually recorded about each harness's project-scope pack delivery.
+ * One surface's CEILING: the product claim, owned by code and catalog.
  *
- * Every classification below is read off documented discovery or off
- * `catalog/stack.yaml`'s recorded strategy. No probe runs on the preview path
- * — probes are Phase 3's canaries — so nothing here is upgraded on the
- * strength of a plausible filename.
+ * `citation` is the file the value was read from or the version it was
+ * observed at, and `reason` CARRIES it verbatim — a reader of the rendered
+ * reason can check the claim without holding this record. A reason that cites
+ * nothing is refused by a named test, because an unciteable reason is
+ * indistinguishable from a guess.
  */
-const ADAPTER_SUPPORT_EVIDENCE = new Map<HarnessId, { support: SurfaceSupport; reason: string }>([
+export interface SurfaceCeilingEntry {
+  readonly support: SurfaceSupport;
+  /** One sentence stating the ground, ending in `[cited: <citation>]`. */
+  readonly reason: string;
+  /** The file or the version the claim was read from. Contained in `reason`. */
+  readonly citation: string;
+}
+
+function ceiling(support: SurfaceSupport, ground: string, citation: string): SurfaceCeilingEntry {
+  return { support, reason: `${ground} [cited: ${citation}]`, citation };
+}
+
+/**
+ * The STRUCTURAL claim about each declared harness: can this surface receive
+ * project-scope packs at all?
+ *
+ * This is one half of 03-CONTEXT.md D-10, and it is the half code and catalog
+ * own. It answers a product question, never a host question: `unsupported`
+ * means no project delivery surface is available to alpha-AOS here, and every
+ * other value means the surface is structurally able to receive a pack and the
+ * CAPABILITY LEDGER decides whether this host has actually proven it.
+ *
+ * No probe runs on the preview path — probes are this phase's canaries — so
+ * nothing here is upgraded on the strength of a plausible filename, and every
+ * entry cites either a documented behaviour or a recorded catalog value.
+ */
+export const SURFACE_CEILING: ReadonlyMap<HarnessId, SurfaceCeilingEntry> = new Map<HarnessId, SurfaceCeilingEntry>([
   [
     "claude",
-    {
-      support: "supported",
-      reason: "project skills load from .claude/skills/<skill>/SKILL.md, which is the documented project-scope location and the shape the design docs already assume",
-    },
+    ceiling(
+      "supported",
+      "project skills load from .claude/skills/<skill>/SKILL.md, which is the documented project-scope location and the shape the design docs already assume",
+      "docs/alpha-vibe-stack-codex.md",
+    ),
   ],
   [
     "codex",
-    {
-      support: "unverified",
-      reason: "a project-local .agents/skills root exists, but no documented project-scope discovery has been proven; an over-claimed supported is the failure that matters",
-    },
+    ceiling(
+      "unverified",
+      "codex 0.152.0 was observed discovering the shared project-local .agents/skills root and a second harness-specific .codex/skills root, with a fixture skill watched entering the model-visible prompt from each; PROJECT_SKILL_ROOTS deliberately targets only .agents/skills, and whether THIS host has proven delivery is the ledger's business rather than the ceiling's",
+      "codex-cli 0.152.0",
+    ),
   ],
   [
     "pi",
-    {
-      support: "unverified",
-      reason: "catalog/stack.yaml records eccStrategy: bridge with no eccTarget, and project-scope discovery under .pi/skills is not documented",
-    },
+    ceiling(
+      "unverified",
+      "pi 0.85.1 documents project-scope skill discovery under .pi/skills and was observed reporting scope: project for a fixture skill placed there, behind its trust gate; catalog/stack.yaml records eccStrategy: bridge with no eccTarget, so no target is planned yet and whether THIS host has proven delivery is the ledger's business rather than the ceiling's",
+      "pi 0.85.1 docs/skills.md",
+    ),
   ],
   [
     "antigravity",
-    {
-      support: "unsupported",
-      reason: "no project-local skill root is enumerated for antigravity; project-scope pack delivery stays unsupported until a canary proves otherwise",
-    },
+    ceiling(
+      "unsupported",
+      "discoverSkillPaths enumerates no project-local skill root for antigravity, so no target could be planned for it at all; 03-RESEARCH.md assumption A4 records a probe of this host that found no project skill root literal in the packaged application and no antigravity command on PATH, and calls that strong absence of evidence rather than evidence of absence, so the fail-closed answer is the one that does not promise an opt-out",
+      "src/core/isolation.ts",
+    ),
   ],
   [
     "hermes",
-    {
-      support: "unsupported",
-      reason: "catalog/stack.yaml records gsdStrategy: worker-only, which rules out project-scope pack delivery until a canary proves otherwise",
-    },
+    ceiling(
+      "unsupported",
+      "no hermes project delivery surface is in scope for this milestone and none has been probed; the strategy catalog/stack.yaml records is NOT the ground, because hermes 0.20.6 ships a skills trust subcommand whose own help text describes trusting a project so its repository-local skills load",
+      "hermes 0.20.6",
+    ),
   ],
 ]);
 
+/** How high a support value sits, so a RAISE can be told from a demotion. */
+const SUPPORT_RANK: Readonly<Record<SurfaceSupport, number>> = { unsupported: 0, unverified: 1, supported: 2 };
+
 /**
- * One classification per DECLARED harness, from recorded evidence only.
+ * What the capability ledger PROVED about each surface on this host.
  *
- * A harness this table does not know is `unverified`, never `supported`: the
- * fail-closed answer for an unclassified surface is the one that blocks a
- * mandatory gate rather than the one that quietly promises an opt-out.
+ * The bar is a POSITIVE, project-scoped proof whose native-use axis records
+ * that the harness actually saw the skill — `discovered` or `invoked`. An
+ * `unverified` row proves nothing, and a proof with no project id was not
+ * about project-scope delivery at all.
+ *
+ * This deliberately reads the RECORDED observation rather than the
+ * demotion-aware axis. D-04's demotion governs the NATIVE-USE axis — whether a
+ * proof still stands for the inputs it was taken against — and
+ * `resolveCapabilityState` composes the two. Merging them here would put one
+ * axis inside the other, which is the one thing D-10 forbids.
  */
-export function classifyAdapterSupport(declared: readonly HarnessId[]): AdapterSupportEntry[] {
+export function provenSurfaceSupport(
+  ledger: CapabilityLedger | null | undefined,
+): ReadonlyMap<HarnessId, { readonly support: SurfaceSupport; readonly nativeUse: NativeUseState }> {
+  const proven = new Map<HarnessId, { support: SurfaceSupport; nativeUse: NativeUseState }>();
+  if (ledger === null || ledger === undefined) return proven;
+  for (const proof of ledger.proofs) {
+    if (proof.polarity !== "positive") continue;
+    if (proof.projectId === null) continue;
+    if (proof.nativeUse !== "discovered" && proof.nativeUse !== "invoked") continue;
+    proven.set(proof.harness as HarnessId, { support: "supported", nativeUse: proof.nativeUse });
+  }
+  return proven;
+}
+
+/**
+ * One classification per DECLARED harness, resolved from the ceiling and the
+ * ledger — two axes that are never merged (03-CONTEXT.md D-10).
+ *
+ * A harness the ceiling does not know is `unverified`, never `supported`: the
+ * fail-closed answer for an unclassified surface is the one that blocks a
+ * mandatory gate rather than the one that quietly promises an opt-out. It also
+ * has no ceiling to be raised WITHIN, so a ledger row claiming to have proven
+ * it changes nothing — the fail-closed default is not reachable around.
+ *
+ * `ledger` is optional and the preview path passes none. That is not a
+ * convenience: `digestablePlan` folds `adapterSupportEvidence` in, so a host
+ * fact reaching this resolver on the plan path would make two reviewers of the
+ * identical commit compute different plan digests (T-03-83).
+ */
+export function classifyAdapterSupport(
+  declared: readonly HarnessId[],
+  ledger?: CapabilityLedger | null,
+): AdapterSupportEntry[] {
+  const proven = provenSurfaceSupport(ledger);
   return [...declared].sort(byCodePoint).map((harness) => {
-    const recorded = ADAPTER_SUPPORT_EVIDENCE.get(harness);
+    const recorded = SURFACE_CEILING.get(harness);
     if (recorded === undefined) {
       return {
         harness,
         support: "unverified" as SurfaceSupport,
-        reason: `no recorded evidence classifies project-scope pack delivery for ${harness}`,
+        reason:
+          `no recorded ceiling classifies project-scope pack delivery for ${harness}, so there is no ceiling for host ` +
+          "evidence to raise it within and it stays unverified",
       };
     }
-    return { harness, support: recorded.support, reason: recorded.reason };
+
+    const host = proven.get(harness);
+    if (host === undefined) return { harness, support: recorded.support, reason: recorded.reason };
+
+    if (recorded.support === "unsupported") {
+      return {
+        harness,
+        support: "unsupported" as SurfaceSupport,
+        reason:
+          `${recorded.reason} The ceiling bound this result: the capability ledger records ${host.nativeUse} on ` +
+          "this host, and host evidence may only raise a surface within its ceiling, never above it.",
+      };
+    }
+
+    if (SUPPORT_RANK[host.support] <= SUPPORT_RANK[recorded.support]) {
+      return { harness, support: recorded.support, reason: recorded.reason };
+    }
+
+    return {
+      harness,
+      support: host.support,
+      reason:
+        `raised from ${recorded.support} to ${host.support} because the capability ledger records ${host.nativeUse} ` +
+        `for a project-scoped capability on this host, within the ceiling recorded from ${recorded.citation}. ` +
+        `The ceiling itself is unchanged: ${recorded.reason}`,
+    };
   });
 }
 

@@ -53,7 +53,7 @@ import type {
 } from "../src/adapters/capability-oracle.js";
 import type { BoundInputs, HarnessVersion } from "../src/core/capability-ledger.js";
 import { runDiscoverySweep, loadCanaryCatalog } from "../src/core/canary.js";
-import { applyProjectPackSync } from "../src/core/project-pack-sync.js";
+import { applyProjectPackSync, PACK_SIDECAR_FILE } from "../src/core/project-pack-sync.js";
 import { approveProjectPlan, planProjectCapabilities, PROJECT_SKILL_ROOTS } from "../src/core/project-plan.js";
 import {
   CLAUDE_INSIDE_RECORDING,
@@ -717,7 +717,7 @@ function digest(content: string): string {
 async function materializedPackFixture(
   context: { after: (fn: () => Promise<void>) => void },
   label: string,
-): Promise<{ projectRoot: string; stateRoot: string; written: readonly string[] }> {
+): Promise<{ projectRoot: string; stateRoot: string; written: readonly string[]; sidecars: readonly string[] }> {
   const base = await mkdtemp(join(tmpdir(), `alpha-aos-capa05-${label}-`));
   context.after(async () => rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
@@ -772,7 +772,27 @@ async function materializedPackFixture(
     const expected = `${PROJECT_SKILL_ROOTS[harness] ?? ""}/${PACK_SKILL_UNDER_TEST}/SKILL.md`;
     assert.ok(applied.written.includes(expected), `${expected} was not materialized: ${applied.written.join(", ")}`);
   }
-  return { projectRoot, stateRoot, written: applied.written };
+  // The D-07 sidecar has to be THERE for the live tolerance assertion below to
+  // mean anything: without this, "the harness listed one more skill" would hold
+  // just as well on a run that wrote no sidecar at all, and would re-prove
+  // nothing about T-03-100.
+  const codexSidecar = `${PROJECT_SKILL_ROOTS.codex ?? ""}/${PACK_SKILL_UNDER_TEST}/${PACK_SIDECAR_FILE}`;
+  assert.ok(
+    applied.sidecars.includes(codexSidecar),
+    `no sidecar was planned into codex's skill root, so the tolerance assertion would be vacuous: ${applied.sidecars.join(", ")}`,
+  );
+  // Read the BYTES, not the report. `applied.sidecars` lists what the
+  // transaction was handed; this establishes that the file is actually sitting
+  // in the directory the harness is about to scan, which is the precondition
+  // the live tolerance assertion below rests on. A read rather than an
+  // existence check: this task's acceptance forbids a directory listing from
+  // standing in for evidence, and a read that fails is just as loud.
+  const sidecarOnDisk = JSON.parse(
+    await readFile(join(projectRoot, ...codexSidecar.split("/")), "utf8"),
+  ) as { packId?: unknown; owner?: unknown };
+  assert.equal(sidecarOnDisk.owner, "alpha-aos");
+  assert.equal(sidecarOnDisk.packId, PACK_UNDER_TEST);
+  return { projectRoot, stateRoot, written: applied.written, sidecars: applied.sidecars };
 }
 
 test("the pack-exercise canary is declared for the representative pack and names neither the skill nor a tool", async () => {
@@ -803,7 +823,8 @@ test("the pack-exercise canary is declared for the representative pack and names
 });
 
 test("the materialized pack is discovered inside the project and not in a constructed control directory", async (t) => {
-  const { projectRoot } = await materializedPackFixture(t, "paired");
+  const { projectRoot, sidecars } = await materializedPackFixture(t, "paired");
+  assert.ok(sidecars.length > 0, "the fixture wrote no sidecar, so the tolerance assertion below proves nothing");
   const control = await scratchRoot(t, "capa06-control");
   const unknownVersion: HarnessVersion = { exact: null, minorKey: null, raw: "" };
 

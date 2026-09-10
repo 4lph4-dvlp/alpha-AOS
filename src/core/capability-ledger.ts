@@ -21,6 +21,7 @@ import { packageRoot, RootKeyedCache, userStateRoot } from "./paths.js";
 // project-plan module into a status path that only needs three strings.
 import type { PackState } from "./project-plan.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
+import type { MutationSession } from "./writer-lock.js";
 
 /** Directory under the user state root that holds host-scoped capability evidence. */
 export const CAPABILITY_LEDGER_DIRECTORY = "capabilities";
@@ -572,4 +573,59 @@ export function capabilityStatusJson(status: CapabilityStatus): {
     blocked: status.resolution.blocked,
     blockedReason: status.resolution.blockedReason,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The paired evidence unit and the single write path
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether an evidence unit is a claim anyone may act on.
+ *
+ * A string-literal union rather than a boolean, because INCOMPLETE is NOT a
+ * failed negative: a missing control and a control that ran and disagreed are
+ * different facts, and a boolean would render them alike.
+ */
+export type EvidenceCompleteness = "COMPLETE" | "INCOMPLETE";
+
+export interface EvidenceUnit {
+  readonly capability: string;
+  readonly harness: LedgerHarness;
+  readonly completeness: EvidenceCompleteness;
+  readonly positive: CapabilityProof | null;
+  readonly negative: CapabilityProof | null;
+  /** Which half is missing, or null when both halves are present. */
+  readonly missingHalf: "positive" | "negative" | null;
+  readonly incompleteReasons: readonly string[];
+  /** The axis this unit reports. Null on INCOMPLETE, always. */
+  readonly nativeUse: NativeUseState | null;
+  readonly summary: string;
+}
+
+export function pairEvidence(_positive: CapabilityProof, _negative: CapabilityProof | null): EvidenceUnit {
+  throw new Error("pairEvidence is not implemented");
+}
+
+export interface WriteCapabilityLedgerOptions {
+  /** REQUIRED. There is no default, and that is the point. */
+  readonly stateRoot: string;
+  readonly ledger: CapabilityLedger;
+  readonly session?: MutationSession;
+}
+
+export interface CapabilityLedgerWrite {
+  readonly status: "written" | "already-current";
+  /** The journal id, or null when nothing was written. */
+  readonly operationId: string | null;
+  readonly path: string;
+}
+
+export function capabilityLedgerBytes(_ledger: CapabilityLedger): string {
+  throw new Error("capabilityLedgerBytes is not implemented");
+}
+
+export async function writeCapabilityLedger(
+  _options: WriteCapabilityLedgerOptions,
+): Promise<CapabilityLedgerWrite> {
+  throw new Error("writeCapabilityLedger is not implemented");
 }

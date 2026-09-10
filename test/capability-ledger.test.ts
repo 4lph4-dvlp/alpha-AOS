@@ -9,9 +9,10 @@
 //   3. a positive with no negative control is INCOMPLETE, not a pass (D-14).
 
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 
 import {
@@ -19,9 +20,11 @@ import {
   capabilityLedgerRoot,
   capabilityStatusJson,
   harnessMinorKey,
+  pairEvidence,
   readCapabilityLedger,
   resolveCapabilityStatus,
   resolveNativeUse,
+  writeCapabilityLedger,
   type CapabilityLedger,
   type CapabilityProof,
   type CurrentInputs,
@@ -419,4 +422,173 @@ test("a blocked reason carrying a value field is refused by the closed schema", 
   assert.equal(read.state, "unreadable");
   if (read.state !== "unreadable") return;
   assert.equal(read.issues.length > 0, true);
+});
+
+// ---------------------------------------------------------------------------
+// Task 3 — a positive and its negative are ONE evidence unit, written once
+// ---------------------------------------------------------------------------
+
+const VALID_NEGATIVE: CapabilityProof = {
+  ...VALID_POSITIVE,
+  polarity: "negative",
+  nativeUse: "unverified",
+  ancestorFreedom: {
+    asserted: true,
+    checkedAncestors: ["/tmp/alpha-aos-control-1", "/tmp", "/"],
+  },
+  oracle: {
+    ...VALID_POSITIVE.oracle,
+    command: "claude -p --output-format json (outside the project)",
+  },
+};
+
+test("a positive and its matching negative resolve COMPLETE and carry the native-use axis", () => {
+  const unit = pairEvidence(VALID_POSITIVE, VALID_NEGATIVE);
+
+  assert.equal(unit.completeness, "COMPLETE");
+  assert.equal(unit.missingHalf, null);
+  assert.deepEqual(unit.incompleteReasons, []);
+  assert.equal(unit.nativeUse, "invoked");
+  assert.match(unit.summary, /COMPLETE/u);
+  assert.match(unit.summary, /invoked/u);
+});
+
+test("an unpaired positive resolves INCOMPLETE and its summary never prints the positive axis", () => {
+  const unit = pairEvidence(VALID_POSITIVE, null);
+
+  assert.equal(unit.completeness, "INCOMPLETE");
+  assert.equal(unit.missingHalf, "negative");
+  // Completeness is a first-class field, so a consumer cannot reach the axis
+  // without also holding the verdict that says the axis is not reportable.
+  assert.equal(unit.nativeUse, null);
+  assert.equal(unit.incompleteReasons.length > 0, true);
+  assert.match(unit.summary, /INCOMPLETE/u);
+  assert.match(unit.summary, /negative control/u);
+  // The load-bearing assertion: printing the positive axis here IS the
+  // unpaired-positive-as-pass failure D-14 forbids. INCOMPLETE is not a failed
+  // negative, and it must not read like a passing one either.
+  assert.equal(
+    unit.summary.includes(VALID_POSITIVE.nativeUse),
+    false,
+    `the INCOMPLETE summary printed the positive axis: ${unit.summary}`,
+  );
+  for (const axis of ["discovered", "invoked"]) {
+    assert.equal(unit.summary.includes(axis), false, `the INCOMPLETE summary printed ${axis}`);
+  }
+});
+
+test("a negative with no ancestor-freedom assertion resolves INCOMPLETE and names that assertion", () => {
+  const unasserted = pairEvidence(VALID_POSITIVE, { ...VALID_NEGATIVE, ancestorFreedom: null });
+  const claimedFalse = pairEvidence(VALID_POSITIVE, {
+    ...VALID_NEGATIVE,
+    ancestorFreedom: { asserted: false, checkedAncestors: [] },
+  });
+
+  for (const unit of [unasserted, claimedFalse]) {
+    assert.equal(unit.completeness, "INCOMPLETE");
+    assert.equal(unit.nativeUse, null);
+    // pi walks .agents/skills up through ancestors and, outside a repository,
+    // does not stop at a repo root (03-RESEARCH.md Pitfall 3). A control
+    // directory that was assumed rather than constructed proves nothing.
+    assert.equal(
+      unit.incompleteReasons.some((reason) => /ancestor/u.test(reason)),
+      true,
+      JSON.stringify(unit.incompleteReasons),
+    );
+    assert.match(unit.summary, /ancestor/u);
+    assert.equal(unit.summary.includes(VALID_POSITIVE.nativeUse), false);
+  }
+});
+
+test("a negative for a different capability is not a control for this one", () => {
+  const unit = pairEvidence(VALID_POSITIVE, { ...VALID_NEGATIVE, capability: "ecc-skill/inherit-legacy-style" });
+
+  assert.equal(unit.completeness, "INCOMPLETE");
+  assert.equal(
+    unit.incompleteReasons.some((reason) => /capability/u.test(reason)),
+    true,
+    JSON.stringify(unit.incompleteReasons),
+  );
+});
+
+test("a ledger write goes through exactly one transaction scoped to the ledger root", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  const result = await writeCapabilityLedger({ stateRoot, ledger: VALID_LEDGER });
+
+  assert.equal(result.status, "written");
+  assert.equal(result.path, capabilityLedgerPath(stateRoot));
+  assert.equal(typeof result.operationId, "string");
+  assert.equal((result.operationId ?? "").length > 0, true);
+
+  // The journal is the record of what the write was ALLOWED to touch, and it
+  // names the ledger root alone. A wider root would let a later operation in
+  // the same shape reach any managed file under the state root.
+  const journal = JSON.parse(
+    await readFile(join(stateRoot, "journal", `${result.operationId}.json`), "utf8"),
+  ) as { allowedRoots: string[]; status: string; files: unknown[] };
+  assert.equal(journal.status, "applied");
+  assert.deepEqual(journal.allowedRoots, [resolve(capabilityLedgerRoot(stateRoot))]);
+  assert.equal(journal.files.length, 1, "one ledger document, one journaled file");
+
+  const onDisk = await readCapabilityLedger(result.path);
+  assert.equal(onDisk.state, "present", JSON.stringify(onDisk));
+});
+
+test("the ledger module has exactly one write path", async () => {
+  const source = await readFile(new URL("../../src/core/capability-ledger.ts", import.meta.url), "utf8");
+  const code = source
+    .split("\n")
+    .filter((line) => !/^\s*[/*]/u.test(line))
+    .join("\n");
+
+  assert.equal(
+    (code.match(/applyFileTransaction\(/gu) ?? []).length,
+    1,
+    "every ledger byte must leave through one journaled, snapshotted transaction",
+  );
+});
+
+test("a write never defaults its state root, so a test cannot reach the developer state root", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  // Read-only observation of the real user state root, before and after.
+  const realLedger = capabilityLedgerPath(userStateRoot());
+  const realBefore = existsSync(realLedger);
+
+  await writeCapabilityLedger({ stateRoot, ledger: VALID_LEDGER });
+
+  assert.equal(existsSync(capabilityLedgerPath(stateRoot)), true);
+  assert.equal(existsSync(realLedger), realBefore, "the real user state root must be untouched");
+
+  // The structural guarantee behind that observation: the write path resolves
+  // no path without an explicit state root. A convenience default is exactly
+  // how a module-level test takes the exclusive writer lock on a developer
+  // machine, which is the ambient-write class plan 01-21 spent a plan closing.
+  const source = await readFile(new URL("../../src/core/capability-ledger.ts", import.meta.url), "utf8");
+  const writer = source.slice(source.indexOf("export async function writeCapabilityLedger"));
+  assert.equal(/capabilityLedgerPath\(\s*\)/u.test(writer), false, "the writer resolved a defaulted ledger path");
+  assert.equal(/capabilityLedgerRoot\(\s*\)/u.test(writer), false, "the writer resolved a defaulted ledger root");
+  assert.equal(/userStateRoot\(/u.test(writer), false, "the writer reached for the real user state root");
+});
+
+test("a second identical write is already-current and the bytes do not move", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  const first = await writeCapabilityLedger({ stateRoot, ledger: VALID_LEDGER });
+  const afterFirst = await readFile(first.path, "utf8");
+
+  const second = await writeCapabilityLedger({ stateRoot, ledger: VALID_LEDGER });
+  const afterSecond = await readFile(second.path, "utf8");
+
+  assert.equal(second.status, "already-current");
+  assert.equal(second.operationId, null, "an already-current write allocates no transaction");
+  assert.equal(afterSecond, afterFirst, "an identical re-write must be byte-identical");
+  // Two-space JSON with a trailing newline, so the comparison above is a
+  // property of the serializer rather than a coincidence of one input.
+  assert.equal(afterFirst.endsWith("\n"), true);
+  assert.equal(afterFirst.includes('\n  "schemaVersion"'), true);
 });

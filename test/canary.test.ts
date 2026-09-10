@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
@@ -36,6 +36,7 @@ import {
   canaryEnvironmentPolicy,
   CanaryContextError,
   catalogCosts,
+  comparePlanningTrees,
   countDistinctServers,
   createCanaryLaunchSpec,
   createCanaryObservationSink,
@@ -44,6 +45,7 @@ import {
   disposeCanary,
   disposeCanaryRuntime,
   findPromptHints,
+  hashPlanningTree,
   loadCanaryCatalog,
   matchExpectations,
   parseClaudeMcpList,
@@ -2468,4 +2470,175 @@ test("an absent vault CLI is unsupported with its reason and an unreadable envel
   });
   assert.equal(failed.state, "unparsed", "a non-zero exit is a refusal, never a fabricated write");
   assert.equal(failed.state === "unparsed" ? failed.code : null, "COMMAND_FAILED");
+});
+
+// ---------------------------------------------------------------------------
+// Plan 03-12 Task 2: the planning-tree immutability check
+// ---------------------------------------------------------------------------
+
+/** A small planning tree with nested directories, built under a fresh root. */
+async function planningFixture(
+  context: TestContext,
+  files: Readonly<Record<string, string>>,
+  prefix = "alpha-aos-planning-",
+): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), prefix));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  for (const [relativePath, body] of Object.entries(files)) {
+    const target = join(root, ...relativePath.split("/"));
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, body, "utf8");
+  }
+  return root;
+}
+
+const PLANNING_FILES = Object.freeze({
+  "STATE.md": "current plan: 12\n",
+  "ROADMAP.md": "phase 3\n",
+  "phases/03-x/03-12-PLAN.md": "the plan\n",
+  "phases/03-x/notes/deferred.md": "one item\n",
+});
+
+test("two consecutive digests over an unchanged planning tree are identical", async (context) => {
+  const root = await planningFixture(context, PLANNING_FILES);
+  const first = await hashPlanningTree(root);
+  const second = await hashPlanningTree(root);
+
+  assert.equal(first.complete, true, `bounds: ${first.bounds.join(", ")}; unreadable: ${first.unreadable.length}`);
+  assert.equal(first.rootPresent, true);
+  assert.equal(typeof first.digest, "string");
+  assert.match(first.digest ?? "", /^[0-9a-f]{64}$/u);
+  assert.equal(first.digest, second.digest, "the same bytes must hash the same twice, or nothing downstream means anything");
+  assert.equal(first.files.length, 4);
+  assert.deepEqual(
+    first.files.map((entry) => entry.path),
+    ["ROADMAP.md", "STATE.md", "phases/03-x/03-12-PLAN.md", "phases/03-x/notes/deferred.md"],
+    "relative POSIX paths, sorted in code-point order",
+  );
+
+  const difference = comparePlanningTrees(first, second);
+  assert.equal(difference.comparable, true);
+  assert.equal(difference.equal, true);
+  assert.deepEqual([...difference.modified, ...difference.added, ...difference.removed], []);
+});
+
+test("changing one byte under the planning tree moves the digest and names the file that moved", async (context) => {
+  const root = await planningFixture(context, PLANNING_FILES);
+  const before = await hashPlanningTree(root);
+  await writeFile(join(root, "phases", "03-x", "03-12-PLAN.md"), "the plan, edited\n", "utf8");
+  const after = await hashPlanningTree(root);
+
+  assert.notEqual(before.digest, after.digest, "a changed byte that leaves the digest alone is not a check");
+  const difference = comparePlanningTrees(before, after);
+  assert.equal(difference.comparable, true);
+  assert.equal(difference.equal, false);
+  assert.deepEqual(difference.modified, ["phases/03-x/03-12-PLAN.md"], "a report that will not name the file is not actionable");
+  assert.deepEqual([...difference.added, ...difference.removed], []);
+  assert.equal(difference.reasons.length > 0, true);
+});
+
+test("adding a file and removing a file each move the digest and name the path", async (context) => {
+  const root = await planningFixture(context, PLANNING_FILES);
+  const before = await hashPlanningTree(root);
+
+  await writeFile(join(root, "phases", "03-x", "03-12-SUMMARY.md"), "a summary\n", "utf8");
+  const grown = await hashPlanningTree(root);
+  assert.notEqual(before.digest, grown.digest);
+  const addition = comparePlanningTrees(before, grown);
+  assert.deepEqual(addition.added, ["phases/03-x/03-12-SUMMARY.md"]);
+  assert.deepEqual([...addition.modified, ...addition.removed], []);
+  assert.equal(addition.equal, false);
+
+  await rm(join(root, "STATE.md"));
+  const shrunk = await hashPlanningTree(root);
+  const removal = comparePlanningTrees(grown, shrunk);
+  assert.deepEqual(removal.removed, ["STATE.md"]);
+  assert.deepEqual([...removal.modified, ...removal.added], []);
+  assert.equal(removal.equal, false);
+});
+
+test("a path under the planning tree that cannot be read is undecidable with its errno, and the digest is incomplete", async (context) => {
+  const root = await planningFixture(context, PLANNING_FILES);
+  // A dangling link: created on every platform this repository supports
+  // (`junction` on Windows, an ordinary symlink elsewhere), reported by readdir
+  // as a non-directory, and refused by readFile with a real errno. That is the
+  // shape an unreadable planning file has, produced portably.
+  await symlink(join(root, "does-not-exist"), join(root, "phases", "03-x", "dangling.md"), "junction");
+
+  const digest = await hashPlanningTree(root);
+  assert.equal(digest.complete, false, "an aggregate over a partial set must never be presented as an answer");
+  assert.equal(digest.digest, null, "the digest is withheld, not computed over what happened to be readable");
+  assert.equal(digest.unreadable.length, 1);
+  assert.equal(digest.unreadable[0]?.path, "phases/03-x/dangling.md", "the unreadable path is named");
+  assert.match(digest.unreadable[0]?.errno ?? "", /^(E[A-Z]+|NOT_A_REGULAR_FILE)$/u, "with the reason it could not be read");
+
+  // And an incomplete digest is not silently comparable: two partial sets that
+  // happen to agree prove nothing about the files neither of them read.
+  const complete = await hashPlanningTree(await planningFixture(context, PLANNING_FILES, "alpha-aos-planning-b-"));
+  const difference = comparePlanningTrees(digest, complete);
+  assert.equal(difference.comparable, false);
+  assert.equal(difference.equal, false);
+  assert.equal(
+    difference.reasons.some((reason) => /incomplete/iu.test(reason)),
+    true,
+    `reasons were ${JSON.stringify(difference.reasons)}`,
+  );
+});
+
+test("the same planning content under two different directory names produces the same digest", async (context) => {
+  const left = await planningFixture(context, PLANNING_FILES, "alpha-aos-planning-left-");
+  const right = await planningFixture(context, PLANNING_FILES, "alpha-aos-planning-right-");
+
+  const a = await hashPlanningTree(left);
+  const b = await hashPlanningTree(right);
+  assert.equal(a.complete && b.complete, true);
+  assert.equal(
+    a.digest,
+    b.digest,
+    "a digest that carried the absolute root, the host's separator or directory order would differ here",
+  );
+  assert.deepEqual(a.files.map((entry) => entry.path), b.files.map((entry) => entry.path));
+  assert.equal(
+    a.files.every((entry) => !entry.path.includes("\\")),
+    true,
+    "separators are normalised to POSIX so a Windows digest matches a Linux one",
+  );
+  assert.equal(comparePlanningTrees(a, b).equal, true);
+});
+
+test("hashing the planning tree writes nothing: bytes and modification times are identical afterwards", async (context) => {
+  const root = await planningFixture(context, PLANNING_FILES);
+
+  async function snapshot(): Promise<string[]> {
+    const rows: string[] = [];
+    for (const relativePath of Object.keys(PLANNING_FILES).sort()) {
+      const target = join(root, ...relativePath.split("/"));
+      const info = await stat(target);
+      const bytes = await readFile(target, "utf8");
+      rows.push(`${relativePath} ${info.mtimeMs} ${info.size} ${createHash("sha256").update(bytes).digest("hex")}`);
+    }
+    return rows;
+  }
+
+  const before = await snapshot();
+  await hashPlanningTree(root);
+  await hashPlanningTree(root);
+  const after = await snapshot();
+
+  assert.deepEqual(after, before, "a check that modified the thing it measures would be worse than no check");
+  // Nothing new appeared either — a scratch file beside the tree would be a
+  // write the mtime comparison above cannot see.
+  const entries = await readdir(root, { recursive: true });
+  assert.deepEqual(
+    entries.map((entry) => String(entry).split("\\").join("/")).sort(),
+    [
+      "ROADMAP.md",
+      "STATE.md",
+      "phases",
+      "phases/03-x",
+      "phases/03-x/03-12-PLAN.md",
+      "phases/03-x/notes",
+      "phases/03-x/notes/deferred.md",
+    ],
+  );
 });

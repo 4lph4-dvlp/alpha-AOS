@@ -2307,6 +2307,100 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
 }
 
 // ---------------------------------------------------------------------------
+// The planning-tree immutability check (plan 03-12 Task 2)
+// ---------------------------------------------------------------------------
+//
+// 03-CONTEXT.md D-16: CAPA-03's boundary is proven by a handoff canary PLUS an
+// immutability check — the positive (a handoff really happened) and the negative
+// (memory did not become authoritative project policy) in one run. This is the
+// negative half, and its scope limit is explicit: alpha-AOS proves the state of
+// the planning tree. It does NOT police what the memory tool does elsewhere on
+// the filesystem, because doing that would require being an invocation proxy for
+// every tool call — the thing PROJECT.md's key decision rules out.
+//
+// The function reads only. A check that modified the thing it measures would be
+// worse than no check, so a named test asserts the tree's bytes AND its
+// modification times are identical after a call.
+
+/** One file under the tree, as a relative POSIX path and the hash of its bytes. */
+export interface PlanningTreeFile {
+  readonly path: string;
+  readonly sha256: string;
+}
+
+/** A path under the tree that could not be read, with the errno that says why. */
+export interface PlanningTreeUnreadable {
+  readonly path: string;
+  /**
+   * The host's errno, or `NOT_A_REGULAR_FILE` for an entry that is neither a
+   * directory nor a regular file. A symbolic link is deliberately in the second
+   * group: following one would hash bytes from outside the root the caller
+   * named, which is the opposite of what a boundary check is for.
+   */
+  readonly errno: string;
+}
+
+/**
+ * A digest over a whole tree, and everything that stops it being an answer.
+ *
+ * `digest` is null whenever `complete` is false. That is the load-bearing rule:
+ * an aggregate computed over a partial set would let a change inside the skipped
+ * file pass the immutability check, which is the ONE thing this function exists
+ * to prevent. The same reasoning `scanProjectTree` already applies to an
+ * unreadable evidence file, one layer down.
+ */
+export interface PlanningTreeDigest {
+  /** The canonical root that was actually walked, aliased for reporting. */
+  readonly root: string;
+  readonly digest: string | null;
+  readonly complete: boolean;
+  /** Sorted by relative POSIX path in code-point order, so two hosts agree. */
+  readonly files: readonly PlanningTreeFile[];
+  readonly unreadable: readonly PlanningTreeUnreadable[];
+  /** True when the root does not exist at all — a complete answer, not a failure. */
+  readonly rootPresent: boolean;
+  /** A bound that stopped the walk. EMPTY means the scan was COMPLETE. */
+  readonly bounds: readonly string[];
+}
+
+/** What moved between two digests, named path by path. */
+export interface PlanningTreeDifference {
+  readonly equal: boolean;
+  /** False when either side is incomplete: two partial sets cannot be compared. */
+  readonly comparable: boolean;
+  readonly modified: readonly string[];
+  readonly added: readonly string[];
+  readonly removed: readonly string[];
+  /** Why the pair is not equal, or not comparable. Empty when it is both. */
+  readonly reasons: readonly string[];
+}
+
+/** Mirrors MAX_SCAN_DEPTH's reasoning: a bound reached is RECORDED, never silent. */
+export const PLANNING_TREE_MAX_DEPTH = 24;
+
+/** A planning tree is documents. Fifty thousand entries is already pathological. */
+export const PLANNING_TREE_MAX_ENTRIES = 50_000;
+
+export async function hashPlanningTree(_root: string): Promise<PlanningTreeDigest> {
+  return {
+    root: _root,
+    digest: null,
+    complete: false,
+    files: [],
+    unreadable: [],
+    rootPresent: false,
+    bounds: ["not implemented"],
+  };
+}
+
+export function comparePlanningTrees(
+  _before: PlanningTreeDigest,
+  _after: PlanningTreeDigest,
+): PlanningTreeDifference {
+  return { equal: false, comparable: false, modified: [], added: [], removed: [], reasons: ["not implemented"] };
+}
+
+// ---------------------------------------------------------------------------
 // Two sweeps — the free evidence and the paid evidence, kept apart
 // ---------------------------------------------------------------------------
 //

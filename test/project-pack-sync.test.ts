@@ -175,13 +175,14 @@ test("one approved pack's SKILL.md and its receipt both land, written by one tra
     packId: string;
     producer: { name: string; version: string };
     evidenceHash: string;
-    targets: Array<{ harness: HarnessId; path: string; targetHash: string }>;
+    targets: Array<{ harness: HarnessId; path: string; targetHash: string; kind: string }>;
   };
   assert.equal(receipt.packId, PACK_ID);
   assert.equal(receipt.producer.name, "alpha-aos");
   assert.equal(receipt.targets.length, result.written.length);
   for (const target of receipt.targets) {
     assert.equal(target.targetHash, expected, `${target.path} recorded a hash other than the locked source hash`);
+    assert.equal(target.kind, "skill", `${target.path} carries no D-05 kind discriminator`);
   }
 
   // A user must be able to see exactly which bytes entered their project and

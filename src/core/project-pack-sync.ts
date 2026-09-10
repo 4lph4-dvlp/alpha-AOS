@@ -76,12 +76,33 @@ function skillFile(root: string, skill: string): string {
   return join(root, skill, "SKILL.md");
 }
 
+/**
+ * What sort of project target a receipt row claims.
+ *
+ * `skill` is the only kind this phase implements and verifies. Project-scope
+ * MCP servers and policies are reported UNSUPPORTED rather than silently
+ * absent (CONTEXT.md D-05), and an unregistered kind is inert under the Phase 1
+ * D-08/D-09 closed-world rule — so a later MCP or policy target is an ADDITIVE
+ * value here rather than a breaking change to `schemas/receipt.schema.json`.
+ */
+export type PackTargetKind = "skill";
+
+/**
+ * Every kind `applyProjectPackSync` can emit.
+ *
+ * Exported so a test can hold it against the schema's `targets[].kind` enum: a
+ * kind added to the writer without the schema, or to the schema without the
+ * writer, is a red test rather than a receipt one half of the system refuses.
+ */
+export const PACK_RECEIPT_TARGET_KINDS: readonly PackTargetKind[] = ["skill"];
+
 /** One target path a receipt this module writes will claim. */
 export interface PackReceiptTarget {
   readonly harness: HarnessId;
   /** Relative POSIX path from the canonical root. */
   readonly path: string;
   readonly targetHash: string;
+  readonly kind: PackTargetKind;
 }
 
 /** The receipt document, exactly as serialized. */
@@ -278,6 +299,9 @@ function receiptDocument(options: {
         harness: target.harness,
         path: target.path,
         targetHash: target.targetHash,
+        // This phase writes SKILL.md and nothing else, so every row it emits is
+        // a `skill` row. The discriminator is stated rather than implied.
+        kind: "skill",
       })),
   };
 }

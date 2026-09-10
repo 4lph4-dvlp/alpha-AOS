@@ -1484,7 +1484,7 @@ test("a receipt claiming the target file yields no conflict for that pack", asyn
         producer: { name: "alpha-aos", version: "0.0.0" },
         createdAt: "2026-01-01T00:00:00.000Z",
         sourceHash: "0".repeat(64),
-        targets: [{ harness: "claude", path: targetPath, targetHash: createHash("sha256").update(bytes, "utf8").digest("hex") }],
+        targets: [{ harness: "claude", kind: "skill", path: targetPath, targetHash: createHash("sha256").update(bytes, "utf8").digest("hex") }],
       },
       null,
       2,
@@ -2620,7 +2620,7 @@ async function writeInstalledPack(
     createdAt: "2026-01-01T00:00:00.000Z",
     sourceHash: "a".repeat(64),
     ...(options.evidenceHash === undefined ? {} : { evidenceHash: options.evidenceHash }),
-    targets: [{ harness: "claude", path: options.target, targetHash }],
+    targets: [{ harness: "claude", kind: "skill", path: options.target, targetHash }],
   };
   await mkdir(join(root, ".alpha-aos", "receipts"), { recursive: true });
   await writeFile(
@@ -4140,16 +4140,44 @@ test("a harness with no project-local skill root is a named refusal, not a bare 
   );
 });
 
-test("the receipt schema and the skill-root table agree about which harnesses exist", async () => {
+test("the receipt schema and the skill-root table agree about which harnesses exist, in both directions", async () => {
   const receiptSchema = JSON.parse(await readFile(join(repositoryRoot, "schemas", "receipt.schema.json"), "utf8")) as {
-    properties: { targets: { items: { properties: { harness: { enum: string[] } } } } };
+    properties: { targets: { items: { required: string[]; properties: { harness: { enum: string[] }; kind: { enum: string[] } } } } };
   };
   const projectSkillRoots = await planExport<Readonly<Record<string, string>>>("PROJECT_SKILL_ROOTS");
+  const declared = receiptSchema.properties.targets.items.properties.harness.enum;
+  const rooted = Object.keys(projectSkillRoots);
 
+  // Both directions, stated separately so a one-sided change says WHICH side
+  // moved. Schema-wider is the crash 02-REVIEW WR-03 found: a target no
+  // removal could be confined to. Table-wider is the mirror defect: a harness
+  // this repository can materialize into but can never write a receipt for.
+  for (const harness of declared) {
+    assert.ok(
+      rooted.includes(harness),
+      `the receipt schema permits ${harness}, which PROJECT_SKILL_ROOTS does not carry, so the removal path is reachable with no root`,
+    );
+  }
+  for (const harness of rooted) {
+    assert.ok(
+      declared.includes(harness),
+      `PROJECT_SKILL_ROOTS carries ${harness}, which the receipt schema forbids, so a materialization there could never record a receipt`,
+    );
+  }
+});
+
+test("the receipt schema's kind enum and the kinds the writer can emit agree", async () => {
+  const receiptSchema = JSON.parse(await readFile(join(repositoryRoot, "schemas", "receipt.schema.json"), "utf8")) as {
+    properties: { targets: { items: { required: string[]; properties: { kind?: { enum?: string[] } } } } };
+  };
+  const item = receiptSchema.properties.targets.items;
+  const emitted = (await import("../src/core/project-pack-sync.js")).PACK_RECEIPT_TARGET_KINDS;
+
+  assert.ok(item.required.includes("kind"), "the receipt schema does not require the D-05 kind discriminator");
   assert.deepEqual(
-    [...receiptSchema.properties.targets.items.properties.harness.enum].sort(),
-    Object.keys(projectSkillRoots).sort(),
-    "the receipt schema permits a harness PROJECT_SKILL_ROOTS does not carry, so the removal path is reachable with no root",
+    [...(item.properties.kind?.enum ?? [])].sort(),
+    [...emitted].sort(),
+    "a kind was added to the writer without the schema, or to the schema without the writer",
   );
 });
 
@@ -4416,7 +4444,7 @@ async function unreadableTargetFixture(context: TestContext): Promise<{ root: st
     producer: { name: "alpha-aos", version: "0.1.0" },
     createdAt: "2026-01-01T00:00:00.000Z",
     sourceHash: "a".repeat(64),
-    targets: [{ harness: "claude", path: POSTGRES_TARGET, targetHash: "b".repeat(64) }],
+    targets: [{ harness: "claude", kind: "skill", path: POSTGRES_TARGET, targetHash: "b".repeat(64) }],
   };
   await mkdir(join(root, ".alpha-aos", "receipts"), { recursive: true });
   await writeFile(

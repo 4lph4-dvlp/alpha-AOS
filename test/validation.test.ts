@@ -488,7 +488,7 @@ const VALID_RECEIPT = {
   createdAt: "2026-09-04T00:00:00.000Z",
   sourceHash: "b".repeat(64),
   evidenceHash: "c".repeat(64),
-  targets: [{ harness: "claude", path: ".claude/skills/web-base/SKILL.md", targetHash: "d".repeat(64) }],
+  targets: [{ harness: "claude", kind: "skill", path: ".claude/skills/web-base/SKILL.md", targetHash: "d".repeat(64) }],
 };
 
 test("evidence and receipt envelopes validate as closed current documents", async () => {

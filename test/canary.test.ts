@@ -933,26 +933,70 @@ test("the invocation axis is computed from observation records only, never from 
   assert.equal(result.excerpt?.excerpt.includes("web_search_exa"), true);
 
   // The same declaration WITH a record moves the axis, so the assertion above
-  // is about the source of the evidence rather than about an axis that never moves.
-  createFileObservationSink(runtime.observationsPath).record({
-    server: "exa",
-    tool: "web_search_exa",
-    at: new Date().toISOString(),
-    upstreamVersion: "3.4.1",
-    outcome: "ok",
+  // is about the source of the evidence rather than about an axis that never
+  // moves. A runtime is single-use, so the control takes a fresh one.
+  const second = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "claude",
+    servers: ["exa", "firecrawl"],
+    stateRoot: state,
+    lock,
+    environment: {},
   });
   const observed = await runCanary({
     declaration: canary,
     harness: "claude",
     projectRoot: project,
-    runtime,
-    sink: createCanaryObservationSink(runtime),
+    runtime: second,
+    sink: createCanaryObservationSink(second),
     environment: {},
     runner: runner(),
-    buildLaunchSpec: () => stubLaunchSpec(runtime),
-    launcher: async () => ({ ran: true, reason: null, exitCode: 0, excerpt: null }),
+    buildLaunchSpec: () => stubLaunchSpec(second),
+    launcher: async () => {
+      createFileObservationSink(second.observationsPath).record({
+        server: "exa",
+        tool: "web_search_exa",
+        at: new Date().toISOString(),
+        upstreamVersion: "3.4.1",
+        outcome: "ok",
+      });
+      return { ran: true, reason: null, exitCode: 0, excerpt: null };
+    },
   });
   assert.equal(observed.nativeUse, "invoked", "a recorded call did not move the axis, so the negative above is vacuous");
+
+  // A spent runtime can be torn down, and tearing it down takes its records
+  // with it.
+  await disposeCanaryRuntime(second);
+  assert.equal(existsSync(second.root), false, "a disposed runtime is still on disk");
+});
+
+test("a declared argument pattern is reported unchecked, never satisfied, because the record has no arguments", async () => {
+  const canary = declaration({
+    expectTools: ["query-docs"],
+    expectArgumentPatterns: [
+      { tool: "query-docs", argument: "libraryId", pattern: "^/[^/]+/[^/]+/[^/]+$", why: "version-scoped" },
+    ],
+  });
+  const verdict = decideInvocation(canary, [
+    { server: "context7", tool: "query-docs", at: new Date().toISOString(), upstreamVersion: "4.0.4", outcome: "ok" },
+  ]);
+
+  assert.deepEqual(verdict.uncheckedArgumentPatterns, ["query-docs.libraryId"]);
+  assert.equal(
+    verdict.reasons.some((reason) => reason.includes("has no argument field")),
+    true,
+    "the verdict does not say WHY the declared argument pattern was not checked",
+  );
+  // The record shape is the mitigation: there is no argument field to read, and
+  // a pattern silently counted as met is the shape of a proof that proves nothing.
+  assert.equal(
+    Object.hasOwn(
+      { server: "context7", tool: "query-docs", at: "", upstreamVersion: "", outcome: "ok" },
+      "arguments",
+    ),
+    false,
+  );
 });
 
 // ---------------------------------------------------------------------------

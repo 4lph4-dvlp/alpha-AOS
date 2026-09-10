@@ -18,7 +18,7 @@
 //    can name a variable and a next action.
 
 import { randomUUID } from "node:crypto";
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import { access, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 
@@ -1141,7 +1141,14 @@ export const HARNESS_CONFIG_ROOT_NAMES: readonly string[] = Object.freeze([
   "HERMES_HOME",
 ]);
 
-/** Whether `candidate` is `root` or sits beneath it, on this host's own terms. */
+/**
+ * Whether `candidate` is `root` or sits beneath it, lexically.
+ *
+ * A cheap pre-check, deliberately not a replacement for the canonicalizing
+ * proof `applyFileTransaction` performs underneath: this one refuses an obvious
+ * escape before any writer is acquired, and `proveOperationPaths` is still the
+ * authority on symlinks, junctions and reparse points.
+ */
 function withinRoot(root: string, candidate: string): boolean {
   const relation = relative(resolve(root), resolve(candidate));
   return relation === "" || (!relation.startsWith("..") && !isAbsolute(relation));
@@ -1156,8 +1163,23 @@ export function assertRuntimeContainment(runtime: {
   readonly stateRoot: string;
   readonly declaredFiles: readonly string[];
 }): void {
-  // RED stub — plan 03-06 Task 2 GREEN implements this.
-  void runtime;
+  if (!withinRoot(runtime.stateRoot, runtime.root)) {
+    throw new CanaryBoundaryError(
+      CANARY_RUNTIME_NOT_CONTAINED,
+      "A canary runtime must sit under the managed state root it named. This one does not, so it was refused before " +
+        "anything was written — a runtime outside the state root is a write the transaction boundary never agreed to.",
+      [],
+    );
+  }
+  const escaped = runtime.declaredFiles.filter((file) => !withinRoot(runtime.root, file));
+  if (escaped.length > 0) {
+    throw new CanaryBoundaryError(
+      CANARY_RUNTIME_NOT_CONTAINED,
+      `A canary runtime declared ${escaped.length} file(s) outside its own directory, so it was refused before ` +
+        "anything was written.",
+      [],
+    );
+  }
 }
 
 /**
@@ -1168,9 +1190,19 @@ export function assertCanaryLaunchIsolation(
   environment: Readonly<Record<string, string>>,
   runtime: { readonly root: string },
 ): void {
-  // RED stub — plan 03-06 Task 2 GREEN implements this.
-  void environment;
-  void runtime;
+  const offending = HARNESS_CONFIG_ROOT_NAMES.filter((name) => {
+    const value = environment[name];
+    return value !== undefined && value.length > 0 && !withinRoot(runtime.root, value);
+  });
+  if (offending.length === 0) return;
+  // The NAMES, never the values: a config root is a private path, and this
+  // message reaches stderr.
+  throw new CanaryBoundaryError(
+    CANARY_LAUNCH_ISOLATION_VIOLATION,
+    `A canary launch would point ${offending.join(", ")} outside the canary runtime, which is the everyday ` +
+      "configuration D-02 says a canary must not touch. The launch was refused rather than run and reported.",
+    offending,
+  );
 }
 
 /**
@@ -1181,22 +1213,53 @@ export function assertCanaryEnvironmentDeclared(
   environment: Readonly<Record<string, string>>,
   declared: readonly string[],
 ): void {
-  // RED stub — plan 03-06 Task 2 GREEN implements this.
-  void environment;
-  void declared;
+  // The floor is delivered by the operating system whatever an allowlist says,
+  // so the rule is that nothing OUTSIDE floor-plus-declared appears. Phase 1's
+  // table is the reference and is imported rather than restated here.
+  const undeclared = Object.keys(environment).filter(
+    (name) => !PLATFORM_FLOOR_ENVIRONMENT.includes(name) && !declared.includes(name),
+  );
+  if (undeclared.length === 0) return;
+  throw new CanaryBoundaryError(
+    CANARY_ENVIRONMENT_UNDECLARED_NAME,
+    `A canary launch environment carries ${undeclared.length} name(s) outside the platform floor and this canary's ` +
+      `own declaration: ${undeclared.join(", ")}. The launch was refused; an inherited name is how a child ends up ` +
+      "reading state alpha-AOS never chose.",
+    undeclared,
+  );
 }
 
 /** Refuses a second run on a runtime that has already been spent. */
 export async function assertRuntimeUnconsumed(runtime: CanaryRuntime): Promise<void> {
-  // RED stub — plan 03-06 Task 2 GREEN implements this.
-  void runtime;
+  if (!existsSync(runtime.consumedPath)) return;
+  throw new CanaryBoundaryError(
+    CANARY_RUNTIME_ALREADY_CONSUMED,
+    `The canary runtime at ${runtime.runId} has already been spent. A runtime is single-use: a second run through ` +
+      "one would compute its verdict partly from the first run's observation records, and those records look exactly " +
+      "like records the second run produced. Create a fresh runtime instead.",
+    [],
+  );
 }
 
-/** Records that a runtime has been spent, before anything is launched through it. */
+/**
+ * Records that a runtime has been spent, before anything is launched through it.
+ *
+ * Written BEFORE the launch rather than after, so a run that crashed mid-flight
+ * still cannot be repeated through the same runtime — a crashed run is exactly
+ * the case where stale records are most likely to be sitting there.
+ */
 export async function markRuntimeConsumed(runtime: CanaryRuntime, session?: MutationSession): Promise<void> {
-  // RED stub — plan 03-06 Task 2 GREEN implements this.
-  void runtime;
-  void session;
+  await applyFileTransaction({
+    stateRoot: runtime.stateRoot,
+    allowedRoots: [runtime.root],
+    operations: [
+      {
+        target: runtime.consumedPath,
+        content: `${JSON.stringify({ schemaVersion: 1, runId: runtime.runId, consumedAt: new Date().toISOString() }, null, 2)}\n`,
+      },
+    ],
+    ...(session === undefined ? {} : { session }),
+  });
 }
 
 /**
@@ -1347,7 +1410,16 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     consumedPath: join(root, CANARY_CONSUMED_FILE),
     servers,
     declaredFiles,
-    declaredRoots: [root, join(stateRoot, "journal"), join(stateRoot, "snapshots")],
+    // The canary tree itself, not only this run's leaf: creating the leaf
+    // creates the `<state>/canary/<projectId>/<harness>` directories above it,
+    // and a declaration that omitted them would be declaring less than the run
+    // does. The journal and snapshot roots are named for the same reason — the
+    // write travels the one journaled transaction every owned write travels.
+    declaredRoots: [
+      join(stateRoot, CANARY_RUNTIME_DIRECTORY),
+      join(stateRoot, "journal"),
+      join(stateRoot, "snapshots"),
+    ],
     operationId: journal.id,
   };
 }

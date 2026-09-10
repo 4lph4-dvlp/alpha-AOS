@@ -4,6 +4,12 @@
 // are produced by the walk, so the plan carries the walk's own vocabulary
 // rather than a restatement that could drift from it.
 import type { DroppedMember, ExcludedBoundary, RootReason, ScanBound } from "./core/evidence.js";
+// The three axes of `CapabilityState` are declared beside the code that
+// PRODUCES each of them, for the same reason `RootReason` is: the composite
+// carries the producing module's own vocabulary rather than a restatement of
+// it that could drift. Both imports are type-only and erased at runtime.
+import type { NativeUseState } from "./core/capability-ledger.js";
+import type { PackState } from "./core/project-plan.js";
 
 export type HarnessId = "claude" | "codex" | "antigravity" | "pi" | "hermes";
 export type McpServerId = "context7" | "exa" | "firecrawl";
@@ -399,6 +405,47 @@ export interface SubProjectDecision {
  * a user their opt-out guarantee.
  */
 export type SurfaceSupport = "supported" | "unsupported" | "unverified";
+
+/**
+ * A capability's state, on the three ORTHOGONAL axes of 03-CONTEXT.md D-11.
+ *
+ * This is the PRIMARY value every renderer, JSON consumer and later gate reads.
+ * Phase 2's `PackState` keeps every union member it had and is demoted to the
+ * `deployment` FIELD here; `SurfaceSupport` is likewise unchanged and becomes
+ * `support`. Neither union is modified — D-11 requires the deployment axis
+ * untouched, and demotion-to-a-field is exactly that.
+ *
+ * The promotion is only real if the general representation is the one a
+ * consumer gets BY DEFAULT. An add-alongside shape would leave the deployment
+ * axis readable on its own, and a consumer that read it alone would get back
+ * the single misleading `installed` state CAPA-07 exists to forbid — a pack
+ * can be `CURRENT` on disk while nothing has ever discovered or invoked it.
+ * A contract test therefore asserts that no exported reconciliation surface
+ * hands back a bare deployment value at the top level.
+ *
+ * Both `nativeUse` and `support` are HOST facts. They are reported, and they
+ * never enter `digestablePlan` — the same reasoning that moved the
+ * personal-skill collision out of approvals in Phase 2, because a host fact
+ * inside a digest makes two reviewers of one commit disagree.
+ */
+export interface CapabilityState {
+  /** Phase 2's deployment axis, unchanged and no longer primary. */
+  readonly deployment: PackState;
+  /** What the capability ledger proves the harness did with it on THIS host. */
+  readonly nativeUse: NativeUseState;
+  /** The ceiling-bounded support axis (03-CONTEXT.md D-10). */
+  readonly support: SurfaceSupport;
+  /**
+   * Why the native-use axis reads what it reads: an INCOMPLETE evidence unit's
+   * summary, a blocked reason's `CODE VARIABLE — next action`, or the absence
+   * of any host evidence. Never a credential value: `BlockedReason` has no
+   * field one could live in, and this sentence is composed from its named
+   * fields rather than from the object.
+   */
+  readonly nativeUseReason: string;
+  /** Why the support axis reads what it reads, including where a ceiling bound it. */
+  readonly supportReason: string;
+}
 
 /** Exact source version and hash for one pack skill, read from the stable lock. */
 export interface PackSource {

@@ -25,6 +25,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type {
   AdapterSupportEntry,
+  CapabilityState,
   DeferredFact,
   EvidenceEnvelope,
   EvidenceFact,
@@ -46,7 +47,8 @@ import type {
   SurfaceSupport,
   TargetPreState,
 } from "../types.js";
-import type { CapabilityLedger, NativeUseState } from "./capability-ledger.js";
+import type { BlockedReason, CapabilityLedger, CapabilityProof, NativeUseState } from "./capability-ledger.js";
+import { pairEvidence } from "./capability-ledger.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import {
   assertPlanUnchanged,
@@ -724,10 +726,11 @@ export function provenSurfaceSupport(
 export function classifyAdapterSupport(
   declared: readonly HarnessId[],
   ledger?: CapabilityLedger | null,
+  ceiling: ReadonlyMap<HarnessId, SurfaceCeilingEntry> = SURFACE_CEILING,
 ): AdapterSupportEntry[] {
   const proven = provenSurfaceSupport(ledger);
   return [...declared].sort(byCodePoint).map((harness) => {
-    const recorded = SURFACE_CEILING.get(harness);
+    const recorded = ceiling.get(harness);
     if (recorded === undefined) {
       return {
         harness,
@@ -2012,6 +2015,144 @@ async function explainPlanDrift(
  */
 export type PackState = "CURRENT" | "STALE" | "DRIFTED" | "CHANGED" | "CONFLICT" | "UNDECIDABLE";
 
+/** Every member of the deployment axis, so a runtime guard cannot drift from the union. */
+const PACK_STATE_MEMBERS: readonly PackState[] = [
+  "CURRENT",
+  "STALE",
+  "DRIFTED",
+  "CHANGED",
+  "CONFLICT",
+  "UNDECIDABLE",
+];
+
+/** How strong a native-use claim is. `invoked` is an existence claim, so the STRONGEST wins. */
+const NATIVE_USE_RANK: Readonly<Record<NativeUseState, number>> = { unverified: 0, discovered: 1, invoked: 2 };
+
+/** What `resolveCapabilityState` needs about one deployed capability. */
+export interface CapabilityStateInput {
+  /** The capability the ledger keys evidence by. For a pack, its id. */
+  readonly capability: string;
+  /** The deployment axis, already decided by `classifyInstalledPack`. */
+  readonly deployment: PackState;
+  /** The harnesses this capability was actually deployed to. */
+  readonly harnesses: readonly HarnessId[];
+  /** The canonical project id the ledger keys host evidence by. */
+  readonly projectId: string;
+}
+
+/**
+ * The ONE way to obtain the deployment axis from a reconciliation surface.
+ *
+ * Composes the three axes of 03-CONTEXT.md D-11 without merging any two of
+ * them. The deployment axis is passed through untouched. The support axis is
+ * resolved by `classifyAdapterSupport`, which is bounded by `SURFACE_CEILING`.
+ * The native-use axis is read from the capability ledger through `pairEvidence`,
+ * so an unpaired positive reports `unverified` with an INCOMPLETE reason that
+ * never prints the positive's own axis (D-14).
+ *
+ * The two aggregations across harnesses are DELIBERATELY OPPOSITE, and the
+ * asymmetry is the point:
+ *
+ * - `support` is a GUARANTEE, so the weakest answer wins and the reason names
+ *   the harness that bound it. Reporting the best surface would promise an
+ *   opt-out the worst one cannot honour.
+ * - `nativeUse` is an EXISTENCE claim — did any harness natively select and
+ *   invoke this — so the strongest answer wins and the reason names the harness
+ *   it came from. Reporting the weakest would deny an invocation that happened.
+ */
+export function resolveCapabilityState(
+  input: CapabilityStateInput,
+  ledger: CapabilityLedger | null | undefined,
+  ceiling: ReadonlyMap<HarnessId, SurfaceCeilingEntry> = SURFACE_CEILING,
+): CapabilityState {
+  const harnesses = [...new Set(input.harnesses)].sort(byCodePoint);
+
+  // ---- the support axis: the WEAKEST ceiling-bounded answer -----------------
+  let support: SurfaceSupport | null = null;
+  let supportReason = "";
+  for (const entry of classifyAdapterSupport(harnesses, ledger, ceiling)) {
+    if (support !== null && SUPPORT_RANK[entry.support] >= SUPPORT_RANK[support]) continue;
+    support = entry.support;
+    supportReason = `${entry.harness}: ${entry.reason}`;
+  }
+  if (support === null) {
+    support = "unverified";
+    supportReason = `no harness carries ${input.capability}, so no surface could be classified for it`;
+  }
+
+  // ---- the native-use axis: the STRONGEST paired answer ---------------------
+  let nativeUse: NativeUseState = "unverified";
+  let completeReason: string | null = null;
+  let incompleteReason: string | null = null;
+
+  for (const harness of harnesses) {
+    const positive = findProof(ledger, input.projectId, harness, input.capability, "positive");
+    if (positive === null) continue;
+    const unit = pairEvidence(positive, findProof(ledger, input.projectId, harness, input.capability, "negative"));
+    if (unit.completeness !== "COMPLETE" || unit.nativeUse === null) {
+      // The unit's own summary is carried verbatim: it names the missing half
+      // and is guaranteed never to print the positive's axis (D-14).
+      incompleteReason ??= unit.summary;
+      continue;
+    }
+    if (completeReason !== null && NATIVE_USE_RANK[unit.nativeUse] <= NATIVE_USE_RANK[nativeUse]) continue;
+    nativeUse = unit.nativeUse;
+    completeReason = unit.summary;
+  }
+
+  let nativeUseReason =
+    completeReason ??
+    incompleteReason ??
+    (ledger === null || ledger === undefined
+      ? `no capability ledger was supplied on this path, so nothing on this host has been read about ${input.capability}`
+      : `the capability ledger records no positive proof for ${input.capability} in this project on ${harnesses.join(", ") || "any harness"}`);
+
+  // A blocked axis names its code and its variable and NEVER a value: the
+  // sentence is composed from the three named fields rather than from the
+  // object, so a value smuggled past the type and the closed schema still
+  // reaches nothing that renders (T-03-84).
+  if (nativeUse === "unverified") {
+    const blocked = firstBlockedReason(ledger, input.projectId, harnesses, input.capability);
+    if (blocked !== null) nativeUseReason = `${blocked.code} ${blocked.variable} — ${blocked.nextAction}`;
+  }
+
+  return { deployment: input.deployment, nativeUse, support, nativeUseReason, supportReason };
+}
+
+function findProof(
+  ledger: CapabilityLedger | null | undefined,
+  projectId: string,
+  harness: HarnessId,
+  capability: string,
+  polarity: "positive" | "negative",
+): CapabilityProof | null {
+  if (ledger === null || ledger === undefined) return null;
+  const found = ledger.proofs.find(
+    (proof) =>
+      proof.projectId === projectId &&
+      (proof.harness as HarnessId) === harness &&
+      proof.capability === capability &&
+      proof.polarity === polarity,
+  );
+  return found ?? null;
+}
+
+function firstBlockedReason(
+  ledger: CapabilityLedger | null | undefined,
+  projectId: string,
+  harnesses: readonly HarnessId[],
+  capability: string,
+): BlockedReason | null {
+  for (const harness of harnesses) {
+    for (const polarity of ["positive", "negative"] as const) {
+      const proof = findProof(ledger, projectId, harness, capability, polarity);
+      const blocked = proof?.blockedReason ?? null;
+      if (blocked !== null) return { code: blocked.code, variable: blocked.variable, nextAction: blocked.nextAction };
+    }
+  }
+  return null;
+}
+
 /** One target a receipt claims, compared against the bytes on disk. */
 export interface ReconciledTarget {
   /** Relative POSIX path from the canonical root. */
@@ -2044,7 +2185,13 @@ export interface StaleReason {
 
 export interface PackReconciliation {
   readonly packId: string;
-  readonly state: PackState;
+  /**
+   * The composite of 03-CONTEXT.md D-11, and the ONLY way to reach this pack's
+   * deployment axis. There is deliberately no top-level `state` beside it: a
+   * consumer that could read the deployment axis alone would get back the
+   * single misleading `installed` state CAPA-07 forbids.
+   */
+  readonly capability: CapabilityState;
   /** Relative POSIX path of the receipt that makes this pack "installed". */
   readonly receiptPath: string;
   /** One sentence naming why this state and not another. */
@@ -2303,8 +2450,22 @@ function evaluationOf(plan: ProjectCapabilityPlan | null, packId: string): PackE
  * stored artifact contributes exactly one thing — the fact set that was
  * approved, which is what lets a `STALE` line name WHICH fact disappeared.
  */
+/**
+ * The HOST evidence a reconciliation may read, supplied by the caller.
+ *
+ * Never resolved from a default here. `digestablePlan` folds
+ * `adapterSupportEvidence` in, and a reconciliation that reached for the user
+ * state root on its own would make one command's output depend on a file no
+ * caller named — the same discipline `writeCapabilityLedger` applies to the
+ * root it writes under.
+ */
+export interface ReconciliationHostEvidence {
+  readonly ledger?: CapabilityLedger | null;
+}
+
 export async function reconcileProjectState(
   options: PlanProjectCapabilitiesOptions,
+  host?: ReconciliationHostEvidence | null,
 ): Promise<ProjectReconciliation> {
   const plan = await planProjectCapabilities(options);
   const root = plan.scope.canonicalRoot;
@@ -2367,7 +2528,16 @@ export async function reconcileProjectState(
       });
     }
 
-    packs.push(classifyInstalledPack({ receipt, targets, plan, approved, selected: selectedNow.has(receipt.packId) }));
+    packs.push(
+      classifyInstalledPack({
+        receipt,
+        targets,
+        plan,
+        approved,
+        selected: selectedNow.has(receipt.packId),
+        ledger: host?.ledger ?? null,
+      }),
+    );
   }
 
   return {
@@ -2390,19 +2560,50 @@ interface InstalledPackInput {
   readonly plan: ProjectCapabilityPlan;
   readonly approved: ProjectCapabilityPlan | null;
   readonly selected: boolean;
+  /** Host evidence. Absent on the preview path, and never digested (T-03-83). */
+  readonly ledger?: CapabilityLedger | null;
 }
 
 /**
- * One installed pack's state, decided in order of consequence.
+ * The deployment axis alone, before it is folded into the composite.
  *
- * The pack is still selected: a conflicting unowned target outranks drifted
- * bytes, because a conflict means alpha-AOS would not be the writer at all.
- * The pack is NOT selected: an unreadable fact outranks a missing one, because
- * `STALE` asserts absence and a read failure does not establish it; and a fact
- * that CAN be named outranks a bare artifact claim, because naming the fact is
- * the whole difference between an actionable report and an unexplained one.
+ * Deliberately NOT exported and deliberately not a shape anything returns: the
+ * bare `state` lives for exactly as long as it takes `classifyInstalledPack` to
+ * hand it to `resolveCapabilityState`.
+ */
+type PackDeploymentDraft = Omit<PackReconciliation, "capability"> & { readonly state: PackState };
+
+/**
+ * One installed pack, on all three axes.
+ *
+ * The DEPLOYMENT axis is decided in order of consequence. The pack is still
+ * selected: a conflicting unowned target outranks drifted bytes, because a
+ * conflict means alpha-AOS would not be the writer at all. The pack is NOT
+ * selected: an unreadable fact outranks a missing one, because `STALE` asserts
+ * absence and a read failure does not establish it; and a fact that CAN be
+ * named outranks a bare artifact claim, because naming the fact is the whole
+ * difference between an actionable report and an unexplained one.
+ *
+ * That axis is then handed to `resolveCapabilityState` and never returned on
+ * its own — which is what makes D-11's promotion real rather than nominal.
  */
 export function classifyInstalledPack(input: InstalledPackInput): PackReconciliation {
+  const { state, ...rest } = classifyPackDeployment(input);
+  return {
+    ...rest,
+    capability: resolveCapabilityState(
+      {
+        capability: input.receipt.packId,
+        deployment: state,
+        harnesses: input.receipt.targets.map((target) => target.harness),
+        projectId: input.plan.scope.projectId,
+      },
+      input.ledger ?? null,
+    ),
+  };
+}
+
+function classifyPackDeployment(input: InstalledPackInput): PackDeploymentDraft {
   const { receipt, targets, plan, approved, selected } = input;
   const freshEvaluation = evaluationOf(plan, receipt.packId);
   const approvedEvaluation = evaluationOf(approved, receipt.packId);
@@ -2731,7 +2932,7 @@ function digestableRemoval(removal: Omit<RemovalPlan, "removalDigest">): Record<
 export function planPackRemoval(reconciliation: ProjectReconciliation): RemovalPlan[] {
   const plans: RemovalPlan[] = [];
   for (const pack of reconciliation.packs) {
-    if (pack.state !== "STALE") continue;
+    if (pack.capability.deployment !== "STALE") continue;
     const draft = {
       packId: pack.packId,
       receiptPath: pack.receiptPath,

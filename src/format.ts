@@ -438,7 +438,7 @@ export function formatProjectStatus(
       table(
         ["STATE", "PACK", "TARGETS", "DETAIL"],
         reconciliation.packs.map((pack) => [
-          pack.state,
+          pack.capability.deployment,
           pack.packId,
           `${pack.targets.filter((target) => target.matches).length}/${pack.targets.length} matching`,
           detailCell(pack.detail),
@@ -446,6 +446,29 @@ export function formatProjectStatus(
       ),
       "",
     );
+  }
+
+  // 03-CONTEXT.md D-11: JSON exposes the axes, human output summarises to ONE
+  // LINE. The line carries all THREE axes, because a single value cannot say
+  // "deployed and discovered but not yet invoked" — precisely the misleading
+  // single `installed` state CAPA-07 forbids.
+  //
+  // Where the native-use axis is blocked, the line carries the stable code and
+  // the variable NAME. It never carries a value: the sentence was composed
+  // from `BlockedReason`'s three named fields, which is the third layer of the
+  // defence behind the type and the closed schema (D-12, T-03-84).
+  for (const pack of reconciliation.packs) {
+    const axes = pack.capability;
+    lines.push(
+      `CAPABILITY ${pack.packId} — deployment=${axes.deployment} native-use=${axes.nativeUse} ` +
+        `support=${axes.support}; ${detailCell(axes.nativeUseReason)}`,
+    );
+    // The ceiling is quoted only where it actually bounds something. A
+    // `supported` surface repeating its own product claim on every run is the
+    // noise that stops the lines above being read.
+    if (axes.support !== "supported") {
+      lines.push(`SUPPORT-CEILING ${pack.packId} — ${detailCell(axes.supportReason)}`);
+    }
   }
 
   // One line per MISSING FACT, never a merged summary: two facts that

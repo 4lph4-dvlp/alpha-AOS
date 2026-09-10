@@ -943,7 +943,15 @@ async function main(): Promise<void> {
     }
 
     if (subcommand === "status") {
-      const reconciliation = await reconcileProjectState(planOptions);
+      // 03-CONTEXT.md D-11: the native-use and support axes are HOST facts, so
+      // the ledger is read here — at the command boundary that already resolves
+      // every other host path — and passed IN. `reconcileProjectState` resolves
+      // no state root of its own, which is what keeps a host fact from reaching
+      // the plan digest by accident (T-03-83).
+      const statusLedgerRead = await readCapabilityLedger(capabilityLedgerPath(userStateRoot()));
+      const reconciliation = await reconcileProjectState(planOptions, {
+        ledger: statusLedgerRead.state === "present" ? statusLedgerRead.ledger : null,
+      });
       const removals = planPackRemoval(reconciliation);
       print(
         { reconciliation, removals },

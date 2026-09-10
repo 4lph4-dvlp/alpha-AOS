@@ -453,6 +453,26 @@ export async function runDiscoveryOracle(options: RunDiscoveryOracleOptions): Pr
 // The parsers
 // ---------------------------------------------------------------------------
 
+/** A parse, or the reason there is not one. Never both, and never neither. */
+export interface OracleReading {
+  readonly parse: OracleParse | null;
+  readonly unparsedReason: string | null;
+}
+
+/**
+ * Reads one harness's oracle output, turning a refusal into a REASON.
+ *
+ * The single place a parser failure becomes `unparsedReason`, shared by the
+ * live driver and by the recorded-fixture suite so the two cannot drift. A
+ * failed read yields a null parse — never an empty skill list, which would be
+ * the same shape as an answer.
+ */
+export function readOracleOutput(harness: HarnessId, stdout: string, context: OracleParseContext): OracleReading {
+  throw new OracleParseError(
+    `readOracleOutput is not implemented yet: ${harness}, ${stdout.length} bytes from ${context.cwd}`,
+  );
+}
+
 /**
  * Splits a stream into records on U+000A and nothing else.
  *

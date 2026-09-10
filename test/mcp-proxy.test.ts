@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { loadLock } from "../src/core/catalog.js";
@@ -56,6 +56,10 @@ interface ProxyFixture {
   readonly environmentScript: string;
   /** Echoes the credential it was handed back through stderr, then floods it. */
   readonly secretEchoScript: string;
+  /** An MCP server advertising exactly the comma-separated tools it is given. */
+  readonly toolListScript: string;
+  /** Runs `runMcpProxy` as its own child, with a file-backed observation sink. */
+  readonly proxyHostScript: string;
   /** Where a fixture server records the pid it is running as. */
   pidPath(name: string): string;
   /**
@@ -84,6 +88,8 @@ async function createProxyFixture(
   const toolCallLogScript = join(root, "tool-call-log-server.mjs");
   const environmentScript = join(root, "environment-server.mjs");
   const secretEchoScript = join(root, "secret-echo-server.mjs");
+  const toolListScript = join(root, "tool-list-server.mjs");
+  const proxyHostScript = join(root, "proxy-host.mjs");
 
   // Speaks just enough MCP to complete a handshake and a tool listing. It
   // advertises a tool alpha-AOS policy does not allow, so filtering has
@@ -193,6 +199,67 @@ async function createProxyFixture(
     "utf8",
   );
 
+  // A whole MCP server whose advertised tool set is an argument, so one
+  // fixture can stand in for any of the three pinned upstreams. It answers a
+  // tools/call for any name it advertises — filtering is the proxy's job, and
+  // a fixture that refused would hide a proxy that had stopped filtering.
+  await writeFile(
+    toolListScript,
+    [
+      "import { createInterface } from 'node:readline';",
+      "const advertised = String(process.argv[2] ?? '').split(',').filter(Boolean);",
+      "const lines = createInterface({ input: process.stdin });",
+      "lines.on('line', (line) => {",
+      "  if (!line.trim().startsWith('{')) return;",
+      "  let message;",
+      "  try { message = JSON.parse(line); } catch { return; }",
+      "  if (typeof message.id !== 'number') return;",
+      "  if (message.method === 'initialize') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'fixture-upstream', version: '0.0.0' } } }));",
+      "    return;",
+      "  }",
+      "  if (message.method === 'tools/list') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { tools: advertised.map((name) => ({ name, description: 'fixture tool', inputSchema: { type: 'object' } })) } }));",
+      "    return;",
+      "  }",
+      "  if (message.method === 'tools/call') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: 'upstream answered' }] } }));",
+      "    return;",
+      "  }",
+      "  console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'method not found' } }));",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  // The proxy owns its process's stdio once its downstream server is up, so
+  // it runs as a child here exactly as the CLI runs it. The sink is
+  // file-backed for the same reason: stdout belongs to the protocol.
+  await writeFile(
+    proxyHostScript,
+    [
+      `import { runMcpProxy } from ${JSON.stringify(pathToFileURL(join(repositoryRoot, "dist", "src", "core", "mcp-proxy.js")).href)};`,
+      "import { appendFileSync } from 'node:fs';",
+      "const [server, mode, sinkPath, upstreamScript, tools, version] = process.argv.slice(2);",
+      "const sink = { record(observation) { appendFileSync(sinkPath, JSON.stringify(observation) + '\\u000a', 'utf8'); } };",
+      "await runMcpProxy(server, { package: 'fixture-' + server, version, integrity: 'sha512-fixture' }, {",
+      "  mode,",
+      "  sink,",
+      "  upstream: {",
+      "    executable: process.execPath,",
+      "    args: [upstreamScript, tools],",
+      "    cwd: process.cwd(),",
+      "    environment: { source: {} },",
+      "    timeoutMs: 0,",
+      "    maxOutputBytes: 64 * 1024,",
+      "  },",
+      "});",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
   return {
     root,
     upstreamServerScript,
@@ -200,6 +267,8 @@ async function createProxyFixture(
     toolCallLogScript,
     environmentScript,
     secretEchoScript,
+    toolListScript,
+    proxyHostScript,
     pidPath(name: string): string {
       return join(root, `${name}.pid`);
     },
@@ -765,5 +834,213 @@ test("a proxy launch writes nothing into the user's home", { timeout: STARTUP_BU
   assert.ok(
     cacheEntries.length > 0,
     "the pinned cache root received nothing, so the empty home proves nothing about where npm writes",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Observation is a separate responsibility from filtering (D-01, D-02).
+//
+// CAPA-01 and CAPA-02 both need a real MCP call to be OBSERVED, and the two
+// servers a capability canary reaches for first — context7 and exa — have no
+// allowlist at all. The module used to fuse the two jobs: `runMcpFilterProxy`
+// refused outright for any server whose allowlist was null, so the seam that
+// records a call could not be put in front of the servers that need it.
+//
+// Splitting them is only safe if observing changes nothing about what may be
+// called, and if a record carries names and outcomes but never values. Both
+// are asserted here, offline, against fixture upstreams.
+// ---------------------------------------------------------------------------
+
+/** The byte-identical policy refusal Phase 1 D-11 pinned as a stable contract. */
+const POLICY_REFUSAL = "MCP tool is not allowed by alpha-aos policy: firecrawl_extract";
+
+/** Passed as a tool ARGUMENT, so a record that stored arguments would carry it. */
+const ARGUMENT_SENTINEL = "alphaAOSargumentSentinel0033";
+
+/** What the fixture upstreams advertise, per server. */
+const FIXTURE_TOOLS: Record<McpServerId, readonly string[]> = {
+  context7: ["resolve-library-id", "query-docs"],
+  exa: ["web_search_exa", "web_fetch_exa"],
+  firecrawl: [
+    "firecrawl_scrape",
+    "firecrawl_map",
+    "firecrawl_crawl",
+    "firecrawl_check_crawl_status",
+    DISALLOWED_TOOL,
+  ],
+};
+
+/** The pinned version a fixture proxy reports as the observed upstream. */
+const FIXTURE_VERSION = "9.9.9";
+
+interface ProxyChild {
+  readonly client: Client;
+  /** Every observation the proxy's sink recorded, in order. */
+  observations(): Promise<Record<string, unknown>[]>;
+  /** The proxy child's own stderr, for a failure that needs explaining. */
+  readonly transport: BoundedStdioTransport;
+}
+
+/**
+ * Runs `runMcpProxy` as its own child and speaks MCP to it.
+ *
+ * The proxy owns this process's stdio when it stands up its downstream server,
+ * so it cannot be driven in-process by a test runner that also owns stdio. A
+ * child is not a workaround: it is how the CLI runs it.
+ */
+async function startProxyChild(
+  fixture: ProxyFixture,
+  options: { server: McpServerId; mode: "filter" | "observe" },
+): Promise<ProxyChild> {
+  const sinkPath = join(fixture.root, `observations-${options.server}-${options.mode}.jsonl`);
+  const transport = fixture.track(
+    new BoundedStdioTransport({
+      executable: process.execPath,
+      args: [
+        fixture.proxyHostScript,
+        options.server,
+        options.mode,
+        sinkPath,
+        fixture.toolListScript,
+        FIXTURE_TOOLS[options.server].join(","),
+        FIXTURE_VERSION,
+      ],
+      cwd: fixture.root,
+      environment: { source: {} },
+      timeoutMs: 60_000,
+      maxOutputBytes: STDERR_CAP,
+    }),
+  );
+  const client = new Client({ name: "alpha-aos-mcp-observation-test", version: "0.1.0" });
+  try {
+    await client.connect(transport, { timeout: 30_000 });
+  } catch (error) {
+    let stderr = "";
+    try {
+      stderr = transport.stderrEvidence().excerpt;
+    } catch {
+      stderr = "<the proxy child never started>";
+    }
+    throw new Error(
+      `runMcpProxy did not front ${options.server} in ${options.mode} mode: ` +
+        `${error instanceof Error ? error.message : String(error)}; proxy stderr: ${stderr}`,
+    );
+  }
+  return {
+    client,
+    transport,
+    async observations(): Promise<Record<string, unknown>[]> {
+      const text = await readFile(sinkPath, "utf8").catch(() => "");
+      return text
+        .split(/\r?\n/u)
+        .filter((line) => line.trim().length > 0)
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+    },
+  };
+}
+
+async function listedToolNames(child: ProxyChild): Promise<string[]> {
+  const listed = await child.client.listTools(undefined, { timeout: 30_000 });
+  return listed.tools.map((tool) => tool.name).sort();
+}
+
+test("a server with no allowlist is fronted for observation instead of refused", async (context) => {
+  const fixture = await createProxyFixture(context);
+
+  for (const server of ["context7", "exa"] as const) {
+    const child = await startProxyChild(fixture, { server, mode: "observe" });
+    assert.deepEqual(
+      await listedToolNames(child),
+      [...FIXTURE_TOOLS[server]].sort(),
+      `${server} has no allowlist, so its tool listing must be forwarded unchanged`,
+    );
+  }
+});
+
+test("observing firecrawl does not widen the tools it may call", async (context) => {
+  const fixture = await createProxyFixture(context);
+
+  const filtered = await startProxyChild(fixture, { server: "firecrawl", mode: "filter" });
+  const observed = await startProxyChild(fixture, { server: "firecrawl", mode: "observe" });
+
+  const expected = [
+    "firecrawl_check_crawl_status",
+    "firecrawl_crawl",
+    "firecrawl_map",
+    "firecrawl_scrape",
+  ];
+  assert.deepEqual(await listedToolNames(filtered), expected, "filter mode must drop the disallowed tool");
+  assert.deepEqual(await listedToolNames(observed), expected, "observation must not widen the allowed surface");
+});
+
+test("a denied tool still produces the byte-identical policy refusal", async (context) => {
+  const fixture = await createProxyFixture(context);
+  const child = await startProxyChild(fixture, { server: "firecrawl", mode: "observe" });
+
+  await assert.rejects(
+    async () => child.client.callTool({ name: DISALLOWED_TOOL, arguments: {} }, undefined, { timeout: 30_000 }),
+    (error: unknown) => {
+      // The exact string, not a pattern: Phase 1 D-11 made this a contract a
+      // caller may match on, so a reworded refusal is a breaking change.
+      assert.ok(String((error as Error).message).includes(POLICY_REFUSAL), String((error as Error).message));
+      return true;
+    },
+  );
+
+  // A refusal is itself evidence: the canary must be able to see that the
+  // model reached for a tool policy denied it.
+  const records = await child.observations();
+  assert.equal(records.length, 1, `a denied call must be recorded exactly once: ${JSON.stringify(records)}`);
+  assert.equal(records[0]?.outcome, "denied");
+  assert.equal(records[0]?.tool, DISALLOWED_TOOL);
+});
+
+test("an observed tool call records names and outcomes but never values", async (context) => {
+  const fixture = await createProxyFixture(context);
+  const child = await startProxyChild(fixture, { server: "firecrawl", mode: "observe" });
+
+  await child.client.callTool(
+    { name: "firecrawl_scrape", arguments: { url: "https://example.invalid", apiKey: ARGUMENT_SENTINEL } },
+    undefined,
+    { timeout: 30_000 },
+  );
+
+  const records = await child.observations();
+  assert.equal(records.length, 1, `exactly one record per observed call: ${JSON.stringify(records)}`);
+  const record = records[0] ?? {};
+
+  assert.deepEqual(
+    Object.keys(record).sort(),
+    ["at", "outcome", "server", "tool", "upstreamVersion"],
+    "an observation is a closed record: no argument field, no response field",
+  );
+  assert.equal(record.server, "firecrawl");
+  assert.equal(record.tool, "firecrawl_scrape");
+  assert.equal(record.outcome, "ok");
+  assert.equal(record.upstreamVersion, FIXTURE_VERSION, "the record must name the upstream version from the lock");
+  assert.ok(
+    typeof record.at === "string" && !Number.isNaN(Date.parse(record.at)),
+    `the record must carry an ISO timestamp: ${String(record.at)}`,
+  );
+
+  // Arguments are where credentials live. The serialized record is the thing
+  // that reaches a ledger or a CI log, so that is what is asserted.
+  assert.equal(
+    JSON.stringify(record).includes(ARGUMENT_SENTINEL),
+    false,
+    "a credential passed as a tool argument survived into the observation record",
+  );
+});
+
+test("filter mode records nothing even when a sink is supplied", async (context) => {
+  const fixture = await createProxyFixture(context);
+  const child = await startProxyChild(fixture, { server: "firecrawl", mode: "filter" });
+
+  await child.client.callTool({ name: "firecrawl_scrape", arguments: {} }, undefined, { timeout: 30_000 });
+
+  assert.deepEqual(
+    await child.observations(),
+    [],
+    "D-02: the everyday filter proxy is not an observation surface",
   );
 });

@@ -231,7 +231,7 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task.
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation.
 
-**Plans**: 12/12 plans executed
+**Plans**: 12/12 plans executed; 3 gap-closure plans added after verification (03-13 … 03-15), pending execution
 **Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across Antigravity surfaces, Pi, and Hermes.
 
 Plans:
@@ -283,6 +283,18 @@ Plans:
 **Wave 12** *(blocked on Wave 11)*
 
 - [x] 03-12-PLAN.md — CAPA-03: the Unified Memory handoff canary and the `.planning/` immutability half
+
+**Wave 13** *(blocked on Wave 12; gap closure)*
+
+- [ ] 03-13-PLAN.md — A proof records the inference it rests on and the scope it was taken in
+
+**Wave 14** *(blocked on Wave 13; gap closure)*
+
+- [ ] 03-14-PLAN.md — The JSON surface says what it means: the not-run reason and one home per evidence unit
+
+**Wave 15** *(blocked on Wave 14; gap closure)*
+
+- [ ] 03-15-PLAN.md — A suite that cannot silently prove nothing: the CI upstream gate and one stated precondition
 
 > Every wave holds one plan. Phase 2 recorded the reason and it still holds: successive plans extend the
 > same modules, and even file-disjoint plans run `npm run build` and then execute compiled tests against

@@ -37,6 +37,7 @@ import {
   parseClaudeInitEvent,
   parseCodexPromptInput,
   parsePiCommands,
+  proofFor,
   PI_GET_COMMANDS_REQUEST,
   readOracleOutput,
   runDiscoveryOracle,
@@ -51,7 +52,7 @@ import type {
   OracleParse,
   RunPairedDiscoveryOptions,
 } from "../src/adapters/capability-oracle.js";
-import type { BoundInputs, HarnessVersion } from "../src/core/capability-ledger.js";
+import { pairEvidence, type BoundInputs, type CapabilityProof, type HarnessVersion } from "../src/core/capability-ledger.js";
 import { runDiscoverySweep, loadCanaryCatalog } from "../src/core/canary.js";
 import { applyProjectPackSync, PACK_SIDECAR_FILE } from "../src/core/project-pack-sync.js";
 import { approveProjectPlan, planProjectCapabilities, PROJECT_SKILL_ROOTS } from "../src/core/project-plan.js";
@@ -500,6 +501,61 @@ function pairedOptions(overrides: {
   };
 }
 
+function recordedProof(polarity: "positive" | "negative", overrides: Partial<DiscoveryResult> = {}, asserted = true, directories = ["zzz-canary-widget"]): CapabilityProof {
+  const cwd = polarity === "positive" ? SYNTHETIC_PROJECT_ROOT : SYNTHETIC_CONTROL_ROOT;
+  const parsed = parseCodexPromptInput(polarity === "positive" ? CODEX_INSIDE_RECORDING : CODEX_OUTSIDE_RECORDING, { cwd });
+  const result: DiscoveryResult = {
+    harness: "codex", cwd, exitCode: 0, ...parsed, nativeUse: "unverified", unsupportedReason: null, unparsedReason: null,
+    oracle: { command: "codex debug prompt-input placeholder", exitCode: 0, stdoutFingerprint: "a".repeat(64), stderrFingerprint: "b".repeat(64) },
+    costsModelTurn: false, ...overrides,
+  };
+  const proof = proofFor({ base: pairedOptions({ harness: "codex", projectRoot: SYNTHETIC_PROJECT_ROOT, controlRoot: SYNTHETIC_CONTROL_ROOT, skillDirectories: directories }),
+    result, polarity, ancestorFreedom: polarity === "negative" ? { asserted, checkedAncestors: [cwd] } : null, observedAt: "2026-09-11T00:00:00.000Z" });
+  assert.ok(proof);
+  return proof;
+}
+
+function proofNotes(proof: CapabilityProof): readonly { kind: string; statement: string; basis: string }[] | undefined {
+  return proof.claimNotes;
+}
+
+test("a different-directory negative records the invocation inference and its observed control premise", () => {
+  const notes = proofNotes(recordedProof("negative"));
+  assert.equal(notes?.length, 1);
+  assert.equal(notes?.[0]?.kind, "inference");
+  assert.match(notes?.[0]?.statement ?? "", /cannot be invoked outside the project/u);
+  assert.match(notes?.[0]?.basis ?? "", /INFERRED.*same oracle.*control directory.*ancestor.*did not list/u);
+});
+
+test("the positive half and a control that discovered the capability carry no inference", () => {
+  const positive = recordedProof("positive");
+  assert.equal(proofNotes(positive), undefined);
+  const parsed = parseCodexPromptInput(CODEX_INSIDE_RECORDING, { cwd: SYNTHETIC_PROJECT_ROOT });
+  const negative = recordedProof("negative", { skills: parsed.skills });
+  assert.equal(negative.nativeUse, "discovered");
+  assert.equal(proofNotes(negative), undefined);
+});
+
+test("claim notes do not change the paired completeness native-use or missing-half verdict", () => {
+  const unit = pairEvidence(recordedProof("positive"), recordedProof("negative"));
+  assert.equal(unit.completeness, "COMPLETE");
+  assert.equal(unit.nativeUse, "discovered");
+  assert.equal(unit.missingHalf, null);
+});
+
+test("unparsed negatives and trust-withheld controls do not claim an observed outside-project absence", () => {
+  assert.equal(proofNotes(recordedProof("negative", { skills: null, unparsedReason: "unrecognized output" })), undefined);
+  assert.equal(proofNotes(recordedProof("negative", {}, false)), undefined);
+  assert.equal(proofNotes(recordedProof("negative", {}, true, [])), undefined);
+});
+
+test("a partially loaded multi-skill capability does not claim that the harness loaded none of it", () => {
+  const parsed = parseCodexPromptInput(CODEX_INSIDE_RECORDING, { cwd: SYNTHETIC_PROJECT_ROOT });
+  const proof = recordedProof("negative", { skills: parsed.skills }, true, ["zzz-canary-widget", "absent-skill"]);
+  assert.equal(proof.nativeUse, "unverified");
+  assert.equal(proofNotes(proof), undefined);
+});
+
 test("the ancestor walk reaches the filesystem root and records every directory it checked", async (t) => {
   const control = await scratchRoot(t, "control");
   const assertion = assertControlAncestorFreedom("pi", control);
@@ -668,7 +724,8 @@ test("this module cannot produce the invocation axis, at the type level and in i
   const source = await readFile(join(repositoryRoot, "src", "adapters", "capability-oracle.ts"), "utf8");
   const executable = source.split("\n").filter((line) => !/^\s*[/*]/u.test(line));
   assert.deepEqual(
-    executable.filter((line) => line.includes("invoked")),
+    // Qualification prose can name invocation; only the exact axis literal is forbidden.
+    executable.filter((line) => /["']invoked["']/u.test(line)),
     [],
     "an executable line in the oracle adapter names the invocation axis",
   );

@@ -62,6 +62,44 @@ const VALID_LEDGER: CapabilityLedger = {
   proofs: [VALID_POSITIVE],
 };
 
+const INFERENCE_NOTE = {
+  kind: "inference" as const,
+  statement: "The capability cannot be invoked outside the project.",
+  basis: "INFERRED from the paired control that did not list the capability.",
+};
+
+test("a proof claim note survives the transactional write-then-read path", async (context) => {
+  const stateRoot = await ledgerFixture(context);
+  const proof = { ...VALID_POSITIVE, claimNotes: [INFERENCE_NOTE] };
+  const written = await writeCapabilityLedger({ stateRoot, ledger: { ...VALID_LEDGER, proofs: [proof] } });
+  assert.equal(written.status, "written");
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(read.state, "present");
+  if (read.state === "present") assert.deepEqual(read.ledger.proofs, [proof]);
+});
+
+test("a proof without claim notes round-trips with the property absent rather than empty", async (context) => {
+  const stateRoot = await ledgerFixture(context);
+  const written = await writeCapabilityLedger({ stateRoot, ledger: VALID_LEDGER });
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(read.state, "present");
+  if (read.state !== "present") return;
+  assert.deepEqual(read.ledger.proofs, VALID_LEDGER.proofs);
+  assert.equal(Object.hasOwn(read.ledger.proofs[0]!, "claimNotes"), false);
+});
+
+for (const [name, note] of [
+  ["an unknown claim-note key", { ...INFERENCE_NOTE, value: "forbidden" }],
+  ["a claim-note kind outside the two declared values", { ...INFERENCE_NOTE, kind: "proof" }],
+  ["an empty claim-note basis", { ...INFERENCE_NOTE, basis: "" }],
+] as const) {
+  test(`${name} is refused by the closed ledger schema`, async (context) => {
+    const root = await ledgerFixture(context);
+    const path = await writeLedgerBytes(root, JSON.stringify({ ...VALID_LEDGER, proofs: [{ ...VALID_POSITIVE, claimNotes: [note] }] }));
+    assert.equal((await readCapabilityLedger(path)).state, "unreadable");
+  });
+}
+
 async function ledgerFixture(context: { after: (fn: () => Promise<unknown>) => void }): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-ledger-"));
   context.after(async () => rm(root, { recursive: true, force: true }));

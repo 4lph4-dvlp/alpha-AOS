@@ -149,6 +149,14 @@ export interface OracleRecord {
   readonly stderrFingerprint: string;
 }
 
+export type ClaimNoteKind = "inference" | "scope-limit";
+
+export interface ClaimNote {
+  readonly kind: ClaimNoteKind;
+  readonly statement: string;
+  readonly basis: string;
+}
+
 /** One row of the ledger: what was proven, about what, bound to which inputs. */
 export interface CapabilityProof {
   /** Null for a capability that is not project-scoped at all. */
@@ -168,6 +176,8 @@ export interface CapabilityProof {
    * every proof that does not use one.
    */
   readonly immutabilityWitness?: ImmutabilityWitness | null;
+  /** Older proofs recorded no qualification; absence must not invent an empty record for them. */
+  readonly claimNotes?: readonly ClaimNote[];
   readonly observedAt: string;
   readonly oracle: OracleRecord;
   /**

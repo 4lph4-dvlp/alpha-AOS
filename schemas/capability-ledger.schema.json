@@ -167,6 +167,20 @@
               }
             }
           },
+          "claimNotes": {
+            "description": "Optional qualifications of a proof that WAS taken; never substitutes for evidence or changes a verdict. Older proofs recorded no notes, so absence remains absence. immutabilityWitness.scopeLimit qualifies one witness artifact; claimNotes records the derivation or limit of the proof's own claim. They deliberately remain separate: consolidating them would remove a required field from a closed world and make already-persisted handoff proofs unreadable.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "statement", "basis"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "enum": ["inference", "scope-limit"] },
+                "statement": { "type": "string", "minLength": 1 },
+                "basis": { "type": "string", "minLength": 1 }
+              }
+            }
+          },
           "observedAt": { "type": "string", "minLength": 1 },
           "oracle": {
             "description": "What was actually run and what it returned. Output is recorded as a FINGERPRINT and never as raw bytes, because a harness transcript is the most likely place for a credential or a user's private prompt to reach persisted state (T-03-22).",

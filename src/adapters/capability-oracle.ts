@@ -25,6 +25,7 @@ import type {
   AncestorFreedom,
   BoundInputs,
   CapabilityProof,
+  ClaimNote,
   EvidencePolarity,
   EvidenceUnit,
   HarnessVersion,
@@ -1005,7 +1006,13 @@ function sawCapability(result: DiscoveryResult, skillDirectories: readonly strin
   return skillDirectories.every((directory) => seen.has(directory));
 }
 
-function proofFor(options: {
+export const CAPA06_INVOCATION_INFERENCE: ClaimNote = {
+  kind: "inference",
+  statement: "The project-only capability cannot be invoked outside the project.",
+  basis: "INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked.",
+};
+
+export function proofFor(options: {
   readonly base: RunPairedDiscoveryOptions;
   readonly result: DiscoveryResult;
   readonly polarity: EvidencePolarity;
@@ -1014,6 +1021,13 @@ function proofFor(options: {
 }): CapabilityProof | null {
   const { base, result, polarity } = options;
   if (result.oracle === null) return null;
+  const nativeUse = sawCapability(result, base.skillDirectories) ? "discovered" : "unverified";
+  // Unparsed output, withheld trust and partial loading do not establish the
+  // outside-project absence named by this note, even when their axis is unverified.
+  const inferredAbsence = polarity === "negative" && nativeUse === "unverified"
+    && options.ancestorFreedom?.asserted === true && result.skills !== null
+    && result.unparsedReason === null && base.skillDirectories.length > 0
+    && !result.skills.some((skill) => skill.directoryName !== null && base.skillDirectories.includes(skill.directoryName));
   return {
     projectId: base.projectId,
     harness: base.harness,
@@ -1021,7 +1035,8 @@ function proofFor(options: {
     polarity,
     // A positive that listed the skills is `discovered`; anything else is
     // `unverified`. There is no third value this module can produce.
-    nativeUse: sawCapability(result, base.skillDirectories) ? "discovered" : "unverified",
+    nativeUse,
+    ...(inferredAbsence ? { claimNotes: [CAPA06_INVOCATION_INFERENCE] } : {}),
     blockedReason: null,
     boundInputs: base.boundInputs,
     harnessVersion: base.harnessVersion,

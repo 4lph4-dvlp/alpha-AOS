@@ -129,6 +129,9 @@ test("the managed install operation plan enumerates every fixture and component 
 
   // Every managed component apply is named, with its own complete plan.
   assert.ok(plan.components.gsdCompatibility, "Codex targets plan the GSD hook compatibility sync");
+  assert.ok(plan.components.codexPolicy, "Codex targets plan the owned execution guidance");
+  assert.equal(plan.components.codexPolicy.action, "create");
+  assert.ok(plan.install.steps.some((step) => step.id === "policy:codex-execution"));
   assert.equal(plan.components.eccSkills.length, 1);
   assert.equal(plan.components.mcp.length, 1);
   assert.equal(plan.components.policy, null, "Claude is not a target, so no policy write is planned");
@@ -145,6 +148,25 @@ test("the managed install operation plan enumerates every fixture and component 
   }
   assert.equal(existsSync(writerLockPath(stateRoot)), false);
   assert.equal(plan.digest.length, 64);
+});
+
+test("managed install excludes Codex policy when only another harness is selected", async (context) => {
+  const { home } = await syntheticHome(context);
+  const codexRoot = join(home, ".codex");
+  await mkdir(codexRoot, { recursive: true });
+  await writeFile(join(codexRoot, "AGENTS.override.md"), "User override\n");
+  const root = packageRoot();
+  const plan = await createManagedInstallOperationPlan({
+    root,
+    catalog: await loadCatalog(root),
+    lock: await loadLock(root),
+    inventory: inventory(["hermes"]),
+    requestedTargets: ["hermes"],
+    stateRoot: join(home, "state"),
+  });
+  assert.equal(plan.components.codexPolicy, null);
+  assert.equal(plan.install.steps.some((step) => step.id === "policy:codex-execution"), false);
+  assert.equal(await readFile(join(codexRoot, "AGENTS.override.md"), "utf8"), "User override\n");
 });
 
 test("a managed install plan re-read with its reviewed fixture roots is digest-stable", async (context) => {

@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { applyCodexPolicy, planCodexPolicy } from "./core/codex-policy.js";
+import { readGsdContext } from "./core/gsd-context.js";
 import { loadCatalog, loadLock } from "./core/catalog.js";
 import { runDoctor } from "./core/doctor.js";
 import { collectInventory } from "./core/inventory.js";
@@ -102,6 +104,8 @@ Usage:
   alpha-aos owned-skills sync <id> --target <harness> [--apply] [--json]
   alpha-aos ecc-skills sync --target <harness> [--apply] [--json]
   alpha-aos skill-policy sync --target claude [--apply] [--json]
+  alpha-aos codex-policy sync [--apply] [--json]
+  alpha-aos gsd-context <execute-phase|execute-plan|quick> [--step <name> | --from <line> --lines <count>] [--json]
   alpha-aos mcp sync --target <harness> [--server context7|exa|firecrawl] [--apply] [--json]
   alpha-aos update --check [--json]
   alpha-aos update --stage [--apply]
@@ -628,6 +632,37 @@ async function main(): Promise<void> {
       print(result, json, result.operationId
         ? `ECC exact-file skills synchronized for ${target}. Transaction: ${result.operationId}`
         : `ECC exact-file skills for ${target} are already current.`);
+    }
+    return;
+  }
+
+  if (command === "gsd-context") {
+    const step = optionValue(args, "--step");
+    const from = optionValue(args, "--from");
+    const lines = optionValue(args, "--lines");
+    const result = await readGsdContext(args[1] ?? "", {
+      ...(step === null ? {} : { step }),
+      ...(from === null ? {} : { from: Number(from) }),
+      ...(lines === null ? {} : { lines: Number(lines) }),
+    });
+    print(result, true, "");
+    return;
+  }
+
+  if (command === "codex-policy") {
+    if (args[1] !== "sync") throw new Error("Usage: alpha-aos codex-policy sync [--apply] [--json]");
+    const plan = await planCodexPolicy();
+    if (!hasFlag(args, "--apply")) {
+      print(plan, json, [
+        "Codex execution guidance (native AGENTS.md; no hard token enforcement)",
+        `Target: ${plan.target}`, `Action: ${plan.action}`, `Reviewed digest: ${plan.digest}`,
+        "Dry-run only. Pass --apply to journal the owned block merge.",
+      ].join("\n"));
+    } else {
+      const result = await applyCodexPolicy({ plan });
+      print(result, json, result.operationId
+        ? `Codex execution guidance synchronized. Restart Codex. Transaction: ${result.operationId}`
+        : "Codex execution guidance is already current.");
     }
     return;
   }

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { applyCodexPolicy, planCodexPolicy, type CodexPolicyOperationPlan } from "./codex-policy.js";
 import { readFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -354,6 +355,10 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
   requirePreflight(options.inventory);
   const selection = selectInstallTargets(options.inventory, options.requestedTargets);
   const steps: ManagedInstallStep[] = [];
+  if (selection.targets.includes("codex")) {
+    const plan = await planCodexPolicy({ root: options.root, ...installStateOptions(options) });
+    steps.push({ id: "policy:codex-execution", component: "execution-policy", target: "codex", action: plan.action, external: false, note: plan.target });
+  }
   const gsd = options.lock.components.gsd;
   const ecc = options.lock.components.ecc;
   if (!gsd || !ecc) throw new Error("Stable lock is missing GSD or ECC");
@@ -515,6 +520,7 @@ export interface ManagedInstallOperationPlan {
   /** Every managed component apply, each with its own complete plan. */
   components: {
     gsdCompatibility: GsdCompatibilityOperationPlan | null;
+    codexPolicy: CodexPolicyOperationPlan | null;
     ownedSkills: readonly OwnedSkillOperationPlan[];
     eccSkills: readonly EccSkillOperationPlan[];
     mcp: readonly McpOperationPlan[];
@@ -612,6 +618,9 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
     : null;
 
   const ownedSkills: OwnedSkillOperationPlan[] = [];
+  const codexPolicy = install.targets.includes("codex")
+    ? await planCodexPolicy({ root: options.root, ...installStateOptions(options) })
+    : null;
   if (install.targets.includes("claude")) {
     for (const skill of options.catalog.components.ownedSkills) {
       if (!skill.targets.includes("claude")) continue;
@@ -682,6 +691,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
     },
     components: {
       gsdCompatibility: gsdCompatibility?.digest ?? null,
+      codexPolicy: codexPolicy?.digest ?? null,
       ownedSkills: ownedSkills.map((plan) => plan.digest),
       eccSkills: eccSkills.map((plan) => plan.digest),
       mcp: mcp.map((plan) => plan.digest),
@@ -704,7 +714,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
       mcpBridge: mcpBridgeFixture,
       mcpCanary,
     },
-    components: { gsdCompatibility, ownedSkills, eccSkills, mcp, policy },
+    components: { gsdCompatibility, codexPolicy, ownedSkills, eccSkills, mcp, policy },
     external,
     fixtureRoots,
     environmentNames,
@@ -788,6 +798,10 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
     if (reviewed.components.gsdCompatibility) {
       const result = await applyCodexGsdHookCompatibility(options.lock, { plan: reviewed.components.gsdCompatibility, session });
       remember("gsd:codex:hook-compat", result.operationId, join(codexConfigRoot(), "hooks", "lib"));
+    }
+    if (reviewed.components.codexPolicy) {
+      const result = await applyCodexPolicy({ plan: reviewed.components.codexPolicy, session });
+      remember("policy:codex-execution", result.operationId, result.plan.configRoot);
     }
     for (const component of reviewed.components.ownedSkills) {
       const result = await applyOwnedSkillSync(options.root, options.catalog, options.lock, component.id, "claude", { plan: component, session });

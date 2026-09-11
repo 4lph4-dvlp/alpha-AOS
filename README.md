@@ -69,6 +69,8 @@ The second command should report the selected components as `CURRENT`.
 
 Hermes is intentionally a worker and does not write GSD planning state. Claude keeps the three ECC skills `user-invocable-only` via native `skillOverrides`, without editing the hash-locked skill files.
 
+When Codex is selected, alpha-AOS install/update also reconciles the [owned execution guidance](docs/codex-execution-policy.md) into one marked block in `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`). Preview with `alpha-aos codex-policy sync --json`; apply with `alpha-aos codex-policy sync --apply`. User text outside the block is preserved; malformed markers, an existing `AGENTS.override.md` (including an empty file), or changed reviewed inputs cause refusal. Writes use the normal transaction and rollback commands. Reinstalling alpha-AOS restores this same shipped policy; installing GSD alone does not install it. No upstream workflow or model setting is patched. Restart Codex after synchronization. This is guidance, not hard token enforcement: [native precedence and instruction size limits](https://learn.chatgpt.com/docs/agent-configuration/agents-md) still apply, and discovery must be verified in the actual launch context.
+
 ## Updating
 
 The updater refuses to pull over a dirty source checkout, uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the release's verified stable lock.

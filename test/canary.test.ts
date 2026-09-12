@@ -16,6 +16,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import type { PairedDiscovery } from "../src/adapters/capability-oracle.js";
 import { loadLock, ManagedDocumentError } from "../src/core/catalog.js";
 import {
   assertCanaryContext,
@@ -109,7 +110,7 @@ import {
   type McpObservation,
 } from "../src/core/mcp-proxy.js";
 import { renderMcpConfig } from "../src/core/mcp.js";
-import { createRedactedExcerpt, createRedactionContext } from "../src/core/redaction.js";
+import { createRedactedExcerpt, createRedactionContext, placeholder, serializeObservable } from "../src/core/redaction.js";
 import { packageRoot } from "../src/core/paths.js";
 import { materializeEnvironment, PLATFORM_FLOOR_ENVIRONMENT } from "../src/core/process.js";
 import type { IsolationLaunchSpec, McpServerId, StackLock } from "../src/types.js";
@@ -1432,6 +1433,25 @@ function discoveryProof(harness: LedgerHarness, polarity: "positive" | "negative
   };
 }
 
+function pairedDiscovery(harness: LedgerHarness, unit: ReturnType<typeof pairEvidence>): PairedDiscovery {
+  return {
+    harness,
+    capability: "WEB_BASE",
+    unit,
+    unsupportedReason: null,
+    positive: null,
+    negatives: [],
+    ancestorFreedom: unit.negative?.ancestorFreedom === null || unit.negative?.ancestorFreedom === undefined
+      ? { asserted: true, checkedAncestors: [] }
+      : {
+          asserted: unit.negative.ancestorFreedom.asserted,
+          checkedAncestors: [...unit.negative.ancestorFreedom.checkedAncestors],
+        },
+    incompleteReasons: [...unit.incompleteReasons],
+    findings: [],
+  };
+}
+
 test("the free discovery sweep completes with no credential, spends no model turn, and records an evidence unit", async () => {
   const driven: LedgerHarness[] = [];
   const sweep = await runDiscoverySweep({
@@ -1586,8 +1606,7 @@ test("--json carries all three axes for every capability and the human output ca
         ran: true,
         skippedReason: null,
         costsModelTurn: false,
-        discovery: null,
-        unit: pairEvidence(discoveryProof("codex", "positive"), discoveryProof("codex", "negative")),
+        discovery: pairedDiscovery("codex", pairEvidence(discoveryProof("codex", "positive"), discoveryProof("codex", "negative"))),
       },
       "WEB_BASE",
       "unverified",
@@ -1598,9 +1617,8 @@ test("--json carries all three axes for every capability and the human output ca
         ran: true,
         skippedReason: null,
         costsModelTurn: false,
-        discovery: null,
         // No negative control was taken, so the unit is INCOMPLETE.
-        unit: pairEvidence(discoveryProof("pi", "positive"), null),
+        discovery: pairedDiscovery("pi", pairEvidence(discoveryProof("pi", "positive"), null)),
       },
       "WEB_BASE",
       "unverified",
@@ -1650,7 +1668,7 @@ test("a complete discovery row exposes both halves' claim notes in positive-then
   const positive = { ...discoveryProof("codex", "positive"), claimNotes: [{ kind: "scope-limit" as const, statement: "Observed fixture scope", basis: "The positive fixture ran here" }] };
   const negative = { ...discoveryProof("codex", "negative"), claimNotes: [{ kind: "inference" as const, statement: "Cannot invoke outside the project", basis: "The control did not list the capability" }] };
   const row = discoveryRow(
-    { harness: "codex", ran: true, skippedReason: null, costsModelTurn: false, discovery: null, unit: pairEvidence(positive, negative) },
+    { harness: "codex", ran: true, skippedReason: null, costsModelTurn: false, discovery: pairedDiscovery("codex", pairEvidence(positive, negative)) },
     "WEB_BASE", "supported",
   );
   assert.equal(row.completeness, "COMPLETE");
@@ -1664,7 +1682,7 @@ test("claim notes render in full on tagged lines after incompleteness without ch
     { kind: "scope-limit" as const, statement: "A bounded scope", basis: "The fixture supplied its own configuration" },
   ] };
   const row = discoveryRow(
-    { harness: "pi", ran: true, skippedReason: "Fixture not run", costsModelTurn: false, discovery: null, unit: pairEvidence(proof, null) },
+    { harness: "pi", ran: true, skippedReason: "Fixture not run", costsModelTurn: false, discovery: pairedDiscovery("pi", pairEvidence(proof, null)) },
     "WEB_BASE", "unverified",
   );
   const rendered = formatCapabilityReport("Report", [row]);
@@ -1686,7 +1704,7 @@ test("an INCOMPLETE unit renders INCOMPLETE and never the positive's native-use 
   assert.equal(incomplete.positive?.nativeUse, "discovered", "the positive half did not record a native-use value to withhold");
 
   const row = discoveryRow(
-    { harness: "pi", ran: true, skippedReason: null, costsModelTurn: false, discovery: null, unit: incomplete },
+    { harness: "pi", ran: true, skippedReason: null, costsModelTurn: false, discovery: pairedDiscovery("pi", incomplete) },
     "WEB_BASE",
     "unverified",
   );
@@ -1754,6 +1772,98 @@ test("runtime instruction ids name exactly the materialized targets, including t
     assert.deepEqual(runtime.declaredFiles.filter((file) => file.endsWith("SKILL.md")), expected.map((id) => join(runtime.root, "claude", "skills", id, "SKILL.md")));
     for (const id of runtime.ownedInstructionIds) assert.ok(existsSync(join(runtime.root, "claude", "skills", id, "SKILL.md")));
   }
+});
+
+test("the serialized doctor discovery envelope has no cycle placeholder and keeps the canonical unit complete", async () => {
+  const sweep = await runDiscoverySweep({
+    projectRoot: process.cwd(),
+    controlRoot: tmpdir(),
+    capability: "WEB_BASE",
+    skillDirectories: ["web-patterns"],
+    projectId: "0123456789abcdef",
+    boundInputs: { skillSourceHash: "a".repeat(64), mcpServerVersion: null, evidenceHash: "b".repeat(64) },
+    harnessVersions: {},
+    harnesses: ["codex", "pi", "claude"],
+    run: async (options) => pairedDiscovery(
+      options.harness,
+      pairEvidence(discoveryProof(options.harness, "positive"), discoveryProof(options.harness, "negative")),
+    ),
+  });
+  const rows = sweep.entries.map((entry) => discoveryRow(entry, "WEB_BASE", "supported"));
+  const serialized = serializeObservable({
+    command: "doctor --discovery",
+    project: process.cwd(),
+    packs: ["WEB_BASE"],
+    costsModelTurn: false,
+    rows,
+    sweeps: [sweep],
+    ledger: { status: "unchanged", recorded: sweep.proofs.length, path: "<state>/capabilities.json" },
+  }, createRedactionContext({ projectRoot: process.cwd() }));
+  assert.equal(serialized.truncated, false, "the deterministic doctor envelope exceeded the observable byte budget");
+  const envelope = JSON.parse(serialized.text) as {
+    sweeps: Array<{ entries: Array<{ ran: boolean; skippedReason: string | null; discovery: PairedDiscovery | null }>; units: unknown[] }>;
+  };
+  const cyclePaths: string[] = [];
+  const walk = (value: unknown, path = "$ "): void => {
+    if (value === placeholder("cycle")) cyclePaths.push(path.trim());
+    if (Array.isArray(value)) {
+      value.forEach((entry, index) => walk(entry, `${path}[${index}]`));
+    } else if (value !== null && typeof value === "object") {
+      for (const [key, entry] of Object.entries(value)) walk(entry, `${path}.${key}`);
+    }
+  };
+  walk(envelope);
+  assert.deepEqual(cyclePaths, [], `the serialized CLI envelope contains a cycle placeholder at ${cyclePaths.join(", ")}`);
+
+  const serializedSweep = envelope.sweeps[0];
+  assert.ok(serializedSweep);
+  assert.equal(serializedSweep.units.length, 2, "the two free legs did not both reach the aggregate unit view");
+  const ran = serializedSweep.entries.find((entry) => entry.ran && entry.discovery?.unit !== null);
+  assert.ok(ran?.discovery?.unit, "a driven leg lost its canonical discovery unit");
+  assert.equal(ran.discovery.unit.completeness, "COMPLETE");
+  assert.ok(ran.discovery.unit.negative, "the canonical unit lost its negative proof");
+  assert.ok(
+    (ran.discovery.unit.negative.ancestorFreedom?.checkedAncestors.length ?? 0) > 0,
+    "the canonical negative lost its checked-ancestor list",
+  );
+  const skipped = serializedSweep.entries.find((entry) => !entry.ran);
+  assert.ok(skipped, "the spending leg was not represented in the envelope");
+  assert.equal(skipped.discovery, null, "the skipped leg invented a discovery result");
+  assert.ok((skipped.skippedReason?.length ?? 0) > 0, "the skipped leg has no reason");
+});
+
+test("discovery rows preserve the driven unit and the skipped leg's stated absence", () => {
+  const unit = pairEvidence(discoveryProof("codex", "positive"), discoveryProof("codex", "negative"));
+  const driven = discoveryRow({
+    harness: "codex",
+    ran: true,
+    skippedReason: null,
+    costsModelTurn: false,
+    discovery: pairedDiscovery("codex", unit),
+  }, "WEB_BASE", "supported");
+  assert.deepEqual(
+    { completeness: driven.completeness, nativeUse: driven.axes.nativeUse, notRunReason: driven.notRunReason },
+    { completeness: "COMPLETE", nativeUse: "discovered", notRunReason: null },
+  );
+
+  const reason = "driving claude spends a model turn";
+  const skipped = discoveryRow({
+    harness: "claude",
+    ran: false,
+    skippedReason: reason,
+    costsModelTurn: true,
+    discovery: null,
+  }, "WEB_BASE", "supported");
+  assert.deepEqual(
+    {
+      completeness: skipped.completeness,
+      nativeUse: skipped.axes.nativeUse,
+      axisNote: skipped.axisNotes.nativeUse,
+      blockedReason: skipped.blockedReason,
+      notRunReason: skipped.notRunReason,
+    },
+    { completeness: null, nativeUse: null, axisNote: reason, blockedReason: null, notRunReason: reason },
+  );
 });
 
 test("a launched canary proof records its runtime scope and the recorded instruction ids without recomputing them", async (context) => {

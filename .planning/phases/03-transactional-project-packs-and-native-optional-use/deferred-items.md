@@ -6,7 +6,7 @@ scope boundary). An entry is RESOLVED only when it carries an explicit
 `status: resolved`.
 
 - `doctor --discovery --json` renders `sweeps[].entries[].unit` as `[redacted:cycle]`
-  status: open
+  status: resolved
   **Found during:** plan 03-11 Task 3, running the plan's own
   `node dist/src/cli.js doctor --discovery --json` verification.
   **What:** `DiscoverySweepEntry` carries `unit` as a convenience alias for
@@ -25,3 +25,6 @@ scope boundary). An entry is RESOLVED only when it carries an explicit
   **Suggested fix:** drop the redundant `unit` alias from the CLI's `--json`
   envelope (or from `DiscoverySweepEntry`), so the JSON surface has exactly one
   place an evidence unit lives.
+  **Resolved by:** plan 03-14, Task 2 commit `fix(03-14): remove duplicate
+  evidence-unit alias`. The redundant entry alias is gone, the canonical unit
+  remains under `discovery.unit`, and no field carrying distinct data was removed.

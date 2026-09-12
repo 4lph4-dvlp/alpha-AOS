@@ -3120,7 +3120,6 @@ export interface DiscoverySweepEntry {
   /** Null when the harness has no oracle definition and the cost is underivable. */
   readonly costsModelTurn: boolean | null;
   readonly discovery: PairedDiscovery | null;
-  readonly unit: EvidenceUnit | null;
 }
 
 export interface DiscoverySweep {
@@ -3172,7 +3171,6 @@ export async function runDiscoverySweep(options: RunDiscoverySweepOptions): Prom
         skippedReason: `no discovery oracle is defined for ${harness}, so there is nothing free to run`,
         costsModelTurn: null,
         discovery: null,
-        unit: null,
       });
       continue;
     }
@@ -3185,7 +3183,6 @@ export async function runDiscoverySweep(options: RunDiscoverySweepOptions): Prom
           "to spend deliberately",
         costsModelTurn: true,
         discovery: null,
-        unit: null,
       });
       continue;
     }
@@ -3207,15 +3204,22 @@ export async function runDiscoverySweep(options: RunDiscoverySweepOptions): Prom
       skippedReason: null,
       costsModelTurn: false,
       discovery,
-      unit: discovery.unit,
     });
   }
 
-  const units = entries.map((entry) => entry.unit).filter((unit): unit is EvidenceUnit => unit !== null);
+  const units = entries.map((entry) => entry.discovery?.unit ?? null).filter((unit): unit is EvidenceUnit => unit !== null);
   const proofs = units.flatMap((unit) =>
     [unit.positive, unit.negative].filter((proof): proof is CapabilityProof => proof !== null),
   );
-  return { capability: options.capability, entries, units, proofs, costsModelTurn: false };
+  // Aggregate views must not reuse entry object identities: the observable JSON
+  // seam treats any repeated reference as a cycle placeholder.
+  return {
+    capability: options.capability,
+    entries,
+    units: structuredClone(units),
+    proofs: structuredClone(proofs),
+    costsModelTurn: false,
+  };
 }
 
 // --- The paid sweep --------------------------------------------------------
@@ -3421,7 +3425,7 @@ export const DEPLOYMENT_AXIS_NOT_MEASURED_HERE =
 
 /** A row from one leg of a free discovery sweep. */
 export function discoveryRow(entry: DiscoverySweepEntry, capability: string, support: SurfaceSupport): CapabilityReportRow {
-  const unit = entry.unit;
+  const unit = entry.discovery?.unit ?? null;
   return {
     capability,
     harness: entry.harness,
@@ -3442,8 +3446,9 @@ export function discoveryRow(entry: DiscoverySweepEntry, capability: string, sup
     // The paired run's reasons where there was one, and otherwise the unit's
     // own: an INCOMPLETE unit always carries why it is incomplete, and falling
     // back to an empty list would render "incomplete" with no reason beside it.
-    incompleteReasons: entry.discovery?.incompleteReasons ?? unit?.incompleteReasons ?? [],
-    claimNotes: [...(unit?.positive?.claimNotes ?? []), ...(unit?.negative?.claimNotes ?? [])],
+    incompleteReasons: [...(entry.discovery?.incompleteReasons ?? unit?.incompleteReasons ?? [])],
+    claimNotes: [...(unit?.positive?.claimNotes ?? []), ...(unit?.negative?.claimNotes ?? [])]
+      .map((note) => ({ ...note })),
   };
 }
 

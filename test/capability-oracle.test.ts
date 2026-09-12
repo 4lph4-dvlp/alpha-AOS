@@ -408,6 +408,12 @@ test("the recorded claude init event parses to its skills and its MCP servers, w
   assert.equal(inside.mcpServers.find((server) => server.name === "context7")?.status, "pending");
   // 03-RESEARCH.md Pitfall 5: every server is legitimately `pending` at init,
   // so a pending status is a REGISTRATION fact and must never become a finding.
+  assert.ok(
+    inside.mcpServers.some((server) => server.status === "pending"),
+    "no pending server was parsed, so the assertion below is not exercising the Pitfall 5 rule at all",
+  );
+  // The claude init parser mints no findings today, so this is a regression
+  // guard on a future finding path rather than a live discrimination.
   assert.deepEqual(inside.findings.filter((finding) => finding.code.includes("MCP")), []);
 });
 

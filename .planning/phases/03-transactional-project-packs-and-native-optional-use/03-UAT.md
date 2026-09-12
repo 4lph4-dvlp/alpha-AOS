@@ -1,9 +1,9 @@
 ---
-status: partial
+status: diagnosed
 phase: 03-transactional-project-packs-and-native-optional-use
 source: [03-VERIFICATION.md]
 started: 2026-09-12T12:29:44.3151934Z
-updated: 2026-09-12T17:10:23.6108459Z
+updated: 2026-09-12T17:23:56.5491941Z
 ---
 
 ## Current Test
@@ -57,5 +57,21 @@ blocked: 3
   reason: "User reported: 현재 claude는 계정이 없어서 사용할 수 없는 상태야. 일단 앞으로의 개발에서 claude에 대한 고려는 배제하고 개발과 verify를 진행하자."
   severity: major
   test: 1
-  artifacts: []
-  missing: []
+  root_cause: "Phase 3 hard-codes invocation canaries as Claude-only: the catalog selects no Codex leg, Codex readiness cannot recognize runtime-local Context7, Codex MCP isolation is disabled, and invocation reuses the discovery-only prompt vector instead of codex exec."
+  artifacts:
+    - path: "catalog/canaries.yaml"
+      issue: "CAPA-01 and the remaining invocation canaries declare only Claude."
+    - path: "src/core/canary.ts"
+      issue: "Codex readiness and MCP-isolation seams refuse a native observed invocation."
+    - path: "src/adapters/capability-oracle.ts"
+      issue: "The free discovery oracle uses codex debug prompt-input and cannot serve as a costed invocation adapter."
+    - path: "src/adapters/isolation.ts"
+      issue: "No verified Codex canary configuration path binds the observation front while preserving authentication."
+    - path: "src/cli.ts"
+      issue: "Explicit harness filters that select zero declarations do not fail closed with a useful result."
+  missing:
+    - "Add a separate costed Codex invocation adapter using codex exec --json --ephemeral."
+    - "Prove isolated observation-front configuration while preserving user-managed Codex authentication."
+    - "Teach readiness to evaluate the runtime-local Codex MCP configuration."
+    - "Declare and test CAPA-01 on Codex, and reject zero-selection explicit harness filters."
+  debug_session: ".planning/debug/codex-native-verification-gap.md"

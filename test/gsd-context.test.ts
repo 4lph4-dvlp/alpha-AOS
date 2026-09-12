@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { readGsdContext } from "../src/core/gsd-context.js";
 
 async function fixture(t: { after: (fn: () => Promise<unknown>) => void }, content: string) {
@@ -24,10 +26,24 @@ test("GSD outline names preamble and all steps; reads preserve instructions and 
   const read = await readGsdContext("execute-phase", { ...options, step: "verify" });
   assert.equal(read.mode, "content");
   if (read.mode !== "content") return;
-  assert.equal(read.content, '<step name="verify">\nGate B\n</step>');
+  assert.equal(read.content.join(""), '<step name="verify">\nGate B\n</step>');
   assert.equal(read.sourceSha256, outline.sourceSha256);
   await writeFile(join(options.configRoot, "gsd-core/workflows/execute-phase.md"), '<step name="verify">\nChanged');
   assert.notEqual((await readGsdContext("execute-phase", options)).sourceSha256, read.sourceSha256);
+});
+
+test("GSD context CLI preserves a section beyond the observable per-string limit", async (t) => {
+  const content = '<step name="gate">\n' + "review the required gate\n".repeat(220) + "</step>";
+  const options = await fixture(t, content);
+  const cli = fileURLToPath(new URL("../src/cli.js", import.meta.url));
+  const result = spawnSync(process.execPath, [cli, "gsd-context", "execute-phase", "--step", "gate", "--json"], {
+    encoding: "utf8", env: { ...process.env, CODEX_HOME: options.configRoot },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.mode, "content");
+  assert.equal(output.content.join(""), content);
+  assert.equal(result.stdout.includes("[truncated"), false);
 });
 
 test("GSD context requires explicit smaller ranges instead of silently truncating a large step", async (t) => {

@@ -73,5 +73,10 @@ export async function readGsdContext(workflow: string, options: {
     return { ...common, mode: "range-required" as const, from, to, contentChars: content.length,
       reason: "Section exceeds the output bound. Request explicit smaller --from/--lines slices; no text was silently truncated." };
   }
-  return { ...common, mode: "content" as const, from, to, content };
+  // The observable JSON seam bounds each string separately. Small chunks keep
+  // a complete selected section below that per-string bound as well as ours.
+  return { ...common, mode: "content" as const, from, to,
+    assembly: "Concatenate content chunks with no separator; normal observable redaction still applies.",
+    content: content.match(/[\s\S]{1,1000}/gu) ?? [""],
+  };
 }

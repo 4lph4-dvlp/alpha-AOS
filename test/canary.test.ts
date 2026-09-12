@@ -64,6 +64,9 @@ import {
   probeReadiness,
   promptNamesTerm,
   canaryRow,
+  canaryProof,
+  canaryClaimNotes,
+  CANARY_RUNTIME_SCOPE_LIMIT,
   discoveryRow,
   runCanary,
   runCanarySweep,
@@ -1402,6 +1405,7 @@ function blockedCanaryResult(canary: string, harness: LedgerHarness): CanaryRunR
     excerpt: null,
     oracle: null,
     runtimeRoot: "<state>/canary/never-created",
+    ownedInstructionIds: [],
     costsModelTurn: true,
     launchArgs: [],
   };
@@ -1556,6 +1560,7 @@ test("a canary blocked on an unset credential names the variable and the next ac
       excerpt: null,
       oracle: null,
       runtimeRoot: "<state>/canary/run",
+      ownedInstructionIds: [],
       costsModelTurn: true,
       launchArgs: [],
     },
@@ -1683,6 +1688,60 @@ test("the canary runtime carries the alpha-AOS-owned routing instruction inside 
   // would be a second place the text could differ from the reviewed one.
   const shipped = await readFile(join(repositoryRoot, "skills", "alpha-aos-research-routing", "SKILL.md"), "utf8");
   assert.equal(await readFile(instruction, "utf8"), shipped, "the runtime's copy is not byte-identical to the reviewed source");
+});
+
+test("runtime instruction ids name exactly the materialized targets, including the scoped CAPA-03 instruction", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  for (const capability of [null, "CAPA-01", "CAPA-03"]) {
+    const runtime = await createCanaryRuntime({ projectRoot: project, harness: "claude", servers: [], stateRoot: state, lock, environment: {}, capability });
+    const expected = capability === "CAPA-03" ? ["alpha-aos-research-routing", "alpha-aos-memory-handoff"] : ["alpha-aos-research-routing"];
+    assert.deepEqual(runtime.ownedInstructionIds, expected);
+    assert.deepEqual(runtime.declaredFiles.filter((file) => file.endsWith("SKILL.md")), expected.map((id) => join(runtime.root, "claude", "skills", id, "SKILL.md")));
+    for (const id of runtime.ownedInstructionIds) assert.ok(existsSync(join(runtime.root, "claude", "skills", id, "SKILL.md")));
+  }
+});
+
+test("a launched canary proof records its runtime scope and the recorded instruction ids without recomputing them", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const created = await createCanaryRuntime({ projectRoot: project, harness: "claude", servers: [], stateRoot: state, lock, environment: {}, capability: "CAPA-03" });
+  // A deliberately shorter recorded list must travel through runCanary unchanged.
+  const runtime = { ...created, ownedInstructionIds: ["alpha-aos-memory-handoff"] };
+  const result = await runCanary({
+    declaration: declaration(), harness: "claude", projectRoot: project, runtime,
+    sink: createCanaryObservationSink(runtime), environment: {}, runner: runner(),
+    buildLaunchSpec: () => stubLaunchSpec(runtime),
+    launcher: async () => ({ ran: true, reason: null, exitCode: 0, excerpt: createRedactedExcerpt("", createRedactionContext()) }),
+  });
+  assert.equal(result.launched, true);
+  assert.deepEqual(result.ownedInstructionIds, ["alpha-aos-memory-handoff"]);
+  const base = discoveryProof("claude", "positive");
+  const proof = canaryProof(result, base);
+  assert.ok(proof);
+  assert.deepEqual(proof.claimNotes, canaryClaimNotes(result));
+  assert.deepEqual(canaryRow(result, "supported").claimNotes, proof.claimNotes);
+  assert.equal(proof.claimNotes?.length, 1);
+  assert.equal(proof.claimNotes?.[0]?.kind, "scope-limit");
+  assert.equal(proof.claimNotes?.[0]?.statement, CANARY_RUNTIME_SCOPE_LIMIT);
+  assert.match(proof.claimNotes?.[0]?.basis ?? "", /own harness configuration root.*alpha-aos-memory-handoff/u);
+  assert.equal(proof.claimNotes?.[0]?.basis.includes("alpha-aos-research-routing"), false);
+  assert.equal(proof.nativeUse, result.nativeUse);
+});
+
+test("a refused canary carries runtime instruction ids but has no proof or claim note", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({ projectRoot: project, harness: "claude", servers: [], stateRoot: state, lock, environment: {} });
+  for (const blocked of [true, false]) {
+    const result = await runCanary({
+      declaration: declaration({ requiresEnvironment: blocked ? ["EXA_API_KEY"] : [] }),
+      harness: "claude", projectRoot: project, runtime, sink: createCanaryObservationSink(runtime),
+      environment: {}, runner: runner(), buildLaunchSpec: () => stubLaunchSpec(runtime, { blockedReasons: ["fixture isolation refused"] }),
+      launcher: async () => { throw new Error("a refused run must not reach the launcher"); },
+    });
+    assert.equal(result.launched, false);
+    assert.deepEqual(result.ownedInstructionIds, runtime.ownedInstructionIds);
+    assert.equal(canaryProof(result, discoveryProof("claude", "positive")), null);
+    assert.deepEqual(canaryClaimNotes(result), []);
+  }
 });
 
 test("a canary runtime refuses to be created when its owned instruction is missing", async (context: TestContext) => {

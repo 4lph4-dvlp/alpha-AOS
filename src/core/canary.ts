@@ -55,6 +55,7 @@ import type {
   BlockedReason,
   BoundInputs,
   CapabilityProof,
+  ClaimNote,
   EvidenceCompleteness,
   EvidenceUnit,
   HarnessVersion,
@@ -1366,6 +1367,7 @@ export interface CanaryRuntime {
    */
   readonly consumedPath: string;
   readonly servers: readonly McpServerId[];
+  readonly ownedInstructionIds: readonly string[];
   /** Exactly the files this runtime's creation wrote. */
   readonly declaredFiles: readonly string[];
   /**
@@ -1530,6 +1532,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
   const instructionRoot = CANARY_INSTRUCTION_ROOT[options.harness];
   const instructionSourceRoot = resolve(options.packageRoot ?? packageRoot());
   const instructions: { readonly target: string; readonly content: string }[] = [];
+  const ownedInstructionIds: string[] = [];
   if (instructionRoot !== null) {
     for (const instruction of ownedInstructionsFor(options.capability ?? null)) {
       const source = join(instructionSourceRoot, instruction.source);
@@ -1545,6 +1548,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
         target: join(instructionRoot(join(root, options.harness)), instruction.id, "SKILL.md"),
         content: await readFile(source, "utf8"),
       });
+      ownedInstructionIds.push(instruction.id);
     }
   }
 
@@ -1578,6 +1582,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     markerPath,
     consumedPath: join(root, CANARY_CONSUMED_FILE),
     servers,
+    ownedInstructionIds,
     declaredFiles,
     // The canary tree itself, not only this run's leaf: creating the leaf
     // creates the `<state>/canary/<projectId>/<harness>` directories above it,
@@ -2180,6 +2185,7 @@ export interface CanaryRunResult {
    */
   readonly oracle: OracleRecord | null;
   readonly runtimeRoot: string;
+  readonly ownedInstructionIds: readonly string[];
   readonly costsModelTurn: boolean;
   readonly launchArgs: readonly string[];
 }
@@ -2209,6 +2215,7 @@ function blockedResult(options: {
     excerpt: null,
     oracle: null,
     runtimeRoot: options.runtime.root,
+    ownedInstructionIds: options.runtime.ownedInstructionIds,
     costsModelTurn: canaryCostsModelTurn(options.declaration),
     launchArgs: [],
   };
@@ -2358,6 +2365,7 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
       stderrFingerprint: outcome.stderr?.sha256 ?? "",
     },
     runtimeRoot: runtime.root,
+    ownedInstructionIds: runtime.ownedInstructionIds,
     costsModelTurn: canaryCostsModelTurn(declaration),
     launchArgs: launch.args,
   };
@@ -3437,6 +3445,18 @@ export function discoveryRow(entry: DiscoverySweepEntry, capability: string, sup
   };
 }
 
+export const CANARY_RUNTIME_SCOPE_LIMIT =
+  "This canary proof qualifies routing observed inside an alpha-AOS canary runtime; it does not establish the same routing inside the user's everyday configuration.";
+
+export function canaryClaimNotes(result: CanaryRunResult): readonly ClaimNote[] {
+  if (!result.launched || result.oracle === null) return [];
+  return [{
+    kind: "scope-limit",
+    statement: CANARY_RUNTIME_SCOPE_LIMIT,
+    basis: `The runtime supplied its own harness configuration root rather than the user's and materialized these alpha-AOS-owned instruction ids: ${result.ownedInstructionIds.length === 0 ? "none" : result.ownedInstructionIds.join(", ")}.`,
+  }];
+}
+
 /**
  * The ledger row a canary run produces, or null when it produced none.
  *
@@ -3471,11 +3491,12 @@ export function canaryProof(
     ancestorFreedom: null,
     observedAt: new Date().toISOString(),
     oracle: result.oracle,
+    claimNotes: canaryClaimNotes(result),
   };
 }
 
 /** A row from one paid canary run. */
-export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): CapabilityReportRow {
+export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): CapabilityReportRow & { readonly claimNotes: readonly ClaimNote[] } {
   return {
     capability: `${result.capability} (${result.canary})`,
     harness: result.harness,
@@ -3495,6 +3516,7 @@ export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): Cap
     blockedReason: result.blockedReasons[0] ?? null,
     unsupportedReason: null,
     incompleteReasons: [],
+    claimNotes: canaryClaimNotes(result),
   };
 }
 

@@ -1,20 +1,20 @@
 ---
-gsd_state_version: "1.0"
+gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Codex execution guardrails validated; resume interrupted 03-13
-last_updated: "2026-09-11T01:23:59.247Z"
+stopped_at: Completed 03-14-PLAN.md
+last_updated: "2026-09-12T11:59:10.537Z"
 last_activity: 2026-09-12
-last_activity_desc: Completed quick task 260911-w4s; resume Phase 03 gaps
-state_head: d5a626822a2f24e4076cd8ac900100c580d83a18
+last_activity_desc: Completed 03-14 report and discovery-envelope gap closure; 03-15 remains
+state_head: e82b523e054e086db080a61f5a27e2d12430e36f
 progress:
   total_phases: 7
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 58
-  completed_plans: 54
-  percent: 14
+  completed_plans: 57
+  percent: 29
 ---
 
 # Project State
@@ -28,11 +28,11 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 03 (Transactional Project Packs and Native Optional Use) — READY TO EXECUTE
-Plan: 12 of 12
-Status: Ready to execute
-Last activity: 2026-09-12 — Completed quick task 260911-w4s: portable Codex execution guidance
-Progress: [█░░░░░░░░░] 14%
+Phase: 03 (Transactional Project Packs and Native Optional Use) — IN PROGRESS
+Plan: 14 of 15
+Status: Plan 03-14 complete — plan 03-15 remains
+Last activity: 2026-09-12 — Completed 03-14 report and discovery-envelope gap closure
+Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
 
@@ -97,6 +97,7 @@ Progress: [█░░░░░░░░░] 14%
 | Phase 03 P10 | 66 min | 3 tasks | 6 files |
 | Phase 03 P11 | 63 min | 3 tasks | 8 files |
 | Phase 03 P12 | 68 min | 3 tasks | 9 files |
+| Phase 03 P14 | 17min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -190,6 +191,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: The sidecar path is a RECORDED receipt target (kind: "sidecar"), never derived at removal time, so it sits inside the drift guard planPackRemoval computes over each targets current hash — A derived path is invisible to that guard: mutation M2 (the receipt stops claiming sidecar rows) makes the removal both fail to remove the sidecar AND fail to refuse when a user has edited it. Recording it also makes the removal behaviours fall out of mechanisms that already exist rather than needing parallel new ones.
 - [Phase 03]: A sidecar whose every claim is unchanged keeps the timestamp it was written with — The receipt claims the sidecar BYTE hash, so a fresh timestamp each run would move that hash, move the receipt, and make the D-06 already-current edge permanently unreachable. Mutation M5 confirms it: forcing a fresh timestamp turns the idempotency test red.
 - [Phase 03]: pi stays receipts-only with its reason recorded, and every sidecar reason leads with the DECISION so the status width bound cannot cut it — Tolerance for a non-Markdown sidecar was never probed on pi; its documented ignore rule covers root Markdown files only. Plan 03-09 lost half a cited sentence to MAX_STATUS_DETAIL_CHARS, so the wording was rewritten to fit rather than exempted.
+- [Phase 03]: Keep unsupportedReason on oracle and process support-domain results; only CapabilityReportRow uses notRunReason.
+- [Phase 03]: Return identity-independent sweep aggregate views because observable serialization treats repeated object references as cycles.
 
 ### Pending Todos
 
@@ -253,6 +256,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-10T23:01:30.634Z
-Stopped at: Codex execution guardrails validated; resume interrupted 03-13
-Resume file: .planning/phases/03-transactional-project-packs-and-native-optional-use/03-13-RECOVERY.md
+Last session: 2026-09-12T11:59:09.934Z
+Stopped at: Completed 03-14-PLAN.md
+Resume file: None

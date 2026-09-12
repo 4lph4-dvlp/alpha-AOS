@@ -3,7 +3,7 @@ status: partial
 phase: 03-transactional-project-packs-and-native-optional-use
 source: [03-VERIFICATION.md]
 started: 2026-09-12T12:29:44.3151934Z
-updated: 2026-09-12T17:03:49.2530243Z
+updated: 2026-09-12T17:10:23.6108459Z
 ---
 
 ## Current Test
@@ -15,9 +15,9 @@ updated: 2026-09-12T17:03:49.2530243Z
 ### 1. CAPA-01 documentation invocation
 
 expected: Native Context7 selection and ordered version-scoped read-only use on the claimed surface.
-result: blocked
-blocked_by: third-party
-reason: "현재 claude는 계정이 없어서 사용할 수 없는 상태야. 일단 앞으로의 개발에서 claude에 대한 고려는 배제하고 개발과 verify를 진행하자."
+result: issue
+reported: "현재 claude는 계정이 없어서 사용할 수 없는 상태야. 일단 앞으로의 개발에서 claude에 대한 고려는 배제하고 개발과 verify를 진행하자."
+severity: major
 
 ### 2. CAPA-02 research routing and ordinary control
 
@@ -44,15 +44,18 @@ reason: "The representative pack-exercise canary is declared only for Claude, wh
 
 total: 4
 passed: 0
-issues: 0
+issues: 1
 pending: 0
 skipped: 0
-blocked: 4
+blocked: 3
 
 ## Gaps
 
-## Deferred Follow-Ups
-
-- test: 1
-  idea: "Exclude Claude from development and verification while no Claude account is available; reconcile this temporary scope decision with the project-level Claude support constraint before future planning."
-  deferred_at: 2026-09-13
+- gap_id: G-03-1
+  truth: "Phase 3 native-use verification can run on Codex without requiring a Claude account."
+  status: failed
+  reason: "User reported: 현재 claude는 계정이 없어서 사용할 수 없는 상태야. 일단 앞으로의 개발에서 claude에 대한 고려는 배제하고 개발과 verify를 진행하자."
+  severity: major
+  test: 1
+  artifacts: []
+  missing: []

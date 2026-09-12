@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 23
+open_count: 29
 waived_count: 2
 fixed_count: 15
-total_count: 40
-last_updated: 2026-09-10T23:01:51.923Z
+total_count: 46
+last_updated: 2026-09-12T06:36:07.753Z
 ---
 
 # Broken Windows Ledger
@@ -55,6 +55,12 @@ last_updated: 2026-09-10T23:01:51.923Z
 | 38 | 03 | unrun-verify | catalog/canaries.yaml |  | CROSS_HARNESS_HANDOFF receiving leg never run: no paid canary spent a model turn, so 'the receiving harness works from the handed-off context' is unproven. Command: node dist/src/cli.js doctor --canary . --capability handoff --json (pin ALPHA_AOS_STATE_DIR first) | open |  | 2026-09-10T23:01:50.470Z |  |
 | 39 | 03 | deviation | src/cli.ts |  | doctor --canary gained --no-spend, a flag the 03-12 plan did not name. Added so the plan's own zero-exit two-digest verification could run without spending the user's money; every skipped leg records unverified/not-attempted, never blocked | open |  | 2026-09-10T23:01:51.192Z |  |
 | 40 | 03 | deviation | src/core/capability-ledger.ts |  | pairEvidence widened: it now accepts a nullable positive and an ImmutabilityWitness as an alternative negative-control witness. Existing CAPA-06 callers are unaffected; a reviewer should confirm the two witnesses stay distinct before a third is added | open |  | 2026-09-10T23:01:51.923Z |  |
+| 41 | 03 | skipped-test | test/evidence.test.ts | 514 | File alias fixture skipped: host file links unavailable. | open |  | 2026-09-12T06:36:03.722Z |  |
+| 42 | 03 | skipped-test | test/path-boundary.test.ts | 163 | Escaping file-link fixture skipped: host file symlinks unavailable. | open |  | 2026-09-12T06:36:04.580Z |  |
+| 43 | 03 | skipped-test | test/path-boundary.test.ts | 256 | Unknown reparse fixture skipped: privileged reparse facilities unavailable. | open |  | 2026-09-12T06:36:05.390Z |  |
+| 44 | 03 | skipped-test | test/path-boundary.test.ts | 732 | Unreadable root recheck skipped: host resolves paths despite mode 0o000. | open |  | 2026-09-12T06:36:06.184Z |  |
+| 45 | 03 | skipped-test | test/path-boundary.test.ts | 794 | Unreadable component fixture skipped: host resolves paths despite mode 0o000. | open |  | 2026-09-12T06:36:06.960Z |  |
+| 46 | 03 | skipped-test | test/path-boundary.test.ts | 840 | Readability-loss recheck skipped: host resolves paths despite mode 0o000. | open |  | 2026-09-12T06:36:07.753Z |  |
 
 ````json
 [
@@ -536,6 +542,78 @@ last_updated: 2026-09-10T23:01:51.923Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-10T23:01:51.923Z",
+    "resolved_at": null
+  },
+  {
+    "id": 41,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/evidence.test.ts",
+    "line": 514,
+    "description": "File alias fixture skipped: host file links unavailable.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-12T06:36:03.722Z",
+    "resolved_at": null
+  },
+  {
+    "id": 42,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/path-boundary.test.ts",
+    "line": 163,
+    "description": "Escaping file-link fixture skipped: host file symlinks unavailable.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-12T06:36:04.580Z",
+    "resolved_at": null
+  },
+  {
+    "id": 43,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/path-boundary.test.ts",
+    "line": 256,
+    "description": "Unknown reparse fixture skipped: privileged reparse facilities unavailable.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-12T06:36:05.390Z",
+    "resolved_at": null
+  },
+  {
+    "id": 44,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/path-boundary.test.ts",
+    "line": 732,
+    "description": "Unreadable root recheck skipped: host resolves paths despite mode 0o000.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-12T06:36:06.184Z",
+    "resolved_at": null
+  },
+  {
+    "id": 45,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/path-boundary.test.ts",
+    "line": 794,
+    "description": "Unreadable component fixture skipped: host resolves paths despite mode 0o000.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-12T06:36:06.960Z",
+    "resolved_at": null
+  },
+  {
+    "id": 46,
+    "kind": "skipped-test",
+    "phase": "03",
+    "file": "test/path-boundary.test.ts",
+    "line": 840,
+    "description": "Readability-loss recheck skipped: host resolves paths despite mode 0o000.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-12T06:36:07.753Z",
     "resolved_at": null
   }
 ]

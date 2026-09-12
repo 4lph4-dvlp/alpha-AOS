@@ -3409,8 +3409,8 @@ export interface CapabilityReportRow {
     readonly nativeUse: string | null;
   };
   readonly blockedReason: BlockedReason | null;
-  /** Why nothing ran at all. Null when something did. */
-  readonly unsupportedReason: string | null;
+  /** Why nothing ran at all. Null when something did. This is not the support axis; the row may be supported. */
+  readonly notRunReason: string | null;
   readonly incompleteReasons: readonly string[];
   readonly claimNotes: readonly ClaimNote[];
 }
@@ -3438,7 +3438,7 @@ export function discoveryRow(entry: DiscoverySweepEntry, capability: string, sup
       nativeUse: unit === null ? (entry.skippedReason ?? entry.discovery?.unsupportedReason ?? null) : null,
     },
     blockedReason: null,
-    unsupportedReason: entry.skippedReason ?? entry.discovery?.unsupportedReason ?? null,
+    notRunReason: entry.skippedReason ?? entry.discovery?.unsupportedReason ?? null,
     // The paired run's reasons where there was one, and otherwise the unit's
     // own: an INCOMPLETE unit always carries why it is incomplete, and falling
     // back to an empty list would render "incomplete" with no reason beside it.
@@ -3516,7 +3516,7 @@ export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): Cap
       nativeUse: result.verdict.reasons[0] ?? result.unverifiedReason,
     },
     blockedReason: result.blockedReasons[0] ?? null,
-    unsupportedReason: null,
+    notRunReason: null,
     incompleteReasons: [],
     claimNotes: canaryClaimNotes(result),
   };
@@ -3547,7 +3547,7 @@ export function handoffRow(result: HandoffCanaryResult, support: SurfaceSupport)
       nativeUse: result.receivingSkippedReason ?? unit?.incompleteReasons[0] ?? null,
     },
     blockedReason: result.blockedReasons[0] ?? null,
-    unsupportedReason: result.pair === null ? result.pairResolution.blockedReasons[0]?.nextAction ?? null : null,
+    notRunReason: result.pair === null ? result.pairResolution.blockedReasons[0]?.nextAction ?? null : null,
     incompleteReasons: unit?.incompleteReasons ?? [],
     claimNotes: [...(unit?.positive?.claimNotes ?? []), ...(unit?.negative?.claimNotes ?? [])],
   };
@@ -3564,7 +3564,7 @@ export function skippedCanaryRow(entry: SkippedCanary, support: SurfaceSupport):
     // Deliberately NOT a blocked reason. D-12: `blocked` is a known, actionable
     // cause the user can clear, and "nobody asked to spend" is neither.
     blockedReason: null,
-    unsupportedReason: null,
+    notRunReason: null,
     incompleteReasons: [],
     claimNotes: [],
   };

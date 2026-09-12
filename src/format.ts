@@ -657,8 +657,8 @@ export function formatCapabilityReport(
       const code = note.kind === "inference" ? "CLAIM-INFERENCE" : "CLAIM-SCOPE";
       lines.push(`${code} ${row.capability} on ${row.harness} — ${note.statement} Basis: ${note.basis}`);
     }
-    if (row.unsupportedReason !== null) {
-      lines.push(`UNSUPPORTED ${row.capability} on ${row.harness} — ${row.unsupportedReason}`);
+    if (row.notRunReason !== null) {
+      lines.push(`NOT-RUN ${row.capability} on ${row.harness} — ${row.notRunReason}`);
     }
   }
 
@@ -741,7 +741,7 @@ function describeDigest(value: string | null): string {
 /** The one-cell reason a row carries, chosen in the order a reader needs it. */
 function capabilityRowDetail(row: CapabilityReportRow): string {
   if (row.blockedReason !== null) return `${row.blockedReason.code} ${row.blockedReason.variable}`;
-  if (row.unsupportedReason !== null) return row.unsupportedReason;
+  if (row.notRunReason !== null) return row.notRunReason;
   if (row.completeness === "INCOMPLETE") return row.incompleteReasons[0] ?? "the evidence unit is incomplete";
   return row.axisNotes.nativeUse ?? "";
 }

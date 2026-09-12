@@ -1625,6 +1625,27 @@ test("--json carries all three axes for every capability and the human output ca
   assert.equal(summaryLines.length, rows.length, "the human output does not carry exactly one summary line per capability");
 });
 
+test("a supported row says NOT-RUN when no discovery leg ran and repeats the reason in its detail cell", () => {
+  const reason = "no free oracle ran for this harness";
+  const row: CapabilityReportRow = {
+    capability: "WEB_BASE",
+    harness: "codex",
+    completeness: null,
+    axes: { deployment: null, support: "supported", nativeUse: null },
+    axisNotes: { deployment: "not measured by this command", nativeUse: reason },
+    blockedReason: null,
+    notRunReason: reason,
+    incompleteReasons: [],
+    claimNotes: [],
+  };
+
+  const rendered = formatCapabilityReport("Free discovery sweep", [row], []);
+  assert.match(rendered, new RegExp(`^NOT-RUN WEB_BASE on codex — ${reason}$`, "mu"));
+  const tableRow = rendered.split("\n").find((line) => line.includes("WEB_BASE") && !line.startsWith("NOT-RUN"));
+  assert.ok(tableRow, "the report rendered no table row for the supported capability");
+  assert.equal(tableRow.includes(reason), true, "the detail cell does not carry the same not-run reason");
+});
+
 test("a complete discovery row exposes both halves' claim notes in positive-then-negative order", () => {
   const positive = { ...discoveryProof("codex", "positive"), claimNotes: [{ kind: "scope-limit" as const, statement: "Observed fixture scope", basis: "The positive fixture ran here" }] };
   const negative = { ...discoveryProof("codex", "negative"), claimNotes: [{ kind: "inference" as const, statement: "Cannot invoke outside the project", basis: "The control did not list the capability" }] };
@@ -1656,7 +1677,7 @@ test("claim notes render in full on tagged lines after incompleteness without ch
   assert.ok(tableRow(rendered));
   assert.equal(tableRow(rendered), tableRow(formatCapabilityReport("Report", [{ ...row, claimNotes: [] }])));
   assert.ok(lines.findIndex((line) => line.startsWith("INCOMPLETE WEB_BASE")) < lines.indexOf(claimLines[0]!));
-  assert.ok(lines.indexOf(claimLines[1]!) < lines.findIndex((line) => line.startsWith("UNSUPPORTED WEB_BASE")));
+  assert.ok(lines.indexOf(claimLines[1]!) < lines.findIndex((line) => line.startsWith("NOT-RUN WEB_BASE")));
 });
 
 test("an INCOMPLETE unit renders INCOMPLETE and never the positive's native-use value", () => {
@@ -3239,5 +3260,11 @@ test("a no-spend sweep records every spending leg unverified with its reason, an
     assert.deepEqual(row.claimNotes, [], "skipped canaries have no claim to qualify");
     assert.equal(row.blockedReason, null, "D-12: not attempted is not a known, actionable cause a user can clear");
     assert.match(row.axisNotes.nativeUse ?? "", /not attempted|no handoff runner/u);
+    assert.equal(row.notRunReason, null, "nobody asked to spend is an axis note, not a reason nothing could run");
+    assert.equal(
+      formatCapabilityReport("Invocation canaries", [row], []).includes("NOT-RUN"),
+      false,
+      "a deliberately skipped paid canary rendered as though its discovery leg could not run",
+    );
   }
 });

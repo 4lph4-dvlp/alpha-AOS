@@ -19,6 +19,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test, { type TestContext } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { parse as parseYaml } from "yaml";
 import { loadLock } from "../src/core/catalog.js";
 import { loadCanaryCatalog, type CanaryCatalog } from "../src/core/canary.js";
 import {
@@ -37,6 +38,11 @@ import {
 import { userStateRoot } from "../src/core/paths.js";
 import { PLATFORM_FLOOR_ENVIRONMENT, resolveNodePackageCli } from "../src/core/process.js";
 import type { LockedPackage, McpServerId } from "../src/types.js";
+import {
+  classifyUpstreamFailure,
+  REGISTRY_UNREACHABLE,
+  UPSTREAM_REQUIRED_ENV_NAME,
+} from "./helpers/upstream-gate.js";
 
 // Compiled to dist/test, so the repository root is two levels up.
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -674,10 +680,6 @@ const WRITE_LOCATION_NAMES = [
   "XDG_STATE_HOME",
 ] as const;
 
-/** npm's own vocabulary for "the registry was not reachable". */
-const REGISTRY_UNREACHABLE =
-  /(ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ERR_SOCKET_TIMEOUT|network error|getaddrinfo|registry\.npmjs\.org)/iu;
-
 async function lockedMcpPackage(server: McpServerId): Promise<LockedPackage> {
   const lock = await loadLock(repositoryRoot);
   const locked = lock.components.mcp?.[server];
@@ -727,21 +729,84 @@ async function startPinnedServer(
     } catch {
       stderr = "<the session never started, so there is no upstream evidence>";
     }
-    if (REGISTRY_UNREACHABLE.test(stderr)) {
+    const classification = classifyUpstreamFailure({
+      stderr,
+      packageName: locked.package,
+      version: locked.version,
+      env: source,
+    });
+    if (classification.kind === "skip") {
       return {
         tools: null,
-        unsupportedReason:
-          `the npm registry could not be reached, so ${locked.package}@${locked.version} could not be launched`,
+        unsupportedReason: classification.reason,
       };
     }
     throw new Error(
       `${server} (${locked.package}@${locked.version}) did not answer a tools listing: ` +
-        `${error instanceof Error ? error.message : String(error)}; upstream stderr: ${stderr}`,
+        `${error instanceof Error ? error.message : String(error)}; ${classification.reason}; ` +
+        `upstream gate: ${UPSTREAM_REQUIRED_ENV_NAME}; upstream stderr: ${stderr}`,
     );
   } finally {
     await transport.close().catch(() => undefined);
   }
 }
+
+test("registry-unreachable stderr skips when the pinned upstream is not required", () => {
+  const stderr = "npm error code ENOTFOUND registry.npmjs.org";
+  assert.equal(REGISTRY_UNREACHABLE.test(stderr), true, "the fixture must exercise registry vocabulary");
+  const result = classifyUpstreamFailure({
+    stderr,
+    packageName: "example-mcp",
+    version: "1.2.3",
+    env: {},
+  });
+
+  assert.equal(result.kind, "skip");
+  assert.match(result.reason, /example-mcp@1\.2\.3/u);
+});
+
+test("registry-unreachable stderr fails when the pinned upstream is required", () => {
+  const result = classifyUpstreamFailure({
+    stderr: "npm error code ENOTFOUND registry.npmjs.org",
+    packageName: "example-mcp",
+    version: "1.2.3",
+    env: { [UPSTREAM_REQUIRED_ENV_NAME]: "1" },
+  });
+
+  assert.equal(result.kind, "fail");
+  assert.match(result.reason, /example-mcp@1\.2\.3/u);
+  assert.match(result.reason, /required the pinned upstream/u);
+});
+
+test("a non-registry startup failure cannot be skipped", () => {
+  const result = classifyUpstreamFailure({
+    stderr: "the package started and rejected its configuration",
+    packageName: "example-mcp",
+    version: "1.2.3",
+    env: {},
+  });
+
+  assert.equal(result.kind, "fail");
+});
+
+test("empty stderr cannot be treated as evidence of an unreachable registry", () => {
+  const result = classifyUpstreamFailure({
+    stderr: "",
+    packageName: "example-mcp",
+    version: "1.2.3",
+    env: {},
+  });
+
+  assert.equal(result.kind, "fail");
+});
+
+test("CI requires pinned upstream MCP startups using the helper's gate name", async () => {
+  const workflow = parseYaml(await readFile(join(repositoryRoot, ".github", "workflows", "ci.yml"), "utf8")) as {
+    jobs?: { test?: { env?: Record<string, unknown> } };
+  };
+
+  assert.equal(workflow.jobs?.test?.env?.[UPSTREAM_REQUIRED_ENV_NAME], "1");
+});
 
 test("the context7 proxy starts and lists exactly its two tools", { timeout: STARTUP_BUDGET_MS }, async (context) => {
   const fixture = await createProxyFixture(context);

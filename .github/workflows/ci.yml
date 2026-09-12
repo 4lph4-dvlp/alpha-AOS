@@ -13,6 +13,13 @@ jobs:
   test:
     name: ${{ matrix.os }} / Node 24
     runs-on: ${{ matrix.os }}
+    # These three pinned-server startups are the repository's only
+    # registry-touching tests. Without this gate an air-gapped leg would lose
+    # the Pitfall 8 firecrawl regression and still report green. A transient
+    # upstream fault showing red is the accepted cost already recorded in
+    # pack-skill-drift.yml.
+    env:
+      ALPHA_AOS_REQUIRE_UPSTREAM_MCP: "1"
     strategy:
       fail-fast: false
       matrix:

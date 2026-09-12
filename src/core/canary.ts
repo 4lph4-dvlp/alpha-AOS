@@ -3412,6 +3412,7 @@ export interface CapabilityReportRow {
   /** Why nothing ran at all. Null when something did. */
   readonly unsupportedReason: string | null;
   readonly incompleteReasons: readonly string[];
+  readonly claimNotes: readonly ClaimNote[];
 }
 
 /** The one sentence every doctor row carries about the axis it did not measure. */
@@ -3442,6 +3443,7 @@ export function discoveryRow(entry: DiscoverySweepEntry, capability: string, sup
     // own: an INCOMPLETE unit always carries why it is incomplete, and falling
     // back to an empty list would render "incomplete" with no reason beside it.
     incompleteReasons: entry.discovery?.incompleteReasons ?? unit?.incompleteReasons ?? [],
+    claimNotes: [...(unit?.positive?.claimNotes ?? []), ...(unit?.negative?.claimNotes ?? [])],
   };
 }
 
@@ -3496,7 +3498,7 @@ export function canaryProof(
 }
 
 /** A row from one paid canary run. */
-export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): CapabilityReportRow & { readonly claimNotes: readonly ClaimNote[] } {
+export function canaryRow(result: CanaryRunResult, support: SurfaceSupport): CapabilityReportRow {
   return {
     capability: `${result.capability} (${result.canary})`,
     harness: result.harness,
@@ -3547,6 +3549,7 @@ export function handoffRow(result: HandoffCanaryResult, support: SurfaceSupport)
     blockedReason: result.blockedReasons[0] ?? null,
     unsupportedReason: result.pair === null ? result.pairResolution.blockedReasons[0]?.nextAction ?? null : null,
     incompleteReasons: unit?.incompleteReasons ?? [],
+    claimNotes: [...(unit?.positive?.claimNotes ?? []), ...(unit?.negative?.claimNotes ?? [])],
   };
 }
 
@@ -3563,5 +3566,6 @@ export function skippedCanaryRow(entry: SkippedCanary, support: SurfaceSupport):
     blockedReason: null,
     unsupportedReason: null,
     incompleteReasons: [],
+    claimNotes: [],
   };
 }

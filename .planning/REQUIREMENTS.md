@@ -175,6 +175,10 @@
 | REL-05 | Phase 7 | Pending |
 | REL-06 | Phase 7 | Pending |
 
+### Recorded Inferences
+
+- **CAPA-06:** The `cannot discover` half is proven live by the paired discovery oracle. The `or invoke` half is inferred from that negative because a capability a harness never loads cannot be invoked. The inference and its premise are recorded on the negative proof itself as a `claimNotes` entry of kind `inference`, emitted by `doctor --discovery`. This qualification does not change the requirement's status.
+
 **Coverage:**
 
 - v1 requirements: 48 total

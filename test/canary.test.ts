@@ -1625,6 +1625,40 @@ test("--json carries all three axes for every capability and the human output ca
   assert.equal(summaryLines.length, rows.length, "the human output does not carry exactly one summary line per capability");
 });
 
+test("a complete discovery row exposes both halves' claim notes in positive-then-negative order", () => {
+  const positive = { ...discoveryProof("codex", "positive"), claimNotes: [{ kind: "scope-limit" as const, statement: "Observed fixture scope", basis: "The positive fixture ran here" }] };
+  const negative = { ...discoveryProof("codex", "negative"), claimNotes: [{ kind: "inference" as const, statement: "Cannot invoke outside the project", basis: "The control did not list the capability" }] };
+  const row = discoveryRow(
+    { harness: "codex", ran: true, skippedReason: null, costsModelTurn: false, discovery: null, unit: pairEvidence(positive, negative) },
+    "WEB_BASE", "supported",
+  );
+  assert.equal(row.completeness, "COMPLETE");
+  assert.deepEqual(row.claimNotes, [...positive.claimNotes, ...negative.claimNotes]);
+  assert.deepEqual(JSON.parse(JSON.stringify(row)).claimNotes, row.claimNotes);
+});
+
+test("claim notes render in full on tagged lines after incompleteness without changing the table", () => {
+  const proof = { ...discoveryProof("pi", "positive"), claimNotes: [
+    { kind: "inference" as const, statement: "A qualified conclusion", basis: "The observed premise repeated for width coverage. ".repeat(8) },
+    { kind: "scope-limit" as const, statement: "A bounded scope", basis: "The fixture supplied its own configuration" },
+  ] };
+  const row = discoveryRow(
+    { harness: "pi", ran: true, skippedReason: "Fixture not run", costsModelTurn: false, discovery: null, unit: pairEvidence(proof, null) },
+    "WEB_BASE", "unverified",
+  );
+  const rendered = formatCapabilityReport("Report", [row]);
+  const lines = rendered.split("\n");
+  const claimLines = lines.filter((line) => line.startsWith("CLAIM-"));
+  assert.deepEqual(claimLines, proof.claimNotes.map((note) =>
+    `${note.kind === "inference" ? "CLAIM-INFERENCE" : "CLAIM-SCOPE"} WEB_BASE on pi — ${note.statement} Basis: ${note.basis}`,
+  ));
+  const tableRow = (output: string) => output.split("\n").find((line) => /^INCOMPLETE {2,}/u.test(line));
+  assert.ok(tableRow(rendered));
+  assert.equal(tableRow(rendered), tableRow(formatCapabilityReport("Report", [{ ...row, claimNotes: [] }])));
+  assert.ok(lines.findIndex((line) => line.startsWith("INCOMPLETE WEB_BASE")) < lines.indexOf(claimLines[0]!));
+  assert.ok(lines.indexOf(claimLines[1]!) < lines.findIndex((line) => line.startsWith("UNSUPPORTED WEB_BASE")));
+});
+
 test("an INCOMPLETE unit renders INCOMPLETE and never the positive's native-use value", () => {
   const incomplete = pairEvidence(discoveryProof("pi", "positive"), null);
   assert.equal(incomplete.completeness, "INCOMPLETE");
@@ -3202,6 +3236,7 @@ test("a no-spend sweep records every spending leg unverified with its reason, an
   const rows = sweep.skipped.map((entry) => skippedCanaryRow(entry, "supported"));
   for (const row of rows) {
     assert.equal(row.axes.nativeUse, "unverified");
+    assert.deepEqual(row.claimNotes, [], "skipped canaries have no claim to qualify");
     assert.equal(row.blockedReason, null, "D-12: not attempted is not a known, actionable cause a user can clear");
     assert.match(row.axisNotes.nativeUse ?? "", /not attempted|no handoff runner/u);
   }

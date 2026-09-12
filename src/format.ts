@@ -653,6 +653,10 @@ export function formatCapabilityReport(
         lines.push(`INCOMPLETE ${row.capability} on ${row.harness} — ${reason}`);
       }
     }
+    for (const note of row.claimNotes) {
+      const code = note.kind === "inference" ? "CLAIM-INFERENCE" : "CLAIM-SCOPE";
+      lines.push(`${code} ${row.capability} on ${row.harness} — ${note.statement} Basis: ${note.basis}`);
+    }
     if (row.unsupportedReason !== null) {
       lines.push(`UNSUPPORTED ${row.capability} on ${row.harness} — ${row.unsupportedReason}`);
     }

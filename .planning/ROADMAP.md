@@ -231,13 +231,14 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task.
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation.
 
-**Plans**: 17/17 plans executed; 3 gap-closure plans were added after verification (03-13 … 03-15), and Phase 3 is pending verification
+**Plans**: 18 plans; 17 executed and 1 gap-closure plan pending. Phase 3 is pending verification.
 **Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across Antigravity surfaces, Pi, and Hermes.
 
 Plans:
 
 - [x] 03-16-PLAN.md
 - [x] 03-17-PLAN.md
+- [ ] 03-18-PLAN.md — Fail closed on unchecked version-sensitive evidence and retain an auditable Codex capability proof
 
 **Wave 1**
 

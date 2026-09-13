@@ -8,6 +8,7 @@
 // so the suite is offline, free, and portable to the three-OS matrix.
 
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
@@ -126,6 +127,7 @@ import type { IsolationLaunchSpec, McpServerId, StackLock } from "../src/types.j
 
 /** Compiled to dist/test, so the repository root is two levels up. */
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
 
 interface TestContext {
   after: (fn: () => Promise<unknown> | unknown) => void;
@@ -344,6 +346,102 @@ test("the shipped Codex CAPA-01 filter selects one pair and reaches its runner",
 
   assert.equal(sweep.selections.length, 1);
   assert.deepEqual(driven, ["DOCUMENTATION_VERSION_SCOPED:codex"]);
+});
+
+test("compiled doctor refuses an undeclared Pi canary before creating managed state", async (context: TestContext) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-pi-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const stateRoot = join(root, "state-must-not-exist");
+  const result = spawnSync(
+    process.execPath,
+    [cliEntry, "doctor", "--canary", ".", "--harness", "pi", "--no-spend", "--json"],
+    {
+      cwd: repositoryRoot,
+      env: { ...process.env, ALPHA_AOS_STATE_DIR: stateRoot },
+      encoding: "utf8",
+      timeout: 30_000,
+      windowsHide: true,
+    },
+  );
+
+  assert.equal(result.error, undefined, String(result.error));
+  assert.notEqual(result.status, 0, "an explicit Pi request with no declaration reported success");
+  assert.match(result.stderr, /harness=pi/u);
+  assert.match(result.stderr, /Declared harnesses: claude, codex/u);
+  assert.equal(existsSync(stateRoot), false, "the refused selection created managed state");
+});
+
+test("compiled doctor accounts for the one Codex CAPA-01 no-spend leg without launching it", async (context: TestContext) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-codex-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const result = spawnSync(
+    process.execPath,
+    [cliEntry, "doctor", "--canary", ".", "--harness", "codex", "--capability", "CAPA-01", "--no-spend", "--json"],
+    {
+      cwd: repositoryRoot,
+      env: { ...process.env, ALPHA_AOS_STATE_DIR: join(root, "state") },
+      encoding: "utf8",
+      timeout: 30_000,
+      windowsHide: true,
+    },
+  );
+
+  assert.equal(result.error, undefined, String(result.error));
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  const output = JSON.parse(result.stdout) as {
+    readonly results?: readonly unknown[];
+    readonly skipped?: readonly { readonly selection?: { readonly harness?: string; readonly declaration?: { readonly capability?: string } } }[];
+    readonly rows?: readonly { readonly axes?: { readonly nativeUse?: string } }[];
+  };
+  assert.deepEqual(output.results, []);
+  assert.equal(output.skipped?.length, 1, "the declared spending leg was not accounted for");
+  assert.equal(output.skipped?.[0]?.selection?.harness, "codex");
+  assert.equal(output.skipped?.[0]?.selection?.declaration?.capability, "CAPA-01");
+  assert.equal(output.rows?.[0]?.axes?.nativeUse, "unverified");
+});
+
+test("an explicit-filter CLI refusal exposes no auth, credential, environment, or runtime value", async (context: TestContext) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-redaction-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const sentinel = "canary-filter-secret-58f6e7";
+  const privateAuthRoot = join(root, "private-auth-root");
+  const stateRoot = join(root, "private-runtime-root");
+  const result = spawnSync(
+    process.execPath,
+    [cliEntry, "doctor", "--canary", ".", "--harness", "pi", "--no-spend", "--json"],
+    {
+      cwd: repositoryRoot,
+      env: {
+        ...process.env,
+        ALPHA_AOS_STATE_DIR: stateRoot,
+        CODEX_HOME: privateAuthRoot,
+        EXA_API_KEY: sentinel,
+      },
+      encoding: "utf8",
+      timeout: 30_000,
+      windowsHide: true,
+    },
+  );
+  const observable = `${result.stdout}\n${result.stderr}`;
+
+  assert.notEqual(result.status, 0);
+  assert.equal(observable.includes(sentinel), false);
+  assert.equal(observable.includes(privateAuthRoot), false);
+  assert.equal(observable.includes(stateRoot), false);
+  assert.equal(observable.includes("EXA_API_KEY"), false);
+  assert.equal(observable.includes("canary/"), false);
+});
+
+test("the doctor branch validates selection before state and version work", async () => {
+  const source = await readFile(join(repositoryRoot, "src", "cli.ts"), "utf8");
+  const start = source.indexOf('if (hasFlag(args, "--canary"))');
+  const end = source.indexOf("\n    const inventory = collectInventory", start);
+  const branch = source.slice(start, end);
+  const selection = branch.indexOf("selectCanaries(");
+
+  assert.notEqual(selection, -1, "the CLI does not validate the declared selection at its boundary");
+  assert.equal(selection < branch.indexOf("userStateRoot()"), true, "state-root resolution happens before selection refusal");
+  assert.equal(selection < branch.indexOf("probedHarnessVersions()"), true, "harness probing happens before selection refusal");
 });
 
 test("every declared prompt names none of its expected tools, no pinned server id and no locked skill id", async () => {

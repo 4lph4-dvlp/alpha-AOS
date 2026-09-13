@@ -3419,6 +3419,39 @@ export interface CanarySelection {
   readonly costsModelTurn: boolean | null;
 }
 
+/** An explicit harness/capability assertion selected no declared canary leg. */
+export const CANARY_SELECTION_EMPTY = "CANARY_SELECTION_EMPTY";
+
+/** Stable fail-closed refusal for an explicit filter that would otherwise look successful. */
+export class CanarySelectionError extends Error {
+  readonly code = CANARY_SELECTION_EMPTY;
+
+  constructor(
+    catalog: CanaryCatalog,
+    filters: { readonly harness?: LedgerHarness | null; readonly capability?: string | null },
+  ) {
+    const requested = [
+      ...(filters.harness == null ? [] : [`harness=${filters.harness}`]),
+      ...(filters.capability == null ? [] : [`capability=${filters.capability}`]),
+    ];
+    const harnesses = [...new Set(catalog.canaries.flatMap((declaration) => declaration.harnesses))];
+    const ids = catalog.canaries.map((declaration) => declaration.id);
+    const capabilities = [...new Set(catalog.canaries.map((declaration) => declaration.capability))];
+    const first = catalog.canaries[0];
+    const nextAction = first === undefined || first.harnesses[0] === undefined
+      ? "review catalog/canaries.yaml, then re-run `alpha-aos doctor --canary`"
+      : `run \`alpha-aos doctor --canary --harness ${first.harnesses[0]} --capability ${first.capability}\``;
+
+    super(
+      `Canary selection refused (${CANARY_SELECTION_EMPTY}): zero declarations matched explicit filter ` +
+        `${requested.join(", ")}. Declared harnesses: ${harnesses.join(", ") || "(none)"}. ` +
+        `Declared canary ids: ${ids.join(", ") || "(none)"}. ` +
+        `Declared capabilities: ${capabilities.join(", ") || "(none)"}. Next action: ${nextAction}.`,
+    );
+    this.name = "CanarySelectionError";
+  }
+}
+
 /** Every declared canary/harness pair the filters select, in catalog order. */
 export function selectCanaries(
   catalog: CanaryCatalog,
@@ -3433,6 +3466,9 @@ export function selectCanaries(
       if (filters.harness != null && cost.harness !== filters.harness) continue;
       selections.push({ declaration, harness: cost.harness as LedgerHarness, costsModelTurn: cost.costsModelTurn });
     }
+  }
+  if (selections.length === 0 && (filters.harness != null || filters.capability != null)) {
+    throw new CanarySelectionError(catalog, filters);
   }
   return selections;
 }

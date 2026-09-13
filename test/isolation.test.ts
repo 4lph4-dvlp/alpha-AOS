@@ -526,3 +526,56 @@ test("a harness with no strict MCP isolation records a blocked reason rather tha
     );
   }
 });
+
+test("the Codex canary branch reuses authentication but carries only measured runtime MCP overrides", () => {
+  const runtimeRoot = join("C:", "state", "canary", "run");
+  const authRoot = join("C:", "users", "tester", ".codex");
+  const overrides = [
+    "-c",
+    `mcp_servers.context7.command=${JSON.stringify(process.execPath)}`,
+    "-c",
+    "mcp_servers.context7.args=[\"fronted\"]",
+  ];
+  const launch = createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: join("C:", "work", "repo"),
+    harness: "codex",
+    policy: defaultIsolationPolicy("project-only", ["codex"]),
+    runtimeRoot,
+    allowedSkillPaths: [],
+    canary: { mcpConfigPath: join(runtimeRoot, "config.toml"), mcpConfigOverrides: overrides },
+    sourceEnvironment: { CODEX_HOME: authRoot },
+  });
+
+  assert.equal(launch.env.CODEX_HOME, authRoot);
+  assert.equal(launch.env.HOME, undefined);
+  assert.equal(launch.env.USERPROFILE, undefined);
+  assert.equal(launch.args.filter((entry) => entry === "--ignore-user-config").length, 1);
+  assert.equal(launch.args.filter((entry) => entry === "--ignore-rules").length, 1);
+  assert.deepEqual(launch.args.filter((entry) => entry === "-c").length, 2);
+  assert.deepEqual(launch.args.slice(-overrides.length), overrides);
+  assert.deepEqual(launch.blockedReasons, []);
+});
+
+test("the ordinary Codex project-only branch remains byte-for-byte stable", () => {
+  const runtimeRoot = join("C:", "state", "isolated", "0123456789abcdef");
+  const launch = createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: join("C:", "work", "repo"),
+    harness: "codex",
+    policy: defaultIsolationPolicy("project-only", ["codex"]),
+    runtimeRoot,
+    allowedSkillPaths: [],
+    sourceEnvironment: { CODEX_HOME: join("C:", "users", "tester", ".codex") },
+  });
+
+  assert.deepEqual(launch.args, ["--strict-config"]);
+  assert.deepEqual(launch.env, {
+    CODEX_HOME: join(runtimeRoot, "codex"),
+    HOME: join(runtimeRoot, "codex", "home"),
+    USERPROFILE: join(runtimeRoot, "codex", "home"),
+  });
+  assert.deepEqual(launch.guarantees, [
+    "Codex state and user-level .agents skills are hidden by isolated CODEX_HOME and home directories",
+  ]);
+});

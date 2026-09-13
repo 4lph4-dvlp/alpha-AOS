@@ -46,6 +46,7 @@ import {
   decideInvocation,
   disposeCanary,
   disposeCanaryRuntime,
+  deriveCodexMcpOverrides,
   findPromptHints,
   HANDOFF_CANARY_ID,
   HANDOFF_CAPABILITY,
@@ -2086,6 +2087,114 @@ test("a Codex runtime derives overrides for exactly its validated observation-fr
     true,
     "the override observes into another runtime",
   );
+});
+
+function completeCodexArgs(runtime: CanaryRuntime): string[] {
+  const prompt = canaryPromptArgs("codex", "Use the capability when relevant.");
+  assert.ok(prompt);
+  return [...prompt.slice(0, -1), ...codexRuntimeOverrides(runtime), prompt.at(-1) as string];
+}
+
+test("Codex authentication fallback preserves the platform home while every controlled write root stays runtime-local", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["context7"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const authHome = join(state, "synthetic-auth-home");
+  const source = { HOME: authHome, USERPROFILE: authHome };
+  const spec = createCanaryLaunchSpec({ harness: "codex", runtime, projectRoot: project, environment: source });
+  const environment = materializeEnvironment({
+    ...canaryEnvironmentPolicy({ declaration: declaration({ harnesses: ["codex"] }), spec, runtime, source }),
+  });
+  const platformHomeName = process.platform === "win32" ? "USERPROFILE" : "HOME";
+  assert.equal(environment[platformHomeName], authHome);
+  for (const name of [
+    "LOCALAPPDATA",
+    "APPDATA",
+    "XDG_CACHE_HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_STATE_HOME",
+    "npm_config_cache",
+  ]) {
+    const value = environment[name];
+    assert.ok(value, `${name} is absent`);
+    assert.equal(resolve(value).startsWith(`${resolve(runtime.root)}${process.platform === "win32" ? "\\" : "/"}`), true, `${name} escaped`);
+  }
+  assert.doesNotThrow(() => assertCanaryLaunchIsolation(environment, runtime, completeCodexArgs(runtime)));
+});
+
+test("Codex boundary mutations are refused before any launcher can run", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["context7"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const validArgs = completeCodexArgs(runtime);
+  const authRoot = join(state, "outside-auth");
+  const validEnvironment = {
+    CODEX_HOME: authRoot,
+    LOCALAPPDATA: join(runtime.root, "write", "local"),
+    APPDATA: join(runtime.root, "write", "roaming"),
+    XDG_CACHE_HOME: join(runtime.root, "write", "cache"),
+    XDG_CONFIG_HOME: join(runtime.root, "write", "config"),
+    XDG_DATA_HOME: join(runtime.root, "write", "data"),
+    XDG_STATE_HOME: join(runtime.root, "write", "state"),
+    npm_config_cache: join(runtime.root, "write", "npm-cache"),
+  };
+  const mutations = [
+    validArgs.filter((entry) => entry !== "--ignore-user-config"),
+    validArgs.filter((entry) => entry !== "--ignore-rules"),
+    [...validArgs.slice(0, -1), "-c", "mcp_servers.ambient.command=\"ambient\"", validArgs.at(-1) as string],
+  ];
+  for (const args of mutations) {
+    assert.throws(
+      () => assertCanaryLaunchIsolation(validEnvironment, runtime, args),
+      (error: unknown) => error instanceof CanaryBoundaryError && error.code === CANARY_LAUNCH_ISOLATION_VIOLATION,
+    );
+  }
+  assert.throws(
+    () => assertCanaryLaunchIsolation({ ...validEnvironment, npm_config_cache: join(state, "escaped-cache") }, runtime, validArgs),
+    (error: unknown) => error instanceof CanaryBoundaryError && error.code === CANARY_LAUNCH_ISOLATION_VIOLATION,
+  );
+
+  const rendered = await readFile(runtime.mcpConfigPath, "utf8");
+  assert.throws(
+    () => deriveCodexMcpOverrides(rendered.replace('"mcp-proxy"', '"not-the-observation-front"'), ["context7"], runtime.observationsPath),
+    /does not invoke alpha-aos mcp-proxy/u,
+  );
+
+  let launched = false;
+  await assert.rejects(
+    runCanary({
+      declaration: declaration({ harnesses: ["codex"], requiresMcpServers: ["context7"] }),
+      harness: "codex",
+      projectRoot: project,
+      runtime,
+      sink: createCanaryObservationSink(runtime),
+      environment: { CODEX_HOME: authRoot },
+      runner: runner(),
+      buildLaunchSpec: () => ({
+        ...codexStubLaunchSpec(runtime, authRoot),
+        args: [...codexRuntimeOverrides(runtime), "-c", 'mcp_servers.ambient.command="ambient"'],
+      }),
+      launcher: async () => {
+        launched = true;
+        return { ran: true, reason: null, exitCode: 0, excerpt: null };
+      },
+    }),
+    (error: unknown) => error instanceof CanaryBoundaryError && error.code === CANARY_LAUNCH_ISOLATION_VIOLATION,
+  );
+  assert.equal(launched, false);
 });
 
 test("a launched canary proof records its runtime scope and the recorded instruction ids without recomputing them", async (context) => {

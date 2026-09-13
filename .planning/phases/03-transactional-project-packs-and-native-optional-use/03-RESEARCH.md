@@ -1003,15 +1003,16 @@ as code rather than as intent.
 | A7 | pi's `nvidia/nemotron-3-super-120b-a12b` fallback is good enough to make an intent-driven selection | D-09 auto-promotion | pi reported `credentials_not_configured` for google/anthropic/openai and silently fell back to a free nvidia model. A weak model failing to select a skill is a finding about *the model*, not about pi's discovery. The plan must record which provider/model a pi canary actually ran on, or a `codex/pi auto-promote` result is uninterpretable |
 | A8 | `.ai-style-rules.md` is a reliable D-13 "output" signal | Open Q7 answer | The skill writes it, but a user can decline the run partway; presence proves output, absence does not prove no-output |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-The eight questions CONTEXT.md handed to research are answered below. Four are fully settled,
-three are settled with a caveat, one remains open.
+The eight questions CONTEXT.md handed to research and the two questions raised during research
+are resolved below. Where the evidence has a ceiling, the resolution records that ceiling rather
+than turning an unobserved claim into support.
 
-1. **Non-interactive entrypoint per harness — SETTLED.** claude: `-p/--print` with
+1. **Non-interactive entrypoint per harness — RESOLVED.** claude: `-p/--print` with
    `--output-format text|json|stream-json`. codex: `codex exec [--json] [-o FILE] [--sandbox read-only] [--ignore-user-config] [--skip-git-repo-check]`. pi: `-p/--print` with `--mode text|json|rpc`. hermes: `-z/--oneshot PROMPT`. antigravity: **none found** (no CLI on PATH; `agentapi.bat` is an undocumented lead). [VERIFIED: `--help` for all four, plus live runs of claude/codex/pi]
 
-2. **Sidecar tolerance — SETTLED for claude and codex, UNTESTED for pi.** I placed
+2. **Sidecar tolerance — RESOLVED WITH A PI CAVEAT.** I placed
    `.alpha-aos-provenance.json` and `alpha-aos-receipt.yaml` inside a skill directory. Codex
    still listed the skill with an unchanged description, emitted nothing on stderr, and did not
    surface the sidecars as skills. Claude likewise listed the skill unchanged. [VERIFIED: live
@@ -1021,16 +1022,17 @@ three are settled with a caveat, one remains open.
    still loads. **Recommendation:** enable the D-07 sidecar for claude and codex; keep pi
    receipts-only until a probe exists.
 
-3. **Project-scope discovery for codex `.agents/skills` and pi `.pi/skills` — SETTLED, both
+3. **Project-scope discovery for codex `.agents/skills` and pi `.pi/skills` — RESOLVED, both
    YES.** Codex proven empirically (and it discovers `<project>/.codex/skills` too, which
    `PROJECT_SKILL_ROOTS` does not know about). Pi documented **and** proven, with an explicit
    `scope: "project"` in the harness's own output. D-09's auto-promotion has real material to
-   promote on both. The correct next step is to change `ADAPTER_SUPPORT_EVIDENCE`'s codex reason
-   to cite the observation, and to decide whether `.codex/skills` becomes a second codex target
-   or is deliberately left alone (leaving it alone is defensible: one root per harness keeps
-   removal confinement simple, and `.agents/skills` is the shared-standard location).
+   promote on both. Plan 03-04 recorded the delivery-root resolution: `.codex/skills` remains a
+   discovered read root but is not added to `PROJECT_SKILL_ROOTS`; alpha-AOS keeps `.agents/skills`
+   as its single codex write root and reports an occupied second root with
+   `CODEX_SECOND_PROJECT_ROOT_SHADOW`. This is report-only and does not widen receipt or removal
+   confinement.
 
-4. **Can the proxy front Context7 and Exa, and what is a meaningful read-only call — SETTLED
+4. **Can the proxy front Context7 and Exa, and what is a meaningful read-only call — RESOLVED
    with a prerequisite.** Both servers are ordinary stdio children with tiny tool surfaces, so
    fronting them is the same shape as firecrawl — `allowedMcpTools` currently returns `null` for
    anything but firecrawl and `runMcpFilterProxy` throws for those ids, so the observation build
@@ -1039,10 +1041,10 @@ three are settled with a caveat, one remains open.
    (bounded result count) → Firecrawl `firecrawl_scrape` on one returned URL. **Prerequisite:**
    Pitfall 8's environment defect must be fixed first, or the proxy cannot start at all.
 
-5. **Version → minor boundary per harness — SETTLED.** See *Pitfall 6*. Three semver, one that
+5. **Version → minor boundary per harness — RESOLVED.** See *Pitfall 6*. Three semver, one that
    needs a `v(\d+)\.(\d+)\.(\d+)` extraction from a decorated line whose other tokens drift.
 
-6. **Antigravity surfaces and codex CLI/IDE keying — PARTIALLY SETTLED.** The design doc is
+6. **Antigravity surfaces and codex CLI/IDE keying — RESOLVED TO THE OBSERVED CEILING.** The design doc is
    explicit and authoritative on the codex half: "Codex CLI와 IDE extension은 같은 Codex host에서
    MCP 구성을 공유할 수 있다. 이것을 Antigravity나 다른 제품에도 그대로 적용된다고 가정하지 않고
    각 surface를 따로 검증한다." [CITED: `docs/alpha-vibe-stack-codex.md` §4.3] Codex CLI and its
@@ -1050,10 +1052,11 @@ three are settled with a caveat, one remains open.
    rule says verify separately. For Antigravity, the two distinct roots on this host
    (`~/.antigravity/` holding VS Code-style extensions, `~/.gemini/antigravity/` holding agent
    state, `mcp_config.json` and `builtin/skills`) are positive evidence that GUI/IDE and the
-   agent are **not** one state store, which argues for keying them separately. Not resolvable
-   further without an Antigravity entrypoint.
+   agent are **not** one state store, which argues for keying them separately. The evidence ceiling
+   is the absence of an Antigravity entrypoint. Phase 03 therefore keeps the surfaces separately
+   keyed and leaves Antigravity without a native support claim rather than inferring parity.
 
-7. **Does `inherit-legacy-style` produce a detectable output — SETTLED, YES.** The skill
+7. **Does `inherit-legacy-style` produce a detectable output — RESOLVED, YES.** The skill
    generates `.ai-style-rules.md` at the project root, "with commit fingerprint + scale tier in
    header", and optionally adds an `@.ai-style-rules.md` reference to `CLAUDE.md`. It also
    self-detects: "Silently check for `.ai-style-rules.md` at the project root" is its own
@@ -1064,21 +1067,23 @@ three are settled with a caveat, one remains open.
    only observe it; and presence proves output while absence does not prove no-output (A8), so
    the ledger's `invoked` record stays the primary signal with the artifact as corroboration.
 
-8. **What `ecc-universal@2.2.0` ships for the pack skills — SETTLED.** All 22 locked skills are
+8. **What `ecc-universal@2.2.0` ships for the pack skills — RESOLVED.** All 22 locked skills are
    present; all 22 `sourceSha256` values match byte-for-byte; 21 are a single `SKILL.md`;
    `security-review` has one unreferenced companion; four scientific skills have a name/directory
    mismatch (Pitfall 2); `mcp-server-patterns` has one dead relative link. `renderEccSkill` is
    the identity for every pack skill, which is exactly what `PLAN_RENDERER_ID = "ecc-skill/identity"`
    already asserts, so `targetSha256` for a pack skill is simply its `sourceSha256`.
 
-**Still open, newly raised by this research:**
+**Questions raised by this research — RESOLVED:**
 
-- Should `<project>/.codex/skills` join `PROJECT_SKILL_ROOTS`? Adding it widens
-  `schemas/receipt.schema.json`'s reach without adding a harness; leaving it out means codex
-  users with an existing `.codex/skills` see a shadow alpha-AOS does not report.
-- Should the hermes ceiling reason be corrected (keeping `unsupported`) or should hermes be
-  re-classified given `hermes skills trust`? A wrong reason recorded as evidence is the exact
-  discipline failure Phase 2 hardened against.
+- **RESOLVED by Plan 03-04:** `<project>/.codex/skills` does not join `PROJECT_SKILL_ROOTS`.
+  `DISCOVERED_PROJECT_SKILL_ROOTS` records that codex reads it, and
+  `CODEX_SECOND_PROJECT_ROOT_SHADOW` reports it when populated, while `.agents/skills` remains
+  alpha-AOS's single codex write target.
+- **RESOLVED by Plan 03-09:** Hermes remains `unsupported`; only the false worker-only rationale
+  changes. The recorded ground is that no Hermes project-delivery surface is in scope for this
+  milestone and none has been probed, even though `hermes skills trust` shows the old rationale
+  was false. This corrects the evidence without reopening the deferred Hermes delivery scope.
 
 ## Environment Availability
 

@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
 status: executing
-stopped_at: Completed 03-15-PLAN.md — Phase 3 pending verification
-last_updated: "2026-09-12T12:15:19.296Z"
-last_activity: 2026-09-12
-last_activity_desc: Completed 03-15 upstream gate and assertion precondition gap closure; Phase 3 pending verification
-state_head: 6204e099f4e383ed0cc6e8029162a55f4b19e86a
+stopped_at: Completed 03-16-PLAN.md
+last_updated: "2026-09-13T08:09:22.324Z"
+last_activity: 2026-09-13
+last_activity_desc: Completed 03-16 native Codex CAPA-01 tracer and isolation gap closure
+state_head: ce96d89619b0cdbcc7511d5ec82e3bfffc08a1f7
 progress:
   total_phases: 7
   completed_phases: 2
-  total_plans: 58
-  completed_plans: 58
+  total_plans: 60
+  completed_plans: 59
   percent: 29
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 03 (Transactional Project Packs and Native Optional Use) — IN PROGRESS
-Plan: 15 of 15
-Status: Plan 03-15 complete — phase pending verification
-Last activity: 2026-09-12 — Completed 03-15 upstream gate and assertion precondition gap closure
+Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
+Plan: 17 of 17
+Status: Plan 03-16 complete — ready to execute 03-17
+Last activity: 2026-09-13 — Completed 03-16 native Codex CAPA-01 tracer and isolation gap closure
 Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
@@ -99,6 +99,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 03 P12 | 68 min | 3 tasks | 9 files |
 | Phase 03 P14 | 17min | 2 tasks | 4 files |
 | Phase 03 P15 | 11min | 2 tasks | 4 files |
+| Phase 03 P16 | 5h 35m | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -194,6 +195,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: pi stays receipts-only with its reason recorded, and every sidecar reason leads with the DECISION so the status width bound cannot cut it — Tolerance for a non-Markdown sidecar was never probed on pi; its documented ignore rule covers root Markdown files only. Plan 03-09 lost half a cited sentence to MAX_STATUS_DETAIL_CHARS, so the wording was rewritten to fit rather than exempted.
 - [Phase 03]: Keep unsupportedReason on oracle and process support-domain results; only CapabilityReportRow uses notRunReason.
 - [Phase 03]: Return identity-independent sweep aggregate views because observable serialization treats repeated object references as cycles.
+- [Phase 03]: Codex discovery remains free while invocation uses a costed ephemeral exec vector. — Keeping separate adapter contracts prevents a discovery result from being reported as native use.
+- [Phase 03]: The Codex canary reuses authentication by reference while controlled write roots remain runtime-local. — This preserves the user-managed login without reading or copying authentication bytes.
+- [Phase 03]: Isolated Codex documentation canaries carry one exact developer instruction for ordered Context7 routing. — The required ignore-rules flag removes ambient routing instructions, while MCP-side observations remain the proof authority.
 
 ### Pending Todos
 
@@ -257,6 +261,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-12T12:15:18.661Z
-Stopped at: Completed 03-15-PLAN.md — Phase 3 pending verification
+Last session: 2026-09-13T08:09:21.509Z
+Stopped at: Completed 03-16-PLAN.md
 Resume file: None

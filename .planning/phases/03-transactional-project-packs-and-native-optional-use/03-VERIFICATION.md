@@ -1,73 +1,53 @@
 ---
 phase: 03-transactional-project-packs-and-native-optional-use
-verified: 2026-09-12T12:24:36Z
-status: human_needed
+verified: 2026-09-13T13:10:21Z
+status: gaps_found
 score: 1/5 must-haves verified
-behavior_unverified: 4
+behavior_unverified: 3
 overrides_applied: 0
-next_action: "Run the four explicit native-use checks and record the human judgements; do not mark CAPA requirements complete from implementation evidence alone."
-next_command: "$gsd-verify-work 3"
-covered_files:
-  - ".planning/ROADMAP.md"
-  - ".planning/REQUIREMENTS.md"
-  - ".planning/phases/03-transactional-project-packs-and-native-optional-use/03-01-PLAN.md through 03-15-PLAN.md (frontmatter and must-haves)"
-  - ".planning/phases/03-transactional-project-packs-and-native-optional-use/03-01-SUMMARY.md through 03-15-SUMMARY.md (frontmatter; 13-15 read closely)"
-  - ".planning/phases/03-transactional-project-packs-and-native-optional-use/deferred-items.md"
-  - "src/core/capability-ledger.ts"
-  - "schemas/capability-ledger.schema.json"
-  - "src/adapters/capability-oracle.ts"
-  - "src/core/canary.ts"
-  - "src/format.ts"
-  - "test/capability-ledger.test.ts"
-  - "test/capability-oracle.test.ts"
-  - "test/canary.test.ts"
-  - "test/helpers/upstream-gate.ts"
-  - "test/mcp-proxy.test.ts"
-  - ".github/workflows/ci.yml"
-covered_digest: "v1:sha256:36727c63dab7f376388bb94165c0f649d619bd50f5aeff973457dd36944ce67b"
-covered_head: "2eaf4f3a151083ac3c954dc1bf4de2d4462e4102"
 re_verification:
-  previous_status: gaps_found
+  previous_status: human_needed
   previous_score: 1/5
   gaps_closed:
-    - "REQUIREMENTS.md no longer marks CAPA-05 or any other Phase 3 CAPA requirement Complete without representative-use evidence."
-    - "CAPA-06's outside-project non-invocation inference is recorded on the qualifying negative proof with its observed premise."
-    - "Canary proofs record their canary-runtime configuration and instruction scope on the proof itself."
-    - "Doctor output uses NOT-RUN for the reason a supported surface did not run and serializes discovery evidence without cycle placeholders."
-    - "CI fails closed when pinned MCP startup checks cannot reach the registry, while local offline runs retain an explained skip."
-    - "The pending-MCP regression guard now asserts and explains its precondition."
-  gaps_remaining: []
+    - "G-03-1 transport gap: Codex now has a separate costed native invocation path with runtime-local Context7 observation-front configuration and authentication by reference."
+    - "Explicit canary filters that select zero declarations now refuse before state creation, announcements, callbacks, or spend."
+  gaps_remaining:
+    - "CAPA-01's completion proof accepts `held: true` when the version-scoped identifier pattern is unchecked, and the durable ledger does not retain the observation/verdict detail needed to independently disprove that false positive."
   regressions: []
+gaps:
+  - truth: "On every actively claimed harness surface, a version-sensitive documentation request natively selects the documentation capability and completes a meaningful, version-scoped read-only Context7 call. (SC1 / CAPA-01)"
+    status: failed
+    reason: "The Codex path is substantive and a durable ledger row records nativeUse=invoked, but matchExpectations() sets held=true when query-docs.libraryId is unchecked. The final native gate checks only invoked/held, and the ledger drops satisfied/unchecked argument-pattern and observation details, so the retained evidence cannot prove the version-scoped clause."
+    artifacts:
+      - path: "src/core/canary.ts"
+        issue: "matchExpectations() excludes uncheckedArgumentPatterns from the held predicate; decideInvocation() therefore promotes an unchecked version-shape run to invoked."
+      - path: "test/canary.test.ts"
+        issue: "The missing-shape test verifies that the pattern is reported unchecked but never asserts held=false; the live-gate contract only checks nativeUse and held."
+      - path: "C:/Users/alpha/.alpha-aos/capabilities/ledger.json"
+        issue: "The current Codex CAPA-01 proof records invoked and an exit-0 oracle fingerprint, but not the three observations, ordered verdict, or satisfied version-shape pattern."
+    missing:
+      - "Make every declared but unchecked argument pattern fail closed for a proof whose must-have depends on it, or require satisfiedArgumentPatterns to contain query-docs.libraryId and uncheckedArgumentPatterns to be empty in the CAPA-01 completion gate."
+      - "Persist or otherwise retain replayable, redacted verdict detail sufficient to audit ordered calls, observation count, and the version-scoped shape without trusting SUMMARY.md."
 behavior_unverified_items:
-  - truth: "On every claimed harness surface, a version-sensitive documentation request natively selects the global documentation capability and completes a meaningful read-only Context7 call. (SC1 / CAPA-01)"
-    test: "Run the Phase 3 UAT documentation canary from `$gsd-verify-work 3`; inspect the produced proof and ordered Context7 observations."
-    expected: "The claimed surface records nativeUse=invoked with resolve-library-id before query-docs, and the query observation records a version-scoped three-segment library identifier shape."
-    why_human: "No paid model turn was authorized or run; implementation and fixtures cannot prove that a model selected and used the capability natively."
   - truth: "A multi-source research request routes through Exa discovery and bounded Firecrawl extraction, while an ordinary lookup does not fan out. (SC2 / CAPA-02)"
-    test: "Run the Phase 3 UAT research positive and ordinary-lookup control from `$gsd-verify-work 3`; inspect the tool sequence, distinct-server count, and recorded canary-runtime scope note."
-    expected: "The positive records web_search_exa before firecrawl_scrape across exactly two servers; the ordinary control touches at most one research server; the reviewer accepts or rejects the explicit canary-runtime scope limitation."
-    why_human: "The native routing leg needs paid model execution, and a human must judge whether evidence from the alpha-AOS-owned canary configuration is sufficient for the claimed surface."
+    test: "Run the research positive and ordinary-lookup control on an authorized active harness and inspect the ordered observation evidence."
+    expected: "The positive records web_search_exa before firecrawl_scrape across exactly two servers; the ordinary control touches at most one research server."
+    why_human: "The matcher and controls are wired, but no native model run on an available harness exercises this routing transition; the shipped declarations remain Claude-only."
   - truth: "A supported receiving harness works from an explicit Unified Memory handoff while `.planning/` remains unchanged and GSD remains authoritative. (SC3 / CAPA-03)"
-    test: "Run the Phase 3 UAT handoff canary from `$gsd-verify-work 3` and judge the receiving response against the handed-off sentinel/context."
-    expected: "The receiving harness demonstrably uses the handed-off context; the already-automated planning-tree witness remains complete and byte-identical."
-    why_human: "The receiving leg was not run because it spends a model turn, and the observation front cannot distinguish use of recalled context from coincidental general knowledge."
+    test: "Run a handoff to an authorized active receiving harness and judge the response against handed-off sentinel context."
+    expected: "The receiver demonstrably uses the handed-off context, while the recursive planning-tree witness remains byte-identical."
+    why_human: "The deterministic immutability half is implemented, but no receiving model leg has run and use of recalled context is not inferable from symbol presence."
   - truth: "A materialized exact-hash project pack is selected from a representative intent-matched task without naming the pack or skill. (SC4 / CAPA-05)"
-    test: "In the Phase 3 UAT project, run the declared pack-exercise canary from `$gsd-verify-work 3` and inspect the harness event stream for native skill selection."
-    expected: "The harness selects and follows the materialized pack for the ordinary intent-matched prompt, with project-local provenance visible and no skill name or subject hint in the prompt."
-    why_human: "This requires a paid model turn and skill selection is not an MCP tool call, so the automated MCP observation sink cannot establish it."
-human_verification:
-  - test: "CAPA-01 documentation invocation"
-    expected: "Native Context7 selection and ordered version-scoped read-only use on the claimed surface."
-    why_human: "Paid model behavior was deliberately not run."
-  - test: "CAPA-02 research routing and ordinary negative"
-    expected: "Ordered Exa-to-Firecrawl routing, bounded ordinary lookup, and an explicit decision on the canary-runtime scope note."
-    why_human: "Paid model behavior and the scope judgement remain unobserved."
-  - test: "CAPA-03 receiving handoff leg"
-    expected: "The receiver demonstrably works from the memory handoff; the planning-tree witness stays unchanged."
-    why_human: "The receiver was not run and use of recalled context requires judgement."
-  - test: "CAPA-05 representative pack exercise"
-    expected: "The harness natively selects the project pack for an ordinary intent-matched task."
-    why_human: "Paid model behavior is unrun and skill selection is outside the MCP observation channel."
+    test: "Run the declared pack-exercise task on an authorized active harness and inspect native skill selection plus project-local provenance."
+    expected: "The harness selects and follows the materialized pack for the ordinary prompt, with unchanged locked skill bytes and project-local provenance."
+    why_human: "Materialization and provenance are verified, but the representative native skill-selection leg remains Claude-only and unrun."
+non_inferable_unverified_items:
+  - truth: "Two equally strong documentation proofs render in stable harness-id order. (03-08 backstop)"
+    reason: insufficient_spec
+    why_human: "Plan 03-08 explicitly authors no held-out assertion and only one active surface has a native proof."
+  - truth: "An interruption before the observation sink closes leaves no invocation record in the ledger. (03-08 backstop)"
+    reason: insufficient_spec
+    why_human: "Plan 03-08 explicitly authors no interruption test for a paid run; presence of sink checks and partial-list matching is not direct evidence of this ordering invariant."
 unverified_prohibitions: 12
 decision_coverage:
   honored: 16
@@ -78,141 +58,116 @@ decision_coverage:
 # Phase 3: Transactional Project Packs and Native Optional Use Verification Report
 
 **Phase Goal:** Users can obtain optional capabilities in exactly the intended scope and prove native discovery and representative use rather than trusting file presence.
-**Verified:** 2026-09-12T12:24:36Z
-**Status:** human_needed
-**Re-verification:** Yes — after gap closure plans 03-13 through 03-15
+**Verified:** 2026-09-13T13:10:21Z
+**Status:** gaps_found
+**Re-verification:** Yes — after gap-closure plans 03-16 and 03-17
 
 ## Goal Achievement
 
-The implementation gap is closed. Phase 3 now records what each proof actually observed, what it inferred, and the scope in which it ran. It also reports non-runs and CI upstream failures without turning absence into a pass. The phase goal still depends on four real native-use observations that were deliberately not purchased or simulated, so the canonical result is `human_needed`, not `passed`.
+Plans 03-16 and 03-17 close the diagnosed Codex transport and empty-selection gaps. The implementation now selects one Codex CAPA-01 leg, launches native `codex exec` with isolated runtime-local Context7 overrides, and refuses explicit zero-match filters before state or spend. The phase still cannot pass: the retained CAPA-01 evidence does not prove the version-scoped identifier clause, three representative native-use truths remain unexercised, and two plan-authored backstop truths require abstention.
 
 ### Observable Truths
 
-| # | Truth | Status | Evidence |
-|---|-------|--------|----------|
-| 1 | Version-sensitive documentation requests natively select and use Context7. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Ordered matcher, version-scoped identifier shape, proxy, canary runtime, and scope note are wired and tested. No paid native invocation has run. |
-| 2 | Multi-source research routes Exa then bounded Firecrawl, while ordinary lookup does not fan out. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Ordered sequence and distinct-server bounds are non-vacuously tested; canary scope is persisted. No paid positive/control pair has run. |
-| 3 | Unified Memory hands work to a receiver while `.planning/` stays authoritative through GSD. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | The live/free immutability witness and failure-capable negative remain verified. The receiving harness leg has not run. |
-| 4 | A reviewed exact-hash project pack is applied with local provenance and exercised by representative intent. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Preview/apply, atomic rollback, exact bytes, provenance, and project scoping remain verified. Native representative skill selection has not run. |
-| 5 | The capability is absent outside the project and status/six-domain packs remain accurately represented without broad global profiles. | ✓ VERIFIED | Paired discovery negative, three-axis state, eight named states, six positive packs and six near-miss twins retain behavioral coverage. CAPA-06's non-invocation inference attaches only to a parsed, ancestor-free negative whose control saw none of the capability's skills. |
+| # | Roadmap truth | Status | Evidence |
+|---|---------------|--------|----------|
+| 1 | Version-sensitive documentation requests natively select and use Context7 on every active claimed surface. | ✗ FAILED | The live Codex ledger row says `invoked`, but `matchExpectations()` returns `held=true` for an unchecked identifier shape and the durable proof omits the verdict/observations. The preserved Claude declaration has no successful result; the UAT explicitly narrows active verification to Codex. |
+| 2 | Multi-source research routes Exa then bounded Firecrawl, while ordinary lookup does not fan out. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Ordered and fan-out matchers are wired and tested with fixtures; the native positive/control pair remains Claude-only and unrun. |
+| 3 | Unified Memory hands work to a receiver while `.planning/` remains authoritative through GSD. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Memory adapters and planning-tree hashing are wired; no receiving model leg has demonstrated use of recalled context. |
+| 4 | A reviewed exact-hash project pack is applied with local provenance and exercised by representative intent. | ⚠️ PRESENT_BEHAVIOR_UNVERIFIED | Preview/apply, transaction rollback, exact bytes, project scope, and provenance are verified; representative native skill selection remains unrun. |
+| 5 | The capability is absent outside the project and status/six-domain packs are accurately represented without broad global profiles. | ✓ VERIFIED | Paired discovery negatives, the three-axis/eight-state resolver, six positive packs, six near-miss twins, and the CAPA-06 recorded inference remain substantive and wired. |
 
-**Score:** 1/5 truths verified (4 present and wired, behavior unverified)
+**Score:** 1/5 truths verified (3 present and wired but behavior-unverified)
 
-### Re-verification of the Previous Gap
+### Re-verification of G-03-1
 
-| Previous gap | Result | Evidence |
-|--------------|--------|----------|
-| CAPA-05 was falsely marked Complete without representative-use evidence. | ✓ CLOSED | Commit `5c49abc` reverted all Phase 3 CAPA checkboxes to unchecked and CAPA-04..08 traceability rows to `Gaps Found`. Current REQUIREMENTS still has all eight CAPA boxes unchecked. Plan 03-13 added only a Recorded Inferences note and preserved those statuses. |
-
-No regression was found in the previously verified pack transaction, discovery, ledger, state-rendering, provenance, six-domain fixture, or planning-immutability paths. The supplied final regression gate is `npm test`: 739 total, 733 pass, 0 fail, 6 existing platform skips.
+| Gap-closure claim | Result | Evidence |
+|-------------------|--------|----------|
+| Codex can run CAPA-01 without a Claude account. | ✓ CLOSED (transport) | `catalog/canaries.yaml` declares Codex; `INVOCATION_DEFINITIONS.codex` uses `exec --json --ephemeral`; runtime-derived Context7 overrides cross `mcp-proxy --observe`; the current ledger has a Codex CAPA-01 positive with `nativeUse=invoked`, exit code 0, observed at `2026-09-13T08:41:25.931Z`. |
+| Explicit zero-match filters fail closed. | ✓ CLOSED | Verifier invocation of the compiled CLI with `--harness pi --no-spend --json` exited 2, named `CANARY_SELECTION_EMPTY`, and did not create the supplied state root. |
+| Codex proof establishes ordered, version-scoped Context7 use. | ✗ OPEN | A direct matcher probe with ordered `resolve-library-id` / `query-docs` observations but no identifier shape returned `held=true`, `unchecked=["query-docs.libraryId"]`, and no satisfied pattern. |
 
 ### Required Artifacts
 
+The canonical artifact queries report 50/50 artifacts present/substantive across plans 03-01 through 03-17. Wiring queries report 37/37 declared links matched (plan 03-07 declares no links). Manual inspection changes one artifact's final behavioral status:
+
 | Artifact | Expected | Status | Details |
 |----------|----------|--------|---------|
-| `src/core/capability-ledger.ts` + schema | Closed optional claim notes that never alter verdicts | ✓ VERIFIED | Three fields, two-value kind, optional persistence, closed schema, round trip, and refusal of unknown keys/kinds. |
-| `src/adapters/capability-oracle.ts` | Truthful CAPA-06 inference | ✓ VERIFIED | Requires a negative, asserted ancestor-free control, parsed output, a declared capability, and no loaded capability skill; unparsed, trust-withheld, empty, partial, and positive cases carry no inference. |
-| `src/core/canary.ts` + `src/format.ts` | Runtime scope, NOT-RUN semantics, noncyclic discovery JSON | ✓ VERIFIED | Scope uses recorded instruction IDs; no-spend stays unverified; aggregate clones prevent cycle placeholders while `discovery.unit` remains complete. |
-| `test/helpers/upstream-gate.ts` + `.github/workflows/ci.yml` | Strict upstream CI with graceful local behavior | ✓ VERIFIED | Pure decision, exact `=1` opt-in, package/version reasons, job-level three-OS env, no soft-failure escape, and exact tool sets retained. |
-| `test/capability-oracle.test.ts` | Anti-vacuity pending check | ✓ VERIFIED | Asserts a pending server before the unchanged MCP-finding assertion and explains its current regression-guard limit. |
-| `.planning/REQUIREMENTS.md` | Honest Phase 3 claims | ✓ VERIFIED | No Phase 3 CAPA checkbox is complete; CAPA-06 inference is recorded without changing status. |
-
-Gap-plan artifact queries report 11/11 substantive artifacts; key-link queries report 7/7 links wired.
+| `src/adapters/capability-oracle.ts` | Separate free discovery and costed Codex invocation | ✓ VERIFIED | Discovery remains `debug prompt-input`; invocation is native ephemeral/read-only `codex exec`; Claude compatibility remains declared. |
+| `src/adapters/isolation.ts` + `src/core/canary.ts` | Runtime-only fronted MCP configuration with auth by reference | ✓ VERIFIED | Codex requires ignore flags and validated `mcp_servers.*` overrides; ambient/unfronted servers and uncontrolled write roots are refused. |
+| `src/core/canary.ts` | Fail-closed selection and trustworthy CAPA-01 verdict | ✗ PARTIAL | Selection is fail closed, but the expectation verdict treats an unchecked required identifier pattern as held. |
+| `src/cli.ts` | Validate selection before state/spend and persist proof | ⚠️ PARTIAL | Early selection ordering is correct; persisted proof retains only the promoted axis and oracle fingerprint, not the verdict detail needed to audit CAPA-01's shape clause. |
+| `catalog/canaries.yaml` | Reviewable declarations | ✓ VERIFIED | CAPA-01 declares Claude and Codex; CAPA-02/03/05 remain Claude-only. |
+| Prior pack, ledger, oracle, provenance, memory, and six-domain artifacts | Existing Phase 03 delivery | ✓ REGRESSION CHECK | All declared paths remain present and substantive; no changed gap-closure file removes their imports or public wiring. |
 
 ### Key Link and Data-Flow Verification
 
 | From | To | Status | Evidence |
 |------|----|--------|----------|
-| Oracle negative proof | Ledger claim note | ✓ WIRED | `proofFor` conditionally adds the reviewed inference; schema write/read tests preserve it. |
-| Canary runtime | Proof and report row | ✓ WIRED | Instruction IDs travel through `runCanary` to claim notes; refused/unlaunched runs emit no note. |
-| Report row | Human and JSON output | ✓ WIRED | Full tagged notes and NOT-RUN render; serialization finds zero cycle placeholders and keeps the canonical unit. |
-| CI workflow | Upstream classifier | ✓ WIRED | Job-level exported env name covers both test invocations. |
-
-There is no rendered application data path. Level-4 verification traced proof data from oracle/canary results through the ledger and CLI envelope; no hardcoded success value or hollow prop is involved.
+| Canary catalog | Codex invocation definition | ✓ WIRED | `selectCanaries` selects the Codex CAPA-01 declaration; `canaryPromptArgs` consumes the separate invocation table. |
+| Runtime TOML | Isolation launch | ✓ WIRED | Validated Context7 entries become exact `-c mcp_servers.*` overrides with the run's observation path. |
+| CLI explicit filters | Core selector | ✓ WIRED | `selectCanaries()` runs before `userStateRoot()` and `runCanarySweep()` repeats the assertion. |
+| MCP observations | `matchExpectations()` | ✓ FLOWING | Tool order and `identifierShape` reach the matcher through the closed observation record. |
+| Matcher verdict | durable ledger proof | ⚠️ HOLLOW | Only the derived `nativeUse` and oracle fingerprints persist; ordered/satisfied/unchecked pattern details do not. A false-positive `held` is therefore indistinguishable after runtime disposal. |
 
 ### Behavioral Spot-Checks
 
-| Behavior | Command | Result | Status |
-|----------|---------|--------|--------|
-| Truthful inference guards | named `capability-oracle` tests | 3 pass, 0 fail | ✓ PASS |
-| NOT-RUN, scope, noncyclic envelope | named `canary` tests | 3 pass, 0 fail | ✓ PASS |
-| Upstream classification and workflow binding | named `mcp-proxy` tests | 5 pass, 0 fail | ✓ PASS |
-| Pending-server precondition | named `capability-oracle` test | 1 pass, 0 fail | ✓ PASS |
-| Full regression gate | supplied final `npm test` | 739 total, 733 pass, 0 fail, 6 existing platform skips | ✓ PASS |
-| Paid/native model legs | deliberately not run | Routed below | ? HUMAN |
+| Behavior | Command/evidence | Result | Status |
+|----------|------------------|--------|--------|
+| Missing version shape must not satisfy CAPA-01 | Direct import of compiled `matchExpectations()` with ordered Context7 calls and no `identifierShape` | `held=true`, one unchecked pattern, zero satisfied patterns | ✗ FAIL |
+| Explicit empty filter refuses before state | Compiled CLI with a fresh nonexistent `ALPHA_AOS_STATE_DIR` and `--harness pi --no-spend --json` | exit 2; state root remained absent | ✓ PASS |
+| Native Codex run left durable evidence | Read `C:/Users/alpha/.alpha-aos/capabilities/ledger.json` | Codex CAPA-01 positive, `nativeUse=invoked`, native `codex exec`, exit 0 | ⚠️ PARTIAL — shape/order detail absent |
+| Plan artifact/link contracts | `verify.artifacts` and `verify.key-links` for all 17 plans | 50/50 artifacts; 37/37 links | ✓ PASS (presence/wiring only) |
+| Targeted and full repository suites | Not rerun by this verifier per orchestrator direction | Reported execution gate: 129/129 targeted; 757 total / 751 pass / 0 fail / 6 skip | ℹ️ NOT VERIFIER-OWNED EVIDENCE |
 
 ### Probe Execution
 
-No plan declares a probe script and no conventional `scripts/*/tests/probe-*.sh` exists. Step 7c is skipped; the phase uses named Node tests and CLI UAT.
+No `probe-*.sh` path is declared or present. The costed/stateful native Codex command was not rerun during verification; its durable ledger record was inspected instead. That record is insufficient for the version-shape clause for the reasons above.
 
 ### Requirements Coverage
 
-| Requirement | Source Plans | Status | Evidence |
+| Requirement | Source plans | Status | Evidence |
 |-------------|--------------|--------|----------|
-| CAPA-01 | 02, 08, 13, 14, 15 | ? NEEDS HUMAN | Evidence machinery verified; native documentation invocation unrun. |
-| CAPA-02 | 02, 07, 08, 13, 14, 15 | ? NEEDS HUMAN | Matcher, control, strict CI, and scope disclosure verified; native routing unrun. |
-| CAPA-03 | 12 | ? NEEDS HUMAN | Planning immutability verified; receiving behavior unrun. |
-| CAPA-04 | 01 | ✓ SATISFIED | Preview/apply, exact hashes, atomicity, refusal, and project scope remain covered. |
-| CAPA-05 | 04, 05, 06, 11 | ? NEEDS HUMAN | Provenance verified; representative native exercise unrun. |
-| CAPA-06 | 03, 04, 11, 13, 14, 15 | ✓ SATISFIED WITH RECORDED INFERENCE | Outside discovery is live; non-invocation inference and premise ride on the qualifying proof. |
-| CAPA-07 | 03, 05, 06, 09, 14 | ✓ SATISFIED | Three axes remain distinct; NOT-RUN no longer borrows support vocabulary. |
-| CAPA-08 | 10 | ✓ SATISFIED | Six exact-set packs and near-miss twins remain active without broad profiles. |
+| CAPA-01 | 02, 08, 13-17 | ✗ BLOCKED | Codex invocation exists and ran, but the proof can pass with the version-shape pattern unchecked and no replayable verdict remains. `.planning/REQUIREMENTS.md` currently marks this Complete; that claim is not supported by auditable evidence. |
+| CAPA-02 | 02, 07, 08, 13-15 | ? NEEDS HUMAN | Matcher, control, scope disclosure, and strict upstream gate exist; no native research positive/control pair has run on an available harness. |
+| CAPA-03 | 12 | ? NEEDS HUMAN | Planning immutability is automated; receiving behavior is unrun. |
+| CAPA-04 | 01 | ✓ SATISFIED | Approved exact-hash preview/apply, idempotency, bounded transaction, rollback, receipts, and refusal paths are implemented and wired. |
+| CAPA-05 | 04-06, 11 | ? NEEDS HUMAN | Project-local provenance and exact bytes are verified; representative skill selection is unrun. |
+| CAPA-06 | 03, 04, 11, 13-15 | ✓ SATISFIED WITH RECORDED INFERENCE | Outside discovery is paired and ancestor-bounded; the no-invocation inference is attached only to the qualifying negative proof and does not alter axes. |
+| CAPA-07 | 03, 05, 06, 09, 14, 16, 17 | ✓ SATISFIED | Selected/deployed/native-use/support axes and blocked/stale/unsupported/unverified distinctions remain separate; explicit empty selection is a refusal, not fake evidence. |
+| CAPA-08 | 10 | ✓ SATISFIED | Six exact-set domain fixtures and their near-miss twins exercise evidence-based pack selection without global profiles. |
 
-No requirement is orphaned. All CAPA-01..08 appear in plan frontmatter. REQUIREMENTS boxes stay unchecked until UAT closes the behavior clauses.
+All CAPA-01 through CAPA-08 IDs appear in plan frontmatter; no Phase 03 requirement is orphaned.
 
 ### Decision Coverage
 
-All 16 trackable `03-CONTEXT.md` decisions are honored by shipped artifacts.
+All 16 trackable `03-CONTEXT.md` decisions are found in shipped artifacts. This gate is advisory and does not alter the blocker above. The UAT's later user direction excludes Claude from active development/verification; this report therefore treats Codex as the active CAPA-01 surface while noting that the preserved Claude declaration has no successful native result.
 
 ### Test Quality Audit
 
-| Test surface | Linked requirements | Disabled | Circular | Assertion | Verdict |
-|--------------|---------------------|----------|----------|-----------|---------|
-| Ledger/oracle claim-note tests | CAPA-06 | 0 | No | Behavioral/value | ✓ SUFFICIENT |
-| Canary reporting, ordering, scope, single-use, serialization | CAPA-01/02/03/05/07 | 0 | No | Behavioral | ✓ SUFFICIENT |
-| MCP upstream gate | CAPA-01/02 | 0 static; explained dynamic local skip | No | Value/behavioral | ✓ SUFFICIENT — CI fails on registry-unreachable |
+| Test surface | Linked requirement | Disabled | Circular | Strongest assertion | Verdict |
+|--------------|--------------------|----------|----------|---------------------|---------|
+| Codex selection/isolation/CLI tests | CAPA-01/07 | 0 | No | Behavioral | ✓ SUFFICIENT for transport and fail-closed selection |
+| CAPA-01 matcher tests | CAPA-01 | 0 | No | Value | 🛑 INSUFFICIENT: the test titled “same pair without one does not” covers an explicit `unscoped` shape, while the separate missing-shape test never asserts `held=false` |
+| Native completion command | CAPA-01 | N/A | No | Status | 🛑 INSUFFICIENT: checks only result count, harness, `nativeUse=invoked`, and `held=true`; it does not assert the satisfied pattern or absence of unchecked patterns |
+| Prior ledger/oracle/pack/memory fixtures | CAPA-02..08 | 0 static skips | No circular oracle found | Value/behavioral | ✓ SUFFICIENT for deterministic halves; native model legs remain separately unverified |
 
-No disabled requirement test or circular oracle was found. The Claude pending-MCP assertion remains a future regression guard; plan 15 now states that limit and asserts its live precondition, and it is not sole proof of a requirement.
+No disabled requirement test or circular expected-value generator was found. The CAPA-01 assertion weakness is blocking because it is the sole automated acceptance path for the version-sensitive clause.
 
 ### Anti-Patterns and Prohibitions
 
-No `TBD`, `FIXME`, or `XXX` marker exists in gap-plan files. `placeholder` matches are deliberate oracle/redaction vocabulary, not stubs. No empty handler, hardcoded success, or disconnected implementation was found.
+No `TBD`, `FIXME`, or `XXX` marker exists in the 03-16/03-17 production and test files. `placeholder` matches belong to the deliberate free discovery prompt and redaction vocabulary; `return null` matches are typed absence paths, not stubs.
 
-The 12 judgment-tier prohibitions across plans 01, 03, 04, 05, 09, 13, 14, and 15 appear held: bounded approved paths; no unpaired-positive pass; discovery never promoted to invocation; unhindered prompts; no credential values; no automatic deletion; support reasons tied to evidence; source bytes unchanged; notes never replace evidence; no paid closure run; NOT-RUN uses native-use vocabulary; and CI has no soft-failure escape. **Non-authoritative LLM judgements — unverified-prohibition, human review recommended.**
+The 12 judgment-tier prohibitions appear held by inspection, but remain non-authoritative LLM judgements: **unverified-prohibition — human review recommended**. The CAPA-01 gap is not waived by any override in the existing verification frontmatter.
 
-### Human Verification Required
+### Human Verification Still Required
 
-Deferred checks from plans 08, 11, and 12 deduplicate into these four checks.
-
-#### 1. CAPA-01 documentation invocation
-
-**Test:** Run documentation UAT through `$gsd-verify-work 3` and inspect Context7 observations.
-**Expected:** Native selection without naming it; resolve before query; version-scoped identifier shape.
-**Why human:** Requires an authorized paid model turn and proves model behavior.
-
-#### 2. CAPA-02 research routing and ordinary control
-
-**Test:** Run research UAT and the ordinary control through `$gsd-verify-work 3`; review the scope note.
-**Expected:** Exa before bounded Firecrawl over two servers; ordinary control at one or fewer; accept or reject the canary-runtime scope.
-**Why human:** Requires paid model behavior and a scope judgement.
-
-#### 3. CAPA-03 receiving handoff leg
-
-**Test:** Run handoff UAT through `$gsd-verify-work 3` and judge whether the receiver used the handoff.
-**Expected:** The answer depends on handed-off context; planning-tree evidence stays complete and unchanged.
-**Why human:** The receiver was not run and memory use is not observable as an MCP call.
-
-#### 4. CAPA-05 representative pack exercise
-
-**Test:** Run pack-exercise UAT through `$gsd-verify-work 3` and inspect the harness event stream.
-**Expected:** Native project-skill selection from an ordinary intent-matched prompt without hints.
-**Why human:** Requires a paid model turn; skill selection is outside the MCP observation sink.
+After the blocker is fixed, three roadmap behaviors still need authorized native runs: CAPA-02 research positive/control, CAPA-03 receiving handoff, and CAPA-05 representative pack selection. Plan 03-08 additionally marks stable multi-surface ordering and interrupted-run non-promotion as `verification: backstop`; no held-out/property test directly observes either, so both remain `insufficient_spec` abstentions.
 
 ### Gaps Summary
 
-No implementation gap remains. The phase cannot pass until these four behavior-dependent truths are observed and accepted. Later phases do not explicitly own them, so none is deferred.
+The new Codex path is real, but Phase 03 still lacks an auditable proof of CAPA-01's version-sensitive call. `held` must fail closed when a required identifier shape is unchecked, and the completion evidence must retain or assert the relevant verdict fields. This concern is not assigned to any later phase. Once fixed, the remaining native research, handoff, and pack-exercise checks still route to human verification; the two explicit backstops must also be resolved or accepted by a human.
 
 ---
 
-_Verified: 2026-09-12T12:24:36Z_
+_Verified: 2026-09-13T13:10:21Z_
 _Verifier: Codex (gsd-verifier)_

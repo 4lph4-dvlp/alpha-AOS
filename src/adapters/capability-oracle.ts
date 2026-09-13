@@ -241,6 +241,10 @@ export const PI_GET_COMMANDS_REQUEST = '{"id":"1","type":"get_commands"}\n';
  */
 export const ORACLE_PLACEHOLDER_PROMPT = "placeholder";
 
+export const CODEX_CANARY_DEVELOPER_INSTRUCTIONS =
+  "For version-sensitive library or framework documentation questions, use Context7's resolve-library-id tool " +
+  "before query-docs, pass the exact requested version in the library identifier, and answer only after both calls complete.";
+
 /**
  * The oracle for each harness, or an explicit null where there is none.
  *
@@ -299,6 +303,8 @@ export const INVOCATION_DEFINITIONS: Readonly<Record<HarnessId, InvocationDefini
       "--ignore-rules",
       "--sandbox",
       "read-only",
+      "-c",
+      `developer_instructions=${JSON.stringify(CODEX_CANARY_DEVELOPER_INSTRUCTIONS)}`,
       ORACLE_PLACEHOLDER_PROMPT,
     ],
     stdin: null,

@@ -36,6 +36,7 @@ import {
   type MemorySearchFacts,
 } from "../adapters/unified-memory.js";
 import {
+  CODEX_CANARY_DEVELOPER_INSTRUCTIONS,
   INVOCATION_DEFINITIONS,
   ORACLE_DEFINITIONS,
   ORACLE_PLACEHOLDER_PROMPT,
@@ -1282,8 +1283,13 @@ export function assertCanaryLaunchIsolation(
       overrides.push("-c", value);
       index += 1;
     }
-    if (JSON.stringify(overrides) !== JSON.stringify(runtime.mcpConfigOverrides ?? [])) {
-      offending.push("-c runtime overrides");
+    const expectedOverrides = [
+      "-c",
+      `developer_instructions=${JSON.stringify(CODEX_CANARY_DEVELOPER_INSTRUCTIONS)}`,
+      ...(runtime.mcpConfigOverrides ?? []),
+    ];
+    if (JSON.stringify(overrides) !== JSON.stringify(expectedOverrides)) {
+      offending.push("-c canary overrides");
     }
     for (const name of [
       "LOCALAPPDATA",

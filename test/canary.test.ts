@@ -16,7 +16,11 @@ import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { ORACLE_DEFINITIONS, type PairedDiscovery } from "../src/adapters/capability-oracle.js";
+import {
+  CODEX_CANARY_DEVELOPER_INSTRUCTIONS,
+  ORACLE_DEFINITIONS,
+  type PairedDiscovery,
+} from "../src/adapters/capability-oracle.js";
 import { loadLock, ManagedDocumentError } from "../src/core/catalog.js";
 import {
   assertCanaryContext,
@@ -841,6 +845,9 @@ test("Codex discovery remains free while invocation uses the costed ephemeral ex
     assert.equal(invocation.includes(flag), true, `Codex invocation is missing ${flag}`);
   }
   assert.equal(invocation[invocation.indexOf("--sandbox") + 1], "read-only");
+  const instruction = invocation.indexOf(`developer_instructions=${JSON.stringify(CODEX_CANARY_DEVELOPER_INSTRUCTIONS)}`);
+  assert.notEqual(instruction, -1, "the isolated Codex turn has no deterministic Context7 routing instruction");
+  assert.equal(invocation[instruction - 1], "-c");
   assert.equal(invocation.at(-1), prompt, "the ordinary prompt was not substituted into the invocation vector");
   assert.deepEqual(canaryCosts(declaration({ harnesses: ["codex"] })), [
     { harness: "codex", costsModelTurn: true },
@@ -2156,6 +2163,9 @@ test("Codex boundary mutations are refused before any launcher can run", async (
     validArgs.filter((entry) => entry !== "--ignore-rules"),
     [...validArgs.slice(0, -1), "-c", "mcp_servers.ambient.command=\"ambient\"", validArgs.at(-1) as string],
   ];
+  const instruction = validArgs.indexOf(`developer_instructions=${JSON.stringify(CODEX_CANARY_DEVELOPER_INSTRUCTIONS)}`);
+  assert.notEqual(instruction, -1, "the valid fixture has no Codex routing instruction");
+  mutations.push(validArgs.filter((_entry, index) => index !== instruction && index !== instruction - 1));
   for (const args of mutations) {
     assert.throws(
       () => assertCanaryLaunchIsolation(validEnvironment, runtime, args),

@@ -501,29 +501,35 @@ test("the canary launch variant points claude at the runtime configuration and e
   );
 });
 
-test("a harness with no strict MCP isolation records a blocked reason rather than claiming the canary is isolated", () => {
-  for (const harness of ["codex", "antigravity", "pi", "hermes"] as const) {
+test("canary isolation supports Claude and Codex while every other harness retains an explicit refusal", () => {
+  for (const harness of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const runtimeRoot = join("C:", "state", "canary", "run");
     const launch = createIsolationLaunchSpec({
       projectId: "0123456789abcdef",
       projectRoot: join("C:", "work", "repo"),
       harness,
       policy: defaultIsolationPolicy("project-only", [harness]),
-      runtimeRoot: join("C:", "state", "canary", "run"),
+      runtimeRoot,
       allowedSkillPaths: [],
-      canary: { mcpConfigPath: join("C:", "state", "canary", "run", "config") },
+      canary: {
+        mcpConfigPath: join(runtimeRoot, "config"),
+        ...(harness === "codex" ? { mcpConfigOverrides: ["-c", 'mcp_servers.context7.command="front"'] } : {}),
+      },
+      sourceEnvironment: { CODEX_HOME: join("C:", "users", "tester", ".codex") },
     });
     const blocked = launch.blockedReasons.filter((reason) => reason.includes("canary observation front"));
-    assert.equal(blocked.length, 1, `${harness} does not record why it cannot be pointed at the observation front`);
-    assert.equal(
-      (blocked[0]?.length ?? 0) > 60,
-      true,
-      `${harness}'s blocked reason does not say what is missing`,
-    );
-    assert.equal(
-      launch.args.includes("--mcp-config"),
-      false,
-      `${harness} was handed an MCP-config flag that has not been observed on it`,
-    );
+    if (harness === "claude" || harness === "codex") {
+      assert.deepEqual(blocked, [], `${harness} retained an obsolete canary isolation refusal`);
+      assert.equal(
+        launch.guarantees.some((entry) => entry.includes("only the canary runtime's MCP configuration")),
+        true,
+        `${harness} claims support without naming the exclusive observation-front guarantee`,
+      );
+    } else {
+      assert.equal(blocked.length, 1, `${harness} does not record why it cannot be pointed at the observation front`);
+      assert.equal((blocked[0]?.length ?? 0) > 60, true, `${harness}'s blocked reason does not say what is missing`);
+      assert.equal(launch.args.includes("--mcp-config"), false, `${harness} received an unmeasured MCP-config flag`);
+    }
   }
 });
 

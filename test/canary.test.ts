@@ -16,7 +16,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import type { PairedDiscovery } from "../src/adapters/capability-oracle.js";
+import { ORACLE_DEFINITIONS, type PairedDiscovery } from "../src/adapters/capability-oracle.js";
 import { loadLock, ManagedDocumentError } from "../src/core/catalog.js";
 import {
   assertCanaryContext,
@@ -35,6 +35,7 @@ import {
   canaryCostsModelTurn,
   canaryEnvironmentNames,
   canaryEnvironmentPolicy,
+  canaryPromptArgs,
   CanaryContextError,
   catalogCosts,
   comparePlanningTrees,
@@ -72,6 +73,7 @@ import {
   runCanary,
   runCanarySweep,
   runDiscoverySweep,
+  selectCanaries,
   selfNamedTerms,
   type CanaryCatalog,
   type CanaryDeclaration,
@@ -227,6 +229,17 @@ test("the shipped catalog declares the documentation canary, the research canary
     assert.equal(canary.readOnly, true, `${canary.id} is not declared read-only`);
     assert.equal(canary.harnesses.length >= 1, true, `${canary.id} is declared for no harness`);
   }
+});
+
+test("the shipped documentation canary declares one Codex leg while retaining Claude", async () => {
+  const catalog = await shippedCatalog();
+  const codex = selectCanaries(catalog, { harness: "codex", capability: "CAPA-01" });
+  const claude = selectCanaries(catalog, { harness: "claude", capability: "CAPA-01" });
+
+  assert.equal(codex.length, 1, "CAPA-01 must select exactly one native Codex invocation leg");
+  assert.equal(codex[0]?.declaration.id, "DOCUMENTATION_VERSION_SCOPED");
+  assert.equal(claude.length, 1, "the additive Codex leg must not remove the existing Claude declaration");
+  assert.equal(claude[0]?.declaration.id, "DOCUMENTATION_VERSION_SCOPED");
 });
 
 test("every declared prompt names none of its expected tools, no pinned server id and no locked skill id", async () => {
@@ -811,6 +824,29 @@ test("every canary declaration exposes whether a run would spend a model turn", 
   assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["codex"] })), false);
 });
 
+test("Codex discovery remains free while invocation uses the costed ephemeral exec surface", () => {
+  const discovery = ORACLE_DEFINITIONS.codex;
+  assert.ok(discovery);
+  assert.deepEqual([...discovery.args.slice(0, 2)], ["debug", "prompt-input"]);
+  assert.equal(discovery.costsModelTurn, false);
+
+  const prompt = "Explain the exact version-sensitive API without naming a tool.";
+  const invocation = canaryPromptArgs("codex", prompt);
+  assert.ok(invocation, "Codex has no measured invocation vector");
+  assert.equal(invocation.includes("debug"), false, "the free discovery command was reused as invocation");
+  assert.equal(invocation.includes("prompt-input"), false, "the free discovery command was reused as invocation");
+  assert.deepEqual(invocation.slice(0, 2), ["exec", "--json"]);
+  for (const flag of ["--ephemeral", "--ignore-user-config", "--ignore-rules", "--sandbox"]) {
+    assert.equal(invocation.includes(flag), true, `Codex invocation is missing ${flag}`);
+  }
+  assert.equal(invocation[invocation.indexOf("--sandbox") + 1], "read-only");
+  assert.equal(invocation.at(-1), prompt, "the ordinary prompt was not substituted into the invocation vector");
+  assert.deepEqual(canaryCosts(declaration({ harnesses: ["codex"] })), [
+    { harness: "codex", costsModelTurn: true },
+  ]);
+  assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["codex"] })), true);
+});
+
 // ---------------------------------------------------------------------------
 // Plan 03-06 Task 1 — the canary runtime
 // ---------------------------------------------------------------------------
@@ -852,6 +888,26 @@ function stubLaunchSpec(runtime: CanaryRuntime, overrides: Partial<IsolationLaun
 function renderedServers(text: string): Record<string, { command: string; args: string[] }> {
   const document = JSON.parse(text) as { mcpServers?: Record<string, { command: string; args: string[] }> };
   return document.mcpServers ?? {};
+}
+
+function codexRuntimeOverrides(runtime: CanaryRuntime): readonly string[] {
+  return (runtime as CanaryRuntime & { readonly mcpConfigOverrides?: readonly string[] }).mcpConfigOverrides ?? [];
+}
+
+function codexStubLaunchSpec(runtime: CanaryRuntime, authRoot: string): IsolationLaunchSpec {
+  return {
+    projectId: runtime.projectId,
+    projectRoot: runtime.projectRoot,
+    harness: "codex",
+    mode: "project-only",
+    runtimeRoot: join(runtime.root, "codex"),
+    executable: join(runtime.root, "codex-that-is-never-launched"),
+    args: ["--ignore-user-config", "--ignore-rules", ...codexRuntimeOverrides(runtime)],
+    env: { CODEX_HOME: authRoot },
+    guarantees: [],
+    warnings: [],
+    blockedReasons: [],
+  };
 }
 
 test("the canary runtime's MCP configuration points every server at the alpha-AOS observation front", async (context) => {
@@ -1864,6 +1920,168 @@ test("discovery rows preserve the driven unit and the skipped leg's stated absen
     },
     { completeness: null, nativeUse: null, axisNote: reason, blockedReason: null, notRunReason: reason },
   );
+});
+
+test("a validated Codex runtime supplies readiness evidence and ordered observations decide invocation", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const authRoot = join(project, "synthetic-codex-auth");
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["context7"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  const canary = declaration({
+    id: "DOCUMENTATION_VERSION_SCOPED",
+    capability: "CAPA-01",
+    harnesses: ["codex"],
+    expectTools: ["resolve-library-id", "query-docs"],
+    expectOrdered: true,
+    expectArgumentPatterns: [
+      { tool: "query-docs", argument: "libraryId", pattern: "^/[^/]+/[^/]+/[^/]+$", why: "version-scoped" },
+    ],
+    requiresMcpServers: ["context7"],
+  });
+  let launchArgs: readonly string[] = [];
+  const result = await runCanary({
+    declaration: canary,
+    harness: "codex",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: { CODEX_HOME: authRoot },
+    runner: runner(),
+    buildLaunchSpec: () => codexStubLaunchSpec(runtime, authRoot),
+    launcher: async (launch) => {
+      launchArgs = launch.args;
+      const observer = createFileObservationSink(runtime.observationsPath);
+      observer.record(observation("context7", "resolve-library-id", 0));
+      observer.record(observation("context7", "query-docs", 1, { identifierShape: "version-scoped" }));
+      return { ran: true, reason: null, exitCode: 0, excerpt: createRedactedExcerpt("model text is diagnostic only", createRedactionContext()) };
+    },
+  });
+
+  assert.equal(result.readiness.ready, true, JSON.stringify(result.readiness.blockedReasons));
+  assert.deepEqual(result.readiness.connections, [{ server: "context7", state: "pending" }]);
+  assert.equal(result.launched, true);
+  assert.equal(result.nativeUse, "invoked");
+  assert.equal((result.verdict as typeof result.verdict & { readonly held?: boolean }).held, true);
+  assert.equal(result.costsModelTurn, true);
+  assert.equal(result.oracle?.stdoutFingerprint.length, 64);
+  assert.equal(launchArgs.includes("exec"), true);
+  assert.equal(launchArgs.includes("debug"), false);
+
+  const missingRuntime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: [],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+  let missingLaunched = false;
+  const missing = await runCanary({
+    declaration: canary,
+    harness: "codex",
+    projectRoot: project,
+    runtime: missingRuntime,
+    sink: createCanaryObservationSink(missingRuntime),
+    environment: { CODEX_HOME: authRoot },
+    runner: runner(),
+    buildLaunchSpec: () => codexStubLaunchSpec(missingRuntime, authRoot),
+    launcher: async () => {
+      missingLaunched = true;
+      return { ran: true, reason: null, exitCode: 0, excerpt: null };
+    },
+  });
+  assert.equal(missingLaunched, false, "a runtime missing Context7 reached the launcher");
+  assert.equal(missing.readiness.ready, false);
+  assert.equal(missing.blockedReasons.some((reason) => reason.code === "MCP_SERVER_NOT_REGISTERED"), true);
+});
+
+test("Codex canary artifacts preserve credential names but never credential values or copied auth bytes", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const authRoot = join(project, "synthetic-codex-auth");
+  const authBytes = "synthetic-auth-bytes-that-must-never-be-read";
+  const credentialValue = "context7-credential-value-that-must-not-serialize";
+  await mkdir(authRoot, { recursive: true });
+  await writeFile(join(authRoot, "auth.json"), authBytes, "utf8");
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["context7"],
+    stateRoot: state,
+    lock,
+    environment: { CONTEXT7_API_KEY: credentialValue },
+  });
+  const canary = declaration({
+    id: "DOCUMENTATION_VERSION_SCOPED",
+    capability: "CAPA-01",
+    harnesses: ["codex"],
+    expectTools: ["resolve-library-id", "query-docs"],
+    expectOrdered: true,
+    requiresMcpServers: ["context7"],
+  });
+  let serializedLaunch = "";
+  const result = await runCanary({
+    declaration: canary,
+    harness: "codex",
+    projectRoot: project,
+    runtime,
+    sink: createCanaryObservationSink(runtime),
+    environment: { CODEX_HOME: authRoot, CONTEXT7_API_KEY: credentialValue },
+    runner: runner(),
+    buildLaunchSpec: () => codexStubLaunchSpec(runtime, authRoot),
+    launcher: async (launch) => {
+      serializedLaunch = JSON.stringify({ args: launch.args, environmentNames: Object.keys(launch.environment) });
+      const observer = createFileObservationSink(runtime.observationsPath);
+      observer.record(observation("context7", "resolve-library-id", 0));
+      observer.record(observation("context7", "query-docs", 1, { identifierShape: "version-scoped" }));
+      return { ran: true, reason: null, exitCode: 0, excerpt: createRedactedExcerpt("", createRedactionContext()) };
+    },
+  });
+  const runtimeFiles = (await Promise.all(runtime.declaredFiles.map((file) => readFile(file, "utf8")))).join("\n");
+  const observable = [serializedLaunch, JSON.stringify(result.readiness), JSON.stringify(result), runtimeFiles].join("\n");
+  assert.equal(observable.includes("CONTEXT7_API_KEY"), true, "the credential name is absent, so the value check is vacuous");
+  assert.equal(observable.includes(credentialValue), false, "a credential value reached a serialized canary artifact");
+  assert.equal(observable.includes(authBytes), false, "authentication bytes were copied or serialized");
+  assert.equal(await readFile(join(authRoot, "auth.json"), "utf8"), authBytes, "the synthetic auth file was modified");
+});
+
+test("a Codex runtime derives overrides for exactly its validated observation-front servers", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["context7"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+
+  const overrides = codexRuntimeOverrides(runtime);
+  assert.equal(overrides.length > 0, true, "the Codex runtime carries no native config overrides");
+  assert.equal(overrides.length % 2, 0, "Codex config overrides are not emitted as -c/value pairs");
+  const assignments = overrides.filter((_entry, index) => index % 2 === 1);
+  assert.equal(overrides.filter((entry) => entry === "-c").length, assignments.length);
+  assert.deepEqual(
+    assignments.map((entry) => entry.slice(0, entry.indexOf("="))).sort(),
+    [
+      "mcp_servers.context7.args",
+      "mcp_servers.context7.command",
+      "mcp_servers.context7.env_vars",
+      "mcp_servers.context7.startup_timeout_sec",
+    ],
+  );
+  assert.equal(assignments.some((entry) => entry.includes("mcp_servers.exa")), false);
+  assert.equal(assignments.some((entry) => entry.includes("mcp_servers.firecrawl")), false);
+  assert.equal(assignments.some((entry) => entry.includes("mcp_servers.ambient")), false);
+  const serialized = JSON.stringify(assignments);
+  assert.equal(serialized.includes("mcp-proxy"), true, "the override command does not cross the alpha-AOS front");
+  assert.equal(serialized.includes("--observe"), true, "the override command is fronted but not observed");
+  assert.equal(serialized.includes(runtime.observationsPath), true, "the override observes into another runtime");
 });
 
 test("a launched canary proof records its runtime scope and the recorded instruction ids without recomputing them", async (context) => {

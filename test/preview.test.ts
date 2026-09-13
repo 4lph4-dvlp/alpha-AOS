@@ -50,6 +50,25 @@ function recordNotRun(surface: string, reason: string): void {
   notRun.push({ surface, reason });
 }
 
+/** Translates Windows script paths for the Bash implementation available on this host. */
+function scriptPathForLauncher(launcher: string, script: string): string {
+  if (launcher !== "bash" || process.platform !== "win32") return script;
+
+  const wslProbe = spawnSync("bash", ["-lc", "grep -qi microsoft /proc/version"], {
+    encoding: "utf8",
+    timeout: 15_000,
+    windowsHide: true,
+  });
+  if (wslProbe.status === 0) {
+    const drivePath = /^([A-Za-z]):[\\/](.*)$/u.exec(script);
+    if (drivePath !== null) {
+      return `/mnt/${drivePath[1]?.toLowerCase()}/${drivePath[2]?.replaceAll("\\", "/")}`;
+    }
+  }
+
+  return script.replaceAll("\\", "/");
+}
+
 async function treeDigest(
   root: string,
   ignored: ReadonlySet<string> = new Set(),
@@ -634,7 +653,7 @@ test("install and update wrappers preview without mutating either shell family",
     const homeBefore = await treeDigest(sandbox.home, new Set(), LAUNCHER_FOOTPRINT);
     const sourceBefore = await treeDigest(repositoryRoot, CHECKOUT_IGNORED);
 
-    const result = spawnSync(family.launcher, [...family.leading, family.script], {
+    const result = spawnSync(family.launcher, [...family.leading, scriptPathForLauncher(family.launcher, family.script)], {
       cwd: checkoutCopy,
       env: sandbox.env,
       encoding: "utf8",
@@ -729,7 +748,7 @@ test("a wrapper refuses without a verified build artifact and delegates with one
     const homeBefore = await treeDigest(sandbox.home, new Set(), LAUNCHER_FOOTPRINT);
     const sourceBefore = await treeDigest(repositoryRoot, CHECKOUT_IGNORED);
 
-    const result = spawnSync(family.launcher, [...family.leading, family.script], {
+    const result = spawnSync(family.launcher, [...family.leading, scriptPathForLauncher(family.launcher, family.script)], {
       cwd: repositoryRoot,
       env: sandbox.env,
       encoding: "utf8",

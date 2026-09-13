@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
-status: executing
-stopped_at: Completed 03-16-PLAN.md
-last_updated: "2026-09-13T08:09:22.324Z"
+status: ready_for_verification
+stopped_at: Completed 03-17-PLAN.md
+last_updated: "2026-09-13T08:45:26.358Z"
 last_activity: 2026-09-13
-last_activity_desc: Completed 03-16 native Codex CAPA-01 tracer and isolation gap closure
-state_head: ce96d89619b0cdbcc7511d5ec82e3bfffc08a1f7
+last_activity_desc: Completed 03-17 fail-closed canary selection and native Codex verification
+state_head: cdb23a6c126705db241e990c607878657d4aeb75
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 60
-  completed_plans: 59
+  completed_plans: 60
   percent: 29
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 03 (Transactional Project Packs and Native Optional Use) — EXECUTING
+Phase: 03 (Transactional Project Packs and Native Optional Use) — READY FOR VERIFICATION
 Plan: 17 of 17
-Status: Plan 03-16 complete — ready to execute 03-17
-Last activity: 2026-09-13 — Completed 03-16 native Codex CAPA-01 tracer and isolation gap closure
+Status: Phase complete — ready for verification
+Last activity: 2026-09-13 — Completed 03-17 fail-closed canary selection and native Codex verification
 Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
@@ -100,6 +100,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 03 P14 | 17min | 2 tasks | 4 files |
 | Phase 03 P15 | 11min | 2 tasks | 4 files |
 | Phase 03 P16 | 5h 35m | 2 tasks | 7 files |
+| Phase 03 P17 | 19min | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -198,6 +199,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: Codex discovery remains free while invocation uses a costed ephemeral exec vector. — Keeping separate adapter contracts prevents a discovery result from being reported as native use.
 - [Phase 03]: The Codex canary reuses authentication by reference while controlled write roots remain runtime-local. — This preserves the user-managed login without reading or copying authentication bytes.
 - [Phase 03]: Isolated Codex documentation canaries carry one exact developer instruction for ordered Context7 routing. — The required ignore-rules flag removes ambient routing instructions, while MCP-side observations remain the proof authority.
+- [Phase 03]: Explicit zero-match canary filters are configuration refusals, not evidence outcomes. — This prevents an explicit request that ran nothing from appearing as a successful sweep.
+- [Phase 03]: The doctor CLI validates canary selection before state resolution and harness probing. — The core selector remains the single policy authority while the CLI fails before state or spend.
 
 ### Pending Todos
 
@@ -261,6 +264,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-13T08:09:21.509Z
-Stopped at: Completed 03-16-PLAN.md
+Last session: 2026-09-13T08:45:25.674Z
+Stopped at: Completed 03-17-PLAN.md
 Resume file: None

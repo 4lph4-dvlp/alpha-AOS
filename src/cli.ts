@@ -64,6 +64,7 @@ import {
   runCanarySweep,
   runDiscoverySweep,
   runHandoffCanary,
+  selectCanaries,
   skippedCanaryRow,
   SWEEP_HARNESSES,
   type CapabilityReportRow,
@@ -789,6 +790,13 @@ async function main(): Promise<void> {
       const capabilityFilter = resolveCapabilityFilter(optionValue(args, "--capability"));
       const spend = !hasFlag(args, "--no-spend");
       const canaryCatalog = (await loadCanaryCatalog(root)).value;
+      // The user's explicit filter is an assertion that something must run.
+      // Validate it before state resolution, harness probes, announcements, or
+      // callbacks can turn a zero-match configuration mistake into evidence.
+      selectCanaries(canaryCatalog, {
+        ...(harnessFilter === null ? {} : { harness: harnessFilter }),
+        ...(capabilityFilter === null ? {} : { capability: capabilityFilter }),
+      });
       const stateRoot = userStateRoot();
       const retained: string[] = [];
       const proofs: CapabilityProof[] = [];

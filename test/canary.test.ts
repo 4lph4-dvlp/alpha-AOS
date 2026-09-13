@@ -32,9 +32,11 @@ import {
   CANARY_LAUNCH_ISOLATION_VIOLATION,
   CANARY_RUNTIME_ALREADY_CONSUMED,
   CANARY_RUNTIME_NOT_CONTAINED,
+  CANARY_SELECTION_EMPTY,
   CanaryBoundaryError,
   CANARY_CATALOG_FILE,
   CANARY_IN_PREVIEW_CONTEXT,
+  CanarySelectionError,
   canaryCosts,
   canaryCostsModelTurn,
   canaryEnvironmentNames,
@@ -245,6 +247,103 @@ test("the shipped documentation canary declares one Codex leg while retaining Cl
   assert.equal(codex[0]?.declaration.id, "DOCUMENTATION_VERSION_SCOPED");
   assert.equal(claude.length, 1, "the additive Codex leg must not remove the existing Claude declaration");
   assert.equal(claude[0]?.declaration.id, "DOCUMENTATION_VERSION_SCOPED");
+});
+
+test("an explicit harness filter with no declaration is refused with stable alternatives", () => {
+  const catalog: CanaryCatalog = {
+    schemaVersion: 1,
+    canaries: [declaration({ id: "CLAUDE_ONLY", capability: "CAPA-02", harnesses: ["claude"] })],
+  };
+
+  assert.throws(
+    () => selectCanaries(catalog, { harness: "codex" }),
+    (error: unknown) => {
+      assert.ok(error instanceof CanarySelectionError);
+      assert.equal(error.code, CANARY_SELECTION_EMPTY);
+      assert.match(error.message, /harness=codex/u);
+      assert.match(error.message, /Declared harnesses: claude/u);
+      assert.match(error.message, /alpha-aos doctor --canary --harness claude/u);
+      return true;
+    },
+  );
+});
+
+test("an explicit capability filter with no declaration names the available ids and capabilities", () => {
+  const catalog: CanaryCatalog = {
+    schemaVersion: 1,
+    canaries: [declaration({ id: "CLAUDE_ONLY", capability: "CAPA-02", harnesses: ["claude"] })],
+  };
+
+  assert.throws(
+    () => selectCanaries(catalog, { capability: "CAPA-99" }),
+    (error: unknown) => {
+      assert.ok(error instanceof CanarySelectionError);
+      assert.equal(error.code, CANARY_SELECTION_EMPTY);
+      assert.match(error.message, /capability=CAPA-99/u);
+      assert.match(error.message, /Declared canary ids: CLAUDE_ONLY/u);
+      assert.match(error.message, /Declared capabilities: CAPA-02/u);
+      return true;
+    },
+  );
+});
+
+test("an unfiltered empty catalog remains a valid zero-work sweep", async () => {
+  const announced: string[] = [];
+  const sweep = await runCanarySweep({
+    catalog: { schemaVersion: 1, canaries: [] },
+    announce: (line) => announced.push(line),
+    run: async () => {
+      throw new Error("an empty unfiltered sweep must not run a canary");
+    },
+  });
+
+  assert.deepEqual(sweep.selections, []);
+  assert.deepEqual(sweep.results, []);
+  assert.equal(announced.length, 1, "the zero-work sweep still reports its zero cost honestly");
+});
+
+test("an explicit empty selection refuses before announcements or run callbacks", async () => {
+  const reached: string[] = [];
+  const catalog: CanaryCatalog = {
+    schemaVersion: 1,
+    canaries: [declaration({ id: "CLAUDE_ONLY", harnesses: ["claude"] })],
+  };
+
+  await assert.rejects(
+    runCanarySweep({
+      catalog,
+      harness: "codex",
+      announce: () => reached.push("announce"),
+      run: async () => {
+        reached.push("run");
+        return blockedCanaryResult("CLAUDE_ONLY", "claude");
+      },
+      runHandoff: async () => {
+        reached.push("runHandoff");
+        throw new Error("runHandoff must not be reached");
+      },
+    }),
+    (error: unknown) => error instanceof CanarySelectionError && error.code === CANARY_SELECTION_EMPTY,
+  );
+  assert.deepEqual(reached, []);
+});
+
+test("the shipped Codex CAPA-01 filter selects one pair and reaches its runner", async () => {
+  const catalog = await shippedCatalog();
+  const driven: string[] = [];
+  const sweep = await runCanarySweep({
+    catalog,
+    harness: "codex",
+    capability: "CAPA-01",
+    announce: () => undefined,
+    run: async (selection) => {
+      driven.push(`${selection.declaration.id}:${selection.harness}`);
+      return blockedCanaryResult(selection.declaration.id, selection.harness);
+    },
+  });
+
+  assert.equal(sweep.selections.length, 1);
+  assert.deepEqual(driven, ["DOCUMENTATION_VERSION_SCOPED:codex"]);
 });
 
 test("every declared prompt names none of its expected tools, no pinned server id and no locked skill id", async () => {

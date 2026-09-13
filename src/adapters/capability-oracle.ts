@@ -182,6 +182,21 @@ export interface OracleDefinition {
   readonly parse: (stdout: string, context: OracleParseContext) => OracleParse;
 }
 
+/**
+ * One harness's model invocation vector, kept separate from free discovery.
+ *
+ * Discovery answers what a harness loaded; invocation puts an ordinary prompt
+ * in front of a model and may spend. Keeping two tables makes it impossible to
+ * report `codex debug prompt-input` as a native tool invocation merely because
+ * both commands accept a prompt-shaped argument.
+ */
+export interface InvocationDefinition {
+  readonly command: readonly string[];
+  readonly args: readonly string[];
+  readonly stdin: string | null;
+  readonly costsModelTurn: boolean;
+}
+
 /** What one oracle run reports. */
 export interface DiscoveryResult {
   readonly harness: HarnessId;
@@ -263,6 +278,34 @@ export const ORACLE_DEFINITIONS: Readonly<Record<HarnessId, OracleDefinition | n
     trustWithheldArgs: ["--mode", "rpc", "--no-approve", "--no-session"],
     parse: (stdout, context) => parsePiCommands(stdout, context),
   },
+  hermes: null,
+};
+
+/** The measured non-interactive model invocation surface for each harness. */
+export const INVOCATION_DEFINITIONS: Readonly<Record<HarnessId, InvocationDefinition | null>> = {
+  claude: {
+    command: ["claude"],
+    args: ["-p", ORACLE_PLACEHOLDER_PROMPT, "--output-format", "stream-json", "--verbose"],
+    stdin: null,
+    costsModelTurn: true,
+  },
+  codex: {
+    command: ["codex"],
+    args: [
+      "exec",
+      "--json",
+      "--ephemeral",
+      "--ignore-user-config",
+      "--ignore-rules",
+      "--sandbox",
+      "read-only",
+      ORACLE_PLACEHOLDER_PROMPT,
+    ],
+    stdin: null,
+    costsModelTurn: true,
+  },
+  antigravity: null,
+  pi: null,
   hermes: null,
 };
 

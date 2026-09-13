@@ -21,6 +21,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { constants, existsSync, type Dirent } from "node:fs";
 import { access, readdir, readFile, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
 import { createIsolationLaunchSpec } from "../adapters/isolation.js";
 import {
@@ -35,6 +36,7 @@ import {
   type MemorySearchFacts,
 } from "../adapters/unified-memory.js";
 import {
+  INVOCATION_DEFINITIONS,
   ORACLE_DEFINITIONS,
   ORACLE_PLACEHOLDER_PROMPT,
   resolveDirectLaunch,
@@ -1086,7 +1088,7 @@ export interface CanaryCost {
    * Whether driving this harness spends a model turn, or null when the harness
    * has no oracle definition and the cost is therefore not derivable.
    *
-   * READ from `ORACLE_DEFINITIONS` rather than restated in the catalog: a
+   * READ from `INVOCATION_DEFINITIONS` rather than restated in the catalog: a
    * second table recording the same fact is a second table that can drift, and
    * the cost of driving a harness is a property of the harness, not of the
    * prompt. A bare model turn in an empty fixture measured about thirteen cents
@@ -1101,7 +1103,7 @@ export interface CanaryCost {
 export function canaryCosts(canary: CanaryDeclaration): readonly CanaryCost[] {
   return canary.harnesses.map((harness) => ({
     harness,
-    costsModelTurn: ORACLE_DEFINITIONS[harness]?.costsModelTurn ?? null,
+    costsModelTurn: INVOCATION_DEFINITIONS[harness]?.costsModelTurn ?? null,
   }));
 }
 
@@ -1249,12 +1251,53 @@ export function assertRuntimeContainment(runtime: {
  */
 export function assertCanaryLaunchIsolation(
   environment: Readonly<Record<string, string>>,
-  runtime: { readonly root: string },
+  runtime: {
+    readonly root: string;
+    readonly harness?: LedgerHarness;
+    readonly mcpConfigOverrides?: readonly string[];
+  },
+  args: readonly string[] = [],
 ): void {
   const offending = HARNESS_CONFIG_ROOT_NAMES.filter((name) => {
     const value = environment[name];
+    if (runtime.harness === "codex" && name === "CODEX_HOME") return false;
     return value !== undefined && value.length > 0 && !withinRoot(runtime.root, value);
   });
+  if (runtime.harness === "codex") {
+    const flagCount = (flag: string): number => args.filter((argument) => argument === flag).length;
+    if (flagCount("--ignore-user-config") !== 1) offending.push("--ignore-user-config");
+    if (flagCount("--ignore-rules") !== 1) offending.push("--ignore-rules");
+    if (flagCount("--ephemeral") !== 1) offending.push("--ephemeral");
+    const sandbox = args.findIndex((argument) => argument === "--sandbox");
+    if (sandbox === -1 || args[sandbox + 1] !== "read-only") offending.push("--sandbox=read-only");
+
+    const overrides: string[] = [];
+    for (let index = 0; index < args.length; index += 1) {
+      if (args[index] !== "-c") continue;
+      const value = args[index + 1];
+      if (value === undefined) {
+        offending.push("-c");
+        break;
+      }
+      overrides.push("-c", value);
+      index += 1;
+    }
+    if (JSON.stringify(overrides) !== JSON.stringify(runtime.mcpConfigOverrides ?? [])) {
+      offending.push("-c runtime overrides");
+    }
+    for (const name of [
+      "LOCALAPPDATA",
+      "APPDATA",
+      "XDG_CACHE_HOME",
+      "XDG_CONFIG_HOME",
+      "XDG_DATA_HOME",
+      "XDG_STATE_HOME",
+      "npm_config_cache",
+    ]) {
+      const value = environment[name];
+      if (value !== undefined && value.length > 0 && !withinRoot(runtime.root, value)) offending.push(name);
+    }
+  }
   if (offending.length === 0) return;
   // The NAMES, never the values: a config root is a private path, and this
   // message reaches stderr.
@@ -1340,6 +1383,121 @@ export function canaryConfigFileName(harness: LedgerHarness): string {
   }
 }
 
+const CODEX_SERVER_FIELDS = Object.freeze(["command", "args", "env_vars", "startup_timeout_sec", "env"]);
+
+function objectRecord(value: unknown, label: string): Record<string, unknown> {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`Canary runtime cannot be created: ${label} must be a TOML table`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function stringArray(value: unknown, label: string): readonly string[] {
+  if (!Array.isArray(value) || value.some((entry) => typeof entry !== "string")) {
+    throw new Error(`Canary runtime cannot be created: ${label} must be an array of strings`);
+  }
+  return value as string[];
+}
+
+function tomlOverrideValue(value: string | number | readonly string[]): string {
+  const rendered = stringifyToml({ value }).trim();
+  const prefix = "value = ";
+  if (!rendered.startsWith(prefix)) {
+    throw new Error("Canary runtime cannot be created: smol-toml did not serialize an override value as expected");
+  }
+  return rendered.slice(prefix.length);
+}
+
+/**
+ * Derives Codex `-c` overrides from the exact TOML document written to disk.
+ *
+ * The parser is the pinned TOML implementation; validation then closes the
+ * document to the fields `renderMcpConfig` emits and proves every command is
+ * this run's observation front before any native argument is constructed.
+ */
+export function deriveCodexMcpOverrides(
+  rendered: string,
+  selected: readonly McpServerId[],
+  observationsPath: string,
+): readonly string[] {
+  let parsed: unknown;
+  try {
+    parsed = parseToml(rendered);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Canary runtime cannot be created: rendered Codex TOML is malformed: ${detail}`);
+  }
+  const root = objectRecord(parsed, "rendered Codex configuration");
+  const topLevel = Object.keys(root);
+  if (
+    (selected.length === 0 && topLevel.length !== 0) ||
+    (selected.length > 0 && (topLevel.length !== 1 || topLevel[0] !== "mcp_servers"))
+  ) {
+    throw new Error("Canary runtime cannot be created: rendered Codex configuration must contain only mcp_servers");
+  }
+  if (new Set(selected).size !== selected.length) {
+    throw new Error("Canary runtime cannot be created: the requested Codex MCP server set contains duplicates");
+  }
+  const serverTable = selected.length === 0 ? {} : objectRecord(root.mcp_servers, "mcp_servers");
+  const actualIds = Object.keys(serverTable).sort();
+  const expectedIds = [...selected].sort();
+  if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds)) {
+    throw new Error(
+      `Canary runtime cannot be created: rendered Codex MCP servers (${actualIds.join(", ")}) do not exactly match ` +
+        `the validated runtime set (${expectedIds.join(", ")})`,
+    );
+  }
+
+  const overrides: string[] = [];
+  const push = (key: string, value: string | number | readonly string[]): void => {
+    overrides.push("-c", `${key}=${tomlOverrideValue(value)}`);
+  };
+  for (const id of selected) {
+    const server = objectRecord(serverTable[id], `mcp_servers.${id}`);
+    const extra = Object.keys(server).filter((field) => !CODEX_SERVER_FIELDS.includes(field));
+    if (extra.length > 0) {
+      throw new Error(`Canary runtime cannot be created: mcp_servers.${id} contains unsupported fields: ${extra.join(", ")}`);
+    }
+    if (typeof server.command !== "string" || server.command !== process.execPath) {
+      throw new Error(`Canary runtime cannot be created: mcp_servers.${id}.command is not this Node runtime`);
+    }
+    const args = stringArray(server.args, `mcp_servers.${id}.args`);
+    const fronted =
+      args.length === 6 &&
+      typeof args[0] === "string" &&
+      args[0].length > 0 &&
+      args[1] === "mcp-proxy" &&
+      args[2] === id &&
+      args[3] === "--observe" &&
+      args[4] === "--observations" &&
+      args[5] === observationsPath;
+    if (!fronted) {
+      throw new Error(
+        `Canary runtime cannot be created: mcp_servers.${id} does not invoke alpha-aos mcp-proxy ${id} --observe ` +
+          "through this run's observation path",
+      );
+    }
+    const envVars = stringArray(server.env_vars, `mcp_servers.${id}.env_vars`);
+    if (typeof server.startup_timeout_sec !== "number" || !Number.isFinite(server.startup_timeout_sec)) {
+      throw new Error(`Canary runtime cannot be created: mcp_servers.${id}.startup_timeout_sec must be a number`);
+    }
+    push(`mcp_servers.${id}.command`, server.command);
+    push(`mcp_servers.${id}.args`, args);
+    push(`mcp_servers.${id}.env_vars`, envVars);
+    push(`mcp_servers.${id}.startup_timeout_sec`, server.startup_timeout_sec);
+    if (server.env !== undefined) {
+      const env = objectRecord(server.env, `mcp_servers.${id}.env`);
+      for (const [name, value] of Object.entries(env).sort(([left], [right]) => left.localeCompare(right))) {
+        if (typeof value !== "string") {
+          throw new Error(`Canary runtime cannot be created: mcp_servers.${id}.env.${name} must be a string`);
+        }
+        push(`mcp_servers.${id}.env.${name}`, value);
+      }
+    }
+  }
+  return overrides;
+}
+
 /**
  * One canary runtime: a configuration root that exists for one run.
  *
@@ -1367,6 +1525,8 @@ export interface CanaryRuntime {
    */
   readonly consumedPath: string;
   readonly servers: readonly McpServerId[];
+  /** Exact `-c` pairs derived from the validated rendered Codex TOML. */
+  readonly mcpConfigOverrides: readonly string[];
   readonly ownedInstructionIds: readonly string[];
   /** Exactly the files this runtime's creation wrote. */
   readonly declaredFiles: readonly string[];
@@ -1512,6 +1672,8 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
   // The same refusal `planMcpSync` applies, applied here rather than reasoned
   // about: this document is written to disk and read by a child process.
   assertNoCredentialValue(rendered, options.environment ?? process.env);
+  const mcpConfigOverrides =
+    options.harness === "codex" ? deriveCodexMcpOverrides(rendered, servers, observationsPath) : [];
 
   const marker = {
     schemaVersion: 1,
@@ -1582,6 +1744,7 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     markerPath,
     consumedPath: join(root, CANARY_CONSUMED_FILE),
     servers,
+    mcpConfigOverrides,
     ownedInstructionIds,
     declaredFiles,
     // The canary tree itself, not only this run's leaf: creating the leaf
@@ -1884,6 +2047,8 @@ export interface InvocationVerdict {
    * them would let a control read as a proof.
    */
   readonly expectationsHeld: boolean;
+  /** Stable JSON-facing alias used by native verification scripts. */
+  readonly held: boolean;
   readonly observationCount: number;
   readonly reasons: readonly string[];
 }
@@ -1922,6 +2087,7 @@ export function decideInvocation(
     unsatisfiedArgumentPatterns: match.unsatisfiedArgumentPatterns,
     uncheckedArgumentPatterns: match.uncheckedArgumentPatterns,
     expectationsHeld: match.held,
+    held: match.held,
     observationCount: match.observationCount,
     reasons: match.reasons,
   };
@@ -2027,14 +2193,13 @@ export function canaryEnvironmentPolicy(options: {
 /**
  * The argument vector that puts a declared prompt in front of a harness.
  *
- * Derived by substituting the declared prompt into the MEASURED oracle vector
- * rather than restating a second one, so a canary and a discovery run cannot
- * disagree about how a harness is driven. A harness whose measured vector
- * carries no prompt — pi is driven over stdin — returns null, which is a
- * recorded absence and never a guess.
+ * Derived by substituting the declared prompt into the measured INVOCATION
+ * vector. Discovery deliberately consumes a different table: on Codex the free
+ * `debug prompt-input` command and the costed `exec` command are different
+ * capabilities and must never be reported as one another.
  */
 export function canaryPromptArgs(harness: LedgerHarness, prompt: string): readonly string[] | null {
-  const definition = ORACLE_DEFINITIONS[harness];
+  const definition = INVOCATION_DEFINITIONS[harness];
   if (definition === null || definition === undefined) return null;
   if (!definition.args.includes(ORACLE_PLACEHOLDER_PROMPT)) return null;
   return definition.args.map((argument) => (argument === ORACLE_PLACEHOLDER_PROMPT ? prompt : argument));
@@ -2115,6 +2280,7 @@ export type CanaryLaunchSpecBuilder = (options: {
   readonly harness: LedgerHarness;
   readonly runtime: CanaryRuntime;
   readonly projectRoot: string;
+  readonly environment?: Readonly<Record<string, string | undefined>>;
 }) => IsolationLaunchSpec;
 
 /**
@@ -2124,7 +2290,7 @@ export type CanaryLaunchSpecBuilder = (options: {
  * user's global configuration would be measuring the user's machine rather than
  * the project's pack.
  */
-export const createCanaryLaunchSpec: CanaryLaunchSpecBuilder = ({ harness, runtime, projectRoot }) =>
+export const createCanaryLaunchSpec: CanaryLaunchSpecBuilder = ({ harness, runtime, projectRoot, environment }) =>
   createIsolationLaunchSpec({
     projectId: runtime.projectId,
     projectRoot,
@@ -2132,7 +2298,8 @@ export const createCanaryLaunchSpec: CanaryLaunchSpecBuilder = ({ harness, runti
     policy: defaultIsolationPolicy("project-only", [harness as HarnessId]),
     runtimeRoot: runtime.root,
     allowedSkillPaths: [],
-    canary: { mcpConfigPath: runtime.mcpConfigPath },
+    canary: { mcpConfigPath: runtime.mcpConfigPath, mcpConfigOverrides: runtime.mcpConfigOverrides },
+    sourceEnvironment: environment ?? process.env,
   });
 
 export interface RunCanaryOptions {
@@ -2248,6 +2415,9 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
       ...(options.runner === undefined ? {} : { runner: options.runner }),
       ...(options.model === undefined ? {} : { model: options.model }),
       cwd: options.projectRoot,
+      ...(harness === "codex"
+        ? { registeredServers: runtime.servers.map((server) => ({ server, state: "pending" as const })) }
+        : {}),
     }));
 
   if (!readiness.ready) {
@@ -2274,7 +2444,12 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
     });
   }
 
-  const spec = (options.buildLaunchSpec ?? createCanaryLaunchSpec)({ harness, runtime, projectRoot: options.projectRoot });
+  const spec = (options.buildLaunchSpec ?? createCanaryLaunchSpec)({
+    harness,
+    runtime,
+    projectRoot: options.projectRoot,
+    ...(options.environment === undefined ? {} : { environment: options.environment }),
+  });
   if (spec.blockedReasons.length > 0) {
     return blockedResult({
       declaration,
@@ -2310,9 +2485,15 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
     });
   }
 
+  const combinedArgs =
+    harness === "codex"
+      ? [...promptArgs.slice(0, -1), ...spec.args, promptArgs[promptArgs.length - 1] as string]
+      : [...spec.args, ...promptArgs];
+  const once = new Set(["--ignore-user-config", "--ignore-rules"]);
+  const launchArgs = combinedArgs.filter((argument, index) => !once.has(argument) || combinedArgs.indexOf(argument) === index);
   const launch: CanaryLaunch = {
     spec,
-    args: [...spec.args, ...promptArgs],
+    args: launchArgs,
     environment: materializeEnvironment(
       canaryEnvironmentPolicy({
         declaration,
@@ -2329,7 +2510,7 @@ export async function runCanary(options: RunCanaryOptions): Promise<CanaryRunRes
   // the boundary rather than about the user: the harness must be pointed at
   // this runtime and nothing else, and the child must receive nothing the
   // platform floor and this canary's own declaration did not name.
-  assertCanaryLaunchIsolation(launch.environment, runtime);
+  assertCanaryLaunchIsolation(launch.environment, runtime, launch.args);
   assertCanaryEnvironmentDeclared(launch.environment, canaryEnvironmentNames({ declaration, spec, runtime }));
   await markRuntimeConsumed(runtime);
 

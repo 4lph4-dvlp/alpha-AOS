@@ -816,12 +816,12 @@ test("every canary declaration exposes whether a run would spend a model turn", 
 
   // Read from the oracle table rather than restated, so the two cannot drift.
   assert.deepEqual(canaryCosts(declaration({ harnesses: ["claude"] })), [{ harness: "claude", costsModelTurn: true }]);
-  assert.deepEqual(canaryCosts(declaration({ harnesses: ["codex"] })), [{ harness: "codex", costsModelTurn: false }]);
+  assert.deepEqual(canaryCosts(declaration({ harnesses: ["codex"] })), [{ harness: "codex", costsModelTurn: true }]);
   // A harness with no oracle definition reports an underivable cost, and the
   // fail-closed roll-up treats an unknown cost as spending.
   assert.deepEqual(canaryCosts(declaration({ harnesses: ["hermes"] })), [{ harness: "hermes", costsModelTurn: null }]);
   assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["hermes"] })), true);
-  assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["codex"] })), false);
+  assert.equal(canaryCostsModelTurn(declaration({ harnesses: ["codex"] })), true);
 });
 
 test("Codex discovery remains free while invocation uses the costed ephemeral exec surface", () => {
@@ -2081,7 +2081,11 @@ test("a Codex runtime derives overrides for exactly its validated observation-fr
   const serialized = JSON.stringify(assignments);
   assert.equal(serialized.includes("mcp-proxy"), true, "the override command does not cross the alpha-AOS front");
   assert.equal(serialized.includes("--observe"), true, "the override command is fronted but not observed");
-  assert.equal(serialized.includes(runtime.observationsPath), true, "the override observes into another runtime");
+  assert.equal(
+    assignments.some((entry) => entry.includes(runtime.observationsPath.replaceAll("\\", "\\\\"))),
+    true,
+    "the override observes into another runtime",
+  );
 });
 
 test("a launched canary proof records its runtime scope and the recorded instruction ids without recomputing them", async (context) => {

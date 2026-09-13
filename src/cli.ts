@@ -807,7 +807,7 @@ async function main(): Promise<void> {
           const runtime = await createCanaryRuntime({
             projectRoot: target,
             harness: selection.harness,
-            servers: mcpServerIds(),
+            servers: [...(selection.declaration.requiresMcpServers ?? [])] as McpServerId[],
             stateRoot,
             lock,
           });
@@ -849,7 +849,7 @@ async function main(): Promise<void> {
                     const runtime = await createCanaryRuntime({
                       projectRoot: target,
                       harness: pair.target,
-                      servers: mcpServerIds(),
+                      servers: [...(selection.declaration.requiresMcpServers ?? [])] as McpServerId[],
                       stateRoot,
                       lock,
                       capability: selection.declaration.capability,

@@ -48,6 +48,7 @@ canaries:
       - context7
     harnesses:
       - claude
+      - codex
     readOnly: true
 
   - id: RESEARCH_MULTI_SOURCE

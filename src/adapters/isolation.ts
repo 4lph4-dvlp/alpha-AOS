@@ -30,9 +30,9 @@ function executableFor(harness: HarnessId): string | null {
  * rather than pretending the isolation holds. That is the same fail-closed rule
  * this module already applies to sealed mode.
  */
-const CANARY_MCP_ISOLATION: Readonly<Record<HarnessId, ((configPath: string) => readonly string[]) | null>> = {
-  claude: (configPath) => ["--mcp-config", configPath, "--strict-mcp-config"],
-  codex: null,
+const CANARY_MCP_ISOLATION: Readonly<Record<HarnessId, ((canary: CanaryLaunchIsolation) => readonly string[]) | null>> = {
+  claude: (canary) => ["--mcp-config", canary.mcpConfigPath, "--strict-mcp-config"],
+  codex: (canary) => ["--ignore-user-config", "--ignore-rules", ...(canary.mcpConfigOverrides ?? [])],
   antigravity: null,
   pi: null,
   hermes: null,
@@ -41,9 +41,7 @@ const CANARY_MCP_ISOLATION: Readonly<Record<HarnessId, ((configPath: string) => 
 /** Why a harness has no canary MCP isolation. Recorded, never silent. */
 const CANARY_MCP_ISOLATION_ABSENCE: Readonly<Record<HarnessId, string | null>> = {
   claude: null,
-  codex:
-    "codex has no observed flag that both names an alternative MCP configuration file and excludes the user's own; " +
-    "--strict-config constrains how the configuration is read, not which configuration is read",
+  codex: null,
   antigravity: "antigravity has no documented config-root or MCP-configuration override on any host probed",
   pi: "no pi flag has been observed that replaces the harness's MCP configuration with a named file for one run",
   hermes: "hermes ignores user config wholesale but has no observed flag naming a replacement MCP configuration file",
@@ -58,6 +56,8 @@ const CANARY_MCP_ISOLATION_ABSENCE: Readonly<Record<HarnessId, string | null>> =
  */
 export interface CanaryLaunchIsolation {
   readonly mcpConfigPath: string;
+  /** Exact `-c` vector derived from the validated runtime-local Codex TOML. */
+  readonly mcpConfigOverrides?: readonly string[];
 }
 
 export function createIsolationLaunchSpec(options: {
@@ -73,6 +73,8 @@ export function createIsolationLaunchSpec(options: {
    * could stay green against a launch the product no longer uses.
    */
   canary?: CanaryLaunchIsolation;
+  /** Source of an existing native login boundary for one canary run. */
+  sourceEnvironment?: Readonly<Record<string, string | undefined>>;
 }): IsolationLaunchSpec {
   const { harness, policy, runtimeRoot } = options;
   const canary = options.canary;
@@ -106,12 +108,26 @@ export function createIsolationLaunchSpec(options: {
         guarantees.push("Claude user configuration, user skills, hooks, memory, and MCP are hidden by the isolated CLAUDE_CONFIG_DIR");
         break;
       case "codex":
-        env.CODEX_HOME = harnessRoot;
-        env.HOME = syntheticHome;
-        env.USERPROFILE = syntheticHome;
-        args.push("--strict-config");
-        guarantees.push("Codex state and user-level .agents skills are hidden by isolated CODEX_HOME and home directories");
-        warnings.push("The isolated Codex home needs its own explicit login; alpha-aos never copies auth.json");
+        if (canary === undefined) {
+          env.CODEX_HOME = harnessRoot;
+          env.HOME = syntheticHome;
+          env.USERPROFILE = syntheticHome;
+          args.push("--strict-config");
+          guarantees.push("Codex state and user-level .agents skills are hidden by isolated CODEX_HOME and home directories");
+          warnings.push("The isolated Codex home needs its own explicit login; alpha-aos never copies auth.json");
+        } else {
+          const source = options.sourceEnvironment ?? process.env;
+          if (source.CODEX_HOME !== undefined && source.CODEX_HOME.length > 0) {
+            env.CODEX_HOME = source.CODEX_HOME;
+          } else {
+            const homeName = process.platform === "win32" && source.USERPROFILE ? "USERPROFILE" : "HOME";
+            const homeValue = source[homeName];
+            if (homeValue !== undefined && homeValue.length > 0) env[homeName] = homeValue;
+          }
+          guarantees.push(
+            "Codex reuses the caller's native login boundary while ignore flags and validated runtime-local MCP overrides exclude ambient configuration",
+          );
+        }
         break;
       case "antigravity":
         env.HOME = syntheticHome;
@@ -138,7 +154,9 @@ export function createIsolationLaunchSpec(options: {
 
   if (canary !== undefined) {
     const isolate = CANARY_MCP_ISOLATION[harness];
-    if (isolate === null) {
+    if (harness === "codex" && canary.mcpConfigOverrides === undefined) {
+      blockedReasons.push("codex canary isolation requires validated runtime-local MCP configuration overrides");
+    } else if (isolate === null) {
       blockedReasons.push(
         `${harness} cannot be pointed at a canary observation front: ${CANARY_MCP_ISOLATION_ABSENCE[harness] ?? "no reason recorded"}`,
       );
@@ -149,7 +167,7 @@ export function createIsolationLaunchSpec(options: {
       // --strict-mcp-config, and asking twice is a second spelling of one
       // guarantee. Skipping a value-taking flag would leave its value behind
       // as a bare argument, so those are always pushed as a pair.
-      const flags = isolate(canary.mcpConfigPath);
+      const flags = isolate(canary);
       for (let index = 0; index < flags.length; index += 1) {
         const flag = flags[index] as string;
         const next = flags[index + 1];

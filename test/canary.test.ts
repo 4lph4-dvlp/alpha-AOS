@@ -102,6 +102,7 @@ import {
 } from "../src/adapters/unified-memory.js";
 import {
   CAPABILITY_LEDGER_SCHEMA_VERSION,
+  capabilityLedgerPath,
   harnessMinorKey,
   pairEvidence,
   readCapabilityLedger,
@@ -399,6 +400,75 @@ test("compiled doctor accounts for the one Codex CAPA-01 no-spend leg without la
   assert.equal(output.skipped?.[0]?.selection?.declaration?.capability, "CAPA-01");
   assert.equal(output.rows?.[0]?.axes?.nativeUse, "unverified");
 });
+
+test(
+  "opt-in live Codex CAPA-01 agrees immediately and after its temporary ledger round trip",
+  { skip: process.env.ALPHA_AOS_LIVE_CANARY !== "1", timeout: 360_000 },
+  async (context: TestContext) => {
+    const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-live-codex-"));
+    context.after(async () => rm(root, { recursive: true, force: true }));
+    const stateRoot = join(root, "state");
+    const result = spawnSync(
+      process.execPath,
+      [cliEntry, "doctor", "--canary", ".", "--harness", "codex", "--capability", "CAPA-01", "--json"],
+      {
+        cwd: repositoryRoot,
+        env: { ...process.env, ALPHA_AOS_STATE_DIR: stateRoot },
+        encoding: "utf8",
+        timeout: 330_000,
+        windowsHide: true,
+      },
+    );
+
+    assert.equal(result.error, undefined, String(result.error));
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const output = JSON.parse(result.stdout) as { readonly results?: readonly CanaryRunResult[] };
+    const results = [...(output.results ?? [])];
+    assert.equal(results.length, 1, "the filtered live command must return exactly one result");
+    assert.equal(results.some((entry) => entry.harness === "claude"), false, "the Codex-only gate emitted a Claude result");
+    const immediate = results[0];
+    assert.ok(immediate);
+    assert.equal(immediate.harness, "codex");
+    assert.equal(immediate.canary, "DOCUMENTATION_VERSION_SCOPED");
+    assert.equal(immediate.nativeUse, "invoked");
+    assert.equal(immediate.verdict.held, true);
+    assert.equal(immediate.verdict.expectationsHeld, true);
+    assert.equal(immediate.verdict.ordered, true);
+    assert.equal(immediate.verdict.observationCount > 0, true);
+    assert.equal(immediate.verdict.observationCount, immediate.observations.length);
+    assert.equal(immediate.verdict.satisfiedArgumentPatterns.includes("query-docs.libraryId"), true);
+    assert.deepEqual(immediate.verdict.uncheckedArgumentPatterns, []);
+
+    const read = await readCapabilityLedger(capabilityLedgerPath(stateRoot));
+    assert.equal(read.state, "present", JSON.stringify(read));
+    if (read.state !== "present") return;
+    const proofs = read.ledger.proofs.filter(
+      (proof) =>
+        proof.projectId === null &&
+        proof.harness === "codex" &&
+        proof.capability === "CAPA-01" &&
+        proof.polarity === "positive",
+    );
+    assert.equal(proofs.length, 1, "the temporary ledger must retain exactly one Codex CAPA-01 positive proof");
+    const proof = proofs[0];
+    assert.ok(proof?.invocationEvidence, "the live proof round-tripped as legacy evidence");
+    assert.equal(proof.nativeUse, immediate.nativeUse);
+    assert.equal(proof.invocationEvidence.canary, immediate.canary);
+    assert.deepEqual(proof.invocationEvidence.verdict, immediate.verdict);
+    assert.deepEqual(proof.invocationEvidence.observations, immediate.observations);
+    const tools = proof.invocationEvidence.observations.map((observation) => observation.tool);
+    const resolveIndex = tools.indexOf("resolve-library-id");
+    const queryIndex = tools.indexOf("query-docs");
+    assert.equal(resolveIndex >= 0 && queryIndex > resolveIndex, true, `unexpected tool order: ${tools.join(", ")}`);
+    assert.equal(
+      proof.invocationEvidence.observations.some(
+        (observation) => observation.tool === "query-docs" && observation.identifierShape === "version-scoped",
+      ),
+      true,
+      "the retained query-docs observation is not version-scoped",
+    );
+  },
+);
 
 test("an explicit-filter CLI refusal exposes no auth, credential, environment, or runtime value", async (context: TestContext) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-redaction-"));
@@ -2564,6 +2634,67 @@ const RESEARCH_CANARY = declaration({
   expectOrdered: true,
   forbidTools: ["firecrawl_search"],
   maxDistinctServers: 2,
+});
+
+test("the shipped documentation canary has one strict completion route and five fail-closed controls", async () => {
+  const catalog = await shippedCatalog();
+  const [selected] = selectCanaries(catalog, { harness: "codex", capability: "CAPA-01" });
+  assert.ok(selected);
+  const canary = selected.declaration;
+  assert.equal(canary.id, "DOCUMENTATION_VERSION_SCOPED");
+
+  const complete = [
+    observation("context7", "resolve-library-id", 0),
+    observation("context7", "query-docs", 1, { identifierShape: "version-scoped" }),
+  ];
+  const matrix: ReadonlyArray<{
+    readonly name: string;
+    readonly observations: readonly McpObservation[];
+    readonly held: boolean;
+    readonly nativeUse: "invoked" | "unverified";
+  }> = [
+    { name: "complete ordered version-scoped route", observations: complete, held: true, nativeUse: "invoked" },
+    {
+      name: "reversed route",
+      observations: [complete[1]!, complete[0]!],
+      held: false,
+      nativeUse: "unverified",
+    },
+    { name: "no observations", observations: [], held: false, nativeUse: "unverified" },
+    {
+      name: "one incomplete observation",
+      observations: [complete[0]!],
+      held: false,
+      nativeUse: "unverified",
+    },
+    {
+      name: "explicitly unscoped identifier",
+      observations: [
+        complete[0]!,
+        observation("context7", "query-docs", 1, { identifierShape: "unscoped" }),
+      ],
+      held: false,
+      nativeUse: "unverified",
+    },
+    {
+      name: "missing identifier shape",
+      observations: [complete[0]!, observation("context7", "query-docs", 1)],
+      held: false,
+      nativeUse: "unverified",
+    },
+  ];
+
+  for (const entry of matrix) {
+    const verdict = decideInvocation(canary, entry.observations);
+    assert.equal(verdict.held, entry.held, entry.name);
+    assert.equal(verdict.nativeUse, entry.nativeUse, entry.name);
+    assert.equal(verdict.observationCount, entry.observations.length, entry.name);
+  }
+
+  const verdict = decideInvocation(canary, complete);
+  assert.equal(verdict.ordered, true);
+  assert.equal(verdict.satisfiedArgumentPatterns.includes("query-docs.libraryId"), true);
+  assert.deepEqual(verdict.uncheckedArgumentPatterns, []);
 });
 
 // --- Test 1: the version-sensitivity assertion is structural ----------------

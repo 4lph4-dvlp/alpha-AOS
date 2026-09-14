@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
-status: executing
-stopped_at: Completed 03-17-PLAN.md
-last_updated: "2026-09-14T00:46:59.047Z"
-last_activity: 2026-09-13
-last_activity_desc: Completed 03-17 fail-closed canary selection and native Codex verification
-state_head: 43de6433a0723240cff97aa11484529e7a319f5e
+status: verifying
+stopped_at: Completed 03-18-PLAN.md
+last_updated: "2026-09-14T03:03:16.505Z"
+last_activity: 2026-09-14
+last_activity_desc: Completed 03-18 durable Codex CAPA-01 proof and strict completion matrix
+state_head: 5c6a4a9b664df62c42168a2c60ae2c84369fa45d
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 61
-  completed_plans: 60
+  completed_plans: 61
   percent: 29
 ---
 
@@ -28,10 +28,10 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 ## Current Position
 
-Phase: 03 (Transactional Project Packs and Native Optional Use) — READY TO EXECUTE
-Plan: 17 of 17
-Status: Ready to execute
-Last activity: 2026-09-13 — Completed 03-17 fail-closed canary selection and native Codex verification
+Phase: 03 (Transactional Project Packs and Native Optional Use) — VERIFYING
+Plan: 18 of 18
+Status: Phase complete — ready for verification
+Last activity: 2026-09-14 — Completed 03-18 durable Codex CAPA-01 proof and strict completion matrix
 Progress: [███░░░░░░░] 29%
 
 ## Performance Metrics
@@ -101,6 +101,7 @@ Progress: [███░░░░░░░] 29%
 | Phase 03 P15 | 11min | 2 tasks | 4 files |
 | Phase 03 P16 | 5h 35m | 2 tasks | 7 files |
 | Phase 03 P17 | 19min | 2 tasks | 3 files |
+| Phase 03 P18 | 19min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -201,6 +202,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: Isolated Codex documentation canaries carry one exact developer instruction for ordered Context7 routing. — The required ignore-rules flag removes ambient routing instructions, while MCP-side observations remain the proof authority.
 - [Phase 03]: Explicit zero-match canary filters are configuration refusals, not evidence outcomes. — This prevents an explicit request that ran nothing from appearing as a successful sweep.
 - [Phase 03]: The doctor CLI validates canary selection before state resolution and harness probing. — The core selector remains the single policy authority while the CLI fails before state or spend.
+- [Phase 03]: Unchecked required argument patterns prevent held and invoked outcomes. — Absent checkable identifier-shape evidence is unverified evidence, never successful invocation.
+- [Phase 03]: Legacy proofs remain readable without invocationEvidence, but cannot satisfy strict CAPA-01 completion. — Additive compatibility preserves existing host state without fabricating audit evidence.
+- [Phase 03]: Durable canary evidence is a closed redacted projection of observations and verdict fields. — Explicit reconstruction excludes raw arguments, responses, model text, auth data, environment values, and credentials.
 
 ### Pending Todos
 
@@ -264,6 +268,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-13T08:45:25.674Z
-Stopped at: Completed 03-17-PLAN.md
+Last session: 2026-09-14T03:01:00.519Z
+Stopped at: Completed 03-18-PLAN.md
 Resume file: None

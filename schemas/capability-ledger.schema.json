@@ -181,6 +181,78 @@
               }
             }
           },
+          "invocationEvidence": {
+            "description": "Optional redacted invocation audit detail. Its absence keeps legacy rows readable but is never affirmative strict-completion evidence. Raw MCP arguments, response bodies, model text, authentication data, environment values and credential values have no representable field.",
+            "type": "object",
+            "required": ["canary", "observations", "verdict"],
+            "additionalProperties": false,
+            "properties": {
+              "canary": { "type": "string", "minLength": 1 },
+              "observations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["server", "tool", "at", "upstreamVersion", "outcome"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "server": { "enum": ["context7", "exa", "firecrawl"] },
+                    "tool": { "type": "string", "minLength": 1 },
+                    "at": { "type": "string", "minLength": 1 },
+                    "upstreamVersion": { "type": "string", "minLength": 1 },
+                    "outcome": { "enum": ["ok", "denied"] },
+                    "identifierShape": { "enum": ["version-scoped", "unscoped"] }
+                  }
+                }
+              },
+              "verdict": {
+                "type": "object",
+                "required": [
+                  "matched",
+                  "missing",
+                  "forbiddenSeen",
+                  "ordered",
+                  "distinctServers",
+                  "maxDistinctServers",
+                  "withinServerBudget",
+                  "satisfiedArgumentPatterns",
+                  "unsatisfiedArgumentPatterns",
+                  "uncheckedArgumentPatterns",
+                  "observationCount",
+                  "expectationsHeld",
+                  "held",
+                  "nativeUse",
+                  "reasons"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "matched": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "missing": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "forbiddenSeen": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "ordered": { "type": ["boolean", "null"] },
+                  "distinctServers": { "type": "integer", "minimum": 0 },
+                  "maxDistinctServers": { "type": "integer", "minimum": 0 },
+                  "withinServerBudget": { "type": "boolean" },
+                  "satisfiedArgumentPatterns": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "unsatisfiedArgumentPatterns": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "uncheckedArgumentPatterns": {
+                    "type": "array",
+                    "items": { "type": "string", "minLength": 1 }
+                  },
+                  "observationCount": { "type": "integer", "minimum": 0 },
+                  "expectationsHeld": { "type": "boolean" },
+                  "held": { "type": "boolean" },
+                  "nativeUse": { "enum": ["discovered", "invoked", "unverified"] },
+                  "reasons": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                }
+              }
+            }
+          },
           "observedAt": { "type": "string", "minLength": 1 },
           "oracle": {
             "description": "What was actually run and what it returned. Output is recorded as a FINGERPRINT and never as raw bytes, because a harness transcript is the most likely place for a credential or a user's private prompt to reach persisted state (T-03-22).",

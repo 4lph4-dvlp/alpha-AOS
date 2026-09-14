@@ -63,6 +63,8 @@ import type {
   EvidenceUnit,
   HarnessVersion,
   ImmutabilityWitness,
+  InvocationObservationEvidence,
+  InvocationVerdictEvidence,
   LedgerHarness,
   NativeUseState,
   OracleRecord,
@@ -2009,7 +2011,8 @@ export function matchExpectations(
     forbiddenSeen.length === 0 &&
     withinServerBudget &&
     ordered !== false &&
-    unsatisfiedArgumentPatterns.length === 0;
+    unsatisfiedArgumentPatterns.length === 0 &&
+    uncheckedArgumentPatterns.length === 0;
 
   return {
     matched,
@@ -3709,6 +3712,31 @@ export function canaryProof(
   },
 ): CapabilityProof | null {
   if (result.oracle === null) return null;
+  const observations: InvocationObservationEvidence[] = result.observations.map((observation) => ({
+    server: observation.server,
+    tool: observation.tool,
+    at: observation.at,
+    upstreamVersion: observation.upstreamVersion,
+    outcome: observation.outcome,
+    ...(observation.identifierShape === undefined ? {} : { identifierShape: observation.identifierShape }),
+  }));
+  const verdict: InvocationVerdictEvidence = {
+    matched: [...result.verdict.matched],
+    missing: [...result.verdict.missing],
+    forbiddenSeen: [...result.verdict.forbiddenSeen],
+    ordered: result.verdict.ordered,
+    distinctServers: result.verdict.distinctServers,
+    maxDistinctServers: result.verdict.maxDistinctServers,
+    withinServerBudget: result.verdict.withinServerBudget,
+    satisfiedArgumentPatterns: [...result.verdict.satisfiedArgumentPatterns],
+    unsatisfiedArgumentPatterns: [...result.verdict.unsatisfiedArgumentPatterns],
+    uncheckedArgumentPatterns: [...result.verdict.uncheckedArgumentPatterns],
+    observationCount: result.verdict.observationCount,
+    expectationsHeld: result.verdict.expectationsHeld,
+    held: result.verdict.held,
+    nativeUse: result.nativeUse,
+    reasons: [...result.verdict.reasons],
+  };
   return {
     projectId: options.projectId,
     harness: result.harness,
@@ -3722,6 +3750,11 @@ export function canaryProof(
     observedAt: new Date().toISOString(),
     oracle: result.oracle,
     claimNotes: canaryClaimNotes(result),
+    invocationEvidence: {
+      canary: result.canary,
+      observations,
+      verdict,
+    },
   };
 }
 

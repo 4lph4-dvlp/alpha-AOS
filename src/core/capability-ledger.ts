@@ -13,7 +13,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { SurfaceSupport } from "../types.js";
+import type { McpServerId, SurfaceSupport } from "../types.js";
+import type { IdentifierShape } from "./mcp-proxy.js";
 import { packageRoot, RootKeyedCache, userStateRoot } from "./paths.js";
 // Type-only, and deliberately so: this module READS the deployment axis and
 // never defines, widens or reimplements it (03-CONTEXT.md D-11). A type-only
@@ -157,6 +158,42 @@ export interface ClaimNote {
   readonly basis: string;
 }
 
+/** One redacted MCP-side observation retained for an invocation audit. */
+export interface InvocationObservationEvidence {
+  readonly server: McpServerId;
+  readonly tool: string;
+  readonly at: string;
+  readonly upstreamVersion: string;
+  readonly outcome: "ok" | "denied";
+  readonly identifierShape?: IdentifierShape;
+}
+
+/** The complete final verdict retained beside the observations that produced it. */
+export interface InvocationVerdictEvidence {
+  readonly matched: readonly string[];
+  readonly missing: readonly string[];
+  readonly forbiddenSeen: readonly string[];
+  readonly ordered: boolean | null;
+  readonly distinctServers: number;
+  readonly maxDistinctServers: number;
+  readonly withinServerBudget: boolean;
+  readonly satisfiedArgumentPatterns: readonly string[];
+  readonly unsatisfiedArgumentPatterns: readonly string[];
+  readonly uncheckedArgumentPatterns: readonly string[];
+  readonly observationCount: number;
+  readonly expectationsHeld: boolean;
+  readonly held: boolean;
+  readonly nativeUse: NativeUseState;
+  readonly reasons: readonly string[];
+}
+
+/** Closed, redacted evidence that lets a persisted invocation proof be audited independently. */
+export interface CapabilityInvocationEvidence {
+  readonly canary: string;
+  readonly observations: readonly InvocationObservationEvidence[];
+  readonly verdict: InvocationVerdictEvidence;
+}
+
 /** One row of the ledger: what was proven, about what, bound to which inputs. */
 export interface CapabilityProof {
   /** Null for a capability that is not project-scoped at all. */
@@ -178,6 +215,11 @@ export interface CapabilityProof {
   readonly immutabilityWitness?: ImmutabilityWitness | null;
   /** Older proofs recorded no qualification; absence must not invent an empty record for them. */
   readonly claimNotes?: readonly ClaimNote[];
+  /**
+   * Optional for legacy compatibility. Absence means the invocation details
+   * were not retained and can never be interpreted as strict completion.
+   */
+  readonly invocationEvidence?: CapabilityInvocationEvidence;
   readonly observedAt: string;
   readonly oracle: OracleRecord;
   /**

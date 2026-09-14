@@ -2178,6 +2178,31 @@ test("a validated Codex runtime supplies readiness evidence and ordered observat
   assert.equal(launchArgs.includes("exec"), true);
   assert.equal(launchArgs.includes("debug"), false);
 
+  const proof = canaryProof(result, discoveryProof("codex", "positive"));
+  assert.ok(proof);
+  const audited = proof as CapabilityProof & {
+    readonly invocationEvidence?: {
+      readonly canary: string;
+      readonly observations: readonly McpObservation[];
+      readonly verdict: typeof result.verdict;
+    };
+  };
+  assert.equal(audited.invocationEvidence?.canary, "DOCUMENTATION_VERSION_SCOPED");
+  assert.deepEqual(audited.invocationEvidence?.observations, result.observations);
+  assert.deepEqual(audited.invocationEvidence?.verdict, result.verdict);
+  assert.notEqual(
+    audited.invocationEvidence?.observations,
+    result.observations,
+    "the durable proof retained the run's mutable observation array by reference",
+  );
+  assert.notEqual(
+    audited.invocationEvidence?.verdict.matched,
+    result.verdict.matched,
+    "the durable proof retained the immediate verdict's mutable matched array by reference",
+  );
+  assert.equal(audited.invocationEvidence?.verdict.observationCount, result.observations.length);
+  assert.equal(audited.invocationEvidence?.verdict.nativeUse, proof.nativeUse);
+
   const missingRuntime = await createCanaryRuntime({
     projectRoot: project,
     harness: "codex",
@@ -2593,6 +2618,15 @@ test("a declared pattern is still reported unchecked when the record carries no 
   assert.deepEqual([...match.uncheckedArgumentPatterns], ["query-docs.libraryId"]);
   assert.deepEqual([...match.satisfiedArgumentPatterns], []);
   assert.deepEqual([...match.unsatisfiedArgumentPatterns], []);
+  assert.equal(match.held, false, "an unchecked required identifier shape must fail the CAPA-01 proof closed");
+  assert.equal(
+    decideInvocation(DOCUMENTATION_CANARY, [
+      observation("context7", "resolve-library-id", 0),
+      observation("context7", "query-docs", 1),
+    ]).nativeUse,
+    "unverified",
+    "an unchecked required identifier shape must never promote native use to invoked",
+  );
   assert.equal(
     match.reasons.some((reason) => reason.includes("has no argument field")),
     true,

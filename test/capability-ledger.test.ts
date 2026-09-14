@@ -62,6 +62,44 @@ const VALID_LEDGER: CapabilityLedger = {
   proofs: [VALID_POSITIVE],
 };
 
+const VALID_INVOCATION_EVIDENCE = {
+  canary: "DOCUMENTATION_VERSION_SCOPED",
+  observations: [
+    {
+      server: "context7",
+      tool: "resolve-library-id",
+      at: "2026-09-10T12:00:00.000Z",
+      upstreamVersion: "4.0.4",
+      outcome: "ok",
+    },
+    {
+      server: "context7",
+      tool: "query-docs",
+      at: "2026-09-10T12:00:01.000Z",
+      upstreamVersion: "4.0.4",
+      outcome: "ok",
+      identifierShape: "version-scoped",
+    },
+  ],
+  verdict: {
+    matched: ["resolve-library-id", "query-docs"],
+    missing: [],
+    forbiddenSeen: [],
+    ordered: true,
+    distinctServers: 1,
+    maxDistinctServers: 1,
+    withinServerBudget: true,
+    satisfiedArgumentPatterns: ["query-docs.libraryId"],
+    unsatisfiedArgumentPatterns: [],
+    uncheckedArgumentPatterns: [],
+    observationCount: 2,
+    expectationsHeld: true,
+    held: true,
+    nativeUse: "invoked",
+    reasons: [],
+  },
+} as const;
+
 const INFERENCE_NOTE = {
   kind: "inference" as const,
   statement: "The capability cannot be invoked outside the project.",
@@ -78,7 +116,7 @@ test("a proof claim note survives the transactional write-then-read path", async
   if (read.state === "present") assert.deepEqual(read.ledger.proofs, [proof]);
 });
 
-test("a proof without claim notes round-trips with the property absent rather than empty", async (context) => {
+test("a legacy proof without invocation evidence round-trips without fabricated evidence", async (context) => {
   const stateRoot = await ledgerFixture(context);
   const written = await writeCapabilityLedger({ stateRoot, ledger: VALID_LEDGER });
   const read = await readCapabilityLedger(written.path);
@@ -86,7 +124,58 @@ test("a proof without claim notes round-trips with the property absent rather th
   if (read.state !== "present") return;
   assert.deepEqual(read.ledger.proofs, VALID_LEDGER.proofs);
   assert.equal(Object.hasOwn(read.ledger.proofs[0]!, "claimNotes"), false);
+  assert.equal(Object.hasOwn(read.ledger.proofs[0]!, "invocationEvidence"), false);
 });
+
+test("a redacted audited invocation proof survives the transactional ledger round trip", async (context) => {
+  const stateRoot = await ledgerFixture(context);
+  const proof = {
+    ...VALID_POSITIVE,
+    invocationEvidence: VALID_INVOCATION_EVIDENCE,
+  } as unknown as CapabilityProof;
+  const written = await writeCapabilityLedger({
+    stateRoot,
+    ledger: { ...VALID_LEDGER, proofs: [proof] },
+  });
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(read.state, "present", JSON.stringify(read));
+  if (read.state !== "present") return;
+  assert.deepEqual(read.ledger.proofs[0], proof);
+  const evidence = (read.ledger.proofs[0] as CapabilityProof & {
+    readonly invocationEvidence?: typeof VALID_INVOCATION_EVIDENCE;
+  }).invocationEvidence;
+  assert.ok(evidence);
+  assert.equal(evidence.verdict.observationCount, evidence.observations.length);
+  assert.equal(evidence.verdict.nativeUse, read.ledger.proofs[0]?.nativeUse);
+  assert.deepEqual(evidence.verdict.uncheckedArgumentPatterns, []);
+});
+
+for (const [name, invocationEvidence] of [
+  ["an unknown invocation-evidence key", { ...VALID_INVOCATION_EVIDENCE, responseBody: "forbidden" }],
+  [
+    "an identifier-shape enum outside the redacted classification",
+    {
+      ...VALID_INVOCATION_EVIDENCE,
+      observations: [{ ...VALID_INVOCATION_EVIDENCE.observations[1], identifierShape: "raw-identifier" }],
+    },
+  ],
+  [
+    "a malformed nested verdict",
+    { ...VALID_INVOCATION_EVIDENCE, verdict: { ...VALID_INVOCATION_EVIDENCE.verdict, observationCount: "two" } },
+  ],
+] as const) {
+  test(`${name} is refused by the closed ledger schema`, async (context) => {
+    const root = await ledgerFixture(context);
+    const path = await writeLedgerBytes(
+      root,
+      JSON.stringify({
+        ...VALID_LEDGER,
+        proofs: [{ ...VALID_POSITIVE, invocationEvidence }],
+      }),
+    );
+    assert.equal((await readCapabilityLedger(path)).state, "unreadable");
+  });
+}
 
 for (const [name, note] of [
   ["an unknown claim-note key", { ...INFERENCE_NOTE, value: "forbidden" }],

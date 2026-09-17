@@ -40,9 +40,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:plan-phase 3 --gaps",
-    "label": "Plan Phase 3 gaps",
-    "reason": "Phase 3 of 7 · 29% · 4 diagnosed gaps ready for gap planning"
+    "command": "/gsd:execute-phase 3 --gaps-only",
+    "label": "Execute Phase 3 gap closure plans",
+    "reason": "Phase 3 of 7 · 4 gap closure plans (03-19..03-22) ready for execution"
   },
-  "updated_at": "2026-09-17T08:22:00.000Z"
+  "updated_at": "2026-09-17T08:35:00.000Z"
 }

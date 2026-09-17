@@ -8,7 +8,7 @@ This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first m
 
 - [x] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets. (completed 2026-09-07)
 - [x] **Phase 2: Evidence-Bound Project Planning** - Turn bounded repository evidence into stable, explainable, apply-bound plans without cross-project leakage. (completed 2026-09-09)
-- [ ] **Phase 3: Transactional Project Packs and Native Optional Use** - Materialize exact project packs and prove optional global and project capabilities through native intent-driven use.
+- [x] **Phase 3: Transactional Project Packs and Native Optional Use** - Materialize exact project packs and prove optional global and project capabilities through native intent-driven use. (completed 2026-09-17)
 - [ ] **Phase 4: Mandatory GSD Gates** - Convert deterministic risk evidence into one fail-closed mandatory check at the protected GSD lifecycle point.
 - [ ] **Phase 5: Persistent Tree-Off Preload Isolation** - Persist inherited directory opt-out and enforce it before global context loads through ordinary harness entrypoints.
 - [ ] **Phase 6: Managed Lifecycle, Uninstall, and Recovery** - Make the complete managed stack inspectable, idempotent, removable, rollbackable, and repairable.

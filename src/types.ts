@@ -741,5 +741,28 @@ export interface EngineSelection {
 
 export type GsdRole = "controller" | "worker";
 
+export type TreePolicyMode = "managed" | "off";
 
+export interface TreeRegistryEntry {
+  readonly id: string;
+  readonly path: string;
+  readonly mode: TreePolicyMode;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly notes?: string;
+}
 
+export interface TreeRegistry {
+  readonly schemaVersion: 1;
+  readonly updatedAt: string;
+  readonly trees: readonly TreeRegistryEntry[];
+}
+
+export interface EffectiveTreePolicy {
+  readonly entry: TreeRegistryEntry | null;
+  readonly inherited: boolean;
+  readonly depth: number;
+  readonly effectiveMode: TreePolicyMode | "unclassified";
+  readonly targetPath: string;
+  readonly canonicalPath: string;
+}

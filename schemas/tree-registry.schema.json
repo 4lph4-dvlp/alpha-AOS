@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/tree-registry.schema.json",
+  "title": "alpha-AOS tree policy registry",
+  "description": "Closed contract for global directory-tree opt-out and management registry under ~/.alpha-aos/trees.json (OPTO-01, D-01).",
+  "type": "object",
+  "required": ["schemaVersion", "updatedAt", "trees"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "updatedAt": {
+      "type": "string",
+      "minLength": 1
+    },
+    "trees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "path", "mode", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{16}$"
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "mode": {
+            "enum": ["managed", "off"]
+          },
+          "createdAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "updatedAt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

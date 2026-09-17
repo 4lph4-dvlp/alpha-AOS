@@ -48,7 +48,11 @@ export type ManagedDocumentKind =
    * Structured gate receipts under `.alpha-aos/receipts/gates/<obligation>.json`.
    * Enforces single-engine resolution, git commit binding, and status (GATE-02, D-06).
    */
-  | "gate-receipt";
+  | "gate-receipt"
+  /**
+   * Directory-tree opt-out and policy registry under `~/.alpha-aos/trees.json` (OPTO-01, D-01).
+   */
+  | "tree-registry";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -335,6 +339,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "capability-ledger": null,
   "canary-catalog": null,
   "gate-receipt": null,
+  "tree-registry": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -472,6 +477,11 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
       diagnostics: { type: "string" },
     },
   ),
+  "tree-registry": coreObject(["schemaVersion", "updatedAt", "trees"], {
+    schemaVersion: { type: "integer" },
+    updatedAt: { type: "string" },
+    trees: { type: "array" },
+  }),
 };
 
 const ajv = new Ajv2020({

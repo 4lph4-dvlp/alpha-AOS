@@ -739,4 +739,7 @@ export interface EngineSelection {
   }[];
 }
 
+export type GsdRole = "controller" | "worker";
+
+
 

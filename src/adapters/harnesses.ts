@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { HarnessId, HarnessInventory, StackCatalog } from "../types.js";
+import type { GsdRole, HarnessId, HarnessInventory, StackCatalog } from "../types.js";
 import { redactHome } from "../core/paths.js";
 import { probeCommand } from "../core/process.js";
 
@@ -70,3 +70,23 @@ export function probeHarness(id: HarnessId, catalog: StackCatalog): HarnessInven
 export function harnessIds(): HarnessId[] {
   return ["claude", "codex", "antigravity", "pi", "hermes"];
 }
+
+export interface HarnessAuthority {
+  readonly id: HarnessId;
+  readonly defaultRole: GsdRole;
+  readonly isStateWriterAllowed: boolean;
+  readonly notes: readonly string[];
+}
+
+export function probeHarnessAuthority(id: HarnessId): HarnessAuthority {
+  const isHermes = id === "hermes";
+  return {
+    id,
+    defaultRole: isHermes ? "worker" : "controller",
+    isStateWriterAllowed: !isHermes,
+    notes: isHermes
+      ? ["worker-only by stack policy; not a GSD state writer"]
+      : ["permitted GSD controller role when session initiator"],
+  };
+}
+

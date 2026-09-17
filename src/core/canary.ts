@@ -2876,6 +2876,21 @@ export interface HandoffPair {
 export const HANDOFF_HARNESS_PAIRS: readonly HandoffPair[] = Object.freeze([
   {
     source: "hermes",
+    target: "codex",
+    why: "D-17 active non-Claude handoff pair: hermes worker to codex receiver",
+  },
+  {
+    source: "pi",
+    target: "codex",
+    why: "active non-Claude alternative pair: pi agent to codex receiver",
+  },
+  {
+    source: "codex",
+    target: "hermes",
+    why: "active non-Claude alternative pair: codex to hermes worker",
+  },
+  {
+    source: "hermes",
     target: "claude",
     why: "03-RESEARCH.md Environment Availability names hermes as the CAPA-03 handoff peer",
   },
@@ -3794,7 +3809,7 @@ export function handoffRow(result: HandoffCanaryResult, support: SurfaceSupport)
   const unit = result.unit;
   return {
     capability: `${result.capability} (${result.canary})`,
-    harness: result.pair?.target ?? "claude",
+    harness: result.pair?.target ?? "codex",
     completeness: unit?.completeness ?? null,
     axes: {
       deployment: null,

@@ -2127,6 +2127,30 @@ test("runtime instruction ids name exactly the materialized targets, including t
   }
 });
 
+test("codex runtime materializes owned steering instructions including scoped CAPA-03 into .agents/skills (plan 03-21 / G-03-2)", async (context) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  for (const capability of [null, "CAPA-01", "CAPA-03"]) {
+    const runtime = await createCanaryRuntime({
+      projectRoot: project,
+      harness: "codex",
+      servers: [],
+      stateRoot: state,
+      lock,
+      environment: {},
+      capability,
+    });
+    const expected = capability === "CAPA-03" ? ["alpha-aos-research-routing", "alpha-aos-memory-handoff"] : ["alpha-aos-research-routing"];
+    assert.deepEqual(runtime.ownedInstructionIds, expected);
+    assert.deepEqual(
+      runtime.declaredFiles.filter((file) => file.endsWith("SKILL.md")),
+      expected.map((id) => join(runtime.root, "codex", ".agents", "skills", id, "SKILL.md")),
+    );
+    for (const id of runtime.ownedInstructionIds) {
+      assert.ok(existsSync(join(runtime.root, "codex", ".agents", "skills", id, "SKILL.md")));
+    }
+  }
+});
+
 test("the serialized doctor discovery envelope has no cycle placeholder and keeps the canonical unit complete", async () => {
   const sweep = await runDiscoverySweep({
     projectRoot: process.cwd(),
@@ -3734,7 +3758,7 @@ test("the handoff canary is declared in the shipped catalog and names neither a 
   const declaration = await handoffDeclaration();
   assert.equal(declaration.capability, HANDOFF_CAPABILITY);
   assert.deepEqual([...declaration.expectTools], []);
-  assert.deepEqual([...declaration.harnesses], ["claude"], "only claude can host a canary runtime (plan 03-06)");
+  assert.deepEqual([...declaration.harnesses], ["claude", "codex"], "claude and codex can host canary runtimes (D-17, plan 03-21)");
   assert.equal(declaration.readOnly, true);
 
   // The prompt must read as an ordinary handover. The wider hygiene test already
@@ -3763,7 +3787,7 @@ test("a handoff run pairs the vault positive with the planning-tree negative int
     planningRoot,
     memoryRunner: vault.runner,
     resolveHarness: everyHarnessResolves,
-    harnessVersions: { claude: harnessMinorKey("2.1.267"), hermes: harnessMinorKey("0.20.6") },
+    harnessVersions: { codex: harnessMinorKey("0.152.0"), hermes: harnessMinorKey("0.20.6") },
     now: () => new Date("2026-09-11T00:00:00.000Z"),
   });
 
@@ -3771,7 +3795,7 @@ test("a handoff run pairs the vault positive with the planning-tree negative int
   // harnesses were involved is uninterpretable.
   assert.deepEqual(result.pair, HANDOFF_HARNESS_PAIRS[0], "the preferred declared pair should have been chosen");
   assert.equal(result.harnessVersions.source, "0.20.6");
-  assert.equal(result.harnessVersions.target, "2.1.267");
+  assert.equal(result.harnessVersions.target, "0.152.0");
 
   // The positive: increased by EXACTLY one against a baseline taken in this run,
   // and the filtered recall returned the sentinel.
@@ -3945,13 +3969,13 @@ test("the handoff report names both harnesses with their versions and states the
     planningRoot,
     memoryRunner: vault.runner,
     resolveHarness: everyHarnessResolves,
-    harnessVersions: { claude: harnessMinorKey("2.1.267"), hermes: harnessMinorKey("0.20.6") },
+    harnessVersions: { codex: harnessMinorKey("0.152.0"), hermes: harnessMinorKey("0.20.6") },
   });
 
   const lines = formatHandoffEvidence(result);
   const pairLine = lines.find((line) => line.startsWith("HANDOFF PAIR")) ?? "";
   assert.match(pairLine, /hermes 0\.20\.6/u, "the source harness and its exact version");
-  assert.match(pairLine, /claude 2\.1\.267/u, "the target harness and its exact version");
+  assert.match(pairLine, /codex 0\.152\.0/u, "the target harness and its exact version");
 
   const vaultLine = lines.find((line) => line.startsWith("HANDOFF VAULT")) ?? "";
   assert.match(vaultLine, /before 0, after 1/u);
@@ -4007,7 +4031,7 @@ test("an unavailable preferred pair falls back to the declared fallback, and the
     resolution.considered.map((entry) => [entry.pair.source, entry.sourceResolved]),
     [
       ["hermes", false],
-      ["codex", true],
+      ["pi", true],
     ],
     "every pair considered is recorded, so the choice is auditable rather than a guess",
   );
@@ -4021,18 +4045,18 @@ test("an unavailable preferred pair falls back to the declared fallback, and the
     planningRoot,
     memoryRunner: vault.runner,
     resolveHarness: withoutHermes,
-    harnessVersions: { claude: harnessMinorKey("2.1.267"), codex: harnessMinorKey("0.152.0") },
+    harnessVersions: { pi: harnessMinorKey("0.84.4"), codex: harnessMinorKey("0.152.0") },
   });
-  assert.equal(result.pair?.source, "codex");
+  assert.equal(result.pair?.source, "pi");
   assert.match(
     formatHandoffEvidence(result).find((line) => line.startsWith("HANDOFF PAIR")) ?? "",
-    /source codex 0\.152\.0, target claude 2\.1\.267/u,
+    /source pi 0\.84\.4, target codex 0\.152\.0/u,
   );
 
   // The rendering layer is where a green-looking result has relapsed before, so
   // the row is asserted directly rather than inferred from the result.
   const row = handoffRow(result, "supported");
-  assert.equal(row.harness, "claude", "the row's harness is the RECEIVING one");
+  assert.equal(row.harness, "codex", "the row's harness is the RECEIVING one");
   assert.equal(row.capability, `${HANDOFF_CAPABILITY} (${HANDOFF_CANARY_ID})`);
   assert.equal(row.completeness, "COMPLETE");
   assert.equal(row.axes.nativeUse, "discovered");
@@ -4043,6 +4067,13 @@ test("an unavailable preferred pair falls back to the declared fallback, and the
     true,
     "the scope limit must survive into the rendered report, not only the result object",
   );
+});
+
+test("handoff pair resolution preserves fallback to legacy Claude pairs when active non-Claude targets are unavailable", () => {
+  const onlyHermesAndClaude = (harness: LedgerHarness): string | null => (harness === "hermes" || harness === "claude" ? `/fake/${harness}` : null);
+  const resolution = resolveHandoffPair({ resolveHarness: onlyHermesAndClaude });
+  assert.deepEqual(resolution.pair, HANDOFF_HARNESS_PAIRS[3], "hermes -> claude legacy pair should be chosen when non-Claude pairs are unavailable");
+  assert.equal(resolution.pair?.target, "claude");
 });
 
 test("both handoff proofs survive the ledger write-then-read round trip", async (context) => {

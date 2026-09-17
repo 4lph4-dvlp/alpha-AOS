@@ -891,7 +891,7 @@ async function main(): Promise<void> {
           canaryRow(result, classifyAdapterSupport([result.harness]).at(0)?.support ?? "unverified"),
         ),
         ...sweep.handoffResults.map((result) =>
-          handoffRow(result, classifyAdapterSupport([result.pair?.target ?? "claude"]).at(0)?.support ?? "unverified"),
+          handoffRow(result, classifyAdapterSupport([result.pair?.target ?? "codex"]).at(0)?.support ?? "unverified"),
         ),
         ...sweep.skipped.map((entry) =>
           skippedCanaryRow(entry, classifyAdapterSupport([entry.selection.harness]).at(0)?.support ?? "unverified"),

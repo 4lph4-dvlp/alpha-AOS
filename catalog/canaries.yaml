@@ -136,6 +136,7 @@ canaries:
     requiresMcpServers: []
     harnesses:
       - claude
+      - codex
     readOnly: true
 
   - id: ORDINARY_LOOKUP_CONTROL

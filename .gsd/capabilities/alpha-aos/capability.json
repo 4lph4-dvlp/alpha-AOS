@@ -1,0 +1,55 @@
+{
+  "id": "alpha-aos",
+  "role": "feature",
+  "version": "0.1.0",
+  "title": "alpha-AOS Mandatory GSD Lifecycle Gates",
+  "description": "Enforces mandatory security, migration, and release gates at execute:post and verify:pre.",
+  "tier": "full",
+  "requires": [],
+  "engines": {
+    "gsd": ">=1.6.0"
+  },
+  "runtimeCompat": {
+    "supported": ["*"],
+    "unsupported": []
+  },
+  "skills": [],
+  "agents": [],
+  "steps": [],
+  "contributions": [],
+  "config": {
+    "workflow.alpha_aos_gates": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enforce mandatory alpha-AOS risk-based gates at GSD lifecycle checkpoints."
+    }
+  },
+  "gates": [
+    {
+      "point": "execute:post",
+      "check": {
+        "predicate": {
+          "kind": "command-exit-zero",
+          "command": "alpha-aos gate check --point execute:post",
+          "timeout": 60
+        }
+      },
+      "when": "workflow.alpha_aos_gates",
+      "blocking": true,
+      "onError": "halt"
+    },
+    {
+      "point": "verify:pre",
+      "check": {
+        "predicate": {
+          "kind": "command-exit-zero",
+          "command": "alpha-aos gate check --point verify:pre",
+          "timeout": 60
+        }
+      },
+      "when": "workflow.alpha_aos_gates",
+      "blocking": true,
+      "onError": "halt"
+    }
+  ]
+}

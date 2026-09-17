@@ -94,7 +94,23 @@ import { createPathAliases } from "./core/paths.js";
 import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
 import { applySupportBundle, collectSupportSources, planSupportBundleOperation } from "./core/support-bundle.js";
 import { applyBootstrapOperation, createBootstrapOperationPlan, type BootstrapKind } from "./core/bootstrap.js";
-import type { HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext } from "./types.js";
+import { existsSync, readFileSync } from "node:fs";
+import {
+  evaluateRiskObligations,
+  executeGateCheck,
+  resolvePhaseGitDiff,
+  selectGateEngine,
+} from "./core/gate.js";
+import {
+  computeRiskSurfaceDigest,
+  createGateReceipt,
+  writeGateReceipt,
+} from "./core/gate-receipt.js";
+import {
+  evaluateLifecycleGates,
+  formatGateBlockingFeedback,
+} from "./core/gate-lifecycle.js";
+import type { GateObligationType, HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext } from "./types.js";
 
 const HELP = `alpha-aos
 
@@ -125,6 +141,8 @@ Usage:
   alpha-aos fixture ecc <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
   alpha-aos fixture mcp <context7|exa|firecrawl> <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]
   alpha-aos gsd compat codex [--apply] [--json]
+  alpha-aos gate check [--point <execute:post|verify:pre>] [--phase <number>] [--obligation <name>] [--base <ref>] [--json]
+  alpha-aos gate status [--base <ref>] [--strict] [--json]
   alpha-aos rollback [operation-id] [--apply] [--json]
   alpha-aos repair [--apply] [--json]
   alpha-aos support-bundle [--out <path>] [--apply] [--json]
@@ -1291,6 +1309,137 @@ async function main(): Promise<void> {
       print(result, json, `Rolled back ${result.id}: ${result.files.length} file(s).`);
     }
     return;
+  }
+
+  if (command === "gate") {
+    const subcommand = args[1] ?? "";
+    if (subcommand !== "check" && subcommand !== "status") {
+      throw new Error("Usage: alpha-aos gate check|status [options]");
+    }
+
+    const valueFlags = ["--point", "--phase", "--obligation", "--base", "--project"];
+    const target = targetPath(args, 2, valueFlags);
+    const projectRoot = optionValue(args, "--project") ?? target;
+    const explicitBase = optionValue(args, "--base") ?? undefined;
+
+    if (subcommand === "check") {
+      const obligationFlag = optionValue(args, "--obligation") as GateObligationType | null;
+
+      let evalResult = await evaluateLifecycleGates(
+        projectRoot,
+        explicitBase !== undefined ? { explicitBase } : undefined
+      );
+
+      // Determine if we need to run check engines
+      let obligationsToRun: GateObligationType[] = [];
+      if (obligationFlag !== null) {
+        obligationsToRun = [obligationFlag];
+      } else if (!evalResult.silentPass) {
+        obligationsToRun = evalResult.verdicts
+          .filter((v) => v.status !== "passed")
+          .map((v) => v.obligation);
+      }
+
+      if (obligationsToRun.length > 0) {
+        let packageJsonScripts: Record<string, string> | undefined = undefined;
+        const pkgJsonPath = join(projectRoot, "package.json");
+        if (existsSync(pkgJsonPath)) {
+          try {
+            const pkg = JSON.parse(readFileSync(pkgJsonPath, "utf8")) as { scripts?: Record<string, string> };
+            if (pkg.scripts && typeof pkg.scripts === "object") {
+              packageJsonScripts = pkg.scripts;
+            }
+          } catch {
+            // Ignore package.json read/parse failures
+          }
+        }
+
+        const diffRange = await resolvePhaseGitDiff(
+          projectRoot,
+          explicitBase !== undefined ? { explicitBase } : undefined
+        );
+        const obligationResult = evaluateRiskObligations(diffRange);
+        const workingTreeDigest = await computeRiskSurfaceDigest(projectRoot, obligationResult.riskFiles);
+
+        for (const obligation of obligationsToRun) {
+          const engineSelection = selectGateEngine(obligation, projectRoot, packageJsonScripts);
+          const executionResult = await executeGateCheck(engineSelection, projectRoot);
+          const evidenceHash = createHash("sha256")
+            .update(`${diffRange.headCommit}:${workingTreeDigest}:${obligation}`)
+            .digest("hex");
+          const receipt = createGateReceipt({
+            obligation,
+            engineSelection,
+            executionResult,
+            targetCommitSha: diffRange.headCommit,
+            workingTreeDigest,
+            evidenceHash,
+          });
+          await writeGateReceipt(projectRoot, receipt);
+        }
+
+        evalResult = await evaluateLifecycleGates(
+          projectRoot,
+          explicitBase !== undefined ? { explicitBase } : undefined
+        );
+      }
+
+      if (evalResult.passed) {
+        const msg = evalResult.silentPass
+          ? "✔ Mandatory gates passed (silent pass - no risk surfaces modified)"
+          : `✔ Mandatory gates passed [${evalResult.verdicts.map((v) => `${v.obligation}: ${v.status}`).join(", ")}]`;
+        print({ ok: true, passed: true, silentPass: evalResult.silentPass, verdicts: evalResult.verdicts }, json, msg);
+        return;
+      }
+
+      if (json) {
+        print(
+          {
+            ok: false,
+            passed: false,
+            silentPass: false,
+            verdicts: evalResult.verdicts,
+            blockingFeedback: evalResult.blockingFeedback,
+          },
+          true,
+          ""
+        );
+      } else {
+        process.stderr.write(`${evalResult.blockingFeedback ?? "Mandatory gate check blocked."}\n`);
+      }
+      process.exitCode = 2;
+      return;
+    }
+
+    if (subcommand === "status") {
+      const evalResult = await evaluateLifecycleGates(
+        projectRoot,
+        explicitBase !== undefined ? { explicitBase } : undefined
+      );
+
+      if (json) {
+        print({ ok: evalResult.passed, passed: evalResult.passed, silentPass: evalResult.silentPass, verdicts: evalResult.verdicts }, true, "");
+      } else {
+        if (evalResult.silentPass) {
+          print(evalResult, false, "Gate Status: Silent Pass (Low-risk changes, no mandatory gates triggered)");
+        } else {
+          const lines = [
+            `Mandatory GSD Gates Status (${evalResult.passed ? "PASSED" : "BLOCKED"}):`,
+            ...evalResult.verdicts.map((v) => {
+              const engine = v.receipt?.engine.id ?? "none";
+              const staleness = v.stalenessReason ? ` (${v.stalenessReason})` : "";
+              return `  - ${v.obligation}: ${v.status.toUpperCase()}${staleness} [engine: ${engine}]`;
+            }),
+          ];
+          print(evalResult, false, lines.join("\n"));
+        }
+      }
+
+      if (hasFlag(args, "--strict") && !evalResult.passed) {
+        process.exitCode = 2;
+      }
+      return;
+    }
   }
 
   throw new Error(`Unknown command: ${command}\n\n${HELP}`);

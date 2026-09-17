@@ -197,7 +197,7 @@ export function compileGlob(pattern: string): RegExp {
 
 export async function resolvePhaseGitDiff(
   projectRoot: string,
-  options?: { explicitBase?: string }
+  options?: { explicitBase?: string | undefined }
 ): Promise<GitDiffRange> {
   const gitExec = resolveCommand("git");
   if (!gitExec) {

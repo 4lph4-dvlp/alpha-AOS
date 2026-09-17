@@ -49,7 +49,7 @@
 - [x] **GATE-02**: User receives exactly one selected native or ECC check engine for each mandatory obligation, without duplicate reviews of the same concern
 - [x] **GATE-03**: User cannot advance the protected GSD lifecycle point when mandatory evidence is missing, failed, unsupported, unverified, or stale for the current project revision
 - [x] **GATE-04**: User performing unrelated low-risk work does not receive an unnecessary mandatory security, migration, or release gate
-- [ ] **GATE-05**: User can employ supported harnesses as workers while exactly one active GSD controller owns `.planning/` transitions and Hermes remains unable to become a GSD state writer
+- [x] **GATE-05**: User can employ supported harnesses as workers while exactly one active GSD controller owns `.planning/` transitions and Hermes remains unable to become a GSD state writer
 
 ### Directory Opt-Out and Configuration Isolation
 
@@ -152,7 +152,7 @@
 | GATE-02 | Phase 4 | Complete |
 | GATE-03 | Phase 4 | Complete |
 | GATE-04 | Phase 4 | Complete |
-| GATE-05 | Phase 4 | Pending |
+| GATE-05 | Phase 4 | Complete |
 | OPTO-01 | Phase 5 | Pending |
 | OPTO-02 | Phase 5 | Pending |
 | OPTO-03 | Phase 5 | Pending |

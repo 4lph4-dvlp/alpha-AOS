@@ -21,7 +21,7 @@
     {
       "number": "4",
       "name": "Mandatory GSD Gates",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "5",
@@ -40,9 +40,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 4 of 7 · 43% · executing"
+    "command": "/gsd-verify-work 4",
+    "label": "Verify Phase 4 implementation",
+    "reason": "Phase 4 of 7 · 43% · ready for verification"
   },
-  "updated_at": "2026-09-17T14:31:00.000Z"
+  "updated_at": "2026-09-17T14:41:00.000Z"
 }

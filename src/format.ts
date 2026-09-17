@@ -8,6 +8,7 @@ import type {
   StackLock,
   TreePreviewReport,
   TreeRegistryEntry,
+  TreeSurfaceInspection,
 } from "./types.js";
 import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
 import {
@@ -796,3 +797,72 @@ export function formatTreePreview(report: TreePreviewReport): string {
 
   return lines.join("\n");
 }
+
+export function formatTreeInspection(inspection: TreeSurfaceInspection): string {
+  const lines: string[] = [
+    "alpha-AOS Directory Tree Surface Inspection",
+    "===========================================",
+    "",
+    "1. Policy & Hierarchy:",
+    `   Target Path:          ${inspection.targetPath}`,
+    `   Canonical Path:       ${inspection.canonicalPath}`,
+    `   Effective Mode:       ${inspection.effectivePolicy.effectiveMode.toUpperCase()}`,
+    `   Inherited:            ${inspection.effectivePolicy.inherited ? `yes (depth: ${inspection.effectivePolicy.depth})` : "no (direct)"}`,
+    `   Matched Ancestor:     ${inspection.effectivePolicy.entry?.path ?? "(none)"}`,
+    "",
+    "2. Isolated Configuration Root:",
+    `   Path:                 ${inspection.isolatedConfigRoot ?? "(none — not in off mode)"}`,
+    "",
+    "3. Excluded Global Resources (Preload Exclusion):",
+    `   Skills:               ${inspection.excludedGlobalResources.skills ? "EXCLUDED" : "ACTIVE"}`,
+    `   MCP Servers:          ${inspection.excludedGlobalResources.mcp ? "EXCLUDED" : "ACTIVE"}`,
+    `   Hooks:                ${inspection.excludedGlobalResources.hooks ? "EXCLUDED" : "ACTIVE"}`,
+    `   Instructions:         ${inspection.excludedGlobalResources.instructions ? "EXCLUDED" : "ACTIVE"}`,
+    `   Unified Memory:       ${inspection.excludedGlobalResources.memory ? "EXCLUDED" : "ACTIVE"}`,
+    "",
+    "4. Discovered Project-Local Resources (Zero-Intervention Passthrough):",
+  ];
+
+  if (inspection.localResources.isVanilla) {
+    lines.push("   Status:               Vanilla (no project-local resources discovered)");
+  } else {
+    lines.push(
+      `   Skills (.agents/):    ${inspection.localResources.skills.length > 0 ? inspection.localResources.skills.join(", ") : "(none)"}`,
+      `   MCP Config:           ${inspection.localResources.mcpConfig ?? "(none)"}`,
+      `   Codex Config:         ${inspection.localResources.codexConfig ?? "(none)"}`,
+      `   Instructions:         ${inspection.localResources.instructions.length > 0 ? inspection.localResources.instructions.join(", ") : "(none)"}`,
+      `   Local Hooks:          ${inspection.localResources.hooks.length > 0 ? inspection.localResources.hooks.join(", ") : "(none)"}`,
+    );
+  }
+
+  lines.push(
+    "",
+    "5. Environment Allowlist Status:",
+    `   Passed AI Auth Keys:  ${inspection.environmentStatus.passedAiAuthKeys.length > 0 ? inspection.environmentStatus.passedAiAuthKeys.join(", ") : "(none detected)"}`,
+    `   Passed Runtime Keys:  ${inspection.environmentStatus.passedRuntimeKeys.length} keys`,
+    `   Scrubbed Ambient Keys: ${inspection.environmentStatus.scrubbedKeys.length} keys scrubbed`,
+    "",
+    "6. Harness Support & Isolation Proof:",
+    `   Harness:              ${inspection.harnessSupport.harness}`,
+    `   Provable Isolation:   ${inspection.harnessSupport.provable ? "YES (provable)" : "NO (unprovable / unsupported)"}`,
+    `   Status:               ${inspection.harnessSupport.status.toUpperCase()}`,
+  );
+
+  if (inspection.harnessSupport.reason) {
+    lines.push(`   Reason:               ${inspection.harnessSupport.reason}`);
+  }
+
+  lines.push(
+    "",
+    "7. Pre-Launch Enforcement:",
+    `   Method:               ${inspection.preLaunchEnforcement.method}`,
+    `   PATH Shim Precedence: ${inspection.preLaunchEnforcement.shimPrecedenceOk ? "OK (first on PATH)" : "WARNING (preceded by other directories)"}`,
+    "",
+    "8. Security Boundary Notice:",
+    `   Notice:               ${inspection.boundaryNotice.description}`,
+    `   Sealed Container:     ${inspection.boundaryNotice.sealedModeSupported ? "Supported" : "NOT SUPPORTED (sealed mode requires container boundary, fails closed)"}`,
+  );
+
+  return lines.join("\n");
+}
+

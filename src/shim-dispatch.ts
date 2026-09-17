@@ -9,6 +9,7 @@ import {
   loadTreeRegistry,
   resolveEffectivePolicy,
 } from "./core/tree-policy.js";
+import { scrubEnvironmentForOffTree } from "./core/process.js";
 
 async function main(): Promise<void> {
   const command = process.argv[2];
@@ -67,15 +68,15 @@ async function main(): Promise<void> {
     }
 
     const launchArgs = [...exclusion.args, ...rawArgs];
-    const launchEnv = {
-      ...process.env,
+    const scrubbed = scrubEnvironmentForOffTree(process.env, {
       ...isolation.env,
-    };
+      ...exclusion.env,
+    });
 
     const child = spawn(upstream.executable, launchArgs, {
       stdio: "inherit",
       shell: false,
-      env: launchEnv,
+      env: scrubbed.env,
     });
 
     child.on("exit", (code) => {

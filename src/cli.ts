@@ -82,7 +82,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
 import {
   classifyGitRootOrFallback,
   findEnclosingGitRoot,
@@ -91,6 +91,7 @@ import {
   removeTreePolicy,
   setTreePolicy,
 } from "./core/tree-policy.js";
+import { assertSealedModeRefusal, inspectTreeSurface } from "./core/surface-inspector.js";
 import {
   createRedactionContext,
   describeOverBudgetEnvelope,
@@ -160,6 +161,7 @@ Usage:
   alpha-aos tree preview [path] [--harness <id>] [--json]
   alpha-aos tree remove <path> [--json]
   alpha-aos tree classify [path] [--json]
+  alpha-aos tree inspect [path] [--harness <id>] [--mode <managed|off|sealed>] [--json]
 
 Mutation commands are dry-run by default. Live apply and rollback are enabled only
 after the fixture transaction gate passes.
@@ -1458,7 +1460,7 @@ async function main(): Promise<void> {
   if (command === "tree") {
     const subcommand = args[1];
     if (!subcommand) {
-      throw new Error(`alpha-aos tree requires a subcommand: set, list, preview, remove, classify\n\n${HELP}`);
+      throw new Error(`alpha-aos tree requires a subcommand: set, list, preview, remove, classify, inspect\n\n${HELP}`);
     }
 
     if (subcommand === "set") {
@@ -1530,6 +1532,37 @@ async function main(): Promise<void> {
         print({ ok: true, classification: result }, true, "");
       } else {
         print(result, false, `Classified git repository: ${result.gitRoot} -> ${result.mode} (persisted: ${result.persisted}, reason: ${result.reason})`);
+      }
+      return;
+    }
+
+    if (subcommand === "inspect") {
+      const pos = positional(args.slice(2), ["--harness", "--mode"]);
+      const target = pos[0] ?? process.cwd();
+      const mode = optionValue(args, "--mode");
+      if (mode === "sealed") {
+        try {
+          assertSealedModeRefusal("sealed");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          process.stderr.write(`${msg}\n`);
+          process.exitCode = 2;
+          return;
+        }
+      }
+
+      const harnessRaw = optionValue(args, "--harness");
+      const harness = harnessRaw !== null ? (harnessRaw as HarnessId) : "codex";
+      const inspection = await inspectTreeSurface(target, { harness });
+
+      if (json) {
+        print({ ok: inspection.harnessSupport.provable, inspection }, true, "");
+      } else {
+        print(inspection, false, formatTreeInspection(inspection));
+      }
+
+      if (!inspection.harnessSupport.provable) {
+        process.exitCode = 2;
       }
       return;
     }

@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, extname, isAbsolute, join } from "node:path";
-import type { RedactedExcerpt, RedactionContext } from "../types.js";
+import type { RedactedExcerpt, RedactionContext, ScrubbedEnvironmentResult } from "../types.js";
 import { createRedactedExcerpt, createRedactionContext } from "./redaction.js";
 
 /**
@@ -127,6 +127,101 @@ export function platformFloorEnvironment(platform: NodeJS.Platform): readonly st
 }
 
 export const PLATFORM_FLOOR_ENVIRONMENT: readonly string[] = platformFloorEnvironment(process.platform);
+
+export const REVIEWED_RUNTIME_ALLOWLIST: ReadonlySet<string> = new Set([
+  ...PLATFORM_FLOOR_ENVIRONMENT.map((v) => v.toUpperCase()),
+  "PATH",
+  "PATHEXT",
+  "COMSPEC",
+  "SHELL",
+  "HOME",
+  "USERPROFILE",
+  "USER",
+  "USERNAME",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "SYSTEMROOT",
+  "SYSTEMDRIVE",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TZ",
+  "TERM",
+  "TERM_PROGRAM",
+  "COLORTERM",
+  "EDITOR",
+  "VISUAL",
+  "NODE_EXTRA_CA_CERTS",
+  "SSL_CERT_FILE",
+  "SSL_CERT_DIR",
+]);
+
+export const AI_AUTH_PREFIXES: readonly string[] = [
+  "OPENAI_",
+  "ANTHROPIC_",
+  "GEMINI_",
+  "GOOGLE_",
+  "AZURE_OPENAI_",
+  "COPILOT_",
+  "GH_COPILOT_",
+  "GITHUB_",
+  "OPENROUTER_",
+  "TOGETHER_",
+  "GROQ_",
+  "MISTRAL_",
+  "DEEPSEEK_",
+];
+
+/**
+ * Scrubs subprocess environment variables for off trees against the reviewed allowlist (D-14, OPTO-07).
+ * Allows essential OS runtime variables and recognized AI provider auth credentials,
+ * while stripping ambient secrets (database, AWS, Stripe, tokens) and internal ALPHA_AOS_* variables.
+ */
+export function scrubEnvironmentForOffTree(
+  sourceEnv: NodeJS.ProcessEnv = process.env,
+  injectedEnv: Record<string, string> = {},
+): ScrubbedEnvironmentResult {
+  const cleanEnv: Record<string, string> = {};
+  const scrubbedKeys: string[] = [];
+  const passedRuntimeKeys: string[] = [];
+  const passedAiAuthKeys: string[] = [];
+
+  for (const [key, value] of Object.entries(sourceEnv)) {
+    if (value === undefined) continue;
+    const upper = key.toUpperCase();
+
+    if (upper.startsWith("ALPHA_AOS_") && upper !== "ALPHA_AOS_DEFAULT_MODE") {
+      scrubbedKeys.push(key);
+      continue;
+    }
+
+    if (REVIEWED_RUNTIME_ALLOWLIST.has(upper)) {
+      cleanEnv[key] = value;
+      passedRuntimeKeys.push(key);
+      continue;
+    }
+
+    if (AI_AUTH_PREFIXES.some((prefix) => upper.startsWith(prefix))) {
+      cleanEnv[key] = value;
+      passedAiAuthKeys.push(key);
+      continue;
+    }
+
+    scrubbedKeys.push(key);
+  }
+
+  for (const [key, value] of Object.entries(injectedEnv)) {
+    cleanEnv[key] = value;
+  }
+
+  return {
+    env: cleanEnv,
+    scrubbedKeys,
+    passedRuntimeKeys,
+    passedAiAuthKeys,
+  };
+}
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;

@@ -806,3 +806,52 @@ export interface TreePreviewReport {
   readonly launchFlags: readonly string[];
   readonly isolatedConfigRoot: string | null;
 }
+
+export interface ScrubbedEnvironmentResult {
+  readonly env: Record<string, string>;
+  readonly scrubbedKeys: readonly string[];
+  readonly passedRuntimeKeys: readonly string[];
+  readonly passedAiAuthKeys: readonly string[];
+}
+
+export interface LocalProjectResources {
+  readonly projectRoot: string;
+  readonly skills: readonly string[];
+  readonly mcpConfig: string | null;
+  readonly codexConfig: string | null;
+  readonly instructions: readonly string[];
+  readonly hooks: readonly string[];
+  readonly isVanilla: boolean;
+}
+
+export interface TreeSurfaceInspection {
+  readonly targetPath: string;
+  readonly canonicalPath: string;
+  readonly effectivePolicy: EffectiveTreePolicy;
+  readonly isolatedConfigRoot: string | null;
+  readonly excludedGlobalResources: {
+    readonly skills: boolean;
+    readonly mcp: boolean;
+    readonly hooks: boolean;
+    readonly instructions: boolean;
+    readonly memory: boolean;
+  };
+  readonly localResources: LocalProjectResources;
+  readonly environmentStatus: ScrubbedEnvironmentResult;
+  readonly harnessSupport: {
+    readonly harness: HarnessId;
+    readonly provable: boolean;
+    readonly status: "ok" | "unsupported";
+    readonly reason?: string;
+  };
+  readonly preLaunchEnforcement: {
+    readonly method: "transparent-path-shim";
+    readonly shimPrecedenceOk: boolean;
+  };
+  readonly boundaryNotice: {
+    readonly kind: "configuration-isolation";
+    readonly description: string;
+    readonly sealedModeSupported: false;
+  };
+}
+

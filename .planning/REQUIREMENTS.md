@@ -154,10 +154,10 @@
 | GATE-04 | Phase 4 | Complete |
 | GATE-05 | Phase 4 | Complete |
 | OPTO-01 | Phase 5 | Complete |
-| OPTO-02 | Phase 5 | Pending |
+| OPTO-02 | Phase 5 | Complete |
 | OPTO-03 | Phase 5 | Pending |
 | OPTO-04 | Phase 5 | Pending |
-| OPTO-05 | Phase 5 | Pending |
+| OPTO-05 | Phase 5 | Complete |
 | OPTO-06 | Phase 5 | Pending |
 | OPTO-07 | Phase 5 | Pending |
 | OPTO-08 | Phase 5 | Pending |

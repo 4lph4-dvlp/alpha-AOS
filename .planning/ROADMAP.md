@@ -385,7 +385,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1)*
 
-- [ ] 05-02-PLAN.md — Transparent CLI Shims, Sub-Millisecond Dispatch, Preload Exclusion & Fail-Closed Guardrails (OPTO-02, OPTO-05, OPTO-08)
+- [x] 05-02-PLAN.md — Transparent CLI Shims, Sub-Millisecond Dispatch, Preload Exclusion & Fail-Closed Guardrails (OPTO-02, OPTO-05, OPTO-08)
 
 **Wave 3** *(blocked on Wave 2)*
 

@@ -1,5 +1,5 @@
 import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
-import type { CapabilityReportRow, HandoffCanaryResult } from "./core/canary.js";
+import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
 import {
   approvalCommand,
   describeLeaf,
@@ -616,15 +616,16 @@ export function formatCapabilityReport(
   rows: readonly CapabilityReportRow[],
   notes: readonly string[] = [],
 ): string {
+  const sortedRows = sortCapabilityReportRows(rows);
   const lines = [title];
-  if (rows.length === 0) {
+  if (sortedRows.length === 0) {
     lines.push("", "No capability was reported: nothing was selected to run.");
   } else {
     lines.push(
       "",
       table(
         ["EVIDENCE", "CAPABILITY", "HARNESS", "DEPLOYMENT", "SUPPORT", "NATIVE USE", "DETAIL"],
-        rows.map((row) => [
+        sortedRows.map((row) => [
           row.completeness ?? "-",
           row.capability,
           row.harness,
@@ -643,7 +644,7 @@ export function formatCapabilityReport(
   // The upper-code-plus-reason convention `formatProjectStatus` already uses: a
   // blocked axis gets its own line naming the code and the variable, so it is
   // greppable and never merged into a table cell that a width bound can cut.
-  for (const row of rows) {
+  for (const row of sortedRows) {
     const blocked = row.blockedReason;
     if (blocked !== null) {
       lines.push(`BLOCKED ${blocked.code} ${blocked.variable} — ${blocked.nextAction}`);

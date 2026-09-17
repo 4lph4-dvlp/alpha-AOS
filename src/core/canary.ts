@@ -3830,3 +3830,24 @@ export function skippedCanaryRow(entry: SkippedCanary, support: SurfaceSupport):
     claimNotes: [],
   };
 }
+
+/** Code-point string comparison helper for platform-independent deterministic sorting. */
+export function byCodePoint(left: string, right: string): number {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+}
+
+/**
+ * Sorts capability report rows deterministically: first by capability ascending,
+ * then by harness ID ascending using code-point comparison.
+ *
+ * Ensures rendering order is never dependent on async completion order,
+ * Map/Set iteration order, or caller array order (Plan 03-19).
+ */
+export function sortCapabilityReportRows(rows: readonly CapabilityReportRow[]): CapabilityReportRow[] {
+  return [...rows].sort(
+    (left, right) => byCodePoint(left.capability, right.capability) || byCodePoint(left.harness, right.harness),
+  );
+}
+

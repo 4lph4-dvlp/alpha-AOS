@@ -779,3 +779,44 @@ test("a proof for a harness that printed no version line survives the write-then
   const refused = await readCapabilityLedger(poisoned.path);
   assert.equal(refused.state, "unreadable", "a non-semver exact version was accepted");
 });
+
+test("multiple active non-Claude proofs stored in the ledger round-trip and retain their distinct harness entries without clobbering", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  const codexProof: CapabilityProof = {
+    ...VALID_POSITIVE,
+    harness: "codex",
+    harnessVersion: { exact: "0.152.0", minorKey: "0.152", raw: "0.152.0" },
+  };
+
+  const piProof: CapabilityProof = {
+    ...VALID_POSITIVE,
+    harness: "pi",
+    harnessVersion: { exact: "0.84.4", minorKey: "0.84", raw: "0.84.4" },
+  };
+
+  const hermesProof: CapabilityProof = {
+    ...VALID_POSITIVE,
+    harness: "hermes",
+    harnessVersion: { exact: "1.0.0", minorKey: "1.0", raw: "1.0.0" },
+  };
+
+  const written = await writeCapabilityLedger({
+    stateRoot,
+    ledger: {
+      ...VALID_LEDGER,
+      proofs: [codexProof, piProof, hermesProof],
+    },
+  });
+  assert.equal(written.status, "written");
+
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(read.state, "present");
+  if (read.state === "present") {
+    assert.equal(read.ledger.proofs.length, 3);
+    const harnesses = read.ledger.proofs.map((p) => p.harness);
+    assert.deepEqual(harnesses, ["codex", "pi", "hermes"]);
+  }
+});
+

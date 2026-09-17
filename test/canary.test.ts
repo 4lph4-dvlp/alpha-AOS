@@ -83,6 +83,7 @@ import {
   runDiscoverySweep,
   selectCanaries,
   selfNamedTerms,
+  sortCapabilityReportRows,
   type CanaryCatalog,
   type CanaryDeclaration,
   type CanaryRunResult,
@@ -4081,3 +4082,51 @@ test("a no-spend sweep records every spending leg unverified with its reason, an
     );
   }
 });
+
+test("offline equal-strength documentation proofs render in stable, byte-identical harness-id ascending order across active non-Claude surfaces (03-08 backstop / G-03-4)", () => {
+  const codexRow: CapabilityReportRow = {
+    capability: "CAPA-01 (DOCUMENTATION_VERSION_SCOPED)",
+    harness: "codex",
+    completeness: "COMPLETE",
+    axes: { deployment: null, support: "supported", nativeUse: "invoked" },
+    axisNotes: { deployment: "deployed in project", nativeUse: "observed Context7 routing" },
+    blockedReason: null,
+    notRunReason: null,
+    incompleteReasons: [],
+    claimNotes: [],
+  };
+
+  const piRow: CapabilityReportRow = {
+    ...codexRow,
+    harness: "pi",
+  };
+
+  const hermesRow: CapabilityReportRow = {
+    ...codexRow,
+    harness: "hermes",
+  };
+
+  // Test Case 1: Permuted input orders to formatCapabilityReport produce byte-identical output
+  const orderA = [codexRow, piRow, hermesRow];
+  const orderB = [piRow, hermesRow, codexRow];
+  const orderC = [hermesRow, codexRow, piRow];
+
+  const renderedA = formatCapabilityReport("Equal Strength Proofs", orderA, []);
+  const renderedB = formatCapabilityReport("Equal Strength Proofs", orderB, []);
+  const renderedC = formatCapabilityReport("Equal Strength Proofs", orderC, []);
+
+  assert.equal(renderedA, renderedB, "reversed/rotated rows must render byte-identically");
+  assert.equal(renderedB, renderedC, "arbitrary input permutations must render byte-identically");
+
+  // Test Case 2: Ensure order is strictly harness-id ascending: codex < hermes < pi
+  const lines = renderedA.split("\n").filter((line) => line.includes("CAPA-01"));
+  assert.equal(lines.length, 3, "expected 3 table rows for the 3 active non-Claude harnesses");
+  assert.ok(lines[0]!.includes("codex"), "codex must appear first (lexicographically smallest)");
+  assert.ok(lines[1]!.includes("hermes"), "hermes must appear second");
+  assert.ok(lines[2]!.includes("pi"), "pi must appear third (lexicographically largest)");
+
+  // Test Case 3: sortCapabilityReportRows direct helper verification
+  const sorted = sortCapabilityReportRows([piRow, codexRow]);
+  assert.deepEqual(sorted.map((r) => r.harness), ["codex", "pi"]);
+});
+

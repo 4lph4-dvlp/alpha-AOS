@@ -46,7 +46,7 @@
 ### Mandatory GSD Gates
 
 - [x] **GATE-01**: User changing an authentication boundary, database migration, or release-sensitive surface receives the matching mandatory GSD gate from deterministic risk evidence
-- [ ] **GATE-02**: User receives exactly one selected native or ECC check engine for each mandatory obligation, without duplicate reviews of the same concern
+- [x] **GATE-02**: User receives exactly one selected native or ECC check engine for each mandatory obligation, without duplicate reviews of the same concern
 - [ ] **GATE-03**: User cannot advance the protected GSD lifecycle point when mandatory evidence is missing, failed, unsupported, unverified, or stale for the current project revision
 - [x] **GATE-04**: User performing unrelated low-risk work does not receive an unnecessary mandatory security, migration, or release gate
 - [ ] **GATE-05**: User can employ supported harnesses as workers while exactly one active GSD controller owns `.planning/` transitions and Hermes remains unable to become a GSD state writer
@@ -149,7 +149,7 @@
 | CAPA-07 | Phase 3 | Complete |
 | CAPA-08 | Phase 3 | Complete |
 | GATE-01 | Phase 4 | Complete |
-| GATE-02 | Phase 4 | Pending |
+| GATE-02 | Phase 4 | Complete |
 | GATE-03 | Phase 4 | Pending |
 | GATE-04 | Phase 4 | Complete |
 | GATE-05 | Phase 4 | Pending |

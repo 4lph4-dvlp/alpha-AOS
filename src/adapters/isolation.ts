@@ -1,7 +1,12 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { resolveCommand } from "../core/process.js";
-import type { HarnessId, IsolationLaunchSpec, ProjectIsolationPolicy } from "../types.js";
+import type {
+  HarnessId,
+  HarnessPreloadExclusion,
+  IsolationLaunchSpec,
+  ProjectIsolationPolicy,
+} from "../types.js";
 
 const commands: Record<HarnessId, string[]> = {
   claude: ["claude"],
@@ -201,4 +206,66 @@ export function createIsolationLaunchSpec(options: {
     warnings,
     blockedReasons,
   };
+}
+
+/**
+ * Returns harness-specific preload exclusion arguments and environment variables
+ * to isolate an off tree, or reports unprovable support (D-06, D-08, OPTO-05, OPTO-08).
+ */
+export function getHarnessPreloadExclusion(
+  harness: HarnessId,
+  isolatedRoot: string,
+  options?: { surface?: "cli" | "gui" | undefined },
+): HarnessPreloadExclusion {
+  switch (harness) {
+    case "codex":
+      return {
+        args: ["--strict-config", "--ignore-user-config", "--ignore-rules"],
+        env: { CODEX_HOME: join(isolatedRoot, "codex") },
+        provable: true,
+      };
+    case "pi":
+      return {
+        args: ["--no-skills", "--no-extensions", "--no-prompt-templates", "--no-themes"],
+        env: { PI_CODING_AGENT_DIR: join(isolatedRoot, "pi") },
+        provable: true,
+      };
+    case "hermes":
+      return {
+        args: ["chat", "--ignore-user-config", "--ignore-rules"],
+        env: { HERMES_HOME: join(isolatedRoot, "hermes") },
+        provable: true,
+      };
+    case "antigravity":
+      if (options?.surface === "gui") {
+        return {
+          args: [],
+          env: {},
+          provable: false,
+          unsupportedReason:
+            "Antigravity IDE/GUI desktop launches do not support pre-launch preload exclusion interception (D-06). Use CLI 'agy' or see 'alpha-aos tree inspect'.",
+        };
+      }
+      return {
+        args: [],
+        env: {
+          HOME: join(isolatedRoot, "antigravity", "home"),
+          USERPROFILE: join(isolatedRoot, "antigravity", "home"),
+        },
+        provable: true,
+      };
+    case "claude":
+      return {
+        args: ["--setting-sources", "project,local", "--strict-mcp-config"],
+        env: { CLAUDE_CONFIG_DIR: join(isolatedRoot, "claude") },
+        provable: true,
+      };
+    default:
+      return {
+        args: [],
+        env: {},
+        provable: false,
+        unsupportedReason: `Unsupported or unprovable preload isolation for harness '${harness}'`,
+      };
+  }
 }

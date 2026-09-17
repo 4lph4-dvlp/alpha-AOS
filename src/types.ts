@@ -766,3 +766,22 @@ export interface EffectiveTreePolicy {
   readonly targetPath: string;
   readonly canonicalPath: string;
 }
+
+export interface HarnessPreloadExclusion {
+  readonly args: readonly string[];
+  readonly env: Readonly<Record<string, string>>;
+  readonly provable: boolean;
+  readonly unsupportedReason?: string;
+}
+
+export interface ShimGenerationResult {
+  readonly shimsDir: string;
+  readonly createdShims: readonly string[];
+  readonly commands: readonly string[];
+}
+
+export interface UpstreamBinaryResolution {
+  readonly executable: string;
+  readonly isDirectScript: boolean;
+  readonly scriptPath?: string;
+}

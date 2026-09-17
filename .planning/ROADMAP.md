@@ -339,7 +339,7 @@ Plans:
   4. Unrelated low-risk work completes without an unnecessary mandatory security, migration, or release gate.
   5. Supported harnesses can participate as workers while exactly one active GSD controller performs `.planning/` transitions and Hermes cannot become a GSD state writer.
 
-**Plans**: 2/4 plans executed
+**Plans**: 3/4 plans executed
 
 Plans:
 
@@ -353,7 +353,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 04-03-PLAN.md — GSD capability overlay, lifecycle predicate gates & CLI surface (GATE-03)
+- [x] 04-03-PLAN.md — GSD capability overlay, lifecycle predicate gates & CLI surface (GATE-03)
 
 **Wave 4** *(blocked on Wave 3)*
 
@@ -420,7 +420,7 @@ Plans:
 | 1. Safe Operation Boundary | 27/27 | Complete    | 2026-09-07 |
 | 2. Evidence-Bound Project Planning | 16/16 | Complete    | 2026-09-09 |
 | 3. Transactional Project Packs and Native Optional Use | 18/18 | In Progress|  |
-| 4. Mandatory GSD Gates | 2/4 | In Progress|  |
+| 4. Mandatory GSD Gates | 3/4 | In Progress|  |
 | 5. Persistent Tree-Off Preload Isolation | 0/TBD | Not started | - |
 | 6. Managed Lifecycle, Uninstall, and Recovery | 0/TBD | Not started | - |
 | 7. Cross-Platform Release Proof | 0/TBD | Not started | - |

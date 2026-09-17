@@ -60,7 +60,7 @@ policy:
   mutationDefault: dry-run
   requireSnapshot: true
   requireCanary: true
-  canaryHarness: claude
+  canaryHarness: codex
   forbidManagedFilePatches: true
   autoApplyMarkdownOnly: true
   requireApprovalFor: [hooks, mcp, rules, executables, config-merge]

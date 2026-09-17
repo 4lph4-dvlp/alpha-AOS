@@ -232,7 +232,7 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task on an active non-Claude harness (anchored by Codex).
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation; every other active surface remains unverified or unsupported until its own evidence promotes it, and Claude Code absence is neither a blocker nor a release limitation for v0.1.0.
 
-**Plans**: 19/22 plans executed (4 gap-closure plans planned under D-17: 03-19..03-22).
+**Plans**: 20/22 plans executed (4 gap-closure plans planned under D-17: 03-19..03-22).
 **Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across active non-Claude targets (Codex, Antigravity, Pi, Hermes). Claude Code integration remains compatibility residue.
 
 Plans:
@@ -307,7 +307,7 @@ Plans:
 
 **Wave 17** *(blocked on Wave 16; gap closure)*
 
-- [ ] 03-20-PLAN.md — Active Codex CAPA-02 multi-source research routing and ordinary lookup control (G-03-1)
+- [x] 03-20-PLAN.md — Active Codex CAPA-02 multi-source research routing and ordinary lookup control (G-03-1)
 
 **Wave 18** *(blocked on Wave 17; gap closure)*
 

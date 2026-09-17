@@ -133,6 +133,7 @@ const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
 
 interface TestContext {
   after: (fn: () => Promise<unknown> | unknown) => void;
+  skip?: (message?: string) => void;
 }
 
 /**
@@ -231,10 +232,14 @@ test("the shipped catalog declares the documentation canary, the research canary
     true,
     "the tool the policy proxy denies is not recorded as a finding, so a routing-contract mismatch would read as a routing failure",
   );
+  assert.equal(research.harnesses.includes("codex"), true, "RESEARCH_MULTI_SOURCE must include codex");
+  assert.equal(research.harnesses.includes("claude"), true, "RESEARCH_MULTI_SOURCE must include claude");
 
   const control = byId.get("ORDINARY_LOOKUP_CONTROL");
   assert.ok(control, "the fan-out control is not declared");
   assert.equal(control.maxDistinctServers, 1, "the fan-out control must permit exactly one distinct research server");
+  assert.equal(control.harnesses.includes("codex"), true, "ORDINARY_LOOKUP_CONTROL must include codex");
+  assert.equal(control.harnesses.includes("claude"), true, "ORDINARY_LOOKUP_CONTROL must include claude");
 
   for (const canary of catalog.canaries) {
     assert.equal(canary.readOnly, true, `${canary.id} is not declared read-only`);
@@ -251,6 +256,22 @@ test("the shipped documentation canary declares one Codex leg while retaining Cl
   assert.equal(codex[0]?.declaration.id, "DOCUMENTATION_VERSION_SCOPED");
   assert.equal(claude.length, 1, "the additive Codex leg must not remove the existing Claude declaration");
   assert.equal(claude[0]?.declaration.id, "DOCUMENTATION_VERSION_SCOPED");
+});
+
+test("the shipped research canary and ordinary lookup control declare Codex legs while retaining Claude", async () => {
+  const catalog = await shippedCatalog();
+  const codexResearch = selectCanaries(catalog, { harness: "codex", capability: "CAPA-02" });
+  const claudeResearch = selectCanaries(catalog, { harness: "claude", capability: "CAPA-02" });
+
+  assert.equal(codexResearch.length, 2, "CAPA-02 must select research and ordinary control for Codex");
+  assert.deepEqual(codexResearch.map((c) => c.declaration.id).sort(), ["ORDINARY_LOOKUP_CONTROL", "RESEARCH_MULTI_SOURCE"]);
+  assert.equal(claudeResearch.length, 2, "the additive Codex leg must not remove existing Claude declarations");
+  assert.deepEqual(claudeResearch.map((c) => c.declaration.id).sort(), ["ORDINARY_LOOKUP_CONTROL", "RESEARCH_MULTI_SOURCE"]);
+});
+
+test("catalog/stack.yaml declares policy.canaryHarness as codex under D-17", async () => {
+  const stackYaml = await readFile(join(repositoryRoot, "catalog", "stack.yaml"), "utf8");
+  assert.match(stackYaml, /canaryHarness:\s*codex/u);
 });
 
 test("an explicit harness filter with no declaration is refused with stable alternatives", () => {
@@ -2572,13 +2593,12 @@ test("a canary runtime refuses to be created when its owned instruction is missi
 
 test("a harness with no reachable skill root gets no instruction rather than one written where nothing reads it", async (context: TestContext) => {
   const { project, state, lock } = await runtimeFixture(context);
-  // codex's canary launch is blocked before it starts (only claude has the two
-  // MCP isolation flags), so a skill root guessed for it would be a path
-  // nothing ever reads. A recorded absence, in the shape this module already
-  // uses for CANARY_MCP_ISOLATION.
+  // pi's canary launch has no reachable skill root, so a skill root guessed
+  // for it would be a path nothing ever reads. A recorded absence, in the shape
+  // this module uses for CANARY_INSTRUCTION_ROOT.
   const runtime = await createCanaryRuntime({
     projectRoot: project,
-    harness: "codex",
+    harness: "pi",
     servers: ["exa"],
     stateRoot: state,
     lock,
@@ -2587,8 +2607,27 @@ test("a harness with no reachable skill root gets no instruction rather than one
   assert.equal(
     runtime.declaredFiles.some((file) => file.includes("alpha-aos-research-routing")),
     false,
-    "an instruction was written for a harness whose canary launch is blocked, so it is a file nothing will read",
+    "an instruction was written for a harness whose canary launch has no skill root",
   );
+});
+
+test("the canary runtime for codex carries the alpha-AOS-owned routing instruction under .agents/skills", async (context: TestContext) => {
+  const { project, state, lock } = await runtimeFixture(context);
+  const runtime = await createCanaryRuntime({
+    projectRoot: project,
+    harness: "codex",
+    servers: ["exa", "firecrawl"],
+    stateRoot: state,
+    lock,
+    environment: {},
+  });
+
+  const instruction = join(runtime.root, "codex", ".agents", "skills", "alpha-aos-research-routing", "SKILL.md");
+  assert.equal(existsSync(instruction), true, `the owned routing instruction is not under .agents/skills: ${instruction}`);
+  assert.equal(runtime.declaredFiles.includes(instruction), true);
+  assert.equal(runtime.ownedInstructionIds.includes("alpha-aos-research-routing"), true);
+  const shipped = await readFile(join(repositoryRoot, "skills", "alpha-aos-research-routing", "SKILL.md"), "utf8");
+  assert.equal(await readFile(instruction, "utf8"), shipped);
 });
 
 // ---------------------------------------------------------------------------
@@ -4129,4 +4168,136 @@ test("offline equal-strength documentation proofs render in stable, byte-identic
   const sorted = sortCapabilityReportRows([piRow, codexRow]);
   assert.deepEqual(sorted.map((r) => r.harness), ["codex", "pi"]);
 });
+
+test("Codex CAPA-02 multi-source research strict matrix verifies ordered Exa -> Firecrawl matching and fail-closed controls", async () => {
+  const catalog = await shippedCatalog();
+  const codexCanaries = selectCanaries(catalog, { harness: "codex", capability: "CAPA-02" });
+  const researchCanary = codexCanaries.find((c) => c.declaration.id === "RESEARCH_MULTI_SOURCE")?.declaration;
+  assert.ok(researchCanary, "RESEARCH_MULTI_SOURCE must be declared for codex");
+
+  const completeRoute: readonly McpObservation[] = [
+    observation("exa", "web_search_exa", 0),
+    observation("firecrawl", "firecrawl_scrape", 1),
+  ];
+
+  // Positive case: ordered discovery then extraction across 2 servers
+  const passingVerdict = decideInvocation(researchCanary, completeRoute);
+  assert.equal(passingVerdict.held, true);
+  assert.equal(passingVerdict.expectationsHeld, true);
+  assert.equal(passingVerdict.ordered, true);
+  assert.equal(passingVerdict.distinctServers, 2);
+  assert.equal(passingVerdict.withinServerBudget, true);
+  assert.equal(passingVerdict.nativeUse, "invoked");
+  assert.deepEqual([...passingVerdict.matched], ["web_search_exa", "firecrawl_scrape"]);
+  assert.deepEqual([...passingVerdict.missing], []);
+  assert.deepEqual([...passingVerdict.forbiddenSeen], []);
+
+  // Reversed sequence failure: extraction before discovery
+  const reversedRoute: readonly McpObservation[] = [
+    observation("firecrawl", "firecrawl_scrape", 0),
+    observation("exa", "web_search_exa", 1),
+  ];
+  const reversedVerdict = decideInvocation(researchCanary, reversedRoute);
+  assert.equal(reversedVerdict.held, false);
+  assert.equal(reversedVerdict.ordered, false);
+  assert.equal(reversedVerdict.nativeUse, "unverified");
+
+  // Forbidden tool failure: includes firecrawl_search
+  const forbiddenRoute: readonly McpObservation[] = [
+    observation("exa", "web_search_exa", 0),
+    observation("firecrawl", "firecrawl_search", 1),
+    observation("firecrawl", "firecrawl_scrape", 2),
+  ];
+  const forbiddenVerdict = decideInvocation(researchCanary, forbiddenRoute);
+  assert.equal(forbiddenVerdict.held, false);
+  assert.deepEqual([...forbiddenVerdict.forbiddenSeen], ["firecrawl_search"]);
+  assert.equal(forbiddenVerdict.nativeUse, "unverified");
+
+  // Server budget exceed failure: spans 3 distinct servers
+  const excessiveServersRoute: readonly McpObservation[] = [
+    observation("exa", "web_search_exa", 0),
+    observation("firecrawl", "firecrawl_scrape", 1),
+    observation("context7", "resolve-library-id", 2),
+  ];
+  const excessiveVerdict = decideInvocation(researchCanary, excessiveServersRoute);
+  assert.equal(excessiveVerdict.held, false);
+  assert.equal(excessiveVerdict.withinServerBudget, false);
+  assert.equal(excessiveVerdict.distinctServers, 3);
+  assert.equal(excessiveVerdict.nativeUse, "unverified");
+
+  // Incomplete route failure: discovery only without extraction
+  const discoveryOnlyRoute: readonly McpObservation[] = [
+    observation("exa", "web_search_exa", 0),
+  ];
+  const incompleteVerdict = decideInvocation(researchCanary, discoveryOnlyRoute);
+  assert.equal(incompleteVerdict.held, false);
+  assert.deepEqual([...incompleteVerdict.missing], ["firecrawl_scrape"]);
+  assert.equal(incompleteVerdict.nativeUse, "unverified");
+});
+
+test("Codex ORDINARY_LOOKUP_CONTROL fan-out negative control enforces max 1 research server", async () => {
+  const catalog = await shippedCatalog();
+  const codexCanaries = selectCanaries(catalog, { harness: "codex", capability: "CAPA-02" });
+  const controlCanary = codexCanaries.find((c) => c.declaration.id === "ORDINARY_LOOKUP_CONTROL")?.declaration;
+  assert.ok(controlCanary, "ORDINARY_LOOKUP_CONTROL must be declared for codex");
+  assert.equal(controlCanary.maxDistinctServers, 1);
+
+  // Positive control: touches 0 or 1 research server
+  const singleServer: readonly McpObservation[] = [
+    observation("exa", "web_search_exa", 0),
+  ];
+  const singleVerdict = decideInvocation(controlCanary, singleServer);
+  assert.equal(singleVerdict.withinServerBudget, true);
+  assert.equal(singleVerdict.distinctServers, 1);
+  assert.equal(singleVerdict.held, true);
+
+  // Zero servers (no tool calls, direct local answer)
+  const zeroServer: readonly McpObservation[] = [];
+  const zeroVerdict = decideInvocation(controlCanary, zeroServer);
+  assert.equal(zeroVerdict.withinServerBudget, true);
+  assert.equal(zeroVerdict.distinctServers, 0);
+  assert.equal(zeroVerdict.held, true);
+
+  // Negative control failure: touches 2 research servers for ordinary lookup
+  const twoServers: readonly McpObservation[] = [
+    observation("exa", "web_search_exa", 0),
+    observation("firecrawl", "firecrawl_scrape", 1),
+  ];
+  const failedVerdict = decideInvocation(controlCanary, twoServers);
+  assert.equal(failedVerdict.withinServerBudget, false);
+  assert.equal(failedVerdict.distinctServers, 2);
+  assert.equal(failedVerdict.held, false);
+  assert.equal(failedVerdict.nativeUse, "unverified");
+});
+
+test(
+  "opt-in live Codex CAPA-02 multi-source research and ordinary lookup control canaries",
+  { skip: process.env.ALPHA_AOS_LIVE_CANARY !== "1", timeout: 360_000 },
+  async (context: TestContext) => {
+    const loginCheck = spawnSync("codex", ["login", "status"], { encoding: "utf8", windowsHide: true });
+    if (loginCheck.status !== 0) {
+      context.skip?.("Codex login status is not active on this host");
+      return;
+    }
+    const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-live-codex-capa02-"));
+    context.after(async () => rm(root, { recursive: true, force: true }));
+    const stateRoot = join(root, "state");
+    const result = spawnSync(
+      process.execPath,
+      [cliEntry, "doctor", "--canary", ".", "--harness", "codex", "--capability", "CAPA-02", "--json"],
+      {
+        cwd: repositoryRoot,
+        env: { ...process.env, ALPHA_AOS_STATE_DIR: stateRoot },
+        encoding: "utf8",
+        timeout: 330_000,
+        windowsHide: true,
+      },
+    );
+    assert.equal(result.error, undefined, String(result.error));
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const output = JSON.parse(result.stdout) as { readonly results?: readonly CanaryRunResult[] };
+    const results = [...(output.results ?? [])];
+    assert.ok(results.length >= 1, "CAPA-02 must execute declared canaries for Codex");
+  },
+);
 

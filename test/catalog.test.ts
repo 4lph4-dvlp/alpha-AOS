@@ -89,7 +89,7 @@ test("install plan is ordered and never installs GSD on Hermes", async () => {
   const plan = createInstallPlan(await loadCatalog(root), await loadLock(root));
   assert.ok(plan.length > 20);
   assert.equal(plan.some((action) => action.id === "gsd:hermes"), false);
-  assert.equal(plan.find((action) => action.id === "gsd:claude")?.note, "canary first");
+  assert.equal(plan.find((action) => action.id === "gsd:codex")?.note, "canary first");
   assert.ok(plan.filter((action) => action.component === "gsd" && action.operation === "install")
     .every((action) => action.command?.includes("--no-legacy-cleanup")));
   assert.match(plan.find((action) => action.id === "gsd:shared-root-audit")?.note ?? "", /never in parallel/u);

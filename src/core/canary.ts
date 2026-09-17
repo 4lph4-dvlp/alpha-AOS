@@ -1566,7 +1566,7 @@ export interface CanaryRuntime {
  */
 const CANARY_INSTRUCTION_ROOT: Readonly<Record<LedgerHarness, ((harnessRoot: string) => string) | null>> = Object.freeze({
   claude: (harnessRoot: string) => join(harnessRoot, "skills"),
-  codex: null,
+  codex: (harnessRoot: string) => join(harnessRoot, ".agents", "skills"),
   pi: null,
   hermes: null,
 });

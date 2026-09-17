@@ -75,6 +75,7 @@ canaries:
       - firecrawl
     harnesses:
       - claude
+      - codex
     readOnly: true
 
   - id: PACK_EXERCISE_FRONTEND_A11Y
@@ -153,4 +154,5 @@ canaries:
     requiresMcpServers: []
     harnesses:
       - claude
+      - codex
     readOnly: true

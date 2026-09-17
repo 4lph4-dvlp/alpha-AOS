@@ -375,7 +375,26 @@ Plans:
   4. User can inspect the resolved configuration roots, skills, MCP, hooks, instructions, memory, environment-name allowlist, policy inheritance, and pre-launch enforcement, and global exclusion fails closed or reports unsupported when it cannot be proven for that harness, surface, version, and OS.
   5. User is told that `off` provides configuration isolation rather than filesystem or network sandboxing, unrelated ambient secret sentinels are absent, and an unsupported `sealed` request fails without fallback.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 05-01-PLAN.md — Policy Registry Schema, Canonical Path Resolution & Nearest Ancestor Inheritance Engine (OPTO-01)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 05-02-PLAN.md — Transparent CLI Shims, Sub-Millisecond Dispatch, Preload Exclusion & Fail-Closed Guardrails (OPTO-02, OPTO-05, OPTO-08)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [ ] 05-03-PLAN.md — First-Use Git Root Classification, TTY Flow, Headless CI Fallback & Tree CLI Suite (OPTO-03, OPTO-04)
+
+**Wave 4** *(blocked on Wave 3)*
+
+- [ ] 05-04-PLAN.md — Local Resource Native Passthrough, Reviewed Environment Allowlist, 8-Dimension Surface Inspector & Sealed Guardrail (OPTO-06, OPTO-07, OPTO-08, OPTO-09)
+
 **Planning note**: This phase requires per-surface live research, especially for Antigravity GUI/IDE interception, Codex project-resource behavior, Hermes profile/environment behavior, and authentication reuse without customization import.
 
 ### Phase 6: Managed Lifecycle, Uninstall, and Recovery

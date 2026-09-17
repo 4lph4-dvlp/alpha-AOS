@@ -2,11 +2,11 @@
 
 ## Overview
 
-This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first make every mutation and process boundary trustworthy, then compile deterministic repository evidence into reviewed plans, materialize optional capabilities in the correct scope, enforce mandatory GSD obligations, make directory-tree `off` persistent through ordinary harness entrypoints, complete the managed lifecycle, and finally freeze only the support claims and release bytes proven across platforms and real harnesses. Existing code and its 38 passing tests are foundations, not completed roadmap phases.
+This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first make every mutation and process boundary trustworthy, then compile deterministic repository evidence into reviewed plans, materialize optional capabilities in the correct scope, enforce mandatory GSD obligations, make directory-tree `off` persistent through ordinary harness entrypoints, complete the managed lifecycle, and finally freeze only the support claims and release bytes proven across platforms and active harnesses (Codex, Antigravity, Pi, and Hermes). Claude Code integration remains shipped compatibility residue outside active support claims, phase pass bars, and release gates. Existing code and its 38 passing tests are foundations, not completed roadmap phases.
 
 ## Phases
 
-- [x] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets. (completed 2026-09-07)
+- [x] **Phase 1: Safe Operation Boundary** - Make every preview, mutation, validation, and subprocess boundary fail safely and expose no secrets. (completed 2026-09-07)
 - [x] **Phase 2: Evidence-Bound Project Planning** - Turn bounded repository evidence into stable, explainable, apply-bound plans without cross-project leakage. (completed 2026-09-09)
 - [ ] **Phase 3: Transactional Project Packs and Native Optional Use** - Materialize exact project packs and prove optional global and project capabilities through native intent-driven use.
 - [ ] **Phase 4: Mandatory GSD Gates** - Convert deterministic risk evidence into one fail-closed mandatory check at the protected GSD lifecycle point.
@@ -123,19 +123,20 @@ Plans:
 
 ### Phase 2: Evidence-Bound Project Planning
 
-**Goal**: Users receive reproducible project-pack decisions and reviewed plans that are bound to one canonical repository state and explain both matches and non-matches.
+**Goal**: Bounded repository evidence deterministically selects capability packs and produces stable, digest-bound plans without cross-project leakage or automatic deletion.
 **Depends on**: Phase 1
 **Requirements**: DETC-01, DETC-02, DETC-03, DETC-04, DETC-05, DETC-06
-**Delivers**: Canonical-root and nested-VCS boundary detection; versioned positive and negative evidence; typed pack predicates; stable text/JSON desired-state plans; full input and target digests; support-state reporting; and non-destructive stale classification.
+**Delivers**: Bounded project scan; fact extraction envelope; evaluate-all predicates; stable reviewed plan format; `project approve` with digest binding; `project status` with missing-evidence reporting; and refusal on input change.
 **Success Criteria** (what must be TRUE):
 
-  1. User can select a canonical project root and observe that detection stops at nested repository and worktree boundaries without borrowing evidence from parents, siblings, aliases, or unrelated repositories.
-  2. User can inspect the exact versioned files, dependencies, entrypoints, configuration, and manifest facts that selected each pack, plus reasons near-matches failed; a generic `AGENTS.md` alone never selects an agent-runtime pack.
-  3. Repeated detection of unchanged inputs produces stable text and JSON plans that expose scope, owner, exact source version and hash, renderer, target pre-state, adapter support, approvals, and safe inverse.
-  4. Applying a reviewed plan is refused if evidence, manifest, stable lock, renderer, executable, adapter capability, or target bytes changed after review.
-  5. When evidence for an installed pack disappears, the user sees `STALE` with the missing evidence identified and no automatic deletion.
+  1. Canonical project root descent stops cleanly at repository and worktree boundaries.
+  2. Positive, versioned file, dependency, configuration, and manifest evidence selects capability packs.
+  3. Near-matches explain why they did not select a pack, and generic files alone cannot activate packs.
+  4. Plans identify scope, owner, source version/hash, renderer, pre-state, adapter support, and safe inverse.
+  5. Applying a reviewed plan is refused once any bound input, manifest, lock, or target moves.
+  6. Stale evidence is reported naming the missing fact, and never deletes files automatically.
 
-**Plans**: 16/16 plans executed; 6 gap-closure plans added (02-11 … 02-16), 6/6 executed
+**Plans**: 16/16 plans executed. Verification complete (2026-09-09).
 
 Plans:
 
@@ -225,14 +226,14 @@ only these six plans.
 **Delivers**: Project-scoped native skill/MCP/policy synchronization with receipts and failure rollback; `project sync --apply`; exact-hash representative packs; project-local provenance; capability-negotiated harness adapters; native discovery and invocation canaries; and multidimensional capability state.
 **Success Criteria** (what must be TRUE):
 
-  1. On every claimed harness surface, a version-sensitive documentation request can natively select the global documentation capability without naming it and complete a meaningful read-only Context7 call.
-  2. A multi-source research request can natively route through Exa discovery and bounded Firecrawl extraction without naming either tool, while an ordinary lookup does not fan out across the research stack.
-  3. User can explicitly hand work between supported harnesses through Unified Memory while `.planning/` and repository-governed decisions remain unchanged and authoritative only through GSD.
-  4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task.
-  5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation.
+  1. On active claimed harness surfaces anchored by Codex, a version-sensitive documentation request can natively select the global documentation capability without naming it and complete a meaningful read-only Context7 call.
+  2. A multi-source research request can natively route through Exa discovery and bounded Firecrawl extraction without naming either tool on an active non-Claude surface (anchored by Codex), while an ordinary lookup does not fan out across the research stack.
+  3. User can explicitly hand work between two distinct active non-Claude harnesses through Unified Memory while `.planning/` and repository-governed decisions remain unchanged and authoritative only through GSD.
+  4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task on an active non-Claude harness (anchored by Codex).
+  5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation; every other active surface remains unverified or unsupported until its own evidence promotes it, and Claude Code absence is neither a blocker nor a release limitation for v0.1.0.
 
-**Plans**: 18/18 plans executed; 17 executed and 1 gap-closure plan pending. Phase 3 is pending verification.
-**Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across Antigravity surfaces, Pi, and Hermes.
+**Plans**: 18/18 existing plans executed; Phase 3 has 4 diagnosed gaps pending implementation planning (`$gsd-plan-phase 3 --gaps`).
+**Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across active non-Claude targets (Codex, Antigravity, Pi, Hermes). Claude Code integration remains compatibility residue.
 
 Plans:
 

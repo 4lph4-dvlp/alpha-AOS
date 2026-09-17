@@ -92,11 +92,17 @@ only missing writer is the one that produces receipts in the first place.
 
 ### Surface Coverage and Capability State
 
-- **D-09:** The phase pass bar is **claude must actually pass** CAPA-01, CAPA-02, CAPA-04,
+- **D-09:** (D-09 is superseded by D-17 on 2026-09-14). Formerly: The phase pass bar is **claude must actually pass** CAPA-01, CAPA-02, CAPA-04,
   CAPA-05, and CAPA-06. `catalog/stack.yaml` already names claude as `policy.canaryHarness`.
   codex and pi are driven through the same runner and **auto-promote on success**, but a
   failure is recorded with its reason and does not block the phase. antigravity and hermes
-  stay `unsupported`.
+  stay `unsupported`. Preserved for audit.
+- **D-17:** On 2026-09-14, user decision established that Claude Code is outside active v0.1.0 development, support, verification, and release-gate scope; Claude implementation and prior verification evidence remain compatibility history only.
+  The operative pass-bar rules are rebaselined around active non-Claude targets:
+  - **Codex is the required active anchor** for CAPA-01, CAPA-02, and CAPA-05 because the repository already has a retained Codex CAPA-01 proof and a bounded Codex canary isolation path.
+  - **CAPA-03 must use two distinct active non-Claude harnesses** (two-harness non-Claude handoff), preferring Hermes→Codex only when both entrypoints and the Codex receiving runtime are proven.
+  - **Antigravity, Pi, and Hermes** promote only from their own deterministic/native evidence and otherwise remain visibly `unverified` or `unsupported`.
+  - **Stable equal-proof ordering** is defined as an offline deterministic fixture obligation rather than a requirement for two paid live surfaces.
 - **D-10:** Promotion from `unverified` to `supported` is decided by **two separate axes that
   are never merged**. Code and catalog own the **ceiling** — the product claim that a surface
   can structurally receive packs at all (antigravity has no project skill root; hermes is
@@ -136,7 +142,7 @@ only missing writer is the one that produces receipts in the first place.
   scientific) are exercised through **synthetic fixture repositories** built by the tests —
   minimal evidence sufficient to select each pack, plus near-miss negatives from the same
   scaffold. Deterministic, offline, and portable to the three-OS CI. Invocation proof is not
-  run for all six; one representative pack is proven through the claude canary per D-09.
+  run for all six; one representative pack is proven through the Codex canary under D-17.
 - **D-16:** CAPA-03's boundary is proven by a **handoff canary plus an immutability check**:
   harness A writes to Unified Memory, harness B reads it and works from that context, and
   `.planning/` is verified byte-for-byte unchanged across the round trip. This captures the

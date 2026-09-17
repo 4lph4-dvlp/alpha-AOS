@@ -1,5 +1,5 @@
 ---
-status: partial
+status: diagnosed
 phase: 03-transactional-project-packs-and-native-optional-use
 source: [03-VERIFICATION.md]
 started: 2026-09-14T06:39:32.385Z
@@ -8,37 +8,33 @@ updated: 2026-09-14T12:34:23.5428638Z
 
 ## Current Test
 
-[testing paused — 4 blocked items outstanding]
+[completed — all 6 items evaluated; 4 issues diagnosed under D-17 for gap planning]
 
 ## Tests
 
 ### 1. CAPA-02 Native Research Routing
 
 expected: Run the positive multi-source research canary and ordinary-lookup control on an authorized claimed harness without naming skills or tools. Exa discovery must precede bounded Firecrawl extraction, and the ordinary lookup must touch no more than one research server.
-result: blocked
-blocked_by: third-party
-reason: "현재 claude는 계정이 없어서 사용할 수 없는 상태야. 일단 앞으로의 개발에서 claude에 대한 고려는 배제해"
+result: issue
+reason: "Under D-17, Claude is excluded from active development and verification. Shipped CAPA-02 canaries in catalog/canaries.yaml are Claude-only, catalog/stack.yaml names canaryHarness: claude, and CANARY_INSTRUCTION_ROOT.codex is null. Active non-Claude canary declaration and runtime instruction support are required."
 
 ### 2. CAPA-03 Receiving Handoff
 
 expected: Complete an explicit Unified Memory handoff to an authorized receiving harness and judge its answer against the handed-off sentinel. The receiver must genuinely use the context while `.planning/` remains byte-identical and GSD-authoritative.
-result: blocked
-blocked_by: third-party
-reason: "Claude 계정이 없어 지원되는 Hermes→Claude 및 Codex→Claude 수신 handoff를 실행할 수 없고, 앞으로 Claude를 개발 고려 대상에서 제외하기로 확인함."
+result: issue
+reason: "Under D-17, Claude is excluded from active development. Shipped handoff declarations and default pairs target Claude only, and Codex cannot currently receive owned handoff instructions because CANARY_INSTRUCTION_ROOT.codex is null. A genuine two-harness active non-Claude handoff pair is required."
 
 ### 3. CAPA-05 Representative Pack Exercise
 
 expected: Exercise the project-local exact-hash pack with the ordinary declared intent-matched task. The harness must naturally select it, show its provenance, and keep it undiscoverable to the outside control.
-result: blocked
-blocked_by: third-party
-reason: "Claude 계정이 없고 앞으로 Claude를 개발 고려 대상에서 제외하므로, 현재 Claude 전용 native pack 선택 canary를 실행할 수 없음."
+result: issue
+reason: "Under D-17, Claude is excluded from active development. PACK_EXERCISE_FRONTEND_A11Y is Claude-only and no active non-Claude native-selection proof exists in the ledger. Active non-Claude pack exercise declaration and tests are required."
 
 ### 4. Stable Ordering Backstop
 
 expected: Supply two equally strong documentation proofs and repeat rendering. Both runs must render harness-id ascending with byte-identical order.
-result: blocked
-blocked_by: third-party
-reason: "현재 CAPA-01 ledger의 Codex proof는 invoked지만 Claude proof는 unverified이며, Claude 제외 정책 때문에 동일 강도의 두 surface proof를 만들 수 없음."
+result: issue
+reason: "Under D-17, equal-strength proof rendering must be proven deterministically through an offline fixture with at least two active non-Claude harness IDs, without requiring a second live vendor surface."
 
 ### 5. Interrupted Sink Backstop
 
@@ -56,10 +52,10 @@ evidence: Type checking and build passed; 446 focused tests produced 445 passes,
 
 total: 6
 passed: 2
-issues: 0
+issues: 4
 pending: 0
 skipped: 0
-blocked: 4
+blocked: 0
 
 ## Prohibition Decisions
 
@@ -81,3 +77,57 @@ blocked: 4
 | 14 | 03-18 | pass | Legacy proofs round-trip without fabricated `invocationEvidence`, and the strict retained-proof gate requires the property and all completion fields before accepting a proof. |
 
 ## Gaps
+
+- gap_id: G-03-1
+  status: failed
+  truth: "CAPA-02 multi-source research routing and ordinary-lookup control on an active non-Claude surface"
+  reason: "catalog/canaries.yaml declares both CAPA-02 canaries only for Claude, catalog/stack.yaml still names policy.canaryHarness: claude, and CANARY_INSTRUCTION_ROOT.codex is null even though Codex has a bounded observation-front launch path."
+  severity: high
+  test: "Run the research positive and ordinary control on an active non-Claude surface (anchored by Codex) and assert ordered Exa->Firecrawl discovery and single-server control behavior."
+  root_cause: "Canary declarations and runtime instruction paths were authored exclusively for Claude in Phase 03 Wave 5-8 before Claude was excluded by D-17."
+  artifacts:
+    - catalog/canaries.yaml
+    - catalog/stack.yaml
+    - src/core/canary.ts
+  missing: "Active Codex CAPA-02 canary declarations, runtime instruction root configuration, and deterministic ordered/fan-out assertions without deleting Claude compatibility."
+  diagnosis_note: "Ready for $gsd-plan-phase 3 --gaps"
+
+- gap_id: G-03-2
+  status: failed
+  truth: "CAPA-03 explicit handoff between two distinct active non-Claude harnesses with .planning immutability"
+  reason: "Shipped handoff declaration is Claude-only, default HANDOFF_HARNESS_PAIRS target Claude, CLI fallback resolves absent target as Claude, and Codex cannot receive owned handoff instructions because CANARY_INSTRUCTION_ROOT.codex is null."
+  severity: high
+  test: "Run an explicit Unified Memory handoff between two active non-Claude harnesses (e.g. Hermes->Codex) and prove receiver context use with byte-identical .planning hash."
+  root_cause: "Handoff wiring assumed Claude Code as the universal receiver in 03-12."
+  artifacts:
+    - catalog/canaries.yaml
+    - src/core/canary.ts
+    - src/cli.ts
+  missing: "Evidence-backed active non-Claude handoff pair, receiving runtime support for Codex, and immutability verification."
+  diagnosis_note: "Ready for $gsd-plan-phase 3 --gaps"
+
+- gap_id: G-03-3
+  status: failed
+  truth: "CAPA-05 representative project pack exercise on an active non-Claude harness with project-local provenance"
+  reason: "PACK_EXERCISE_FRONTEND_A11Y is Claude-only and there is no retained active non-Claude native-selection proof in the ledger."
+  severity: high
+  test: "Exercise the materialized exact-hash pack with an intent prompt on an active non-Claude harness (anchored by Codex) and verify native selection and project-local provenance."
+  root_cause: "Representative pack exercise was configured and probed solely against Claude in 03-11."
+  artifacts:
+    - catalog/canaries.yaml
+    - src/core/canary.ts
+  missing: "Active non-Claude pack exercise declaration, test runner integration, and preservation of locked skill bytes and CAPA-06 absence boundary."
+  diagnosis_note: "Ready for $gsd-plan-phase 3 --gaps"
+
+- gap_id: G-03-4
+  status: failed
+  truth: "Stable equal-strength proof rendering in harness-id ascending order without live vendor dependencies"
+  reason: "The prior UAT expected a live Claude proof only because no held-out automated test existed; equal-proof ordering must be proven deterministically offline."
+  severity: medium
+  test: "Supply equivalent documentation proofs across at least two active non-Claude harness IDs in varied input orders and assert repeated byte-identical harness-id-ascending output."
+  root_cause: "03-08 backstop was marked non-inferable and left without an automated fixture test."
+  artifacts:
+    - src/core/canary.ts
+    - test/canary.test.ts
+  missing: "Offline deterministic fixture feeding equivalent proofs across multiple active non-Claude harness IDs and asserting invariant sorting."
+  diagnosis_note: "Ready for $gsd-plan-phase 3 --gaps"

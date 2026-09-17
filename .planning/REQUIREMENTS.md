@@ -2,6 +2,7 @@
 
 **Defined:** 2026-09-03
 **Core Value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
+**Active Harness Scope:** Codex, Antigravity, Pi, and Hermes are the active development and release targets for v0.1.0. Claude Code integration remains shipped compatibility residue outside active support claims, acceptance bars, and release gates.
 
 ## User Stories
 
@@ -36,11 +37,11 @@
 - [x] **CAPA-01**: User can ask a version-sensitive documentation question without naming a skill or MCP and have each claimed harness surface natively select the global documentation capability and make a meaningful read-only Context7 call
 - [ ] **CAPA-02**: User can request multi-source research without naming a skill or MCP and have native deep-research routing use Exa for source discovery and Firecrawl only for bounded extraction, while ordinary lookups do not fan out across every research tool
 - [ ] **CAPA-03**: User can perform an explicit cross-harness handoff through Unified Memory without Memory Vault content modifying `.planning/` or becoming authoritative project policy
-- [ ] **CAPA-04**: User can preview and apply an evidence-matched, exact-hash project capability pack only inside the selected project scope
+- [x] **CAPA-04**: User can preview and apply an evidence-matched, exact-hash project capability pack only inside the selected project scope
 - [ ] **CAPA-05**: User can see a synced project capability in the target harness with project-local provenance and can exercise it through a representative intent-matched task
-- [ ] **CAPA-06**: User running the same task outside the project cannot discover or invoke that project-only capability
+- [x] **CAPA-06**: User running the same task outside the project cannot discover or invoke that project-only capability
 - [x] **CAPA-07**: User can distinguish a capability that is selected, deployed, natively discovered, actually invoked, blocked, stale, unsupported, or unverified instead of seeing a single misleading installed state
-- [ ] **CAPA-08**: User can use representative evidence-based packs for web, API/data, infrastructure, agent/AI, security, and scientific projects without installing broad language/framework profiles globally
+- [x] **CAPA-08**: User can use representative evidence-based packs for web, API/data, infrastructure, agent/AI, security, and scientific projects without installing broad language/framework profiles globally
 
 ### Mandatory GSD Gates
 
@@ -76,7 +77,7 @@
 ### Cross-Platform Release Proof
 
 - [ ] **REL-01**: User can install, reconcile, diagnose, and uninstall the same packed release bytes in Windows, macOS, and Linux fixture environments without touching real shared roots
-- [ ] **REL-02**: User can consult a versioned support matrix in which every claimed harness and surface has at least one current real-host discovery and invocation canary, while unproven combinations remain visibly limited or unsupported
+- [ ] **REL-02**: User can consult a versioned support matrix in which every active claimed harness and surface has at least one current real-host discovery and invocation canary, while Claude Code remains compatibility residue and other unproven combinations remain visibly limited or unsupported
 - [ ] **REL-03**: User can inspect paired positive and negative controls proving native optional invocation, project-only capability scope, mandatory gate blocking, and opt-out exclusion
 - [ ] **REL-04**: User can complete a real brownfield GSD discuss → plan → execute → verify → ship cycle that exercises one global optional capability, one project pack, one mandatory gate, one cross-harness handoff, and safe cleanup
 - [ ] **REL-05**: User receives a v0.1.0 package that excludes candidate locks and local state, contains only allowlisted release files, and matches the tarball tested on all three operating systems
@@ -103,6 +104,7 @@
 
 | Feature | Reason |
 |---------|--------|
+| Active v0.1.0 development, support commitments, or release gates for Claude Code | Claude Code integration remains shipped compatibility residue outside active support claims and release bars |
 | OS/container-backed `sealed` execution in v0.1.0 | Requires a separately threat-modeled adapter; current `project-only` process isolation must not be overstated |
 | Full ECC profiles and broad language/framework rule packs | They increase context, supply-chain surface, and workflow overlap with GSD |
 | Universal alpha-AOS invocation proxy | Optional capabilities should retain native harness selection; alpha-AOS owns scope and policy, not every tool call |
@@ -115,12 +117,12 @@
 
 ## Definition of Done
 
-- Every v1 requirement is mapped to exactly one roadmap phase and verified by automated evidence or a named real-host canary.
+- Every v1 requirement is mapped to exactly one roadmap phase and verified by automated evidence or a named real-host canary on an active supported harness (Codex, Antigravity, Pi, Hermes).
 - The same allowlisted npm tarball passes Windows, macOS, and Linux install/reconcile/uninstall fixtures.
-- Every advertised harness/surface has current, redacted discovery and representative-use evidence; unverified claims are not advertised as supported.
+- Every advertised active harness/surface has current, redacted discovery and representative-use evidence; unverified claims are not advertised as supported. Claude Code remains compatibility residue and is excluded from the active release bar.
 - Project-pack, mandatory-gate, directory-tree `off`, uninstall, rollback, and interrupted-operation negative paths fail safely.
 - A real brownfield project completes the full GSD lifecycle with one state writer and the confirmed hybrid capability model.
-- The stable lock, support matrix, documentation, release notes, provenance, and fresh public-registry smoke test all refer to the same v0.1.0 artifact.
+- The stable lock, support matrix, documentation, release notes, provenance, and fresh public-registry smoke test all refer to the same v0.1.0 artifact without conditioning release on Claude Code.
 
 ## Traceability
 
@@ -139,13 +141,13 @@
 | DETC-05 | Phase 2 | Complete |
 | DETC-06 | Phase 2 | Complete |
 | CAPA-01 | Phase 3 | Complete |
-| CAPA-02 | Phase 3 | Pending |
-| CAPA-03 | Phase 3 | Pending |
-| CAPA-04 | Phase 3 | Gaps Found |
+| CAPA-02 | Phase 3 | Gaps Found |
+| CAPA-03 | Phase 3 | Gaps Found |
+| CAPA-04 | Phase 3 | Complete |
 | CAPA-05 | Phase 3 | Gaps Found |
-| CAPA-06 | Phase 3 | Gaps Found |
+| CAPA-06 | Phase 3 | Complete |
 | CAPA-07 | Phase 3 | Complete |
-| CAPA-08 | Phase 3 | Gaps Found |
+| CAPA-08 | Phase 3 | Complete |
 | GATE-01 | Phase 4 | Pending |
 | GATE-02 | Phase 4 | Pending |
 | GATE-03 | Phase 4 | Pending |

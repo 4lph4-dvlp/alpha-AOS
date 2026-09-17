@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 03
 current_phase_name: Transactional Project Packs and Native Optional Use
-status: verifying
-stopped_at: Completed 03-18-PLAN.md
-last_updated: "2026-09-14T03:03:16.505Z"
-last_activity: 2026-09-14
-last_activity_desc: Completed 03-18 durable Codex CAPA-01 proof and strict completion matrix
-state_head: 5c6a4a9b664df62c42168a2c60ae2c84369fa45d
+status: gaps_found
+stopped_at: Completed 260914-x2c-PLAN.md
+last_updated: "2026-09-17T08:22:00.000Z"
+last_activity: 2026-09-17
+last_activity_desc: Completed 260914-x2c quick task; rebaselined v0.1.0 around active non-Claude harnesses (Codex, Antigravity, Pi, Hermes) and registered 4 Phase 3 gaps under D-17
+state_head: 3c6349b8099d
 progress:
   total_phases: 7
   completed_phases: 2
@@ -265,6 +265,7 @@ None yet.
 | ID | Description | Date | Commit | Directory |
 |----|-------------|------|--------|-----------|
 | 260911-w4s | Portable Codex execution guidance and bounded usage validation | 2026-09-12 | 6605c55 | [260911-w4s](./quick/260911-w4s-make-codex-gsd-execution-context-bounded/) |
+| 260914-x2c | Rebaseline v0.1.0 around active non-Claude harnesses | 2026-09-17 | pending | [260914-x2c](./quick/260914-x2c-exclude-claude-from-the-v0-1-0-active-de/) |
 
 ## Session Continuity
 

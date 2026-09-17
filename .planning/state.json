@@ -40,9 +40,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 3 of 7 · 29% · executing"
+    "command": "/gsd:plan-phase 3 --gaps",
+    "label": "Plan Phase 3 gaps",
+    "reason": "Phase 3 of 7 · 29% · 4 diagnosed gaps ready for gap planning"
   },
-  "updated_at": "2026-09-14T00:46:59.152Z"
+  "updated_at": "2026-09-17T08:22:00.000Z"
 }

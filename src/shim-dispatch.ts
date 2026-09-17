@@ -2,7 +2,13 @@
 import { spawn } from "node:child_process";
 import { commandToHarness, findUpstreamBinary, prepareIsolatedTreeRoot } from "./adapters/shims.js";
 import { getHarnessPreloadExclusion } from "./adapters/isolation.js";
-import { loadTreeRegistry, resolveEffectivePolicy } from "./core/tree-policy.js";
+import {
+  classifyGitRootOrFallback,
+  computeTreeId,
+  findEnclosingGitRoot,
+  loadTreeRegistry,
+  resolveEffectivePolicy,
+} from "./core/tree-policy.js";
 
 async function main(): Promise<void> {
   const command = process.argv[2];
@@ -28,8 +34,28 @@ async function main(): Promise<void> {
   const registry = await loadTreeRegistry();
   const policy = await resolveEffectivePolicy(process.cwd(), registry.trees);
 
-  if (policy.effectiveMode === "off") {
-    const treeId = policy.entry?.id ?? "default";
+  let effectiveMode: "managed" | "off" | "passthrough" =
+    policy.effectiveMode === "unclassified" ? "managed" : policy.effectiveMode;
+  let activeTreeId: string = policy.entry?.id ?? "default";
+
+  if (policy.effectiveMode === "unclassified") {
+    const gitRoot = await findEnclosingGitRoot(process.cwd());
+    if (gitRoot) {
+      const classification = await classifyGitRootOrFallback(gitRoot);
+      if (classification.mode === "off") {
+        effectiveMode = "off";
+        activeTreeId = computeTreeId(gitRoot);
+      } else if (classification.mode === "managed") {
+        effectiveMode = "managed";
+        activeTreeId = computeTreeId(gitRoot);
+      } else {
+        effectiveMode = "passthrough";
+      }
+    }
+  }
+
+  if (effectiveMode === "off") {
+    const treeId = activeTreeId;
     const isolation = await prepareIsolatedTreeRoot(treeId, harness);
     const exclusion = getHarnessPreloadExclusion(harness, isolation.isolatedRoot, { surface: "cli" });
 

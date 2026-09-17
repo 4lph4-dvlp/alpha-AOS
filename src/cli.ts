@@ -82,7 +82,15 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
+import {
+  classifyGitRootOrFallback,
+  findEnclosingGitRoot,
+  listTreePolicies,
+  previewTreePolicy,
+  removeTreePolicy,
+  setTreePolicy,
+} from "./core/tree-policy.js";
 import {
   createRedactionContext,
   describeOverBudgetEnvelope,
@@ -147,6 +155,11 @@ Usage:
   alpha-aos repair [--apply] [--json]
   alpha-aos support-bundle [--out <path>] [--apply] [--json]
   alpha-aos bootstrap install|update [--skip-link] [--apply] [--json]
+  alpha-aos tree set <path> --mode <managed|off> [--notes <notes>]
+  alpha-aos tree list [--json]
+  alpha-aos tree preview [path] [--harness <id>] [--json]
+  alpha-aos tree remove <path> [--json]
+  alpha-aos tree classify [path] [--json]
 
 Mutation commands are dry-run by default. Live apply and rollback are enabled only
 after the fixture transaction gate passes.
@@ -1440,6 +1453,88 @@ async function main(): Promise<void> {
       }
       return;
     }
+  }
+
+  if (command === "tree") {
+    const subcommand = args[1];
+    if (!subcommand) {
+      throw new Error(`alpha-aos tree requires a subcommand: set, list, preview, remove, classify\n\n${HELP}`);
+    }
+
+    if (subcommand === "set") {
+      const pos = positional(args.slice(2), ["--mode", "--notes"]);
+      const target = pos[0] ?? process.cwd();
+      const mode = optionValue(args, "--mode");
+      if (mode !== "managed" && mode !== "off") {
+        throw new Error(`Invalid or missing --mode. Expected "managed" or "off", got: ${mode ?? "none"}`);
+      }
+      const notesRaw = optionValue(args, "--notes");
+      const notes = notesRaw !== null ? notesRaw : undefined;
+      const entry = await setTreePolicy(target, mode, notes !== undefined ? { notes } : undefined);
+      if (json) {
+        print({ ok: true, tree: entry }, true, "");
+      } else {
+        print(entry, false, `Tree policy set: ${entry.path} -> ${entry.mode}${entry.notes ? ` (${entry.notes})` : ""}`);
+      }
+      return;
+    }
+
+    if (subcommand === "list") {
+      const entries = await listTreePolicies();
+      if (json) {
+        print({ ok: true, trees: entries }, true, "");
+      } else {
+        print(entries, false, formatTreeList(entries));
+      }
+      return;
+    }
+
+    if (subcommand === "preview") {
+      const pos = positional(args.slice(2), ["--harness"]);
+      const target = pos[0] ?? process.cwd();
+      const harnessRaw = optionValue(args, "--harness");
+      const harness = harnessRaw !== null ? (harnessRaw as HarnessId) : undefined;
+      const preview = await previewTreePolicy(target, harness !== undefined ? { harness } : undefined);
+      if (json) {
+        print({ ok: true, preview }, true, "");
+      } else {
+        print(preview, false, formatTreePreview(preview));
+      }
+      return;
+    }
+
+    if (subcommand === "remove") {
+      const pos = positional(args.slice(2), []);
+      const target = pos[0];
+      if (!target) {
+        throw new Error("Target path is required for tree remove");
+      }
+      const removed = await removeTreePolicy(target);
+      if (json) {
+        print({ ok: true, path: target, removed }, true, "");
+      } else {
+        print({}, false, removed ? `Tree policy removed: ${target}` : `Tree policy not found: ${target}`);
+      }
+      return;
+    }
+
+    if (subcommand === "classify") {
+      const pos = positional(args.slice(2), []);
+      const target = pos[0] ?? process.cwd();
+      const gitRoot = await findEnclosingGitRoot(target);
+      if (!gitRoot) {
+        throw new Error(`Target path is not inside a git repository: ${target}`);
+      }
+      const result = await classifyGitRootOrFallback(gitRoot, { isTTY: true });
+      if (json) {
+        print({ ok: true, classification: result }, true, "");
+      } else {
+        print(result, false, `Classified git repository: ${result.gitRoot} -> ${result.mode} (persisted: ${result.persisted}, reason: ${result.reason})`);
+      }
+      return;
+    }
+
+    throw new Error(`Unknown tree subcommand: ${subcommand}\n\n${HELP}`);
   }
 
   throw new Error(`Unknown command: ${command}\n\n${HELP}`);

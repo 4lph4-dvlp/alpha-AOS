@@ -1,9 +1,15 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join, resolve, sep } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
+import { createInterface } from "node:readline";
+import { getHarnessPreloadExclusion } from "../adapters/isolation.js";
 import type {
+  ClassificationResult,
   EffectiveTreePolicy,
+  FirstUseChoice,
+  HarnessId,
   TreePolicyMode,
+  TreePreviewReport,
   TreeRegistry,
   TreeRegistryEntry,
 } from "../types.js";
@@ -267,3 +273,241 @@ export async function listTreePolicies(stateRoot?: string): Promise<readonly Tre
   const registry = await loadTreeRegistry(stateRoot);
   return registry.trees;
 }
+
+/**
+ * Traverses up from targetPath to locate the enclosing Git repository root or worktree root.
+ * Returns canonical directory path containing .git (dir or file), or null if not in git.
+ */
+export async function findEnclosingGitRoot(targetPath: string): Promise<string | null> {
+  let current = await canonicalizeTreePath(targetPath);
+  while (true) {
+    const gitPath = join(current, ".git");
+    try {
+      const gitStat = await stat(gitPath);
+      if (gitStat.isDirectory() || gitStat.isFile()) {
+        return current;
+      }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") {
+        // Continue walking up if error is non-fatal
+      }
+    }
+    const parent = dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
+/**
+ * Prompts user interactively on first encounter of an unclassified Git root.
+ * Presents 3 explicit choices: [1] Managed, [2] Off, [3] 나중에 결정 (D-10).
+ */
+export async function promptFirstUseClassification(
+  gitRoot: string,
+  options?: { stdin?: NodeJS.ReadableStream | undefined; stderr?: NodeJS.WritableStream | undefined },
+): Promise<FirstUseChoice> {
+  const input = options?.stdin ?? process.stdin;
+  const output = options?.stderr ?? process.stderr;
+
+  const promptText =
+    `\nalpha-AOS: Newly encountered Git repository root:\n` +
+    `  ${gitRoot}\n` +
+    `Select policy for this repository:\n` +
+    `  [1] Managed (적용)       - Enable alpha-AOS project management and capabilities\n` +
+    `  [2] Off (격리)          - Isolate from global customizations, vanilla harness with local resources\n` +
+    `  [3] 나중에 결정 (Skip)   - Ask next time, pass through this invocation only\n` +
+    `Choice [1/2/3] (default 3): `;
+
+  output.write(promptText);
+
+  const rl = createInterface({
+    input,
+    output,
+    terminal: false,
+  });
+
+  try {
+    for await (const rawLine of rl) {
+      const answer = rawLine.trim().toLowerCase();
+      if (answer === "1" || answer === "managed") return "managed";
+      if (answer === "2" || answer === "off") return "off";
+      if (answer === "3" || answer === "" || answer === "skip" || answer === "나중에 결정") return "ask-next-time";
+
+      output.write(`Invalid choice '${answer}'. Please enter 1, 2, or 3.\n`);
+      output.write(promptText);
+    }
+  } finally {
+    rl.close();
+  }
+
+  return "ask-next-time";
+}
+
+/**
+ * Coordinates first-use classification: prompts interactively when TTY is available,
+ * or safely falls back to Fail-Safe Off in headless / CI environments (D-11).
+ */
+export async function classifyGitRootOrFallback(
+  gitRoot: string,
+  options?: {
+    isTTY?: boolean | undefined;
+    defaultModeEnv?: string | undefined;
+    stdin?: NodeJS.ReadableStream | undefined;
+    stderr?: NodeJS.WritableStream | undefined;
+    stateRoot?: string | undefined;
+  },
+): Promise<ClassificationResult> {
+  const canonicalRoot = await canonicalizeTreePath(gitRoot);
+  const registry = await loadTreeRegistry(options?.stateRoot);
+  const id = computeTreeId(canonicalRoot);
+
+  const existing = registry.trees.find((t) => t.id === id);
+  if (existing) {
+    return {
+      mode: existing.mode,
+      persisted: true,
+      gitRoot: canonicalRoot,
+      reason: "already-classified",
+    };
+  }
+
+  const isTTY = options?.isTTY ?? (Boolean(process.stdin.isTTY) && !process.env.CI);
+
+  if (!isTTY) {
+    const override = options?.defaultModeEnv ?? process.env.ALPHA_AOS_DEFAULT_MODE;
+    if (override === "managed") {
+      return {
+        mode: "managed",
+        persisted: false,
+        gitRoot: canonicalRoot,
+        reason: "default-mode-override",
+      };
+    }
+    return {
+      mode: "off",
+      persisted: false,
+      gitRoot: canonicalRoot,
+      reason: "ci-fallback",
+    };
+  }
+
+  const choice = await promptFirstUseClassification(canonicalRoot, {
+    stdin: options?.stdin,
+    stderr: options?.stderr,
+  });
+
+  if (choice === "managed") {
+    await setTreePolicy(canonicalRoot, "managed", options?.stateRoot !== undefined ? { stateRoot: options.stateRoot } : undefined);
+    return {
+      mode: "managed",
+      persisted: true,
+      gitRoot: canonicalRoot,
+      reason: "interactive",
+    };
+  }
+
+  if (choice === "off") {
+    await setTreePolicy(canonicalRoot, "off", options?.stateRoot !== undefined ? { stateRoot: options.stateRoot } : undefined);
+    return {
+      mode: "off",
+      persisted: true,
+      gitRoot: canonicalRoot,
+      reason: "interactive",
+    };
+  }
+
+  return {
+    mode: "passthrough",
+    persisted: false,
+    gitRoot: canonicalRoot,
+    reason: "interactive",
+  };
+}
+
+/**
+ * Previews effective policy, inheritance depth, and isolated launch parameters for targetPath.
+ */
+export async function previewTreePolicy(
+  targetPath: string,
+  options?: { stateRoot?: string | undefined; harness?: HarnessId | undefined },
+): Promise<TreePreviewReport> {
+  const canonicalPath = await canonicalizeTreePath(targetPath);
+  const gitRoot = await findEnclosingGitRoot(targetPath);
+  const registry = await loadTreeRegistry(options?.stateRoot);
+  const effective = await resolveEffectivePolicy(canonicalPath, registry.trees);
+  const harness = options?.harness ?? "codex";
+
+  if (effective.effectiveMode === "off") {
+    const treeId = effective.entry?.id ?? computeTreeId(canonicalPath);
+    const isolatedConfigRoot = join(options?.stateRoot ?? userStateRoot(), "isolated", "trees", treeId);
+    const exclusion = getHarnessPreloadExclusion(harness, isolatedConfigRoot, { surface: "cli" });
+    return {
+      targetPath,
+      canonicalPath,
+      gitRoot,
+      effectiveMode: "off",
+      inherited: effective.inherited,
+      depth: effective.depth,
+      matchedAncestor: effective.entry?.path ?? null,
+      launchFlags: exclusion.args,
+      isolatedConfigRoot,
+    };
+  }
+
+  return {
+    targetPath,
+    canonicalPath,
+    gitRoot,
+    effectiveMode: effective.effectiveMode,
+    inherited: effective.inherited,
+    depth: effective.depth,
+    matchedAncestor: effective.entry?.path ?? null,
+    launchFlags: [],
+    isolatedConfigRoot: null,
+  };
+}
+
+/**
+ * Options for late discovery restart planning (OPTO-04).
+ */
+export interface LateDiscoveryRestartOptions {
+  readonly harness: HarnessId;
+  readonly targetPath: string;
+  readonly upstreamBinary: string;
+  readonly args: readonly string[];
+  readonly stateRoot?: string | undefined;
+}
+
+/**
+ * Plan describing a clean subprocess restart to guarantee no contaminated in-memory isolation state.
+ */
+export interface LateDiscoveryRestartPlan {
+  readonly required: boolean;
+  readonly command: string;
+  readonly args: readonly string[];
+  readonly isolatedConfigRoot: string;
+}
+
+/**
+ * Persists an off policy and generates a clean restart execution plan when late discovery
+ * finds an off policy after dirty customizations were loaded (OPTO-04).
+ */
+export async function planLateDiscoveryRestart(
+  options: LateDiscoveryRestartOptions,
+): Promise<LateDiscoveryRestartPlan> {
+  const canonical = await canonicalizeTreePath(options.targetPath);
+  await setTreePolicy(canonical, "off", options.stateRoot !== undefined ? { stateRoot: options.stateRoot } : undefined);
+  const treeId = computeTreeId(canonical);
+  const isolatedConfigRoot = join(options.stateRoot ?? userStateRoot(), "isolated", "trees", treeId);
+  const exclusion = getHarnessPreloadExclusion(options.harness, isolatedConfigRoot, { surface: "cli" });
+
+  return {
+    required: true,
+    command: options.upstreamBinary,
+    args: [...exclusion.args, ...options.args],
+    isolatedConfigRoot,
+  };
+}
+

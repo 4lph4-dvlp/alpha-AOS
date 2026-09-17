@@ -785,3 +785,24 @@ export interface UpstreamBinaryResolution {
   readonly isDirectScript: boolean;
   readonly scriptPath?: string;
 }
+
+export type FirstUseChoice = "managed" | "off" | "ask-next-time";
+
+export interface ClassificationResult {
+  readonly mode: TreePolicyMode | "passthrough";
+  readonly persisted: boolean;
+  readonly gitRoot: string;
+  readonly reason: "interactive" | "ci-fallback" | "default-mode-override" | "already-classified";
+}
+
+export interface TreePreviewReport {
+  readonly targetPath: string;
+  readonly canonicalPath: string;
+  readonly gitRoot: string | null;
+  readonly effectiveMode: TreePolicyMode | "unclassified";
+  readonly inherited: boolean;
+  readonly depth: number;
+  readonly matchedAncestor: string | null;
+  readonly launchFlags: readonly string[];
+  readonly isolatedConfigRoot: string | null;
+}

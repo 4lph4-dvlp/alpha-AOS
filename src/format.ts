@@ -1,4 +1,14 @@
-import type { DoctorFinding, Inventory, IsolationLaunchSpec, IsolationPlan, PlanAction, ProjectCapabilityPlan, StackLock } from "./types.js";
+import type {
+  DoctorFinding,
+  Inventory,
+  IsolationLaunchSpec,
+  IsolationPlan,
+  PlanAction,
+  ProjectCapabilityPlan,
+  StackLock,
+  TreePreviewReport,
+  TreeRegistryEntry,
+} from "./types.js";
 import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
 import {
   approvalCommand,
@@ -745,4 +755,44 @@ function capabilityRowDetail(row: CapabilityReportRow): string {
   if (row.notRunReason !== null) return row.notRunReason;
   if (row.completeness === "INCOMPLETE") return row.incompleteReasons[0] ?? "the evidence unit is incomplete";
   return row.axisNotes.nativeUse ?? "";
+}
+
+export function formatTreeList(trees: readonly TreeRegistryEntry[]): string {
+  if (trees.length === 0) {
+    return "No directories registered. Use 'alpha-aos tree set <path> --mode <managed|off>' to register a policy.";
+  }
+  const headers = ["ID", "MODE", "PATH", "NOTES", "UPDATED"];
+  const rows = trees.map((tree) => [
+    tree.id,
+    tree.mode.toUpperCase(),
+    tree.path,
+    tree.notes ?? "-",
+    tree.updatedAt.slice(0, 19).replace("T", " "),
+  ]);
+  return table(headers, rows);
+}
+
+export function formatTreePreview(report: TreePreviewReport): string {
+  const lines: string[] = [
+    "alpha-AOS Directory Policy Preview",
+    "==================================",
+    `Target Path:           ${report.targetPath}`,
+    `Canonical Path:        ${report.canonicalPath}`,
+    `Enclosing Git Root:    ${report.gitRoot ?? "(none)"}`,
+    `Effective Mode:        ${report.effectiveMode.toUpperCase()}`,
+    `Inherited:             ${report.inherited ? "yes" : "no"}`,
+    `Inheritance Depth:     ${report.depth}`,
+    `Matched Ancestor:      ${report.matchedAncestor ?? "(none)"}`,
+  ];
+
+  if (report.effectiveMode === "off") {
+    lines.push(
+      `Isolated Config Root:  ${report.isolatedConfigRoot ?? "(none)"}`,
+      `Launch Arguments:      ${report.launchFlags.length > 0 ? report.launchFlags.join(" ") : "(none)"}`,
+    );
+  } else {
+    lines.push("Launch Arguments:      (passthrough — native arguments unaltered)");
+  }
+
+  return lines.join("\n");
 }

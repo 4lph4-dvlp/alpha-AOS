@@ -4332,3 +4332,60 @@ test(
   },
 );
 
+test("the pack-exercise canary is declared for Codex and Claude in shipped catalog (plan 03-22 / G-03-3)", async () => {
+  const catalog = await shippedCatalog();
+  const canary = catalog.canaries.find((entry) => entry.id === "PACK_EXERCISE_FRONTEND_A11Y");
+  assert.ok(canary, "PACK_EXERCISE_FRONTEND_A11Y must be in shipped catalog");
+  assert.equal(canary.capability, "CAPA-05");
+  assert.deepEqual([...canary.harnesses], ["claude", "codex"]);
+  assert.equal(canary.readOnly, true);
+
+  // findPromptHints: zero forbidden hints
+  const prompt = canary.prompt.toLowerCase();
+  for (const term of ["web_react", "frontend-a11y", "frontend-design", "a11y", "accessib", "skill"]) {
+    assert.equal(prompt.includes(term), false, `prompt hints at ${term}`);
+  }
+
+  // selecting --capability CAPA-05 --harness codex selects PACK_EXERCISE_FRONTEND_A11Y
+  const selections = selectCanaries(catalog, { harness: "codex", capability: "CAPA-05" });
+  assert.equal(selections.length, 1);
+  assert.equal(selections[0]?.declaration.id, "PACK_EXERCISE_FRONTEND_A11Y");
+  assert.equal(selections[0]?.harness, "codex");
+
+  // canaryPromptArgs derives the prompt vector for Codex
+  const promptArgs = canaryPromptArgs("codex", canary.prompt);
+  assert.notEqual(promptArgs, null);
+  assert.ok(promptArgs?.includes(canary.prompt));
+});
+
+test(
+  "opt-in live Codex CAPA-05 representative pack exercise canary",
+  { skip: process.env.ALPHA_AOS_LIVE_CANARY !== "1", timeout: 360_000 },
+  async (context: TestContext) => {
+    const loginCheck = spawnSync("codex", ["login", "status"], { encoding: "utf8", windowsHide: true });
+    if (loginCheck.status !== 0) {
+      context.skip?.("Codex login status is not active on this host");
+      return;
+    }
+    const root = await mkdtemp(join(tmpdir(), "alpha-aos-canary-cli-live-codex-capa05-"));
+    context.after(async () => rm(root, { recursive: true, force: true }));
+    const stateRoot = join(root, "state");
+    const result = spawnSync(
+      process.execPath,
+      [cliEntry, "doctor", "--canary", ".", "--harness", "codex", "--capability", "CAPA-05", "--json"],
+      {
+        cwd: repositoryRoot,
+        env: { ...process.env, ALPHA_AOS_STATE_DIR: stateRoot },
+        encoding: "utf8",
+        timeout: 330_000,
+        windowsHide: true,
+      },
+    );
+    assert.equal(result.error, undefined, String(result.error));
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    const output = JSON.parse(result.stdout) as { readonly results?: readonly CanaryRunResult[] };
+    const results = [...(output.results ?? [])];
+    assert.ok(results.length >= 1, "CAPA-05 must execute declared canaries for Codex");
+  },
+);
+

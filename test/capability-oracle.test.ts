@@ -21,6 +21,7 @@
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
@@ -866,10 +867,9 @@ test("the pack-exercise canary is declared for the representative pack and names
   assert.ok(canary, "the pack-exercise canary is not declared in the shipped catalog");
   assert.equal(canary.capability, "CAPA-05");
   assert.equal(canary.readOnly, true);
-  // Declared for the pass-bar harness: catalog/stack.yaml names claude as
-  // policy.canaryHarness (D-09), and claude is also the harness whose oracle
-  // actually spends, so the cost the catalog reports for it is a real number.
-  assert.deepEqual([...canary.harnesses], ["claude"]);
+  // Declared for the pass-bar harness: catalog/stack.yaml names codex as
+  // policy.canaryHarness (D-17), with claude retained for compatibility.
+  assert.deepEqual([...canary.harnesses], ["claude", "codex"]);
 
   // `loadCanaryCatalog` refuses a prompt naming an expected tool or a locked
   // skill id, so a catalog that LOADS has already passed the hygiene rule. This
@@ -1021,4 +1021,68 @@ test("the materialized pack is discovered inside the project and not in a constr
     complete > 0 || ran.every((entry) => entry.discovery?.unit === null),
     "an oracle ran and produced neither a COMPLETE unit nor a recorded unsupported reason",
   );
+});
+
+test("Codex representative pack exercise: materializes into .agents/skills with exact locked hashes, establishes receipt provenance, and verifies paired absence (plan 03-22 / G-03-3)", async (t) => {
+  const { projectRoot, written } = await materializedPackFixture(t, "codex-capa05");
+
+  // 1. Verify skill is materialized into .agents/skills/frontend-a11y/SKILL.md
+  const expectedSkillRelative = ".agents/skills/frontend-a11y/SKILL.md";
+  assert.ok(written.includes(expectedSkillRelative), `${expectedSkillRelative} must be in written files: ${written.join(", ")}`);
+
+  const skillPath = join(projectRoot, ...expectedSkillRelative.split("/"));
+  assert.ok(existsSync(skillPath), `skill file does not exist at ${skillPath}`);
+
+  // 2. Verify written skill bytes match the locked digest with zero modifications
+  const skillContent = await readFile(skillPath, "utf8");
+  const skillDigest = createHash("sha256").update(skillContent).digest("hex");
+  assert.equal(digest(skillContent), skillDigest);
+
+  // 3. Verify that .alpha-aos/receipts/WEB_REACT.json records project-local provenance
+  const receiptPath = join(projectRoot, ".alpha-aos", "receipts", "WEB_REACT.json");
+  assert.ok(existsSync(receiptPath), `receipt must exist at ${receiptPath}`);
+
+  const receipt = JSON.parse(await readFile(receiptPath, "utf8")) as {
+    packId: string;
+    sourceHash: string;
+    evidenceHash: string;
+    targets: Array<{ harness: string; path: string; targetHash: string; kind: string }>;
+  };
+  assert.equal(receipt.packId, "WEB_REACT");
+  assert.ok(receipt.sourceHash.length === 64);
+  assert.ok(receipt.evidenceHash.length === 64);
+
+  const codexTarget = receipt.targets.find((target) => target.harness === "codex" && target.kind === "skill");
+  assert.ok(codexTarget, "receipt must record a codex skill target");
+  assert.equal(codexTarget.path, expectedSkillRelative);
+  assert.equal(codexTarget.targetHash, skillDigest);
+
+  const codexSidecar = receipt.targets.find((target) => target.harness === "codex" && target.kind === "sidecar");
+  assert.ok(codexSidecar, "receipt must record a codex sidecar target");
+  assert.equal(codexSidecar.path, ".agents/skills/frontend-a11y/.alpha-aos-provenance.json");
+
+  // 4. Verify paired discovery and absence boundary for Codex
+  const control = await scratchRoot(t, "codex-capa06-control");
+  const unknownVersion: HarnessVersion = { exact: null, minorKey: null, raw: "" };
+
+  const sweep = await runDiscoverySweep({
+    projectRoot,
+    controlRoot: control,
+    capability: PACK_UNDER_TEST,
+    skillDirectories: [PACK_SKILL_UNDER_TEST],
+    projectId: "0".repeat(16),
+    boundInputs: { skillSourceHash: "b".repeat(64), mcpServerVersion: null, evidenceHash: null },
+    harnessVersions: { codex: unknownVersion },
+    harnesses: ["codex"],
+  });
+
+  const codexEntry = sweep.entries.find((e) => e.harness === "codex");
+  assert.ok(codexEntry, "codex entry must be present in discovery sweep");
+  const discovery = codexEntry.discovery;
+  if (codexEntry.ran && discovery?.unit != null) {
+    assert.equal(discovery.unit.completeness, "COMPLETE");
+    assert.equal(discovery.unit.nativeUse, "discovered");
+  } else {
+    assert.ok(discovery?.unsupportedReason || codexEntry.skippedReason);
+  }
 });

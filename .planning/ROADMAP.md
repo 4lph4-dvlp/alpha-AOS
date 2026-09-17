@@ -232,7 +232,7 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task on an active non-Claude harness (anchored by Codex).
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation; every other active surface remains unverified or unsupported until its own evidence promotes it, and Claude Code absence is neither a blocker nor a release limitation for v0.1.0.
 
-**Plans**: 21/22 plans executed (4 gap-closure plans planned under D-17: 03-19..03-22).
+**Plans**: 22/22 plans executed (4 gap-closure plans planned under D-17: 03-19..03-22).
 **Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across active non-Claude targets (Codex, Antigravity, Pi, Hermes). Claude Code integration remains compatibility residue.
 
 Plans:
@@ -315,7 +315,7 @@ Plans:
 
 **Wave 19** *(blocked on Wave 18; gap closure)*
 
-- [ ] 03-22-PLAN.md — Active Codex representative project pack exercise with provenance and absence boundary (G-03-3)
+- [x] 03-22-PLAN.md — Active Codex representative project pack exercise with provenance and absence boundary (G-03-3)
 
 > Every wave holds one plan. Phase 2 recorded the reason and it still holds: successive plans extend the
 > same modules, and even file-disjoint plans run `npm run build` and then execute compiled tests against

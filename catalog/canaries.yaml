@@ -104,6 +104,7 @@ canaries:
     requiresMcpServers: []
     harnesses:
       - claude
+      - codex
     readOnly: true
 
   - id: CROSS_HARNESS_HANDOFF

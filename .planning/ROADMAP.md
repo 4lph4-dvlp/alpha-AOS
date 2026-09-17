@@ -381,7 +381,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 05-01-PLAN.md — Policy Registry Schema, Canonical Path Resolution & Nearest Ancestor Inheritance Engine (OPTO-01)
+- [x] 05-01-PLAN.md — Policy Registry Schema, Canonical Path Resolution & Nearest Ancestor Inheritance Engine (OPTO-01)
 
 **Wave 2** *(blocked on Wave 1)*
 

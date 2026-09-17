@@ -339,7 +339,22 @@ Plans:
   4. Unrelated low-risk work completes without an unnecessary mandatory security, migration, or release gate.
   5. Supported harnesses can participate as workers while exactly one active GSD controller performs `.planning/` transitions and Hermes cannot become a GSD state writer.
 
-**Plans**: TBD
+**Plans**: 4 plans
+
+Plans:
+
+**Wave 1**
+- [ ] 04-01-PLAN.md — Core gate engine, cumulative phase diff inspection & risk fact matching (GATE-01, GATE-04)
+
+**Wave 2** *(blocked on Wave 1)*
+- [ ] 04-02-PLAN.md — Single-engine obligation resolver, native-first dispatch & structured gate receipt schema (GATE-02)
+
+**Wave 3** *(blocked on Wave 2)*
+- [ ] 04-03-PLAN.md — GSD capability overlay, lifecycle predicate gates & CLI surface (GATE-03)
+
+**Wave 4** *(blocked on Wave 3)*
+- [ ] 04-04-PLAN.md — Worker authority enforcement & cryptographic .planning/ immutability witness (GATE-05)
+
 **Planning note**: Validate capability injection, `agent_skills`, structured result, blocking, consent, and uninstall contracts against the exact locked GSD Core version before implementation is fixed.
 
 ### Phase 5: Persistent Tree-Off Preload Isolation

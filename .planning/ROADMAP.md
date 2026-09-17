@@ -389,7 +389,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2)*
 
-- [ ] 05-03-PLAN.md — First-Use Git Root Classification, TTY Flow, Headless CI Fallback & Tree CLI Suite (OPTO-03, OPTO-04)
+- [x] 05-03-PLAN.md — First-Use Git Root Classification, TTY Flow, Headless CI Fallback & Tree CLI Suite (OPTO-03, OPTO-04)
 
 **Wave 4** *(blocked on Wave 3)*
 

@@ -375,7 +375,7 @@ Plans:
   4. User can inspect the resolved configuration roots, skills, MCP, hooks, instructions, memory, environment-name allowlist, policy inheritance, and pre-launch enforcement, and global exclusion fails closed or reports unsupported when it cannot be proven for that harness, surface, version, and OS.
   5. User is told that `off` provides configuration isolation rather than filesystem or network sandboxing, unrelated ambient secret sentinels are absent, and an unsupported `sealed` request fails without fallback.
 
-**Plans**: 4 plans
+**Plans**: 4/4 plans executed
 
 Plans:
 
@@ -393,7 +393,7 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3)*
 
-- [ ] 05-04-PLAN.md — Local Resource Native Passthrough, Reviewed Environment Allowlist, 8-Dimension Surface Inspector & Sealed Guardrail (OPTO-06, OPTO-07, OPTO-08, OPTO-09)
+- [x] 05-04-PLAN.md — Local Resource Native Passthrough, Reviewed Environment Allowlist, 8-Dimension Surface Inspector & Sealed Guardrail (OPTO-06, OPTO-07, OPTO-08, OPTO-09)
 
 **Planning note**: This phase requires per-surface live research, especially for Antigravity GUI/IDE interception, Codex project-resource behavior, Hermes profile/environment behavior, and authentication reuse without customization import.
 

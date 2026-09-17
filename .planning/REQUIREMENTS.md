@@ -58,10 +58,10 @@
 - [x] **OPTO-03**: User opening an unclassified repository that already contains native AI-agent skills, MCP configuration, instructions, hooks, or harness settings is asked once before agent startup whether to use alpha-AOS or establish an `off` tree; the decision is persisted without silently modifying or committing the repository
 - [x] **OPTO-04**: User receives a clean restart instead of a false isolation claim when a harness or hook discovers the need for `off` mode only after global instructions, skill descriptions, or MCP schemas have already loaded
 - [x] **OPTO-05**: User launching from an `off` tree receives a clean harness baseline with alpha-AOS-managed and other user-global skills, MCP servers, hooks, memory, workflow guidance, and customization settings absent
-- [ ] **OPTO-06**: User can add skills, MCP servers, `CLAUDE.md`/`AGENTS.md`, hooks, tools, and harness-specific settings inside an `off` tree and have the harness use those local resources without alpha-AOS installing, managing, or promoting them globally; with no local resources, the experience remains vanilla
-- [ ] **OPTO-07**: User launching from an `off` tree does not pass unrelated ambient environment variables or secret sentinels to the harness; only reviewed names required for runtime or authentication are forwarded
-- [ ] **OPTO-08**: User can inspect the resolved skill, MCP, hook, instruction, memory, configuration-root, environment-name, policy-inheritance, and pre-launch-enforcement surfaces and receives a fail-closed or explicitly unsupported result when global exclusion cannot be proven for that harness, surface, version, and OS
-- [ ] **OPTO-09**: User is told that `off` mode provides configuration isolation rather than filesystem or network sandboxing, and an unsupported `sealed` request fails without falling back
+- [x] **OPTO-06**: User can add skills, MCP servers, `CLAUDE.md`/`AGENTS.md`, hooks, tools, and harness-specific settings inside an `off` tree and have the harness use those local resources without alpha-AOS installing, managing, or promoting them globally; with no local resources, the experience remains vanilla
+- [x] **OPTO-07**: User launching from an `off` tree does not pass unrelated ambient environment variables or secret sentinels to the harness; only reviewed names required for runtime or authentication are forwarded
+- [x] **OPTO-08**: User can inspect the resolved skill, MCP, hook, instruction, memory, configuration-root, environment-name, policy-inheritance, and pre-launch-enforcement surfaces and receives a fail-closed or explicitly unsupported result when global exclusion cannot be proven for that harness, surface, version, and OS
+- [x] **OPTO-09**: User is told that `off` mode provides configuration isolation rather than filesystem or network sandboxing, and an unsupported `sealed` request fails without falling back
 
 ### Lifecycle, Diagnostics, and Recovery
 

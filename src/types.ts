@@ -674,3 +674,32 @@ export interface ProjectCapabilityPlan {
   /** Digest of everything a reviewer would look at. */
   planDigest: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 4: Mandatory GSD Gates (GATE-01 .. GATE-05)
+// ---------------------------------------------------------------------------
+
+export type GateObligationType = "security-review" | "database-migration" | "release-check";
+
+export interface GitDiffRange {
+  readonly baseCommit: string;
+  readonly headCommit: string;
+  readonly isWorkingTreeDirty: boolean;
+  readonly modifiedFiles: readonly string[];
+  readonly untrackedFiles: readonly string[];
+  readonly packageJsonVersionModified?: boolean | undefined;
+}
+
+export interface RiskFactMatch {
+  readonly factId: string;
+  readonly matchedFiles: readonly string[];
+  readonly rule: "glob" | "identifier";
+}
+
+export interface RiskObligationResult {
+  readonly obligations: readonly GateObligationType[];
+  readonly silentPass: boolean;
+  readonly riskFiles: readonly string[];
+  readonly matchedFacts: readonly RiskFactMatch[];
+}
+

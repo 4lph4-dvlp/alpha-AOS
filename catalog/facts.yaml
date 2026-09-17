@@ -318,39 +318,47 @@ facts:
   - id: auth-change
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change touches authentication or session handling.
 
   - id: user-input
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change introduces or widens an untrusted input path.
 
   - id: secrets
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change touches credential handling.
 
   - id: payments
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change touches a payment or billing path.
 
   - id: sensitive-data
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change touches personal or otherwise regulated data.
 
   - id: command-execution
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change introduces process or shell execution.
 
   - id: trust-boundary
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change moves or widens a trust boundary.
 
   - id: public-api
     kind: fileContent
     deferredTo: GATE-01
+    x-risk-surface: true
     description: A proposed change alters a publicly reachable interface.

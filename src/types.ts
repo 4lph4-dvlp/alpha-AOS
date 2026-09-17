@@ -703,3 +703,40 @@ export interface RiskObligationResult {
   readonly matchedFacts: readonly RiskFactMatch[];
 }
 
+export interface GateReceipt {
+  readonly schemaVersion: 1;
+  readonly obligation: GateObligationType;
+  readonly status: "passed" | "failed";
+  readonly engine: {
+    readonly id: string;
+    readonly kind: "native" | "ecc";
+    readonly command?: string;
+    readonly skill?: string;
+  };
+  readonly targetCommitSha: string;
+  readonly workingTreeDigest: string;
+  readonly exitCode: number;
+  readonly executedAt: string;
+  readonly suppressedEngines: readonly {
+    readonly engine: string;
+    readonly reason: string;
+  }[];
+  readonly evidenceHash: string;
+  readonly diagnostics?: string;
+}
+
+export interface EngineSelection {
+  readonly obligation: GateObligationType;
+  readonly selectedEngine: {
+    readonly id: string;
+    readonly kind: "native" | "ecc";
+    readonly command?: string;
+    readonly skill?: string;
+  };
+  readonly suppressedEngines: readonly {
+    readonly engine: string;
+    readonly reason: string;
+  }[];
+}
+
+

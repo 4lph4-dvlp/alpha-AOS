@@ -43,7 +43,12 @@ export type ManagedDocumentKind =
    * instruction, so an unknown key must be a refusal rather than an inert
    * field somebody assumed was being read (03-05 T-03-44).
    */
-  | "canary-catalog";
+  | "canary-catalog"
+  /**
+   * Structured gate receipts under `.alpha-aos/receipts/gates/<obligation>.json`.
+   * Enforces single-engine resolution, git commit binding, and status (GATE-02, D-06).
+   */
+  | "gate-receipt";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -329,6 +334,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   // so there is no foreign subtree to leave alone.
   "capability-ledger": null,
   "canary-catalog": null,
+  "gate-receipt": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -439,6 +445,33 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     schemaVersion: { type: "integer" },
     canaries: { type: "array" },
   }),
+  "gate-receipt": coreObject(
+    [
+      "schemaVersion",
+      "obligation",
+      "status",
+      "engine",
+      "targetCommitSha",
+      "workingTreeDigest",
+      "exitCode",
+      "executedAt",
+      "suppressedEngines",
+      "evidenceHash",
+    ],
+    {
+      schemaVersion: { type: "integer" },
+      obligation: { enum: ["security-review", "database-migration", "release-check"] },
+      status: { enum: ["passed", "failed"] },
+      engine: anyObject,
+      targetCommitSha: { type: "string" },
+      workingTreeDigest: { type: "string" },
+      exitCode: { type: "integer" },
+      executedAt: { type: "string" },
+      suppressedEngines: { type: "array" },
+      evidenceHash: { type: "string" },
+      diagnostics: { type: "string" },
+    },
+  ),
 };
 
 const ajv = new Ajv2020({

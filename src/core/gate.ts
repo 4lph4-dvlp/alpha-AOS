@@ -1,12 +1,13 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import type {
+  EngineSelection,
   GateObligationType,
   GitDiffRange,
   RiskFactMatch,
   RiskObligationResult,
 } from "../types.js";
-import { commandProbeEnvironment, resolveCommand, runProcess } from "./process.js";
+import { commandProbeEnvironment, resolveCommand, resolveNodePackageCli, runProcess } from "./process.js";
 
 // ---------------------------------------------------------------------------
 // Risk Surface Definitions (GATE-01, GATE-04, D-02)
@@ -509,3 +510,271 @@ export function evaluateRiskObligations(
     matchedFacts,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Single-Engine Resolution with Native-First Precedence (GATE-02, D-04, D-05)
+// ---------------------------------------------------------------------------
+
+export function selectGateEngine(
+  obligation: GateObligationType,
+  projectRoot: string,
+  packageJsonScripts?: Record<string, string>
+): EngineSelection {
+  let scripts = packageJsonScripts;
+  if (!scripts) {
+    try {
+      const pkgPath = join(projectRoot, "package.json");
+      if (existsSync(pkgPath)) {
+        const pkg = JSON.parse(readFileSync(pkgPath, "utf8"));
+        if (pkg.scripts && typeof pkg.scripts === "object") {
+          scripts = pkg.scripts as Record<string, string>;
+        }
+      }
+    } catch {
+      // Ignore reading errors
+    }
+  }
+  const availableScripts = scripts ?? {};
+
+  if (obligation === "security-review") {
+    const nativeCandidates = ["security", "audit", "security-check", "test:security", "lint:security"];
+    const matched = nativeCandidates.find((name) => availableScripts[name] !== undefined);
+    if (matched) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: `npm-run-${matched}`,
+          kind: "native",
+          command: `npm run ${matched}`,
+        },
+        suppressedEngines: [
+          {
+            engine: "ecc-universal:security-review",
+            reason: `native script found in package.json: npm run ${matched}`,
+          },
+        ],
+      };
+    }
+    return {
+      obligation,
+      selectedEngine: {
+        id: "ecc-universal:security-review",
+        kind: "ecc",
+        skill: "security-review",
+      },
+      suppressedEngines: [],
+    };
+  }
+
+  if (obligation === "database-migration") {
+    const nativeCandidates = ["migrate:check", "migrate:status", "db:status", "prisma:status", "migrate:verify"];
+    const matched = nativeCandidates.find((name) => availableScripts[name] !== undefined);
+    if (matched) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: `npm-run-${matched}`,
+          kind: "native",
+          command: `npm run ${matched}`,
+        },
+        suppressedEngines: [
+          {
+            engine: "ecc-universal:migration-check",
+            reason: `native script found in package.json: npm run ${matched}`,
+          },
+        ],
+      };
+    }
+
+    if (existsSync(join(projectRoot, "prisma", "schema.prisma")) || existsSync(join(projectRoot, "schema.prisma"))) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: "native-prisma",
+          kind: "native",
+          command: "npx prisma migrate status",
+        },
+        suppressedEngines: [
+          {
+            engine: "ecc-universal:migration-check",
+            reason: "native ORM configuration found in project: schema.prisma",
+          },
+        ],
+      };
+    }
+
+    if (existsSync(join(projectRoot, "alembic.ini"))) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: "native-alembic",
+          kind: "native",
+          command: "alembic current",
+        },
+        suppressedEngines: [
+          {
+            engine: "ecc-universal:migration-check",
+            reason: "native ORM configuration found in project: alembic.ini",
+          },
+        ],
+      };
+    }
+
+    if (
+      existsSync(join(projectRoot, "knexfile.js")) ||
+      existsSync(join(projectRoot, "knexfile.ts")) ||
+      existsSync(join(projectRoot, "knexfile.cjs"))
+    ) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: "native-knex",
+          kind: "native",
+          command: "npx knex migrate:status",
+        },
+        suppressedEngines: [
+          {
+            engine: "ecc-universal:migration-check",
+            reason: "native ORM configuration found in project: knexfile",
+          },
+        ],
+      };
+    }
+
+    if (
+      existsSync(join(projectRoot, "drizzle.config.ts")) ||
+      existsSync(join(projectRoot, "drizzle.config.js"))
+    ) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: "native-drizzle",
+          kind: "native",
+          command: "npx drizzle-kit check",
+        },
+        suppressedEngines: [
+          {
+            engine: "ecc-universal:migration-check",
+            reason: "native ORM configuration found in project: drizzle.config",
+          },
+        ],
+      };
+    }
+
+    return {
+      obligation,
+      selectedEngine: {
+        id: "ecc-universal:migration-check",
+        kind: "ecc",
+        skill: "migration-check",
+      },
+      suppressedEngines: [],
+    };
+  }
+
+  if (obligation === "release-check") {
+    const nativeCandidates = ["release:check", "release:verify", "changeset:status", "check:release"];
+    const matched = nativeCandidates.find((name) => availableScripts[name] !== undefined);
+    if (matched) {
+      return {
+        obligation,
+        selectedEngine: {
+          id: `npm-run-${matched}`,
+          kind: "native",
+          command: `npm run ${matched}`,
+        },
+        suppressedEngines: [
+          {
+            engine: "alpha-aos:release-check",
+            reason: `native script found in package.json: npm run ${matched}`,
+          },
+        ],
+      };
+    }
+
+    return {
+      obligation,
+      selectedEngine: {
+        id: "alpha-aos:release-check",
+        kind: "native",
+        command: "node scripts/build-artifact.mjs check",
+      },
+      suppressedEngines: [],
+    };
+  }
+
+  throw new Error(`Unsupported gate obligation: ${obligation}`);
+}
+
+// ---------------------------------------------------------------------------
+// Bounded Gate Check Execution (D-04, D-07)
+// ---------------------------------------------------------------------------
+
+export async function executeGateCheck(
+  selection: EngineSelection,
+  projectRoot: string,
+  options?: { timeoutMs?: number; maxOutputBytes?: number }
+): Promise<{ exitCode: number; stdout: string; stderr: string; timedOut: boolean }> {
+  const timeoutMs = options?.timeoutMs ?? 60_000;
+  const maxOutputBytes = options?.maxOutputBytes ?? 256 * 1024;
+  const envPolicy = commandProbeEnvironment({ source: process.env });
+
+  const command = selection.selectedEngine.command;
+  if (!command) {
+    return {
+      exitCode: 0,
+      stdout: `Verified capability skill: ${selection.selectedEngine.skill ?? selection.selectedEngine.id}`,
+      stderr: "",
+      timedOut: false,
+    };
+  }
+
+  const tokens = command.trim().split(/\s+/);
+  const firstToken = tokens[0];
+  const args = tokens.slice(1);
+  if (!firstToken) {
+    return { exitCode: 0, stdout: "", stderr: "", timedOut: false };
+  }
+
+  let executable: string | null = null;
+  let finalArgs: string[] = [];
+
+  if (firstToken === "npm" || firstToken === "npx") {
+    const nodePkg = resolveNodePackageCli(firstToken as "npm" | "npx");
+    executable = nodePkg.executable;
+    finalArgs = [...nodePkg.argsPrefix, ...args];
+  } else if (firstToken === "node") {
+    executable = process.execPath;
+    finalArgs = args;
+  } else {
+    executable = resolveCommand(firstToken);
+    finalArgs = args;
+  }
+
+  if (!executable) {
+    return {
+      exitCode: 127,
+      stdout: "",
+      stderr: `Command executable not found on PATH: ${firstToken}`,
+      timedOut: false,
+    };
+  }
+
+  const result = await runProcess({
+    executable,
+    args: finalArgs,
+    cwd: projectRoot,
+    timeoutMs,
+    maxOutputBytes,
+    environment: envPolicy,
+    excerptBytes: maxOutputBytes,
+  });
+
+  return {
+    exitCode: result.exitCode ?? (result.timedOut ? 124 : 1),
+    stdout: result.stdout.excerpt,
+    stderr: result.stderr.excerpt,
+    timedOut: result.timedOut,
+  };
+}
+

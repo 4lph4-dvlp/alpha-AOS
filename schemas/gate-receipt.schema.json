@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/gate-receipt.schema.json",
+  "title": "alpha-AOS structured gate receipt",
+  "description": "Closed contract for gate execution receipts under .alpha-aos/receipts/gates/ (GATE-02, D-06).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "obligation",
+    "status",
+    "engine",
+    "targetCommitSha",
+    "workingTreeDigest",
+    "exitCode",
+    "executedAt",
+    "suppressedEngines",
+    "evidenceHash"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "obligation": {
+      "enum": ["security-review", "database-migration", "release-check"]
+    },
+    "status": {
+      "enum": ["passed", "failed"]
+    },
+    "engine": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "kind": { "enum": ["native", "ecc"] },
+        "command": { "type": "string", "minLength": 1 },
+        "skill": { "type": "string", "minLength": 1 }
+      }
+    },
+    "targetCommitSha": { "$ref": "#/$defs/gitSha" },
+    "workingTreeDigest": { "$ref": "#/$defs/sha256" },
+    "exitCode": { "type": "integer" },
+    "executedAt": { "type": "string", "minLength": 1 },
+    "suppressedEngines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["engine", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "engine": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evidenceHash": { "$ref": "#/$defs/sha256" },
+    "diagnostics": { "type": "string" }
+  }
+}

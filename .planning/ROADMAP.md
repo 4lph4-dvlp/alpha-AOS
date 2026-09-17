@@ -375,7 +375,7 @@ Plans:
   4. User can inspect the resolved configuration roots, skills, MCP, hooks, instructions, memory, environment-name allowlist, policy inheritance, and pre-launch enforcement, and global exclusion fails closed or reports unsupported when it cannot be proven for that harness, surface, version, and OS.
   5. User is told that `off` provides configuration isolation rather than filesystem or network sandboxing, unrelated ambient secret sentinels are absent, and an unsupported `sealed` request fails without fallback.
 
-**Plans**: 4/4 plans executed
+**Plans**: 4/4 plans executed. Verification complete (2026-09-18).
 
 Plans:
 

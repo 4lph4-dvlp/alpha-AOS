@@ -14,21 +14,29 @@
   "type": "module",
   "files": [
     "dist/src/",
-    "catalog/",
+    "dist/build-artifact.json",
+    "catalog/stack.yaml",
+    "catalog/stack.lock.json",
+    "catalog/facts.yaml",
+    "catalog/canaries.yaml",
+    "catalog/packs/",
     "schemas/",
     "scripts/",
     "skills/",
+    "docs/",
     "README.md",
-    "docs/"
+    "CHANGELOG.md",
+    "LICENSE"
   ],
   "bin": {
     "alpha-aos": "dist/src/cli.js"
   },
   "scripts": {
+    "audit-tarball": "node scripts/audit-tarball.mjs",
     "build": "tsc -p tsconfig.json && node scripts/build-artifact.mjs write",
     "build:check": "node scripts/build-artifact.mjs check",
     "check": "tsc -p tsconfig.json --noEmit",
-    "prepack": "npm run build",
+    "prepack": "npm run build && node scripts/audit-tarball.mjs --prepack",
     "test": "npm run build && node scripts/run-tests.mjs",
     "start": "node dist/src/cli.js"
   },

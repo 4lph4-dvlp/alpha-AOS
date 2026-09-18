@@ -1,0 +1,8 @@
+catalog/candidate.lock.json
+.planning/
+test/
+scratch/
+*.ts
+tsconfig.json
+.github/
+*.log

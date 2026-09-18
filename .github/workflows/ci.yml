@@ -10,8 +10,37 @@ permissions:
   contents: read
 
 jobs:
+  package:
+    name: Authoritative Release Package (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+      - run: npm run build:check
+      - name: Pack authoritative release tarball
+        run: npm pack
+      - name: Audit tarball contents against allowlist
+        run: node scripts/audit-tarball.mjs alpha-aos-0.1.0.tgz
+      - name: Generate SHA-256 checksum
+        run: sha256sum alpha-aos-0.1.0.tgz > alpha-aos-0.1.0.tgz.sha256
+      - name: Upload release tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-tarball
+          path: |
+            alpha-aos-0.1.0.tgz
+            alpha-aos-0.1.0.tgz.sha256
+          if-no-files-found: error
+
   test:
     name: ${{ matrix.os }} / Node 24
+    needs: package
     runs-on: ${{ matrix.os }}
     # These three pinned-server startups are the repository's only
     # registry-touching tests. Without this gate an air-gapped leg would lose
@@ -31,6 +60,23 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Download release tarball artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: release-tarball
+      - name: Verify release tarball checksum (POSIX)
+        if: runner.os != 'Windows'
+        run: sha256sum -c alpha-aos-0.1.0.tgz.sha256
+      - name: Verify release tarball checksum (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $expected = (Get-Content alpha-aos-0.1.0.tgz.sha256).Split(' ')[0].Trim()
+          $actual = (Get-FileHash alpha-aos-0.1.0.tgz -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected.ToLowerInvariant()) {
+            Write-Error "Checksum mismatch: expected $expected, got $actual"
+            exit 1
+          }
       - run: npm run check
       - run: npm test
 

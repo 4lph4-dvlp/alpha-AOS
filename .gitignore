@@ -2,6 +2,7 @@ node_modules/
 dist/
 coverage/
 *.log
+*.tgz
 
 # Machine-local state and rollback material
 .alpha-aos/install-state.json

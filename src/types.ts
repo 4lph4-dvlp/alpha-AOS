@@ -10,11 +10,23 @@ import type { DroppedMember, ExcludedBoundary, RootReason, ScanBound } from "./c
 // it that could drift. Both imports are type-only and erased at runtime.
 import type { NativeUseState } from "./core/capability-ledger.js";
 import type { PackState } from "./core/project-plan.js";
+import type { WriterStatus } from "./core/writer-lock.js";
 
 export type HarnessId = "claude" | "codex" | "antigravity" | "pi" | "hermes";
 export type McpServerId = "context7" | "exa" | "firecrawl";
 export type Channel = "stable" | "candidate" | "pinned";
 export type IsolationMode = "managed" | "project-only" | "sealed";
+
+export interface OfflineStatus {
+  readonly channel: Channel;
+  readonly generatedAt: string | null;
+  readonly writerStatus: WriterStatus;
+  readonly needsRepair: boolean;
+  readonly incompleteTransactions: readonly string[];
+  readonly corruptJournals: readonly string[];
+  readonly treePoliciesCount: number;
+  readonly managedStatePresent: boolean;
+}
 
 export interface HarnessConfig {
   displayName: string;

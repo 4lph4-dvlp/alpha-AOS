@@ -409,8 +409,15 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
   }
 
   const piPlan = selection.targets.includes("pi") ? await planMcpSync("pi", options.lock) : null;
-  if (piPlan?.piBridge && !piPlan.piBridgeCurrent) {
-    steps.push({ id: "mcp-bridge:pi", component: "mcp-bridge", target: "pi", action: "install", external: true, note: `${piPlan.piBridge.package}@${piPlan.piBridge.version}` });
+  if (piPlan?.piBridge) {
+    steps.push({
+      id: "mcp-bridge:pi",
+      component: "mcp-bridge",
+      target: "pi",
+      action: piPlan.piBridgeCurrent ? "current" : "install",
+      external: true,
+      note: `${piPlan.piBridge.package}@${piPlan.piBridge.version}`,
+    });
   }
 
   for (const target of selection.targets) {
@@ -603,7 +610,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
   const piStep = install.steps.find((step) => step.id === "mcp-bridge:pi");
   const piBridge = options.lock.components.mcpBridges?.pi ?? null;
   let mcpBridgeFixture: McpFixtureOperationPlan | null = null;
-  if (piStep && piBridge) {
+  if (piStep && piBridge && piStep.action !== "current") {
     mcpBridgeFixture = await createMcpFixtureOperationPlan({ server: "context7", harness: "pi", lock: options.lock, ...reuse("mcp-bridge:pi") });
     const pi = resolveCommand("pi");
     if (!pi) throw new Error("Pi CLI is required to install its MCP bridge");
@@ -734,6 +741,15 @@ export interface ManagedInstallApplyOptions extends ManagedInstallOptions {
 export async function applyManagedInstall(options: ManagedInstallApplyOptions): Promise<ManagedInstallResult> {
   const reviewed = options.plan ?? await createManagedInstallOperationPlan(options);
   const plan = reviewed.install;
+  if (plan.steps.every((step) => step.action === "current")) {
+    return {
+      plan,
+      applied: [],
+      current: plan.steps.map((s) => s.id),
+      operationIds: [],
+      externalChanges: [],
+    };
+  }
   const applied: string[] = [];
   const current: string[] = [];
   const operationIds: string[] = [];

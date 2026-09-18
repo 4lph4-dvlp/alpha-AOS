@@ -3,6 +3,7 @@ import type {
   Inventory,
   IsolationLaunchSpec,
   IsolationPlan,
+  OfflineStatus,
   PlanAction,
   ProjectCapabilityPlan,
   StackLock,
@@ -863,6 +864,30 @@ export function formatTreeInspection(inspection: TreeSurfaceInspection): string 
     `   Sealed Container:     ${inspection.boundaryNotice.sealedModeSupported ? "Supported" : "NOT SUPPORTED (sealed mode requires container boundary, fails closed)"}`,
   );
 
+  return lines.join("\n");
+}
+
+export function formatOfflineStatus(status: OfflineStatus): string {
+  const lines: string[] = [
+    `alpha-AOS offline status (${status.channel})`,
+    `Generated at: ${status.generatedAt ?? "unknown"}`,
+    `Writer lock: ${status.writerStatus}`,
+    `Directory tree policies: ${status.treePoliciesCount}`,
+    `Managed state present: ${status.managedStatePresent ? "yes" : "no"}`,
+  ];
+  if (status.needsRepair) {
+    lines.push("");
+    lines.push("STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)");
+    if (status.incompleteTransactions.length > 0) {
+      lines.push(`Incomplete transactions: ${status.incompleteTransactions.join(", ")}`);
+    }
+    if (status.corruptJournals.length > 0) {
+      lines.push(`Corrupt journals: ${status.corruptJournals.join(", ")}`);
+    }
+  } else {
+    lines.push("");
+    lines.push("STATUS: OK");
+  }
   return lines.join("\n");
 }
 

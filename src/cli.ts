@@ -42,6 +42,7 @@ import { applyClaudeSkillPolicy, planClaudeSkillPolicy } from "./core/skill-poli
 import { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } from "./core/mcp-proxy.js";
 import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/update.js";
 import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
+import { getOfflineStatus } from "./core/status.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { createHash } from "node:crypto";
@@ -82,7 +83,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
 import {
   classifyGitRootOrFallback,
   findEnclosingGitRoot,
@@ -502,9 +503,9 @@ async function main(): Promise<void> {
   }
 
   if (command === "status") {
-    const inventory = collectInventory(catalog);
-    const state = { channel: lock.channel, generatedAt: lock.generatedAt, inventory };
-    print(state, json, `${formatInventory(inventory)}\n\nActive catalog channel: ${lock.channel}`);
+    const status = await getOfflineStatus(userStateRoot(), catalog, lock);
+    print(status, json, formatOfflineStatus(status));
+    if (status.needsRepair) process.exitCode = 1;
     return;
   }
 

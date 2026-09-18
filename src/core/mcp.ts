@@ -293,7 +293,7 @@ function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
-function stripManagedToml(text: string): string {
+export function stripManagedToml(text: string): string {
   let result = text.replace(/(?:^|\r?\n)# alpha-aos:start mcp[\s\S]*?# alpha-aos:end mcp(?:\r?\n|$)/gu, "\n");
   for (const id of serverOrder) {
     const lines = result.split(/\r?\n/u);

@@ -69,6 +69,58 @@ export interface CrashRepairResult {
   readonly lockReleased: boolean;
 }
 
+export interface DriftDiagnostic {
+  readonly target: string;
+  readonly expectedHash: string | null;
+  readonly actualHash: string | null;
+  readonly unifiedDiff: string | null;
+  readonly remediation: string;
+}
+
+export interface RollbackPreflightResult {
+  readonly ok: boolean;
+  readonly headTransactionId: string;
+  readonly isHead: boolean;
+  readonly driftedFiles: readonly DriftDiagnostic[];
+}
+
+export type UninstallScope = "target" | "project" | "all";
+
+export interface SemanticPrunePlan {
+  readonly path: string;
+  readonly format: "toml" | "json" | "yaml" | "markdown";
+  readonly existedBefore: boolean;
+  readonly userKeysPreserved: readonly string[];
+  readonly injectedKeysRemoved: readonly string[];
+  readonly action: "prune" | "delete" | "preserve";
+  readonly currentHash: string;
+  readonly expectedAfterHash: string | null;
+}
+
+export interface UninstallPlan {
+  readonly schemaVersion: 1;
+  readonly scope: UninstallScope;
+  readonly targetHarness?: HarnessId;
+  readonly projectPath?: string;
+  readonly purgeRequested: boolean;
+  readonly stateRoot: string;
+  readonly prunePlans: readonly SemanticPrunePlan[];
+  readonly filesToRemove: readonly string[];
+  readonly directoriesToSweep: readonly string[];
+  readonly externalCompensation: readonly RecoveryReceiptEntry[];
+  readonly planDigest: string;
+}
+
+export interface UninstallResult {
+  readonly plan: UninstallPlan;
+  readonly prunedFiles: readonly string[];
+  readonly removedFiles: readonly string[];
+  readonly sweptDirectories: readonly string[];
+  readonly preservedJournals: readonly string[];
+  readonly recoveryReceipt?: RecoveryReceipt;
+}
+
+
 export interface HarnessConfig {
   displayName: string;
   gsdTarget?: string;

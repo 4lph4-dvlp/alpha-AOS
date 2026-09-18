@@ -2,6 +2,7 @@ import type {
   CrashRepairPlan,
   CrashRepairResult,
   DoctorFinding,
+  DriftDiagnostic,
   Inventory,
   IsolationLaunchSpec,
   IsolationPlan,
@@ -13,6 +14,8 @@ import type {
   TreePreviewReport,
   TreeRegistryEntry,
   TreeSurfaceInspection,
+  UninstallPlan,
+  UninstallResult,
 } from "./types.js";
 import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
 import {
@@ -946,5 +949,100 @@ export function formatCrashRepairResult(result: CrashRepairResult): string {
   }
   return lines.join("\n");
 }
+
+export function formatDriftDiagnostics(diagnostics: readonly DriftDiagnostic[]): string {
+  const lines: string[] = [
+    "alpha-AOS Rollback Drift Error: post-transaction drift detected",
+    `Drifted files: ${diagnostics.length}`,
+    "Zero file writes performed (all-or-nothing preflight refusal).",
+    "",
+  ];
+  for (const diag of diagnostics) {
+    lines.push(`Target:   ${diag.target}`);
+    lines.push(`Expected: ${diag.expectedHash ?? "(none / unlinked)"}`);
+    lines.push(`Actual:   ${diag.actualHash ?? "(missing)"}`);
+    if (diag.unifiedDiff) {
+      lines.push("Unified Diff snippet:");
+      for (const diffLine of diag.unifiedDiff.split("\n")) {
+        lines.push(`  ${diffLine}`);
+      }
+    }
+    lines.push(`Remediation: ${diag.remediation}`);
+    lines.push("");
+  }
+  return lines.join("\n").trimEnd();
+}
+
+export function formatUninstallPlan(plan: UninstallPlan): string {
+  const lines: string[] = [
+    `alpha-AOS Uninstall Plan (scope: ${plan.scope})`,
+    `Purge state directory: ${plan.purgeRequested ? "YES" : "no"}`,
+  ];
+  if (plan.targetHarness) lines.push(`Target harness:        ${plan.targetHarness}`);
+  if (plan.projectPath) lines.push(`Project path:          ${plan.projectPath}`);
+  lines.push(`State root:            ${plan.stateRoot}`);
+
+  if (plan.prunePlans.length > 0) {
+    lines.push("");
+    lines.push("Configuration files to prune semantically:");
+    for (const p of plan.prunePlans) {
+      lines.push(`  - ${p.path} (${p.format}) [action: ${p.action}]`);
+      if (p.injectedKeysRemoved.length > 0) {
+        lines.push(`      injected keys to remove: ${p.injectedKeysRemoved.join(", ")}`);
+      }
+      if (p.userKeysPreserved.length > 0) {
+        lines.push(`      user keys preserved:     ${p.userKeysPreserved.join(", ")}`);
+      }
+    }
+  }
+
+  if (plan.filesToRemove.length > 0) {
+    lines.push("");
+    lines.push("Files to remove:");
+    for (const f of plan.filesToRemove) {
+      lines.push(`  - ${f}`);
+    }
+  }
+
+  if (plan.directoriesToSweep.length > 0) {
+    lines.push("");
+    lines.push("Directories to reverse sweep:");
+    for (const d of plan.directoriesToSweep) {
+      lines.push(`  - ${d}`);
+    }
+  }
+
+  if (plan.externalCompensation.length > 0) {
+    lines.push("");
+    lines.push("External package compensation instructions will be recorded:");
+    for (const c of plan.externalCompensation) {
+      lines.push(`  - ${c.component}: ${c.compensation.instructions}`);
+    }
+  }
+
+  lines.push("");
+  lines.push("Dry-run only. Pass --apply [--yes] to execute uninstall.");
+  return lines.join("\n");
+}
+
+export function formatUninstallResult(result: UninstallResult): string {
+  const lines: string[] = [
+    `alpha-AOS Uninstall Complete (scope: ${result.plan.scope})`,
+    `Pruned configurations: ${result.prunedFiles.length}`,
+    `Removed files:         ${result.removedFiles.length}`,
+    `Swept directories:     ${result.sweptDirectories.length}`,
+  ];
+  if (result.preservedJournals.length > 0) {
+    lines.push(`Preserved journals:    ${result.preservedJournals.length} (audit trail preserved)`);
+  }
+  if (result.plan.purgeRequested) {
+    lines.push("State directory completely purged (--purge).");
+  }
+  if (result.recoveryReceipt) {
+    lines.push(`Recovery receipt emitted (${result.recoveryReceipt.operationId}). Run manual commands for external packages.`);
+  }
+  return lines.join("\n");
+}
+
 
 

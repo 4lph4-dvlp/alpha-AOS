@@ -43,7 +43,7 @@ import { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpPro
 import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/update.js";
 import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
 import { getOfflineStatus } from "./core/status.js";
-import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction } from "./core/transaction.js";
+import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -83,8 +83,9 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
+import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
 import {
   classifyGitRootOrFallback,
   findEnclosingGitRoot,
@@ -121,7 +122,7 @@ import {
   evaluateLifecycleGates,
   formatGateBlockingFeedback,
 } from "./core/gate-lifecycle.js";
-import type { GateObligationType, HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext } from "./types.js";
+import type { GateObligationType, HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext, UninstallScope } from "./types.js";
 
 const HELP = `alpha-aos
 
@@ -156,6 +157,7 @@ Usage:
   alpha-aos gate status [--base <ref>] [--strict] [--json]
   alpha-aos rollback [operation-id] [--apply] [--json]
   alpha-aos repair [--apply] [--json]
+  alpha-aos uninstall [--target <harness> | --project <path> | --all] [--purge] [--yes|-y] [--apply] [--json]
   alpha-aos support-bundle [--out <path>] [--apply] [--json]
   alpha-aos bootstrap install|update [--skip-link] [--apply] [--json]
   alpha-aos tree set <path> --mode <managed|off> [--notes <notes>]
@@ -1325,17 +1327,112 @@ async function main(): Promise<void> {
         : "No managed transactions found.");
       return;
     }
-    const plan = await planManagedRollback(userStateRoot(), id);
-    if (!hasFlag(args, "--apply")) {
-      print(plan, json, [
-        `Rollback transaction: ${plan.id}`,
-        `Status: ${plan.status}`,
-        ...plan.files.map((file) => `${file.existed ? "RESTORE" : "REMOVE ".trim()} ${file.target}`),
-        "Dry-run only. Pass --apply to restore only if every target still matches its post-transaction hash.",
-      ].join("\n"));
-    } else {
-      const result = await rollbackManagedTransaction(userStateRoot(), id);
-      print(result, json, `Rolled back ${result.id}: ${result.files.length} file(s).`);
+    try {
+      const plan = await planManagedRollback(userStateRoot(), id);
+      if (!hasFlag(args, "--apply")) {
+        print(plan, json, [
+          `Rollback transaction: ${plan.id}`,
+          `Status: ${plan.status}`,
+          ...plan.files.map((file) => `${file.existed ? "RESTORE" : "REMOVE ".trim()} ${file.target}`),
+          "Dry-run only. Pass --apply to restore only if every target still matches its post-transaction hash.",
+        ].join("\n"));
+      } else {
+        const result = await rollbackManagedTransaction(userStateRoot(), id);
+        print(result, json, `Rolled back ${result.id}: ${result.files.length} file(s).`);
+      }
+    } catch (err) {
+      if (err instanceof RollbackDriftError) {
+        if (json) {
+          print({ ok: false, error: err.message, diagnostics: err.diagnostics }, true, "");
+        } else {
+          process.stderr.write(`${formatDriftDiagnostics(err.diagnostics)}\n`);
+        }
+        process.exitCode = 2;
+        return;
+      }
+      throw err;
+    }
+    return;
+  }
+
+  if (command === "uninstall") {
+    const hasAll = hasFlag(args, "--all");
+    const targetHarness = optionValue(args, "--target") as HarnessId | null;
+    const projectPath = optionValue(args, "--project") ?? undefined;
+    const purge = hasFlag(args, "--purge");
+    const apply = hasFlag(args, "--apply");
+    const yes = hasFlag(args, "--yes") || hasFlag(args, "-y");
+
+    const scopeCount = (hasAll ? 1 : 0) + (targetHarness ? 1 : 0) + (projectPath ? 1 : 0);
+    if (scopeCount !== 1) {
+      throw new Error(
+        "Uninstall requires exactly one scope: --target <harness>, --project <path>, or --all\n\n" +
+        "Usage: alpha-aos uninstall [--target <harness> | --project <path> | --all] [--purge] [--yes] [--apply] [--json]"
+      );
+    }
+
+    const scope: UninstallScope = hasAll ? "all" : targetHarness ? "target" : "project";
+
+    try {
+      const plan = await planUninstall({
+        scope,
+        targetHarness: targetHarness ?? undefined,
+        projectPath,
+        purge,
+      });
+
+      if (!apply) {
+        if (json) {
+          print(plan, true, "");
+        } else {
+          print(plan, false, formatUninstallPlan(plan));
+        }
+        return;
+      }
+
+      // Confirmation guard (D-02):
+      if (!yes) {
+        if (!process.stdin.isTTY) {
+          process.stderr.write("Non-interactive environment requires --yes to apply uninstall.\n");
+          process.exitCode = 2;
+          return;
+        }
+        const { createInterface } = await import("node:readline");
+        process.stdout.write("Proceed with uninstall? [y/N] ");
+        const rl = createInterface({
+          input: process.stdin,
+          output: process.stdout,
+          terminal: false,
+        });
+        let confirmed = false;
+        try {
+          for await (const rawLine of rl) {
+            const answer = rawLine.trim().toLowerCase();
+            confirmed = answer === "y" || answer === "yes";
+            break;
+          }
+        } finally {
+          rl.close();
+        }
+        if (!confirmed) {
+          print({ status: "aborted" }, json, "Uninstall aborted.");
+          return;
+        }
+      }
+
+      const result = await applyUninstall({ plan });
+      if (json) {
+        print(result, true, "");
+      } else {
+        print(result, false, formatUninstallResult(result));
+      }
+    } catch (err) {
+      if (err instanceof SemanticPruneDriftError) {
+        process.stderr.write(`alpha-aos uninstall: ${err.message}\n`);
+        process.exitCode = 2;
+        return;
+      }
+      throw err;
     }
     return;
   }

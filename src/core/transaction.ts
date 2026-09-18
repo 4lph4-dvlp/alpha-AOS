@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, copyFile, mkdir, open, readFile, readdir, rename, rm } from "node:fs/promises";
+import { chmod, copyFile, mkdir, open, readFile, readdir, rename, rm, rmdir } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import type { DriftDiagnostic } from "../types.js";
 import {
   proveOperationPaths,
   recheckPathProof,
@@ -9,6 +10,66 @@ import {
   type OperationPathProofSet,
 } from "./path-boundary.js";
 import { acquireMutationSession, syncDirectory, type MutationSession } from "./writer-lock.js";
+
+export class RollbackDriftError extends Error {
+  readonly diagnostics: readonly DriftDiagnostic[];
+
+  constructor(message: string, diagnostics: readonly DriftDiagnostic[]) {
+    super(message);
+    this.name = "RollbackDriftError";
+    this.diagnostics = diagnostics;
+  }
+}
+
+export function generateUnifiedDiff(
+  target: string,
+  expectedText: string,
+  actualText: string,
+  expectedHash: string,
+  actualHash: string,
+): string {
+  const expectedLines = expectedText.length > 0 ? expectedText.split(/\r?\n/u) : [];
+  const actualLines = actualText.length > 0 ? actualText.split(/\r?\n/u) : [];
+  const lines: string[] = [
+    `--- a/${target}\t(expected sha256: ${expectedHash.slice(0, 12)})`,
+    `+++ b/${target}\t(actual sha256: ${actualHash.slice(0, 12)})`,
+    `@@ -1,${Math.max(1, expectedLines.length)} +1,${Math.max(1, actualLines.length)} @@`,
+  ];
+  for (const line of expectedLines) {
+    if (!actualLines.includes(line)) lines.push(`-${line}`);
+  }
+  for (const line of actualLines) {
+    if (!expectedLines.includes(line)) lines.push(`+${line}`);
+  }
+  return lines.join("\n");
+}
+
+export async function sweepReverseDirectories(
+  filePath: string,
+  allowedRoots: readonly string[],
+): Promise<string[]> {
+  const removedDirs: string[] = [];
+  let currentDir = dirname(resolve(filePath));
+  const resolvedRoots = allowedRoots.map((r) => resolve(r));
+
+  while (!resolvedRoots.some((r) => currentDir === r || resolve(currentDir) === r)) {
+    const parent = dirname(currentDir);
+    if (parent === currentDir) break;
+    try {
+      await rmdir(currentDir);
+      removedDirs.push(currentDir);
+      currentDir = parent;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOTEMPTY" || code === "EEXIST" || code === "EBUSY" || code === "EPERM") {
+        break;
+      }
+      throw error;
+    }
+  }
+  return removedDirs;
+}
+
 
 export interface FileWriteOperation {
   target: string;
@@ -249,18 +310,71 @@ export async function rollbackFileTransaction(stateRoot: string, id: string, all
   const journalPath = join(stateRoot, "journal", `${id}.json`);
   const journal = JSON.parse(await readFile(journalPath, "utf8")) as TransactionJournal;
   if (journal.status === "rolled-back") throw new Error(`Transaction is already rolled back: ${id}`);
-  // Verify every post-transaction byte before changing any file. A rollback
-  // must never overwrite edits made by a user or another tool after apply.
+
+  // Verify every post-transaction byte before changing any file (LIFE-05, D-05).
+  // All-or-nothing preflight: a rollback must never overwrite edits made by a user
+  // or another tool after apply. If even a single file drifted, zero writes are made.
+  const diagnostics: DriftDiagnostic[] = [];
   for (const file of journal.files) {
     requireAllowed(file.target, allowedRoots);
+    let drifted = false;
+    let actualHash: string | null = null;
+    let actualText = "";
+
     if (file.afterHash === null) {
-      if (existsSync(file.target)) throw new Error(`Rollback blocked by post-transaction drift: ${file.target}`);
+      if (existsSync(file.target)) {
+        drifted = true;
+        const current = await readFile(file.target);
+        actualHash = sha256(current);
+        actualText = current.toString("utf8");
+      }
     } else {
-      if (!existsSync(file.target)) throw new Error(`Rollback blocked because target is missing: ${file.target}`);
-      const current = await readFile(file.target);
-      if (sha256(current) !== file.afterHash) throw new Error(`Rollback blocked by post-transaction drift: ${file.target}`);
+      if (!existsSync(file.target)) {
+        drifted = true;
+        actualHash = null;
+      } else {
+        const current = await readFile(file.target);
+        actualHash = sha256(current);
+        if (actualHash !== file.afterHash) {
+          drifted = true;
+          actualText = current.toString("utf8");
+        }
+      }
+    }
+
+    if (drifted) {
+      let expectedText = "";
+      if (file.snapshot && existsSync(file.snapshot)) {
+        expectedText = await readFile(file.snapshot, "utf8").catch(() => "");
+      }
+      const expHash = file.afterHash ?? "none";
+      const actHash = actualHash ?? "missing";
+      const diff = (actualHash !== null && (expectedText !== "" || actualText !== ""))
+        ? generateUnifiedDiff(basename(file.target), expectedText, actualText, expHash, actHash)
+        : null;
+      const remediation = file.snapshot
+        ? `Reconcile file manually or restore from snapshot: ${file.snapshot}`
+        : `Remove untracked or drifted file: ${file.target}`;
+
+      diagnostics.push({
+        target: file.target,
+        expectedHash: file.afterHash,
+        actualHash,
+        unifiedDiff: diff,
+        remediation,
+      });
     }
   }
+
+  if (diagnostics.length > 0) {
+    const targets = diagnostics.map((d) => d.target).join(", ");
+    throw new RollbackDriftError(
+      `Rollback blocked by post-transaction drift on ${diagnostics.length} file(s): ${targets}`,
+      diagnostics,
+    );
+  }
+
+  // Preflight passed cleanly. Execute file restorations and reverse directory sweeps.
   for (const file of [...journal.files].reverse()) {
     requireAllowed(file.target, allowedRoots);
     if (file.existed && file.snapshot) {
@@ -270,6 +384,7 @@ export async function rollbackFileTransaction(stateRoot: string, id: string, all
     } else {
       await rm(file.target, { force: true });
       await syncDirectory(dirname(file.target));
+      await sweepReverseDirectories(file.target, allowedRoots);
     }
     if (file.beforeHash) {
       const restored = await readFile(file.target);
@@ -284,10 +399,22 @@ export async function rollbackFileTransaction(stateRoot: string, id: string, all
 export async function planManagedRollback(stateRoot: string, id: string): Promise<TransactionJournal> {
   const journalPath = join(stateRoot, "journal", `${id}.json`);
   const journal = JSON.parse(await readFile(journalPath, "utf8")) as TransactionJournal;
+  if (journal.status === "rolled-back") throw new Error(`Transaction is already rolled back: ${id}`);
   if (!Array.isArray(journal.allowedRoots) || journal.allowedRoots.length === 0) {
     throw new Error(`Transaction predates managed rollback roots and cannot be rolled back automatically: ${id}`);
   }
   for (const file of journal.files) requireAllowed(file.target, journal.allowedRoots);
+
+  // Enforce LIFO head-of-chain ordering (LIFE-05, D-07):
+  // Any transaction that has not been rolled-back or repaired is active.
+  const allJournals = await listManagedTransactions(stateRoot);
+  const activeJournals = allJournals.filter((j) => j.status !== "rolled-back" && j.status !== "repaired");
+  activeJournals.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const head = activeJournals[0];
+  if (head !== undefined && head.id !== id) {
+    throw new Error(`LIFO violation: transaction ${id} is not the most recent active transaction (head: ${head.id}). Roll back ${head.id} first.`);
+  }
+
   return journal;
 }
 

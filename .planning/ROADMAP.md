@@ -411,8 +411,21 @@ Plans:
   4. User can preview and apply restoration of exact prior bytes only after every rollback target passes a no-drift preflight; corrupt or interrupted journals remain visible as `needs-repair` with restart-safe guidance instead of false success.
   5. When GSD, ECC, npm-link, Pi bridge, or another external package change cannot be safely reversed, the user sees its verified state and component-specific recovery instructions rather than a false rollback claim.
 
-**Plans**: TBD
-**Planning note**: Define adoption, upgrade, downgrade, unknown-pre-state, and compensation rules separately for each external installer during phase research.
+**Plans**: 3/3 plans executed. Verification complete (2026-09-18).
+
+Plans:
+
+**Wave 1**
+
+- [x] 06-01-PLAN.md — Fast offline status engine, reconciliation idempotency, and update preview (LIFE-01, LIFE-02, LIFE-08)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 06-02-PLAN.md — External package recovery receipts and snapshot crash repair (LIFE-06, LIFE-07)
+
+**Wave 3** *(blocked on Wave 2)*
+
+- [x] 06-03-PLAN.md — All-or-nothing rollback engine and managed multi-format uninstall (LIFE-03, LIFE-04, LIFE-05)
 
 ### Phase 7: Cross-Platform Release Proof
 
@@ -438,10 +451,10 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. Safe Operation Boundary | 27/27 | Complete    | 2026-09-07 |
 | 2. Evidence-Bound Project Planning | 16/16 | Complete    | 2026-09-09 |
-| 3. Transactional Project Packs and Native Optional Use | 18/18 | In Progress|  |
+| 3. Transactional Project Packs and Native Optional Use | 18/18 | Complete    | 2026-09-12 |
 | 4. Mandatory GSD Gates | 4/4 | Complete    | 2026-09-17 |
-| 5. Persistent Tree-Off Preload Isolation | 0/TBD | Not started | - |
-| 6. Managed Lifecycle, Uninstall, and Recovery | 0/TBD | Not started | - |
+| 5. Persistent Tree-Off Preload Isolation | 4/4 | Complete    | 2026-09-18 |
+| 6. Managed Lifecycle, Uninstall, and Recovery | 3/3 | Complete    | 2026-09-18 |
 | 7. Cross-Platform Release Proof | 0/TBD | Not started | - |
 
 ---

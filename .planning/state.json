@@ -16,7 +16,7 @@
     {
       "number": "3",
       "name": "Transactional Project Packs and Native Optional Use",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "4",
@@ -26,12 +26,12 @@
     {
       "number": "5",
       "name": "Persistent Tree-Off Preload Isolation",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "6",
       "name": "Managed Lifecycle, Uninstall, and Recovery",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "7",
@@ -41,8 +41,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 6 of 7 · 71% · executing"
+    "label": "Advance to Phase 7: Cross-Platform Release Proof",
+    "reason": "Phase 6 of 7 · 86% · complete"
   },
-  "updated_at": "2026-09-17T23:58:07.871Z"
+  "updated_at": "2026-09-18T10:32:00.000Z"
 }

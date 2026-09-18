@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/recovery-receipt.schema.json",
+  "title": "alpha-AOS external package recovery receipt",
+  "description": "Structured compensation record for external package modifications that cannot be rolled back via files.",
+  "type": "object",
+  "required": ["schemaVersion", "operationId", "createdAt", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "const": 1 },
+    "operationId": { "type": "string", "minLength": 1 },
+    "createdAt": { "type": "string", "minLength": 1 },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["component", "action", "target", "compensation"],
+        "additionalProperties": false,
+        "properties": {
+          "component": { "type": "string", "enum": ["gsd", "ecc-runtime", "mcp-bridge", "npm-link"] },
+          "action": { "type": "string", "enum": ["install", "upgrade", "link"] },
+          "target": { "type": "string", "minLength": 1 },
+          "previousState": { "type": ["string", "null"] },
+          "appliedState": { "type": "string", "minLength": 1 },
+          "compensation": {
+            "type": "object",
+            "required": ["instructions", "commands"],
+            "additionalProperties": false,
+            "properties": {
+              "instructions": { "type": "string", "minLength": 1 },
+              "commands": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
+      }
+    }
+  }
+}

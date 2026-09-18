@@ -83,7 +83,8 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUpdate } from "./format.js";
+import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import {
   classifyGitRootOrFallback,
   findEnclosingGitRoot,
@@ -1228,6 +1229,17 @@ async function main(): Promise<void> {
 
   if (command === "repair") {
     const stateRoot = userStateRoot();
+    const crashPlan = await planCrashRepair(stateRoot);
+    if (crashPlan.action !== "none") {
+      if (!hasFlag(args, "--apply")) {
+        print(crashPlan, json, formatCrashRepairPlan(crashPlan));
+        if (crashPlan.blockedReasons.length > 0) process.exitCode = 2;
+      } else {
+        const result = await applyCrashRepair(stateRoot, crashPlan.planDigest);
+        print(result, json, formatCrashRepairResult(result));
+      }
+      return;
+    }
     const plan = await planWriterRepair(stateRoot);
     if (!hasFlag(args, "--apply")) {
       const state = await inspectWriterState(stateRoot);
@@ -1240,6 +1252,7 @@ async function main(): Promise<void> {
         `Plan digest: ${plan.planDigest}`,
         "Diagnosis only. Pass --apply to perform the one transition this evidence proves.",
       ].join("\n"));
+      if (plan.blockedReasons.length > 0) process.exitCode = 2;
     } else {
       const result = await applyWriterRepair(stateRoot, plan.planDigest);
       print(result, json, `Repaired ${result.operationId ?? "state"} by ${result.transition}.`);

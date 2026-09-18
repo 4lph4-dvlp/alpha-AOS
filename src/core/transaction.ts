@@ -29,7 +29,7 @@ export interface TransactionJournal {
   schemaVersion: 1;
   id: string;
   createdAt: string;
-  status: "applying" | "applied" | "rolled-back" | "failed";
+  status: "applying" | "applied" | "rolled-back" | "failed" | "repaired";
   allowedRoots: string[];
   files: JournalFile[];
   /** Whether directory entries could be flushed on this filesystem. */

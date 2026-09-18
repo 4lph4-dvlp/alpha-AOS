@@ -1,4 +1,6 @@
 import type {
+  CrashRepairPlan,
+  CrashRepairResult,
   DoctorFinding,
   Inventory,
   IsolationLaunchSpec,
@@ -6,6 +8,7 @@ import type {
   OfflineStatus,
   PlanAction,
   ProjectCapabilityPlan,
+  RecoveryReceipt,
   StackLock,
   TreePreviewReport,
   TreeRegistryEntry,
@@ -890,4 +893,58 @@ export function formatOfflineStatus(status: OfflineStatus): string {
   }
   return lines.join("\n");
 }
+
+export function formatRecoveryReceipt(receipt: RecoveryReceipt): string {
+  const lines: string[] = [
+    `alpha-AOS external package recovery receipt (${receipt.operationId})`,
+    `Created at: ${receipt.createdAt}`,
+    "",
+    "External modifications require manual recovery commands:",
+  ];
+  for (const entry of receipt.entries) {
+    lines.push("");
+    lines.push(`Component: ${entry.component} (${entry.action} on ${entry.target})`);
+    lines.push(`  Previous state: ${entry.previousState ?? "(none)"}`);
+    lines.push(`  Applied state:  ${entry.appliedState}`);
+    lines.push(`  Instructions:   ${entry.compensation.instructions}`);
+    if (entry.compensation.commands.length > 0) {
+      lines.push("  Compensation commands:");
+      for (const cmd of entry.compensation.commands) {
+        lines.push(`    $ ${cmd}`);
+      }
+    }
+  }
+  return lines.join("\n");
+}
+
+export function formatCrashRepairPlan(plan: CrashRepairPlan): string {
+  const lines: string[] = [
+    "alpha-AOS Crash Repair Plan",
+    `Action:           ${plan.action}`,
+    `Operation ID:     ${plan.operationId ?? "(none)"}`,
+    `Writer PID:       ${plan.writerPid ?? "(none)"}`,
+    `Writer alive:     ${plan.writerAlive ? "YES" : "no"}`,
+    `Snapshots intact: ${plan.snapshotsIntact ? "YES" : "no"}`,
+    `Affected files:   ${plan.affectedFiles.length > 0 ? plan.affectedFiles.join(", ") : "(none)"}`,
+  ];
+  if (plan.blockedReasons.length > 0) {
+    lines.push("");
+    lines.push(`BLOCKED: ${plan.blockedReasons.join("; ")}`);
+  }
+  return lines.join("\n");
+}
+
+export function formatCrashRepairResult(result: CrashRepairResult): string {
+  const lines: string[] = [
+    "alpha-AOS Crash Repair Completed",
+    `Action executed:  ${result.plan.action}`,
+    `Lock released:    ${result.lockReleased ? "yes" : "no"}`,
+    `Restored files:   ${result.restoredFiles.length > 0 ? result.restoredFiles.join(", ") : "(none)"}`,
+  ];
+  if (result.quarantinedJournal) {
+    lines.push(`Quarantined journal: ${result.quarantinedJournal}`);
+  }
+  return lines.join("\n");
+}
+
 

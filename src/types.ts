@@ -28,6 +28,47 @@ export interface OfflineStatus {
   readonly managedStatePresent: boolean;
 }
 
+export interface RecoveryReceiptEntry {
+  readonly component: "gsd" | "ecc-runtime" | "mcp-bridge" | "npm-link";
+  readonly action: "install" | "upgrade" | "link";
+  readonly target: string;
+  readonly previousState: string | null;
+  readonly appliedState: string;
+  readonly compensation: {
+    readonly instructions: string;
+    readonly commands: readonly string[];
+  };
+}
+
+export interface RecoveryReceipt {
+  readonly schemaVersion: 1;
+  readonly operationId: string;
+  readonly createdAt: string;
+  readonly entries: readonly RecoveryReceiptEntry[];
+}
+
+export type CrashRepairAction = "snapshot-rollback" | "finalize-applied" | "quarantine" | "release-only" | "none";
+
+export interface CrashRepairPlan {
+  readonly stateRoot: string;
+  readonly operationId: string | null;
+  readonly journalPath: string | null;
+  readonly action: CrashRepairAction;
+  readonly writerPid: number | null;
+  readonly writerAlive: boolean;
+  readonly snapshotsIntact: boolean;
+  readonly affectedFiles: readonly string[];
+  readonly blockedReasons: readonly string[];
+  readonly planDigest: string;
+}
+
+export interface CrashRepairResult {
+  readonly plan: CrashRepairPlan;
+  readonly restoredFiles: readonly string[];
+  readonly quarantinedJournal?: string;
+  readonly lockReleased: boolean;
+}
+
 export interface HarnessConfig {
   displayName: string;
   gsdTarget?: string;

@@ -52,7 +52,11 @@ export type ManagedDocumentKind =
   /**
    * Directory-tree opt-out and policy registry under `~/.alpha-aos/trees.json` (OPTO-01, D-01).
    */
-  | "tree-registry";
+  | "tree-registry"
+  /**
+   * External package recovery receipts under `~/.alpha-aos/receipts/<id>.json` (LIFE-07, D-13).
+   */
+  | "recovery-receipt";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -340,6 +344,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "canary-catalog": null,
   "gate-receipt": null,
   "tree-registry": null,
+  "recovery-receipt": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -378,7 +383,7 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     schemaVersion: { type: "integer" },
     id: { type: "string" },
     createdAt: { type: "string" },
-    status: { enum: ["applying", "applied", "rolled-back", "failed"] },
+    status: { enum: ["applying", "applied", "rolled-back", "failed", "repaired"] },
     allowedRoots: { type: "array", items: { type: "string" } },
     files: { type: "array" },
   }),
@@ -481,6 +486,12 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     schemaVersion: { type: "integer" },
     updatedAt: { type: "string" },
     trees: { type: "array" },
+  }),
+  "recovery-receipt": coreObject(["schemaVersion", "operationId", "createdAt", "entries"], {
+    schemaVersion: { type: "integer" },
+    operationId: { type: "string" },
+    createdAt: { type: "string" },
+    entries: { type: "array" },
   }),
 };
 

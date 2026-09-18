@@ -134,7 +134,11 @@ function runCli() {
       // npm pack outputs the filename of the packed archive on the last line
       const lines = packOutput.split(/\r?\n/).filter(Boolean);
       const generatedFile = lines[lines.length - 1].trim();
-      tarballPath = resolve(rootDir, generatedFile);
+      const packDest = process.env.npm_config_pack_destination
+        ? resolve(process.env.npm_config_pack_destination)
+        : rootDir;
+      const candidatePath = resolve(packDest, generatedFile);
+      tarballPath = existsSync(candidatePath) ? candidatePath : resolve(rootDir, generatedFile);
       isTempTarball = true;
     }
   } else {

@@ -40,9 +40,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to Phase 7: Cross-Platform Release Proof",
-    "reason": "Phase 6 of 7 · 86% · complete"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-09-18T10:32:00.000Z"
+  "updated_at": "2026-09-18T04:33:38.050Z"
 }

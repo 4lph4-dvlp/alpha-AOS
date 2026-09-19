@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { gzipSync } from "node:zlib";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 
@@ -17,8 +19,181 @@ interface AuditModule {
   auditTarballEntries(files: readonly TarballEntry[]): string[];
 }
 
+interface CommandResult {
+  readonly status: number;
+  readonly stdout: string;
+  readonly stderr: string;
+}
+
+export interface FixtureSandbox {
+  readonly root: string;
+  readonly home: string;
+  readonly state: string;
+  readonly prefix: string;
+  readonly repo: string;
+  readonly env: NodeJS.ProcessEnv;
+  resolveCli(): string;
+  runCli(args: readonly string[]): CommandResult;
+  runNpm(args: readonly string[], options?: { readonly cache?: string }): CommandResult;
+}
+
 const repositoryRoot = resolve(import.meta.dirname, "..", "..");
 const auditModuleUrl = pathToFileURL(join(repositoryRoot, "scripts", "audit-tarball.mjs")).href;
+const hostHome = homedir();
+const hostStateRoot = resolve(process.env.ALPHA_AOS_STATE_DIR?.trim() || join(hostHome, ".alpha-aos"));
+const hostCodexRoot = resolve(process.env.CODEX_HOME?.trim() || join(hostHome, ".codex"));
+
+function npmInvocation(): { executable: string; argsPrefix: string[] } {
+  if (process.platform !== "win32") return { executable: "npm", argsPrefix: [] };
+  const script = join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  assert.ok(existsSync(script), `npm CLI not found beside Node.js: ${script}`);
+  return { executable: process.execPath, argsPrefix: [script] };
+}
+
+function commandResult(result: ReturnType<typeof spawnSync>): CommandResult {
+  return {
+    status: result.status ?? 1,
+    stdout: typeof result.stdout === "string" ? result.stdout : "",
+    stderr: typeof result.stderr === "string" ? result.stderr : result.error?.message ?? "",
+  };
+}
+
+function runInstalledCli(cli: string, args: readonly string[], env: NodeJS.ProcessEnv): CommandResult {
+  if (process.platform === "win32") {
+    const command = `"${cli.replaceAll('"', '""')}" ${args.map((arg) => `"${arg.replaceAll('"', '""')}"`).join(" ")}`;
+    return commandResult(spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", command], {
+      env,
+      encoding: "utf8",
+      timeout: 600_000,
+      windowsHide: true,
+    }));
+  }
+  return commandResult(spawnSync(cli, [...args], {
+    env,
+    encoding: "utf8",
+    timeout: 600_000,
+    windowsHide: true,
+  }));
+}
+
+export async function createIsolatedSandbox(context: test.TestContext): Promise<FixtureSandbox> {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-fixture-"));
+  context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const home = join(root, "home");
+  const state = join(root, "state");
+  const prefix = join(root, "prefix");
+  const repo = join(root, "repo");
+  const temp = join(root, "temp");
+  const cache = join(root, "npm-cache");
+  const npmLogs = join(root, "npm-logs");
+  const codexHome = join(home, ".codex");
+  await Promise.all([home, state, prefix, repo, temp, cache, npmLogs, codexHome].map((path) => mkdir(path, { recursive: true })));
+
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (/^npm_/iu.test(key)) delete env[key];
+  }
+  Object.assign(env, {
+    HOME: home,
+    USERPROFILE: home,
+    XDG_CONFIG_HOME: join(home, ".config"),
+    APPDATA: join(home, "AppData", "Roaming"),
+    LOCALAPPDATA: join(home, "AppData", "Local"),
+    ALPHA_AOS_STATE_DIR: state,
+    CODEX_HOME: codexHome,
+    ANTIGRAVITY_CONFIG_DIR: join(home, ".gemini", "antigravity"),
+    CLAUDE_CONFIG_DIR: join(home, ".claude"),
+    PI_CODING_AGENT_DIR: join(home, ".pi", "agent"),
+    HERMES_HOME: join(home, ".hermes"),
+    npm_config_prefix: prefix,
+    npm_config_cache: cache,
+    npm_config_logs_dir: npmLogs,
+    npm_config_userconfig: join(root, ".npmrc"),
+    npm_config_audit: "false",
+    npm_config_fund: "false",
+    npm_config_update_notifier: "false",
+    TMPDIR: temp,
+    TEMP: temp,
+    TMP: temp,
+  });
+
+  const resolveCli = (): string => {
+    if (process.platform === "win32") {
+      const direct = join(prefix, "alpha-aos.cmd");
+      return existsSync(direct) ? direct : join(prefix, "bin", "alpha-aos.cmd");
+    }
+    return join(prefix, "bin", "alpha-aos");
+  };
+  const runNpm = (args: readonly string[], options: { readonly cache?: string } = {}): CommandResult => {
+    const npm = npmInvocation();
+    return commandResult(spawnSync(npm.executable, [...npm.argsPrefix, ...args], {
+      cwd: repo,
+      env: options.cache === undefined ? env : { ...env, npm_config_cache: options.cache },
+      encoding: "utf8",
+      timeout: 600_000,
+      windowsHide: true,
+    }));
+  };
+  return {
+    root,
+    home,
+    state,
+    prefix,
+    repo,
+    env,
+    resolveCli,
+    runCli: (args) => runInstalledCli(resolveCli(), args, env),
+    runNpm,
+  };
+}
+
+async function fingerprint(path: string): Promise<string> {
+  if (!existsSync(path)) return "absent";
+  const hash = createHash("sha256");
+  const visit = async (current: string, relativePath: string): Promise<void> => {
+    const info = await lstat(current);
+    if (info.isSymbolicLink()) {
+      hash.update(`link:${relativePath}:${await readlink(current)}\n`);
+      return;
+    }
+    if (info.isDirectory()) {
+      hash.update(`dir:${relativePath}\n`);
+      const entries = await readdir(current, { withFileTypes: true });
+      for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
+        await visit(join(current, entry.name), relativePath ? `${relativePath}/${entry.name}` : entry.name);
+      }
+      return;
+    }
+    hash.update(`file:${relativePath}:${info.size}:${info.mtimeMs}\n`);
+    if (info.size <= 1024 * 1024) hash.update(await readFile(current));
+  };
+  await visit(path, "");
+  return hash.digest("hex");
+}
+
+const hostMutationTargets = [
+  hostStateRoot,
+  join(hostCodexRoot, "AGENTS.md"),
+  join(hostCodexRoot, "config.toml"),
+  join(hostCodexRoot, ".gsd-profile"),
+  join(hostCodexRoot, "gsd-core", "VERSION"),
+  join(hostHome, ".agents", "skills", "unified-memory", "SKILL.md"),
+  join(hostHome, ".agents", "skills", "documentation-lookup", "SKILL.md"),
+  join(hostHome, ".agents", "skills", "deep-research", "SKILL.md"),
+];
+
+async function hostSnapshot(): Promise<Map<string, string>> {
+  return new Map(await Promise.all(hostMutationTargets.map(async (path) => [path, await fingerprint(path)] as const)));
+}
+
+function parseJsonResult<T>(result: CommandResult, label: string): T {
+  assert.equal(result.status, 0, `${label} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  try {
+    return JSON.parse(result.stdout) as T;
+  } catch {
+    assert.fail(`${label} did not return JSON\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  }
+}
 
 function writeOctal(header: Buffer, start: number, length: number, value: number): void {
   const encoded = value.toString(8).padStart(length - 1, "0");
@@ -172,4 +347,140 @@ test("CI uses Node crypto and routes the downloaded authoritative tarball into t
   assert.match(workflow, /Verify release tarball checksum with Node\.js/u);
   assert.match(workflow, /ALPHA_AOS_RELEASE_TARBALL:/u);
   assert.match(workflow, /needs: package/u);
+});
+
+test("packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle", { timeout: 900_000 }, async (context) => {
+  const beforeHost = await hostSnapshot();
+  const sandbox = await createIsolatedSandbox(context);
+  const npm = npmInvocation();
+  const cacheProbe = commandResult(spawnSync(npm.executable, [...npm.argsPrefix, "config", "get", "cache"], {
+    cwd: repositoryRoot,
+    env: process.env,
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  }));
+  assert.equal(cacheProbe.status, 0, `npm cache lookup failed: ${cacheProbe.stderr}`);
+  const hostNpmCache = resolve(cacheProbe.stdout.trim());
+  assert.ok(existsSync(hostNpmCache), `npm cache does not exist: ${hostNpmCache}`);
+
+  let tarballPath: string;
+  const authoritativeTarball = process.env.ALPHA_AOS_RELEASE_TARBALL?.trim();
+  if (authoritativeTarball) {
+    tarballPath = resolve(authoritativeTarball);
+    assert.ok(existsSync(tarballPath), `authoritative CI tarball is missing: ${tarballPath}`);
+  } else {
+    const packed = sandbox.runNpm([
+      "pack",
+      repositoryRoot,
+      "--ignore-scripts",
+      "--json",
+      "--pack-destination",
+      sandbox.repo,
+    ]);
+    assert.equal(packed.status, 0, `npm pack failed\n${packed.stdout}\n${packed.stderr}`);
+    const report = JSON.parse(packed.stdout) as readonly { filename?: unknown }[];
+    assert.equal(report.length, 1);
+    assert.equal(typeof report[0]?.filename, "string");
+    tarballPath = join(sandbox.repo, report[0]?.filename as string);
+  }
+
+  const tarballBefore = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
+  const audit = await import(auditModuleUrl) as AuditModule;
+  const packedEntries = audit.listTarballFiles(tarballPath);
+  assert.deepEqual(audit.auditTarballEntries(packedEntries), []);
+  assert.ok(packedEntries.some((entry) => entry.path === "dist/src/cli.js"));
+  assert.ok(!packedEntries.some((entry) => entry.path === "catalog/candidate.lock.json"));
+
+  const prefixInstall = sandbox.runNpm([
+    "install",
+    "--global",
+    tarballPath,
+    "--prefix",
+    sandbox.prefix,
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+    "--offline",
+  ], { cache: hostNpmCache });
+  assert.equal(prefixInstall.status, 0, `offline prefix install failed\n${prefixInstall.stdout}\n${prefixInstall.stderr}`);
+  const cli = sandbox.resolveCli();
+  assert.ok(existsSync(cli), `installed CLI was not found at ${cli}`);
+
+  const installedPackage = process.platform === "win32"
+    ? join(sandbox.prefix, "node_modules", "alpha-aos")
+    : join(sandbox.prefix, "lib", "node_modules", "alpha-aos");
+  const installedLock = JSON.parse(await readFile(join(installedPackage, "catalog", "stack.lock.json"), "utf8")) as {
+    channel?: unknown;
+  };
+  assert.equal(installedLock.channel, "stable");
+  assert.ok(!existsSync(join(installedPackage, "catalog", "candidate.lock.json")));
+
+  interface InstallResult {
+    readonly plan: { readonly steps: readonly { readonly id: string; readonly action: string }[] };
+    readonly applied: readonly string[];
+    readonly current: readonly string[];
+    readonly operationIds: readonly string[];
+  }
+  const initial = parseJsonResult<InstallResult>(
+    sandbox.runCli(["install", "--target", "codex", "--apply", "--json"]),
+    "initial install",
+  );
+  assert.ok(initial.applied.length > 0, "initial install must apply managed components");
+  assert.ok(initial.operationIds.length > 0, "initial install must journal managed writes");
+  assert.ok(initial.plan.steps.every((step) => step.action === "current"), JSON.stringify(initial.plan.steps, null, 2));
+  assert.ok(existsSync(join(sandbox.home, ".codex", "AGENTS.md")));
+  assert.ok(existsSync(join(sandbox.home, ".codex", "config.toml")));
+
+  const journalDir = join(sandbox.state, "journal");
+  const journalsBeforeReconcile = (await readdir(journalDir)).filter((name) => name.endsWith(".json")).sort();
+  assert.ok(journalsBeforeReconcile.length > 0);
+  for (const name of journalsBeforeReconcile) {
+    const journal = JSON.parse(await readFile(join(journalDir, name), "utf8")) as { status?: unknown; files?: unknown };
+    assert.equal(journal.status, "applied", `journal ${name} must be fully applied`);
+    assert.ok(Array.isArray(journal.files), `journal ${name} must carry its file manifest`);
+  }
+
+  const reconciled = parseJsonResult<InstallResult>(
+    sandbox.runCli(["install", "--target", "codex", "--apply", "--json"]),
+    "idempotent install",
+  );
+  assert.deepEqual(reconciled.applied, []);
+  assert.deepEqual(reconciled.operationIds, []);
+  assert.equal(reconciled.current.length, reconciled.plan.steps.length);
+  assert.ok(reconciled.plan.steps.every((step) => step.action === "current"));
+  assert.deepEqual(
+    (await readdir(journalDir)).filter((name) => name.endsWith(".json")).sort(),
+    journalsBeforeReconcile,
+    "idempotent install must not add a journal",
+  );
+
+  const status = parseJsonResult<{ needsRepair?: unknown; managedStatePresent?: unknown }>(
+    sandbox.runCli(["status", "--json"]),
+    "status",
+  );
+  assert.equal(status.needsRepair, false);
+  assert.equal(status.managedStatePresent, true);
+  const findings = parseJsonResult<readonly { level?: unknown; code?: unknown }[]>(
+    sandbox.runCli(["doctor", "--json"]),
+    "doctor",
+  );
+  assert.ok(findings.length > 0);
+  assert.deepEqual(findings.filter((finding) => finding.level === "error"), []);
+
+  parseJsonResult<unknown>(
+    sandbox.runCli(["uninstall", "--all", "--yes", "--apply", "--purge", "--json"]),
+    "complete uninstall",
+  );
+  assert.ok(!existsSync(sandbox.state), "--purge must remove the managed state root");
+  assert.ok(!existsSync(join(sandbox.home, ".codex", "AGENTS.md")), "Codex policy must be removed");
+  assert.ok(!existsSync(join(sandbox.home, ".codex", "config.toml")), "managed MCP config must be removed");
+  for (const skill of ["unified-memory", "documentation-lookup", "deep-research"]) {
+    assert.ok(!existsSync(join(sandbox.home, ".agents", "skills", skill, "SKILL.md")), `${skill} must be removed`);
+  }
+
+  const afterHost = await hostSnapshot();
+  assert.deepEqual(afterHost, beforeHost, "the packed lifecycle must not change any real managed host path");
+  const tarballAfter = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
+  assert.equal(tarballAfter, tarballBefore, "the authoritative tarball must remain byte-identical throughout the lifecycle");
 });

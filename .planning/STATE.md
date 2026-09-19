@@ -4,16 +4,16 @@ milestone: v0.1.0
 current_phase: 07
 current_phase_name: Cross-Platform Release Proof
 status: executing
-stopped_at: Completed 07-01-PLAN.md
-last_updated: "2026-09-19T13:43:33.822Z"
+stopped_at: Completed 07-02-PLAN.md
+last_updated: "2026-09-19T17:54:18.292Z"
 last_activity: 2026-09-19
 last_activity_desc: Phase 07 execution resumed (wave continue)
-state_head: e84f0510cf0e1e6d756920000dadee0316f03719
+state_head: 004ca5d058818502bdab24c01cf6a4b8b2407452
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 80
-  completed_plans: 77
+  completed_plans: 78
   percent: 71
 ---
 
@@ -29,7 +29,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 ## Current Position
 
 Phase: 07 (Cross-Platform Release Proof) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-09-19 — Phase 07 execution resumed (wave continue)
 Progress: [███████░░░] 71%
@@ -108,6 +108,7 @@ Progress: [███████░░░] 71%
 | Phase 03 P21 | 20 min | 2 tasks | 4 files |
 | Phase 03 P22 | 20 min | 2 tasks | 3 files |
 | Phase 07 P01 | 39min | 2 tasks | 6 files |
+| Phase 07 P02 | 24min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -215,6 +216,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 07]: Generate and verify the authoritative archive digest with Node crypto so Linux, macOS, and Windows use one portable path.
 - [Phase 07]: Treat locked external integrations as current sandbox prerequisites while exercising all alpha-AOS-owned mutations from the installed tarball.
 - [Phase 07]: Use uninstall --purge in the disposable release fixture because ordinary uninstall intentionally preserves audit journals.
+- [Phase 07]: 07-02: Baseline PROVEN is claim eligibility; live evaluation downgrades to UNVERIFIED until an inspectable matching invocation receipt exists.
+- [Phase 07]: 07-02: Claude remains RESIDUE and Antigravity remains UNVERIFIED while its invocation proof is unrepresentable in the closed host ledger.
 
 ### Pending Todos
 
@@ -279,6 +282,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-19T13:43:32.531Z
-Stopped at: Completed 07-01-PLAN.md
+Last session: 2026-09-19T17:54:16.772Z
+Stopped at: Completed 07-02-PLAN.md
 Resume file: None

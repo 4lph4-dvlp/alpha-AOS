@@ -159,11 +159,7 @@ export async function restorePlanningTreeSnapshot(
   // 1. Remove added files
   for (const relPath of diff.added) {
     const fullPath = join(planningRoot, relPath);
-    try {
-      await rm(fullPath, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup error
-    }
+    await rm(fullPath, { recursive: true, force: true });
   }
 
   // 2. Restore modified files
@@ -185,6 +181,38 @@ export async function restorePlanningTreeSnapshot(
       await writeFile(fullPath, originalBytes);
     }
   }
+}
+
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function planningMutationError(
+  planningRoot: string,
+  snapshot: PlanningTreeSnapshot,
+  diff: PlanningTreeDifference,
+  harnessId: HarnessId,
+  actionError?: unknown,
+): Promise<WorkerAuthorityError> {
+  const offendingPaths = [...new Set([...diff.modified, ...diff.added, ...diff.removed])].sort();
+  let rollbackDetail = "Planning state was restored byte-for-byte.";
+  try {
+    await restorePlanningTreeSnapshot(planningRoot, snapshot, diff);
+    const restored = await hashPlanningTree(planningRoot);
+    const verification = comparePlanningTrees(snapshot.digest, restored);
+    if (!verification.equal) {
+      rollbackDetail = `Planning rollback could not be verified: ${verification.reasons.join("; ")}`;
+    }
+  } catch (error) {
+    rollbackDetail = `Planning rollback failed: ${errorDetail(error)}`;
+  }
+  const actionDetail = actionError === undefined ? "" : ` Worker action also failed: ${errorDetail(actionError)}.`;
+  return new WorkerAuthorityError(
+    "planning-mutation-detected",
+    harnessId,
+    `Unauthorized .planning/ mutation by worker harness ${harnessId}. ${rollbackDetail}${actionDetail}`,
+    offendingPaths,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -225,7 +253,7 @@ export async function witnessWorkerDelegation<T>(params: {
     const errDigest = await hashPlanningTree(planningRoot);
     const errDiff = comparePlanningTrees(preSnapshot.digest, errDigest);
     if (!errDiff.equal) {
-      await restorePlanningTreeSnapshot(planningRoot, preSnapshot, errDiff);
+      throw await planningMutationError(planningRoot, preSnapshot, errDiff, params.harnessId, error);
     }
     throw error;
   }
@@ -235,14 +263,7 @@ export async function witnessWorkerDelegation<T>(params: {
 
   if (!diff.equal) {
     // Unauthorized worker mutation detected: rollback immediately
-    await restorePlanningTreeSnapshot(planningRoot, preSnapshot, diff);
-    const offendingPaths = [...diff.modified, ...diff.added, ...diff.removed];
-    throw new WorkerAuthorityError(
-      "planning-mutation-detected",
-      params.harnessId,
-      `Unauthorized .planning/ mutation by worker harness ${params.harnessId}. Rolled back.`,
-      offendingPaths
-    );
+    throw await planningMutationError(planningRoot, preSnapshot, diff, params.harnessId);
   }
 
   return {

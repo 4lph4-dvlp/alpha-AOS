@@ -268,3 +268,15 @@ test("the release CLI refuses a dirty-tree publish bypass before running any gat
   assert.equal(result.status, 2);
   assert.match(typeof result.stderr === "string" ? result.stderr : "", /publish.*dirty|dirty.*publish/iu);
 });
+
+test("the installed CLI reports the canonical package version", async () => {
+  const manifest = JSON.parse(await readFile(join(repositoryRoot, "package.json"), "utf8")) as { version?: unknown };
+  const result = spawnSync(process.execPath, [join(repositoryRoot, "dist", "src", "cli.js"), "--version"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  assert.equal(result.status, 0, typeof result.stderr === "string" ? result.stderr : "");
+  assert.equal(typeof result.stdout === "string" ? result.stdout.trim() : "", manifest.version);
+});

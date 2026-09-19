@@ -2,9 +2,9 @@
 schema_version: 1
 open_count: 29
 waived_count: 2
-fixed_count: 15
-total_count: 46
-last_updated: 2026-09-12T06:36:07.753Z
+fixed_count: 19
+total_count: 50
+last_updated: 2026-09-19T13:45:04.617Z
 ---
 
 # Broken Windows Ledger
@@ -61,6 +61,10 @@ last_updated: 2026-09-12T06:36:07.753Z
 | 44 | 03 | skipped-test | test/path-boundary.test.ts | 732 | Unreadable root recheck skipped: host resolves paths despite mode 0o000. | open |  | 2026-09-12T06:36:06.184Z |  |
 | 45 | 03 | skipped-test | test/path-boundary.test.ts | 794 | Unreadable component fixture skipped: host resolves paths despite mode 0o000. | open |  | 2026-09-12T06:36:06.960Z |  |
 | 46 | 03 | skipped-test | test/path-boundary.test.ts | 840 | Readability-loss recheck skipped: host resolves paths despite mode 0o000. | open |  | 2026-09-12T06:36:07.753Z |  |
+| 47 | 07 | deviation | scripts/audit-tarball.mjs |  | 07-01 hardened tar parsing and canonical containment beyond the initial plan implementation | fixed |  | 2026-09-19T13:44:18.551Z | 2026-09-19T13:44:46.240Z |
+| 48 | 07 | deviation | scripts/audit-tarball.mjs |  | 07-01 made temporary archive selection deterministic and finally-based cleanup reliable | fixed |  | 2026-09-19T13:44:24.630Z | 2026-09-19T13:44:52.297Z |
+| 49 | 07 | deviation | .github/workflows/ci.yml |  | 07-01 replaced non-portable GNU checksum commands with Node crypto | fixed |  | 2026-09-19T13:44:30.734Z | 2026-09-19T13:44:58.385Z |
+| 50 | 07 | deviation | test/tarball-fixture.test.ts |  | 07-01 used uninstall --purge in the disposable fixture to align with preserved-journal semantics | fixed |  | 2026-09-19T13:44:36.781Z | 2026-09-19T13:45:04.617Z |
 
 ````json
 [
@@ -615,6 +619,54 @@ last_updated: 2026-09-12T06:36:07.753Z
     "reason": "",
     "recorded_at": "2026-09-12T06:36:07.753Z",
     "resolved_at": null
+  },
+  {
+    "id": 47,
+    "kind": "deviation",
+    "phase": "07",
+    "file": "scripts/audit-tarball.mjs",
+    "line": null,
+    "description": "07-01 hardened tar parsing and canonical containment beyond the initial plan implementation",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-19T13:44:18.551Z",
+    "resolved_at": "2026-09-19T13:44:46.240Z"
+  },
+  {
+    "id": 48,
+    "kind": "deviation",
+    "phase": "07",
+    "file": "scripts/audit-tarball.mjs",
+    "line": null,
+    "description": "07-01 made temporary archive selection deterministic and finally-based cleanup reliable",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-19T13:44:24.630Z",
+    "resolved_at": "2026-09-19T13:44:52.297Z"
+  },
+  {
+    "id": 49,
+    "kind": "deviation",
+    "phase": "07",
+    "file": ".github/workflows/ci.yml",
+    "line": null,
+    "description": "07-01 replaced non-portable GNU checksum commands with Node crypto",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-19T13:44:30.734Z",
+    "resolved_at": "2026-09-19T13:44:58.385Z"
+  },
+  {
+    "id": 50,
+    "kind": "deviation",
+    "phase": "07",
+    "file": "test/tarball-fixture.test.ts",
+    "line": null,
+    "description": "07-01 used uninstall --purge in the disposable fixture to align with preserved-journal semantics",
+    "status": "fixed",
+    "reason": "",
+    "recorded_at": "2026-09-19T13:44:36.781Z",
+    "resolved_at": "2026-09-19T13:45:04.617Z"
   }
 ]
 ````

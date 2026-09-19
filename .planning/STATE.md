@@ -2,18 +2,18 @@
 gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 07
-current_phase_name: cross-platform-release-proof
-status: complete
-stopped_at: Phase 7 context gathered
-last_updated: "2026-09-18T04:33:37.951Z"
-last_activity: 2026-09-18
-last_activity_desc: Phase 06 complete across all 3 waves
-state_head: a6a1249b2f707d91523f00ef1edc6874d787fc5f
+current_phase_name: Cross-Platform Release Proof
+status: executing
+stopped_at: Completed 07-01-PLAN.md
+last_updated: "2026-09-19T13:43:33.822Z"
+last_activity: 2026-09-19
+last_activity_desc: Phase 07 execution resumed (wave continue)
+state_head: e84f0510cf0e1e6d756920000dadee0316f03719
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 80
-  completed_plans: 76
+  completed_plans: 77
   percent: 71
 ---
 
@@ -24,15 +24,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-09)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 06 — Managed Lifecycle, Uninstall, and Recovery (Complete)
+**Current focus:** Phase 07 — Cross-Platform Release Proof
 
 ## Current Position
 
-Phase: 07 (cross-platform-release-proof) — READY TO EXECUTE
-Plan: 3 of 3 (All complete)
-Status: Complete across all 3 waves (3/3 plans verified)
-Last activity: 2026-09-18 — Phase 06 complete across all 3 waves
-Progress: [████████░░] 86%
+Phase: 07 (Cross-Platform Release Proof) — EXECUTING
+Plan: 2 of 4
+Status: Ready to execute
+Last activity: 2026-09-19 — Phase 07 execution resumed (wave continue)
+Progress: [███████░░░] 71%
 
 ## Performance Metrics
 
@@ -107,6 +107,7 @@ Progress: [████████░░] 86%
 | Phase 03 P20 | 15 min | 2 tasks | 5 files |
 | Phase 03 P21 | 20 min | 2 tasks | 4 files |
 | Phase 03 P22 | 20 min | 2 tasks | 3 files |
+| Phase 07 P01 | 39min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -210,6 +211,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 03]: Unchecked required argument patterns prevent held and invoked outcomes. — Absent checkable identifier-shape evidence is unverified evidence, never successful invocation.
 - [Phase 03]: Legacy proofs remain readable without invocationEvidence, but cannot satisfy strict CAPA-01 completion. — Additive compatibility preserves existing host state without fabricating audit evidence.
 - [Phase 03]: Durable canary evidence is a closed redacted projection of observations and verdict fields. — Explicit reconstruction excludes raw arguments, responses, model text, auth data, environment values, and credentials.
+- [Phase 07]: Accept only canonical ustar regular-file and directory entries within explicit resource bounds and an exact catalog allowlist.
+- [Phase 07]: Generate and verify the authoritative archive digest with Node crypto so Linux, macOS, and Windows use one portable path.
+- [Phase 07]: Treat locked external integrations as current sandbox prerequisites while exercising all alpha-AOS-owned mutations from the installed tarball.
+- [Phase 07]: Use uninstall --purge in the disposable release fixture because ordinary uninstall intentionally preserves audit journals.
 
 ### Pending Todos
 
@@ -220,7 +225,7 @@ None yet.
 - Partially resolved by Phase 02 (2026-09-09): evidence detection, pack selection and the reviewed, digest-bound plan are complete and verified; `project sync --apply` itself is still a stub. Phase 3 owns materialization, receipt writing and the transactional apply.
 - Full uninstall, external-package compensation, and interrupted-operation recovery are absent.
 - Ordinary-entrypoint tree-off suppression remains version- and surface-sensitive and must report unsupported unless exclusion is proven before load.
-- `catalog/candidate.lock.json` is currently included by `npm pack`, blocking REL-05 until the release allowlist is corrected. Not phase 1 scope.
+- Resolved by 07-01 (2026-09-19): `catalog/candidate.lock.json` is excluded by the exact npm file allowlist, `.npmignore`, and the post-pack archive audit; REL-05 is complete.
 - Resolved by 01-16 (2026-09-04): all four wrappers verify a build artifact and delegate to `alpha-aos bootstrap`; a source-level test fails any wrapper that runs `npm` or `git` itself. The Wave 0 SAFE-01 tracer is green.
 - Resolved by 01-09 (2026-09-04): `src/core/transaction.ts` now proves every path role and rechecks the ancestor chain immediately before each mutation.
 - Resolved 2026-09-04: `smol-toml@1.8.0` approved at the 01-04 gate, bound to `sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==`; plan 01-05 must verify that integrity before writing the lock.
@@ -274,6 +279,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-18T03:55:15.866Z
-Stopped at: Phase 7 context gathered
-Resume file: .planning/phases/07-cross-platform-release-proof/07-CONTEXT.md
+Last session: 2026-09-19T13:43:32.531Z
+Stopped at: Completed 07-01-PLAN.md
+Resume file: None

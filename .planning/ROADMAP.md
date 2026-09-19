@@ -443,6 +443,11 @@ Plans:
 
 **Plans**: TBD
 
+- [x] 07-01-PLAN.md
+- [ ] 07-02-PLAN.md
+- [ ] 07-03-PLAN.md
+- [ ] 07-04-PLAN.md
+
 ## Progress
 
 **Execution Order:** Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7
@@ -455,7 +460,7 @@ Plans:
 | 4. Mandatory GSD Gates | 4/4 | Complete    | 2026-09-17 |
 | 5. Persistent Tree-Off Preload Isolation | 4/4 | Complete    | 2026-09-18 |
 | 6. Managed Lifecycle, Uninstall, and Recovery | 3/3 | Complete    | 2026-09-18 |
-| 7. Cross-Platform Release Proof | 0/TBD | Not started | - |
+| 7. Cross-Platform Release Proof | 1/4 | In Progress|  |
 
 ---
 *Roadmap created: 2026-09-03 for the v0.1.0 vertical MVP milestone*

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import test from "node:test";
@@ -12,6 +12,20 @@ import { gzipSync } from "node:zlib";
 interface ProvenanceModule {
   computeFileSha256(filePath: string): string;
   verifyProvenance(tarballPath: string, sha256Path?: string): number;
+}
+
+interface SmokeModule {
+  runSmokeTest(target: string, isRegistry?: boolean): Promise<number>;
+}
+
+interface ReleaseArguments {
+  readonly publish: boolean;
+  readonly dryRun: boolean;
+  readonly allowDirtyTestOnly: boolean;
+}
+
+interface ReleaseModule {
+  parseReleaseArguments(args: readonly string[], env?: NodeJS.ProcessEnv): ReleaseArguments;
 }
 
 interface ArchiveEntry {
@@ -28,6 +42,10 @@ interface CommandResult {
 const repositoryRoot = resolve(import.meta.dirname, "..", "..");
 const verifierPath = join(repositoryRoot, "scripts", "verify-provenance.mjs");
 const verifierUrl = pathToFileURL(verifierPath).href;
+const smokePath = join(repositoryRoot, "scripts", "smoke-test.mjs");
+const smokeUrl = pathToFileURL(smokePath).href;
+const releasePath = join(repositoryRoot, "scripts", "release.mjs");
+const releaseUrl = pathToFileURL(releasePath).href;
 const buildManifestPath = "dist/build-artifact.json";
 const stackLockPath = "catalog/stack.lock.json";
 
@@ -201,4 +219,52 @@ test("release documentation separates target scope from receipt-backed proof sta
     assert.match(document, /docs\/SUPPORT_MATRIX\.md|SUPPORT_MATRIX\.md/iu);
     assert.match(document, /UNVERIFIED/iu);
   }
+});
+
+test("a failed smoke install leaves no temporary smoke root behind", async () => {
+  const before = new Set<string>();
+  for (const name of await readdir(tmpdir())) {
+    if (name.startsWith("alpha-aos-smoke-")) before.add(name);
+  }
+  const smoke = await import(smokeUrl) as SmokeModule;
+  const result = await smoke.runSmokeTest(join(tmpdir(), "alpha-aos-definitely-missing.tgz"));
+  assert.equal(result, 1);
+  const after = (await readdir(tmpdir()))
+    .filter((name) => name.startsWith("alpha-aos-smoke-") && !before.has(name));
+  assert.deepEqual(after, []);
+});
+
+test("release mode is preview-first and its dirty-tree bypass is testing-only", async () => {
+  const release = await import(releaseUrl) as ReleaseModule;
+  assert.deepEqual(release.parseReleaseArguments([], {}), {
+    publish: false,
+    dryRun: true,
+    allowDirtyTestOnly: false,
+  });
+  assert.deepEqual(release.parseReleaseArguments(["--publish"], {}), {
+    publish: true,
+    dryRun: false,
+    allowDirtyTestOnly: false,
+  });
+  assert.throws(
+    () => release.parseReleaseArguments(["--allow-dirty-test-only"], {}),
+    /testing.*environment|ALPHA_AOS_RELEASE_TESTING/iu,
+  );
+  assert.throws(
+    () => release.parseReleaseArguments(["--publish", "--allow-dirty-test-only"], { ALPHA_AOS_RELEASE_TESTING: "1" }),
+    /publish.*dirty|dirty.*publish/iu,
+  );
+  assert.throws(() => release.parseReleaseArguments(["--unknown"], {}), /usage|unknown/iu);
+});
+
+test("the release CLI refuses a dirty-tree publish bypass before running any gate", () => {
+  const result = spawnSync(process.execPath, [releasePath, "--publish", "--allow-dirty-test-only"], {
+    cwd: repositoryRoot,
+    env: { ...process.env, ALPHA_AOS_RELEASE_TESTING: "1" },
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  assert.equal(result.status, 2);
+  assert.match(typeof result.stderr === "string" ? result.stderr : "", /publish.*dirty|dirty.*publish/iu);
 });

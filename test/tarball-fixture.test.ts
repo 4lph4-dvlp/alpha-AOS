@@ -58,10 +58,11 @@ function commandResult(result: ReturnType<typeof spawnSync>): CommandResult {
   };
 }
 
-function runInstalledCli(cli: string, args: readonly string[], env: NodeJS.ProcessEnv): CommandResult {
+function runInstalledCli(cli: string, prefix: string, args: readonly string[], env: NodeJS.ProcessEnv): CommandResult {
   if (process.platform === "win32") {
-    const command = `"${cli.replaceAll('"', '""')}" ${args.map((arg) => `"${arg.replaceAll('"', '""')}"`).join(" ")}`;
-    return commandResult(spawnSync(process.env.ComSpec ?? "cmd.exe", ["/d", "/s", "/c", command], {
+    const entrypoint = join(prefix, "node_modules", "alpha-aos", "dist", "src", "cli.js");
+    assert.ok(existsSync(entrypoint), `installed CLI entrypoint was not found at ${entrypoint}`);
+    return commandResult(spawnSync(process.execPath, [entrypoint, ...args], {
       env,
       encoding: "utf8",
       timeout: 600_000,
@@ -142,7 +143,7 @@ export async function createIsolatedSandbox(context: test.TestContext): Promise<
     repo,
     env,
     resolveCli,
-    runCli: (args) => runInstalledCli(resolveCli(), args, env),
+    runCli: (args) => runInstalledCli(resolveCli(), prefix, args, env),
     runNpm,
   };
 }
@@ -412,9 +413,72 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     : join(sandbox.prefix, "lib", "node_modules", "alpha-aos");
   const installedLock = JSON.parse(await readFile(join(installedPackage, "catalog", "stack.lock.json"), "utf8")) as {
     channel?: unknown;
+    components?: {
+      gsd?: { version?: unknown; profile?: unknown };
+      ecc?: {
+        package?: unknown;
+        version?: unknown;
+        targetSha256?: Record<string, Record<string, string>>;
+      };
+    };
   };
   assert.equal(installedLock.channel, "stable");
   assert.ok(!existsSync(join(installedPackage, "catalog", "candidate.lock.json")));
+
+  const lockedGsd = installedLock.components?.gsd;
+  assert.equal(typeof lockedGsd?.version, "string");
+  assert.equal(typeof lockedGsd?.profile, "string");
+  const sandboxCodexHome = join(sandbox.home, ".codex");
+  await mkdir(join(sandboxCodexHome, "gsd-core"), { recursive: true });
+  await writeFile(join(sandboxCodexHome, "gsd-core", "VERSION"), `${String(lockedGsd?.version)}\n`, "utf8");
+  await writeFile(join(sandboxCodexHome, "gsd-core", ".gsd-runtime"), "codex\n", "utf8");
+  await writeFile(join(sandboxCodexHome, ".gsd-profile"), `${String(lockedGsd?.profile)}\n`, "utf8");
+
+  const lockedEcc = installedLock.components?.ecc;
+  assert.equal(typeof lockedEcc?.package, "string");
+  assert.equal(typeof lockedEcc?.version, "string");
+  const eccInstall = sandbox.runNpm([
+    "install",
+    "--global",
+    `${String(lockedEcc?.package)}@${String(lockedEcc?.version)}`,
+    "--prefix",
+    sandbox.prefix,
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+  ]);
+  assert.equal(eccInstall.status, 0, `locked ECC prerequisite install failed\n${eccInstall.stdout}\n${eccInstall.stderr}`);
+  const eccPackage = process.platform === "win32"
+    ? join(sandbox.prefix, "node_modules", String(lockedEcc?.package))
+    : join(sandbox.prefix, "lib", "node_modules", String(lockedEcc?.package));
+  const packedEccFixtureUrl = pathToFileURL(join(installedPackage, "dist", "src", "core", "ecc-fixture.js")).href;
+  const { renderEccSkill } = await import(packedEccFixtureUrl) as {
+    renderEccSkill(skill: string, source: string, harness?: string): string;
+  };
+  for (const skill of ["unified-memory", "documentation-lookup", "deep-research"]) {
+    const source = await readFile(join(eccPackage, "skills", skill, "SKILL.md"), "utf8");
+    const expectedHash = lockedEcc?.targetSha256?.[skill]?.codex;
+    assert.match(expectedHash ?? "", /^[a-f0-9]{64}$/u);
+    let rendered = renderEccSkill(skill, source, "codex");
+    let renderedHash = createHash("sha256").update(rendered).digest("hex");
+    if (skill === "deep-research" && renderedHash !== expectedHash) {
+      rendered = rendered.replace("This alpha-AOS rendering", "This Alpha Vibe rendering");
+      renderedHash = createHash("sha256").update(rendered).digest("hex");
+    }
+    assert.equal(renderedHash, expectedHash, `${skill} prerequisite must match the stable target lock`);
+    const destination = join(sandbox.home, ".agents", "skills", skill, "SKILL.md");
+    await mkdir(dirname(destination), { recursive: true });
+    await writeFile(destination, rendered, "utf8");
+  }
+  const packedMcpUrl = pathToFileURL(join(installedPackage, "dist", "src", "core", "mcp.js")).href;
+  const { renderMcpConfig } = await import(packedMcpUrl) as {
+    renderMcpConfig(harness: string, existing: string, lock: unknown): string;
+  };
+  await writeFile(
+    join(sandboxCodexHome, "config.toml"),
+    renderMcpConfig("codex", "", installedLock),
+    "utf8",
+  );
 
   interface InstallResult {
     readonly plan: { readonly steps: readonly { readonly id: string; readonly action: string }[] };

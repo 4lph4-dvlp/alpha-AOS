@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { gzipSync } from "node:zlib";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -138,4 +139,37 @@ test("tar parser enforces bounded entry sizes before allocating or advancing", a
   await withArchive(context, oversized, (path) => {
     assert.throws(() => audit.listTarballFiles(path), /limit|large|size/iu);
   });
+});
+
+test("prepack audit ignores inherited pack destinations and removes its isolated archive", async (context) => {
+  const staleDestination = await mkdtemp(join(tmpdir(), "alpha-aos-stale-pack-destination-"));
+  context.after(async () => rm(staleDestination, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  const staleArchive = join(staleDestination, "alpha-aos-0.1.0.tgz");
+  const sentinel = Buffer.from("not a tarball");
+  await writeFile(staleArchive, sentinel);
+
+  const tempBefore = new Set(
+    (await readdir(tmpdir())).filter((name) => name.startsWith("alpha-aos-pack-audit-")),
+  );
+  const result = spawnSync(process.execPath, [join(repositoryRoot, "scripts", "audit-tarball.mjs"), "--prepack"], {
+    cwd: repositoryRoot,
+    encoding: "utf8",
+    env: { ...process.env, npm_config_pack_destination: staleDestination },
+    timeout: 120_000,
+    windowsHide: true,
+  });
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.deepEqual(await readFile(staleArchive), sentinel, "the inherited destination archive must not be selected or removed");
+  const tempAfter = (await readdir(tmpdir())).filter(
+    (name) => name.startsWith("alpha-aos-pack-audit-") && !tempBefore.has(name),
+  );
+  assert.deepEqual(tempAfter, [], "the generated archive directory must be removed after the audit returns");
+});
+
+test("CI uses Node crypto and routes the downloaded authoritative tarball into the fixture", async () => {
+  const workflow = await readFile(join(repositoryRoot, ".github", "workflows", "ci.yml"), "utf8");
+  assert.doesNotMatch(workflow, /sha256sum/u);
+  assert.match(workflow, /Verify release tarball checksum with Node\.js/u);
+  assert.match(workflow, /ALPHA_AOS_RELEASE_TARBALL:/u);
+  assert.match(workflow, /needs: package/u);
 });

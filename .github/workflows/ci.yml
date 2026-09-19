@@ -28,7 +28,10 @@ jobs:
       - name: Audit tarball contents against allowlist
         run: node scripts/audit-tarball.mjs alpha-aos-0.1.0.tgz
       - name: Generate SHA-256 checksum
-        run: sha256sum alpha-aos-0.1.0.tgz > alpha-aos-0.1.0.tgz.sha256
+        run: >
+          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file='alpha-aos-0.1.0.tgz';
+          const digest=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          fs.writeFileSync(file+'.sha256',digest+'  '+file+'\n');"
       - name: Upload release tarball artifact
         uses: actions/upload-artifact@v4
         with:
@@ -49,6 +52,7 @@ jobs:
     # pack-skill-drift.yml.
     env:
       ALPHA_AOS_REQUIRE_UPSTREAM_MCP: "1"
+      ALPHA_AOS_RELEASE_TARBALL: ${{ github.workspace }}/alpha-aos-0.1.0.tgz
     strategy:
       fail-fast: false
       matrix:
@@ -64,19 +68,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: release-tarball
-      - name: Verify release tarball checksum (POSIX)
-        if: runner.os != 'Windows'
-        run: sha256sum -c alpha-aos-0.1.0.tgz.sha256
-      - name: Verify release tarball checksum (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $expected = (Get-Content alpha-aos-0.1.0.tgz.sha256).Split(' ')[0].Trim()
-          $actual = (Get-FileHash alpha-aos-0.1.0.tgz -Algorithm SHA256).Hash.ToLowerInvariant()
-          if ($actual -ne $expected.ToLowerInvariant()) {
-            Write-Error "Checksum mismatch: expected $expected, got $actual"
-            exit 1
-          }
+      - name: Verify release tarball checksum with Node.js
+        run: >
+          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file='alpha-aos-0.1.0.tgz';
+          const expected=fs.readFileSync(file+'.sha256','utf8').trim().split(/\s+/u)[0].toLowerCase();
+          const actual=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+          if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"
       - run: npm run check
       - run: npm test
 

@@ -128,6 +128,7 @@ import type { GateObligationType, HarnessId, IsolationMode, McpServerId, PackSou
 const HELP = `alpha-aos
 
 Usage:
+  alpha-aos --version
   alpha-aos inventory [--json]
   alpha-aos plan [--json]
   alpha-aos install [--target <claude,codex,antigravity,pi,hermes>] [--apply] [--json]
@@ -411,6 +412,10 @@ async function main(): Promise<void> {
   // sweep against a machine, and one help text is the whole contract.
   if (["help", "--help", "-h"].includes(command) || hasFlag(args, "--help") || hasFlag(args, "-h")) {
     process.stdout.write(HELP);
+    return;
+  }
+  if (command === "--version" || command === "-v") {
+    process.stdout.write(`${await alphaAosVersion()}\n`);
     return;
   }
 

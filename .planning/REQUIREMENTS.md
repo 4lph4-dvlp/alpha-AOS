@@ -79,7 +79,7 @@
 - [x] **REL-01**: User can install, reconcile, diagnose, and uninstall the same packed release bytes in Windows, macOS, and Linux fixture environments without touching real shared roots
 - [x] **REL-02**: User can consult a versioned support matrix in which every active claimed harness and surface has at least one current real-host discovery and invocation canary, while Claude Code remains compatibility residue and other unproven combinations remain visibly limited or unsupported
 - [x] **REL-03**: User can inspect paired positive and negative controls proving native optional invocation, project-only capability scope, mandatory gate blocking, and opt-out exclusion
-- [ ] **REL-04**: User can complete a real brownfield GSD discuss → plan → execute → verify → ship cycle that exercises one global optional capability, one project pack, one mandatory gate, one cross-harness handoff, and safe cleanup
+- [x] **REL-04**: User can complete a real brownfield GSD discuss → plan → execute → verify → ship cycle that exercises one global optional capability, one project pack, one mandatory gate, one cross-harness handoff, and safe cleanup
 - [x] **REL-05**: User receives a v0.1.0 package that excludes candidate locks and local state, contains only allowlisted release files, and matches the tarball tested on all three operating systems
 - [ ] **REL-06**: User can verify the published v0.1.0 package provenance, frozen stable lock, release notes, limitations, and a fresh-install smoke test from the public registry
 
@@ -173,7 +173,7 @@
 | REL-01 | Phase 7 | Complete |
 | REL-02 | Phase 7 | Complete |
 | REL-03 | Phase 7 | Complete |
-| REL-04 | Phase 7 | Pending |
+| REL-04 | Phase 7 | Complete |
 | REL-05 | Phase 7 | Complete |
 | REL-06 | Phase 7 | Pending |
 

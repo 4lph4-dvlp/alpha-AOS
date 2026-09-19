@@ -4,6 +4,7 @@ import { readGsdContext } from "./core/gsd-context.js";
 import { loadCatalog, loadLock } from "./core/catalog.js";
 import { runDoctor } from "./core/doctor.js";
 import { collectInventory } from "./core/inventory.js";
+import { evaluateSupportMatrix } from "./core/support-matrix.js";
 import { packageRoot } from "./core/paths.js";
 import { createInstallPlan } from "./core/plan.js";
 import { applyOwnedSkillSync, planOwnedSkillSync } from "./core/owned-skills.js";
@@ -83,7 +84,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupportMatrixTable, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
 import {
@@ -147,6 +148,7 @@ Usage:
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
+  alpha-aos doctor --matrix [--json]
   alpha-aos doctor --discovery [path] [--json]
   alpha-aos doctor --canary [path] [--harness <id>] [--capability <id>] [--no-spend] [--json]
   alpha-aos fixture gsd <claude|codex|antigravity|pi> [--apply] [--keep] [--json]
@@ -762,6 +764,30 @@ async function main(): Promise<void> {
 
   if (command === "doctor") {
     const context = observableContext();
+
+    if (hasFlag(args, "--matrix")) {
+      if (hasFlag(args, "--discovery") || hasFlag(args, "--canary")) {
+        throw new Error("doctor --matrix cannot be combined with --discovery or --canary");
+      }
+      const inventory = collectInventory(catalog);
+      const ledgerRead = await readCapabilityLedger(capabilityLedgerPath(userStateRoot()));
+      const ledger = ledgerRead.state === "present"
+        ? ledgerRead.ledger
+        : {
+            schemaVersion: CAPABILITY_LEDGER_SCHEMA_VERSION,
+            producer: { name: "alpha-aos", version: await alphaAosVersion() },
+            updatedAt: inventory.generatedAt,
+            proofs: [],
+          } as const;
+      const report = evaluateSupportMatrix(inventory, ledger, {
+        generatedAt: inventory.generatedAt,
+        ...(ledgerRead.state === "unreadable"
+          ? { ledgerUnavailableReason: "Capability ledger is unreadable; no receipt was trusted" }
+          : {}),
+      });
+      print(report, json, formatSupportMatrixTable(report), context);
+      return;
+    }
 
     // The free evidence. No credential, no model turn, every platform — which
     // is what lets the automated suite and hosted CI run it (RESEARCH Pitfall

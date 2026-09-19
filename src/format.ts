@@ -31,6 +31,7 @@ import {
   type RemovalPlan,
 } from "./core/project-plan.js";
 import type { PackProvenance, ProjectPackSyncResult } from "./core/project-pack-sync.js";
+import type { SupportMatrixReport, SupportTier } from "./core/support-matrix.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -64,6 +65,38 @@ export function formatPlan(actions: PlanAction[]): string {
 
 export function formatDoctor(findings: DoctorFinding[]): string {
   return table(["LEVEL", "CODE", "MESSAGE"], findings.map((finding) => [finding.level.toUpperCase(), finding.code, finding.message]));
+}
+
+const supportTierAnsi: Readonly<Record<SupportTier, string>> = {
+  PROVEN: "\u001b[32m",
+  RESIDUE: "\u001b[33m",
+  UNVERIFIED: "\u001b[36m",
+  UNSUPPORTED: "\u001b[31m",
+};
+
+export function formatSupportMatrixTable(
+  report: SupportMatrixReport,
+  options: { readonly color?: boolean } = {},
+): string {
+  const rows = report.cells.map((cell) => [
+    cell.entry.harnessId,
+    cell.entry.surface,
+    cell.entry.platform,
+    cell.tier,
+    cell.receipt === null
+      ? cell.evidenceSummary
+      : `${cell.evidenceSummary}; ${cell.receipt.reference}`,
+  ]);
+  const rendered = [
+    `alpha-AOS ${report.release} support matrix (${report.platform}, ${report.generatedAt})`,
+    table(["HARNESS", "SURFACE", "PLATFORM", "STATUS", "EVIDENCE / NOTES"], rows),
+  ].join("\n\n");
+  const color = options.color ?? (process.stdout.isTTY === true && process.env.NO_COLOR === undefined);
+  if (!color) return rendered;
+  return (Object.keys(supportTierAnsi) as SupportTier[]).reduce(
+    (text, tier) => text.replaceAll(tier, `${supportTierAnsi[tier]}${tier}\u001b[0m`),
+    rendered,
+  );
 }
 
 /**
@@ -1043,6 +1076,5 @@ export function formatUninstallResult(result: UninstallResult): string {
   }
   return lines.join("\n");
 }
-
 
 

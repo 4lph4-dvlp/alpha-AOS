@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
@@ -133,4 +135,36 @@ test("support matrix markdown stays byte-identical to the structured source", as
   const report = evaluateSupportMatrix(inventory([]), ledger(), { generatedAt: observedAt, platform: "linux" });
   const committed = await readFile(join(process.cwd(), "docs", "SUPPORT_MATRIX.md"), "utf8");
   assert.equal(committed, renderSupportMatrixMarkdown(report));
+});
+
+test("compiled doctor exposes table and structured matrix diagnostics", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-support-matrix-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const cli = join(process.cwd(), "dist", "src", "cli.js");
+  const env = { ...process.env, ALPHA_AOS_STATE_DIR: join(root, "state"), NO_COLOR: "1" };
+
+  const tableResult = spawnSync(process.execPath, [cli, "doctor", "--matrix"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  assert.equal(tableResult.status, 0, `${tableResult.stdout}\n${tableResult.stderr}`);
+  assert.match(tableResult.stdout, /HARNESS\s+SURFACE\s+PLATFORM\s+STATUS/u);
+  assert.match(tableResult.stdout, /claude\s+All managed surfaces\s+all\s+RESIDUE/u);
+  assert.doesNotMatch(tableResult.stdout, /\u001b\[/u);
+
+  const jsonResult = spawnSync(process.execPath, [cli, "doctor", "--matrix", "--json"], {
+    cwd: process.cwd(),
+    env,
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  assert.equal(jsonResult.status, 0, `${jsonResult.stdout}\n${jsonResult.stderr}`);
+  const report = JSON.parse(jsonResult.stdout) as { readonly schemaVersion?: number; readonly cells?: readonly { readonly tier?: string }[] };
+  assert.equal(report.schemaVersion, 1);
+  assert.ok((report.cells?.length ?? 0) > 0);
+  assert.equal(report.cells?.some((cell) => cell.tier === "RESIDUE"), true);
 });

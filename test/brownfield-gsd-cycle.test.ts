@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -9,6 +9,13 @@ import {
   runBrownfieldLifecycle,
   setupBrownfieldFixture,
 } from "./helpers/brownfield-fixture.js";
+import { proveOperationPaths, requiredRolesForFileMutation } from "../src/core/path-boundary.js";
+import {
+  assertControllerRole,
+  witnessWorkerDelegation,
+  WorkerAuthorityError,
+} from "../src/core/worker-authority.js";
+import { acquireMutationSession, WriterConflictError } from "../src/core/writer-lock.js";
 
 async function scratchRoot(context: TestContext, label: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `alpha-aos-${label}-`));
@@ -79,4 +86,86 @@ test("brownfield discuss-plan-execute-verify-ship cycle proves all five benchmar
   assert.deepEqual(await readFile(join(fixture.path, "tsconfig.json")), tsconfigBefore);
   assert.deepEqual(await readFile(join(fixture.path, "src", "index.ts")), indexBefore);
   assert.equal(existsSync(join(fixture.path, ".alpha-aos")), false);
+});
+
+test("Hermes cannot claim the brownfield GSD controller role", () => {
+  assert.throws(
+    () => assertControllerRole("hermes"),
+    (error: unknown) => {
+      assert.ok(error instanceof WorkerAuthorityError);
+      assert.equal(error.code, "unauthorized-controller");
+      assert.equal(error.harnessId, "hermes");
+      return true;
+    },
+  );
+});
+
+test("a failing worker that tampers with planning state is rolled back and reported as a planning mutation", async (context) => {
+  const root = await scratchRoot(context, "brownfield-worker-tamper");
+  const fixture = await setupBrownfieldFixture(join(root, "repository"));
+  const statePath = join(fixture.path, ".planning", "STATE.md");
+  const roguePath = join(fixture.path, ".planning", "rogue.md");
+  const originalState = await readFile(statePath);
+
+  await assert.rejects(
+    () =>
+      witnessWorkerDelegation({
+        projectRoot: fixture.path,
+        harnessId: "hermes",
+        role: "worker",
+        action: async () => {
+          await writeFile(statePath, "tampered: true\n", "utf8");
+          await writeFile(roguePath, "rogue worker planning file\n", "utf8");
+          throw new Error("worker failed after tampering");
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof WorkerAuthorityError);
+      assert.equal(error.code, "planning-mutation-detected");
+      assert.equal(error.harnessId, "hermes");
+      assert.deepEqual(error.offendingPaths, ["STATE.md", "rogue.md"]);
+      assert.match(error.message, /worker failed after tampering/u);
+      return true;
+    },
+  );
+
+  assert.deepEqual(await readFile(statePath), originalState);
+  assert.equal(existsSync(roguePath), false);
+});
+
+test("a controller writer lock excludes a concurrent brownfield state writer", async (context) => {
+  const root = await scratchRoot(context, "brownfield-writer-lock");
+  const fixture = await setupBrownfieldFixture(join(root, "repository"));
+  const planningRoot = join(fixture.path, ".planning");
+  const proofs = await proveOperationPaths({
+    inputs: [
+      { role: "target", path: join(planningRoot, "STATE.md") },
+      { role: "state", path: fixture.stateRoot },
+      { role: "journal", path: join(fixture.stateRoot, "journal") },
+      { role: "snapshot", path: join(fixture.stateRoot, "snapshots") },
+    ],
+    allowedRoots: [planningRoot, fixture.stateRoot],
+    requiredRoles: requiredRolesForFileMutation(),
+  });
+  const controller = await acquireMutationSession({
+    stateRoot: fixture.stateRoot,
+    proofs,
+    planDigest: "brownfield-controller",
+    operationId: "brownfield-controller",
+  });
+
+  try {
+    await assert.rejects(
+      () =>
+        acquireMutationSession({
+          stateRoot: fixture.stateRoot,
+          proofs,
+          planDigest: "competing-worker",
+          operationId: "competing-worker",
+        }),
+      WriterConflictError,
+    );
+  } finally {
+    await controller.close();
+  }
 });

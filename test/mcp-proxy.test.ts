@@ -917,6 +917,11 @@ test("the upstream child's write locations are declared, never inherited", async
     );
   }
   assert.equal(
+    policy.optional?.includes("PATH"),
+    true,
+    "PATH must be present so node shebangs can resolve node across all platforms",
+  );
+  assert.equal(
     materialized.FIRECRAWL_NO_SEARCH_FEEDBACK,
     "1",
     "the firecrawl feedback-suppression literals must survive the repair",

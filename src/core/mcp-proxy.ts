@@ -231,6 +231,7 @@ export function upstreamEnvironmentPolicy(
   return {
     optional: [
       ...PLATFORM_FLOOR_ENVIRONMENT,
+      "PATH",
       "PATHEXT",
       "COMSPEC",
       ...UPSTREAM_ENVIRONMENT_NAMES[server],

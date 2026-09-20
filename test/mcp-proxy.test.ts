@@ -548,6 +548,7 @@ test("the upstream child receives only allowlisted environment names", async (co
     ...PLATFORM_FLOOR_ENVIRONMENT,
     ...WRITE_LOCATION_NAMES,
     "npm_config_logs_max",
+    "PATH",
     "PATHEXT",
     "COMSPEC",
     "FIRECRAWL_API_KEY",

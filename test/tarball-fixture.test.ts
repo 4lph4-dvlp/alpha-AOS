@@ -402,7 +402,7 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     "--ignore-scripts",
     "--no-audit",
     "--no-fund",
-    "--offline",
+    "--prefer-offline",
   ], { cache: hostNpmCache });
   assert.equal(prefixInstall.status, 0, `offline prefix install failed\n${prefixInstall.stdout}\n${prefixInstall.stderr}`);
   const cli = sandbox.resolveCli();

@@ -132,11 +132,19 @@ test("case normalization matches on case-insensitive platforms", async (context)
   const isCaseInsensitive = process.platform === "win32" || process.platform === "darwin";
   if (!isCaseInsensitive) return;
 
-  const pathA = "C:\\Projects\\MyApp";
-  const pathB = "c:\\projects\\myapp";
-  assert.equal(comparablePath(pathA), comparablePath(pathB));
-  assert.equal(computeTreeId(pathA), computeTreeId(pathB));
-  assert.equal(withinTreeRoot(pathA, "c:\\projects\\myapp\\src\\index.ts"), true);
+  if (process.platform === "win32") {
+    const pathA = "C:\\Projects\\MyApp";
+    const pathB = "c:\\projects\\myapp";
+    assert.equal(comparablePath(pathA), comparablePath(pathB));
+    assert.equal(computeTreeId(pathA), computeTreeId(pathB));
+    assert.equal(withinTreeRoot(pathA, "c:\\projects\\myapp\\src\\index.ts"), true);
+  } else {
+    const pathA = "/Projects/MyApp";
+    const pathB = "/projects/myapp";
+    assert.equal(comparablePath(pathA), comparablePath(pathB));
+    assert.equal(computeTreeId(pathA), computeTreeId(pathB));
+    assert.equal(withinTreeRoot(pathA, "/projects/myapp/src/index.ts"), true);
+  }
 });
 
 test("nearest ancestor (LPM) inheritance and nested overrides", async (context) => {

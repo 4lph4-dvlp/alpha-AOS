@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 29
+open_count: 30
 waived_count: 2
 fixed_count: 19
-total_count: 50
-last_updated: 2026-09-19T13:45:04.617Z
+total_count: 51
+last_updated: 2026-09-20T04:44:15.026Z
 ---
 
 # Broken Windows Ledger
@@ -65,6 +65,7 @@ last_updated: 2026-09-19T13:45:04.617Z
 | 48 | 07 | deviation | scripts/audit-tarball.mjs |  | 07-01 made temporary archive selection deterministic and finally-based cleanup reliable | fixed |  | 2026-09-19T13:44:24.630Z | 2026-09-19T13:44:52.297Z |
 | 49 | 07 | deviation | .github/workflows/ci.yml |  | 07-01 replaced non-portable GNU checksum commands with Node crypto | fixed |  | 2026-09-19T13:44:30.734Z | 2026-09-19T13:44:58.385Z |
 | 50 | 07 | deviation | test/tarball-fixture.test.ts |  | 07-01 used uninstall --purge in the disposable fixture to align with preserved-journal semantics | fixed |  | 2026-09-19T13:44:36.781Z | 2026-09-19T13:45:04.617Z |
+| 51 | 07 | unrun-verify | scripts/smoke-test.mjs |  | Stage 2 public-registry smoke test was not run because publication was explicitly prohibited during plan execution. | open |  | 2026-09-20T04:44:15.026Z |  |
 
 ````json
 [
@@ -667,6 +668,18 @@ last_updated: 2026-09-19T13:45:04.617Z
     "reason": "",
     "recorded_at": "2026-09-19T13:44:36.781Z",
     "resolved_at": "2026-09-19T13:45:04.617Z"
+  },
+  {
+    "id": 51,
+    "kind": "unrun-verify",
+    "phase": "07",
+    "file": "scripts/smoke-test.mjs",
+    "line": null,
+    "description": "Stage 2 public-registry smoke test was not run because publication was explicitly prohibited during plan execution.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-20T04:44:15.026Z",
+    "resolved_at": null
   }
 ]
 ````

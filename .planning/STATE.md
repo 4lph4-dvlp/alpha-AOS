@@ -3,17 +3,17 @@ gsd_state_version: 1.0
 milestone: v0.1.0
 current_phase: 07
 current_phase_name: Cross-Platform Release Proof
-status: executing
-stopped_at: Completed 07-03-PLAN.md
-last_updated: "2026-09-19T23:31:04.768Z"
+status: verifying
+stopped_at: Completed 07-04-PLAN.md
+last_updated: "2026-09-20T04:45:26.186Z"
 last_activity: 2026-09-19
 last_activity_desc: Phase 07 execution resumed (wave continue)
-state_head: 35ff6589595ff093b136e67f447396bf36ef5b1f
+state_head: 3869ecee4a20aa7199219420d5f36d90ec57b598
 progress:
   total_phases: 7
   completed_phases: 5
   total_plans: 80
-  completed_plans: 79
+  completed_plans: 80
   percent: 71
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 
 Phase: 07 (Cross-Platform Release Proof) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-19 — Phase 07 execution resumed (wave continue)
 Progress: [███████░░░] 71%
 
@@ -110,6 +110,7 @@ Progress: [███████░░░] 71%
 | Phase 07 P01 | 39min | 2 tasks | 6 files |
 | Phase 07 P02 | 24min | 2 tasks | 7 files |
 | Phase 07 P03 | 20min | 2 tasks | 4 files |
+| Phase 07 P04 | 1h 15m | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -221,6 +222,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 07]: 07-02: Claude remains RESIDUE and Antigravity remains UNVERIFIED while its invocation proof is unrepresentable in the closed host ledger.
 - [Phase 07]: 07-03: Brownfield release proof uses deterministic offline Context7 observations and Unified Memory runners so REL-04 requires no credentials, network availability, or paid calls.
 - [Phase 07]: 07-03: A worker planning mutation outranks a simultaneous action failure; rollback is re-hashed before planning-mutation-detected is returned with the action failure retained as context.
+- [Phase 07]: 07-04: Bind provenance to the tarball digest, archived build manifest, and archived stable-lock bytes.
+- [Phase 07]: 07-04: Run release gates in a disposable tracked-file Git snapshot and require explicit --publish on a clean main checkout.
+- [Phase 07]: 07-04: Public-registry Stage 2 remains a post-publication manual gate and was not run without publish authorization.
+- [Phase 07]: 07-04: Machine-readable process output requests an explicit bounded excerpt budget before JSON parsing.
 
 ### Pending Todos
 
@@ -285,6 +290,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-19T23:31:03.516Z
-Stopped at: Completed 07-03-PLAN.md
+Last session: 2026-09-20T04:45:24.854Z
+Stopped at: Completed 07-04-PLAN.md
 Resume file: None

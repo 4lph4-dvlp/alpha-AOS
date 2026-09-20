@@ -81,7 +81,7 @@
 - [x] **REL-03**: User can inspect paired positive and negative controls proving native optional invocation, project-only capability scope, mandatory gate blocking, and opt-out exclusion
 - [x] **REL-04**: User can complete a real brownfield GSD discuss → plan → execute → verify → ship cycle that exercises one global optional capability, one project pack, one mandatory gate, one cross-harness handoff, and safe cleanup
 - [x] **REL-05**: User receives a v0.1.0 package that excludes candidate locks and local state, contains only allowlisted release files, and matches the tarball tested on all three operating systems
-- [ ] **REL-06**: User can verify the published v0.1.0 package provenance, frozen stable lock, release notes, limitations, and a fresh-install smoke test from the public registry
+- [x] **REL-06**: User can verify the published v0.1.0 package provenance, frozen stable lock, release notes, limitations, and a fresh-install smoke test from the public registry
 
 ## v2 Requirements
 
@@ -175,7 +175,7 @@
 | REL-03 | Phase 7 | Complete |
 | REL-04 | Phase 7 | Complete |
 | REL-05 | Phase 7 | Complete |
-| REL-06 | Phase 7 | Pending |
+| REL-06 | Phase 7 | Complete |
 
 ### Recorded Inferences
 

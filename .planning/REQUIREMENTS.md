@@ -85,6 +85,12 @@
 
 ## v2 Requirements
 
+### Project Pack Automation & Cross-Harness Experience
+
+- [ ] **PACK-01**: User receives a built-in cross-harness skill (`alpha-aos-pack-advisor`) deployed to all supported harnesses that detects newly available project capability packs, prompts for user approval, and executes plan approval and materialization without manual hash copying
+- [ ] **PACK-02**: The pack advisor preserves determinism, strict plan digest verification, rollback safety, and fails closed on receipt or digest tampering
+- [ ] **PACK-03**: The advisor skill is registered in `catalog/stack.yaml` as an owned skill and distributed to Claude, Codex, Antigravity, Pi, and Hermes via managed install and update
+
 ### Strong Isolation
 
 - **SEAL-01**: User can launch a supported harness inside a verified OS/container boundary that enforces filesystem, network, environment, and process policy

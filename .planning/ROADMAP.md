@@ -473,5 +473,16 @@ Plans:
 | 6. Managed Lifecycle, Uninstall, and Recovery | 3/3 | Complete    | 2026-09-18 |
 | 7. Cross-Platform Release Proof | 7/7 | Complete    | 2026-09-20 |
 
+### Phase 8: Autonomous Project Pack Advisor and Cross-Harness Materializer
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 7
+**Plans:** 0 plans
+
+Plans:
+
+- [ ] TBD (run /gsd-plan-phase 8 to break down)
+
 ---
 *Roadmap created: 2026-09-03 for the v0.1.0 vertical MVP milestone*

@@ -36,13 +36,13 @@
     {
       "number": "7",
       "name": "Cross-Platform Release Proof",
-      "status": "in_progress"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 7 of 7 · 71% · executing"
+    "command": "/gsd-new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-09-20T05:43:24.065Z"
+  "updated_at": "2026-09-20T23:52:11.435Z"
 }

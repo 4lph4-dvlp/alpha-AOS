@@ -38,6 +38,7 @@ const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
 
 const ENV_SECRET = "alphaAOSprocessSentinel0007";
+const PARSEABLE_PROCESS_OUTPUT_BYTES = 64 * 1024;
 
 interface ProcessFixture {
   readonly root: string;
@@ -149,8 +150,10 @@ test("shell metacharacters in an argument stay data and never execute", async (c
       executable: process.execPath,
       args: [fixture.echoScript, injection],
       cwd: fixture.root,
+      excerptBytes: PARSEABLE_PROCESS_OUTPUT_BYTES,
     });
     assert.equal(result.code, "ok", `the child failed for injection: ${injection}`);
+    assert.equal(result.stdout.capped, false, "the parseable argv response must be retained in full");
     const reported = JSON.parse(result.stdout.excerpt) as { argv: string[] };
     assert.deepEqual(reported.argv, [injection], "the argument must arrive verbatim as a single argv entry");
     assert.equal(existsSync(fixture.sideEffect), false, `injection executed a side effect: ${injection}`);
@@ -164,16 +167,24 @@ test("only operation-approved environment names reach the child", async (context
     executable: process.execPath,
     args: [fixture.echoScript],
     cwd: fixture.root,
+    excerptBytes: PARSEABLE_PROCESS_OUTPUT_BYTES,
     environment: {
-      optional: ["ALPHA_AOS_ALLOWED"],
+      optional: ["ALPHA_AOS_ALLOWED", "ALPHA_AOS_PADDING"],
       // The ambient environment is offered as a source, but only the declared
       // names may cross the boundary.
-      source: { ...process.env, ALPHA_AOS_ALLOWED: "yes", ALPHA_AOS_TOKEN: ENV_SECRET },
+      source: {
+        ...process.env,
+        ALPHA_AOS_ALLOWED: "yes",
+        ALPHA_AOS_PADDING: "p".repeat(5_000),
+        ALPHA_AOS_TOKEN: ENV_SECRET,
+      },
     },
   });
+  assert.equal(result.stdout.capped, false, "the parseable environment response must be retained in full");
   const reported = JSON.parse(result.stdout.excerpt) as { env: Record<string, string> };
 
   assert.equal(reported.env.ALPHA_AOS_ALLOWED, "yes", "an approved name must be delivered");
+  assert.equal(reported.env.ALPHA_AOS_PADDING?.length, 5_000, "a response over the diagnostic excerpt limit must remain parseable");
   for (const forbidden of ["ALPHA_AOS_TOKEN", "AWS_SECRET_ACCESS_KEY", "GITHUB_TOKEN", "npm_config__auth"]) {
     assert.equal(
       Object.hasOwn(reported.env, forbidden),
@@ -185,7 +196,7 @@ test("only operation-approved environment names reach the child", async (context
   // Nothing beyond the declared names and the documented platform floor may
   // cross the boundary. Widening that floor silently is the regression here.
   const unexpected = Object.keys(reported.env).filter(
-    (name) => name !== "ALPHA_AOS_ALLOWED" && !PLATFORM_FLOOR_ENVIRONMENT.includes(name),
+    (name) => !["ALPHA_AOS_ALLOWED", "ALPHA_AOS_PADDING"].includes(name) && !PLATFORM_FLOOR_ENVIRONMENT.includes(name),
   );
   assert.deepEqual(unexpected, [], `undeclared names crossed the process boundary: ${unexpected.join(", ")}`);
 });

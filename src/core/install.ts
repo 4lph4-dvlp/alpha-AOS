@@ -253,6 +253,15 @@ export function npmProbeEnvironment(options: {
  * an apply is authorized may call it. Plan builders use
  * `readGlobalPackageVersion`, which reads the filesystem and launches nothing.
  */
+function expandAliasedPath(aliased: string): string {
+  const trimmed = aliased.trim();
+  if (trimmed === "~") return homedir();
+  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+    return join(homedir(), trimmed.slice(2));
+  }
+  return trimmed;
+}
+
 async function probeGlobalNpmPackageVersion(packageName: string): Promise<string | null> {
   const npm = resolveNodePackageCli("npm");
   const result = await runProcess({
@@ -264,7 +273,8 @@ async function probeGlobalNpmPackageVersion(packageName: string): Promise<string
     environment: npmProbeEnvironment(),
   });
   if (result.code !== "ok") throw new Error(describeProcessFailure("npm root --global", result));
-  const manifest = join(result.stdout.excerpt.trim(), ...packageName.split("/"), "package.json");
+  const root = expandAliasedPath(result.stdout.excerpt);
+  const manifest = join(root, ...packageName.split("/"), "package.json");
   if (!existsSync(manifest)) return null;
   try {
     const value = JSON.parse(await readFile(manifest, "utf8")) as Record<string, unknown>;
@@ -293,12 +303,19 @@ export function resolveGlobalNodeModulesRoot(
   source: NodeJS.ProcessEnv = process.env,
 ): { root: string | null; reason: string | null } {
   const configured = source.npm_config_prefix;
-  const prefix = configured && configured.trim()
-    ? resolve(configured.trim())
-    : process.platform === "win32"
-      ? dirname(process.execPath)
-      : dirname(dirname(process.execPath));
-  const root = process.platform === "win32" ? join(prefix, "node_modules") : join(prefix, "lib", "node_modules");
+  let prefix: string;
+  if (configured && configured.trim()) {
+    prefix = resolve(configured.trim());
+  } else if (process.platform === "win32") {
+    prefix = source.APPDATA ? join(source.APPDATA, "npm") : dirname(process.execPath);
+  } else {
+    prefix = dirname(dirname(process.execPath));
+  }
+  let root = process.platform === "win32" ? join(prefix, "node_modules") : join(prefix, "lib", "node_modules");
+  if (process.platform === "win32" && !existsSync(root) && !configured) {
+    const fallback = join(dirname(process.execPath), "node_modules");
+    if (existsSync(fallback)) root = fallback;
+  }
   if (!existsSync(root)) {
     return { root: null, reason: `no global node_modules directory at ${root}` };
   }

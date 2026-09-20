@@ -461,7 +461,7 @@ Plans:
 
 ## Progress
 
-**Execution Order:** Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7
+**Execution Order:** Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6 → Phase 7 → Phase 8
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
@@ -472,17 +472,32 @@ Plans:
 | 5. Persistent Tree-Off Preload Isolation | 4/4 | Complete    | 2026-09-18 |
 | 6. Managed Lifecycle, Uninstall, and Recovery | 3/3 | Complete    | 2026-09-18 |
 | 7. Cross-Platform Release Proof | 7/7 | Complete    | 2026-09-20 |
+| 8. Autonomous Project Pack Advisor and Cross-Harness Materializer | 0/2 | Ready to execute | - |
 
 ### Phase 8: Autonomous Project Pack Advisor and Cross-Harness Materializer
 
-**Goal:** [To be planned]
-**Requirements**: TBD
-**Depends on:** Phase 7
-**Plans:** 0 plans
+**Goal**: AI agents across all supported harnesses (Claude, Codex, Antigravity, Pi, Hermes) autonomously detect unmaterialized project capability packs, present recommendations to the user, and execute plan approval and materialization upon confirmation without manual digest handling.
+**Depends on**: Phase 7
+**Requirements**: PACK-01, PACK-02, PACK-03
+**Delivers**: Built-in `alpha-aos-pack-advisor` owned skill, catalog and lock registration, cross-harness skill distribution in `owned-skills.ts` and `install.ts`, autonomous plan digest extraction and verification, end-to-end execution flow (plan -> prompt -> approve -> sync), and test verification suite.
+**Success Criteria** (what must be TRUE):
+
+  1. The `alpha-aos-pack-advisor` skill is registered in `catalog/stack.yaml` and `catalog/stack.lock.json` as an owned skill and distributed to all five supported harnesses during `alpha-aos install --apply`.
+  2. In any project workspace with installable capability packs, an agent running the advisor executes `alpha-aos project plan . --json`, detects unapplied packs, and asks the user for confirmation.
+  3. Upon user approval, the advisor parses the exact 64-char plan digest and applies `alpha-aos project approve . --plan-digest <digest> --apply` and `alpha-aos project sync . --apply`, leaving the project in a `CURRENT` materialized state without human manual CLI copying.
+  4. The advisor preserves safety invariants: fails closed on digest mismatch, enforces single-writer / rollback-aware guarantees, and never mutates without explicit user confirmation.
+
+**Plans**: 0/2 plans executed.
 
 Plans:
 
-- [ ] TBD (run /gsd-plan-phase 8 to break down)
+**Wave 1**
+
+- [ ] 08-01-PLAN.md — Multi-target Owned Skill Engine & Install Orchestration (PACK-03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [ ] 08-02-PLAN.md — Advisor Skill Authoring, Lock Registration, and Autonomous Workflow Proof (PACK-01, PACK-02, PACK-03)
 
 ---
 *Roadmap created: 2026-09-03 for the v0.1.0 vertical MVP milestone*

@@ -658,6 +658,7 @@ export const HARNESS_COMMANDS: Readonly<Record<LedgerHarness, string>> = {
   codex: "codex",
   pi: "pi",
   hermes: "hermes",
+  antigravity: "antigravity",
 };
 
 interface ProviderProbe {
@@ -718,12 +719,11 @@ export const READINESS_DEFINITIONS: Readonly<Record<LedgerHarness, ReadinessDefi
     provider: {
       label: "pi auth check --json",
       // pi's own documented default. Asking about a model instead is what makes
-      // a silent free-model fallback nameable rather than anonymous (A7).
-      defaultProvider: "google",
-      args: (target) =>
-        target.kind === "model"
-          ? ["auth", "check", "--model", target.value, "--json"]
-          : ["auth", "check", "--provider", target.value, "--json"],
+      // the probe fail closed when pi has not been configured with a provider:
+      // it would otherwise exit 0 with an empty object and be recorded as
+      // ready, which is the exact false positive this probe exists to prevent.
+      defaultProvider: "anthropic",
+      args: () => ["auth", "check", "--json"],
       parse: parsePiAuthCheck,
     },
     providerAbsence: null,
@@ -735,6 +735,12 @@ export const READINESS_DEFINITIONS: Readonly<Record<LedgerHarness, ReadinessDefi
     providerAbsence: "hermes is a worker rather than a canary target in this phase, so no readiness command is defined for it",
     connection: null,
     connectionAbsence: "hermes is a worker rather than a canary target in this phase, so no connection listing is defined for it",
+  },
+  antigravity: {
+    provider: null,
+    providerAbsence: "no antigravity provider readiness command has been observed on any host probed",
+    connection: null,
+    connectionAbsence: "no antigravity connection listing command has been observed on any host probed",
   },
 };
 
@@ -1569,6 +1575,7 @@ const CANARY_INSTRUCTION_ROOT: Readonly<Record<LedgerHarness, ((harnessRoot: str
   codex: (harnessRoot: string) => join(harnessRoot, ".agents", "skills"),
   pi: null,
   hermes: null,
+  antigravity: null,
 });
 
 /** The identifier and source of the memory-handoff steering instruction (plan 03-12). */

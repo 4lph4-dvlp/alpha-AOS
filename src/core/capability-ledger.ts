@@ -40,7 +40,7 @@ export const CAPABILITY_LEDGER_SCHEMA_VERSION = 1;
  * (03-RESEARCH.md Open Question 1), so no run could ever produce a proof for
  * it, and a record claiming one is unrepresentable rather than merely absent.
  */
-export type LedgerHarness = "claude" | "codex" | "pi" | "hermes";
+export type LedgerHarness = "claude" | "codex" | "pi" | "hermes" | "antigravity";
 
 /**
  * The native-use axis, and ONLY that axis.

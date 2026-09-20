@@ -820,11 +820,11 @@ export async function openObservedUpstream(
     },
     callTool: async (params) => {
       if (allow && !allow.has(params.name)) {
-        observe(options, serverId, locked, params.name, "denied");
+        observe(options, serverId, locked, params.name, "denied", params.arguments);
         throw new Error(mcpPolicyRefusal(params.name));
       }
       const result = await client.callTool(params);
-      observe(options, serverId, locked, params.name, "ok");
+      observe(options, serverId, locked, params.name, "ok", params.arguments);
       return result;
     },
     /**

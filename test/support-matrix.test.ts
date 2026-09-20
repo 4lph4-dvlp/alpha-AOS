@@ -131,6 +131,24 @@ test("only an inspectable matching invocation receipt promotes an active cell to
   assert.match(proven.receipt?.reference ?? "", /ledger\.json/u);
 });
 
+test("inspectable matching invocation receipt promotes Antigravity active cell to PROVEN", () => {
+  const entry: SupportMatrixEntry = {
+    harnessId: "antigravity",
+    surface: "GSD Core",
+    platform: "all",
+    baselineTier: "PROVEN",
+    notes: "CLI and IDE lifecycle integration",
+    receiptCapability: "GSD_CORE",
+  };
+  const unverified = evaluateMatrixCell(entry, inventory(["antigravity"]), ledger());
+  const proven = evaluateMatrixCell(entry, inventory(["antigravity"]), ledger([proof("antigravity", "GSD_CORE")]));
+  assert.equal(unverified.tier, "UNVERIFIED");
+  assert.match(unverified.evidenceSummary, /canary/i);
+  assert.equal(proven.tier, "PROVEN");
+  assert.equal(proven.receipt?.observedAt, observedAt);
+  assert.match(proven.receipt?.reference ?? "", /ledger\.json/u);
+});
+
 test("support matrix markdown stays byte-identical to the structured source", async () => {
   const report = evaluateSupportMatrix(inventory([]), ledger(), { generatedAt: observedAt, platform: "linux" });
   const committed = await readFile(join(process.cwd(), "docs", "SUPPORT_MATRIX.md"), "utf8");

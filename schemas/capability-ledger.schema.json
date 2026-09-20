@@ -48,7 +48,7 @@
           },
           "harness": {
             "description": "Exactly the harnesses that have BOTH a non-interactive entrypoint and a declared surface, so a canary can be run against them with no human at a keyboard: claude (-p/--print), codex (codex exec), pi (-p/--print) and hermes (-z/--oneshot). antigravity is ABSENT deliberately: 03-RESEARCH.md Open Question 1 found no non-interactive entrypoint for it on this host (no CLI on PATH; agentapi.bat is an undocumented lead), so nothing could produce a proof for it. Narrowing the enum makes an antigravity proof UNREPRESENTABLE rather than merely unrecorded, because a record claiming one would be a record no run could have produced.",
-            "enum": ["claude", "codex", "pi", "hermes"]
+            "enum": ["claude", "codex", "pi", "hermes", "antigravity"]
           },
           "capability": { "type": "string", "minLength": 1 },
           "polarity": {

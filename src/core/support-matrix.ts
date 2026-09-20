@@ -127,7 +127,7 @@ function matchingReceipt(
   entry: SupportMatrixEntry,
   ledger: CapabilityLedger,
 ): { readonly proof: CapabilityProof; readonly index: number } | null {
-  if (entry.receiptCapability === undefined || entry.harnessId === "antigravity") return null;
+  if (entry.receiptCapability === undefined) return null;
   const index = ledger.proofs.findIndex((proof) =>
     proof.harness === entry.harnessId
     && proof.capability === entry.receiptCapability
@@ -159,10 +159,7 @@ export function evaluateMatrixCell(
 
   const match = matchingReceipt(entry, ledger);
   if (match === null) {
-    const reason = entry.harnessId === "antigravity"
-      ? "No inspectable Antigravity invocation receipt can be represented by the current host ledger"
-      : "Canary unrun on host or matching invocation receipt is not inspectable";
-    return { entry, tier: "UNVERIFIED", evidenceSummary: reason, receipt: null };
+    return { entry, tier: "UNVERIFIED", evidenceSummary: "Canary unrun on host or matching invocation receipt is not inspectable", receipt: null };
   }
 
   const { proof, index } = match;

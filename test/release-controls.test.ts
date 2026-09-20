@@ -8,7 +8,12 @@ import test from "node:test";
 
 import { loadCanaryCatalog, matchExpectations } from "../src/core/canary.js";
 import { evaluateLifecycleGates } from "../src/core/gate-lifecycle.js";
-import { observationLine, readObservationRecords, type McpObservation } from "../src/core/mcp-proxy.js";
+import {
+  observationLine,
+  openObservedUpstream,
+  readObservationRecords,
+  type McpObservation,
+} from "../src/core/mcp-proxy.js";
 import { planProjectCapabilities } from "../src/core/project-plan.js";
 import { inspectTreeSurface } from "../src/core/surface-inspector.js";
 import { setTreePolicy } from "../src/core/tree-policy.js";
@@ -96,18 +101,72 @@ async function optionalInvocationPair(): Promise<ControlPairResult> {
   const catalog = (await loadCanaryCatalog(process.cwd())).value;
   const declaration = catalog.canaries.find((candidate) => candidate.capability === "CAPA-01" && candidate.harnesses.includes("codex"));
   assert.ok(declaration);
-  const observations: readonly McpObservation[] = [
-    { server: "context7", tool: "resolve-library-id", at: VERIFIED_AT, upstreamVersion: "4.0.4", outcome: "ok" },
-    { server: "context7", tool: "query-docs", at: VERIFIED_AT, upstreamVersion: "4.0.4", outcome: "ok", identifierShape: "version-scoped" },
-  ];
-  const parsed = readObservationRecords(observations.map(observationLine).join(""));
+
+  const sandbox = await mkdtemp(join(tmpdir(), "alpha-aos-opt-inv-"));
+  const observed: McpObservation[] = [];
+  try {
+    const serverScript = join(sandbox, "server.mjs");
+    await writeFile(
+      serverScript,
+      [
+        "import { createInterface } from 'node:readline';",
+        "const lines = createInterface({ input: process.stdin });",
+        "lines.on('line', (line) => {",
+        "  if (!line.trim().startsWith('{')) return;",
+        "  let message;",
+        "  try { message = JSON.parse(line); } catch { return; }",
+        "  if (typeof message.id !== 'number') return;",
+        "  if (message.method === 'initialize') {",
+        "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'context7', version: '4.0.4' } } }));",
+        "    return;",
+        "  }",
+        "  if (message.method === 'tools/list') {",
+        "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { tools: [{ name: 'resolve-library-id', description: 'resolve library', inputSchema: { type: 'object' } }, { name: 'query-docs', description: 'query docs', inputSchema: { type: 'object' } }] } }));",
+        "    return;",
+        "  }",
+        "  if (message.method === 'tools/call') {",
+        "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: 'documentation excerpt' }] } }));",
+        "    return;",
+        "  }",
+        "  console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'method not found' } }));",
+        "});",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const upstream = await openObservedUpstream(
+      "context7",
+      { package: "@upstash/context7-mcp", version: "4.0.4", integrity: "sha512-fixture" },
+      { record: (obs) => observed.push(obs) },
+      {
+        executable: process.execPath,
+        args: [serverScript],
+        cwd: sandbox,
+        environment: { source: {} },
+        timeoutMs: 30_000,
+        maxOutputBytes: 64 * 1024,
+      },
+    );
+
+    await upstream.callTool({ name: "resolve-library-id", arguments: { libraryName: "Next.js" } });
+    await upstream.callTool({ name: "query-docs", arguments: { libraryId: "/vercel/next.js/v16.2.2", query: "streaming route handlers" } });
+    await upstream.close();
+  } finally {
+    await rm(sandbox, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
+  }
+
+  // Force deterministic verified timestamp for release control ledger stability
+  const stableObservations = observed.map((obs) => ({ ...obs, at: VERIFIED_AT }));
+  const parsed = readObservationRecords(stableObservations.map(observationLine).join(""));
   const matched = matchExpectations(parsed, declaration);
   const ordinaryTaskCalls = readObservationRecords("");
+
   return pair(
     "Optional Capability Invocation",
     {
       name: "documentation intent invokes Context7 lookup",
-      passed: matched.held,
+      passed: matched.held && parsed.length === 2,
       evidence: { promptClass: "library-documentation", tools: parsed.map((entry) => entry.tool), verdictHeld: matched.held },
     },
     {

@@ -907,6 +907,7 @@ export const DISCOVERED_PROJECT_SKILL_ROOTS: Readonly<Record<LedgerHarness, read
   codex: [".agents/skills", ".codex/skills"],
   pi: [".pi/skills", ".agents/skills"],
   hermes: [".hermes/skills", ".agents/skills"],
+  antigravity: [".agents/skills", ".gemini/skills"],
 };
 
 /** Stable codes for the things a paired run reports without acting on them. */

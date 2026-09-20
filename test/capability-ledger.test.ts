@@ -302,7 +302,7 @@ test("the ledger schema is a closed world with one reused sha256 definition", as
   );
 });
 
-test("the harness enum states why antigravity is unrepresentable", async () => {
+test("the harness enum includes antigravity for receipt representation", async () => {
   const schema = JSON.parse(
     await readFile(new URL("../../schemas/capability-ledger.schema.json", import.meta.url), "utf8"),
   ) as Record<string, unknown>;
@@ -310,14 +310,7 @@ test("the harness enum states why antigravity is unrepresentable", async () => {
   const items = properties.proofs?.items as Record<string, Record<string, unknown>>;
   const harness = (items.properties as Record<string, Record<string, unknown>>).harness as Record<string, unknown>;
 
-  assert.deepEqual(harness.enum, ["claude", "codex", "pi", "hermes"]);
-  const description = String(harness.description);
-  assert.equal(description.includes("antigravity"), true);
-  assert.equal(
-    /non-interactive entrypoint/u.test(description),
-    true,
-    "the narrowing must record WHY antigravity is absent, not merely that it is",
-  );
+  assert.deepEqual(harness.enum, ["claude", "codex", "pi", "hermes", "antigravity"]);
 });
 
 // ---------------------------------------------------------------------------

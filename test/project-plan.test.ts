@@ -104,6 +104,9 @@ function runCli(args: readonly string[], environment: Record<string, string | un
     if (value === undefined) delete childEnvironment[name];
     else childEnvironment[name] = value;
   }
+  if (!childEnvironment.ALPHA_AOS_STATE_DIR) {
+    childEnvironment.ALPHA_AOS_STATE_DIR = join(repositoryRoot, ".test-state");
+  }
   return new Promise((resolveRun) => {
     const child = spawn(process.execPath, [cliEntry, ...args], {
       cwd: repositoryRoot,
@@ -2483,7 +2486,7 @@ test("a refusal carries a runnable re-approval command, and running it succeeds"
 
   const command = /Re-approve in place with: alpha-aos (.+)$/mu.exec(refused.stderr);
   assert.ok(command, `the refusal carried no re-approval command:\n${refused.stderr}`);
-  const argv = (command[1] ?? "").trim().split(/\s+/u);
+  const argv = (command[1] ?? "").trim().split(/\s+/u).map((arg) => arg.replace(/^["']|["']$/g, ""));
   const observed = await planProjectCapabilities({ path: root, packageRoot: repositoryRoot });
   assert.ok(argv.includes(observed.planDigest), `the re-approval command does not carry the newly computed digest: ${argv.join(" ")}`);
 

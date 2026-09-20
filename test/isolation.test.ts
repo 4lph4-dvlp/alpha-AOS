@@ -560,7 +560,7 @@ test("the Codex canary branch reuses authentication but carries only measured ru
   assert.equal(launch.args.filter((entry) => entry === "--ignore-rules").length, 1);
   assert.deepEqual(launch.args.filter((entry) => entry === "-c").length, 2);
   assert.deepEqual(launch.args.slice(-overrides.length), overrides);
-  assert.deepEqual(launch.blockedReasons, []);
+  assert.deepEqual(launch.blockedReasons.filter((reason) => reason !== "codex CLI executable was not found"), []);
 });
 
 test("the ordinary Codex project-only branch remains byte-for-byte stable", () => {

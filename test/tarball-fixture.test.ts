@@ -165,7 +165,7 @@ async function fingerprint(path: string): Promise<string> {
       }
       return;
     }
-    hash.update(`file:${relativePath}:${info.size}:${info.mtimeMs}\n`);
+    hash.update(`file:${relativePath}:${info.size}\n`);
     if (info.size <= 1024 * 1024) hash.update(await readFile(current));
   };
   await visit(path, "");

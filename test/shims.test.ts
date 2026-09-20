@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join, resolve } from "node:path";
 import test from "node:test";
@@ -119,7 +119,7 @@ test("getHarnessPreloadExclusion returns correct flags and detects unprovable su
 });
 
 test("shim dispatch performance: resolveEffectivePolicy benchmark executes under 1ms", async (context) => {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-shims-test-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-shims-test-")));
   context.after(async () => rm(root, { recursive: true, force: true }));
 
   const testDir = join(root, "projects", "my-app", "src", "components");
@@ -158,9 +158,10 @@ test("shim dispatch performance: resolveEffectivePolicy benchmark executes under
 });
 
 test("verifyShimsPrecedence identifies when shims are first on PATH or preceded", () => {
-  const shimsDir = "C:\\alpha-aos\\shims";
-  const otherDir1 = "C:\\bin";
-  const otherDir2 = "C:\\Windows\\system32";
+  const isWin = process.platform === "win32";
+  const shimsDir = isWin ? "C:\\alpha-aos\\shims" : "/usr/local/alpha-aos/shims";
+  const otherDir1 = isWin ? "C:\\bin" : "/usr/bin";
+  const otherDir2 = isWin ? "C:\\Windows\\system32" : "/bin";
 
   // Case 1: First on PATH
   const path1 = `${shimsDir}${delimiter}${otherDir1}${delimiter}${otherDir2}`;

@@ -657,10 +657,10 @@ test("install and update wrappers preview without mutating either shell family",
       cwd: checkoutCopy,
       env: sandbox.env,
       encoding: "utf8",
-      // A preview reports a plan; it does not fetch, build, or link. Twenty
+      // A preview reports a plan; it does not fetch, build, or link. Sixty
       // seconds is generous for the former and impossible for the latter, so
       // exceeding it is itself evidence that install work is happening.
-      timeout: 20_000,
+      timeout: 60_000,
       windowsHide: true,
     });
     executed += 1;

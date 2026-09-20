@@ -22,7 +22,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -484,7 +484,8 @@ const HARNESS_VERSION: HarnessVersion = { exact: "0.152.0", minorKey: "0.152", r
 
 /** A bare temporary directory, removed when the test that made it finishes. */
 async function scratchRoot(context: { after: (fn: () => Promise<void>) => void }, label: string): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), `alpha-aos-oracle-${label}-`));
+  const raw = await mkdtemp(join(tmpdir(), `alpha-aos-oracle-${label}-`));
+  const root = await realpath(raw);
   context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   return root;
 }

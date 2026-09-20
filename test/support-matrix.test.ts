@@ -36,10 +36,10 @@ function inventory(detected: readonly string[]): Inventory {
   };
 }
 
-function proof(harness: CapabilityProof["harness"], capability: string): CapabilityProof {
+function proof(harness: string, capability: string): CapabilityProof {
   return {
     projectId: null,
-    harness,
+    harness: harness as CapabilityProof["harness"],
     capability,
     polarity: "positive",
     nativeUse: "invoked",

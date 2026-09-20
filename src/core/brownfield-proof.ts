@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { cp, mkdir, readFile, readdir, rm, rmdir, writeFile } from "node:fs/promises";
@@ -10,6 +9,7 @@ import { computeRiskSurfaceDigest, createGateReceipt } from "./gate-receipt.js";
 import { evaluateLifecycleGates } from "./gate-lifecycle.js";
 import { observationLine, readObservationRecords, type McpObservation } from "./mcp-proxy.js";
 import { packageRoot } from "./paths.js";
+import { PLATFORM_FLOOR_ENVIRONMENT, resolveCommand, runProcess } from "./process.js";
 import { applyProjectPackSync } from "./project-pack-sync.js";
 import { approveProjectPlan, planProjectCapabilities } from "./project-plan.js";
 import { applyUninstall, planUninstall } from "./uninstall.js";
@@ -80,30 +80,43 @@ function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function gitEnvironment(): NodeJS.ProcessEnv {
-  return {
-    ...process.env,
-    GIT_ADVICE_DETACHEDHEAD: "0",
-    GIT_ASKPASS: "",
-    GIT_AUTHOR_DATE: FIXED_GIT_DATE,
-    GIT_COMMITTER_DATE: FIXED_GIT_DATE,
-    GIT_CONFIG_NOSYSTEM: "1",
-    GIT_TERMINAL_PROMPT: "0",
-  };
-}
-
-function runGit(cwd: string, args: readonly string[]): string {
-  const result = spawnSync("git", [...args], {
+async function runGit(cwd: string, args: readonly string[]): Promise<string> {
+  const gitExec = resolveCommand("git");
+  if (!gitExec) {
+    throw new Error("git executable not found on PATH");
+  }
+  const result = await runProcess({
+    executable: gitExec,
+    args: [...args],
     cwd,
-    encoding: "utf8",
-    env: gitEnvironment(),
-    windowsHide: true,
+    environment: {
+      optional: [
+        ...PLATFORM_FLOOR_ENVIRONMENT,
+        "PATH",
+        "PATHEXT",
+        "COMSPEC",
+        "HOME",
+        "USERPROFILE",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+      ],
+      literal: {
+        GIT_ADVICE_DETACHEDHEAD: "0",
+        GIT_ASKPASS: "",
+        GIT_AUTHOR_DATE: FIXED_GIT_DATE,
+        GIT_COMMITTER_DATE: FIXED_GIT_DATE,
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_TERMINAL_PROMPT: "0",
+      },
+      source: process.env,
+    },
   });
-  if (result.error !== undefined || result.status !== 0) {
-    const detail = (result.stderr || result.stdout || String(result.error)).trim();
+  if (result.code !== "ok" || result.exitCode !== 0) {
+    const detail = (result.stderr.excerpt || result.stdout.excerpt).trim();
     throw new Error(`git ${args.join(" ")} failed in the brownfield fixture: ${detail}`);
   }
-  return (result.stdout ?? "").trim();
+  return result.stdout.excerpt.trim();
 }
 
 async function writeFixtureFiles(projectRoot: string): Promise<void> {
@@ -186,19 +199,19 @@ export async function setupBrownfieldFixture(targetDir: string): Promise<Brownfi
   await writeFixtureFiles(projectRoot);
   const support = await setupOfflineSources(supportRoot);
 
-  runGit(projectRoot, ["init", "-b", "main"]);
+  await runGit(projectRoot, ["init", "-b", "main"]);
   for (const [name, value] of [
     ["user.name", "alpha-aos brownfield fixture"],
     ["user.email", "fixture@alpha-aos.invalid"],
     ["commit.gpgsign", "false"],
     ["core.autocrlf", "false"],
   ] as const) {
-    runGit(projectRoot, ["config", name, value]);
+    await runGit(projectRoot, ["config", name, value]);
   }
-  runGit(projectRoot, ["add", "."]);
-  runGit(projectRoot, ["commit", "-m", "feat: initial brownfield application"]);
+  await runGit(projectRoot, ["add", "."]);
+  await runGit(projectRoot, ["commit", "-m", "feat: initial brownfield application"]);
 
-  const headCommit = runGit(projectRoot, ["rev-parse", "HEAD"]);
+  const headCommit = await runGit(projectRoot, ["rev-parse", "HEAD"]);
   const planning = await hashPlanningTree(join(projectRoot, ".planning"));
   if (!planning.complete || planning.digest === null) {
     throw new Error(`brownfield planning baseline is incomplete: ${planning.unreadable.map((entry) => entry.path).join(", ")}`);

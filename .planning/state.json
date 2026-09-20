@@ -36,13 +36,13 @@
     {
       "number": "7",
       "name": "Cross-Platform Release Proof",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
-    "command": "/gsd-progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 7 of 7 · 71% · executing"
   },
-  "updated_at": "2026-09-18T04:33:38.050Z"
+  "updated_at": "2026-09-20T05:43:24.065Z"
 }

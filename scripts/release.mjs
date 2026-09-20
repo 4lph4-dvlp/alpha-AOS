@@ -42,7 +42,13 @@ function run(executable, args, options = {}) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   if ((result.status ?? 1) !== 0) {
-    throw new Error(`${options.label ?? executable} failed with exit ${result.status ?? 1}`);
+    const output = `${typeof result.stdout === "string" ? result.stdout : ""}\n${typeof result.stderr === "string" ? result.stderr : ""}`;
+    const failingTitles = output
+      .split(/\r?\n/u)
+      .filter((line) => /^✖\s+[^\r\n]{1,200}$/u.test(line))
+      .slice(0, 10);
+    const detail = failingTitles.length > 0 ? `; failing checks: ${failingTitles.join(" | ")}` : "";
+    throw new Error(`${options.label ?? executable} failed with exit ${result.status ?? 1}${detail}`);
   }
   return typeof result.stdout === "string" ? result.stdout : "";
 }
@@ -98,6 +104,11 @@ function createReleaseStagingRoot() {
     const sourceModules = join(repositoryRoot, "node_modules");
     if (!existsSync(sourceModules)) throw new Error("node_modules is missing; run npm ci before release verification");
     symlinkSync(sourceModules, join(checkout, "node_modules"), process.platform === "win32" ? "junction" : "dir");
+    run("git", ["init", "--initial-branch=main"], { cwd: checkout, label: "release staging git init" });
+    run("git", ["config", "user.name", "alpha-AOS Release Fixture"], { cwd: checkout, label: "release staging git identity" });
+    run("git", ["config", "user.email", "release-fixture@invalid.local"], { cwd: checkout, label: "release staging git identity" });
+    run("git", ["add", "--all"], { cwd: checkout, label: "release staging git add" });
+    run("git", ["commit", "-m", "release staging snapshot"], { cwd: checkout, label: "release staging git commit" });
     return { root, checkout, artifacts };
   } catch (error) {
     rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });

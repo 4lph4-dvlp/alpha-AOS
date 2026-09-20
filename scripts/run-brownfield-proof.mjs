@@ -8,7 +8,7 @@ import { pathToFileURL } from "node:url";
 import {
   runBrownfieldLifecycle,
   setupBrownfieldFixture,
-} from "../dist/test/helpers/brownfield-fixture.js";
+} from "../dist/src/core/brownfield-proof.js";
 
 export async function runBrownfieldProof() {
   const sandbox = await mkdtemp(join(tmpdir(), "alpha-aos-brownfield-proof-"));

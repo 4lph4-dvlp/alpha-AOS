@@ -62,7 +62,16 @@ test("brownfield discuss-plan-execute-verify-ship cycle proves all five benchmar
 
   const report = await runBrownfieldLifecycle(fixture);
 
+  assert.equal(report.headCommit, fixture.headCommit);
   assert.deepEqual(report.lifecycle, ["discuss", "plan", "execute", "verify", "ship"]);
+  assert.equal(report.steps.length, 5);
+  for (const step of report.steps) {
+    assert.equal(step.status, "passed");
+  }
+  assert.ok(report.workerWitness !== undefined);
+  assert.equal(report.workerWitness?.harnessId, "hermes");
+  assert.equal(report.workerWitness?.role, "worker");
+  assert.equal(report.workerWitness?.immutable, true);
   assert.deepEqual(report.context7.tools, ["resolve-library-id", "query-docs"]);
   assert.equal(report.context7.libraryId, "/expressjs/express/v4.21.0");
   assert.equal(report.context7.mode, "offline-fixture");

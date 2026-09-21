@@ -74,7 +74,7 @@ test("stable catalog loads exact locked components", async () => {
   assert.equal(lock.components.ecc?.targetSha256["deep-research"]?.codex, "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74");
   assert.deepEqual(Object.keys(lock.components.mcp ?? {}), ["context7", "exa", "firecrawl"]);
   assert.equal(lock.components.mcpBridges?.pi?.version, "2.31.0");
-  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship"]);
+  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-pack-advisor"]);
   const shipSource = await readFile(join(root, "skills", "alpha-aos-ship", "SKILL.md"));
   const shipHash = createHash("sha256").update(shipSource).digest("hex");
   const lockedShip = lock.components.ownedSkills?.["alpha-aos-ship"];
@@ -82,6 +82,15 @@ test("stable catalog loads exact locked components", async () => {
   const rendered = renderOwnedSkill(shipSource.toString("utf8"), "claude", "explicit", "<phase-number> [--draft] [--text] [--ws <name>]");
   assert.match(rendered, /disable-model-invocation: true/u);
   assert.equal(lockedShip?.targetSha256.claude, createHash("sha256").update(rendered).digest("hex"));
+
+  const advisorSource = await readFile(join(root, "skills", "alpha-aos-pack-advisor", "SKILL.md"));
+  const advisorHash = createHash("sha256").update(advisorSource).digest("hex");
+  const lockedAdvisor = lock.components.ownedSkills?.["alpha-aos-pack-advisor"];
+  assert.equal(lockedAdvisor?.sourceSha256, advisorHash);
+  for (const target of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const renderedAdvisor = renderOwnedSkill(advisorSource.toString("utf8"), target, "automatic");
+    assert.equal(lockedAdvisor?.targetSha256[target], createHash("sha256").update(renderedAdvisor).digest("hex"));
+  }
 });
 
 test("install plan is ordered and never installs GSD on Hermes", async () => {

@@ -116,6 +116,16 @@
           "claude": "808cc67dbd6c8ba2574f1325cd5c4b32218ddad99bc3cc4e6e03c141872b2a48"
         },
         "upstreamWorkflow": "gsd-core/workflows/ship.md"
+      },
+      "alpha-aos-pack-advisor": {
+        "sourceSha256": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
+        "targetSha256": {
+          "claude": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
+          "codex": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
+          "antigravity": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
+          "pi": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
+          "hermes": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5"
+        }
       }
     }
   }

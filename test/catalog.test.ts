@@ -71,7 +71,7 @@ test("stable catalog loads exact locked components", async () => {
   assert.equal(lock.components.ecc?.sourceSha256["unified-memory"], "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0");
   assert.equal(lock.components.ecc?.sourceSha256["documentation-lookup"], "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1");
   assert.equal(lock.components.ecc?.sourceSha256["deep-research"], "f85e06874ffd0fcfea6051b4292f45fc2b7e4cd47586659817ddbafd6bea3ede");
-  assert.equal(lock.components.ecc?.targetSha256["deep-research"]?.codex, "620ca763cb5a4f157ad34be4edb25ce86454570c4eecb377c96fcf5f2c1adb74");
+  assert.equal(lock.components.ecc?.targetSha256["deep-research"]?.codex, "fdd97098a3a4a02513baf0428faacbe390b42fd4f86362387938e3455c80d90c");
   assert.deepEqual(Object.keys(lock.components.mcp ?? {}), ["context7", "exa", "firecrawl"]);
   assert.equal(lock.components.mcpBridges?.pi?.version, "2.31.0");
   assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-control"]);

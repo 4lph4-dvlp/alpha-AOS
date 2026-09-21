@@ -176,6 +176,7 @@ export function auditTarballEntries(files) {
   const allowedExact = new Set([
     "package.json",
     "README.md",
+    "README.ko.md",
     "LICENSE",
     "CHANGELOG.md",
     "dist/build-artifact.json",

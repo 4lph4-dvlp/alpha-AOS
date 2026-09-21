@@ -8,6 +8,7 @@ import { userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
+import { globalEccSkillRoot } from "./ecc-skills.js";
 import {
   assertPlanUnchanged,
   assertUnchangedSincePlan,
@@ -25,7 +26,7 @@ export interface OwnedSkillSyncPlan {
   expectedHash: string;
   currentHash: string | null;
   action: "create" | "replace" | "current";
-  workflow: string;
+  workflow: string | null;
   workflowFound: boolean;
 }
 
@@ -38,18 +39,27 @@ function inside(root: string, target: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
-/** The Claude configuration root an owned skill is written into. */
-function claudeHomeRoot(override?: string): string {
-  return override ? resolve(override) : join(homedir(), ".claude");
+function homedirRootFor(target: HarnessId, env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  switch (target) {
+    case "claude": return env.CLAUDE_CONFIG_DIR?.trim() || join(home, ".claude");
+    case "codex": return env.CODEX_HOME?.trim() || join(home, ".agents");
+    case "antigravity": return env.ANTIGRAVITY_CONFIG_DIR?.trim() || join(home, ".gemini", "config");
+    case "pi": return join(home, ".agents");
+    case "hermes": return env.HERMES_HOME?.trim() || join(home, ".hermes");
+  }
 }
 
-function destinationFor(target: HarnessId, id: string, claudeHome?: string): string {
-  if (target === "claude") return join(claudeHomeRoot(claudeHome), "skills", id, "SKILL.md");
-  throw new Error(`Owned skill adapter is not implemented for target: ${target}`);
+export function destinationFor(target: HarnessId, id: string, customHome?: string, env: NodeJS.ProcessEnv = process.env, home = homedir()): string {
+  if (customHome) {
+    return join(resolve(customHome), "skills", id, "SKILL.md");
+  }
+  return join(globalEccSkillRoot(target, env, home), id, "SKILL.md");
 }
 
 export function renderOwnedSkill(source: string, target: HarnessId, invocation: "explicit" | "automatic", argumentHint?: string): string {
-  if (target !== "claude") throw new Error(`Owned skill renderer is not implemented for target: ${target}`);
+  if (!["claude", "codex", "antigravity", "pi", "hermes"].includes(target)) {
+    throw new Error(`Owned skill renderer is not implemented for target: ${target}`);
+  }
   if (!source.startsWith("---\n")) throw new Error("Owned skill source must start with YAML frontmatter");
   const additions: string[] = [];
   if (argumentHint) additions.push(`argument-hint: ${JSON.stringify(argumentHint)}`);
@@ -59,8 +69,9 @@ export function renderOwnedSkill(source: string, target: HarnessId, invocation: 
 
 export interface OwnedSkillPlanOptions {
   stateRoot?: string;
-  /** Overrides the Claude configuration root; defaults to `~/.claude`. */
+  /** Overrides the configuration root for the target; backward-compatible alias claudeHome. */
   claudeHome?: string;
+  targetHome?: string;
 }
 
 export async function planOwnedSkillSync(
@@ -92,9 +103,12 @@ export async function planOwnedSkillSync(
     throw new Error(`Owned skill rendered hash mismatch for ${id}:${target}: expected ${expectedHash}, got ${renderedHash}`);
   }
 
-  const destination = destinationFor(target, id, options.claudeHome);
+  const customHome = options.targetHome ?? options.claudeHome;
+  const destination = destinationFor(target, id, customHome);
   const currentHash = existsSync(destination) ? sha256(await readFile(destination)) : null;
-  const workflow = join(claudeHomeRoot(options.claudeHome), locked.upstreamWorkflow);
+  const workflow = locked.upstreamWorkflow
+    ? join(customHome ? resolve(customHome) : homedirRootFor(target), locked.upstreamWorkflow)
+    : null;
   return {
     id,
     target,
@@ -104,7 +118,7 @@ export async function planOwnedSkillSync(
     currentHash,
     action: currentHash === expectedHash ? "current" : currentHash === null ? "create" : "replace",
     workflow,
-    workflowFound: existsSync(workflow),
+    workflowFound: workflow === null ? true : existsSync(workflow),
   };
 }
 
@@ -156,9 +170,14 @@ export async function planOwnedSkillOperation(
     { role: "snapshot", path: join(stateRoot, "snapshots") },
     { role: "package-root", path: packageRootPath },
     { role: "source", path: sync.source },
-    { role: "source", path: sync.workflow },
   ];
-  const allowedRoots = [skillRoot, stateRoot, packageRootPath, resolve(sync.workflow, "..")];
+  if (sync.workflow !== null) {
+    inputs.push({ role: "source", path: sync.workflow });
+  }
+  const allowedRoots = [skillRoot, stateRoot, packageRootPath];
+  if (sync.workflow !== null) {
+    allowedRoots.push(resolve(sync.workflow, ".."));
+  }
   const proofs = await proveOperationPaths({
     inputs,
     allowedRoots,
@@ -216,11 +235,14 @@ export async function applyOwnedSkillSync(
   options: OwnedSkillApplyOptions = {},
 ): Promise<{ plan: OwnedSkillSyncPlan; operationId: string | null; digest: string }> {
   const reviewed = options.plan ?? await planOwnedSkillOperation(root, catalog, lock, id, target, options);
-  if (!reviewed.sync.workflowFound) throw new Error(`Required GSD workflow is missing: ${reviewed.sync.workflow}`);
+  if (reviewed.sync.workflow && !reviewed.sync.workflowFound) {
+    throw new Error(`Required GSD workflow is missing: ${reviewed.sync.workflow}`);
+  }
   if (reviewed.sync.action === "current") return { plan: reviewed.sync, operationId: null, digest: reviewed.digest };
 
   const planOptions: OwnedSkillPlanOptions = { stateRoot: reviewed.stateRoot };
   if (options.claudeHome !== undefined) planOptions.claudeHome = options.claudeHome;
+  if (options.targetHome !== undefined) planOptions.targetHome = options.targetHome;
   const revalidated = await planOwnedSkillOperation(root, catalog, lock, id, target, planOptions);
   assertPlanUnchanged(reviewed, revalidated);
 

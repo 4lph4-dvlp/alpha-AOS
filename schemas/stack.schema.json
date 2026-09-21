@@ -98,7 +98,7 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["id", "source", "targets", "invocation", "requires"],
+            "required": ["id", "source", "targets", "invocation"],
             "additionalProperties": false,
             "properties": {
               "id": { "type": "string", "minLength": 1 },

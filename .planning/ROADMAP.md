@@ -472,7 +472,7 @@ Plans:
 | 5. Persistent Tree-Off Preload Isolation | 4/4 | Complete    | 2026-09-18 |
 | 6. Managed Lifecycle, Uninstall, and Recovery | 3/3 | Complete    | 2026-09-18 |
 | 7. Cross-Platform Release Proof | 7/7 | Complete    | 2026-09-20 |
-| 8. Autonomous Project Pack Advisor and Cross-Harness Materializer | 0/2 | Ready to execute | - |
+| 8. Autonomous Project Pack Advisor and Cross-Harness Materializer | 1/2 | In progress | - |
 
 ### Phase 8: Autonomous Project Pack Advisor and Cross-Harness Materializer
 
@@ -487,13 +487,13 @@ Plans:
   3. Upon user approval, the advisor parses the exact 64-char plan digest and applies `alpha-aos project approve . --plan-digest <digest> --apply` and `alpha-aos project sync . --apply`, leaving the project in a `CURRENT` materialized state without human manual CLI copying.
   4. The advisor preserves safety invariants: fails closed on digest mismatch, enforces single-writer / rollback-aware guarantees, and never mutates without explicit user confirmation.
 
-**Plans**: 0/2 plans executed.
+**Plans**: 1/2 plans executed.
 
 Plans:
 
 **Wave 1**
 
-- [ ] 08-01-PLAN.md — Multi-target Owned Skill Engine & Install Orchestration (PACK-03)
+- [x] 08-01-PLAN.md — Multi-target Owned Skill Engine & Install Orchestration (PACK-03)
 
 **Wave 2** *(blocked on Wave 1)*
 

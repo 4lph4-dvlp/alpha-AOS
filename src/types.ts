@@ -135,7 +135,7 @@ export interface OwnedSkillConfig {
   targets: HarnessId[];
   invocation: "explicit" | "automatic";
   argumentHint?: string;
-  requires: { component: "gsd"; workflow: string };
+  requires?: { component: "gsd"; workflow: string };
 }
 
 export interface StackCatalog {
@@ -184,7 +184,7 @@ export interface StackLock {
     ownedSkills?: Record<string, {
       sourceSha256: string;
       targetSha256: Partial<Record<HarnessId, string>>;
-      upstreamWorkflow: string;
+      upstreamWorkflow?: string;
     }>;
   };
 }

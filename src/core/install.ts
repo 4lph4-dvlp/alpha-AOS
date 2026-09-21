@@ -389,12 +389,12 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
     });
   }
 
-  if (selection.targets.includes("claude")) {
+  for (const target of selection.targets) {
     for (const skill of options.catalog.components.ownedSkills) {
-      if (!skill.targets.includes("claude")) continue;
-      const plan = await planOwnedSkillSync(options.root, options.catalog, options.lock, skill.id, "claude", installStateOptions(options));
+      if (!skill.targets.includes(target)) continue;
+      const plan = await planOwnedSkillSync(options.root, options.catalog, options.lock, skill.id, target, installStateOptions(options));
       const action = plan.action === "replace" ? "update" : plan.action;
-      steps.push({ id: `owned-skill:${skill.id}:claude`, component: "owned-skill", target: "claude", action, external: false, note: plan.destination });
+      steps.push({ id: `owned-skill:${skill.id}:${target}`, component: "owned-skill", target, action, external: false, note: plan.destination });
     }
   }
 
@@ -645,10 +645,10 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
   const codexPolicy = install.targets.includes("codex")
     ? await planCodexPolicy({ root: options.root, ...installStateOptions(options) })
     : null;
-  if (install.targets.includes("claude")) {
+  for (const target of install.targets) {
     for (const skill of options.catalog.components.ownedSkills) {
-      if (!skill.targets.includes("claude")) continue;
-      ownedSkills.push(await planOwnedSkillOperation(options.root, options.catalog, options.lock, skill.id, "claude", installStateOptions(options)));
+      if (!skill.targets.includes(target)) continue;
+      ownedSkills.push(await planOwnedSkillOperation(options.root, options.catalog, options.lock, skill.id, target, installStateOptions(options)));
     }
   }
 
@@ -837,8 +837,8 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
       remember("policy:codex-execution", result.operationId, result.plan.configRoot);
     }
     for (const component of reviewed.components.ownedSkills) {
-      const result = await applyOwnedSkillSync(options.root, options.catalog, options.lock, component.id, "claude", { plan: component, session });
-      remember(`owned-skill:${component.id}:claude`, result.operationId, dirname(result.plan.destination));
+      const result = await applyOwnedSkillSync(options.root, options.catalog, options.lock, component.id, component.target, { plan: component, session });
+      remember(`owned-skill:${component.id}:${component.target}`, result.operationId, dirname(result.plan.destination));
     }
     for (const component of reviewed.components.eccSkills) {
       const result = await applyEccSkillSync(component.harness, options.lock, { plan: component, session });

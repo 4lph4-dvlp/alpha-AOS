@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import type { StackLock } from "../types.js";
@@ -40,11 +40,6 @@ export interface CodexGsdHookCompatibilityPlan {
   }>;
 }
 
-interface PackResult {
-  filename: string;
-  integrity: string;
-}
-
 function inside(root: string, target: string): boolean {
   const rel = relative(resolve(root), resolve(target));
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
@@ -54,18 +49,17 @@ function packageInstallPath(root: string, packageName: string): string {
   return join(root, "node_modules", ...packageName.split("/"));
 }
 
-function parsePackResult(stdout: string): PackResult {
-  const start = stdout.indexOf("[");
-  if (start < 0) throw new Error(`npm pack did not return JSON: ${stdout}`);
-  const values = JSON.parse(stdout.slice(start)) as unknown;
-  if (!Array.isArray(values) || values.length !== 1 || typeof values[0] !== "object" || values[0] === null) {
-    throw new Error("npm pack returned an unexpected result");
+async function soleArchive(packRoot: string): Promise<string> {
+  const files = (await readdir(packRoot, { withFileTypes: true })).filter((entry) => entry.isFile());
+  const [entry] = files;
+  if (files.length !== 1 || entry === undefined) {
+    throw new ComponentPlanError("unplanned-path", `npm pack wrote ${files.length} files into the planned pack root; expected exactly one archive`);
   }
-  const value = values[0] as Record<string, unknown>;
-  if (typeof value.filename !== "string" || typeof value.integrity !== "string") {
-    throw new Error("npm pack result lacks filename or integrity");
-  }
-  return { filename: value.filename, integrity: value.integrity };
+  return join(packRoot, entry.name);
+}
+
+async function tarballIntegrity(archive: string): Promise<string> {
+  return `sha512-${createHash("sha512").update(await readFile(archive)).digest("base64")}`;
 }
 
 function sha256(content: Uint8Array): string {
@@ -388,16 +382,16 @@ async function materializeVerifiedSource(plan: GsdCompatibilityOperationPlan): P
 
   const packed = await runProcess({ ...pack.spec, environment: nodeRuntimeEnvironment() });
   if (packed.code !== "ok") throw new Error(describeProcessFailure("npm pack", packed));
-  const result = parsePackResult(packed.stdout.excerpt);
-  if (result.integrity !== plan.package.integrity) {
-    throw new Error(`GSD tarball integrity mismatch: expected ${plan.package.integrity}, got ${result.integrity}`);
+  const archive = await soleArchive(plan.packRoot);
+  const integrity = await tarballIntegrity(archive);
+  if (integrity !== plan.package.integrity) {
+    throw new Error(`GSD tarball integrity mismatch: expected ${plan.package.integrity}, got ${integrity}`);
   }
 
   const deferred = extract.deferredArgument;
   if (!deferred || deferred.kind !== "archive") {
     throw new ComponentPlanError("unplanned-path", "GSD extraction step declared no archive argument");
   }
-  const archive = join(deferred.withinRoot, basename(result.filename));
   // The archive name comes from a child, so it is only ever accepted inside
   // the root the plan proved for it.
   if (!inside(deferred.withinRoot, archive) || !existsSync(archive)) {

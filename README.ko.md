@@ -87,7 +87,7 @@ alpha-AOS는 공통 전역 도구와 프로젝트 맞춤 기능 간의 경계를
 │  • ECC 전역 스킬 (unified-memory, documentation-lookup,                │
 │                   deep-research)                                       │
 │  • 엄선된 MCP 도구 (Context7 최신 문서, Exa 검색, Firecrawl 프록시)       │
-│  • 기본 탑재 소유 스킬 (alpha-aos-pack-advisor, alpha-aos-ship)         │
+│  • 기본 탑재 소유 스킬 (alpha-aos-control, alpha-aos-ship)          │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
        ┌────────────────────────────┴────────────────────────────┐
@@ -108,28 +108,39 @@ alpha-AOS는 공통 전역 도구와 프로젝트 맞춤 기능 간의 경계를
 
 ## 프로젝트 작업 시 alpha-AOS 활용법
 
-새 프로젝트를 시작하거나 기존 코드베이스 폴더(예: `D:\dev\my-project`)로 이동하여 작업할 때, **자율형 AI 에이전트 워크플로우** 또는 **수동 CLI 워크플로우**를 통해 프로젝트 전용 팩을 설치하고 활용할 수 있습니다.
+새 프로젝트를 시작하거나 기존 코드베이스 폴더(예: `D:\dev\my-project`)에서 작업할 때, **자율형 AI 에이전트 워크플로우** 또는 **수동 CLI 워크플로우**를 통해 프로젝트 전용 팩 설치, 디렉터리 격리 설정, 상태 진단, 롤백을 안전하게 수행할 수 있습니다.
 
-### 모드 1: 자율형 AI 에이전트 워크플로우 (권장 — 무마찰 자동화)
+### 모드 1: 자율형 AI 에이전트 워크플로우 (권장 — alpha-aos-control 통합 제어)
 
-모든 지원 하네스(Antigravity, Claude Code, Codex, Pi, Hermes)에는 기본 스킬인 `alpha-aos-pack-advisor`가 설치되어 있습니다. 사용자가 복잡한 터미널 명령어나 64자리 해시값을 직접 복사해 붙여넣을 필요가 없습니다.
+모든 지원 하네스(Antigravity, Claude Code, Codex, Pi, Hermes)에는 기본 스킬인 `alpha-aos-control`이 내장되어 있습니다. 사용자가 복잡한 터미널 명령어나 64자리 해시값을 외우거나 입력할 필요 없이 자연어로 제어할 수 있습니다.
 
-1. **에이전트 실행**: 프로젝트 폴더에서 에이전트를 실행합니다 (예: `agy` 실행, Claude Code 실행 등).
-2. **자율 증거 감지**:
-   에이전트가 작업 폴더에 진입하거나, 온보딩(`/gsd-new-project`) 또는 작업을 시작할 때 백그라운드에서 `alpha-aos project plan . --json`을 확인합니다.
-3. **에이전트의 추천 및 브리핑**:
-   해당 프로젝트에 필요한 미설치 맞춤 팩이 감지되면 에이전트가 먼저 근거와 함께 질문합니다:
-   > *"이 작업 공간은 기존 코드가 존재하지만 컨벤션 문서가 없는 환경입니다. 레거시 스타일 상속과 프로젝트 컨벤션을 제공하는 `BROWNFIELD_INIT` 팩을 설치할까요?"*
-4. **간단한 승인**:
-   사용자는 가볍게 승인만 답해주면 됩니다:
-   > **"응"** (또는 **"설치해줘"**, **"Yes"**)
-5. **전자동 승인 및 배포**:
-   에이전트가 계획 JSON에서 정확한 64자리 SHA-256 `planDigest`를 추출하여 다음 명령을 자동으로 실행합니다:
-   - `alpha-aos project approve . --plan-digest <64자리_다이제스트> --apply`
-   - `alpha-aos project sync . --apply`
-6. **세션 갱신 안내**:
-   에이전트가 상태(`CURRENT`)를 확인하고 안내를 마칩니다:
-   > *"프로젝트 전용 팩이 성공적으로 설치되었습니다. 새로 추가된 프로젝트 MCP 도구와 스킬을 활성화하려면 에이전트 세션을 재시작(또는 도구 새로고침)해 주세요."*
+#### 1. 환경 설정 완료 시점 자동 감지 (Capability Checkpoint)
+새 프로젝트 스캐폴딩(Vite, Next.js, FastAPI 등)이 완료되거나, 패키지 매니페스트(`package.json`, `tsconfig.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`) 생성, 의존성 설치(`npm install`, `pnpm add`, `pip install`, `cargo add`)가 끝나는 즉시 에이전트가 **`alpha-aos-control`을 자동으로 호출**합니다:
+- **백그라운드 스캔**: `alpha-aos project plan . --json` 및 `alpha-aos project status . --json`을 실행합니다.
+- **에이전트의 추천 및 브리핑**: 감지된 증거에 따라 미설치된 맞춤 팩이 있으면 에이전트가 먼저 근거와 함께 질문합니다:
+  > *"이 작업 공간은 React 프론트엔드 환경입니다. 웹 접근성 점검 스킬 및 테스트 도구를 제공하는 `WEB_REACT` 팩을 설치할까요?"*
+- **간단한 승인**: 사용자는 가볍게 승인만 답해주면 됩니다:
+  > **"응, 설치해줘"** (또는 **"Yes"**)
+- **전자동 승인 및 배포**: 에이전트가 64자리 SHA-256 `planDigest`를 추출하여 자동 승인 및 동기화를 진행합니다:
+  - `alpha-aos project approve . --plan-digest <64자리_다이제스트> --apply`
+  - `alpha-aos project sync . --apply`
+- **세션 갱신 안내**: 에이전트가 상태(`CURRENT`)를 확인하고 안내합니다:
+  > *"프로젝트 전용 팩이 성공적으로 설치되었습니다. 새로 추가된 프로젝트 전용 MCP 도구와 스킬을 활성화하려면 에이전트 세션을 재시작(또는 도구 새로고침)해 주세요."*
+
+#### 2. 자연어 프로젝트 조작 (Natural Language Operations)
+어떤 폴더나 프로젝트에서든 자연어로 지시하면 에이전트가 alpha-AOS 명령을 안전하게 수행합니다:
+- **디렉터리 격리 (Tree-Off 정책)**:
+  - 사용자: *"이 프로젝트는 다른 팀원들과 사용하고 있으니 alpha-AOS 기능을 사용하지 못하게 격리시켜줘"* (또는 *"alpha-aos 꺼줘"*)
+  - 에이전트가 `alpha-aos tree policy set . --mode off`를 실행하고 결과를 확인합니다. 저장소 내에 어떠한 파일도 추가/수정하지 않고 외부 레지스트리에만 격리 정책을 영구 등록합니다.
+- **디렉터리 격리 해제 (Inherit 정책)**:
+  - 사용자: *"alpha-AOS 다시 활성화해줘"* (또는 *"격리 풀어줘"*)
+  - 에이전트가 `alpha-aos tree policy set . --mode inherit`을 실행하여 원래 상태로 복원합니다.
+- **상태 점검 및 진단**:
+  - 사용자: *"alpha-AOS 상태 점검해줘"* / *"닥터 실행해줘"*
+  - 에이전트가 `alpha-aos status` / `alpha-aos doctor`를 실행하여 진단 결과를 요약 보고합니다.
+- **안전 롤백 및 크래시 복구**:
+  - 사용자: *"방금 작업 롤백해줘"* / *"망가진 상태 수리해줘"*
+  - 에이전트가 `alpha-aos rollback --apply` 또는 `alpha-aos repair --apply`를 호출하여 이전 스냅샷으로 안전하게 복구합니다.
 
 ### 모드 2: 개발자 수동 CLI 워크플로우
 
@@ -241,7 +252,7 @@ alpha-aos project status .
 | **최신 라이브러리 문서** | ECC `documentation-lookup` + Context7 | 5대 하네스 공통 | Context7 stdio MCP 게이트웨이를 통한 실시간 최신 공식 문서 조회. |
 | **심층 멀티 웹 리서치** | ECC `deep-research` + Exa/Firecrawl | 5대 하네스 공통 | Exa 검색 및 안전하게 필터링된 Firecrawl 기반의 리서치. |
 | **웹 스크래핑 프록시** | Firecrawl Proxy (`3.24.0`) | 5대 하네스 공통 | 상위 25개 도구 중 안전한 4개 추출/크롤링 도구만 노출하는 로컬 SDK 프록시. |
-| **자율형 팩 어드바이저** | `alpha-aos-pack-advisor` | 5대 하네스 공통 | 프로젝트 진입 시 맞춤 팩을 감지·설명하고 사용자 승인 시 자동 설치. |
+| **자율형 통합 제어기** | `alpha-aos-control` | 5대 하네스 공통 | 프로젝트 팩 추천·자동설치, 폴더 격리(Tree-Off), 진단, 롤백을 통합 제어. |
 | **GSD PR 배포 스킬** | `alpha-aos-ship` | Claude Code | 사용자 호출 전용의 브랜치 푸시 및 PR 생성 스킬. |
 | **프로젝트 격리 지원** | alpha-AOS 런타임 어댑터 | 5대 하네스 공통 | Fail-closed 보장을 갖춘 프로젝트 독립 샌드박스 실행. |
 

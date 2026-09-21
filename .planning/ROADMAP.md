@@ -473,6 +473,7 @@ Plans:
 | 6. Managed Lifecycle, Uninstall, and Recovery | 3/3 | Complete    | 2026-09-18 |
 | 7. Cross-Platform Release Proof | 7/7 | Complete    | 2026-09-20 |
 | 8. Autonomous Project Pack Advisor and Cross-Harness Materializer | 2/2 | Complete    | 2026-09-21 |
+| 9. Unified Natural Language Controller and Capability Checkpoint Automation | 2/2 | Complete    | 2026-09-21 |
 
 ### Phase 8: Autonomous Project Pack Advisor and Cross-Harness Materializer
 
@@ -498,6 +499,31 @@ Plans:
 **Wave 2** *(blocked on Wave 1)*
 
 - [x] 08-02-PLAN.md — Advisor Skill Authoring, Lock Registration, and Autonomous Workflow Proof (PACK-01, PACK-02, PACK-03)
+
+### Phase 9: Unified Natural Language Controller (`alpha-aos-control`) and Capability Checkpoint Automation
+
+**Goal**: Deliver a single authoritative cross-harness skill (`alpha-aos-control`) that unifies autonomous capability pack advisory, directory tree-off isolation policy, system diagnostics, and safe rollback/repair, while establishing an explicit capability checkpoint upon project environment setup completion to close the 2 -> 3 trigger gap.
+**Depends on**: Phase 8
+**Requirements**: CTRL-01, CTRL-02, CTRL-03
+**Delivers**: Built-in `alpha-aos-control` owned skill across all 5 harnesses (replacing `alpha-aos-pack-advisor`), capability checkpoint trigger guidelines and execution policy rule, natural language directory tree-off/inherit control, diagnostic reporting, safe rollback and crash repair verification, and updated bilingual documentation.
+**Success Criteria** (what must be TRUE):
+
+  1. The `alpha-aos-control` skill is registered in `catalog/stack.yaml` and pinned in `catalog/stack.lock.json` across Claude, Codex, Antigravity, Pi, and Hermes with `invocation: automatic`.
+  2. The skill instructions and agent execution policy explicitly define the capability checkpoint: when project environment setup (manifests, dependencies, or scaffolding) completes, the agent automatically evaluates and recommends project capability packs.
+  3. In any project workspace, natural language instructions for directory tree exclusion (`tree policy set . --mode off`), directory tree restoration (`mode inherit`), diagnostics (`status`/`doctor`), rollback, and repair execute reliably and fail closed without manual CLI syntax knowledge.
+  4. Tree-off policy persists externally in the user state registry with zero files written to the user repository, and plan approval strictly enforces the 64-character SHA-256 digest invariant.
+
+**Plans**: 2/2 plans executed. Verification complete (2026-09-21).
+
+Plans:
+
+**Wave 1**
+
+- [x] 09-01-PLAN.md — Author alpha-aos-control Skill, Lock Registration, and Owned Skills Generalization (CTRL-01, CTRL-02, CTRL-03)
+
+**Wave 2** *(blocked on Wave 1)*
+
+- [x] 09-02-PLAN.md — Capability Checkpoint Rule, Comprehensive Control Test Suite, Bilingual Docs, and Live Deployment (CTRL-01, CTRL-02, CTRL-03)
 
 ---
 *Roadmap created: 2026-09-03 for the v0.1.0 vertical MVP milestone*

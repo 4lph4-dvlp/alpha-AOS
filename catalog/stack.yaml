@@ -55,8 +55,8 @@ components:
       requires:
         component: gsd
         workflow: gsd-core/workflows/ship.md
-    - id: alpha-aos-pack-advisor
-      source: skills/alpha-aos-pack-advisor/SKILL.md
+    - id: alpha-aos-control
+      source: skills/alpha-aos-control/SKILL.md
       targets: [claude, codex, antigravity, pi, hermes]
       invocation: automatic
 

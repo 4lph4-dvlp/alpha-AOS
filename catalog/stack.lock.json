@@ -117,14 +117,14 @@
         },
         "upstreamWorkflow": "gsd-core/workflows/ship.md"
       },
-      "alpha-aos-pack-advisor": {
-        "sourceSha256": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
+      "alpha-aos-control": {
+        "sourceSha256": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
         "targetSha256": {
-          "claude": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
-          "codex": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
-          "antigravity": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
-          "pi": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5",
-          "hermes": "67bee354c725ae42c55a760b1f29e691927f91ed31ac1b6949ff97e8599bc1a5"
+          "claude": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "codex": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "antigravity": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "pi": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "hermes": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84"
         }
       }
     }

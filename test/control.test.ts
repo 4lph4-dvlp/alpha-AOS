@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -17,6 +17,12 @@ import {
   planProjectCapabilities,
   reconcileProjectState,
 } from "../src/core/project-plan.js";
+import {
+  loadTreeRegistry,
+  previewTreePolicy,
+  removeTreePolicy,
+  setTreePolicy,
+} from "../src/core/tree-policy.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -41,16 +47,16 @@ const PACK_ID = "WEB_REACT";
 const PACK_SKILL = "frontend-a11y";
 
 async function createProjectFixture(context: TestContext, label: string): Promise<ProjectFixture> {
-  const root = await mkdtemp(join(tmpdir(), `alpha-aos-advisor-${label}-proj-`));
+  const root = await mkdtemp(join(tmpdir(), `alpha-aos-control-${label}-proj-`));
   context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
   await writeFile(
     join(root, "package.json"),
-    `${JSON.stringify({ name: "advisor-fixture", private: true, dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
+    `${JSON.stringify({ name: "control-fixture", private: true, dependencies: { react: "^19.0.0" } }, null, 2)}\n`,
     "utf8",
   );
 
-  const support = await mkdtemp(join(tmpdir(), `alpha-aos-advisor-${label}-supp-`));
+  const support = await mkdtemp(join(tmpdir(), `alpha-aos-control-${label}-supp-`));
   context.after(async () => rm(support, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
 
   const stateRoot = join(support, "state");
@@ -73,41 +79,61 @@ async function createProjectFixture(context: TestContext, label: string): Promis
   return { root, stateRoot, packageRoot: pkgRoot, sourceRoot };
 }
 
-test("alpha-aos-pack-advisor skill artifact adheres to strict instruction and safety contracts (PACK-01, PACK-03, D-01)", async () => {
-  const skillFile = join(packageRoot(), "skills", "alpha-aos-pack-advisor", "SKILL.md");
-  assert.equal(existsSync(skillFile), true, "skills/alpha-aos-pack-advisor/SKILL.md must exist");
+test("alpha-aos-control skill artifact adheres to strict instruction and safety contracts across all 5 domains (CTRL-01, CTRL-02, CTRL-03)", async () => {
+  const skillFile = join(packageRoot(), "skills", "alpha-aos-control", "SKILL.md");
+  assert.equal(existsSync(skillFile), true, "skills/alpha-aos-control/SKILL.md must exist");
 
   const content = await readFile(skillFile, "utf8");
   assert.match(content, /^---\r?\n/u, "skill must begin with YAML frontmatter");
-  assert.match(content, /name:\s*alpha-aos-pack-advisor/u, "skill must declare name");
+  assert.match(content, /name:\s*alpha-aos-control/u, "skill must declare name: alpha-aos-control");
   assert.match(content, /description:/u, "skill must declare description");
 
-  // Instruction and command coverage
+  // Checkpoint trigger coverage (CTRL-02)
+  assert.match(content, /Automatic Checkpoint/u, "must document automatic checkpoint for environment setup");
+  assert.match(content, /package\.json/u, "must mention package.json as trigger signal");
+  assert.match(content, /scaffolding/u, "must mention project scaffolding");
+  assert.match(content, /dependency install|npm install/u, "must mention dependency installation");
+
+  // Domain 1: Capability Pack Advisory & Materialization
   assert.match(content, /alpha-aos project plan \. --json/u, "must instruct running project plan . --json");
   assert.match(content, /alpha-aos project status \. --json/u, "must instruct running project status . --json");
   assert.match(content, /alpha-aos project approve \. --plan-digest/u, "must instruct running project approve with plan-digest");
   assert.match(content, /alpha-aos project sync \. --apply/u, "must instruct running project sync . --apply");
 
+  // Domain 2 & 3: Directory Tree Policy (Off & Inherit)
+  assert.match(content, /alpha-aos tree policy set \. --mode off/u, "must instruct tree policy set mode off");
+  assert.match(content, /alpha-aos tree policy set \. --mode inherit/u, "must instruct tree policy set mode inherit");
+  assert.match(content, /alpha-aos tree status \./u, "must instruct tree status");
+
+  // Domain 4: Diagnostics
+  assert.match(content, /alpha-aos status/u, "must instruct running status");
+  assert.match(content, /alpha-aos doctor/u, "must instruct running doctor");
+
+  // Domain 5: Rollback & Repair
+  assert.match(content, /alpha-aos rollback --apply/u, "must instruct rollback --apply");
+  assert.match(content, /alpha-aos repair --apply/u, "must instruct repair --apply");
+
   // Invariant guarantees
   assert.match(content, /64-character/u, "must enforce 64-character SHA-256 digest invariant");
   assert.match(content, /MUST NOT/u, "must emphasize safety prohibition against unconfirmed mutations");
-  assert.match(content, /restart the agent session|reload tools/u, "must guide user on activating new MCP tools and skills");
+  assert.match(content, /Zero Repository Footprint|Zero files/u, "must emphasize tree-off zero footprint guarantee");
+  assert.match(content, /restart your agent session|reload tools/u, "must guide user on activating newly materialized tools and skills");
 });
 
-test("catalog and lock declare alpha-aos-pack-advisor across all 5 harnesses with automatic invocation (PACK-03, D-05)", async () => {
+test("catalog and lock declare alpha-aos-control across all 5 harnesses with automatic invocation (CTRL-01)", async () => {
   const root = packageRoot();
   const catalog = await loadCatalogStrict(root);
   const lock = await loadLock(root);
 
-  const advisor = catalog.value.components.ownedSkills.find((s) => s.id === "alpha-aos-pack-advisor");
-  assert.ok(advisor, "catalog must contain alpha-aos-pack-advisor");
-  assert.deepEqual(advisor.targets, ["claude", "codex", "antigravity", "pi", "hermes"], "must target all 5 harnesses");
-  assert.equal(advisor.invocation, "automatic", "must be automatically invocable by models");
+  const control = catalog.value.components.ownedSkills.find((s) => s.id === "alpha-aos-control");
+  assert.ok(control, "catalog must contain alpha-aos-control");
+  assert.deepEqual(control.targets, ["claude", "codex", "antigravity", "pi", "hermes"], "must target all 5 harnesses");
+  assert.equal(control.invocation, "automatic", "must be automatically invocable by models");
 
-  const locked = lock.components.ownedSkills?.["alpha-aos-pack-advisor"];
-  assert.ok(locked, "lock must pin alpha-aos-pack-advisor");
+  const locked = lock.components.ownedSkills?.["alpha-aos-control"];
+  assert.ok(locked, "lock must pin alpha-aos-control");
 
-  const skillSource = await readFile(join(root, advisor.source), "utf8");
+  const skillSource = await readFile(join(root, control.source), "utf8");
   const sourceHash = sha256(skillSource);
   assert.equal(locked.sourceSha256, sourceHash, "lock sourceSha256 must match skill source file hash");
 
@@ -117,7 +143,7 @@ test("catalog and lock declare alpha-aos-pack-advisor across all 5 harnesses wit
   }
 });
 
-test("autonomous advisor workflow discovers, approves, and materializes capability packs end-to-end (PACK-01, PACK-02, D-02)", async (context) => {
+test("autonomous control workflow discovers, approves, and materializes capability packs end-to-end (CTRL-01, CTRL-02)", async (context) => {
   const fixture = await createProjectFixture(context, "autonomous-e2e");
 
   // Step 1: Workspace Inspection (plan)
@@ -156,7 +182,7 @@ test("autonomous advisor workflow discovers, approves, and materializes capabili
   assert.equal(deployedPack?.capability.deployment, "CURRENT", "pack must be in CURRENT deployment state");
 });
 
-test("advisor workflow fails closed on tampered digest, file drift, and unapproved sync (PACK-02, D-02)", async (context) => {
+test("control workflow fails closed on tampered digest, file drift, and unapproved sync (CTRL-01)", async (context) => {
   const fixture = await createProjectFixture(context, "fail-closed");
 
   const plan = await planProjectCapabilities({ path: fixture.root, packageRoot: fixture.packageRoot });
@@ -203,7 +229,7 @@ test("advisor workflow fails closed on tampered digest, file drift, and unapprov
   // 3. Workspace modification after planning (drift) changes digest and rejects previous digest
   await writeFile(
     join(fixture.root, "package.json"),
-    `${JSON.stringify({ name: "advisor-fixture", private: true, dependencies: { react: "^19.0.0", redux: "^5.0.0" } }, null, 2)}\n`,
+    `${JSON.stringify({ name: "control-fixture", private: true, dependencies: { react: "^19.0.0", redux: "^5.0.0" } }, null, 2)}\n`,
     "utf8",
   );
 
@@ -222,6 +248,43 @@ test("advisor workflow fails closed on tampered digest, file drift, and unapprov
     },
     "stale plan digest after workspace file drift must be rejected",
   );
+});
+
+test("natural language directory tree-off policy isolates repository with zero file footprint (CTRL-03)", async (context) => {
+  const fixture = await createProjectFixture(context, "tree-off");
+
+  // Verify initial files in project directory
+  const filesBefore = readdirSync(fixture.root);
+  assert.deepEqual(filesBefore, ["package.json"]);
+
+  // Apply tree policy mode off
+  const entry = await setTreePolicy(fixture.root, "off", { stateRoot: fixture.stateRoot });
+  assert.equal(entry.mode, "off");
+
+  // Verify tree preview reports effectiveMode === "off"
+  const preview = await previewTreePolicy(fixture.root, { stateRoot: fixture.stateRoot });
+  assert.equal(preview.effectiveMode, "off");
+  assert.ok(preview.launchFlags.length > 0, "off mode should produce isolated launch flags");
+
+  // Invariant verification: ZERO files were written or added to the user project repository
+  const filesAfter = readdirSync(fixture.root);
+  assert.deepEqual(filesAfter, ["package.json"], "tree policy MUST NOT write any files to the project directory");
+
+  // Verify state is stored in external registry
+  const registry = await loadTreeRegistry(fixture.stateRoot);
+  assert.ok(registry.trees.some((t) => t.id === entry.id && t.mode === "off"));
+
+  // Restore tree policy (remove override)
+  const removed = await removeTreePolicy(fixture.root, { stateRoot: fixture.stateRoot });
+  assert.equal(removed, true);
+
+  const previewAfter = await previewTreePolicy(fixture.root, { stateRoot: fixture.stateRoot });
+  assert.equal(previewAfter.effectiveMode, "unclassified", "removed policy should return to unclassified default");
+
+  // Re-enable explicitly to managed
+  await setTreePolicy(fixture.root, "managed", { stateRoot: fixture.stateRoot });
+  const previewManaged = await previewTreePolicy(fixture.root, { stateRoot: fixture.stateRoot });
+  assert.equal(previewManaged.effectiveMode, "managed");
 });
 
 test("CLI project plan --json output provides exact planDigest and selected packs for autonomous parsing", async (context) => {

@@ -1,18 +1,18 @@
 ---
 gsd_state_version: 1.0
 milestone: v0.2.0
-current_phase: 08
-current_phase_name: autonomous-project-pack-advisor-and-cross-harness-materializ
+current_phase: 09
+current_phase_name: unified-natural-language-controller-and-capability-check
 status: complete
-stopped_at: Completed Phase 08 (08-01-PLAN.md, 08-02-PLAN.md, 08-VERIFICATION.md passed)
-last_updated: "2026-09-21T09:20:00.000Z"
+stopped_at: Phase 09 completed and verified
+last_updated: "2026-09-21T02:45:00.000Z"
 last_activity: 2026-09-21
-last_activity_desc: Completed Phase 08 (autonomous advisor skill, catalog/lock pinned, cross-harness distribution verified)
+last_activity_desc: Completed Phase 09 (Unified Natural Language Controller and Capability Checkpoint Automation)
 progress:
-  total_phases: 8
-  completed_phases: 8
-  total_plans: 85
-  completed_plans: 85
+  total_phases: 9
+  completed_phases: 9
+  total_plans: 87
+  completed_plans: 87
   percent: 100
 ---
 
@@ -23,14 +23,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-09)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 08 — Autonomous Project Pack Advisor and Cross-Harness Materializer
+**Current focus:** Milestone v0.2.0 Complete — alpha-AOS Unified Natural Language Controller & Capability Automation
 
 ## Current Position
 
-Phase: 08 (autonomous-project-pack-advisor-and-cross-harness-materializ) — COMPLETE
+Phase: 09 (unified-natural-language-controller-and-capability-check) — COMPLETE
 Plan: 2 of 2
 Status: Complete
-Last activity: 2026-09-21 — Completed Phase 08 (autonomous advisor skill, catalog/lock pinned, cross-harness distribution verified)
+Last activity: 2026-09-21 — Completed Phase 09 (authoring alpha-aos-control, catalog/lock pinning, capability checkpoint rule, 6-suite E2E tests, bilingual docs, live materialization)
 Progress: [██████████] 100%
 
 ## Performance Metrics

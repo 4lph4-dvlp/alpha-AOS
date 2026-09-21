@@ -87,7 +87,7 @@ alpha-AOS enforces a strict boundary between global baseline tools and project-s
 │  • ECC Global Skills (unified-memory, documentation-lookup,            │
 │                       deep-research)                                   │
 │  • Curated MCP Servers (Context7, Exa, Firecrawl bounded proxy)        │
-│  • Built-in Owned Skills (alpha-aos-pack-advisor, alpha-aos-ship)      │
+│  • Built-in Owned Skills (alpha-aos-control, alpha-aos-ship)           │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
        ┌────────────────────────────┴────────────────────────────┐
@@ -108,28 +108,39 @@ alpha-AOS enforces a strict boundary between global baseline tools and project-s
 
 ## Using alpha-AOS in Your Projects
 
-When working in any project directory (e.g. `D:\dev\my-project`), you can discover and materialize tailored capability packs using either an **Autonomous AI Agent Workflow** or a **Manual Developer CLI Workflow**.
+When working in any project directory (e.g. `D:\dev\my-project`), you can discover and materialize tailored capability packs, manage directory isolation, run diagnostics, and rollback changes using either an **Autonomous AI Agent Workflow** or a **Manual Developer CLI Workflow**.
 
-### Mode 1: Autonomous AI Agent Workflow (Zero Friction)
+### Mode 1: Autonomous AI Agent Workflow (Zero Friction with alpha-aos-control)
 
-All supported harnesses (Antigravity, Claude Code, Codex, Pi, Hermes) come with the built-in `alpha-aos-pack-advisor` skill. You never need to memorize commands or copy-paste 64-character hash digests manually.
+All supported harnesses (Antigravity, Claude Code, Codex, Pi, Hermes) come with the built-in `alpha-aos-control` skill. You never need to memorize commands or copy-paste 64-character hash digests manually.
 
-1. **Open your agent** (e.g., run `agy`, launch Claude Code, or start Codex) inside your project directory.
-2. **Autonomous Detection**:
-   When entering the project, onboarding via `/gsd-new-project`, or starting work, the agent autonomously executes `alpha-aos project plan . --json` in the background.
-3. **Agent Recommendation**:
-   If unmaterialized capability packs match your repository evidence, the agent explains what it found:
-   > *"This workspace contains an existing codebase without a conventions document. I recommend installing the `BROWNFIELD_INIT` capability pack (providing project-local conventions and legacy style inheritance). Would you like me to install it?"*
-4. **Simple Confirmation**:
-   Simply reply:
-   > **"Yes"** (or **"응, 설치해줘"**)
-5. **Automated Approval & Materialization**:
-   The agent automatically extracts the exact 64-character SHA-256 `planDigest`, approves the plan, and synchronizes capabilities:
-   - `alpha-aos project approve . --plan-digest <64-char-digest> --apply`
-   - `alpha-aos project sync . --apply`
-6. **Reload & Ready**:
-   The agent verifies that deployment is `CURRENT` and prompts you:
-   > *"Project capability packs have been materialized. Please reload tools or restart the agent session to activate the new capabilities."*
+#### 1. Proactive Capability Advisory (Environment Setup Checkpoint)
+When you finish project scaffolding (e.g. creating Vite/Next.js/FastAPI apps), create/edit package manifests (`package.json`, `tsconfig.json`, `pyproject.toml`, `requirements.txt`, `Cargo.toml`), or finish dependency installs (`npm install`, `pnpm add`, `pip install`, `cargo add`), the agent **automatically invokes `alpha-aos-control`**:
+- **Background Scan**: Runs `alpha-aos project plan . --json` and `alpha-aos project status . --json`.
+- **Recommendation**: If unmaterialized capability packs match your repository evidence, the agent explains what it found:
+  > *"This workspace contains an existing React codebase. I recommend installing the `WEB_REACT` capability pack (providing frontend-a11y skills and React testing tools). Would you like me to install it?"*
+- **Simple Confirmation**: Simply reply:
+  > **"Yes"** (or **"응, 설치해줘"**)
+- **Automated Approval & Materialization**: The agent extracts the exact 64-character SHA-256 `planDigest`, approves the plan, and synchronizes capabilities automatically:
+  - `alpha-aos project approve . --plan-digest <64-char-digest> --apply`
+  - `alpha-aos project sync . --apply`
+- **Reload & Ready**: The agent verifies that deployment is `CURRENT` and prompts you:
+  > *"Project capability packs have been materialized. Please reload tools or restart your agent session to activate the new capabilities."*
+
+#### 2. Natural Language Workspace Operations
+In any repository or workspace, you can manage alpha-AOS entirely through natural language:
+- **Directory Tree Exclusion (Tree-Off Policy)**:
+  - User: *"이 프로젝트는 다른 팀원들과 사용하고 있으니 alpha-AOS 기능을 사용하지 못하게 격리시켜줘"* (or *"Disable alpha-AOS for this project"*)
+  - Agent executes `alpha-aos tree policy set . --mode off` and verifies with `alpha-aos tree status .`. Global skills and MCPs are excluded without writing a single file to your repository.
+- **Directory Tree Restoration (Inherit Policy)**:
+  - User: *"alpha-AOS 다시 켜줘"* (or *"Re-enable alpha-AOS for this project"*)
+  - Agent executes `alpha-aos tree policy set . --mode inherit`.
+- **Diagnostics & Health**:
+  - User: *"alpha-AOS 상태 점검해줘"* / *"닥터 실행해줘"*
+  - Agent executes `alpha-aos status` / `alpha-aos doctor` and reports findings.
+- **Safe Rollback & Recovery**:
+  - User: *"방금 작업 롤백해줘"* / *"망가진 상태 수리해줘"*
+  - Agent executes `alpha-aos rollback --apply` or `alpha-aos repair --apply`.
 
 ### Mode 2: Manual Developer CLI Workflow
 
@@ -243,7 +254,7 @@ alpha-aos project status .
 | **Library Documentation** | ECC `documentation-lookup` + Context7 | All five harnesses | Real-time docs via Context7 stdio MCP gateway. |
 | **Multi-Source Research** | ECC `deep-research` + Exa/Firecrawl | All five harnesses | Multi-source web search & extraction. |
 | **Filtered Web Scraping** | Firecrawl Proxy (`3.24.0`) | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
-| **Autonomous Pack Advisor** | `alpha-aos-pack-advisor` | All five harnesses | Autonomously detects, explains, and materializes project packs upon user approval. |
+| **Autonomous Controller** | `alpha-aos-control` | All five harnesses | Unifies autonomous capability pack advisory, directory tree-off policy, diagnostics, and rollback/repair. |
 | **GSD Shipping Workflow** | `alpha-aos-ship` | Claude Code | User-invocable PR & branch shipping skill. |
 | **Project Isolation** | alpha-AOS launch adapters | All five harnesses | Isolated runtime with fail-closed bounds. |
 

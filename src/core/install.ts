@@ -170,6 +170,8 @@ export function selectInstallTargets(inventory: Inventory, requested?: HarnessId
 export const NODE_RUNTIME_ENVIRONMENT_NAMES: readonly string[] = [
   ...PLATFORM_FLOOR_ENVIRONMENT,
   "PATH",
+  "PATHEXT",
+  "COMSPEC",
   "HOME",
   "USERPROFILE",
   "APPDATA",

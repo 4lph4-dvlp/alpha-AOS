@@ -621,6 +621,8 @@ test("the environment policy for a node child names what it passes", () => {
     literal: { ALPHA_AOS_FIXTURE_LITERAL: "value" },
     source: {
       PATH: "/usr/bin",
+      PATHEXT: ".EXE;.CMD",
+      COMSPEC: "C:\\Windows\\System32\\cmd.exe",
       ALPHA_AOS_FIXTURE_NAME: "named",
       ALPHA_AOS_SECRET_TOKEN: "must-not-cross",
     },
@@ -630,6 +632,8 @@ test("the environment policy for a node child names what it passes", () => {
   assert.equal(materialized.ALPHA_AOS_FIXTURE_NAME, "named", "an operation-named variable must be delivered");
   assert.equal(materialized.ALPHA_AOS_FIXTURE_LITERAL, "value", "a literal the operation sets must be delivered");
   assert.equal(materialized.PATH, "/usr/bin", "a declared runtime name must be delivered");
+  assert.equal(materialized.PATHEXT, ".EXE;.CMD", "a Windows package-bin launcher must receive PATHEXT");
+  assert.equal(materialized.COMSPEC, "C:\\Windows\\System32\\cmd.exe", "a Windows package-bin launcher must receive COMSPEC");
   assert.equal(
     Object.hasOwn(materialized, "ALPHA_AOS_SECRET_TOKEN"),
     false,

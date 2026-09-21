@@ -216,6 +216,7 @@ async function createProtocolFixture(
     fakeMcpServerScript,
     [
       "import { createInterface } from 'node:readline';",
+      "const launcherEnvironmentReady = process.platform !== 'win32' || (typeof process.env.PATHEXT === 'string' && typeof process.env.COMSPEC === 'string');",
       "const lines = createInterface({ input: process.stdin });",
       "lines.on('line', (line) => {",
       "  if (!line.trim().startsWith('{')) return;",
@@ -227,7 +228,8 @@ async function createProtocolFixture(
       "    return;",
       "  }",
       "  if (message.id === 2) {",
-      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tools: [{ name: 'fixture_probe_tool' }] } }));",
+      "    const name = launcherEnvironmentReady ? 'fixture_probe_tool' : 'missing_windows_launcher_environment';",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: 2, result: { tools: [{ name }] } }));",
       "  }",
       "});",
       "",

@@ -14,8 +14,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { homedir, tmpdir } from "node:os";
+import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test, { type TestContext } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -43,6 +43,11 @@ import {
   REGISTRY_UNREACHABLE,
   UPSTREAM_REQUIRED_ENV_NAME,
 } from "./helpers/upstream-gate.js";
+
+/** The host state root as this process saw it before any test ran. */
+const hostStateRootAtLoad = resolve(process.env.ALPHA_AOS_STATE_DIR?.trim() || join(homedir(), ".alpha-aos"));
+/** The state root every pinned upstream startup in this file writes under. */
+const testStateRoot = join(tmpdir(), "alpha-aos-test-mcp-proxy-state");
 
 // Compiled to dist/test, so the repository root is two levels up.
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -849,6 +854,25 @@ test("the firecrawl proxy starts and lists its allowlisted tools", { timeout: ST
     "firecrawl_map",
     "firecrawl_scrape",
   ]);
+});
+
+test("pinned upstream startups keep their npx cache under the test-owned state root, never the host state root", () => {
+  assert.equal(userStateRoot(), testStateRoot, "this file must resolve its own state root, not the host one");
+  assert.notEqual(testStateRoot, hostStateRootAtLoad, "the test-owned state root must differ from the host state root");
+  const fromHost = relative(hostStateRootAtLoad, testStateRoot);
+  assert.ok(
+    fromHost.split(/[\\/]/)[0] === ".." || isAbsolute(fromHost),
+    `the test-owned state root ${testStateRoot} must sit outside the host state root ${hostStateRootAtLoad}`,
+  );
+  const expectedCache = join(expectedProxyCacheRoot(testStateRoot), "npm-cache");
+  for (const server of MCP_SERVER_IDS) {
+    const cache = upstreamEnvironmentPolicy(server).literal?.npm_config_cache;
+    assert.equal(cache, expectedCache, `${server} must pin its npx cache under the test-owned state root`);
+    assert.ok(
+      !cache.startsWith(hostStateRootAtLoad),
+      `${server} npx cache ${cache} must not sit under the host state root ${hostStateRootAtLoad}`,
+    );
+  }
 });
 
 test("the module pins a proxy cache root under the managed state root", async () => {

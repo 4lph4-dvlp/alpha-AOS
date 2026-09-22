@@ -1,93 +1,123 @@
 ---
 phase: 07-cross-platform-release-proof
-verified: 2026-09-20T16:45:00Z
+verified: 2026-09-22T00:00:00Z
 status: gaps_found
-score: 5/5 must-haves verified
+score: 4/5 must-haves verified
 behavior_unverified: 0
 overrides_applied: 0
 decision_coverage:
   honored: 16
   total: 16
   not_honored: []
+re_verification:
+  previous_status: gaps_found
+  previous_score: 5/5 (flagged with gap G-07-1)
+  gaps_closed:
+    - "G-07-1 structural component: src/core/support-matrix.ts no longer hardcodes `harnessId === \"claude\"` to a fixed RESIDUE tier. `activeSurfaces`'s type widened from `Exclude<HarnessId, \"claude\">` to the full `HarnessId` union; claude now carries four evidence-driven surfaces (GSD Core, Context7, Unified Memory, Project Packs) structured identically to codex's. The standalone fixed-tier claude entry was removed from `BASE_SUPPORT_MATRIX`. Independently re-verified: grep for `harnessId === \"claude\"` in src/core/support-matrix.ts returns zero matches; `npm run check` clean; support-matrix.test.js run standalone: 6/6 pass, including a new test proving claude reaches UNVERIFIED without a receipt and PROVEN with a real matching receipt, exactly like every other harness; docs/SUPPORT_MATRIX.md regenerated and confirmed byte-identical to source, with claude's four rows now UNVERIFIED (evidence-based) instead of a single fixed RESIDUE row; full suite independently re-run: 907 tests, 898 pass, 0 fail, 9 pre-existing skips (matches SUMMARY exactly). catalog/stack.yaml and catalog/canaries.yaml confirmed unmodified and already claude-inclusive (grep counts unchanged: 7 and 5 respectively); `policy.canaryHarness: codex` confirmed to gate only install-rollout pilot-harness sequencing (src/core/plan.ts, src/core/install.ts), not support-matrix evidence tiering — correctly left unchanged."
+  gaps_remaining:
+    - "G-07-2 (new, narrower than G-07-1): Claude Code itself has zero real-host discovery/invocation receipts. All four of claude's support-matrix cells evaluate to UNVERIFIED, not PROVEN — 07-08 deliberately did not run a real Claude Code canary invocation. Roadmap Success Criterion 2 / REL-02 requires 'current real-host native discovery and representative invocation evidence for every claimed harness and surface'; Claude is now a claimed harness under D-18 but does not yet meet that evidence bar. The structural impossibility (a harness that could never reach PROVEN regardless of evidence) is gone; the remaining gap is evidence-collection only, not a code defect."
+  regressions: []
+behavior_unverified_items: []
 gaps:
-  - gap_id: G-07-1
+  - gap_id: G-07-2
     requirement: REL-02
-    summary: "D-18 (03-CONTEXT.md, 2026-09-22) reinstated Claude Code into the active v0.1.0 harness scope, superseding D-17; Claude re-entered the claimed harness set with no real-host canary/invocation evidence of its own, so Truth 2's 2026-09-20 verification (scoped to D-17's four-harness claimed set) no longer covers every currently-claimed harness."
+    truth: "Observable Truth 2 / Roadmap Success Criterion 2: a versioned support matrix shows current real-host native discovery and representative invocation evidence for every claimed harness and surface, while every unproven combination is visibly limited or unsupported."
+    status: failed
+    reason: "D-18 (03-CONTEXT.md, 2026-09-22) reinstated Claude Code into the active v0.1.0 harness scope on equal footing with Codex, Antigravity, Pi, and Hermes, making Claude a 'claimed harness' under this truth's wording. 07-08 (commit d0f9795) correctly removed the code-level structural impossibility that prevented Claude from ever reaching PROVEN, but 07-08 explicitly did not run a real Claude Code canary invocation (Task 2, by design, mirroring 07-02/07-05 precedent of never spending a real model turn inside a deterministic gap-closure plan). As a result, every one of Claude's four support-matrix cells (GSD Core, Context7, Unified Memory, Project Packs) still evaluates to UNVERIFIED — honestly reported, not fabricated, but not evidence of real-host discovery/invocation either. The truth as literally worded is therefore not yet fully true for the currently-claimed harness set."
+    severity: moderate
+    test: "Run alpha-aos doctor --canary --harness claude --no-spend (readiness check, zero cost) followed by alpha-aos doctor --canary --harness claude --capability CAPA-01 (or another declared capability) from an authenticated host, producing a genuine inspectable receipt in capabilities/ledger.json, then confirm src/core/support-matrix.ts promotes the matching cell to PROVEN using the identical evidence-based rule every other harness is judged by (already proven correct by test/support-matrix.test.ts's new Claude-PROVEN assertion)."
+    root_cause: "Gathering real invocation evidence requires a live, cost-bearing model turn against an authenticated Claude Code session; this phase's own established precedent (07-02, 07-05) treats that as a separate, explicitly human-triggered action, never something a deterministic, repeatable gap-closure plan spends silently. No further code change closes this gap — only running the real canary does."
+    artifacts:
+      - path: "capabilities/ledger.json"
+        issue: "No Claude Code invocation proof exists on any host yet (this file is user/host state, not checked into the repo)"
+    missing:
+      - "A real Claude Code canary invocation producing a genuine, inspectable receipt (via `alpha-aos doctor --canary --harness claude --capability <id>`) for at least one of Claude's four claimed surfaces."
+      - "Once that receipt exists, reconcile .planning/REQUIREMENTS.md's REL-02 body text (still says Claude Code 'remains compatibility residue', which is now stale under D-18 regardless of this gap) — deliberately left untouched by 07-08 per the original gap's own instruction not to edit it before real evidence exists."
+    diagnosis_note: "This gap is materially narrower than G-07-1: the code defect (structural RESIDUE hardcode preventing any evidence from ever mattering) is fully closed and independently re-verified. What remains is a real-world evidence-gathering action, not a further code or test change. Ready for either a human-triggered canary run, or a human-accepted override in this file's frontmatter if the project chooses to ship v0.1.0 with Claude's evidence deferred to a documented post-release follow-up."
 deferred: []
 ---
 
 # Phase 7: Cross-Platform Release Proof Verification Report
 
 **Phase Goal:** Users receive one v0.1.0 package whose behavior, contents, provenance, support claims, and complete brownfield workflow are proven against the same frozen bytes.
-**Verified:** 2026-09-20T16:45:00Z  
-**Status:** gaps_found  
-**Re-verification:** Yes — gap closure verified across Plans 07-05, 07-06, and 07-07
-**Gap registered (2026-09-22):** `G-07-1` — Truth 2 / REL-02 is stale under D-18 (Claude Code reinstated into the active v0.1.0 harness scope, superseding D-17, with no real-host canary evidence of its own). See Gaps section below. Truths 1, 3, 4, 5 and requirements REL-01, REL-03, REL-04, REL-05, REL-06 are unaffected.
+**Verified:** 2026-09-22T00:00:00Z
+**Status:** gaps_found
+**Re-verification:** Yes — re-verification of gap `G-07-1` after gap-closure plan 07-08 executed (commit `d0f9795`).
 
 ## Goal Achievement
 
-All 5 core verification gaps identified in the initial review have been fully closed through real execution, cryptographic validation, and inspectable multi-platform evidence.
+Plan 07-08 closed the structural half of gap `G-07-1`: `src/core/support-matrix.ts` no longer hardcodes Claude Code to a fixed compatibility-only tier, and `activeSurfaces` now types over the full `HarnessId` union so Claude is judged by the identical evidence-based rule (unsupported → undetected → no-ledger → no-receipt → matching-receipt) as Codex, Antigravity, Pi, and Hermes. This was independently re-verified in this session, not taken on the SUMMARY's word: `npm run check` and `npm run build` ran clean, the six support-matrix tests were run standalone and all pass, a grep for the removed hardcode returns zero matches, `docs/SUPPORT_MATRIX.md` was read directly and confirmed to show Claude's four surfaces as evidence-based `UNVERIFIED` rows (no `RESIDUE` anywhere), the full 907-test suite was re-run once and matches the SUMMARY's reported 898 pass / 0 fail / 9 skipped exactly, and `catalog/stack.yaml` / `catalog/canaries.yaml` were confirmed unmodified with unchanged claude-occurrence counts.
 
-**Post-verification note (2026-09-22):** D-18 (`03-CONTEXT.md`) reinstated Claude Code into the active v0.1.0 harness scope, superseding D-17. Truth 2 and REL-02 below were verified true on 2026-09-20 against D-17's four-harness claimed set (Codex, Antigravity, Pi, Hermes); that verification is not rewritten here and remains accurate for the scope it was tested against. Claude Code has since re-entered the claimed harness set with no real-host canary/invocation evidence of its own, so the claim "every claimed harness/surface has current real-host evidence" no longer covers every currently-claimed harness. This is registered as gap `G-07-1` (see Gaps section). Truths 1, 3, 4, 5 and Requirements REL-01, REL-03, REL-04, REL-05, REL-06 are unaffected and remain exactly as verified.
+However, Truth 2 / REL-02 is not fully re-satisfied. The truth requires "current real-host native discovery and representative invocation evidence for every claimed harness and surface." Claude Code is now a claimed harness under D-18, but 07-08 deliberately did not run a real Claude Code canary invocation (an explicit, reasoned deferral, not an oversight — see 07-08-SUMMARY.md and the gap record below). Every one of Claude's four cells therefore evaluates to `UNVERIFIED`: honestly reported, no longer structurally impossible to promote, but still not evidence. This is registered as a new, narrower gap `G-07-2`, superseding the closed `G-07-1`. Truths 1, 3, 4, 5 and Requirements REL-01, REL-03, REL-04, REL-05, REL-06 were not touched by 07-08 (confirmed via `git show d0f9795 --stat`, which shows only `src/core/support-matrix.ts`, `test/support-matrix.test.ts`, and `docs/SUPPORT_MATRIX.md` changed) and remain exactly as verified on 2026-09-20.
 
 ### Observable Truths
 
 | # | Truth | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | The same packed bytes pass the complete isolated lifecycle on Windows, macOS, and Linux. | ✓ VERIFIED | GitHub Actions CI run `35496805483` executed on Linux, macOS, and Windows. All three matrix jobs independently downloaded `alpha-aos-0.1.0.tgz`, verified the identical SHA-256 digest (`ce176c364fdaaa736343fca3656248e12fed673d20b0cab426b5d0da831e47b4`), and passed 100% of tests. Recorded in [CI_RUN.md](./CI_RUN.md). |
-| 2 | Every claimed harness/surface has current real-host native discovery and representative invocation evidence. | ✓ VERIFIED | Antigravity receipts are fully supported in the capability ledger (`capabilities/ledger.json`), capability oracle (`src/core/capability-oracle.ts`), and support matrix evaluator (`src/core/support-matrix.ts`). Matrix evaluation correctly reports receipt-backed status without fabricating false PROVEN claims. **Gap note (2026-09-22, `G-07-1`):** this was verified against D-17's four-harness claimed set only; D-18 reinstated Claude Code into the claimed set with no real-host evidence of its own — see Gaps section. |
-| 3 | Paired controls prove native optional invocation, project scope, mandatory gating, and tree-off exclusion. | ✓ VERIFIED | Real paired positive and negative controls in `test/release-controls.test.ts` and `src/core/release-controls.ts` execute native invocation and task routing, recording cryptographic hashes in `docs/RELEASE_CONTROLS.md`. |
-| 4 | A real brownfield GSD lifecycle completes with one writer and all five representative elements. | ✓ VERIFIED | `src/core/brownfield-proof.ts` is package-included in `dist/src/`. Standalone runner `scripts/run-brownfield-proof.mjs` imports solely from `dist/src/` (no test dependencies). The authentic 5-stage GSD lifecycle (discuss -> plan -> execute -> verify -> ship) executes with single-writer authority and tamper rollback. |
-| 5 | The published package is the three-OS-qualified artifact and has verifiable provenance plus a public-registry fresh-install smoke proof. | ✓ VERIFIED | Pre-flight release orchestrator (`node scripts/release.mjs --dry-run`) passed all checks, build, audit, pack, provenance, and Stage 1 local smoke (`node scripts/smoke-test.mjs --local`). Tarball allowlist verified (158 clean entries). User authorized keeping the verified release artifact and deferring public registry publication. |
+| 1 | The same packed bytes pass the complete isolated lifecycle on Windows, macOS, and Linux. | ✓ VERIFIED (unchanged) | GitHub Actions CI run `35496805483`; SHA-256 `ce176c364fdaaa736343fca3656248e12fed673d20b0cab426b5d0da831e47b4`; not touched by 07-08. |
+| 2 | Every claimed harness/surface has current real-host native discovery and representative invocation evidence. | ✗ FAILED (re-scoped: G-07-1 structural component closed; G-07-2 evidence component open) | `evaluateMatrixCell` and `activeSurfaces` independently confirmed to judge Claude identically to every other harness (no hardcode, 6/6 tests pass, grep clean). But Claude has zero real invocation receipts on any host — all four Claude cells are `UNVERIFIED` per `docs/SUPPORT_MATRIX.md` and `test/support-matrix.test.ts`. The code defect is gone; the evidence is still missing. See gap `G-07-2`. |
+| 3 | Paired controls prove native optional invocation, project scope, mandatory gating, and tree-off exclusion. | ✓ VERIFIED (unchanged) | `test/release-controls.test.ts` / `src/core/release-controls.ts`; not touched by 07-08. |
+| 4 | A real brownfield GSD lifecycle completes with one writer and all five representative elements. | ✓ VERIFIED (unchanged) | `src/core/brownfield-proof.ts` / `scripts/run-brownfield-proof.mjs`; not touched by 07-08. |
+| 5 | The published package is the three-OS-qualified artifact and has verifiable provenance plus a public-registry fresh-install smoke proof. | ✓ VERIFIED (unchanged) | `scripts/release.mjs --dry-run`, tarball allowlist, Stage 1 local smoke; not touched by 07-08. |
 
-**Score:** 5/5 truths verified
+**Score:** 4/5 truths verified
 
 ### Required Artifacts
 
 | Artifact | Expected | Status | Details |
 | --- | --- | --- | --- |
-| `.github/workflows/ci.yml` | One Linux-built archive consumed by all three OS jobs | ✓ VERIFIED | Executed in CI run `35496805483`; 100% pass across Ubuntu, macOS, and Windows. |
-| `.planning/phases/07-cross-platform-release-proof/CI_RUN.md` | Inspectable multi-OS CI run record | ✓ VERIFIED | Records run ID `35496805483`, commit SHA, URL, and matching SHA-256 digest. |
-| `scripts/audit-tarball.mjs` | Pure-Node fail-closed archive allowlist audit | ✓ VERIFIED | 158 allowlisted entries verified with zero forbidden or unallowlisted files. |
-| `src/core/brownfield-proof.ts` | Package-included brownfield proof engine | ✓ VERIFIED | Included in `dist/src/core/brownfield-proof.js`; executes 5-stage lifecycle. |
-| `scripts/run-brownfield-proof.mjs` | Packaged standalone brownfield runner | ✓ VERIFIED | Imports solely from `dist/src/core/brownfield-proof.js`; package-safe. |
-| `src/core/capability-oracle.ts` & `src/core/support-matrix.ts` | Antigravity receipt support and matrix evaluation | ✓ VERIFIED | Antigravity receipts represented and tested in capability oracle and matrix. |
-| `scripts/release.mjs` | Guarded release orchestrator | ✓ VERIFIED | Dry-run passed; Stage 1 smoke passed; publish path guarded behind explicit authorization. |
-| `docs/RELEASE_NOTES_v0.1.0.md` | Release notes with verified digests and CI links | ✓ VERIFIED | Updated with SHA-256 digest and link to `CI_RUN.md`. |
+| `src/core/support-matrix.ts` | Evidence-based `evaluateMatrixCell`/`activeSurfaces` covering all five `HarnessId` values, claude included | ✓ VERIFIED | Independently re-read; `harnessId === "claude"` grep returns zero matches; `activeSurfaces` typed `Readonly<Record<HarnessId, ...>>` with a claude entry mirroring codex's four rows. |
+| `test/support-matrix.test.ts` | Assertions proving claude reaches UNVERIFIED without a receipt and PROVEN with a real matching receipt | ✓ VERIFIED | New test "inspectable matching invocation receipt promotes Claude active cell to PROVEN" present and passing; "support taxonomy refuses false PROVEN states" now asserts claude/Context7 is UNVERIFIED both undetected and detected-without-receipt. Ran standalone: 6/6 pass. |
+| `docs/SUPPORT_MATRIX.md` | Regenerated, byte-identical-to-source support matrix reflecting Claude's evidence-based rows | ✓ VERIFIED | Read directly: claude's four rows now `UNVERIFIED` with evidence-based notes; no `RESIDUE` row anywhere in the file; "byte-identical" test passes. |
+| `capabilities/ledger.json` (host state, not a repo artifact) | A real Claude invocation receipt | ✗ MISSING | Not checked into the repo (user/host state by design); no host has produced one. This is the substance of gap `G-07-2`. |
+
+### Key Link Verification
+
+| From | To | Via | Status | Details |
+| --- | --- | --- | --- | --- |
+| `support-matrix.ts activeSurfaces.claude` | `evaluateMatrixCell` → `matchingReceipt` → `capabilities/ledger.json` | Identical evidence path already used by codex, antigravity, pi, hermes | ✓ WIRED | Confirmed by reading the source: no branch short-circuits claude before `matchingReceipt` runs. Proven functionally by the new Claude-PROVEN test, which passes with a synthetic matching receipt. |
+| `catalog/stack.yaml harnesses.claude` / `catalog/canaries.yaml` | Canary readiness/invocation machinery (`src/core/canary.ts`, `src/adapters/capability-oracle.ts`) | Pre-existing, unedited by this plan | ✓ WIRED (structurally) / ✗ NOT EXERCISED | Wiring confirmed present and unedited (grep counts match plan baseline). Not exercised: no real invocation has actually run through this path for Claude yet — this is exactly `G-07-2`. |
+
+### Behavioral Spot-Checks
+
+| Behavior | Command | Result | Status |
+| --- | --- | --- | --- |
+| Claude no longer hardcoded to a fixed tier | `grep -c 'harnessId === "claude"' src/core/support-matrix.ts` | `0` | ✓ PASS |
+| Type check clean after the widened `HarnessId` coverage | `npm run check` | exit 0, no diagnostics | ✓ PASS |
+| Support-matrix test suite proves the fix without granting a free pass | `node scripts/run-tests.mjs --files dist/test/support-matrix.test.js` | 6/6 pass (incl. new Claude-PROVEN test) | ✓ PASS |
+| Regenerated docs match source and show no RESIDUE | Read `docs/SUPPORT_MATRIX.md` directly | Claude's 4 rows: `UNVERIFIED`; zero `RESIDUE` rows | ✓ PASS |
+| Full suite has zero regressions from the widened type | `npm test` (run once) | 907 tests, 898 pass, 0 fail, 9 skipped | ✓ PASS (matches SUMMARY exactly) |
+| Catalog files unmodified, claude-inclusive as claimed | `grep -c claude catalog/canaries.yaml` / `catalog/stack.yaml` | `5` / `7` (matches plan's recorded baseline) | ✓ PASS |
+| A real Claude Code canary invocation exists | n/a — deliberately not run by 07-08 | No receipt in any ledger | ✗ FAIL (expected; this is `G-07-2`) |
 
 ### Requirements Coverage
 
 | Requirement | Source Plan | Description | Status | Evidence |
 | --- | --- | --- | --- | --- |
-| REL-01 | 07-01, 07-07 | Same packed bytes complete lifecycle on three OSes without host mutation | ✓ SATISFIED | CI run `35496805483` passed on Ubuntu, macOS, and Windows with identical SHA-256. |
-| REL-02 | 07-02, 07-05 | Current real-host discovery and invocation evidence for every active claim | ✓ SATISFIED | Antigravity receipts supported in ledger, oracle, and matrix evaluator. **Gap note (2026-09-22, `G-07-1`):** satisfied against D-17's four-harness claimed set only; D-18 reinstated Claude Code into the claimed set with no real-host evidence of its own — see Gaps section. |
-| REL-03 | 07-02, 07-05 | Paired native optional, project, gate, and opt-out controls | ✓ SATISFIED | Real paired controls execute native invocation and task routing. |
-| REL-04 | 07-03, 07-06 | Real full brownfield GSD cycle with five representative elements | ✓ SATISFIED | `src/core/brownfield-proof.ts` and `scripts/run-brownfield-proof.mjs` pass 5 stages. |
-| REL-05 | 07-01, 07-04, 07-07 | Published package is allowlisted and equals the three-OS artifact | ✓ SATISFIED | Authoritative tarball matches across CI and local audit allowlist. |
-| REL-06 | 07-04, 07-07 | Published provenance, frozen lock, notes, limitations, Stage 1 smoke | ✓ SATISFIED | Provenance verified, Stage 1 smoke passed, notes updated, publish deferred per user decision. |
+| REL-01 | 07-01, 07-07 | Same packed bytes complete lifecycle on three OSes without host mutation | ✓ SATISFIED (unchanged) | CI run `35496805483`. |
+| REL-02 | 07-02, 07-05, 07-08 | Current real-host discovery and invocation evidence for every active claim | ✗ BLOCKED (re-scoped) | Structural blocker removed and independently re-verified (Task 1 of 07-08). Real Claude evidence still outstanding — see gap `G-07-2`. Codex, Antigravity, Pi, Hermes evidence paths unaffected and remain as previously verified. |
+| REL-03 | 07-02, 07-05 | Paired native optional, project, gate, and opt-out controls | ✓ SATISFIED (unchanged) | `test/release-controls.test.ts`; not touched by 07-08. |
+| REL-04 | 07-03, 07-06 | Real full brownfield GSD cycle with five representative elements | ✓ SATISFIED (unchanged) | `src/core/brownfield-proof.ts`; not touched by 07-08. |
+| REL-05 | 07-01, 07-04, 07-07 | Published package is allowlisted and equals the three-OS artifact | ✓ SATISFIED (unchanged) | Not touched by 07-08. |
+| REL-06 | 07-04, 07-07 | Published provenance, frozen lock, notes, limitations, Stage 1 smoke | ✓ SATISFIED (unchanged) | Not touched by 07-08. |
 
-## Gaps
+Note: `.planning/REQUIREMENTS.md`'s REL-02 body text still reads "...while Claude Code remains compatibility residue..." and its coverage table still marks REL-02 `Complete`. Both are now stale under D-18 (Claude is reinstated, and the code no longer treats it as fixed residue) but were deliberately left untouched by 07-08, per the original gap's own instruction not to edit that wording until real evidence exists. This verifier did not edit `.planning/REQUIREMENTS.md` either, for the same reason — that reconciliation is correctly sequenced to land together with (or immediately after) the real Claude canary evidence, not before it.
 
-- gap_id: G-07-1
-  status: failed
-  truth: "Observable Truth 2 / REL-02: every actively claimed harness/surface has current real-host discovery and invocation evidence"
-  reason: "D-18 (03-CONTEXT.md, 2026-09-22) reinstated Claude Code into the active v0.1.0 harness scope, superseding D-17. Claude re-entered the claimed harness set with no real-host canary/invocation evidence of its own, so the truth verified on 2026-09-20 under D-17's four-harness scope (Codex, Antigravity, Pi, Hermes) no longer covers every currently-claimed harness."
-  severity: major
-  test: "Run a real Claude Code canary invocation and confirm src/core/support-matrix.ts promotes it past RESIDUE using the same evidence-based rule every other harness is judged by."
-  root_cause: "src/core/support-matrix.ts's evaluateMatrixCell (around line 145) hardcodes harnessId === \"claude\" to always return tier RESIDUE regardless of any evidence, and its activeSurfaces map (around lines 50-69) is typed Exclude<HarnessId, \"claude\">, structurally excluding Claude from the PROVEN-eligible surface list. catalog/stack.yaml's canaryHarness is codex, not claude, and .planning/REQUIREMENTS.md's REL-02 body text still says Claude \"remains compatibility residue\" — both untouched because D-18 was scoped to reinstating claimed status only, not implementation."
-  artifacts:
-    - src/core/support-matrix.ts
-    - catalog/stack.yaml
-    - catalog/canaries.yaml
-    - .planning/REQUIREMENTS.md
-  missing:
-    - "Remove the evaluateMatrixCell harnessId === \"claude\" RESIDUE hardcode and the Exclude<HarnessId, \"claude\"> type exclusion in src/core/support-matrix.ts (~lines 50-69, ~145) so Claude is judged by real evidence like every other harness."
-    - "Restore a Claude canary run path in catalog/stack.yaml (currently canaryHarness: codex) and confirm/extend the existing Claude entries in catalog/canaries.yaml."
-    - "Actually execute a real Claude Code canary invocation to produce a genuine PROVEN-tier receipt."
-    - "Reconcile .planning/REQUIREMENTS.md's REL-02 body text (still says Claude remains compatibility residue) with D-18, once the three items above land — do not perform this reconciliation until real evidence exists."
-  diagnosis_note: "Ready for $gsd-plan-phase 7 --gaps"
+### Anti-Patterns Found
+
+None. `src/core/support-matrix.ts`, `test/support-matrix.test.ts`, and `docs/SUPPORT_MATRIX.md` were scanned for `TBD`/`FIXME`/`XXX`/`TODO`/`HACK`/`PLACEHOLDER`/"not yet implemented" patterns — zero matches.
+
+### Human Verification Required
+
+None required to reach a decision on this re-verification — the remaining gap (`G-07-2`) is a deterministic, objectively-checkable evidence gap (a receipt either exists in the ledger or it doesn't), not a judgment call needing human interpretation. What a human does need to decide is a product/release choice, not a verification question: whether to (a) trigger the real Claude canary invocation now (`alpha-aos doctor --canary --harness claude --no-spend` then `--capability CAPA-01`) and close `G-07-2` with genuine evidence, or (b) explicitly accept the current state via an `overrides:` entry in this file's frontmatter if the project chooses to ship v0.1.0 with Claude's evidence deferred to a documented post-release follow-up.
+
+### Gaps Summary
+
+`G-07-1` is closed: the code-level structural impossibility that made Claude Code incapable of ever reaching `PROVEN` regardless of evidence has been removed from `src/core/support-matrix.ts`, independently re-verified by this session (clean typecheck, standalone test run, grep, regenerated docs, full-suite regression run, and unedited-catalog confirmation).
+
+A new, narrower gap `G-07-2` is registered in its place: Claude Code itself still has no real-host invocation receipt anywhere, so Truth 2 / REL-02's literal claim ("current real-host native discovery and representative invocation evidence for every claimed harness") is not yet true for the full currently-claimed harness set (Codex, Antigravity, Pi, Hermes, and now Claude per D-18). This is an evidence-gathering gap, not a code defect — closing it requires a real, human-triggered, cost-bearing canary invocation, exactly as 07-08's own execution summary states. Truths 1, 3, 4, 5 and Requirements REL-01, REL-03, REL-04, REL-05, REL-06 are unaffected and remain fully verified.
 
 ---
 
-_Verified: 2026-09-20T16:45:00Z_  
-_Verifier: Antigravity (GSD Workflow)_
+_Verified: 2026-09-22T00:00:00Z_
+_Verifier: Claude (gsd-verifier)_

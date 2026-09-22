@@ -72,12 +72,17 @@ test("ECC exact-file sync plans exactly three locked writes", async (context) =>
 });
 
 test("global ECC roots preserve native roots and share Agent Skills between Codex and Pi", () => {
-  const home = "C:\\Users\\fixture";
-  assert.equal(globalEccSkillRoot("claude", { CLAUDE_CONFIG_DIR: "C:\\profiles\\claude" }, home), join("C:\\profiles\\claude", "skills"));
-  assert.equal(globalEccSkillRoot("codex", { CODEX_HOME: "C:\\profiles\\codex" }, home), join(home, ".agents", "skills"));
+  const base = join(tmpdir(), "alpha-aos-ecc-root-fixture");
+  const home = join(base, "home");
+  const claudeProfile = join(base, "profiles", "claude");
+  const codexProfile = join(base, "profiles", "codex");
+  const antigravityProfile = join(base, "profiles", "antigravity");
+  const piProfile = join(base, "profiles", "pi");
+  assert.equal(globalEccSkillRoot("claude", { CLAUDE_CONFIG_DIR: claudeProfile }, home), join(claudeProfile, "skills"));
+  assert.equal(globalEccSkillRoot("codex", { CODEX_HOME: codexProfile }, home), join(home, ".agents", "skills"));
   assert.equal(globalEccSkillRoot("antigravity", {}, home), join(home, ".gemini", "config", "skills"));
-  assert.equal(globalEccSkillRoot("antigravity", { ANTIGRAVITY_CONFIG_DIR: "C:\\profiles\\antigravity" }, home), join("C:\\profiles\\antigravity", "skills"));
-  assert.equal(globalEccSkillRoot("pi", { PI_CODING_AGENT_DIR: "C:\\profiles\\pi" }, home), join(home, ".agents", "skills"));
+  assert.equal(globalEccSkillRoot("antigravity", { ANTIGRAVITY_CONFIG_DIR: antigravityProfile }, home), join(antigravityProfile, "skills"));
+  assert.equal(globalEccSkillRoot("pi", { PI_CODING_AGENT_DIR: piProfile }, home), join(home, ".agents", "skills"));
   assert.equal(globalEccSkillRoot("pi", {}, home), globalEccSkillRoot("codex", {}, home));
 });
 

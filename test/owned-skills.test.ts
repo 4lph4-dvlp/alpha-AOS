@@ -50,23 +50,28 @@ function createMockInventory(detected: HarnessId[]): Inventory {
 }
 
 test("destinationFor resolves destinations across all five harnesses", () => {
-  const custom = "C:\\test\\custom-root";
+  const base = join(tmpdir(), "alpha-aos-destination-fixture");
+  const custom = join(base, "custom-root");
   for (const harness of ALL_HARNESSES) {
     const dest = destinationFor(harness, "my-skill", custom);
     assert.equal(dest, join(custom, "skills", "my-skill", "SKILL.md"));
   }
 
-  const fakeHome = "C:\\Users\\fakeuser";
+  const fakeHome = join(base, "home");
+  const claudeRoot = join(base, "env", "claude");
+  const codexRoot = join(base, "env", "codex");
+  const geminiRoot = join(base, "env", "gemini");
+  const hermesRoot = join(base, "env", "hermes");
   const fakeEnv: NodeJS.ProcessEnv = {
-    CLAUDE_CONFIG_DIR: "C:\\env\\claude",
-    CODEX_HOME: "C:\\env\\codex",
-    ANTIGRAVITY_CONFIG_DIR: "C:\\env\\gemini",
-    HERMES_HOME: "C:\\env\\hermes",
+    CLAUDE_CONFIG_DIR: claudeRoot,
+    CODEX_HOME: codexRoot,
+    ANTIGRAVITY_CONFIG_DIR: geminiRoot,
+    HERMES_HOME: hermesRoot,
   };
 
   assert.equal(
     destinationFor("claude", "test-skill", undefined, fakeEnv, fakeHome),
-    join("C:\\env\\claude", "skills", "test-skill", "SKILL.md"),
+    join(claudeRoot, "skills", "test-skill", "SKILL.md"),
   );
   assert.equal(
     destinationFor("codex", "test-skill", undefined, fakeEnv, fakeHome),
@@ -74,7 +79,7 @@ test("destinationFor resolves destinations across all five harnesses", () => {
   );
   assert.equal(
     destinationFor("antigravity", "test-skill", undefined, fakeEnv, fakeHome),
-    join("C:\\env\\gemini", "skills", "test-skill", "SKILL.md"),
+    join(geminiRoot, "skills", "test-skill", "SKILL.md"),
   );
   assert.equal(
     destinationFor("pi", "test-skill", undefined, fakeEnv, fakeHome),
@@ -82,7 +87,7 @@ test("destinationFor resolves destinations across all five harnesses", () => {
   );
   assert.equal(
     destinationFor("hermes", "test-skill", undefined, fakeEnv, fakeHome),
-    join("C:\\env\\hermes", "skills", "test-skill", "SKILL.md"),
+    join(hermesRoot, "skills", "test-skill", "SKILL.md"),
   );
 });
 

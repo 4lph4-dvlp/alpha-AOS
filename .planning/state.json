@@ -37,12 +37,22 @@
       "number": "7",
       "name": "Cross-Platform Release Proof",
       "status": "complete"
+    },
+    {
+      "number": "8",
+      "name": "Autonomous Project Pack Advisor and Cross-Harness Materializer",
+      "status": "complete"
+    },
+    {
+      "number": "9",
+      "name": "Unified Natural Language Controller and Capability Checkpoint Automation",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-new-milestone",
-    "label": "Start a new milestone",
-    "reason": "All phases complete — start a new milestone"
+    "command": "/gsd:progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-09-20T23:52:11.435Z"
+  "updated_at": "2026-09-22T18:01:57.813Z"
 }

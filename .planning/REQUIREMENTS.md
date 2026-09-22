@@ -2,7 +2,7 @@
 
 **Defined:** 2026-09-03
 **Core Value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Active Harness Scope:** Codex, Antigravity, Pi, and Hermes are the active development and release targets for v0.1.0. Claude Code integration remains shipped compatibility residue outside active support claims, acceptance bars, and release gates.
+**Active Harness Scope:** Claude Code, Codex, Antigravity, Pi, and Hermes are the active development and release targets for v0.1.0. Per D-18, Claude Code is reinstated on equal footing with the other four harnesses; its own real invocation-receipt evidence is still required before promotion, exactly like every other harness.
 
 ## User Stories
 
@@ -110,7 +110,6 @@
 
 | Feature | Reason |
 |---------|--------|
-| Active v0.1.0 development, support commitments, or release gates for Claude Code | Claude Code integration remains shipped compatibility residue outside active support claims and release bars |
 | OS/container-backed `sealed` execution in v0.1.0 | Requires a separately threat-modeled adapter; current `project-only` process isolation must not be overstated |
 | Full ECC profiles and broad language/framework rule packs | They increase context, supply-chain surface, and workflow overlap with GSD |
 | Universal alpha-AOS invocation proxy | Optional capabilities should retain native harness selection; alpha-AOS owns scope and policy, not every tool call |
@@ -123,9 +122,9 @@
 
 ## Definition of Done
 
-- Every v1 requirement is mapped to exactly one roadmap phase and verified by automated evidence or a named real-host canary on an active supported harness (Codex, Antigravity, Pi, Hermes).
+- Every v1 requirement is mapped to exactly one roadmap phase and verified by automated evidence or a named real-host canary on an active supported harness (Claude Code, Codex, Antigravity, Pi, Hermes).
 - The same allowlisted npm tarball passes Windows, macOS, and Linux install/reconcile/uninstall fixtures.
-- Every advertised active harness/surface has current, redacted discovery and representative-use evidence; unverified claims are not advertised as supported. Claude Code remains compatibility residue and is excluded from the active release bar.
+- Every advertised active harness/surface has current, redacted discovery and representative-use evidence; unverified claims are not advertised as supported. Per D-18, Claude Code is reinstated into the active release bar and is held to the same unverified/supported evidence rule as every other harness — its own real invocation-receipt evidence is still outstanding.
 - Project-pack, mandatory-gate, directory-tree `off`, uninstall, rollback, and interrupted-operation negative paths fail safely.
 - A real brownfield project completes the full GSD lifecycle with one state writer and the confirmed hybrid capability model.
 - The stable lock, support matrix, documentation, release notes, provenance, and fresh public-registry smoke test all refer to the same v0.1.0 artifact without conditioning release on Claude Code.

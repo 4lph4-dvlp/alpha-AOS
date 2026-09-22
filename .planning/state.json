@@ -1,12 +1,33 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v0.1.1",
-  "phases": [],
+  "milestone": "v0.1.1 — CI Green & Dependency Promotion",
+  "phases": [
+    {
+      "number": "10",
+      "name": "Three-OS CI Baseline",
+      "status": "pending"
+    },
+    {
+      "number": "11",
+      "name": "Managed Lifecycle Verification",
+      "status": "pending"
+    },
+    {
+      "number": "12",
+      "name": "Red-Main Guard",
+      "status": "pending"
+    },
+    {
+      "number": "13",
+      "name": "Dependency Candidate Promotion",
+      "status": "pending"
+    }
+  ],
   "next": {
-    "command": "/gsd:discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 10 of 4 · 0% · executing"
   },
-  "updated_at": "2026-09-22T18:05:22.913Z"
+  "updated_at": "2026-09-22T23:25:41.987Z"
 }

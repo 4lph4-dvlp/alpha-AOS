@@ -41,20 +41,21 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CI-01 | — | Pending |
-| CI-02 | — | Pending |
-| CI-03 | — | Pending |
-| CI-04 | — | Pending |
-| LIFE-09 | — | Pending |
-| DEP-01 | — | Pending |
-| DEP-02 | — | Pending |
-| DEP-03 | — | Pending |
+| CI-01 | Phase 10 | Pending |
+| CI-02 | Phase 10 | Pending |
+| CI-03 | Phase 10 | Pending |
+| CI-04 | Phase 12 | Pending |
+| LIFE-09 | Phase 11 | Pending |
+| DEP-01 | Phase 13 | Pending |
+| DEP-02 | Phase 13 | Pending |
+| DEP-03 | Phase 12 | Pending |
 
 **Coverage:**
 
 - v0.1.1 requirements: 8 total
-- Mapped to phases: 0
-- Unmapped: 8
+- Mapped to phases: 8
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-09-23*
+*Last updated: 2026-09-23 after v0.1.1 roadmap creation (Phases 10-13)*

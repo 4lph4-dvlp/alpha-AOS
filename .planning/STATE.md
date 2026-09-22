@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: CI Green & Dependency Promotion
 status: planning
-last_updated: "2026-09-22T18:05:22.907Z"
+last_updated: "2026-09-22T18:13:37.000Z"
 last_activity: 2026-09-23
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -20,14 +20,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-23)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Planning next milestone (v0.1.1 CI Green & Dependency Promotion)
+**Current focus:** Phase 10 — Three-OS CI Baseline (v0.1.1 CI Green & Dependency Promotion, Phases 10-13)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 10 (Three-OS CI Baseline) — Not started
 Plan: —
-Status: Defining requirements
-Last activity: 2026-09-23 — Milestone v0.1.1 started
+Status: Ready to plan
+Last activity: 2026-09-23 — v0.1.1 roadmap created (4 phases, Phases 10-13, 8/8 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
@@ -233,6 +235,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 07]: Readiness for claude measures the WRONG environment — its connection probe lists the user's own MCP servers, not the isolated runtime the run would use, which is why it answered `ready: true` before a run that could not authenticate. Recorded in G-07-2's `missing`, not yet fixed.
 - [Phase 07]: A provenance test REQUIRED the release docs to say Claude Code is compatibility RESIDUE, so those documents had to stay stale to stay green. Guard rewritten (commit afc36c6) to enforce the scope-vs-proof separation it was written for, and to reject the present-tense claim while still permitting the past-tense record.
 - [Phase 07]: CHANGELOG entries for this work sit under `[Unreleased]`; package.json stays 0.1.0. Cutting a version is a release act gated behind `scripts/release.mjs`, not a side effect of documentation repair.
+- [Roadmap v0.1.1]: Phases continue at 10. CI-01, CI-02 and CI-03 share Phase 10 because one all-green three-leg run id is that phase's own closing evidence, as it was for G-01-1 in v0.1.0.
+- [Roadmap v0.1.1]: LIFE-09 (Phase 11) follows Phase 10 so the Phase 6 report can cite the CI-02 root-cause classification and the green lifecycle run; the red-main guard (Phase 12: CI-04, DEP-03) lands before promotion (Phase 13: DEP-01, DEP-02) so promotion itself runs through the guard.
 
 ### Pending Todos
 
@@ -308,4 +312,4 @@ Resume file: None
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Plan the first v0.1.1 phase with /gsd-discuss-phase 10 (or /gsd-plan-phase 10)

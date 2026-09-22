@@ -2874,11 +2874,22 @@ export interface HandoffPair {
 /**
  * The declared pairs, preferred first.
  *
- * The TARGET is claude in both, and that is not a preference: only claude has
- * the two strict MCP-isolation flags a canary runtime needs (plan 03-06), so
- * every other harness's canary launch is a recorded blocked reason. The SOURCE
- * is where 03-RESEARCH.md's Environment Availability table has a choice — it
- * names hermes as the CAPA-03 handoff peer and `claude<->codex` as the fallback.
+ * `resolveHandoffPair` takes the first pair whose BOTH ends resolve on PATH, so
+ * this order is the policy — not a list of equals.
+ *
+ * Codex-receiving pairs lead because codex is the one target with retained real
+ * invocation evidence; hermes is the source 03-RESEARCH.md's Environment
+ * Availability table names as the CAPA-03 handoff peer. The two claude-receiving
+ * pairs trail as the fallback that same table names, and their position is a
+ * recorded constraint rather than a preference: claude keeps its login inside
+ * CLAUDE_CONFIG_DIR, which a canary runtime replaces, so an isolated
+ * claude-receiving leg is blocked before it spends unless the launch carries
+ * ANTHROPIC_API_KEY (see `createIsolationLaunchSpec`). A host that can resolve
+ * codex or hermes therefore never reaches them.
+ *
+ * D-18 reinstated claude to the active harness scope; it did not reorder this
+ * list, because what orders it is evidence and the auth constraint above, not
+ * the scope decision that D-17 once made.
  */
 export const HANDOFF_HARNESS_PAIRS: readonly HandoffPair[] = Object.freeze([
   {

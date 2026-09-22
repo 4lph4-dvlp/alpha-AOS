@@ -210,14 +210,27 @@ test("release documentation separates target scope from receipt-backed proof sta
 
   for (const document of [releaseNotes, changelog]) {
     assert.match(document, /^## Active Harnesses$/mu);
-    assert.match(document, /^## Compatibility Residue$/mu);
+    assert.match(document, /^## Claude Code Status$/mu);
     assert.match(document, /^## Known Platform Limitations$/mu);
-    assert.match(document, /Codex.*Antigravity.*Pi.*Hermes/isu);
-    assert.match(document, /Claude Code.*RESIDUE/isu);
+    assert.match(document, /Claude Code.*Codex.*Antigravity.*Pi.*Hermes/isu);
     assert.match(document, /USERPROFILE.*APPDATA/isu);
     assert.match(document, /sealed.*SEAL-01.*v2/isu);
     assert.match(document, /docs\/SUPPORT_MATRIX\.md|SUPPORT_MATRIX\.md/iu);
     assert.match(document, /UNVERIFIED/iu);
+
+    // This test guards the separation of scope from proof, so it must not
+    // enshrine one era's answer as the separation itself. It previously required
+    // the phrase `Claude Code … RESIDUE`, which D-18 made false and which would
+    // have kept both documents stale to stay green.
+    //
+    // The PRESENT-tense claim is what regressed; both documents still recount the
+    // superseded exclusion in past tense, and a guard that could not tell those
+    // apart would forbid recording why the exclusion once existed.
+    assert.doesNotMatch(
+      document,
+      /Claude Code[^.]*remains[^.]*RESIDUE/isu,
+      "release documentation still claims Claude Code is compatibility residue, which D-18 superseded",
+    );
   }
 });
 

@@ -426,18 +426,18 @@ gh run view <id> --json databaseId,attempt,headSha,event,conclusion,url,jobs \
 | A3 | Name-level `const` binding tracking is precise enough for the current tree | Pitfall 2 | False positives cost only a marker or a rename |
 | A4 | The exact bytes that changed on the CI runner in run 35762417138 were `mcp-cache/npm-cache/*` entries. This is inferred from the local repro and timing; CI logged only aggregate hashes. | Finding 4/5 | If the CI change was something else, the regression tests still pin the proven local mechanism. D-06 instrumentation would be the fallback. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Does the debug record need per-entry evidence from the CI runner itself?**
+1. **Does the debug record need per-entry evidence from the CI runner itself?** — RESOLVED: No. Plan 10-02 lands D-05 first (Task 1) and captures the per-entry diff from the local pair repro on a redirected home (Task 2 step 1, up to three runs). The D-06 branch run happens only if all three local runs report `fail 0` (Task 2 step 2), which is D-06's own condition; otherwise it is not run. The CI-runner bytes stay inferred (Assumption A4), and 10-02 Task 2 step 5 records that under the debug record's `## Follow-ups (outside Phase 10)`.
    - What we know: the local repro gives per-entry evidence once D-05 lands. CI gave only hashes, plus timing that fits the leak.
    - What's unclear: whether the verifier will accept local per-entry evidence together with CI timing as "which bytes changed".
    - Recommendation: land D-05 first and capture the per-entry diff from the local pair repro. D-06 is conditioned on local reproduction *failing*, and it did not fail, so D-06 is not triggered. The planner may optionally keep a D-06 branch run as corroboration, but it is not required.
-2. **Product hardening candidates (out of scope; do not expand Phase 10):**
+2. **Product hardening candidates (out of scope; do not expand Phase 10):** — RESOLVED: Recorded as follow-ups, not fixed in Phase 10. Plan 10-02 Task 2 step 5 writes both items (plus the capability-oracle audit item, A2) into the debug record's `## Follow-ups (outside Phase 10)` section. Plan 10-03 carries the prohibition `MUST NOT change product code under src/`, so neither the `writeGateReceipt` `stateRoot` option nor the `upstreamEnvironmentPolicy` ambient write root changes in this phase.
    - `writeGateReceipt(projectRoot, receipt)` has no `stateRoot` option (`gate-receipt.ts:106-108`), unlike every other writer. STATE.md 02-09 names this exact convenience-default hazard.
    - `upstreamEnvironmentPolicy(server, source)` derives its write root from ambient `process.env`, not from `source`.
 
    Recommendation: record both in the debug file as follow-ups for a later hardening phase, alongside the deferred suite-wide guard.
-3. **Marker syntax.** Recommended: `// path-literal-ok: <reason>` on the literal's own line, with a non-empty reason (at least 4 characters). The planner confirms it.
+3. **Marker syntax.** — RESOLVED: Plan 10-01 Task 2 adopts `// path-literal-ok:` followed by a reason of at least four characters, on the literal's own line (`PATH_LITERAL_MARKER` in `test/helpers/path-literal-scan.ts`). A marker without a reason is still flagged, and a marker on an adjacent line does not exempt the literal (10-01 must_haves, adjacency edge). Recommended: `// path-literal-ok: <reason>` on the literal's own line, with a non-empty reason (at least 4 characters). The planner confirms it.
 
 ## Environment Availability
 

@@ -21,6 +21,18 @@ function executableFor(harness: HarnessId): string | null {
 }
 
 /**
+ * Whether a launch environment carries its own model credential.
+ *
+ * NAME only: the value is never read, compared or recorded. This decides
+ * whether a harness whose login lives in its config root can still authenticate
+ * once that root is replaced.
+ */
+function hasInlineApiKey(source: Readonly<Record<string, string | undefined>>): boolean {
+  const value = source.ANTHROPIC_API_KEY;
+  return value !== undefined && value.length > 0;
+}
+
+/**
  * The flags that make a canary's own MCP configuration the ONLY one a harness
  * loads.
  *
@@ -111,6 +123,31 @@ export function createIsolationLaunchSpec(options: {
         }
         args.push("--strict-mcp-config");
         guarantees.push("Claude user configuration, user skills, hooks, memory, and MCP are hidden by the isolated CLAUDE_CONFIG_DIR");
+        if (canary !== undefined && !hasInlineApiKey(options.sourceEnvironment ?? process.env)) {
+          // Claude keeps its login INSIDE the config root (`.credentials.json`),
+          // so the isolation two lines above hides the credential along with the
+          // configuration. Codex escapes this because its canary branch below
+          // reuses the caller's native login boundary by reference; claude
+          // publishes no equivalent — no documented flag or variable names a
+          // credential source separately from CLAUDE_CONFIG_DIR.
+          //
+          // Observed rather than reasoned: a real run on 2026-09-22 reached the
+          // init event, connected the fronted server, then ended at
+          // `result: "Not logged in · Please run /login"` with
+          // `permission_denials: []` and exit 1 — a spent model turn that could
+          // only ever have failed. Blocking here is what makes that a refusal
+          // before the spend instead of a receipt after it.
+          //
+          // Copying the credential into the runtime is not the missing branch:
+          // this stack never reads or copies authentication bytes, which is the
+          // same rule the codex branch states in its own warning below.
+          blockedReasons.push(
+            "claude stores its login inside CLAUDE_CONFIG_DIR, which a canary runtime replaces, so an isolated claude " +
+            "canary starts unauthenticated; no claude flag or variable names a credential source separately from the " +
+            "config root, and alpha-aos never copies authentication bytes. Supply ANTHROPIC_API_KEY to the launch to " +
+            "authenticate a canary by environment instead",
+          );
+        }
         break;
       case "codex":
         if (canary === undefined) {

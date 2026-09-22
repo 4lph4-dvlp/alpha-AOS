@@ -501,6 +501,53 @@ test("the canary launch variant points claude at the runtime configuration and e
   );
 });
 
+test("an isolated Claude canary is blocked before it can spend a turn it cannot authenticate", () => {
+  const runtimeRoot = join("C:", "state", "canary", "run");
+  const spec = (sourceEnvironment: Record<string, string | undefined>) => createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: join("C:", "work", "repo"),
+    harness: "claude",
+    policy: defaultIsolationPolicy("project-only", ["claude"]),
+    runtimeRoot,
+    allowedSkillPaths: [],
+    canary: { mcpConfigPath: join(runtimeRoot, "mcp.json") },
+    sourceEnvironment,
+  });
+
+  // Observed, not reasoned: a real run reached the init event, connected the
+  // fronted server, then ended at "Not logged in" with no permission denial and
+  // a spent turn. The credential lives inside the config root this launch
+  // replaces, so that run could only ever have failed.
+  const unauthenticated = spec({});
+  assert.equal(
+    unauthenticated.blockedReasons.some((reason) => reason.includes("CLAUDE_CONFIG_DIR") && reason.includes("unauthenticated")),
+    true,
+    "an isolated claude canary no longer refuses before spending a turn it cannot authenticate",
+  );
+
+  // A credential that travels by environment survives the replaced config root,
+  // so the structural reason does not apply and must not be invented.
+  const byEnvironment = spec({ ANTHROPIC_API_KEY: "placeholder-not-read" });
+  assert.equal(
+    byEnvironment.blockedReasons.some((reason) => reason.includes("unauthenticated")),
+    false,
+    "a canary authenticated by environment is blocked for a reason that does not hold",
+  );
+
+  // The everyday (non-canary) isolated launch is a different act: a user runs it
+  // interactively and can log in. Only the canary path spends on its own.
+  const everyday = createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: join("C:", "work", "repo"),
+    harness: "claude",
+    policy: defaultIsolationPolicy("project-only", ["claude"]),
+    runtimeRoot,
+    allowedSkillPaths: [],
+    sourceEnvironment: {},
+  });
+  assert.equal(everyday.blockedReasons.some((reason) => reason.includes("unauthenticated")), false);
+});
+
 test("canary isolation supports Claude and Codex while every other harness retains an explicit refusal", () => {
   for (const harness of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
     const runtimeRoot = join("C:", "state", "canary", "run");

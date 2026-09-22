@@ -445,14 +445,14 @@ Plans:
 
 **Post-verification note (2026-09-22):** D-18 reinstates Claude Code into active v0.1.0 harness scope, superseding D-17. Phase 7's Observable Truth 2 ("every claimed harness/surface has current real-host... evidence") was verified true only while Claude was excluded under D-17. Claude re-entering the claimed set with no real-host canary evidence of its own is the concrete outstanding gap this reinstatement creates. Next step: `/gsd-verify-work 7` to formally register it, followed by `$gsd-plan-phase 7 --gaps` — covering the `src/core/support-matrix.ts` RESIDUE hardcode, the `Exclude<HarnessId, "claude">` exclusion, and restoring/running a real Claude canary. This quick task does not implement any of that.
 
-**Plans**: 7/7 plans executed. Verification complete (2026-09-20).
+**Plans**: 7/8 plans executed (07-08 pending — gap `G-07-1`, registered 2026-09-22 under D-18).
 
 - [x] 07-01-PLAN.md
 - [x] 07-02-PLAN.md
 - [x] 07-03-PLAN.md
 - [x] 07-04-PLAN.md
 
-**Gap closure** *(`07-VERIFICATION.md` status `passed`, 5/5 truths verified)*
+**Gap closure** *(`07-VERIFICATION.md` status `gaps_found` as of 2026-09-22 — gap `G-07-1` registered under D-18; Truths 1, 3, 4, 5 and REL-01/03/04/05/06 remain `passed`/5-of-5 as verified 2026-09-20)*
 
 **Gap wave 1**
 
@@ -462,6 +462,10 @@ Plans:
 **Gap wave 2** *(blocked on gap wave 1)*
 
 - [x] 07-07-PLAN.md — Three-OS GitHub Actions CI execution proof, authorized npm publication & Stage 2 registry smoke (REL-01, REL-05, REL-06)
+
+**Gap wave 3** *(blocked on gap wave 2; new gap `G-07-1` from D-18's Claude Code reinstatement)*
+
+- [ ] 07-08-PLAN.md — Evidence-based Claude Code judgment in the support matrix, replacing the hardcoded compatibility-only tier (REL-02, `G-07-1`)
 
 ## Progress
 

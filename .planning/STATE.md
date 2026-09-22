@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 Phase: 09 (unified-natural-language-controller-and-capability-check) — COMPLETE
 Plan: 2 of 2
 Status: Complete
-Last activity: 2026-09-22 - Executed Phase 7 gap-closure plan 07-08 (G-07-1) and re-verified: structural Claude support-matrix fix confirmed, narrower gap G-07-2 (missing real Claude canary evidence) registered
+Last activity: 2026-09-23 - Ran the real Claude canary, found the credential/isolation blocker, fixed the spend-before-refusal defect, and retired the stale Claude-residue claims from release docs
 Progress: [██████████] 100%
 
 ## Performance Metrics
@@ -232,6 +232,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 07]: 07-08 closed G-07-1's structural component — `src/core/support-matrix.ts`'s `evaluateMatrixCell` no longer hardcodes claude to a fixed tier; `activeSurfaces` widened to the full `HarnessId` union with claude's four surfaces mirroring codex's. Full suite independently re-run twice (once by the executor, once by the re-verifier): 907 tests, 898 pass, 0 fail, 9 pre-existing skips.
 - [Phase 07]: `policy.canaryHarness: codex` in catalog/stack.yaml confirmed unrelated to support-matrix evidence tiering (it only gates install-rollout pilot-harness sequencing in src/core/plan.ts/install.ts) — correctly left unchanged, not a gap.
 - [Phase 07]: Re-verification registered narrower gap G-07-2 (superseding G-07-1): Claude Code has zero real-host invocation receipts, so its support-matrix cells are UNVERIFIED not PROVEN — an evidence-collection gap, not a code defect. User explicitly chose "code changes only for now" — real canary invocation (`alpha-aos doctor --canary --harness claude --no-spend` then `--capability CAPA-01`) deliberately deferred to a separate, later, human-triggered action.
+- [Phase 07]: G-07-2's "only running the real canary closes this" diagnosis is DISPROVEN by running it (2026-09-22). Claude keeps its login inside CLAUDE_CONFIG_DIR, which the canary runtime replaces, so the run reached its init event, connected the fronted server, then died at `Not logged in` with `permission_denials: []` and exit 1 — a spent turn that could only ever fail. Codex avoids this only because its canary branch reuses the caller's login boundary by reference; claude has no equivalent and this stack never copies auth bytes. Authentication route is now an open human decision between: ANTHROPIC_API_KEY on the launch, a claude-side by-reference branch, or accepting it as a standing limitation.
+- [Phase 07]: The spend-before-refusal half of that defect is FIXED (commit 7c2c737): an isolated claude canary records HARNESS_ISOLATION_UNPROVEN and does not launch. Verified against the CLI — outcome blocked, launched false, exit 2.
+- [Phase 07]: Readiness for claude measures the WRONG environment — its connection probe lists the user's own MCP servers, not the isolated runtime the run would use, which is why it answered `ready: true` before a run that could not authenticate. Recorded in G-07-2's `missing`, not yet fixed.
+- [Phase 07]: A provenance test REQUIRED the release docs to say Claude Code is compatibility RESIDUE, so those documents had to stay stale to stay green. Guard rewritten (commit afc36c6) to enforce the scope-vs-proof separation it was written for, and to reject the present-tense claim while still permitting the past-tense record.
+- [Phase 07]: CHANGELOG entries for this work sit under `[Unreleased]`; package.json stays 0.1.0. Cutting a version is a release act gated behind `scripts/release.mjs`, not a side effect of documentation repair.
 
 ### Pending Todos
 

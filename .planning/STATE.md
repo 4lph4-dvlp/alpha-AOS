@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 Phase: 09 (unified-natural-language-controller-and-capability-check) — COMPLETE
 Plan: 2 of 2
 Status: Complete
-Last activity: 2026-09-22 - Completed quick task 260922-puy: Register Phase 7 evidence gap G-07-1 for stale Claude harness-coverage claim
+Last activity: 2026-09-22 - Executed Phase 7 gap-closure plan 07-08 (G-07-1) and re-verified: structural Claude support-matrix fix confirmed, narrower gap G-07-2 (missing real Claude canary evidence) registered
 Progress: [██████████] 100%
 
 ## Performance Metrics
@@ -229,6 +229,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Quick 260922-om1]: Reinstating Claude Code's scope claim is not itself evidence — Claude stays subject to the same D-10 ceiling/ledger split and D-12 blocked/unverified distinction as every other harness; real invocation-receipt evidence is still required for promotion past unverified/RESIDUE.
 - [Quick 260922-om1]: REQUIREMENTS.md's REL-02 bullet was deliberately left unchanged since it reflects Phase 7's already-verified support matrix under D-17, and the support-matrix.ts RESIDUE hardcode it describes is still unimplemented — routed to `/gsd-verify-work 7` then `$gsd-plan-phase 7 --gaps`.
 - [Quick 260922-puy]: 07-VERIFICATION.md's Truth 2/REL-02 ("every claimed harness has real-host evidence") registered as stale gap G-07-1 under D-18, additively (frontmatter gaps[] entry, dated Evidence-cell annotations, new ## Gaps section) — Truths 1/3/4/5 and REL-01/03/04/05/06 left byte-identical. Ready for `$gsd-plan-phase 7 --gaps`.
+- [Phase 07]: 07-08 closed G-07-1's structural component — `src/core/support-matrix.ts`'s `evaluateMatrixCell` no longer hardcodes claude to a fixed tier; `activeSurfaces` widened to the full `HarnessId` union with claude's four surfaces mirroring codex's. Full suite independently re-run twice (once by the executor, once by the re-verifier): 907 tests, 898 pass, 0 fail, 9 pre-existing skips.
+- [Phase 07]: `policy.canaryHarness: codex` in catalog/stack.yaml confirmed unrelated to support-matrix evidence tiering (it only gates install-rollout pilot-harness sequencing in src/core/plan.ts/install.ts) — correctly left unchanged, not a gap.
+- [Phase 07]: Re-verification registered narrower gap G-07-2 (superseding G-07-1): Claude Code has zero real-host invocation receipts, so its support-matrix cells are UNVERIFIED not PROVEN — an evidence-collection gap, not a code defect. User explicitly chose "code changes only for now" — real canary invocation (`alpha-aos doctor --canary --harness claude --no-spend` then `--capability CAPA-01`) deliberately deferred to a separate, later, human-triggered action.
 
 ### Pending Todos
 

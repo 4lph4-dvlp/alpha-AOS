@@ -5,16 +5,16 @@ milestone_name: CI Green & Dependency Promotion
 current_phase: 10
 current_phase_name: Three-OS CI Baseline
 status: executing
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-09-22T23:37:45.443Z"
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-09-22T23:47:56.870Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 10 execution started
-state_head: 2025033f30f2e02dc0a0bee56e84c344368b8098
+state_head: 40fb7f46a3150213e3d979ea47d985f3e7541f7b
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 ## Current Position
 
 Phase: 10 (Three-OS CI Baseline) — EXECUTING
-Plan: 2 of 4
+Plan: 3 of 4
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 10 execution started
 
@@ -114,6 +114,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P03 | 20min | 2 tasks | 4 files |
 | Phase 07 P04 | 1h 15m | 2 tasks | 8 files |
 | Phase 10 P01 | 6 min | 2 tasks | 4 files |
+| Phase 10 P02 | 8 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -245,6 +246,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Roadmap v0.1.1]: LIFE-09 (Phase 11) follows Phase 10 so the Phase 6 report can cite the CI-02 root-cause classification and the green lifecycle run; the red-main guard (Phase 12: CI-04, DEP-03) lands before promotion (Phase 13: DEP-01, DEP-02) so promotion itself runs through the guard.
 - [Phase 10]: 10-01: path-literal guard marker is '// path-literal-ok: <reason>' (reason >= 4 chars) on the literal's own line; const bindings resolve by name (fail closed)
 - [Phase 10]: 10-01: test fixture roots asserted against host path output are built with join(tmpdir(), fixture-name, ...), never platform-absolute literals
+- [Phase 10]: 10-02: CI-02 classified as a test-isolation leak (D-01 class 3): mcp-proxy.test.ts npx cache writes to the real ~/.alpha-aos/mcp-cache/npm-cache; fixture alone writes nothing; D-02 governs 10-03, D-03 audit not triggered, D-06 not needed
 
 ### Pending Todos
 
@@ -314,8 +316,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-22T23:37:45.405Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-09-22T23:47:56.774Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

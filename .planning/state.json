@@ -6,7 +6,7 @@
     {
       "number": "10",
       "name": "Three-OS CI Baseline",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "11",
@@ -29,5 +29,5 @@
     "label": "Advance to the next step",
     "reason": "Phase 10 of 4 · 0% · executing"
   },
-  "updated_at": "2026-09-22T23:37:40.821Z"
+  "updated_at": "2026-09-22T23:47:50.410Z"
 }

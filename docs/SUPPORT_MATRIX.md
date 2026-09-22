@@ -4,10 +4,14 @@ Canonical evaluation timestamp: `2026-09-18T00:00:00.000Z`
 Evaluation platform: `linux`  
 Evidence source: `capabilities/ledger.json`
 
-A cell is **PROVEN** only when a detected active harness has a matching, inspectable real-host invocation receipt. A declared claim without that receipt is **UNVERIFIED**; Claude Code is always **RESIDUE**; structurally incompatible surfaces are **UNSUPPORTED**.
+A cell reaches **PROVEN** only through a matching, inspectable real-host invocation receipt; an unmatched claim is **UNVERIFIED**; a surface offered only for legacy compatibility is **RESIDUE**; and a structurally incompatible surface is **UNSUPPORTED**.
 
 | Harness | Surface | Platform | Status | Evidence / Notes |
 | --- | --- | --- | --- | --- |
+| claude | GSD Core | all | **UNVERIFIED** | Harness executable not detected |
+| claude | Context7 | all | **UNVERIFIED** | Harness executable not detected |
+| claude | Unified Memory | all | **UNVERIFIED** | Harness executable not detected |
+| claude | Project Packs | all | **UNVERIFIED** | Harness executable not detected |
 | codex | GSD Core | all | **UNVERIFIED** | Harness executable not detected |
 | codex | Context7 | all | **UNVERIFIED** | Harness executable not detected |
 | codex | Unified Memory | all | **UNVERIFIED** | Harness executable not detected |
@@ -20,7 +24,6 @@ A cell is **PROVEN** only when a detected active harness has a matching, inspect
 | hermes | Unified Memory | all | **UNVERIFIED** | Harness executable not detected |
 | antigravity | GUI Desktop Preload | all | **UNSUPPORTED** | The desktop GUI has no supported preload interception surface |
 | hermes | GSD State Controller | all | **UNSUPPORTED** | Hermes is a worker and must not become the GSD lifecycle/state writer |
-| claude | All managed surfaces | all | **RESIDUE** | Compatibility residue outside the active v0.1.0 release bar |
 
 ## Taxonomy
 

@@ -101,15 +101,18 @@ test("support taxonomy refuses false PROVEN states", () => {
   const codexContext7 = BASE_SUPPORT_MATRIX.find(
     (entry) => entry.harnessId === "codex" && entry.surface === "Context7",
   );
-  const claude = BASE_SUPPORT_MATRIX.find((entry) => entry.harnessId === "claude");
+  const claudeContext7 = BASE_SUPPORT_MATRIX.find(
+    (entry) => entry.harnessId === "claude" && entry.surface === "Context7",
+  );
   const unsupported = BASE_SUPPORT_MATRIX.find((entry) => entry.baselineTier === "UNSUPPORTED");
   assert.ok(codexContext7);
-  assert.ok(claude);
+  assert.ok(claudeContext7);
   assert.ok(unsupported);
 
   assert.equal(evaluateMatrixCell(codexContext7, inventory([]), ledger()).tier, "UNVERIFIED");
   assert.equal(evaluateMatrixCell(codexContext7, inventory(["codex"]), ledger()).tier, "UNVERIFIED");
-  assert.equal(evaluateMatrixCell(claude, inventory(["claude"]), ledger([proof("claude", "CAPA-01")])).tier, "RESIDUE");
+  assert.equal(evaluateMatrixCell(claudeContext7, inventory([]), ledger()).tier, "UNVERIFIED");
+  assert.equal(evaluateMatrixCell(claudeContext7, inventory(["claude"]), ledger()).tier, "UNVERIFIED");
   assert.equal(evaluateMatrixCell(unsupported, inventory([unsupported.harnessId]), ledger()).tier, "UNSUPPORTED");
 });
 
@@ -149,6 +152,24 @@ test("inspectable matching invocation receipt promotes Antigravity active cell t
   assert.match(proven.receipt?.reference ?? "", /ledger\.json/u);
 });
 
+test("inspectable matching invocation receipt promotes Claude active cell to PROVEN", () => {
+  const entry: SupportMatrixEntry = {
+    harnessId: "claude",
+    surface: "Context7",
+    platform: "all",
+    baselineTier: "PROVEN",
+    notes: "Version-sensitive documentation lookup",
+    receiptCapability: "CAPA-01",
+  };
+  const unverified = evaluateMatrixCell(entry, inventory(["claude"]), ledger());
+  const proven = evaluateMatrixCell(entry, inventory(["claude"]), ledger([proof("claude", "CAPA-01")]));
+  assert.equal(unverified.tier, "UNVERIFIED");
+  assert.match(unverified.evidenceSummary, /canary/i);
+  assert.equal(proven.tier, "PROVEN");
+  assert.equal(proven.receipt?.observedAt, observedAt);
+  assert.match(proven.receipt?.reference ?? "", /ledger\.json/u);
+});
+
 test("support matrix markdown stays byte-identical to the structured source", async () => {
   const report = evaluateSupportMatrix(inventory([]), ledger(), { generatedAt: observedAt, platform: "linux" });
   const committed = await readFile(join(process.cwd(), "docs", "SUPPORT_MATRIX.md"), "utf8");
@@ -170,7 +191,8 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
   });
   assert.equal(tableResult.status, 0, `${tableResult.stdout}\n${tableResult.stderr}`);
   assert.match(tableResult.stdout, /HARNESS\s+SURFACE\s+PLATFORM\s+STATUS/u);
-  assert.match(tableResult.stdout, /claude\s+All managed surfaces\s+all\s+RESIDUE/u);
+  assert.match(tableResult.stdout, /claude\s+GSD Core\s+all\s+UNVERIFIED/u);
+  assert.doesNotMatch(tableResult.stdout, /RESIDUE/u);
   assert.doesNotMatch(tableResult.stdout, /\u001b\[/u);
 
   const jsonResult = spawnSync(process.execPath, [cli, "doctor", "--matrix", "--json"], {
@@ -181,8 +203,12 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
     windowsHide: true,
   });
   assert.equal(jsonResult.status, 0, `${jsonResult.stdout}\n${jsonResult.stderr}`);
-  const report = JSON.parse(jsonResult.stdout) as { readonly schemaVersion?: number; readonly cells?: readonly { readonly tier?: string }[] };
+  const report = JSON.parse(jsonResult.stdout) as {
+    readonly schemaVersion?: number;
+    readonly cells?: readonly { readonly tier?: string; readonly entry?: { readonly harnessId?: string } }[];
+  };
   assert.equal(report.schemaVersion, 1);
   assert.ok((report.cells?.length ?? 0) > 0);
-  assert.equal(report.cells?.some((cell) => cell.tier === "RESIDUE"), true);
+  assert.equal(report.cells?.some((cell) => cell.tier === "RESIDUE"), false);
+  assert.equal(report.cells?.some((cell) => cell.entry?.harnessId === "claude"), true);
 });

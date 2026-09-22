@@ -49,7 +49,13 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
   3. The Windows `~/.alpha-aos` change has a recorded root cause, classified as a product isolation leak or a test-oracle defect, together with the evidence that decided it (which bytes changed and which lifecycle step wrote them).
   4. A regression test pins the diagnosed cause: it was observed failing against the unfixed code and passes against the fix.
   5. A single `main` CI run id shows ubuntu-latest, macos-latest, and windows-latest all green, with no leg individually re-run or taken from another run.
-**Plans**: TBD
+**Plans**: 4 plans (3 waves)
+
+Plans:
+- [ ] 10-01-PLAN.md — CI-01: host-native `destinationFor`/ECC-root fixtures and a TS-AST path-literal guard over `test/*.ts` (wave 1)
+- [ ] 10-02-PLAN.md — CI-02 investigation: per-entry host drift diagnostics, local windows reproduction, classified root-cause record, three-class wording (wave 1)
+- [ ] 10-03-PLAN.md — CI-02 fix: test-owned state roots for mcp-proxy, gate-engine and gate-lifecycle, each regression observed RED then GREEN (wave 2)
+- [ ] 10-04-PLAN.md — CI-03: push-triggered `main` proof run green on all three legs in one attempt, recorded in CI_RUN.md (wave 3)
 **Planning note**: CI-02 is an investigation before it is a fix. Verified facts from run 35762417138 (`main` @ c6415a2): only the hash of the real `C:\Users\runneradmin\.alpha-aos` differs across the lifecycle, while every other host path stays `absent`; the POSIX legs fail only at `test/owned-skills.test.ts:52-53`. The red-matrix window is 638d3cc (last green, 2026-09-20) to f1ca570 (first red, 2026-09-21); whether the Windows failure began in that same window is not yet established. Loosening the assertion without a root cause is out of scope. The developer host is Windows, so CI-02 can be reproduced locally; CI-01 needs a POSIX leg to observe.
 
 ### Phase 11: Managed Lifecycle Verification
@@ -95,7 +101,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Three-OS CI Baseline | v0.1.1 | 0/TBD | Not started | - |
+| 10. Three-OS CI Baseline | v0.1.1 | 0/4 | Planned | - |
 | 11. Managed Lifecycle Verification | v0.1.1 | 0/TBD | Not started | - |
 | 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

@@ -22,7 +22,7 @@ created: "2026-09-23"
 | **Framework** | `node:test` (Node 24) with `node:assert/strict`, compiled by `tsc` 5.9.3 |
 | **Config file** | `tsconfig.json`; runner `scripts/run-tests.mjs` |
 | **Quick run command** | `npm run build && node --test dist/test/path-literal-guard.test.js dist/test/owned-skills.test.js dist/test/ecc-skills.test.js dist/test/gate-engine.test.js dist/test/gate-lifecycle.test.js` |
-| **Full suite command** | `npm test` (on the dev host, run with `HOME`/`USERPROFILE` redirected to a scratch directory) |
+| **Full suite command** | `npm test` (on the dev host, run with `HOME`/`USERPROFILE` redirected to a scratch directory; locally `capability-oracle.test.js` runs separately and is reported, not gated, because its redirected-home failures come from this host's PATH per 10-RESEARCH Finding 3 — the CI legs run it) |
 | **Estimated runtime** | ~300 seconds full suite; ~30 seconds quick run |
 
 ---
@@ -40,12 +40,14 @@ created: "2026-09-23"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 10-01-xx | 01 | 1 | CI-01 | — | N/A | unit | `node --test --test-name-pattern="destinationFor resolves" dist/test/owned-skills.test.js` | ✅ (edit) | ⬜ pending |
-| 10-01-xx | 01 | 1 | CI-01 | — | N/A | unit (source scan) | `node --test dist/test/path-literal-guard.test.js` | ❌ W0 | ⬜ pending |
-| 10-02-xx | 02 | 1 | CI-02 | T-10-02 | Tests never write into the real host `~/.alpha-aos` | unit | `node --test --test-name-pattern="state root" dist/test/mcp-proxy.test.js` | ✅ (add test) | ⬜ pending |
-| 10-02-xx | 02 | 1 | CI-02 | T-10-02 | Gate receipts journal into the test-owned state root | unit / integration | `node --test dist/test/gate-engine.test.js dist/test/gate-lifecycle.test.js` | ✅ (add assertion) | ⬜ pending |
-| 10-02-xx | 02 | 1 | CI-02 | T-10-01 | Fingerprint diff names entries by metadata only, never content | unit | `node --test dist/test/tarball-fixture.test.js` | ❌ W0 | ⬜ pending |
-| 10-03-xx | 03 | 2 | CI-03 | — | N/A | CI | `gh run view <id> --json attempt,headSha,event,conclusion,jobs` | n/a | ⬜ pending |
+| 10-01-01 | 01 | 1 | CI-01 | — | N/A | unit (Windows + WSL) | `node --test --test-name-pattern="destinationFor resolves\|global ECC roots" dist/test/owned-skills.test.js dist/test/ecc-skills.test.js` | ✅ (edit) | ⬜ pending |
+| 10-01-02 | 01 | 1 | CI-01 | T-10-03 | Guard cannot pass vacuously; reasonless marker is flagged | unit (source scan) | `node --test dist/test/path-literal-guard.test.js` | ❌ W0 | ⬜ pending |
+| 10-02-01 | 02 | 1 | CI-02 | T-10-01 | Fingerprint diff names entries by metadata only, never content | unit | `node --test --test-name-pattern="host (fingerprint\|drift)" dist/test/tarball-fixture.test.js` | ❌ W0 | ⬜ pending |
+| 10-02-02 | 02 | 1 | CI-02 | T-10-02 | Reproduction and control runs use a scratch home only | repro + doc grep | pair repro on a scratch home (10-02 Task 2), then debug-record grep gate | n/a | ⬜ pending |
+| 10-03-01 | 03 | 2 | CI-02 | T-10-02 | Tests never write into the real host `~/.alpha-aos` | unit | `node --test --test-name-pattern="test-owned state root" dist/test/mcp-proxy.test.js` | ✅ (add test) | ⬜ pending |
+| 10-03-02 | 03 | 2 | CI-02 | T-10-02 | Gate receipts journal into the test-owned state root | unit / integration | `node --test dist/test/gate-engine.test.js dist/test/gate-lifecycle.test.js` | ✅ (add assertion) | ⬜ pending |
+| 10-03-03 | 03 | 2 | CI-02 | T-10-02 | Packed lifecycle stays host-clean with former writers running concurrently | integration (repro) | `node --test --test-concurrency=2 dist/test/mcp-proxy.test.js dist/test/tarball-fixture.test.js` on a scratch home | n/a | ⬜ pending |
+| 10-04-01 | 04 | 3 | CI-03 | T-10-05 | Proof read from gh, single attempt, no per-job re-run | CI | `gh run view <id> --json attempt,headSha,event,conclusion,jobs` | n/a | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

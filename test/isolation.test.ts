@@ -501,51 +501,85 @@ test("the canary launch variant points claude at the runtime configuration and e
   );
 });
 
-test("an isolated Claude canary is blocked before it can spend a turn it cannot authenticate", () => {
-  const runtimeRoot = join("C:", "state", "canary", "run");
-  const spec = (sourceEnvironment: Record<string, string | undefined>) => createIsolationLaunchSpec({
+test("a Claude canary runs on a linked login and refuses before spending without one", async (context) => {
+  const { root } = await fixture(context);
+  const runtimeRoot = join(root, "canary", "run");
+  const harnessRoot = join(runtimeRoot, "claude");
+  await mkdir(harnessRoot, { recursive: true });
+  const spec = () => createIsolationLaunchSpec({
     projectId: "0123456789abcdef",
-    projectRoot: join("C:", "work", "repo"),
+    projectRoot: join(root, "repo"),
     harness: "claude",
     policy: defaultIsolationPolicy("project-only", ["claude"]),
     runtimeRoot,
     allowedSkillPaths: [],
     canary: { mcpConfigPath: join(runtimeRoot, "mcp.json") },
-    sourceEnvironment,
   });
+  const refusesForLogin = (launch: { blockedReasons: readonly string[] }) =>
+    launch.blockedReasons.some((reason) => reason.includes("Not logged in"));
 
   // Observed, not reasoned: a real run reached the init event, connected the
   // fronted server, then ended at "Not logged in" with no permission denial and
   // a spent turn. The credential lives inside the config root this launch
   // replaces, so that run could only ever have failed.
-  const unauthenticated = spec({});
-  assert.equal(
-    unauthenticated.blockedReasons.some((reason) => reason.includes("CLAUDE_CONFIG_DIR") && reason.includes("unauthenticated")),
-    true,
-    "an isolated claude canary no longer refuses before spending a turn it cannot authenticate",
-  );
+  assert.equal(refusesForLogin(spec()), true, "an isolated claude canary no longer refuses a run it cannot authenticate");
 
-  // A credential that travels by environment survives the replaced config root,
-  // so the structural reason does not apply and must not be invented.
-  const byEnvironment = spec({ ANTHROPIC_API_KEY: "placeholder-not-read" });
-  assert.equal(
-    byEnvironment.blockedReasons.some((reason) => reason.includes("unauthenticated")),
-    false,
-    "a canary authenticated by environment is blocked for a reason that does not hold",
-  );
+  // `createCanaryRuntime` hard-links the caller's existing login into the
+  // runtime, so the launch proceeds on a login it never opened or copied.
+  await writeFile(join(harnessRoot, ".credentials.json"), "not read by this code path", "utf8");
+  assert.equal(refusesForLogin(spec()), false, "a runtime carrying a linked login is still refused");
 
   // The everyday (non-canary) isolated launch is a different act: a user runs it
   // interactively and can log in. Only the canary path spends on its own.
   const everyday = createIsolationLaunchSpec({
     projectId: "0123456789abcdef",
-    projectRoot: join("C:", "work", "repo"),
+    projectRoot: join(root, "repo"),
+    harness: "claude",
+    policy: defaultIsolationPolicy("project-only", ["claude"]),
+    runtimeRoot: join(root, "isolated"),
+    allowedSkillPaths: [],
+  });
+  assert.equal(refusesForLogin(everyday), false);
+});
+
+test("a Claude canary grants the fronted servers it is measured against", async (context) => {
+  const { root } = await fixture(context);
+  const runtimeRoot = join(root, "canary", "run");
+  await mkdir(join(runtimeRoot, "claude"), { recursive: true });
+  await writeFile(join(runtimeRoot, "claude", ".credentials.json"), "not read by this code path", "utf8");
+  const spec = (servers?: readonly string[]) => createIsolationLaunchSpec({
+    projectId: "0123456789abcdef",
+    projectRoot: join(root, "repo"),
     harness: "claude",
     policy: defaultIsolationPolicy("project-only", ["claude"]),
     runtimeRoot,
     allowedSkillPaths: [],
-    sourceEnvironment: {},
+    canary: {
+      mcpConfigPath: join(runtimeRoot, "mcp.json"),
+      ...(servers === undefined ? {} : { servers }),
+    },
   });
-  assert.equal(everyday.blockedReasons.some((reason) => reason.includes("unauthenticated")), false);
+
+  // Measured: without this grant a run recorded permission_denials naming the
+  // very tool the canary expects, while the observation sink stayed empty — the
+  // harness routed correctly and would have been recorded as not routing.
+  const granted = spec(["context7", "exa"]);
+  const index = granted.args.indexOf("--allowedTools");
+  assert.notEqual(index, -1, "a Claude canary no longer grants the servers it fronts");
+  assert.equal(granted.args[index + 1], "mcp__context7,mcp__exa", "the grant does not name exactly the fronted servers");
+
+  // By SERVER, never by tool: naming tools would forbid the ones a declaration
+  // counts for fan-out, making a negative control vacuously true.
+  assert.equal(
+    granted.args.some((argument) => argument.includes("resolve-library-id") || argument.includes("query-docs")),
+    false,
+    "the grant narrowed to individual tools, which would bias the fan-out controls",
+  );
+
+  // A runtime fronting nothing has nothing to grant, and an empty flag value
+  // would read as a grant of nothing rather than as no grant at all.
+  assert.equal(spec([]).args.includes("--allowedTools"), false);
+  assert.equal(spec(undefined).args.includes("--allowedTools"), false);
 });
 
 test("canary isolation supports Claude and Codex while every other harness retains an explicit refusal", () => {

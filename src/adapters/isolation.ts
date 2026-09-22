@@ -21,16 +21,13 @@ function executableFor(harness: HarnessId): string | null {
 }
 
 /**
- * Whether a launch environment carries its own model credential.
+ * Claude's login file, relative to its config root.
  *
- * NAME only: the value is never read, compared or recorded. This decides
- * whether a harness whose login lives in its config root can still authenticate
- * once that root is replaced.
+ * Checked for PRESENCE only — never opened. A canary runtime that carries this
+ * entry has the caller's existing login by reference; one that does not would
+ * start unauthenticated.
  */
-function hasInlineApiKey(source: Readonly<Record<string, string | undefined>>): boolean {
-  const value = source.ANTHROPIC_API_KEY;
-  return value !== undefined && value.length > 0;
-}
+const CLAUDE_LOGIN_FILE = ".credentials.json";
 
 /**
  * The flags that make a canary's own MCP configuration the ONLY one a harness
@@ -48,7 +45,30 @@ function hasInlineApiKey(source: Readonly<Record<string, string | undefined>>): 
  * this module already applies to sealed mode.
  */
 const CANARY_MCP_ISOLATION: Readonly<Record<HarnessId, ((canary: CanaryLaunchIsolation) => readonly string[]) | null>> = {
-  claude: (canary) => ["--mcp-config", canary.mcpConfigPath, "--strict-mcp-config"],
+  claude: (canary) => [
+    "--mcp-config",
+    canary.mcpConfigPath,
+    "--strict-mcp-config",
+    // Isolation hides the caller's tool approvals with the rest of their config,
+    // and `-p` cannot prompt for one, so a fronted call is DENIED before it
+    // reaches the observation front.
+    //
+    // Measured, not assumed: a run without this grant recorded
+    // `permission_denials: [mcp__context7__resolve-library-id, …]` while the
+    // sink stayed empty — the harness had chosen exactly the tool the canary
+    // expects, and alpha-AOS would have recorded it as not routing. A false
+    // negative against a working integration is worse than no measurement.
+    // With the grant, the same prompt put one observation in the sink.
+    //
+    // By SERVER, never by declared tool name: the fronted servers are the
+    // surface under test, and naming individual tools would forbid the ones a
+    // declaration counts for fan-out or lists as forbidden, making a negative
+    // control vacuously true rather than observed. Permitting a tool is not
+    // calling it; which tools the harness reaches for stays its own act.
+    ...(canary.servers === undefined || canary.servers.length === 0
+      ? []
+      : ["--allowedTools", canary.servers.map((server) => `mcp__${server}`).join(",")]),
+  ],
   codex: (canary) => ["--ignore-user-config", "--ignore-rules", ...(canary.mcpConfigOverrides ?? [])],
   antigravity: null,
   pi: null,
@@ -75,6 +95,11 @@ export interface CanaryLaunchIsolation {
   readonly mcpConfigPath: string;
   /** Exact `-c` vector derived from the validated runtime-local Codex TOML. */
   readonly mcpConfigOverrides?: readonly string[];
+  /**
+   * The server ids this runtime fronts, for a harness that must be granted the
+   * fronted surface before a non-interactive run may reach it.
+   */
+  readonly servers?: readonly string[];
 }
 
 export function createIsolationLaunchSpec(options: {
@@ -123,29 +148,25 @@ export function createIsolationLaunchSpec(options: {
         }
         args.push("--strict-mcp-config");
         guarantees.push("Claude user configuration, user skills, hooks, memory, and MCP are hidden by the isolated CLAUDE_CONFIG_DIR");
-        if (canary !== undefined && !hasInlineApiKey(options.sourceEnvironment ?? process.env)) {
-          // Claude keeps its login INSIDE the config root (`.credentials.json`),
-          // so the isolation two lines above hides the credential along with the
-          // configuration. Codex escapes this because its canary branch below
-          // reuses the caller's native login boundary by reference; claude
-          // publishes no equivalent — no documented flag or variable names a
-          // credential source separately from CLAUDE_CONFIG_DIR.
+        if (canary !== undefined && !existsSync(join(harnessRoot, CLAUDE_LOGIN_FILE))) {
+          // Claude keeps its login INSIDE the config root, so the isolation two
+          // lines above hides the credential along with the configuration.
+          // `createCanaryRuntime` answers that by hard-linking the existing
+          // login into the runtime — by reference, the way the codex canary
+          // branch below reuses the caller's native login boundary. This is the
+          // case where that link is not there.
           //
           // Observed rather than reasoned: a real run on 2026-09-22 reached the
           // init event, connected the fronted server, then ended at
           // `result: "Not logged in · Please run /login"` with
           // `permission_denials: []` and exit 1 — a spent model turn that could
-          // only ever have failed. Blocking here is what makes that a refusal
+          // only ever have failed. Refusing here is what makes that a refusal
           // before the spend instead of a receipt after it.
-          //
-          // Copying the credential into the runtime is not the missing branch:
-          // this stack never reads or copies authentication bytes, which is the
-          // same rule the codex branch states in its own warning below.
           blockedReasons.push(
-            "claude stores its login inside CLAUDE_CONFIG_DIR, which a canary runtime replaces, so an isolated claude " +
-            "canary starts unauthenticated; no claude flag or variable names a credential source separately from the " +
-            "config root, and alpha-aos never copies authentication bytes. Supply ANTHROPIC_API_KEY to the launch to " +
-            "authenticate a canary by environment instead",
+            "claude keeps its login inside CLAUDE_CONFIG_DIR, which this canary runtime replaces, and the runtime " +
+            "holds no link to an existing login — so the run would start unauthenticated and could only end at " +
+            "`Not logged in` after spending a model turn. Log in with `claude` first, and check that the managed " +
+            "state root is on the same volume as the claude config root, because the login is linked rather than copied",
           );
         }
         break;

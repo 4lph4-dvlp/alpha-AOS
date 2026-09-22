@@ -19,7 +19,8 @@
 
 import { createHash, randomUUID } from "node:crypto";
 import { constants, existsSync, type Dirent } from "node:fs";
-import { access, readdir, readFile, rm } from "node:fs/promises";
+import { access, link, readdir, readFile, rm } from "node:fs/promises";
+import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { parse as parseToml, stringify as stringifyToml } from "smol-toml";
 
@@ -1747,6 +1748,8 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     ...(options.session === undefined ? {} : { session: options.session }),
   });
 
+  await linkNativeLogin(options.harness, join(root, options.harness));
+
   return {
     runId,
     harness: options.harness,
@@ -1774,6 +1777,57 @@ export async function createCanaryRuntime(options: CreateCanaryRuntimeOptions): 
     ],
     operationId: journal.id,
   };
+}
+
+/**
+ * The file a harness keeps its login in, relative to its own config root.
+ *
+ * Only for harnesses whose credential lives INSIDE the directory a canary
+ * runtime replaces. A harness that carries its login anywhere else needs no
+ * entry here, and inventing one would name a file nobody has observed.
+ */
+const NATIVE_LOGIN_FILES: Readonly<Partial<Record<LedgerHarness, string>>> = {
+  claude: ".credentials.json",
+};
+
+/** Where a harness's real config root is, for the login link below. */
+function nativeConfigRoot(harness: LedgerHarness): string | null {
+  if (harness !== "claude") return null;
+  const configured = process.env.CLAUDE_CONFIG_DIR?.trim();
+  return configured !== undefined && configured.length > 0 ? configured : join(homedir(), ".claude");
+}
+
+/**
+ * Makes a harness's existing login reachable from the canary runtime, by
+ * reference.
+ *
+ * Claude keeps its login inside CLAUDE_CONFIG_DIR, which the canary launch
+ * replaces in order to hide configuration, skills, hooks, memory and MCP. That
+ * hides the credential too, and an unauthenticated run can only end at
+ * `Not logged in` AFTER it has spent a model turn.
+ *
+ * A HARD LINK, not a copy: the bytes are never read, and the runtime holds a
+ * second directory entry for the one file rather than a second copy of a live
+ * credential that could outlive the run. Removing the runtime removes only that
+ * entry. This is the claude-side equivalent of what the codex canary already
+ * does by reusing the caller's native login boundary.
+ *
+ * Best-effort by design. A cross-volume state root (EXDEV), an absent login, or
+ * a refused link leaves the runtime without one, and the launch spec then
+ * refuses the run before it spends rather than discovering it afterwards.
+ */
+async function linkNativeLogin(harness: LedgerHarness, harnessRoot: string): Promise<void> {
+  const file = NATIVE_LOGIN_FILES[harness];
+  const source = nativeConfigRoot(harness);
+  if (file === undefined || source === null) return;
+  const from = join(source, file);
+  if (!existsSync(from)) return;
+  try {
+    await link(from, join(harnessRoot, file));
+  } catch {
+    // Recorded by its absence: the launch spec checks for the link and states
+    // the refusal in the words a user can act on.
+  }
 }
 
 /**
@@ -2314,7 +2368,11 @@ export const createCanaryLaunchSpec: CanaryLaunchSpecBuilder = ({ harness, runti
     policy: defaultIsolationPolicy("project-only", [harness as HarnessId]),
     runtimeRoot: runtime.root,
     allowedSkillPaths: [],
-    canary: { mcpConfigPath: runtime.mcpConfigPath, mcpConfigOverrides: runtime.mcpConfigOverrides },
+    canary: {
+      mcpConfigPath: runtime.mcpConfigPath,
+      mcpConfigOverrides: runtime.mcpConfigOverrides,
+      servers: runtime.servers,
+    },
     sourceEnvironment: environment ?? process.env,
   });
 

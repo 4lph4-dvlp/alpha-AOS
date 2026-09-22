@@ -48,6 +48,12 @@ export const SUPPORT_MATRIX_RELEASE = "0.1.0";
 export const SUPPORT_MATRIX_EFFECTIVE_AT = "2026-09-18T00:00:00.000Z";
 
 const activeSurfaces = Object.freeze({
+  claude: [
+    ["GSD Core", "GSD_CORE", "Lifecycle controller and state writer"],
+    ["Context7", "CAPA-01", "Version-sensitive documentation lookup"],
+    ["Unified Memory", "CAPA-03", "Cross-harness handoff sender and receiver"],
+    ["Project Packs", "CAPA-05", "Evidence-selected project capability materialization"],
+  ],
   codex: [
     ["GSD Core", "GSD_CORE", "Lifecycle controller and state writer"],
     ["Context7", "CAPA-01", "Version-sensitive documentation lookup"],
@@ -66,10 +72,10 @@ const activeSurfaces = Object.freeze({
     ["Worker Authority", "WORKER_AUTHORITY", "Workspace worker with planning-state writes prohibited"],
     ["Unified Memory", "CAPA-03", "Cross-harness context handoff"],
   ],
-} as const satisfies Readonly<Record<Exclude<HarnessId, "claude">, readonly (readonly [string, string, string])[]>>);
+} as const satisfies Readonly<Record<HarnessId, readonly (readonly [string, string, string])[]>>);
 
 const activeEntries = (Object.entries(activeSurfaces) as Array<[
-  Exclude<HarnessId, "claude">,
+  HarnessId,
   readonly (readonly [string, string, string])[],
 ]>).flatMap(([harnessId, surfaces]) => surfaces.map(([surface, receiptCapability, notes]) => ({
   harnessId,
@@ -99,13 +105,6 @@ export const BASE_SUPPORT_MATRIX: readonly SupportMatrixEntry[] = Object.freeze(
     platform: "all",
     baselineTier: "UNSUPPORTED",
     notes: "Hermes is a worker and must not become the GSD lifecycle/state writer",
-  },
-  {
-    harnessId: "claude",
-    surface: "All managed surfaces",
-    platform: "all",
-    baselineTier: "RESIDUE",
-    notes: "Compatibility residue outside the active v0.1.0 release bar",
   },
 ]);
 
@@ -142,9 +141,6 @@ export function evaluateMatrixCell(
   ledger: CapabilityLedger,
   options: Pick<SupportMatrixEvaluationOptions, "ledgerUnavailableReason"> = {},
 ): EvaluatedMatrixCell {
-  if (entry.harnessId === "claude") {
-    return { entry, tier: "RESIDUE", evidenceSummary: entry.notes, receipt: null };
-  }
   if (entry.baselineTier === "UNSUPPORTED" || (entry.platform !== "all" && entry.platform !== inventory.platform)) {
     return { entry, tier: "UNSUPPORTED", evidenceSummary: entry.notes, receipt: null };
   }
@@ -210,7 +206,7 @@ export function renderSupportMatrixMarkdown(report: SupportMatrixReport): string
     `Evaluation platform: \`${report.platform}\`  `,
     `Evidence source: \`${report.evidenceSource}\``,
     "",
-    "A cell is **PROVEN** only when a detected active harness has a matching, inspectable real-host invocation receipt. A declared claim without that receipt is **UNVERIFIED**; Claude Code is always **RESIDUE**; structurally incompatible surfaces are **UNSUPPORTED**.",
+    "A cell reaches **PROVEN** only through a matching, inspectable real-host invocation receipt; an unmatched claim is **UNVERIFIED**; a surface offered only for legacy compatibility is **RESIDUE**; and a structurally incompatible surface is **UNSUPPORTED**.",
     "",
     "| Harness | Surface | Platform | Status | Evidence / Notes |",
     "| --- | --- | --- | --- | --- |",

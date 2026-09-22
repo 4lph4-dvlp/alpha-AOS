@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-09)
 Phase: 09 (unified-natural-language-controller-and-capability-check) — COMPLETE
 Plan: 2 of 2
 Status: Complete
-Last activity: 2026-09-22 - Completed quick task 260922-47e: Fix Windows Firecrawl fixture environment propagation and add regression coverage
+Last activity: 2026-09-22 - Completed quick task 260922-om1: Reinstate Claude Code into active v0.1.0 harness scope (D-18)
 Progress: [██████████] 100%
 
 ## Performance Metrics
@@ -225,6 +225,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 07]: 07-04: Run release gates in a disposable tracked-file Git snapshot and require explicit --publish on a clean main checkout.
 - [Phase 07]: 07-04: Public-registry Stage 2 remains a post-publication manual gate and was not run without publish authorization.
 - [Phase 07]: 07-04: Machine-readable process output requests an explicit bounded excerpt budget before JSON parsing.
+- [Quick 260922-om1]: D-18 added to 03-CONTEXT.md, explicitly superseding D-17 (mirroring how D-17 superseded D-09), without erasing either audit trail.
+- [Quick 260922-om1]: Reinstating Claude Code's scope claim is not itself evidence — Claude stays subject to the same D-10 ceiling/ledger split and D-12 blocked/unverified distinction as every other harness; real invocation-receipt evidence is still required for promotion past unverified/RESIDUE.
+- [Quick 260922-om1]: REQUIREMENTS.md's REL-02 bullet was deliberately left unchanged since it reflects Phase 7's already-verified support matrix under D-17, and the support-matrix.ts RESIDUE hardcode it describes is still unimplemented — routed to `/gsd-verify-work 7` then `$gsd-plan-phase 7 --gaps`.
 
 ### Pending Todos
 
@@ -287,6 +290,7 @@ None yet.
 | 260911-w4s | Portable Codex execution guidance and bounded usage validation | 2026-09-12 | 6605c55 | [260911-w4s](./quick/260911-w4s-make-codex-gsd-execution-context-bounded/) |
 | 260914-x2c | Rebaseline v0.1.0 around active non-Claude harnesses | 2026-09-17 | pending | [260914-x2c](./quick/260914-x2c-exclude-claude-from-the-v0-1-0-active-de/) |
 | 260922-47e | Fix Windows Firecrawl fixture environment propagation and add regression coverage | 2026-09-22 | 57e70d1 | [260922-47e](./quick/260922-47e-fix-windows-firecrawl-fixture-environmen/) |
+| 260922-om1 | Reinstate Claude Code into active v0.1.0 harness scope (D-18, reversing 260914-x2c) | 2026-09-22 | ae05eec | [260922-om1](./quick/260922-om1-reverse-quick-task-260914-x2c-reinstate-/) |
 
 ## Session Continuity
 

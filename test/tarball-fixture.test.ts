@@ -148,28 +148,70 @@ export async function createIsolatedSandbox(context: test.TestContext): Promise<
   };
 }
 
-async function fingerprint(path: string): Promise<string> {
-  if (!existsSync(path)) return "absent";
+interface HostEntry {
+  readonly path: string;
+  readonly kind: "dir" | "file" | "link" | "vanished";
+  readonly size: number | null;
+  readonly sha256: string | null;
+}
+
+interface HostFingerprint {
+  readonly digest: string;
+  readonly entries: readonly HostEntry[];
+}
+
+function isMissingEntry(error: unknown): boolean {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT";
+}
+
+// Another process may remove entries mid-walk; only ENOENT becomes a `vanished` entry, which keeps the oracle red.
+async function fingerprintManifest(path: string): Promise<HostFingerprint> {
+  if (!existsSync(path)) return { digest: "absent", entries: [] };
   const hash = createHash("sha256");
+  const entries: HostEntry[] = [];
+  const vanished = (relativePath: string): void => {
+    hash.update(`vanished:${relativePath}\n`);
+    entries.push({ path: relativePath, kind: "vanished", size: null, sha256: null });
+  };
   const visit = async (current: string, relativePath: string): Promise<void> => {
-    const info = await lstat(current);
-    if (info.isSymbolicLink()) {
-      hash.update(`link:${relativePath}:${await readlink(current)}\n`);
-      return;
-    }
-    if (info.isDirectory()) {
-      hash.update(`dir:${relativePath}\n`);
-      const entries = await readdir(current, { withFileTypes: true });
-      for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-        await visit(join(current, entry.name), relativePath ? `${relativePath}/${entry.name}` : entry.name);
+    try {
+      const info = await lstat(current);
+      if (info.isSymbolicLink()) {
+        const target = await readlink(current);
+        hash.update(`link:${relativePath}:${target}\n`);
+        entries.push({
+          path: relativePath,
+          kind: "link",
+          size: Buffer.byteLength(target, "utf8"),
+          sha256: createHash("sha256").update(target).digest("hex"),
+        });
+        return;
       }
-      return;
+      if (info.isDirectory()) {
+        const children = await readdir(current, { withFileTypes: true });
+        hash.update(`dir:${relativePath}\n`);
+        entries.push({ path: relativePath, kind: "dir", size: null, sha256: null });
+        for (const entry of children.sort((left, right) => left.name.localeCompare(right.name))) {
+          await visit(join(current, entry.name), relativePath ? `${relativePath}/${entry.name}` : entry.name);
+        }
+        return;
+      }
+      const bytes = info.size <= 1024 * 1024 ? await readFile(current) : null;
+      hash.update(`file:${relativePath}:${info.size}\n`);
+      if (bytes) hash.update(bytes);
+      entries.push({
+        path: relativePath,
+        kind: "file",
+        size: info.size,
+        sha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
+      });
+    } catch (error) {
+      if (!isMissingEntry(error)) throw error;
+      vanished(relativePath);
     }
-    hash.update(`file:${relativePath}:${info.size}\n`);
-    if (info.size <= 1024 * 1024) hash.update(await readFile(current));
   };
   await visit(path, "");
-  return hash.digest("hex");
+  return { digest: hash.digest("hex"), entries };
 }
 
 const hostMutationTargets = [
@@ -183,8 +225,88 @@ const hostMutationTargets = [
   join(hostHome, ".agents", "skills", "deep-research", "SKILL.md"),
 ];
 
-async function hostSnapshot(): Promise<Map<string, string>> {
-  return new Map(await Promise.all(hostMutationTargets.map(async (path) => [path, await fingerprint(path)] as const)));
+async function snapshotTargets(targets: readonly string[], manifests?: Map<string, HostFingerprint>): Promise<Map<string, string>> {
+  const fingerprints = await Promise.all(targets.map(async (path) => [path, await fingerprintManifest(path)] as const));
+  for (const [path, manifest] of fingerprints) manifests?.set(path, manifest);
+  return new Map(fingerprints.map(([path, manifest]) => [path, manifest.digest] as const));
+}
+
+async function hostSnapshot(manifests?: Map<string, HostFingerprint>): Promise<Map<string, string>> {
+  return snapshotTargets(hostMutationTargets, manifests);
+}
+
+const HOST_DRIFT_LISTING_LIMIT = 50;
+const HOST_DRIFT_HASH_PREFIX = 12;
+
+type DriftStatus = "added" | "removed" | "changed" | "vanished";
+
+function compareCodeUnits(left: string, right: string): number {
+  if (left < right) return -1;
+  return left > right ? 1 : 0;
+}
+
+function describeHostEntry(entry: HostEntry | undefined): string {
+  if (!entry) return "-";
+  const size = entry.size === null ? "-" : String(entry.size);
+  const hash = entry.sha256 === null ? "-" : entry.sha256.slice(0, HOST_DRIFT_HASH_PREFIX);
+  return `${entry.kind}/${size}/${hash}`;
+}
+
+function describeDigest(digest: string | undefined): string {
+  if (digest === undefined || digest === "absent") return "absent";
+  return digest.slice(0, HOST_DRIFT_HASH_PREFIX);
+}
+
+// Metadata only: relative path, kind, size and a hash prefix. File content never enters the message.
+function describeHostDrift(
+  before: ReadonlyMap<string, HostFingerprint>,
+  after: ReadonlyMap<string, HostFingerprint>,
+  limit = HOST_DRIFT_LISTING_LIMIT,
+): string {
+  const lines = ["the packed lifecycle must not change any real managed host path"];
+  let listed = 0;
+  let unlisted = 0;
+  for (const [target, beforeManifest] of before) {
+    const afterManifest = after.get(target);
+    const beforeEntries = new Map(beforeManifest.entries.map((entry) => [entry.path, entry] as const));
+    const afterEntries = new Map((afterManifest?.entries ?? []).map((entry) => [entry.path, entry] as const));
+    const paths = [...new Set([...beforeEntries.keys(), ...afterEntries.keys()])].sort(compareCodeUnits);
+    const drift: { status: DriftStatus; path: string; before: HostEntry | undefined; after: HostEntry | undefined }[] = [];
+    for (const path of paths) {
+      const left = beforeEntries.get(path);
+      const right = afterEntries.get(path);
+      let status: DriftStatus | undefined;
+      if (left?.kind === "vanished" || right?.kind === "vanished") status = "vanished";
+      else if (!left) status = "added";
+      else if (!right) status = "removed";
+      else if (left.kind !== right.kind || left.size !== right.size || left.sha256 !== right.sha256) status = "changed";
+      if (status) drift.push({ status, path, before: left, after: right });
+    }
+    if (beforeManifest.digest === afterManifest?.digest && !drift.some((entry) => entry.status === "vanished")) continue;
+    const count = (status: DriftStatus): number => drift.filter((entry) => entry.status === status).length;
+    lines.push(
+      `${target}: ${describeDigest(beforeManifest.digest)} -> ${describeDigest(afterManifest?.digest)} ` +
+      `(added ${count("added")}, removed ${count("removed")}, changed ${count("changed")}, vanished ${count("vanished")})`,
+    );
+    for (const entry of drift) {
+      if (listed >= limit) {
+        unlisted += 1;
+        continue;
+      }
+      listed += 1;
+      lines.push(`  ${entry.status} ${entry.path || "."} ${describeHostEntry(entry.before)} -> ${describeHostEntry(entry.after)}`);
+    }
+  }
+  if (unlisted > 0) lines.push(`  ... ${unlisted} more entries not listed (limit ${limit})`);
+  return lines.join("\n");
+}
+
+function vanishedEntryCount(manifests: ReadonlyMap<string, HostFingerprint>): number {
+  let count = 0;
+  for (const manifest of manifests.values()) {
+    count += manifest.entries.filter((entry) => entry.kind === "vanished").length;
+  }
+  return count;
 }
 
 function parseJsonResult<T>(result: CommandResult, label: string): T {
@@ -461,7 +583,8 @@ test("host drift report bounds its listing and keeps per-target totals", async (
 });
 
 test("packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle", { timeout: 900_000 }, async (context) => {
-  const beforeHost = await hostSnapshot();
+  const beforeManifests = new Map<string, HostFingerprint>();
+  const beforeHost = await hostSnapshot(beforeManifests);
   const sandbox = await createIsolatedSandbox(context);
   const npm = npmInvocation();
   const cacheProbe = commandResult(spawnSync(npm.executable, [...npm.argsPrefix, "config", "get", "cache"], {
@@ -653,8 +776,10 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     assert.ok(!existsSync(join(sandbox.home, ".agents", "skills", skill, "SKILL.md")), `${skill} must be removed`);
   }
 
-  const afterHost = await hostSnapshot();
-  assert.deepEqual(afterHost, beforeHost, "the packed lifecycle must not change any real managed host path");
+  const afterManifests = new Map<string, HostFingerprint>();
+  const afterHost = await hostSnapshot(afterManifests);
+  assert.deepEqual(afterHost, beforeHost, describeHostDrift(beforeManifests, afterManifests));
+  assert.equal(vanishedEntryCount(beforeManifests) + vanishedEntryCount(afterManifests), 0, describeHostDrift(beforeManifests, afterManifests));
   const tarballAfter = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
   assert.equal(tarballAfter, tarballBefore, "the authoritative tarball must remain byte-identical throughout the lifecycle");
 });

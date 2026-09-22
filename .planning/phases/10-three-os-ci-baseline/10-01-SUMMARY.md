@@ -118,7 +118,7 @@ status: complete
 
 ## Evidence
 
-**POSIX observation: WSL red-to-green**
+POSIX observation: WSL red-to-green
 
 Pre-change WSL run (`wsl.exe --cd <repo> -e sh -c 'node --test --test-name-pattern="destinationFor resolves|global ECC roots" dist/test/owned-skills.test.js dist/test/ecc-skills.test.js'`, WSL node v26.8.2):
 

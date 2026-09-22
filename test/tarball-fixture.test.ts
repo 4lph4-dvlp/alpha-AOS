@@ -350,6 +350,116 @@ test("CI uses Node crypto and routes the downloaded authoritative tarball into t
   assert.match(workflow, /needs: package/u);
 });
 
+async function driftScratch(context: test.TestContext): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-drift-"));
+  context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
+  return root;
+}
+
+function sha256Hex(value: string | Buffer): string {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+test("host fingerprint keeps the aggregate digest byte stream", async (context) => {
+  const root = await driftScratch(context);
+  const populated = join(root, "populated");
+  await mkdir(populated);
+  await writeFile(join(populated, "a.txt"), "x");
+  const manifest = await fingerprintManifest(populated);
+  assert.equal(manifest.digest, sha256Hex("dir:\nfile:a.txt:1\nx"));
+  assert.deepEqual(manifest.entries, [
+    { path: "", kind: "dir", size: null, sha256: null },
+    { path: "a.txt", kind: "file", size: 1, sha256: sha256Hex("x") },
+  ]);
+
+  const empty = join(root, "empty");
+  await mkdir(empty);
+  const emptyManifest = await fingerprintManifest(empty);
+  assert.notEqual(emptyManifest.digest, "absent");
+  assert.equal(emptyManifest.digest, sha256Hex("dir:\n"));
+  assert.deepEqual(emptyManifest.entries, [{ path: "", kind: "dir", size: null, sha256: null }]);
+
+  assert.deepEqual(await fingerprintManifest(join(root, "missing")), { digest: "absent", entries: [] });
+});
+
+test("host drift report names changed entries by metadata and never by content", async (context) => {
+  const root = await driftScratch(context);
+  const existing = join(root, "existing");
+  const created = join(root, "created");
+  const beforeSentinel = "alphaAOSdriftSentinel0033";
+  const afterSentinel = "alphaAOSdriftSentinel0044";
+  await mkdir(existing);
+  await writeFile(join(existing, "keep.txt"), "same");
+  await writeFile(join(existing, "gone.txt"), "g");
+  await writeFile(join(existing, "edit.txt"), beforeSentinel);
+  await writeFile(join(existing, "morph"), "m");
+  const targets = [existing, created];
+  const beforeManifests = new Map<string, HostFingerprint>();
+  const before = await snapshotTargets(targets, beforeManifests);
+  assert.equal(before.get(created), "absent");
+
+  await rm(join(existing, "gone.txt"));
+  await writeFile(join(existing, "edit.txt"), afterSentinel);
+  await rm(join(existing, "morph"));
+  await mkdir(join(existing, "morph"));
+  await writeFile(join(existing, "new.txt"), "nn");
+  await mkdir(created);
+  await writeFile(join(created, "fresh.txt"), "fff");
+  const afterManifests = new Map<string, HostFingerprint>();
+  const after = await snapshotTargets(targets, afterManifests);
+
+  const report = describeHostDrift(beforeManifests, afterManifests);
+  const lines = report.split("\n");
+  const prefix = (value: string): string => value.slice(0, 12);
+  assert.equal(lines[0], "the packed lifecycle must not change any real managed host path");
+  assert.ok(
+    lines.includes(`${existing}: ${prefix(before.get(existing) ?? "")} -> ${prefix(after.get(existing) ?? "")} (added 1, removed 1, changed 2, vanished 0)`),
+    report,
+  );
+  assert.ok(lines.includes(`${created}: absent -> ${prefix(after.get(created) ?? "")} (added 2, removed 0, changed 0, vanished 0)`), report);
+  assert.ok(
+    lines.includes(`  changed edit.txt file/25/${prefix(sha256Hex(beforeSentinel))} -> file/25/${prefix(sha256Hex(afterSentinel))}`),
+    report,
+  );
+  assert.ok(lines.includes(`  removed gone.txt file/1/${prefix(sha256Hex("g"))} -> -`), report);
+  assert.ok(lines.includes(`  changed morph file/1/${prefix(sha256Hex("m"))} -> dir/-/-`), report);
+  assert.ok(lines.includes(`  added new.txt - -> file/2/${prefix(sha256Hex("nn"))}`), report);
+  assert.ok(lines.includes("  added . - -> dir/-/-"), report);
+  assert.ok(lines.includes(`  added fresh.txt - -> file/3/${prefix(sha256Hex("fff"))}`), report);
+  assert.equal(lines.filter((line) => line.includes(" morph ")).length, 1, report);
+  assert.ok(!report.includes("keep.txt"), report);
+  assert.ok(!report.includes(beforeSentinel), "the drift report must not contain file content");
+  assert.ok(!report.includes(afterSentinel), "the drift report must not contain file content");
+  assert.equal(vanishedEntryCount(beforeManifests) + vanishedEntryCount(afterManifests), 0);
+});
+
+test("host drift report bounds its listing and keeps per-target totals", async (context) => {
+  const root = await driftScratch(context);
+  const target = join(root, "target");
+  await mkdir(target);
+  const beforeManifests = new Map<string, HostFingerprint>();
+  const before = await snapshotTargets([target], beforeManifests);
+  const names = Array.from({ length: 60 }, (_, index) => `entry-${String(index).padStart(2, "0")}.txt`);
+  for (const name of names.toReversed()) {
+    await writeFile(join(target, name), name);
+  }
+  const afterManifests = new Map<string, HostFingerprint>();
+  const after = await snapshotTargets([target], afterManifests);
+
+  const report = describeHostDrift(beforeManifests, afterManifests);
+  const lines = report.split("\n");
+  assert.ok(
+    lines.includes(`${target}: ${(before.get(target) ?? "").slice(0, 12)} -> ${(after.get(target) ?? "").slice(0, 12)} (added 60, removed 0, changed 0, vanished 0)`),
+    report,
+  );
+  const listed = lines.filter((line) => line.startsWith("  added "));
+  assert.equal(listed.length, 50, report);
+  assert.deepEqual(listed.map((line) => line.split(" ")[3]), names.slice(0, 50));
+  const truncation = lines.findIndex((line) => line.includes("10 more entries not listed"));
+  assert.ok(truncation > lines.indexOf(listed.at(-1) ?? ""), report);
+  assert.equal(lines[truncation], `  ... 10 more entries not listed (limit ${HOST_DRIFT_LISTING_LIMIT})`);
+});
+
 test("packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle", { timeout: 900_000 }, async (context) => {
   const beforeHost = await hostSnapshot();
   const sandbox = await createIsolatedSandbox(context);

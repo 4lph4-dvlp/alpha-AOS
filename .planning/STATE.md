@@ -5,16 +5,16 @@ milestone_name: CI Green & Dependency Promotion
 current_phase: 10
 current_phase_name: Three-OS CI Baseline
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-09-22T23:25:41.891Z"
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-09-22T23:37:45.443Z"
 last_activity: 2026-09-23
-last_activity_desc: v0.1.1 roadmap created (4 phases, Phases 10-13, 8/8 requirements mapped)
-state_head: e6ba1e0b9ed267086810c7eae560c7f79190fa76
+last_activity_desc: Phase 10 execution started
+state_head: 2025033f30f2e02dc0a0bee56e84c344368b8098
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-23)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 10 — Three-OS CI Baseline (v0.1.1 CI Green & Dependency Promotion, Phases 10-13)
+**Current focus:** Phase 10 — Three-OS CI Baseline
 
 ## Current Position
 
-Phase: 10 (Three-OS CI Baseline) — READY TO EXECUTE
-Plan: —
+Phase: 10 (Three-OS CI Baseline) — EXECUTING
+Plan: 2 of 4
 Status: Ready to execute
-Last activity: 2026-09-23 — v0.1.1 roadmap created (4 phases, Phases 10-13, 8/8 requirements mapped)
+Last activity: 2026-09-23 — Phase 10 execution started
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -113,6 +113,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P02 | 24min | 2 tasks | 7 files |
 | Phase 07 P03 | 20min | 2 tasks | 4 files |
 | Phase 07 P04 | 1h 15m | 2 tasks | 8 files |
+| Phase 10 P01 | 6 min | 2 tasks | 4 files |
 
 ## Accumulated Context
 
@@ -242,6 +243,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 07]: CHANGELOG entries for this work sit under `[Unreleased]`; package.json stays 0.1.0. Cutting a version is a release act gated behind `scripts/release.mjs`, not a side effect of documentation repair.
 - [Roadmap v0.1.1]: Phases continue at 10. CI-01, CI-02 and CI-03 share Phase 10 because one all-green three-leg run id is that phase's own closing evidence, as it was for G-01-1 in v0.1.0.
 - [Roadmap v0.1.1]: LIFE-09 (Phase 11) follows Phase 10 so the Phase 6 report can cite the CI-02 root-cause classification and the green lifecycle run; the red-main guard (Phase 12: CI-04, DEP-03) lands before promotion (Phase 13: DEP-01, DEP-02) so promotion itself runs through the guard.
+- [Phase 10]: 10-01: path-literal guard marker is '// path-literal-ok: <reason>' (reason >= 4 chars) on the literal's own line; const bindings resolve by name (fail closed)
+- [Phase 10]: 10-01: test fixture roots asserted against host path output are built with join(tmpdir(), fixture-name, ...), never platform-absolute literals
 
 ### Pending Todos
 
@@ -311,9 +314,9 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-22T18:36:30.582Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-three-os-ci-baseline/10-CONTEXT.md
+Last session: 2026-09-22T23:37:45.405Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

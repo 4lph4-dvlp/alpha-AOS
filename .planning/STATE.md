@@ -1,20 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.1.0
-status: Awaiting next milestone
-stopped_at: Phase 09 completed and verified
-last_updated: "2026-09-22T18:01:57.726Z"
+milestone: v0.1.1
+milestone_name: CI Green & Dependency Promotion
+status: planning
+last_updated: "2026-09-22T18:05:22.907Z"
 last_activity: 2026-09-23
-last_activity_desc: Milestone v0.1.0 completed and archived
-state_head: c6415a2677c9eb6ca23149883f64709b90940513
 progress:
-  total_phases: 9
-  completed_phases: 7
-  total_plans: 88
-  completed_plans: 88
-  percent: 78
-current_phase: 09
-current_phase_name: unified-natural-language-controller-and-capability-check
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -28,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 
 ## Current Position
 
-Phase: Milestone v0.1.0 complete
+Phase: Not started (defining requirements)
 Plan: —
-Status: Awaiting next milestone
-Last activity: 2026-09-23 — Milestone v0.1.0 completed and archived
+Status: Defining requirements
+Last activity: 2026-09-23 — Milestone v0.1.1 started
 
 ## Performance Metrics
 

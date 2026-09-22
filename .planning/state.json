@@ -1,58 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v0.1.0",
-  "phases": [
-    {
-      "number": "1",
-      "name": "Safe Operation Boundary",
-      "status": "complete"
-    },
-    {
-      "number": "2",
-      "name": "Evidence-Bound Project Planning",
-      "status": "complete"
-    },
-    {
-      "number": "3",
-      "name": "Transactional Project Packs and Native Optional Use",
-      "status": "complete"
-    },
-    {
-      "number": "4",
-      "name": "Mandatory GSD Gates",
-      "status": "complete"
-    },
-    {
-      "number": "5",
-      "name": "Persistent Tree-Off Preload Isolation",
-      "status": "complete"
-    },
-    {
-      "number": "6",
-      "name": "Managed Lifecycle, Uninstall, and Recovery",
-      "status": "complete"
-    },
-    {
-      "number": "7",
-      "name": "Cross-Platform Release Proof",
-      "status": "complete"
-    },
-    {
-      "number": "8",
-      "name": "Autonomous Project Pack Advisor and Cross-Harness Materializer",
-      "status": "complete"
-    },
-    {
-      "number": "9",
-      "name": "Unified Natural Language Controller and Capability Checkpoint Automation",
-      "status": "complete"
-    }
-  ],
+  "milestone": "v0.1.1",
+  "phases": [],
   "next": {
-    "command": "/gsd:progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd:discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-09-22T18:01:57.813Z"
+  "updated_at": "2026-09-22T18:05:22.913Z"
 }

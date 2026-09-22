@@ -10,6 +10,17 @@ The system manages capability scope as well as installation: broadly useful, low
 
 A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
 
+## Current Milestone: v0.1.1 CI Green & Dependency Promotion
+
+**Goal:** Restore a green three-OS CI on `main`, close the v0.1.0 lifecycle verification gap, and promote the validated dependency candidate into the stable lock on that green baseline.
+
+**Target features:**
+- OS-portable fixture paths in `test/owned-skills.test.ts` so `destinationFor` passes on ubuntu and macOS
+- Root-cause and fix the windows-latest packed-lifecycle failure where the real host `~/.alpha-aos` changes across an isolated install/uninstall
+- Formal verification of the Phase 6 managed lifecycle (LIFE-01..08)
+- Re-run dependency candidate PR #1 (GSD 1.14.0, ecc 2.2.1, context7 4.1.1, firecrawl 3.25.2, pi 2.36.0) on green `main` and promote it into `catalog/stack.lock.json` only on green evidence
+- A guard that stops candidate promotion while `main` is red and makes a red `main` visible
+
 ## Requirements
 
 ### Validated

@@ -48,6 +48,8 @@ import {
 const hostStateRootAtLoad = resolve(process.env.ALPHA_AOS_STATE_DIR?.trim() || join(homedir(), ".alpha-aos"));
 /** The state root every pinned upstream startup in this file writes under. */
 const testStateRoot = join(tmpdir(), "alpha-aos-test-mcp-proxy-state");
+// node --test runs each file in its own process, so this cannot reach another file; the stable tmp root keeps the npx cache warm across CI test steps without touching the host root.
+process.env.ALPHA_AOS_STATE_DIR = testStateRoot;
 
 // Compiled to dist/test, so the repository root is two levels up.
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");

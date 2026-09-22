@@ -9,3 +9,6 @@ coverage/
 .alpha-aos/journal/
 .alpha-aos/snapshots/
 .alpha-aos/evidence/
+
+# GSD run-scoped runtime state
+.gsd/

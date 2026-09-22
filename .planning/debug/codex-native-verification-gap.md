@@ -3,6 +3,10 @@ status: diagnosed
 trigger: "Phase 3 native-use verification can run on Codex without requiring a Claude account. Expected CAPA-01 documentation canary to produce native Context7 selection, resolve-library-id before query-docs, and a version-scoped library identifier on Codex. Actual Claude canary exits 1 with Not logged in and zero tool observations; catalog canaries appear Claude-only."
 created: 2026-09-13T02:12:31.3979687+09:00
 updated: 2026-09-13T02:22:19.4976210+09:00
+audit_acknowledged:
+  milestone: v0.1.0
+  at: 2026-09-23
+  status: diagnosed
 ---
 
 ## Current Focus

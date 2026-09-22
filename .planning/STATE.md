@@ -1,37 +1,37 @@
 ---
 gsd_state_version: 1.0
-milestone: v0.2.0
-current_phase: 09
-current_phase_name: unified-natural-language-controller-and-capability-check
-status: complete
+milestone: v0.1.0
+status: Awaiting next milestone
 stopped_at: Phase 09 completed and verified
-last_updated: "2026-09-21T02:45:00.000Z"
-last_activity: 2026-09-21
-last_activity_desc: Completed Phase 09 (Unified Natural Language Controller and Capability Checkpoint Automation)
+last_updated: "2026-09-22T18:01:57.726Z"
+last_activity: 2026-09-23
+last_activity_desc: Milestone v0.1.0 completed and archived
+state_head: c6415a2677c9eb6ca23149883f64709b90940513
 progress:
   total_phases: 9
-  completed_phases: 9
-  total_plans: 87
-  completed_plans: 87
-  percent: 100
+  completed_phases: 7
+  total_plans: 88
+  completed_plans: 88
+  percent: 78
+current_phase: 09
+current_phase_name: unified-natural-language-controller-and-capability-check
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-09)
+See: .planning/PROJECT.md (updated 2026-09-23)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Milestone v0.2.0 Complete — alpha-AOS Unified Natural Language Controller & Capability Automation
+**Current focus:** Planning next milestone (v0.1.1 CI Green & Dependency Promotion)
 
 ## Current Position
 
-Phase: 09 (unified-natural-language-controller-and-capability-check) — COMPLETE
-Plan: 2 of 2
-Status: Complete
-Last activity: 2026-09-23 - Ran the real Claude canary, found the credential/isolation blocker, fixed the spend-before-refusal defect, and retired the stale Claude-residue claims from release docs
-Progress: [██████████] 100%
+Phase: Milestone v0.1.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-09-23 — Milestone v0.1.0 completed and archived
 
 ## Performance Metrics
 
@@ -290,6 +290,8 @@ None yet.
 
 | Category | Item | Status | Deferred At | Milestone |
 |----------|------|--------|-------------|-----------|
+| debug_sessions | codex-native-verification-gap | diagnosed | 2026-09-23 | v0.1.0 |
+| verification_gaps | 07/07-VERIFICATION.md (G-07-2) | gaps_found | 2026-09-23 | v0.1.0 |
 | Isolation | OS/container-backed `sealed` mode | Deferred | Roadmap creation | v2 |
 
 ### Quick Tasks Completed
@@ -307,3 +309,7 @@ None yet.
 Last session: 2026-09-20T04:45:24.854Z
 Stopped at: Completed 07-04-PLAN.md
 Resume file: None
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone

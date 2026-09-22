@@ -24,19 +24,22 @@ A user can enter any supported project on any supported operating system and get
 - ✓ `project-only` policies can generate external harness runtimes that hide many user-scoped configuration roots, while `sealed` correctly fails closed when no OS/container adapter exists — existing
 - ✓ Deterministic, boundary-bounded repository evidence selects capability packs and renders stable, digest-bound reviewed plans that explain both matches and near-misses, and refuse to apply once any bound input moves — Phase 2
 - ✓ A previously installed pack whose evidence disappears reports `STALE` naming the missing evidence, and is never deleted automatically — Phase 2
+- ✓ Native implicit invocation of globally installed ECC capabilities and MCP tools is proven through observation-front canaries on Codex (CAPA-01/02/05) and non-Claude handoff pairs (CAPA-03) — v0.1.0 (Phase 3)
+- ✓ Transactional `project sync --apply` materializes approved packs with provenance receipts, native discovery, and journaled removal — v0.1.0 (Phase 3)
+- ✓ Explicit GSD quality gates run mandatory security- and migration-sensitive checks deterministically — v0.1.0 (Phase 4)
+- ✓ Directory-tree opt-out persists externally and ordinary harness entrypoints start from a clean baseline — v0.1.0 (Phase 5)
+- ✓ Repository-owned skills (`alpha-aos-control`, formerly `alpha-aos-pack-advisor`) are distributed to all five active harnesses with unsupported parity reported explicitly — v0.1.0 (Phases 8-9)
+- ✓ Filesystem boundaries, subprocess-output redaction, and bounded process/protocol transports are hardened — v0.1.0 (Phase 1)
 
 ### Active
 
-- [ ] Preserve native implicit invocation for globally installed, low-risk ECC capabilities and MCP tools, and verify that each active supported harness (Claude Code, Codex, Antigravity, Pi, Hermes) uses them naturally when task intent matches; Claude Code's own invocation evidence is still outstanding per D-18
-- [ ] Add transactional project sync so the packs Phase 2 already selects and plans are actually materialized in the intended project scope, discovered natively, used during relevant work, and removable without disturbing user files
-- [ ] Add explicit GSD quality-gate integration for capabilities that must run rather than relying on probabilistic model selection, including security- and migration-sensitive checks
-- [ ] Make directory-tree alpha-AOS opt-out persistent and verifiable: after one setup action, normal active supported harness entrypoints must start from a clean user baseline, inherit only local project resources, and avoid unrelated environment-secret leakage without requiring `alpha-aos project run`
-- [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack across active targets
-- [ ] Expand the repository-owned workflow surface beyond its historical Claude-only compatibility surface wherever native invocation semantics are proven for each active supported target (including Claude Code, per D-18), while reporting unsupported targets explicitly
-- [ ] Harden filesystem boundaries, subprocess-output redaction, native configuration merging, and external-package recovery before public release
-- [ ] Validate Windows, macOS, and Linux through CI fixtures plus representative real-host canaries, and validate every active supported harness (Claude Code, Codex, Antigravity, Pi, Hermes) on at least one real host; Claude Code's own real-host canary evidence is the specific outstanding item per D-18
-- [ ] Complete a real brownfield GSD cycle with capability-routing traces, freeze the verified lock, and publish the v0.1.0 release artifacts and documentation
+- [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack across active targets — built in v0.1.0 Phase 6 but never formally verified (no `06-VERIFICATION.md`), and the packed lifecycle test is red on windows-latest because the real host `~/.alpha-aos` changes across an isolated install/uninstall
+- [ ] Validate every active supported harness on at least one real host; Claude Code's own real-host invocation receipt is the outstanding item (G-07-2, REL-02)
+- [ ] Restore a green three-OS CI on `main` and keep it green, so the dependency-candidate workflow is a trustworthy promotion signal
+- [ ] Promote the validated dependency candidate (PR #1: GSD 1.14.0, ecc 2.2.1, context7 4.1.1, firecrawl 3.25.2, pi 2.36.0) into the stable lock only on green evidence
+- [ ] Publish the v0.1.0 release artifacts and documentation (v0.1.0 closed with a non-publishing release preview)
 - [ ] Widen `PathProof.inode` beyond a JS double so a Windows file index above 2^53 cannot make two distinct inodes compare equal and hide a TOCTOU swap — emerged in Phase 2, currently owned by no phase
+- [ ] Give Codex a first-class native-verification driver (debug session `codex-native-verification-gap`, acknowledged at v0.1.0 close)
 
 ### Out of Scope
 
@@ -54,7 +57,7 @@ The project began from `docs/alpha-vibe-stack-codex.md`, which defined GSD Core 
 
 Current behavior demonstrates the desired native path on Codex: alpha-AOS installs `documentation-lookup` in the user skill root and registers Context7 in Codex configuration; Codex can then implicitly select the skill from its description and follow it into an MCP call without a user explicitly naming either one. This is the preferred path for low-risk global capabilities. alpha-AOS should not proxy every capability invocation.
 
-The missing product layer is policy and scope completion. Transactional `project sync --apply` is still a stub, repository-owned skill distribution was historically proven first on Claude Code and now extends to Codex, Antigravity, Pi, and Hermes on equal footing per D-18, uninstall is incomplete, project-only processes inherit too much of the ambient environment, and several filesystem/configuration edge cases require hardening. The v0.1.0 milestone closes these gaps and proves the behavior through user-flow tests rather than treating file presence as success. For opt-out repositories, alpha-AOS must configure a persistent tree policy and use either native project suppression or a transparent pre-launch guard so the user can later invoke the ordinary active supported harness entrypoint. Detection after an agent has already loaded global context cannot count as isolation; that path must record the decision and restart cleanly.
+v0.1.0 (closed 2026-09-23, 9 phases, 88 plans) delivered the policy and scope layer: transactional project sync, mandatory GSD gates, persistent tree-off isolation, managed lifecycle commands, a cross-platform release proof, and the `alpha-aos-control` natural-language controller across all five harnesses. It closed as an override: the lifecycle requirements (LIFE-01..08) were never formally verified, Claude Code has no real-host invocation receipt yet (G-07-2), and `main` CI has been red on all three OS legs since at least 2026-09-21, which blocks the dependency-candidate promotion path. For opt-out repositories, alpha-AOS must configure a persistent tree policy and use either native project suppression or a transparent pre-launch guard so the user can later invoke the ordinary active supported harness entrypoint. Detection after an agent has already loaded global context cannot count as isolation; that path must record the decision and restart cleanly.
 
 The authority boundaries are:
 
@@ -110,4 +113,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-09 after Phase 2*
+*Last updated: 2026-09-23 after v0.1.0 milestone*

@@ -40,6 +40,10 @@ gaps:
       - "Readiness honesty for claude: its connection probe measures the user's environment rather than the isolated runtime, so a `ready: true` answer does not describe the run that follows — it listed the user's own MCP servers before a run that used one fronted server and could not authenticate. Recorded rather than left unstated; not required to close this gap."
     diagnosis_note: "Running the canary is what found the defects that made running it impossible, and both are now fixed: a claude canary authenticates on the caller's existing login by reference, and reaches its own observation front. The measured state as of 2026-09-23 is a real result rather than a mechanical failure — `outcome: ready`, `launched: true`, `exitCode: 0`, one observation recorded, `matched: [resolve-library-id]`, `missing: [query-docs]`. Claude's cells stay UNVERIFIED because the declared expectation is not held, which is the honest answer and the thing left to investigate; nothing here needs a human decision to proceed."
 deferred: []
+audit_acknowledged:
+  milestone: v0.1.0
+  at: 2026-09-23
+  status: gaps_found
 ---
 
 # Phase 7: Cross-Platform Release Proof Verification Report

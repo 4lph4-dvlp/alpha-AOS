@@ -97,12 +97,48 @@ only missing writer is the one that produces receipts in the first place.
   codex and pi are driven through the same runner and **auto-promote on success**, but a
   failure is recorded with its reason and does not block the phase. antigravity and hermes
   stay `unsupported`. Preserved for audit.
-- **D-17:** On 2026-09-14, user decision established that Claude Code is outside active v0.1.0 development, support, verification, and release-gate scope; Claude implementation and prior verification evidence remain compatibility history only.
+- **D-17:** (D-17 is superseded by D-18 on 2026-09-22). Formerly: On 2026-09-14, user decision established that Claude Code is outside active v0.1.0 development, support, verification, and release-gate scope; Claude implementation and prior verification evidence remain compatibility history only.
   The operative pass-bar rules are rebaselined around active non-Claude targets:
   - **Codex is the required active anchor** for CAPA-01, CAPA-02, and CAPA-05 because the repository already has a retained Codex CAPA-01 proof and a bounded Codex canary isolation path.
   - **CAPA-03 must use two distinct active non-Claude harnesses** (two-harness non-Claude handoff), preferring Hermes→Codex only when both entrypoints and the Codex receiving runtime are proven.
   - **Antigravity, Pi, and Hermes** promote only from their own deterministic/native evidence and otherwise remain visibly `unverified` or `unsupported`.
   - **Stable equal-proof ordering** is defined as an offline deterministic fixture obligation rather than a requirement for two paid live surfaces.
+  Preserved for audit.
+- **D-18:** On 2026-09-22, user decision established that the Claude-account verification
+  blocker underlying D-17 is resolved — a working Claude Code account now exists and is the
+  active session driving this repository. D-17 is superseded and **Claude Code is reinstated
+  into the active v0.1.0 harness scope** on equal footing with Codex, Antigravity, Pi, and
+  Hermes. Reinstating the scope claim is not itself evidence: Claude remains subject to the
+  same D-10 ceiling/ledger split and D-12 `blocked`/`unverified` distinction as every other
+  harness, and promotion past `unverified`/RESIDUE to `supported`/PROVEN still requires its
+  own real invocation-receipt evidence gathered the same way D-01 requires for any harness.
+  The operative pass-bar rules restate as:
+  - **Codex remains the currently proven anchor** for CAPA-01, CAPA-02, and CAPA-05 — not
+    because Claude is excluded, but because Codex is the one surface with retained real
+    evidence today. Claude may become an equally valid anchor once its own real evidence
+    exists.
+  - **CAPA-03's "two distinct active harnesses" requirement drops its "non-Claude"
+    qualifier** — any two distinct active harnesses, including Claude, may satisfy it once
+    both sides carry real evidence. The already-closed G-03-2 evidence (Hermes → Codex)
+    remains valid and is not reopened by this decision.
+  - **Antigravity, Pi, Hermes, and now Claude** all promote only from their own
+    deterministic/native evidence and otherwise remain visibly `unverified` or
+    `unsupported` — no special path for Claude.
+  - **Stable equal-proof ordering** stays the D-17 offline deterministic fixture obligation,
+    unaffected by this decision.
+
+  **Not implemented by this decision (routed as follow-up):** this quick task does not
+  implement (a) removing the `evaluateMatrixCell` `harnessId === "claude"` RESIDUE hardcode
+  and the `Exclude<HarnessId, "claude">` type exclusion in `src/core/support-matrix.ts`,
+  (b) restoring a Claude `canaryHarness` option and a Claude canary run path in
+  `catalog/stack.yaml` / `catalog/canaries.yaml`, or (c) actually executing a real Claude
+  Code canary invocation to generate genuine PROVEN-tier evidence. `src/core/support-matrix.ts`
+  and the real-host canary ledger are owned by Phase 7 (REL-02), which is already marked
+  `passed`/complete, so the correct next step is `/gsd-verify-work 7` to formally register
+  the now-stale "every claimed harness/surface has current real-host evidence" truth (Claude
+  re-entered the claimed set with none), followed by `$gsd-plan-phase 7 --gaps`. The named
+  alternate route is `$gsd-plan-phase 3 --gaps`, if that verification instead finds the work
+  better scoped to Phase 3's CAPA-01/02/03/05 canary mechanics. No gap ID is invented here.
 - **D-10:** Promotion from `unverified` to `supported` is decided by **two separate axes that
   are never merged**. Code and catalog own the **ceiling** — the product claim that a surface
   can structurally receive packs at all (antigravity has no project skill root; hermes is

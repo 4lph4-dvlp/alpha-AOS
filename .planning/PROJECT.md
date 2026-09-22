@@ -2,7 +2,7 @@
 
 ## What This Is
 
-alpha-AOS is a declarative, cross-platform control plane for building a consistent AI-agent working environment across Windows, macOS, and Linux. It configures active supported harnesses—Codex, Antigravity, Pi Agent, and Hermes Agent—so GSD provides the project workflow and state spine, selected ECC capabilities enrich the work, and MCP servers provide external tools without forcing every capability into every project. Claude Code integration remains available as shipped compatibility residue, but is excluded from active v0.1.0 development obligations, advertised support, acceptance/pass bars, and release gates.
+alpha-AOS is a declarative, cross-platform control plane for building a consistent AI-agent working environment across Windows, macOS, and Linux. It configures active supported harnesses—Claude Code, Codex, Antigravity, Pi Agent, and Hermes Agent—so GSD provides the project workflow and state spine, selected ECC capabilities enrich the work, and MCP servers provide external tools without forcing every capability into every project. Claude Code is reinstated into active v0.1.0 harness scope per D-18, on equal footing with the other four harnesses, but — like every other harness — still requires its own real invocation-receipt evidence before promotion past `unverified` to advertised support, pass bars, or release gates.
 
 The system manages capability scope as well as installation: broadly useful, low-risk capabilities can be available globally; evidence-matched capabilities can be supplied only to a project; mandatory checks can be attached to explicit quality gates; and selected directories can run without inheriting alpha-AOS at all.
 
@@ -27,20 +27,19 @@ A user can enter any supported project on any supported operating system and get
 
 ### Active
 
-- [ ] Preserve native implicit invocation for globally installed, low-risk ECC capabilities and MCP tools, and verify that each active supported harness (Codex, Antigravity, Pi, Hermes) uses them naturally when task intent matches; Claude Code remains compatibility residue
+- [ ] Preserve native implicit invocation for globally installed, low-risk ECC capabilities and MCP tools, and verify that each active supported harness (Claude Code, Codex, Antigravity, Pi, Hermes) uses them naturally when task intent matches; Claude Code's own invocation evidence is still outstanding per D-18
 - [ ] Add transactional project sync so the packs Phase 2 already selects and plans are actually materialized in the intended project scope, discovered natively, used during relevant work, and removable without disturbing user files
 - [ ] Add explicit GSD quality-gate integration for capabilities that must run rather than relying on probabilistic model selection, including security- and migration-sensitive checks
 - [ ] Make directory-tree alpha-AOS opt-out persistent and verifiable: after one setup action, normal active supported harness entrypoints must start from a clean user baseline, inherit only local project resources, and avoid unrelated environment-secret leakage without requiring `alpha-aos project run`
 - [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack across active targets
-- [ ] Expand the repository-owned workflow surface beyond its historical Claude-only compatibility surface wherever native invocation semantics are proven for active non-Claude targets, while reporting unsupported targets explicitly
+- [ ] Expand the repository-owned workflow surface beyond its historical Claude-only compatibility surface wherever native invocation semantics are proven for each active supported target (including Claude Code, per D-18), while reporting unsupported targets explicitly
 - [ ] Harden filesystem boundaries, subprocess-output redaction, native configuration merging, and external-package recovery before public release
-- [ ] Validate Windows, macOS, and Linux through CI fixtures plus representative real-host canaries, and validate every active supported harness (Codex, Antigravity, Pi, Hermes) on at least one real host; Claude Code is excluded from active validation gates
+- [ ] Validate Windows, macOS, and Linux through CI fixtures plus representative real-host canaries, and validate every active supported harness (Claude Code, Codex, Antigravity, Pi, Hermes) on at least one real host; Claude Code's own real-host canary evidence is the specific outstanding item per D-18
 - [ ] Complete a real brownfield GSD cycle with capability-routing traces, freeze the verified lock, and publish the v0.1.0 release artifacts and documentation
 - [ ] Widen `PathProof.inode` beyond a JS double so a Windows file index above 2^53 cannot make two distinct inodes compare equal and hide a TOCTOU swap — emerged in Phase 2, currently owned by no phase
 
 ### Out of Scope
 
-- Active v0.1.0 development, support claims, or release gates for Claude Code — Claude Code integration remains shipped compatibility residue only
 - OS/container-backed `sealed` isolation — valuable but deferred until after v0.1.0; v0.1.0 must keep it fail-closed and must not misrepresent `project-only` as a security sandbox
 - Full ECC profiles, broad language/framework rule packs, and duplicate workflow systems — they increase context and ownership conflicts instead of supporting the minimal GSD spine
 - Requiring every ECC capability or MCP on every task — capability availability is global or project-scoped, but invocation remains intent-driven unless a quality gate makes it mandatory
@@ -55,7 +54,7 @@ The project began from `docs/alpha-vibe-stack-codex.md`, which defined GSD Core 
 
 Current behavior demonstrates the desired native path on Codex: alpha-AOS installs `documentation-lookup` in the user skill root and registers Context7 in Codex configuration; Codex can then implicitly select the skill from its description and follow it into an MCP call without a user explicitly naming either one. This is the preferred path for low-risk global capabilities. alpha-AOS should not proxy every capability invocation.
 
-The missing product layer is policy and scope completion. Transactional `project sync --apply` is still a stub, repository-owned skill distribution remains Claude compatibility residue while active work targets non-Claude native surfaces, uninstall is incomplete, project-only processes inherit too much of the ambient environment, and several filesystem/configuration edge cases require hardening. The v0.1.0 milestone closes these gaps and proves the behavior through user-flow tests rather than treating file presence as success. For opt-out repositories, alpha-AOS must configure a persistent tree policy and use either native project suppression or a transparent pre-launch guard so the user can later invoke the ordinary active supported harness entrypoint. Detection after an agent has already loaded global context cannot count as isolation; that path must record the decision and restart cleanly.
+The missing product layer is policy and scope completion. Transactional `project sync --apply` is still a stub, repository-owned skill distribution was historically proven first on Claude Code and now extends to Codex, Antigravity, Pi, and Hermes on equal footing per D-18, uninstall is incomplete, project-only processes inherit too much of the ambient environment, and several filesystem/configuration edge cases require hardening. The v0.1.0 milestone closes these gaps and proves the behavior through user-flow tests rather than treating file presence as success. For opt-out repositories, alpha-AOS must configure a persistent tree policy and use either native project suppression or a transparent pre-launch guard so the user can later invoke the ordinary active supported harness entrypoint. Detection after an agent has already loaded global context cannot count as isolation; that path must record the decision and restart cleanly.
 
 The authority boundaries are:
 
@@ -70,7 +69,7 @@ The authority boundaries are:
 
 - **Compatibility**: Windows 11, current macOS, and current Linux distributions — v0.1.0 must keep scripts, path handling, and native configuration adapters portable
 - **Runtime**: Node.js `>=24.0.0`, npm `>=10.0.0`, and Git — required by the locked toolchain and GSD version
-- **Harness scope**: Active v0.1.0 development targets are Codex, Antigravity GUI/CLI/IDE, Pi Agent, and Hermes Agent. Claude Code integration remains shipped compatibility residue outside active support and release gates. Capabilities may use different native adapters, and unsupported parity must be reported rather than simulated
+- **Harness scope**: Active v0.1.0 development targets are Claude Code, Codex, Antigravity GUI/CLI/IDE, Pi Agent, and Hermes Agent. Claude Code is reinstated per D-18 on equal footing with the other four harnesses and still requires its own real invocation-receipt evidence before promotion, exactly like every other harness. Capabilities may use different native adapters, and unsupported parity must be reported rather than simulated
 - **Workflow ownership**: GSD Core `standard` is the only project lifecycle/state spine — ECC and native features must not duplicate or overwrite its state transitions
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion

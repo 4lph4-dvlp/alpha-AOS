@@ -2,7 +2,7 @@
 
 ## Overview
 
-This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first make every mutation and process boundary trustworthy, then compile deterministic repository evidence into reviewed plans, materialize optional capabilities in the correct scope, enforce mandatory GSD obligations, make directory-tree `off` persistent through ordinary harness entrypoints, complete the managed lifecycle, and finally freeze only the support claims and release bytes proven across platforms and active harnesses (Codex, Antigravity, Pi, and Hermes). Claude Code integration remains shipped compatibility residue outside active support claims, phase pass bars, and release gates. Existing code and its 38 passing tests are foundations, not completed roadmap phases.
+This roadmap delivers the brownfield v0.1.0 milestone as a vertical MVP: first make every mutation and process boundary trustworthy, then compile deterministic repository evidence into reviewed plans, materialize optional capabilities in the correct scope, enforce mandatory GSD obligations, make directory-tree `off` persistent through ordinary harness entrypoints, complete the managed lifecycle, and finally freeze only the support claims and release bytes proven across platforms and active harnesses (Claude Code, Codex, Antigravity, Pi, and Hermes). Per D-18 (2026-09-22), Claude Code is reinstated into active v0.1.0 harness scope on equal footing with the other four harnesses; its own real invocation-receipt evidence is still required before promotion, exactly like every other harness. Existing code and its 38 passing tests are foundations, not completed roadmap phases.
 
 ## Phases
 
@@ -232,8 +232,10 @@ only these six plans.
   4. User can preview and apply an evidence-matched, exact-hash pack inside one selected project, see project-local provenance in the target harness, and exercise it with a representative intent-matched task on an active non-Claude harness (anchored by Codex).
   5. The same capability is unavailable outside that project; status distinguishes selected, deployed, discovered, invoked, blocked, stale, unsupported, and unverified states across representative web, API/data, infrastructure, agent/AI, security, and scientific packs without global profile installation; every other active surface remains unverified or unsupported until its own evidence promotes it, and Claude Code absence is neither a blocker nor a release limitation for v0.1.0.
 
+**Post-verification note (2026-09-22):** D-18 reinstates Claude Code into active v0.1.0 harness scope, superseding D-17. This does not reopen Phase 3's already-verified success criteria — the Codex-anchored evidence from plans 03-19..03-22 remains valid. Claude's own real invocation-receipt evidence is outstanding follow-up work, not a reopened Phase 3 obligation; see `/gsd-verify-work 7` and `$gsd-plan-phase 7 --gaps` (or `$gsd-plan-phase 3 --gaps` as the named alternate) for routing.
+
 **Plans**: 22/22 plans executed (4 gap-closure plans planned under D-17: 03-19..03-22).
-**Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across active non-Claude targets (Codex, Antigravity, Pi, Hermes). Claude Code integration remains compatibility residue.
+**Planning note**: Targeted research and live probes are required for version-sensitive native discovery, invocation evidence, MCP scope, and configuration-preserving seams across all five active targets (Claude Code, Codex, Antigravity, Pi, Hermes). This phrase originally named only the non-Claude targets under D-17-era planning scope, before D-18 reinstated Claude Code on 2026-09-22.
 
 Plans:
 
@@ -440,6 +442,8 @@ Plans:
   3. Paired positive and negative controls prove optional native invocation, project-pack scope, mandatory-gate blocking, and tree-off exclusion instead of inferring success from installed files.
   4. A real brownfield project completes discuss → plan → execute → verify → ship with one GSD writer while exercising one global optional capability, one project pack, one mandatory gate, one cross-harness handoff, and safe cleanup.
   5. The published v0.1.0 tarball excludes `catalog/candidate.lock.json` and local state, contains only allowlisted files, is byte-identical to the three-OS tested artifact, and exposes verifiable provenance, a frozen stable lock, release notes, limitations, and a fresh public-registry install smoke test.
+
+**Post-verification note (2026-09-22):** D-18 reinstates Claude Code into active v0.1.0 harness scope, superseding D-17. Phase 7's Observable Truth 2 ("every claimed harness/surface has current real-host... evidence") was verified true only while Claude was excluded under D-17. Claude re-entering the claimed set with no real-host canary evidence of its own is the concrete outstanding gap this reinstatement creates. Next step: `/gsd-verify-work 7` to formally register it, followed by `$gsd-plan-phase 7 --gaps` — covering the `src/core/support-matrix.ts` RESIDUE hardcode, the `Exclude<HarnessId, "claude">` exclusion, and restoring/running a real Claude canary. This quick task does not implement any of that.
 
 **Plans**: 7/7 plans executed. Verification complete (2026-09-20).
 

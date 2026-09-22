@@ -11,7 +11,8 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ### Fixed
 
-- An isolated Claude canary is refused before it spends a model turn instead of spending one that could only fail. Claude Code keeps its login inside `CLAUDE_CONFIG_DIR`, which a canary runtime replaces, so the run started unauthenticated and ended at `Not logged in` after the spend. The launch now records `HARNESS_ISOLATION_UNPROVEN` with the next action, and `ANTHROPIC_API_KEY` on the launch lifts it.
+- A Claude canary can authenticate. Claude Code keeps its login inside `CLAUDE_CONFIG_DIR`, which a canary runtime replaces, so every isolated run started logged out and ended at `Not logged in` after spending a model turn. The runtime now hard-links the existing login into itself — by reference, never reading or copying the credential, the same treatment the Codex canary already gives the caller's login — and refuses before spending when no link can be made.
+- A Claude canary can reach its own observation front. Isolation hides the caller's tool approvals and `-p` cannot prompt for one, so fronted calls were denied before the proxy ever saw them: a measured run recorded `permission_denials` naming the exact tool the canary expects while the observation sink stayed empty, which alpha-AOS scored as the harness failing to route. Canary launches now grant the servers the runtime fronts, by server rather than by tool name, so fan-out and forbidden-tool controls stay observable.
 
 ### Documentation
 
@@ -43,7 +44,7 @@ Claude Code, Codex, Antigravity, Pi, and Hermes are the active target scope. “
 
 Claude Code is judged by the same evidence rule as every other harness: the support matrix no longer fixes its tier ahead of the evidence. No invocation receipt exists for it yet, so its cells read **UNVERIFIED** rather than **PROVEN**. Earlier revisions of this file described Claude Code as compatibility **RESIDUE** outside support and release gates; that exclusion was made when no account was available to produce evidence with, and decision D-18 (2026-09-22) ended it.
 
-Obtaining a receipt has one recorded constraint. Claude Code keeps its login inside `CLAUDE_CONFIG_DIR`, which a canary runtime replaces in order to isolate configuration, skills, hooks, memory, and MCP — hiding the credential with them. No Claude Code flag names a credential source separately from the config root, and alpha-AOS never reads or copies authentication bytes, so an isolated Claude canary is refused before it spends a model turn (`HARNESS_ISOLATION_UNPROVEN`) rather than spending one that could only fail. `ANTHROPIC_API_KEY` on the launch authenticates by environment and lifts the refusal.
+A Claude canary runs on the login you already have: the runtime hard-links it in by reference, never reading or copying the credential, and refuses before spending when no such link can be made.
 
 ## Known Platform Limitations
 

@@ -49,7 +49,7 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
 
   1. On ubuntu-latest and macos-latest, `destinationFor resolves destinations across all five harnesses` passes with its fixture root built from the host platform's path APIs, and the suite fails if any test under `test/` asserts against a platform-specific absolute path literal.
   2. Running the packed release lifecycle (install, reconcile, diagnose, uninstall) on Windows leaves every real host managed path, including `~/.alpha-aos`, byte-identical before and after, and the host-path immutability assertion is unchanged unless the investigation proves the oracle itself wrong.
-  3. The Windows `~/.alpha-aos` change has a recorded root cause, classified as a product isolation leak or a test-oracle defect, together with the evidence that decided it (which bytes changed and which lifecycle step wrote them).
+  3. The Windows `~/.alpha-aos` change has a recorded root cause, classified as a product isolation leak, a test-oracle defect, or a test-isolation leak, together with the evidence that decided it (which bytes changed and which lifecycle step wrote them).
   4. A regression test pins the diagnosed cause: it was observed failing against the unfixed code and passes against the fix.
   5. A single `main` CI run id shows ubuntu-latest, macos-latest, and windows-latest all green, with no leg individually re-run or taken from another run.
 

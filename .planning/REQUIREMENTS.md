@@ -8,7 +8,7 @@
 ### CI Baseline
 
 - [x] **CI-01**: User running the suite on ubuntu or macOS sees `destinationFor resolves destinations across all five harnesses` pass, because its fixture root is built with the host platform's path APIs, and no test in `test/` asserts against a platform-specific absolute path literal
-- [ ] **CI-02**: User running the packed release lifecycle (install, reconcile, diagnose, uninstall) on Windows leaves every real host managed path, including `~/.alpha-aos`, byte-identical; the root cause is classified as a product isolation leak or a test-oracle defect, recorded, and pinned by a regression test
+- [ ] **CI-02**: User running the packed release lifecycle (install, reconcile, diagnose, uninstall) on Windows leaves every real host managed path, including `~/.alpha-aos`, byte-identical; the root cause is classified as a product isolation leak, a test-oracle defect, or a test-isolation leak (another test file writing the real host state during the lifecycle's snapshot window), recorded, and pinned by a regression test
 - [ ] **CI-03**: User sees `main` CI pass on ubuntu-latest, macos-latest, and windows-latest in a single run id
 - [ ] **CI-04**: User sees a red `main` CI surfaced as an opened or refreshed tracking issue that closes when `main` is green again
 

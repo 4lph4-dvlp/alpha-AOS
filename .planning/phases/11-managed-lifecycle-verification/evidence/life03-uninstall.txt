@@ -1,0 +1,3938 @@
+probe: life03-uninstall
+head: cf97e2203544a0b935b3a2272c2e3e04d96c4ab6
+dirty-tracked: 1
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: 6da175e5443c09272c6fc873587abb17fd9b92cb11a6d59d420c3e25122cacb5
+started: 2026-09-23T19:50:15.194Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 2185
+--- stdout (18895B sha256=de631b9e923c) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590832,
+    "unpackedSize": 2455165,
+    "shasum": "e94f6e8a90b45b0f9926cbc6d66934cc4fc1e519",
+    "integrity": "sha512-9cUOTuBob8g48H2ZXICKnAI1/L6hOq165WlW80Y7ymJWDWjP2SO5Fb+jAUkQ65KqcZ2e7O5XU6MvMA5hy42law==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: seeding precondition: all five harnesses are seeded by seedHarnessPrerequisites (GSD version files, ECC skills at the lock target hashes, MCP configs rendered by the packed renderMcpConfig, the Pi bridge manifest) plus the claude GSD ship workflow, then `install --apply` writes and journals the alpha-AOS-owned files
+note: preservation fixtures are synthetic: every authentication sentinel holds one fixed synthetic string (reported by hash only), p11-user-server is a user MCP server rendered into each native config next to the managed entries, and p11-user-skill/SKILL.md is a user skill in each harness skill root
+note: sandbox aliases: <sandbox> the preview, guard and one-target uninstall sandbox; <sandbox-2> the full-stack uninstall sandbox. Fingerprint roots: <sandbox-N>/home, <sandbox-N>/state, <sandbox-N>/prefix (temp, npm-cache and npm-logs excluded by design)
+note: CLI output below is verbatim apart from path aliasing; any 64-hex value inside it is a plan digest or lock digest printed by the CLI itself
+
+## step 2: target: seed the claude GSD ship workflow from the locked GSD package
+$ npm install --global @opengsd/gsd-core@1.12.0 --prefix <sandbox>\temp\gsd-package --ignore-scripts --no-audit --no-fund --prefer-offline
+env-overrides: npm_config_cache
+exit: 0
+duration-ms: 9368
+--- stdout (26B sha256=31144e29993d) ---
+
+added 105 packages in 9s
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: target: packed release installed (channel stable); all five harnesses seeded in one sandbox; claude GSD seed completed with gsd-core/workflows/ship.md from the locked GSD package
+
+## step 3: target: install --target claude,codex,antigravity,pi,hermes --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 19373
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (120B sha256=433d9d53b78a) ---
+alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed 700e6056c9c4, observed 660b7a872d9d.
+CHECK life03.setup.install VIOLATED combined five-target install exit=2; stderr: "alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed <digest>, observed <digest>." (the codex+pi shared-destination refusal recorded as LIFE-01/C1); the probe falls back to one install per target in the order claude, codex, antigravity, pi, hermes
+
+## step 4: target: install --target claude --apply (serial fallback)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 7548
+--- stdout (3031B sha256=da90cab36af9) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "claude"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:claude",
+        "component": "gsd",
+        "target": "claude",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/claude"
+      },
+      {
+        "id": "owned-skill:alpha-aos-ship:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:claude",
+        "component": "ecc-skills",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.claude\\skills"
+      },
+      {
+        "id": "mcp:claude",
+        "component": "mcp",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude.json"
+      },
+      {
+        "id": "policy:claude-ecc",
+        "component": "skill-policy",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\settings.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-ship:claude",
+    "owned-skill:alpha-aos-control:claude",
+    "policy:claude-ecc"
+  ],
+  "current": [
+    "gsd:claude",
+    "ecc:runtime",
+    "ecc:claude",
+    "mcp:claude"
+  ],
+  "operationIds": [
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--2",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--3"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 5: target: install --target codex --apply (serial fallback)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 7943
+--- stdout (2697B sha256=a60afb87bca6) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 6: target: install --target antigravity --apply (serial fallback)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target antigravity --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 7172
+--- stdout (2469B sha256=8b745e84d524) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "antigravity"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:antigravity",
+        "component": "gsd",
+        "target": "antigravity",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/antigravity"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:antigravity",
+        "component": "owned-skill",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:antigravity",
+        "component": "ecc-skills",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.gemini\\antigravity\\skills"
+      },
+      {
+        "id": "mcp:antigravity",
+        "component": "mcp",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\config\\mcp_config.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:antigravity"
+  ],
+  "current": [
+    "gsd:antigravity",
+    "ecc:runtime",
+    "ecc:antigravity",
+    "mcp:antigravity"
+  ],
+  "operationIds": [
+    "2026-09-23T19-51-44-466Z-fb6ed09d-01bd-432a-8ab0-8683c205b3c4"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 7: target: install --target pi --apply (serial fallback)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 5048
+--- stdout (2455B sha256=753dd9d61655) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "pi"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:pi",
+        "component": "gsd",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/pi"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:pi",
+        "component": "owned-skill",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:pi",
+        "component": "ecc-skills",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp-bridge:pi",
+        "component": "mcp-bridge",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "pi-mcp-adapter@2.31.0"
+      },
+      {
+        "id": "mcp:pi",
+        "component": "mcp",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.pi\\agent\\mcp.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:pi",
+    "owned-skill:alpha-aos-control:pi",
+    "ecc:runtime",
+    "ecc:pi",
+    "mcp-bridge:pi",
+    "mcp:pi"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 8: target: install --target hermes --apply (serial fallback)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target hermes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 6818
+--- stdout (2146B sha256=e24064450078) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "hermes"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "owned-skill:alpha-aos-control:hermes",
+        "component": "owned-skill",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:hermes",
+        "component": "ecc-skills",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.hermes\\skills"
+      },
+      {
+        "id": "mcp:hermes",
+        "component": "mcp",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\config.yaml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:hermes"
+  ],
+  "current": [
+    "ecc:runtime",
+    "ecc:hermes",
+    "mcp:hermes"
+  ],
+  "operationIds": [
+    "2026-09-23T19-51-56-312Z-7133f9e0-d7df-4e06-93d4-015c38d8dd5d"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.setup.install-serial OBSERVED claude: exit=0 applied=owned-skill:alpha-aos-ship:claude, owned-skill:alpha-aos-control:claude, policy:claude-ecc; codex: exit=0 applied=policy:codex-execution, owned-skill:alpha-aos-control:codex; antigravity: exit=0 applied=owned-skill:alpha-aos-control:antigravity; pi: exit=0 applied=none; hermes: exit=0 applied=owned-skill:alpha-aos-control:hermes
+
+## step 9: target: dry-run install --target claude,codex,antigravity,pi,hermes --json after setup
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --json
+env-overrides: none
+exit: 0
+duration-ms: 5065
+--- stdout (8070B sha256=34f6d9dbfe80) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "claude",
+    "codex",
+    "antigravity",
+    "pi",
+    "hermes"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "policy:codex-execution",
+      "component": "execution-policy",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\AGENTS.md"
+    },
+    {
+      "id": "gsd:claude",
+      "component": "gsd",
+      "target": "claude",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/claude"
+    },
+    {
+      "id": "gsd:codex",
+      "component": "gsd",
+      "target": "codex",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/codex"
+    },
+    {
+      "id": "gsd:antigravity",
+      "component": "gsd",
+      "target": "antigravity",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/antigravity"
+    },
+    {
+      "id": "gsd:pi",
+      "component": "gsd",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/pi"
+    },
+    {
+      "id": "owned-skill:alpha-aos-ship:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:codex",
+      "component": "owned-skill",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:antigravity",
+      "component": "owned-skill",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:pi",
+      "component": "owned-skill",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:hermes",
+      "component": "owned-skill",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:claude",
+      "component": "ecc-skills",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.claude\\skills"
+    },
+    {
+      "id": "ecc:codex",
+      "component": "ecc-skills",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:antigravity",
+      "component": "ecc-skills",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.gemini\\antigravity\\skills"
+    },
+    {
+      "id": "ecc:pi",
+      "component": "ecc-skills",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:hermes",
+      "component": "ecc-skills",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.hermes\\skills"
+    },
+    {
+      "id": "mcp-bridge:pi",
+      "component": "mcp-bridge",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "pi-mcp-adapter@2.31.0"
+    },
+    {
+      "id": "mcp:claude",
+      "component": "mcp",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude.json"
+    },
+    {
+      "id": "mcp:codex",
+      "component": "mcp",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\config.toml"
+    },
+    {
+      "id": "mcp:antigravity",
+      "component": "mcp",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\config\\mcp_config.json"
+    },
+    {
+      "id": "mcp:pi",
+      "component": "mcp",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.pi\\agent\\mcp.json"
+    },
+    {
+      "id": "mcp:hermes",
+      "component": "mcp",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\config.yaml"
+    },
+    {
+      "id": "policy:claude-ecc",
+      "component": "skill-policy",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\settings.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.setup.all-current HOLDS 24 steps; not current: none
+CHECK life03.setup.fixtures OBSERVED claude/auth <sandbox>\home\.claude\.credentials.json sha=2907e3254e82; claude/user-mcp <sandbox>\home\.claude.json entry-sha=423b820cf75e; claude/user-skill <sandbox>\home\.claude\skills\p11-user-skill\SKILL.md sha=d4a816b7d227; codex/auth <sandbox>\home\.codex\auth.json sha=2907e3254e82; codex/user-mcp <sandbox>\home\.codex\config.toml entry-sha=423b820cf75e; codex/user-skill <sandbox>\home\.agents\skills\p11-user-skill\SKILL.md sha=da65f6d27f0d; antigravity/auth <sandbox>\home\.gemini\oauth_creds.json sha=2907e3254e82; antigravity/user-mcp <sandbox>\home\.gemini\config\mcp_config.json entry-sha=423b820cf75e; antigravity/user-skill <sandbox>\home\.gemini\antigravity\skills\p11-user-skill\SKILL.md sha=76b1aaa147ea; pi/auth <sandbox>\home\.pi\agent\auth.json sha=2907e3254e82; pi/user-mcp <sandbox>\home\.pi\agent\mcp.json entry-sha=423b820cf75e; pi/user-skill <sandbox>\home\.agents\skills\p11-user-skill\SKILL.md sha=da65f6d27f0d; hermes/auth <sandbox>\home\.hermes\auth.json sha=2907e3254e82; hermes/user-mcp <sandbox>\home\.hermes\config.yaml entry-sha=423b820cf75e; hermes/user-skill <sandbox>\home\.hermes\skills\p11-user-skill\SKILL.md sha=bb26a5292ad7
+note: target: the codex and pi user skill is one file (<sandbox>\home\.agents\skills\p11-user-skill\SKILL.md) because both harnesses use <home>/.agents/skills as their skill root
+
+## step 10: preview: uninstall --target codex
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex
+env-overrides: none
+exit: 0
+duration-ms: 770
+--- stdout (1429B sha256=59dacc62a7dc) ---
+alpha-AOS Uninstall Plan (scope: target)
+Purge state directory: no
+Target harness:        codex
+State root:            <sandbox>\state
+
+Configuration files to prune semantically:
+  - <sandbox>\home\.codex\config.toml (toml) [action: prune]
+      injected keys to remove: context7, exa, firecrawl
+      user keys preserved:     user-tables
+  - <sandbox>\home\.codex\AGENTS.md (markdown) [action: delete]
+      injected keys to remove: alpha-AOS:codex-execution
+
+Files to remove:
+  - <sandbox>\home\.agents\skills\unified-memory\SKILL.md
+  - <sandbox>\home\.agents\skills\documentation-lookup\SKILL.md
+  - <sandbox>\home\.agents\skills\deep-research\SKILL.md
+
+Directories to reverse sweep:
+  - <sandbox>\home\.agents\skills\unified-memory
+  - <sandbox>\home\.agents\skills\documentation-lookup
+  - <sandbox>\home\.agents\skills\deep-research
+
+Dry-run only. Pass --apply [--yes] to execute uninstall.
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target codex: 6bf942e99e70 -> 6bf942e99e70
+CHECK life03.preview.target.no-mutation HOLDS exit=0; sandbox home, state and prefix digests equal before and after
+
+## step 11: preview: uninstall --target codex --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --json
+env-overrides: none
+exit: 0
+duration-ms: 799
+--- stdout (1441B sha256=8feaa446a48c) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "codex",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.codex\\config.toml",
+      "format": "toml",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "user-tables"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "a710b89def68a5113f4d0581c495586a1b115a542cd2012074567edb91f083cb",
+      "expectedAfterHash": "3f02d5633058c6c110a2ec7116862dd1ea821a78fe57ca13c09c86997f3e68a5"
+    },
+    {
+      "path": "~\\.codex\\AGENTS.md",
+      "format": "markdown",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "alpha-AOS:codex-execution"
+      ],
+      "action": "delete",
+      "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+      "expectedAfterHash": null
+    }
+  ],
+  "filesToRemove": [
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "230d6a2c1335acef9556314d0e9266a92e8a8a0734adbb0217987f533d8b0c4c"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target codex --json: 6bf942e99e70 -> 6bf942e99e70
+CHECK life03.preview.target-json.no-mutation HOLDS exit=0; prunePlans=2; filesToRemove=3; purgeRequested=false; sandbox home, state and prefix digests equal before and after
+
+## step 12: preview: uninstall --all --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --all --json
+env-overrides: none
+exit: 0
+duration-ms: 831
+--- stdout (6148B sha256=0098f9760eab) ---
+{
+  "schemaVersion": 1,
+  "scope": "all",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.claude.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "mcpServers"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "29ef209a6c1c984c4f2de070356a6bf7b37d7b034b44e19f948552e11f4a6d6e",
+      "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+    },
+    {
+      "path": "~\\.claude\\settings.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "settings"
+      ],
+      "injectedKeysRemoved": [
+        "unified-memory",
+        "documentation-lookup",
+        "deep-research"
+      ],
+      "action": "prune",
+      "currentHash": "d9cc80c5dd06614c7a1f58f175e86e1b754a4c2ed1e0cfe78f0915b4dd389974",
+      "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "~\\.codex\\config.toml",
+      "format": "toml",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "user-tables"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "a710b89def68a5113f4d0581c495586a1b115a542cd2012074567edb91f083cb",
+      "expectedAfterHash": "3f02d5633058c6c110a2ec7116862dd1ea821a78fe57ca13c09c86997f3e68a5"
+    },
+    {
+      "path": "~\\.codex\\AGENTS.md",
+      "format": "markdown",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "alpha-AOS:codex-execution"
+      ],
+      "action": "delete",
+      "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+      "expectedAfterHash": null
+    },
+    {
+      "path": "~\\.gemini\\config\\mcp_config.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "mcpServers"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "91549cf7a42c619d78f56610743840b72e1f0dc5051c7cf70bbbe0491d7a0fa8",
+      "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+    },
+    {
+      "path": "~\\.pi\\agent\\mcp.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "mcpServers"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "049b507adff167ec6d91275f7e412ff58951cdbfa4866ac987bbbf0b9e0eb3cd",
+      "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+    },
+    {
+      "path": "~\\.hermes\\config.yaml",
+      "format": "yaml",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "user-yaml-keys"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "7be66b95727e25ef55c013ab87d1aa72d83f249168e1e8090cfcfc69e3918cfe",
+      "expectedAfterHash": "9b1b160629c6dc866e696f8e4cfd5ac0438c1152ee07b044c1e1851f2a50ca90"
+    }
+  ],
+  "filesToRemove": [
+    "~\\.claude\\skills\\unified-memory\\SKILL.md",
+    "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.claude\\skills\\deep-research\\SKILL.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md",
+    "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+    "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.hermes\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.claude\\skills\\unified-memory",
+    "~\\.claude\\skills\\documentation-lookup",
+    "~\\.claude\\skills\\deep-research",
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research",
+    "~\\.gemini\\antigravity\\skills\\unified-memory",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup",
+    "~\\.gemini\\antigravity\\skills\\deep-research",
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research",
+    "~\\.hermes\\skills\\unified-memory",
+    "~\\.hermes\\skills\\documentation-lookup",
+    "~\\.hermes\\skills\\deep-research"
+  ],
+  "externalCompensation": [
+    {
+      "component": "gsd",
+      "action": "install",
+      "target": "global",
+      "previousState": null,
+      "appliedState": "uninstalled",
+      "compensation": {
+        "instructions": "GSD Core files in harness config directories can be removed manually if no longer required.",
+        "commands": [
+          "rm -rf ~/.claude/get-shit-done ~/.codex/get-shit-done"
+        ]
+      }
+    },
+    {
+      "component": "ecc-runtime",
+      "action": "install",
+      "target": "global npm",
+      "previousState": null,
+      "appliedState": "uninstalled",
+      "compensation": {
+        "instructions": "Uninstall global ECC companion runtime via npm.",
+        "commands": [
+          "npm uninstall -g @enterprise-coding-companion/companion"
+        ]
+      }
+    },
+    {
+      "component": "npm-link",
+      "action": "link",
+      "target": "global alpha-aos",
+      "previousState": null,
+      "appliedState": "unlinked",
+      "compensation": {
+        "instructions": "Unlink global alpha-aos binary.",
+        "commands": [
+          "npm unlink -g alpha-aos"
+        ]
+      }
+    }
+  ],
+  "planDigest": "a3ce233de9cc3aa0bb0c68e85d373d3dc2e59864de7cbd7bb4fd9f58fbeff4ab"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --all --json: 6bf942e99e70 -> 6bf942e99e70
+CHECK life03.preview.all.no-mutation HOLDS exit=0; prunePlans=7; filesToRemove=15; purgeRequested=false; sandbox home, state and prefix digests equal before and after
+
+## step 13: preview: uninstall --all --purge --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --all --purge --json
+env-overrides: none
+exit: 0
+duration-ms: 850
+--- stdout (6147B sha256=025b99cef2d8) ---
+{
+  "schemaVersion": 1,
+  "scope": "all",
+  "purgeRequested": true,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.claude.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "mcpServers"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "29ef209a6c1c984c4f2de070356a6bf7b37d7b034b44e19f948552e11f4a6d6e",
+      "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+    },
+    {
+      "path": "~\\.claude\\settings.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "settings"
+      ],
+      "injectedKeysRemoved": [
+        "unified-memory",
+        "documentation-lookup",
+        "deep-research"
+      ],
+      "action": "prune",
+      "currentHash": "d9cc80c5dd06614c7a1f58f175e86e1b754a4c2ed1e0cfe78f0915b4dd389974",
+      "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "~\\.codex\\config.toml",
+      "format": "toml",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "user-tables"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "a710b89def68a5113f4d0581c495586a1b115a542cd2012074567edb91f083cb",
+      "expectedAfterHash": "3f02d5633058c6c110a2ec7116862dd1ea821a78fe57ca13c09c86997f3e68a5"
+    },
+    {
+      "path": "~\\.codex\\AGENTS.md",
+      "format": "markdown",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "alpha-AOS:codex-execution"
+      ],
+      "action": "delete",
+      "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+      "expectedAfterHash": null
+    },
+    {
+      "path": "~\\.gemini\\config\\mcp_config.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "mcpServers"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "91549cf7a42c619d78f56610743840b72e1f0dc5051c7cf70bbbe0491d7a0fa8",
+      "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+    },
+    {
+      "path": "~\\.pi\\agent\\mcp.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "mcpServers"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "049b507adff167ec6d91275f7e412ff58951cdbfa4866ac987bbbf0b9e0eb3cd",
+      "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+    },
+    {
+      "path": "~\\.hermes\\config.yaml",
+      "format": "yaml",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "user-yaml-keys"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "7be66b95727e25ef55c013ab87d1aa72d83f249168e1e8090cfcfc69e3918cfe",
+      "expectedAfterHash": "9b1b160629c6dc866e696f8e4cfd5ac0438c1152ee07b044c1e1851f2a50ca90"
+    }
+  ],
+  "filesToRemove": [
+    "~\\.claude\\skills\\unified-memory\\SKILL.md",
+    "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.claude\\skills\\deep-research\\SKILL.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md",
+    "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+    "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.hermes\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.claude\\skills\\unified-memory",
+    "~\\.claude\\skills\\documentation-lookup",
+    "~\\.claude\\skills\\deep-research",
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research",
+    "~\\.gemini\\antigravity\\skills\\unified-memory",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup",
+    "~\\.gemini\\antigravity\\skills\\deep-research",
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research",
+    "~\\.hermes\\skills\\unified-memory",
+    "~\\.hermes\\skills\\documentation-lookup",
+    "~\\.hermes\\skills\\deep-research"
+  ],
+  "externalCompensation": [
+    {
+      "component": "gsd",
+      "action": "install",
+      "target": "global",
+      "previousState": null,
+      "appliedState": "uninstalled",
+      "compensation": {
+        "instructions": "GSD Core files in harness config directories can be removed manually if no longer required.",
+        "commands": [
+          "rm -rf ~/.claude/get-shit-done ~/.codex/get-shit-done"
+        ]
+      }
+    },
+    {
+      "component": "ecc-runtime",
+      "action": "install",
+      "target": "global npm",
+      "previousState": null,
+      "appliedState": "uninstalled",
+      "compensation": {
+        "instructions": "Uninstall global ECC companion runtime via npm.",
+        "commands": [
+          "npm uninstall -g @enterprise-coding-companion/companion"
+        ]
+      }
+    },
+    {
+      "component": "npm-link",
+      "action": "link",
+      "target": "global alpha-aos",
+      "previousState": null,
+      "appliedState": "unlinked",
+      "compensation": {
+        "instructions": "Unlink global alpha-aos binary.",
+        "commands": [
+          "npm unlink -g alpha-aos"
+        ]
+      }
+    }
+  ],
+  "planDigest": "35fe0a1e507f595be8c82d51054e76e86711cacec5376c1cf1f57d01b1be6a28"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --all --purge --json: 6bf942e99e70 -> 6bf942e99e70
+CHECK life03.preview.purge.no-mutation HOLDS exit=0; prunePlans=7; filesToRemove=15; purgeRequested=true; sandbox home, state and prefix digests equal before and after
+CHECK life03.preview.all-owned-skills OBSERVED the --all preview names 15 file(s) to remove; alpha-aos-control or alpha-aos-ship among them: 0
+
+## step 14: guard: uninstall --target codex --apply without --yes (stdin is a pipe)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --apply
+env-overrides: none
+exit: 2
+duration-ms: 832
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (63B sha256=c77b771c58a4) ---
+Non-interactive environment requires --yes to apply uninstall.
+fingerprint sandbox home+state+prefix across the refused apply: 6bf942e99e70 -> 6bf942e99e70
+CHECK life03.guard.non-tty-refuses HOLDS exit=2; stderr carries the --yes message; fingerprint unchanged
+
+## step 15: uninstall --target hermes --yes --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target hermes --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1068
+--- stdout (2669B sha256=af42090ba619) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "hermes",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.hermes\\config.yaml",
+        "format": "yaml",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "user-yaml-keys"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "7be66b95727e25ef55c013ab87d1aa72d83f249168e1e8090cfcfc69e3918cfe",
+        "expectedAfterHash": "9b1b160629c6dc866e696f8e4cfd5ac0438c1152ee07b044c1e1851f2a50ca90"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+      "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.hermes\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.hermes\\skills\\unified-memory",
+      "~\\.hermes\\skills\\documentation-lookup",
+      "~\\.hermes\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "3258ae20f54c5b0651720af96c809d6bbf3a83a2e67f700c54aca1453081ed6a"
+  },
+  "prunedFiles": [
+    "~\\.hermes\\config.yaml"
+  ],
+  "removedFiles": [
+    "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+    "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.hermes\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--2.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--3.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--4.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--5.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--2.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--3.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27--2.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27.json",
+    "2026-09-23T19-51-44-466Z-fb6ed09d-01bd-432a-8ab0-8683c205b3c4.json",
+    "2026-09-23T19-51-56-312Z-7133f9e0-d7df-4e06-93d4-015c38d8dd5d.json",
+    "2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f.json",
+    "2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705.json",
+    "2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7.json",
+    "2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target hermes: 6bf942e99e70 -> 45491f454b16
+drift in sandbox home+state+prefix across uninstall --target hermes
+<sandbox>\home: 47893d7881d8 -> 9550761e5f30 (added 0, removed 3, changed 1, vanished 0)
+  changed .hermes/config.yaml file/933/7be66b95727e -> file/95/9b1b160629c6
+  removed .hermes/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .hermes/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .hermes/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+<sandbox>\state: 4be8be71aec7 -> b62b9255b444 (added 12, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f.json - -> file/1031/9544dbe5983d
+  added journal/2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705.json - -> file/1014/e954f73b2fe9
+  added journal/2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7.json - -> file/1026/b4c64787df7a
+  added journal/2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733.json - -> file/1012/4645cd9300bd
+  added snapshots/2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f - -> dir/-/-
+  added snapshots/2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f/0.bin - -> file/933/7be66b95727e
+  added snapshots/2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705 - -> dir/-/-
+  added snapshots/2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7 - -> dir/-/-
+  added snapshots/2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7/0.bin - -> file/4912/81ad2b5b4acb
+  added snapshots/2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733 - -> dir/-/-
+  added snapshots/2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733/0.bin - -> file/5224/fdd97098a3a4
+CHECK life03.target.hermes.managed-mcp-removed HOLDS exit=0; <sandbox>\home\.hermes\config.yaml (yaml) parsed natively: no context7/exa/firecrawl entry; servers left: p11-user-server
+CHECK life03.target.hermes.ecc-removed HOLDS no ECC SKILL.md left under <sandbox>\home\.hermes\skills (present before: unified-memory, documentation-lookup, deep-research)
+CHECK life03.target.hermes.owned-removed VIOLATED alpha-AOS-owned skill file(s) still present after uninstall --target hermes: <sandbox>\home\.hermes\skills\alpha-aos-control\SKILL.md
+CHECK life03.target.hermes.auth-kept HOLDS <sandbox>\home\.hermes\auth.json sha 2907e3254e82 -> 2907e3254e82
+CHECK life03.target.hermes.user-mcp-kept HOLDS p11-user-server entry in <sandbox>\home\.hermes\config.yaml is equal to its pre-uninstall value
+CHECK life03.target.hermes.user-skill-kept HOLDS <sandbox>\home\.hermes\skills\p11-user-skill\SKILL.md sha bb26a5292ad7 -> bb26a5292ad7
+CHECK life03.target.hermes.others-untouched HOLDS fixture and managed files of claude, codex, antigravity, pi unchanged
+
+## step 16: uninstall --target pi --yes --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target pi --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1079
+--- stdout (2957B sha256=46f8262f037a) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "pi",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.pi\\agent\\mcp.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "mcpServers"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "049b507adff167ec6d91275f7e412ff58951cdbfa4866ac987bbbf0b9e0eb3cd",
+        "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "56a9b0671de86f7997bb46f7eada582ff5de51dd6905ba8cbb21cffa134c520b"
+  },
+  "prunedFiles": [
+    "~\\.pi\\agent\\mcp.json"
+  ],
+  "removedFiles": [
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--2.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--3.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--4.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--5.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--2.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--3.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27--2.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27.json",
+    "2026-09-23T19-51-44-466Z-fb6ed09d-01bd-432a-8ab0-8683c205b3c4.json",
+    "2026-09-23T19-51-56-312Z-7133f9e0-d7df-4e06-93d4-015c38d8dd5d.json",
+    "2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f.json",
+    "2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705.json",
+    "2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7.json",
+    "2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733.json",
+    "2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56.json",
+    "2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0.json",
+    "2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6.json",
+    "2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target pi: 45491f454b16 -> 395e3164c6bb
+drift in sandbox home+state+prefix across uninstall --target pi
+<sandbox>\home: 9550761e5f30 -> c2c946adee4c (added 0, removed 3, changed 1, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .agents/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  changed .pi/agent/mcp.json file/1524/049b507adff1 -> file/144/1150aa55d3e8
+<sandbox>\state: b62b9255b444 -> 8570dd3dcb42 (added 12, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56.json - -> file/1034/ad0c1c96d86b
+  added journal/2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0.json - -> file/1014/0357b42533c3
+  added journal/2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6.json - -> file/1026/460a49e5dc98
+  added journal/2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e.json - -> file/1012/a12d380a575a
+  added snapshots/2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56/0.bin - -> file/1524/049b507adff1
+  added snapshots/2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6/0.bin - -> file/4912/81ad2b5b4acb
+  added snapshots/2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e - -> dir/-/-
+  added snapshots/2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e/0.bin - -> file/5224/fdd97098a3a4
+CHECK life03.target.pi.managed-mcp-removed HOLDS exit=0; <sandbox>\home\.pi\agent\mcp.json (json) parsed natively: no context7/exa/firecrawl entry; servers left: p11-user-server
+CHECK life03.target.pi.ecc-removed OBSERVED shared root: <sandbox>\home\.agents\skills is also the ECC skill root of codex (still installed); present before: unified-memory, documentation-lookup, deep-research; present after: none
+CHECK life03.target.pi.owned-removed VIOLATED alpha-AOS-owned skill file(s) still present after uninstall --target pi: <sandbox>\home\.agents\skills\alpha-aos-control\SKILL.md (this path is also the codex owned skill destination)
+CHECK life03.target.pi.auth-kept HOLDS <sandbox>\home\.pi\agent\auth.json sha 2907e3254e82 -> 2907e3254e82
+CHECK life03.target.pi.user-mcp-kept HOLDS p11-user-server entry in <sandbox>\home\.pi\agent\mcp.json is equal to its pre-uninstall value
+CHECK life03.target.pi.user-skill-kept HOLDS <sandbox>\home\.agents\skills\p11-user-skill\SKILL.md sha da65f6d27f0d -> da65f6d27f0d
+CHECK life03.target.pi.others-untouched HOLDS fixture and managed files of claude, codex, antigravity, hermes unchanged; excluded (shared ECC root, reported under ecc-removed and the sibling check): codex:unified-memory/SKILL.md, codex:documentation-lookup/SKILL.md, codex:deep-research/SKILL.md
+
+## step 17: after uninstall --target pi: dry-run install --target codex --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --json
+env-overrides: none
+exit: 0
+duration-ms: 4452
+--- stdout (2160B sha256=8207f1306965) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "codex"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "policy:codex-execution",
+      "component": "execution-policy",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\AGENTS.md"
+    },
+    {
+      "id": "gsd:codex",
+      "component": "gsd",
+      "target": "codex",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/codex"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:codex",
+      "component": "owned-skill",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:codex",
+      "component": "ecc-skills",
+      "target": "codex",
+      "action": "create",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+    },
+    {
+      "id": "mcp:codex",
+      "component": "mcp",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\config.toml"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.target.pi.sibling-codex-intact VIOLATED codex (still installed) ECC skills present under <sandbox>\home\.agents\skills: none; codex plan step ecc:codex=create
+
+## step 18: uninstall --target antigravity --yes --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target antigravity --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1063
+--- stdout (3403B sha256=f488ad999139) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "antigravity",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.gemini\\config\\mcp_config.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "mcpServers"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "91549cf7a42c619d78f56610743840b72e1f0dc5051c7cf70bbbe0491d7a0fa8",
+        "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.gemini\\antigravity\\skills\\unified-memory",
+      "~\\.gemini\\antigravity\\skills\\documentation-lookup",
+      "~\\.gemini\\antigravity\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "492c27ae1ad83a0c2d2273319cc67ecfbb33a7877354211925e9be57c3464902"
+  },
+  "prunedFiles": [
+    "~\\.gemini\\config\\mcp_config.json"
+  ],
+  "removedFiles": [
+    "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--2.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--3.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--4.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--5.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--2.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--3.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27--2.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27.json",
+    "2026-09-23T19-51-44-466Z-fb6ed09d-01bd-432a-8ab0-8683c205b3c4.json",
+    "2026-09-23T19-51-56-312Z-7133f9e0-d7df-4e06-93d4-015c38d8dd5d.json",
+    "2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f.json",
+    "2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705.json",
+    "2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7.json",
+    "2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733.json",
+    "2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56.json",
+    "2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0.json",
+    "2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6.json",
+    "2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e.json",
+    "2026-09-23T19-54-27-230Z-92d308ae-8717-49ea-9d1c-d852b2c67f48.json",
+    "2026-09-23T19-54-27-293Z-79618116-2fec-4d0e-8a6f-c92bf3e277c8.json",
+    "2026-09-23T19-54-27-344Z-936a2b68-e859-4737-879e-6d2e98521983.json",
+    "2026-09-23T19-54-27-394Z-1d55c055-f2e8-4f52-a7d3-6ce6212604ce.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target antigravity: 395e3164c6bb -> 097dce1d0bac
+drift in sandbox home+state+prefix across uninstall --target antigravity
+<sandbox>\home: c2c946adee4c -> 2d62224a2011 (added 0, removed 3, changed 1, vanished 0)
+  removed .gemini/antigravity/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .gemini/antigravity/skills/documentation-lookup/SKILL.md file/5731/93c880e4c6b1 -> -
+  removed .gemini/antigravity/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  changed .gemini/config/mcp_config.json file/998/91549cf7a42c -> file/144/1150aa55d3e8
+<sandbox>\state: 8570dd3dcb42 -> 70cefffdf6c1 (added 12, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T19-54-27-230Z-92d308ae-8717-49ea-9d1c-d852b2c67f48.json - -> file/1051/d172aa2c4e8e
+  added journal/2026-09-23T19-54-27-293Z-79618116-2fec-4d0e-8a6f-c92bf3e277c8.json - -> file/1040/1ab61f5fc0de
+  added journal/2026-09-23T19-54-27-344Z-936a2b68-e859-4737-879e-6d2e98521983.json - -> file/1052/7500bb173df6
+  added journal/2026-09-23T19-54-27-394Z-1d55c055-f2e8-4f52-a7d3-6ce6212604ce.json - -> file/1038/c8f9ade5c880
+  added snapshots/2026-09-23T19-54-27-230Z-92d308ae-8717-49ea-9d1c-d852b2c67f48 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-27-230Z-92d308ae-8717-49ea-9d1c-d852b2c67f48/0.bin - -> file/998/91549cf7a42c
+  added snapshots/2026-09-23T19-54-27-293Z-79618116-2fec-4d0e-8a6f-c92bf3e277c8 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-27-293Z-79618116-2fec-4d0e-8a6f-c92bf3e277c8/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T19-54-27-344Z-936a2b68-e859-4737-879e-6d2e98521983 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-27-344Z-936a2b68-e859-4737-879e-6d2e98521983/0.bin - -> file/5731/93c880e4c6b1
+  added snapshots/2026-09-23T19-54-27-394Z-1d55c055-f2e8-4f52-a7d3-6ce6212604ce - -> dir/-/-
+  added snapshots/2026-09-23T19-54-27-394Z-1d55c055-f2e8-4f52-a7d3-6ce6212604ce/0.bin - -> file/5224/fdd97098a3a4
+CHECK life03.target.antigravity.managed-mcp-removed HOLDS exit=0; <sandbox>\home\.gemini\config\mcp_config.json (json) parsed natively: no context7/exa/firecrawl entry; servers left: p11-user-server
+CHECK life03.target.antigravity.ecc-removed HOLDS no ECC SKILL.md left under <sandbox>\home\.gemini\antigravity\skills (present before: unified-memory, documentation-lookup, deep-research)
+CHECK life03.target.antigravity.owned-removed VIOLATED alpha-AOS-owned skill file(s) still present after uninstall --target antigravity: <sandbox>\home\.gemini\antigravity\skills\alpha-aos-control\SKILL.md
+CHECK life03.target.antigravity.auth-kept HOLDS <sandbox>\home\.gemini\oauth_creds.json sha 2907e3254e82 -> 2907e3254e82
+CHECK life03.target.antigravity.user-mcp-kept HOLDS p11-user-server entry in <sandbox>\home\.gemini\config\mcp_config.json is equal to its pre-uninstall value
+CHECK life03.target.antigravity.user-skill-kept HOLDS <sandbox>\home\.gemini\antigravity\skills\p11-user-skill\SKILL.md sha 76b1aaa147ea -> 76b1aaa147ea
+CHECK life03.target.antigravity.others-untouched HOLDS fixture and managed files of claude, codex, pi, hermes unchanged
+
+## step 19: uninstall --target codex --yes --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 976
+--- stdout (3344B sha256=0103ea2b12c3) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "codex",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.codex\\config.toml",
+        "format": "toml",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "user-tables"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "a710b89def68a5113f4d0581c495586a1b115a542cd2012074567edb91f083cb",
+        "expectedAfterHash": "3f02d5633058c6c110a2ec7116862dd1ea821a78fe57ca13c09c86997f3e68a5"
+      },
+      {
+        "path": "~\\.codex\\AGENTS.md",
+        "format": "markdown",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "alpha-AOS:codex-execution"
+        ],
+        "action": "delete",
+        "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+        "expectedAfterHash": null
+      }
+    ],
+    "filesToRemove": [],
+    "directoriesToSweep": [],
+    "externalCompensation": [],
+    "planDigest": "0dba73b00c89a47a5df4c59e87514822d960b922fb3c15f84c676a3c257036f3"
+  },
+  "prunedFiles": [
+    "~\\.codex\\config.toml"
+  ],
+  "removedFiles": [
+    "~\\.codex\\AGENTS.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--2.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--3.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--4.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--5.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--2.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--3.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27--2.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27.json",
+    "2026-09-23T19-51-44-466Z-fb6ed09d-01bd-432a-8ab0-8683c205b3c4.json",
+    "2026-09-23T19-51-56-312Z-7133f9e0-d7df-4e06-93d4-015c38d8dd5d.json",
+    "2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f.json",
+    "2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705.json",
+    "2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7.json",
+    "2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733.json",
+    "2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56.json",
+    "2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0.json",
+    "2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6.json",
+    "2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e.json",
+    "2026-09-23T19-54-27-230Z-92d308ae-8717-49ea-9d1c-d852b2c67f48.json",
+    "2026-09-23T19-54-27-293Z-79618116-2fec-4d0e-8a6f-c92bf3e277c8.json",
+    "2026-09-23T19-54-27-344Z-936a2b68-e859-4737-879e-6d2e98521983.json",
+    "2026-09-23T19-54-27-394Z-1d55c055-f2e8-4f52-a7d3-6ce6212604ce.json",
+    "2026-09-23T19-54-44-664Z-15312238-e64f-4a94-aca1-4d6bfbe0028a.json",
+    "2026-09-23T19-54-44-726Z-8ebdf035-bce7-43b0-847c-36f4e66b12d5.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target codex: 097dce1d0bac -> 309664b632ee
+drift in sandbox home+state+prefix across uninstall --target codex
+<sandbox>\home: 2d62224a2011 -> 169ac98b09db (added 0, removed 1, changed 1, vanished 0)
+  removed .codex/AGENTS.md file/1937/bdead072b365 -> -
+  changed .codex/config.toml file/926/a710b89def68 -> file/86/3f02d5633058
+<sandbox>\state: 70cefffdf6c1 -> 9fd4ffcd5675 (added 6, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T19-54-44-664Z-15312238-e64f-4a94-aca1-4d6bfbe0028a.json - -> file/1029/9f4c9b4ea389
+  added journal/2026-09-23T19-54-44-726Z-8ebdf035-bce7-43b0-847c-36f4e66b12d5.json - -> file/965/57203c840c71
+  added snapshots/2026-09-23T19-54-44-664Z-15312238-e64f-4a94-aca1-4d6bfbe0028a - -> dir/-/-
+  added snapshots/2026-09-23T19-54-44-664Z-15312238-e64f-4a94-aca1-4d6bfbe0028a/0.bin - -> file/926/a710b89def68
+  added snapshots/2026-09-23T19-54-44-726Z-8ebdf035-bce7-43b0-847c-36f4e66b12d5 - -> dir/-/-
+  added snapshots/2026-09-23T19-54-44-726Z-8ebdf035-bce7-43b0-847c-36f4e66b12d5/0.bin - -> file/1937/bdead072b365
+CHECK life03.target.codex.managed-mcp-removed HOLDS exit=0; <sandbox>\home\.codex\config.toml (toml) parsed natively: no context7/exa/firecrawl entry; servers left: p11-user-server
+CHECK life03.target.codex.ecc-removed HOLDS no ECC SKILL.md left under <sandbox>\home\.agents\skills (present before: none, already removed by an earlier uninstall of a harness sharing this root)
+CHECK life03.target.codex.owned-removed VIOLATED alpha-AOS-owned skill file(s) still present after uninstall --target codex: <sandbox>\home\.agents\skills\alpha-aos-control\SKILL.md (this path is also the pi owned skill destination)
+CHECK life03.target.codex.auth-kept HOLDS <sandbox>\home\.codex\auth.json sha 2907e3254e82 -> 2907e3254e82
+CHECK life03.target.codex.user-mcp-kept HOLDS p11-user-server entry in <sandbox>\home\.codex\config.toml is equal to its pre-uninstall value
+CHECK life03.target.codex.user-skill-kept HOLDS <sandbox>\home\.agents\skills\p11-user-skill\SKILL.md sha da65f6d27f0d -> da65f6d27f0d
+CHECK life03.target.codex.others-untouched HOLDS fixture and managed files of claude, antigravity, pi, hermes unchanged
+
+## step 20: uninstall --target claude --yes --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target claude --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1225
+--- stdout (4320B sha256=ca0e6930448a) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "claude",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.claude.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "mcpServers"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "29ef209a6c1c984c4f2de070356a6bf7b37d7b034b44e19f948552e11f4a6d6e",
+        "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+      },
+      {
+        "path": "~\\.claude\\settings.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "settings"
+        ],
+        "injectedKeysRemoved": [
+          "unified-memory",
+          "documentation-lookup",
+          "deep-research"
+        ],
+        "action": "prune",
+        "currentHash": "d9cc80c5dd06614c7a1f58f175e86e1b754a4c2ed1e0cfe78f0915b4dd389974",
+        "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.claude\\skills\\unified-memory\\SKILL.md",
+      "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.claude\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.claude\\skills\\unified-memory",
+      "~\\.claude\\skills\\documentation-lookup",
+      "~\\.claude\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "bf8630ce2a06dafea76908cc1cb82977d985e86d161e0aa30e3a1e3d1e596cd0"
+  },
+  "prunedFiles": [
+    "~\\.claude.json",
+    "~\\.claude\\settings.json"
+  ],
+  "removedFiles": [
+    "~\\.claude\\skills\\unified-memory\\SKILL.md",
+    "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.claude\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--2.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--3.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--4.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a--5.json",
+    "2026-09-23T19-51-21-873Z-07aa11cd-cca6-4bd0-a4b6-f1cb3b32b21a.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--2.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186--3.json",
+    "2026-09-23T19-51-29-246Z-420e3e5c-805e-43c0-bfd2-5e9969871186.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27--2.json",
+    "2026-09-23T19-51-37-077Z-da9731ea-9f0f-4eeb-8d72-cac426e34b27.json",
+    "2026-09-23T19-51-44-466Z-fb6ed09d-01bd-432a-8ab0-8683c205b3c4.json",
+    "2026-09-23T19-51-56-312Z-7133f9e0-d7df-4e06-93d4-015c38d8dd5d.json",
+    "2026-09-23T19-53-47-251Z-945c1faa-121e-4cad-97ef-a39ba270b54f.json",
+    "2026-09-23T19-53-47-314Z-ae37d1e7-9d82-424d-9738-10a499003705.json",
+    "2026-09-23T19-53-47-366Z-d538e3d6-afe7-4d57-aedd-3ad1e75383a7.json",
+    "2026-09-23T19-53-47-419Z-c0bc233c-1703-44d8-b93e-d6abba626733.json",
+    "2026-09-23T19-54-05-392Z-0f9d9fd1-d7da-4e3c-a545-e4382f94bb56.json",
+    "2026-09-23T19-54-05-456Z-b9d1e5e6-0b0d-4b5f-a5ed-b75ccaa013f0.json",
+    "2026-09-23T19-54-05-508Z-515f4607-7aca-4077-ae35-d30fbc2c14f6.json",
+    "2026-09-23T19-54-05-561Z-b46361a0-c95c-4268-9960-bfd6f3a6de9e.json",
+    "2026-09-23T19-54-27-230Z-92d308ae-8717-49ea-9d1c-d852b2c67f48.json",
+    "2026-09-23T19-54-27-293Z-79618116-2fec-4d0e-8a6f-c92bf3e277c8.json",
+    "2026-09-23T19-54-27-344Z-936a2b68-e859-4737-879e-6d2e98521983.json",
+    "2026-09-23T19-54-27-394Z-1d55c055-f2e8-4f52-a7d3-6ce6212604ce.json",
+    "2026-09-23T19-54-44-664Z-15312238-e64f-4a94-aca1-4d6bfbe0028a.json",
+    "2026-09-23T19-54-44-726Z-8ebdf035-bce7-43b0-847c-36f4e66b12d5.json",
+    "2026-09-23T19-55-00-139Z-4e424c38-18cb-4d94-a242-8c3301132556.json",
+    "2026-09-23T19-55-00-229Z-bb7d00f0-d615-40c2-98ea-8b8f24c1993e.json",
+    "2026-09-23T19-55-00-303Z-39a1c08c-87f5-4390-854e-b410cf5d846b.json",
+    "2026-09-23T19-55-00-375Z-558adfd9-74a7-480f-8ece-febf9cc51551.json",
+    "2026-09-23T19-55-00-447Z-602b99f7-2a05-4af8-991d-0b9fcbbb7649.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across uninstall --target claude: 309664b632ee -> 752e07374abd
+drift in sandbox home+state+prefix across uninstall --target claude
+<sandbox>\home: 169ac98b09db -> 9120946838c6 (added 0, removed 3, changed 2, vanished 0)
+  changed .claude.json file/1067/29ef209a6c1c -> file/144/1150aa55d3e8
+  changed .claude/settings.json file/169/d9cc80c5dd06 -> file/3/ca3d163bab05
+  removed .claude/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .claude/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .claude/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+<sandbox>\state: 9fd4ffcd5675 -> 82bac9de21b8 (added 15, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T19-55-00-139Z-4e424c38-18cb-4d94-a242-8c3301132556.json - -> file/1014/8c4b34e1a43b
+  added journal/2026-09-23T19-55-00-229Z-bb7d00f0-d615-40c2-98ea-8b8f24c1993e.json - -> file/1033/abc8dfa6bf0b
+  added journal/2026-09-23T19-55-00-303Z-39a1c08c-87f5-4390-854e-b410cf5d846b.json - -> file/1014/fbe8dc7556ef
+  added journal/2026-09-23T19-55-00-375Z-558adfd9-74a7-480f-8ece-febf9cc51551.json - -> file/1026/56689fd65451
+  added journal/2026-09-23T19-55-00-447Z-602b99f7-2a05-4af8-991d-0b9fcbbb7649.json - -> file/1012/34a392a9f703
+  added snapshots/2026-09-23T19-55-00-139Z-4e424c38-18cb-4d94-a242-8c3301132556 - -> dir/-/-
+  added snapshots/2026-09-23T19-55-00-139Z-4e424c38-18cb-4d94-a242-8c3301132556/0.bin - -> file/1067/29ef209a6c1c
+  added snapshots/2026-09-23T19-55-00-229Z-bb7d00f0-d615-40c2-98ea-8b8f24c1993e - -> dir/-/-
+  added snapshots/2026-09-23T19-55-00-229Z-bb7d00f0-d615-40c2-98ea-8b8f24c1993e/0.bin - -> file/169/d9cc80c5dd06
+  added snapshots/2026-09-23T19-55-00-303Z-39a1c08c-87f5-4390-854e-b410cf5d846b - -> dir/-/-
+  added snapshots/2026-09-23T19-55-00-303Z-39a1c08c-87f5-4390-854e-b410cf5d846b/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T19-55-00-375Z-558adfd9-74a7-480f-8ece-febf9cc51551 - -> dir/-/-
+  added snapshots/2026-09-23T19-55-00-375Z-558adfd9-74a7-480f-8ece-febf9cc51551/0.bin - -> file/4912/81ad2b5b4acb
+  added snapshots/2026-09-23T19-55-00-447Z-602b99f7-2a05-4af8-991d-0b9fcbbb7649 - -> dir/-/-
+  added snapshots/2026-09-23T19-55-00-447Z-602b99f7-2a05-4af8-991d-0b9fcbbb7649/0.bin - -> file/5224/fdd97098a3a4
+CHECK life03.target.claude.managed-mcp-removed HOLDS exit=0; <sandbox>\home\.claude.json (json) parsed natively: no context7/exa/firecrawl entry; servers left: p11-user-server
+CHECK life03.target.claude.ecc-removed HOLDS no ECC SKILL.md left under <sandbox>\home\.claude\skills (present before: unified-memory, documentation-lookup, deep-research)
+CHECK life03.target.claude.owned-removed VIOLATED alpha-AOS-owned skill file(s) still present after uninstall --target claude: <sandbox>\home\.claude\skills\alpha-aos-control\SKILL.md, <sandbox>\home\.claude\skills\alpha-aos-ship\SKILL.md
+CHECK life03.target.claude.auth-kept HOLDS <sandbox>\home\.claude\.credentials.json sha 2907e3254e82 -> 2907e3254e82
+CHECK life03.target.claude.user-mcp-kept HOLDS p11-user-server entry in <sandbox>\home\.claude.json is equal to its pre-uninstall value
+CHECK life03.target.claude.user-skill-kept HOLDS <sandbox>\home\.claude\skills\p11-user-skill\SKILL.md sha d4a816b7d227 -> d4a816b7d227
+CHECK life03.target.claude.others-untouched HOLDS fixture and managed files of codex, antigravity, pi, hermes unchanged
+
+## step 21: all: seed the claude GSD ship workflow from the locked GSD package
+$ npm install --global @opengsd/gsd-core@1.12.0 --prefix <sandbox-2>\temp\gsd-package --ignore-scripts --no-audit --no-fund --prefer-offline
+env-overrides: npm_config_cache
+exit: 0
+duration-ms: 8664
+--- stdout (26B sha256=12a97b1e0a64) ---
+
+added 105 packages in 8s
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: all: packed release installed (channel stable); all five harnesses seeded in one sandbox; claude GSD seed completed with gsd-core/workflows/ship.md from the locked GSD package
+
+## step 22: all: install --target claude,codex,antigravity,pi,hermes --apply
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 19577
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (120B sha256=1aa944e16a54) ---
+alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed 239dc81f8fd1, observed f96f7e13fe73.
+CHECK life03.all-setup.install VIOLATED combined five-target install exit=2; stderr: "alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed <digest>, observed <digest>." (the codex+pi shared-destination refusal recorded as LIFE-01/C1); the probe falls back to one install per target in the order claude, codex, antigravity, pi, hermes
+
+## step 23: all: install --target claude --apply (serial fallback)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 8375
+--- stdout (3028B sha256=3ebc1e357bf9) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "claude"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:claude",
+        "component": "gsd",
+        "target": "claude",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/claude"
+      },
+      {
+        "id": "owned-skill:alpha-aos-ship:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:claude",
+        "component": "ecc-skills",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.claude\\skills"
+      },
+      {
+        "id": "mcp:claude",
+        "component": "mcp",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude.json"
+      },
+      {
+        "id": "policy:claude-ecc",
+        "component": "skill-policy",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\settings.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-ship:claude",
+    "owned-skill:alpha-aos-control:claude",
+    "policy:claude-ecc"
+  ],
+  "current": [
+    "gsd:claude",
+    "ecc:runtime",
+    "ecc:claude",
+    "mcp:claude"
+  ],
+  "operationIds": [
+    "2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72",
+    "2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72--2",
+    "2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72--3"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 24: all: install --target codex --apply (serial fallback)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 8768
+--- stdout (2694B sha256=f4bcf55f85c0) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T19-56-13-079Z-7fc83416-1622-4f23-9308-3521107991bd",
+    "2026-09-23T19-56-13-079Z-7fc83416-1622-4f23-9308-3521107991bd--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 25: all: install --target antigravity --apply (serial fallback)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target antigravity --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 9184
+--- stdout (2466B sha256=1bc5008e4011) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "antigravity"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:antigravity",
+        "component": "gsd",
+        "target": "antigravity",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/antigravity"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:antigravity",
+        "component": "owned-skill",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:antigravity",
+        "component": "ecc-skills",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.gemini\\antigravity\\skills"
+      },
+      {
+        "id": "mcp:antigravity",
+        "component": "mcp",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\config\\mcp_config.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:antigravity"
+  ],
+  "current": [
+    "gsd:antigravity",
+    "ecc:runtime",
+    "ecc:antigravity",
+    "mcp:antigravity"
+  ],
+  "operationIds": [
+    "2026-09-23T19-56-22-292Z-baabb17e-2163-4a8a-b30b-caf3eebfaa99"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 26: all: install --target pi --apply (serial fallback)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 6467
+--- stdout (2452B sha256=2cedff29481c) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "pi"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:pi",
+        "component": "gsd",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/pi"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:pi",
+        "component": "owned-skill",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:pi",
+        "component": "ecc-skills",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp-bridge:pi",
+        "component": "mcp-bridge",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "pi-mcp-adapter@2.31.0"
+      },
+      {
+        "id": "mcp:pi",
+        "component": "mcp",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.pi\\agent\\mcp.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:pi",
+    "owned-skill:alpha-aos-control:pi",
+    "ecc:runtime",
+    "ecc:pi",
+    "mcp-bridge:pi",
+    "mcp:pi"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 27: all: install --target hermes --apply (serial fallback)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target hermes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 7575
+--- stdout (2143B sha256=b3df0c428435) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "hermes"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "owned-skill:alpha-aos-control:hermes",
+        "component": "owned-skill",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:hermes",
+        "component": "ecc-skills",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.hermes\\skills"
+      },
+      {
+        "id": "mcp:hermes",
+        "component": "mcp",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\config.yaml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:hermes"
+  ],
+  "current": [
+    "ecc:runtime",
+    "ecc:hermes",
+    "mcp:hermes"
+  ],
+  "operationIds": [
+    "2026-09-23T19-56-36-493Z-aa68d59d-60f9-40bf-9a69-bf40a102efec"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.all-setup.install-serial OBSERVED claude: exit=0 applied=owned-skill:alpha-aos-ship:claude, owned-skill:alpha-aos-control:claude, policy:claude-ecc; codex: exit=0 applied=policy:codex-execution, owned-skill:alpha-aos-control:codex; antigravity: exit=0 applied=owned-skill:alpha-aos-control:antigravity; pi: exit=0 applied=none; hermes: exit=0 applied=owned-skill:alpha-aos-control:hermes
+
+## step 28: all: dry-run install --target claude,codex,antigravity,pi,hermes --json after setup
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --json
+env-overrides: none
+exit: 0
+duration-ms: 5592
+--- stdout (8055B sha256=3c527482595b) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "claude",
+    "codex",
+    "antigravity",
+    "pi",
+    "hermes"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "policy:codex-execution",
+      "component": "execution-policy",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\AGENTS.md"
+    },
+    {
+      "id": "gsd:claude",
+      "component": "gsd",
+      "target": "claude",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/claude"
+    },
+    {
+      "id": "gsd:codex",
+      "component": "gsd",
+      "target": "codex",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/codex"
+    },
+    {
+      "id": "gsd:antigravity",
+      "component": "gsd",
+      "target": "antigravity",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/antigravity"
+    },
+    {
+      "id": "gsd:pi",
+      "component": "gsd",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/pi"
+    },
+    {
+      "id": "owned-skill:alpha-aos-ship:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:codex",
+      "component": "owned-skill",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:antigravity",
+      "component": "owned-skill",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:pi",
+      "component": "owned-skill",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:hermes",
+      "component": "owned-skill",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:claude",
+      "component": "ecc-skills",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.claude\\skills"
+    },
+    {
+      "id": "ecc:codex",
+      "component": "ecc-skills",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:antigravity",
+      "component": "ecc-skills",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.gemini\\antigravity\\skills"
+    },
+    {
+      "id": "ecc:pi",
+      "component": "ecc-skills",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:hermes",
+      "component": "ecc-skills",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.hermes\\skills"
+    },
+    {
+      "id": "mcp-bridge:pi",
+      "component": "mcp-bridge",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "pi-mcp-adapter@2.31.0"
+    },
+    {
+      "id": "mcp:claude",
+      "component": "mcp",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude.json"
+    },
+    {
+      "id": "mcp:codex",
+      "component": "mcp",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\config.toml"
+    },
+    {
+      "id": "mcp:antigravity",
+      "component": "mcp",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\config\\mcp_config.json"
+    },
+    {
+      "id": "mcp:pi",
+      "component": "mcp",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.pi\\agent\\mcp.json"
+    },
+    {
+      "id": "mcp:hermes",
+      "component": "mcp",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\config.yaml"
+    },
+    {
+      "id": "policy:claude-ecc",
+      "component": "skill-policy",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\settings.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.all-setup.all-current HOLDS 24 steps; not current: none
+CHECK life03.all-setup.fixtures OBSERVED claude/auth <sandbox-2>\home\.claude\.credentials.json sha=2907e3254e82; claude/user-mcp <sandbox-2>\home\.claude.json entry-sha=423b820cf75e; claude/user-skill <sandbox-2>\home\.claude\skills\p11-user-skill\SKILL.md sha=d4a816b7d227; codex/auth <sandbox-2>\home\.codex\auth.json sha=2907e3254e82; codex/user-mcp <sandbox-2>\home\.codex\config.toml entry-sha=423b820cf75e; codex/user-skill <sandbox-2>\home\.agents\skills\p11-user-skill\SKILL.md sha=da65f6d27f0d; antigravity/auth <sandbox-2>\home\.gemini\oauth_creds.json sha=2907e3254e82; antigravity/user-mcp <sandbox-2>\home\.gemini\config\mcp_config.json entry-sha=423b820cf75e; antigravity/user-skill <sandbox-2>\home\.gemini\antigravity\skills\p11-user-skill\SKILL.md sha=76b1aaa147ea; pi/auth <sandbox-2>\home\.pi\agent\auth.json sha=2907e3254e82; pi/user-mcp <sandbox-2>\home\.pi\agent\mcp.json entry-sha=423b820cf75e; pi/user-skill <sandbox-2>\home\.agents\skills\p11-user-skill\SKILL.md sha=da65f6d27f0d; hermes/auth <sandbox-2>\home\.hermes\auth.json sha=2907e3254e82; hermes/user-mcp <sandbox-2>\home\.hermes\config.yaml entry-sha=423b820cf75e; hermes/user-skill <sandbox-2>\home\.hermes\skills\p11-user-skill\SKILL.md sha=bb26a5292ad7
+note: all: the codex and pi user skill is one file (<sandbox-2>\home\.agents\skills\p11-user-skill\SKILL.md) because both harnesses use <home>/.agents/skills as their skill root
+
+## step 29: all: inventory --json before the full-stack uninstall
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js inventory --json
+env-overrides: none
+exit: 0
+duration-ms: 3726
+--- stdout (2266B sha256=c79451b1ada4) ---
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-23T19:56:45.637Z",
+  "platform": "win32",
+  "architecture": "x64",
+  "tools": {
+    "node": {
+      "version": "v24.13.1",
+      "command": "C:\\Program Files\\nodejs\\node.exe"
+    },
+    "npm": {
+      "version": "11.8.0",
+      "command": "C:\\Program Files\\nodejs\\npm.cmd"
+    },
+    "git": {
+      "version": "git version 2.55.0.windows.3",
+      "command": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe"
+    }
+  },
+  "harnesses": [
+    {
+      "id": "claude",
+      "displayName": "Claude Code",
+      "command": "<home>\\.local\\bin\\claude.exe",
+      "version": "2.1.281 (Claude Code)",
+      "configRoots": [
+        "~\\.claude"
+      ],
+      "detected": true,
+      "notes": []
+    },
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "command": "<home>\\AppData\\Roaming\\npm\\codex.cmd",
+      "version": null,
+      "configRoots": [
+        "~\\.codex"
+      ],
+      "detected": true,
+      "notes": [
+        "version unavailable: reading a version from .cmd shims would require an interpreter"
+      ]
+    },
+    {
+      "id": "antigravity",
+      "displayName": "Antigravity GUI/CLI/IDE",
+      "command": "<home>\\AppData\\Local\\agy\\bin\\agy.exe",
+      "version": "1.2.9",
+      "configRoots": [
+        "~\\.gemini\\antigravity"
+      ],
+      "detected": true,
+      "notes": []
+    },
+    {
+      "id": "pi",
+      "displayName": "Pi Agent",
+      "command": "<home>\\AppData\\Roaming\\npm\\pi.cmd",
+      "version": null,
+      "configRoots": [
+        "~\\.pi\\agent"
+      ],
+      "detected": true,
+      "notes": [
+        "version unavailable: reading a version from .cmd shims would require an interpreter",
+        "Pi 0.84.4+ discovers Agent Skills from the shared ~/.agents/skills root; extensions remain separate"
+      ]
+    },
+    {
+      "id": "hermes",
+      "displayName": "Hermes Agent",
+      "command": "<home>\\AppData\\Local\\hermes\\bin\\hermes.exe",
+      "version": "Hermes Agent v0.21.3 (2026.9.14) · upstream a0500081",
+      "configRoots": [
+        "~\\.hermes"
+      ],
+      "detected": true,
+      "notes": [
+        "worker-only by stack policy; not a GSD state writer"
+      ]
+    }
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: all: 12 journal file(s) before uninstall (status: rolled-back, rolled-back, rolled-back, rolled-back, rolled-back, applied, applied, applied, applied, applied, applied, applied), recording 7 distinct target(s)
+
+## step 30: all: uninstall --all --yes --apply
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --all --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1923
+--- stdout (10035B sha256=ab4d1d65c40c) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "all",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.claude.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "mcpServers"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "a0a7acf0ef6f34fa0d03a3d1bd67f7cbaca1d1e9a9483de91b0297cd1f81e90d",
+        "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+      },
+      {
+        "path": "~\\.claude\\settings.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "settings"
+        ],
+        "injectedKeysRemoved": [
+          "unified-memory",
+          "documentation-lookup",
+          "deep-research"
+        ],
+        "action": "prune",
+        "currentHash": "d9cc80c5dd06614c7a1f58f175e86e1b754a4c2ed1e0cfe78f0915b4dd389974",
+        "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+      },
+      {
+        "path": "~\\.codex\\config.toml",
+        "format": "toml",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "user-tables"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "8553c29891874b39fe08a63a48c8e1b463fbd66176e41765f00d9886a510d6ad",
+        "expectedAfterHash": "3f02d5633058c6c110a2ec7116862dd1ea821a78fe57ca13c09c86997f3e68a5"
+      },
+      {
+        "path": "~\\.codex\\AGENTS.md",
+        "format": "markdown",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "alpha-AOS:codex-execution"
+        ],
+        "action": "delete",
+        "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+        "expectedAfterHash": null
+      },
+      {
+        "path": "~\\.gemini\\config\\mcp_config.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "mcpServers"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "05245678087ac384b17b808c35a8bf80e8dfc2c31bdfdf9da4c157778ea0366d",
+        "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+      },
+      {
+        "path": "~\\.pi\\agent\\mcp.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "mcpServers"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "3b1a229384e5f2126a39725b924ca0e4384542e3ee232c66ed6acf859e95550c",
+        "expectedAfterHash": "1150aa55d3e8e649342ce7ec205bd44b56d27546f8ea8c4033e2010885bed8e5"
+      },
+      {
+        "path": "~\\.hermes\\config.yaml",
+        "format": "yaml",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "user-yaml-keys"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "99c9fc7a5fefb1a2a33f3bd5132a4b65d0ca3e7bd0ceec2cc2c0774ac67474f9",
+        "expectedAfterHash": "9b1b160629c6dc866e696f8e4cfd5ac0438c1152ee07b044c1e1851f2a50ca90"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.claude\\skills\\unified-memory\\SKILL.md",
+      "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.claude\\skills\\deep-research\\SKILL.md",
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md",
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md",
+      "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+      "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.hermes\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.claude\\skills\\unified-memory",
+      "~\\.claude\\skills\\documentation-lookup",
+      "~\\.claude\\skills\\deep-research",
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research",
+      "~\\.gemini\\antigravity\\skills\\unified-memory",
+      "~\\.gemini\\antigravity\\skills\\documentation-lookup",
+      "~\\.gemini\\antigravity\\skills\\deep-research",
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research",
+      "~\\.hermes\\skills\\unified-memory",
+      "~\\.hermes\\skills\\documentation-lookup",
+      "~\\.hermes\\skills\\deep-research"
+    ],
+    "externalCompensation": [
+      {
+        "component": "gsd",
+        "action": "install",
+        "target": "global",
+        "previousState": null,
+        "appliedState": "uninstalled",
+        "compensation": {
+          "instructions": "GSD Core files in harness config directories can be removed manually if no longer required.",
+          "commands": [
+            "rm -rf ~/.claude/get-shit-done ~/.codex/get-shit-done"
+          ]
+        }
+      },
+      {
+        "component": "ecc-runtime",
+        "action": "install",
+        "target": "global npm",
+        "previousState": null,
+        "appliedState": "uninstalled",
+        "compensation": {
+          "instructions": "Uninstall global ECC companion runtime via npm.",
+          "commands": [
+            "npm uninstall -g @enterprise-coding-companion/companion"
+          ]
+        }
+      },
+      {
+        "component": "npm-link",
+        "action": "link",
+        "target": "global alpha-aos",
+        "previousState": null,
+        "appliedState": "unlinked",
+        "compensation": {
+          "instructions": "Unlink global alpha-aos binary.",
+          "commands": [
+            "npm unlink -g alpha-aos"
+          ]
+        }
+      }
+    ],
+    "planDigest": "e53253744fe91c6dbd5d6f91e06eef26bd8f85a216ee465a46f146cb07dbfd77"
+  },
+  "prunedFiles": [
+    "~\\.claude.json",
+    "~\\.claude\\settings.json",
+    "~\\.codex\\config.toml",
+    "~\\.gemini\\config\\mcp_config.json",
+    "~\\.pi\\agent\\mcp.json",
+    "~\\.hermes\\config.yaml"
+  ],
+  "removedFiles": [
+    "~\\.codex\\AGENTS.md",
+    "~\\.claude\\skills\\unified-memory\\SKILL.md",
+    "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.claude\\skills\\deep-research\\SKILL.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md",
+    "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+    "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.hermes\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--2.json",
+    "2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--3.json",
+    "2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--4.json",
+    "2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--5.json",
+    "2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6.json",
+    "2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72--2.json",
+    "2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72--3.json",
+    "2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72.json",
+    "2026-09-23T19-56-13-079Z-7fc83416-1622-4f23-9308-3521107991bd--2.json",
+    "2026-09-23T19-56-13-079Z-7fc83416-1622-4f23-9308-3521107991bd.json",
+    "2026-09-23T19-56-22-292Z-baabb17e-2163-4a8a-b30b-caf3eebfaa99.json",
+    "2026-09-23T19-56-36-493Z-aa68d59d-60f9-40bf-9a69-bf40a102efec.json",
+    "2026-09-23T19-57-16-116Z-40bcb420-733c-4063-ad2e-8f1aee55c6cd.json",
+    "2026-09-23T19-57-16-177Z-424557d3-f8b5-455b-8c3a-4948810f0117.json",
+    "2026-09-23T19-57-16-229Z-cd625b21-f881-4e74-9913-537eb3b6cbbe.json",
+    "2026-09-23T19-57-16-286Z-7e6bddaa-5055-45df-9098-97f7b7ff62e6.json",
+    "2026-09-23T19-57-16-337Z-1341cb9c-fd32-4c1e-b115-4d26a4cf54b1.json",
+    "2026-09-23T19-57-16-395Z-8819c4dd-7a3b-4a09-a4e2-62b3313365e5.json",
+    "2026-09-23T19-57-16-451Z-898834e2-41a0-4a10-8ecb-578f2863c3e9.json",
+    "2026-09-23T19-57-16-510Z-003a9081-a4cf-4cf2-bb52-4fc050735995.json",
+    "2026-09-23T19-57-16-559Z-bd2170ae-7d73-4b27-99d5-f0ca5e9cfcde.json",
+    "2026-09-23T19-57-16-612Z-27c5ae75-955f-42bf-8b9d-bf4cb446dd38.json",
+    "2026-09-23T19-57-16-665Z-af81ba60-73a5-4ab5-9f77-fbd2957f4fe4.json",
+    "2026-09-23T19-57-16-743Z-48112d59-76b8-4b6e-a680-8cd56facdc99.json",
+    "2026-09-23T19-57-16-792Z-af92dc9c-b232-4b44-a021-beaf27e4939c.json",
+    "2026-09-23T19-57-16-843Z-cbd23a05-2396-40d0-ba6c-38b220433231.json",
+    "2026-09-23T19-57-16-891Z-158c7284-04d2-4841-a49b-5d4e46d88ff6.json",
+    "2026-09-23T19-57-16-942Z-aaa4dfd9-e246-4f51-9bb6-1a512455135f.json",
+    "2026-09-23T19-57-16-991Z-24a0be55-4691-4283-b46f-c1de73b90025.json",
+    "2026-09-23T19-57-17-039Z-0c332367-8508-41ef-88ac-39e440e1ca37.json",
+    "2026-09-23T19-57-17-087Z-2702f9b0-8d12-47ca-be93-e86982c2d2a1.json"
+  ],
+  "recoveryReceipt": {
+    "schemaVersion": 1,
+    "operationId": "uninstall-7be2361c",
+    "createdAt": "2026-09-23T19:57:17.123Z",
+    "entries": "[redacted:cycle]"
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint all: sandbox home+state+prefix across uninstall --all: 629aacf3eab6 -> d5352c429f9b
+drift in all: sandbox home+state+prefix across uninstall --all
+<sandbox-2>\home: 5381cb9583fd -> 9120946838c6 (added 0, removed 13, changed 6, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .agents/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  changed .claude.json file/1064/a0a7acf0ef6f -> file/144/1150aa55d3e8
+  changed .claude/settings.json file/169/d9cc80c5dd06 -> file/3/ca3d163bab05
+  removed .claude/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .claude/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .claude/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  removed .codex/AGENTS.md file/1937/bdead072b365 -> -
+  changed .codex/config.toml file/923/8553c2989187 -> file/86/3f02d5633058
+  removed .gemini/antigravity/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .gemini/antigravity/skills/documentation-lookup/SKILL.md file/5731/93c880e4c6b1 -> -
+  removed .gemini/antigravity/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  changed .gemini/config/mcp_config.json file/995/05245678087a -> file/144/1150aa55d3e8
+  changed .hermes/config.yaml file/930/99c9fc7a5fef -> file/95/9b1b160629c6
+  removed .hermes/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .hermes/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .hermes/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  changed .pi/agent/mcp.json file/1521/3b1a229384e5 -> file/144/1150aa55d3e8
+<sandbox-2>\state: cec3431d0d05 -> 6254ff2aa764 (added 21, removed 13, changed 0, vanished 0)
+  added journal/2026-09-23T19-57-16-116Z-40bcb420-733c-4063-ad2e-8f1aee55c6cd.json - -> file/1002/47f41952a095
+  added journal/2026-09-23T19-57-16-177Z-424557d3-f8b5-455b-8c3a-4948810f0117.json - -> file/1021/92f277d40b2c
+  added journal/2026-09-23T19-57-16-229Z-cd625b21-f881-4e74-9913-537eb3b6cbbe.json - -> file/1017/2aa3d0a3f8f3
+  added journal/2026-09-23T19-57-16-286Z-7e6bddaa-5055-45df-9098-97f7b7ff62e6.json - -> file/953/497d47b883d3
+  added journal/2026-09-23T19-57-16-337Z-1341cb9c-fd32-4c1e-b115-4d26a4cf54b1.json - -> file/1039/a93fe637ac0b
+  added journal/2026-09-23T19-57-16-395Z-8819c4dd-7a3b-4a09-a4e2-62b3313365e5.json - -> file/1022/a54e0eb830fb
+  added journal/2026-09-23T19-57-16-451Z-898834e2-41a0-4a10-8ecb-578f2863c3e9.json - -> file/1019/9ea7d9659b1f
+  added journal/2026-09-23T19-57-16-510Z-003a9081-a4cf-4cf2-bb52-4fc050735995.json - -> file/1002/fb211fa94909
+  added journal/2026-09-23T19-57-16-559Z-bd2170ae-7d73-4b27-99d5-f0ca5e9cfcde.json - -> file/1014/0ae40b9b4c37
+  added journal/2026-09-23T19-57-16-612Z-27c5ae75-955f-42bf-8b9d-bf4cb446dd38.json - -> file/1000/5eab950ec641
+  added journal/2026-09-23T19-57-16-665Z-af81ba60-73a5-4ab5-9f77-fbd2957f4fe4.json - -> file/1002/d17340ab0b2f
+  added journal/2026-09-23T19-57-16-743Z-48112d59-76b8-4b6e-a680-8cd56facdc99.json - -> file/1014/203acdc4017a
+  added journal/2026-09-23T19-57-16-792Z-af92dc9c-b232-4b44-a021-beaf27e4939c.json - -> file/1000/c6391b48f354
+  added journal/2026-09-23T19-57-16-843Z-cbd23a05-2396-40d0-ba6c-38b220433231.json - -> file/1028/4c9e1935cd96
+  added journal/2026-09-23T19-57-16-891Z-158c7284-04d2-4841-a49b-5d4e46d88ff6.json - -> file/1040/33844e2bef57
+  added journal/2026-09-23T19-57-16-942Z-aaa4dfd9-e246-4f51-9bb6-1a512455135f.json - -> file/1026/9e9cdf097e22
+  added journal/2026-09-23T19-57-16-991Z-24a0be55-4691-4283-b46f-c1de73b90025.json - -> file/1002/8f01de9fcd66
+  added journal/2026-09-23T19-57-17-039Z-0c332367-8508-41ef-88ac-39e440e1ca37.json - -> file/1014/0c385506427b
+  added journal/2026-09-23T19-57-17-087Z-2702f9b0-8d12-47ca-be93-e86982c2d2a1.json - -> file/1000/43078599b4a5
+  added receipts - -> dir/-/-
+  added receipts/uninstall-7be2361c.json - -> file/1236/41c68cf0ba93
+  removed snapshots dir/-/- -> -
+  removed snapshots/2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6 dir/-/- -> -
+  removed snapshots/2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--2 dir/-/- -> -
+  removed snapshots/2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--3 dir/-/- -> -
+  removed snapshots/2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--4 dir/-/- -> -
+  removed snapshots/2026-09-23T19-55-56-229Z-b5a4e6c9-0434-42d8-b44d-22f11ae849a6--5 dir/-/- -> -
+  removed snapshots/2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72 dir/-/- -> -
+  removed snapshots/2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72--2 dir/-/- -> -
+  removed snapshots/2026-09-23T19-56-04-346Z-4a8f2830-68f1-48dc-9dee-818f4dc63f72--3 dir/-/- -> -
+  removed snapshots/2026-09-23T19-56-13-079Z-7fc83416-1622-4f23-9308-3521107991bd dir/-/- -> -
+  ... 3 more entries not listed (limit 50)
+CHECK life03.all.apply OBSERVED exit=0; prunedFiles=6; removedFiles=13; sweptDirectories=0; preservedJournals=31
+CHECK life03.all.leftovers VIOLATED 6 of 7 journal-recorded targets still present after uninstall --all: <sandbox-2>\home\.agents\skills\alpha-aos-control\SKILL.md (journal existed-before=false; 8231B now); <sandbox-2>\home\.claude\settings.json (journal existed-before=false; 3B now); <sandbox-2>\home\.claude\skills\alpha-aos-control\SKILL.md (journal existed-before=false; 8231B now); <sandbox-2>\home\.claude\skills\alpha-aos-ship\SKILL.md (journal existed-before=false; 1586B now); <sandbox-2>\home\.gemini\antigravity\skills\alpha-aos-control\SKILL.md (journal existed-before=false; 8231B now); <sandbox-2>\home\.hermes\skills\alpha-aos-control\SKILL.md (journal existed-before=false; 8231B now)
+CHECK life03.all.empty-skill-dirs OBSERVED 12 empty directories left under the harness skill roots: <sandbox-2>\home\.agents\skills\deep-research; <sandbox-2>\home\.agents\skills\documentation-lookup; <sandbox-2>\home\.agents\skills\unified-memory; <sandbox-2>\home\.claude\skills\deep-research; <sandbox-2>\home\.claude\skills\documentation-lookup; <sandbox-2>\home\.claude\skills\unified-memory; <sandbox-2>\home\.gemini\antigravity\skills\deep-research; <sandbox-2>\home\.gemini\antigravity\skills\documentation-lookup; <sandbox-2>\home\.gemini\antigravity\skills\unified-memory; <sandbox-2>\home\.hermes\skills\deep-research; <sandbox-2>\home\.hermes\skills\documentation-lookup; <sandbox-2>\home\.hermes\skills\unified-memory
+CHECK life03.all.seeded-ecc-removed HOLDS all 12 managed ECC SKILL.md files are gone
+CHECK life03.all.auth-kept HOLDS all 5 authentication sentinels byte-identical
+CHECK life03.all.user-mcp-kept HOLDS p11-user-server entry equal to its pre-uninstall value in all 5 native configs
+CHECK life03.all.user-skill-kept HOLDS every p11-user-skill/SKILL.md byte-identical
+CHECK life03.all.journals-kept HOLDS 12 journal(s) before; 31 after uninstall --all without --purge; every pre-uninstall journal still present
+note: all: state root entries after uninstall --all (no purge): journal, receipts
+
+## step 31: all: uninstall --all --yes --apply --purge
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --all --yes --apply --purge --json
+env-overrides: none
+exit: 0
+duration-ms: 856
+--- stdout (1774B sha256=2cc80a6ac3f8) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "all",
+    "purgeRequested": true,
+    "stateRoot": "<state>",
+    "prunePlans": [],
+    "filesToRemove": [],
+    "directoriesToSweep": [],
+    "externalCompensation": [
+      {
+        "component": "gsd",
+        "action": "install",
+        "target": "global",
+        "previousState": null,
+        "appliedState": "uninstalled",
+        "compensation": {
+          "instructions": "GSD Core files in harness config directories can be removed manually if no longer required.",
+          "commands": [
+            "rm -rf ~/.claude/get-shit-done ~/.codex/get-shit-done"
+          ]
+        }
+      },
+      {
+        "component": "ecc-runtime",
+        "action": "install",
+        "target": "global npm",
+        "previousState": null,
+        "appliedState": "uninstalled",
+        "compensation": {
+          "instructions": "Uninstall global ECC companion runtime via npm.",
+          "commands": [
+            "npm uninstall -g @enterprise-coding-companion/companion"
+          ]
+        }
+      },
+      {
+        "component": "npm-link",
+        "action": "link",
+        "target": "global alpha-aos",
+        "previousState": null,
+        "appliedState": "unlinked",
+        "compensation": {
+          "instructions": "Unlink global alpha-aos binary.",
+          "commands": [
+            "npm unlink -g alpha-aos"
+          ]
+        }
+      }
+    ],
+    "planDigest": "42b6341806ed1acc8230fa7a1867fb0da7147a6d50c437e28109d341896ef8fe"
+  },
+  "prunedFiles": [],
+  "removedFiles": [],
+  "sweptDirectories": [],
+  "preservedJournals": [],
+  "recoveryReceipt": {
+    "schemaVersion": 1,
+    "operationId": "uninstall-a9114473",
+    "createdAt": "2026-09-23T19:57:26.277Z",
+    "entries": "[redacted:cycle]"
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.all.purge-removes-state HOLDS exit=0; state root removed
+CHECK life03.all.purge-auth-kept HOLDS authentication sentinels byte-identical after --purge
+
+## step 32: all: inventory --json after uninstall --all and --purge
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js inventory --json
+env-overrides: none
+exit: 0
+duration-ms: 3828
+--- stdout (2266B sha256=39366496b404) ---
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-23T19:57:27.147Z",
+  "platform": "win32",
+  "architecture": "x64",
+  "tools": {
+    "node": {
+      "version": "v24.13.1",
+      "command": "C:\\Program Files\\nodejs\\node.exe"
+    },
+    "npm": {
+      "version": "11.8.0",
+      "command": "C:\\Program Files\\nodejs\\npm.cmd"
+    },
+    "git": {
+      "version": "git version 2.55.0.windows.3",
+      "command": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe"
+    }
+  },
+  "harnesses": [
+    {
+      "id": "claude",
+      "displayName": "Claude Code",
+      "command": "<home>\\.local\\bin\\claude.exe",
+      "version": "2.1.281 (Claude Code)",
+      "configRoots": [
+        "~\\.claude"
+      ],
+      "detected": true,
+      "notes": []
+    },
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "command": "<home>\\AppData\\Roaming\\npm\\codex.cmd",
+      "version": null,
+      "configRoots": [
+        "~\\.codex"
+      ],
+      "detected": true,
+      "notes": [
+        "version unavailable: reading a version from .cmd shims would require an interpreter"
+      ]
+    },
+    {
+      "id": "antigravity",
+      "displayName": "Antigravity GUI/CLI/IDE",
+      "command": "<home>\\AppData\\Local\\agy\\bin\\agy.exe",
+      "version": "1.2.9",
+      "configRoots": [
+        "~\\.gemini\\antigravity"
+      ],
+      "detected": true,
+      "notes": []
+    },
+    {
+      "id": "pi",
+      "displayName": "Pi Agent",
+      "command": "<home>\\AppData\\Roaming\\npm\\pi.cmd",
+      "version": null,
+      "configRoots": [
+        "~\\.pi\\agent"
+      ],
+      "detected": true,
+      "notes": [
+        "version unavailable: reading a version from .cmd shims would require an interpreter",
+        "Pi 0.84.4+ discovers Agent Skills from the shared ~/.agents/skills root; extensions remain separate"
+      ]
+    },
+    {
+      "id": "hermes",
+      "displayName": "Hermes Agent",
+      "command": "<home>\\AppData\\Local\\hermes\\bin\\hermes.exe",
+      "version": "Hermes Agent v0.21.3 (2026.9.14) · upstream a0500081",
+      "configRoots": [
+        "~\\.hermes"
+      ],
+      "detected": true,
+      "notes": [
+        "worker-only by stack policy; not a GSD state writer"
+      ]
+    }
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: all: inventory harness command@version list before: antigravity:<home>\AppData\Local\agy\bin\agy.exe@1.2.9, claude:<home>\.local\bin\claude.exe@2.1.281 (Claude Code), codex:<home>\AppData\Roaming\npm\codex.cmd@none, hermes:<home>\AppData\Local\hermes\bin\hermes.exe@Hermes Agent v0.21.3 (2026.9.14) · upstream a0500081, pi:<home>\AppData\Roaming\npm\pi.cmd@none; after: antigravity:<home>\AppData\Local\agy\bin\agy.exe@1.2.9, claude:<home>\.local\bin\claude.exe@2.1.281 (Claude Code), codex:<home>\AppData\Roaming\npm\codex.cmd@none, hermes:<home>\AppData\Local\hermes\bin\hermes.exe@Hermes Agent v0.21.3 (2026.9.14) · upstream a0500081, pi:<home>\AppData\Roaming\npm\pi.cmd@none
+CHECK life03.all.harness-apps-kept HOLDS 5 harness entries; the detected command and version of every harness application (outside the sandbox) is identical before and after uninstall --all and --purge
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=44 violated=9 not-observed=0 observed=8

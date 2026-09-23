@@ -4,8 +4,14 @@ verified: 2026-09-23T04:46:50Z
 status: human_needed
 score: 29/30 must-haves verified
 behavior_unverified: 0
-overrides_applied: 0
+overrides_applied: 1
+overrides:
+  - must_have: "The suite fails if any test under test/ asserts against a platform-specific absolute path literal"
+    reason: "Guard covers the CI-01 defect shape (literal into join/resolve/normalize/relative/dirname/basename or path.<fn>, directly or via const), proven 8/8 on the pre-fix sources; remaining shapes are caught by the POSIX CI legs themselves. A literal reading would flag ~50 legitimate opaque path literals in test/, none of which is a latent defect. let/alias/namespace coverage is a deferred follow-up in 10-UAT.md."
+    accepted_by: "user (4lph4-dvlp)"
+    accepted_at: "2026-09-23T05:57:35Z"
 flagged_prohibitions: 13
+prohibitions_resolved: "13/13 held, confirmed by user in 10-UAT.md test 2 (2026-09-23)"
 human_verification:
   - test: "Decide whether the path-literal guard's scope satisfies ROADMAP success criterion 1, second clause ('the suite fails if any test under test/ asserts against a platform-specific absolute path literal')."
     expected: "Either accept the implemented scope (literal reaching join/resolve/normalize/relative/dirname/basename or path.<fn>, directly or through a const binding) with an override entry, or open a follow-up to widen it."

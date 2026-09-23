@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { commandProbeEnvironment, runProcess } from "../src/core/process.js";
+import { commandProbeEnvironment, runProcess, type EnvironmentPolicy } from "../src/core/process.js";
 import {
   checkReceiptStaleness,
   evaluateLifecycleGates,
@@ -18,6 +18,16 @@ const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
 const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
 const probeEnv = commandProbeEnvironment({ source: process.env });
+
+// The CLI child never inherits the parent's ALPHA_AOS_STATE_DIR because the
+// probe policy does not list it, so a declared literal is the only route that
+// keeps gate receipts journaling into a scratch root instead of the host's.
+function gateEnvironment(stateRoot: string): EnvironmentPolicy {
+  return {
+    ...probeEnv,
+    literal: { ...probeEnv.literal, ALPHA_AOS_STATE_DIR: stateRoot },
+  };
+}
 
 async function scratchRoot(context: TestContext, label: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `alpha-aos-${label}-`));
@@ -91,6 +101,7 @@ test("formatGateBlockingFeedback renders structured alert box with recheck comma
 
 test("Low-risk changes result in silent pass with exit code 0 (GATE-04, D-03)", async (context) => {
   const parent = await scratchRoot(context, "gate-low-risk");
+  const stateRoot = join(parent, "state");
   const created = await createOrdinaryRepository(parent, "repo");
   if (!created.ok) {
     context.skip(created.reason);
@@ -109,7 +120,7 @@ test("Low-risk changes result in silent pass with exit code 0 (GATE-04, D-03)", 
     executable: process.execPath,
     args: [cliEntry, "gate", "check", "--json"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
 
   assert.equal(result.exitCode, 0);
@@ -121,6 +132,7 @@ test("Low-risk changes result in silent pass with exit code 0 (GATE-04, D-03)", 
 
 test("Risky change without receipt blocks lifecycle with actionable error (GATE-03, D-07, D-08)", async (context) => {
   const parent = await scratchRoot(context, "gate-risky-block");
+  const stateRoot = join(parent, "state");
   const created = await createOrdinaryRepository(parent, "repo");
   if (!created.ok) {
     context.skip(created.reason);
@@ -147,7 +159,7 @@ test("Risky change without receipt blocks lifecycle with actionable error (GATE-
     executable: process.execPath,
     args: [cliEntry, "gate", "check"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
 
   assert.equal(result.exitCode, 2);
@@ -184,7 +196,7 @@ test("Execution of gate check passes when engine succeeds, creating receipt and 
     executable: process.execPath,
     args: [cliEntry, "gate", "check", "--obligation", "security-review", "--json"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
 
   assert.equal(checkResult.exitCode, 0);
@@ -205,7 +217,7 @@ test("Execution of gate check passes when engine succeeds, creating receipt and 
     executable: process.execPath,
     args: [cliEntry, "gate", "check"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
   assert.equal(nextResult.exitCode, 0);
   assert.match(nextResult.stdout.excerpt, /✔ Mandatory gates passed/);
@@ -213,6 +225,7 @@ test("Execution of gate check passes when engine succeeds, creating receipt and 
 
 test("Post-check modification inside risk surface marks receipt stale and blocks gate status (D-09)", async (context) => {
   const parent = await scratchRoot(context, "gate-staleness");
+  const stateRoot = join(parent, "state");
   const created = await createOrdinaryRepository(parent, "repo");
   if (!created.ok) {
     context.skip(created.reason);
@@ -237,7 +250,7 @@ test("Post-check modification inside risk surface marks receipt stale and blocks
     executable: process.execPath,
     args: [cliEntry, "gate", "check", "--obligation", "security-review"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
   assert.equal(passResult.exitCode, 0);
 
@@ -249,7 +262,7 @@ test("Post-check modification inside risk surface marks receipt stale and blocks
     executable: process.execPath,
     args: [cliEntry, "gate", "status", "--json"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
 
   assert.equal(statusResult.exitCode, 0);
@@ -266,7 +279,7 @@ test("Post-check modification inside risk surface marks receipt stale and blocks
     executable: process.execPath,
     args: [cliEntry, "gate", "status", "--strict"],
     cwd: root,
-    environment: probeEnv,
+    environment: gateEnvironment(stateRoot),
   });
   assert.equal(strictStatus.exitCode, 2);
 });

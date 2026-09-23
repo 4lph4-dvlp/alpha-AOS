@@ -21,6 +21,17 @@ async function scratchRoot(context: TestContext, label: string): Promise<string>
   return root;
 }
 
+function redirectStateRoot(context: TestContext, stateRoot: string): void {
+  // writeGateReceipt journals into userStateRoot(), which reads this name, so
+  // the journal and snapshot land in the test's scratch root, never the host's.
+  const previousStateDir = process.env.ALPHA_AOS_STATE_DIR;
+  process.env.ALPHA_AOS_STATE_DIR = stateRoot;
+  context.after(() => {
+    if (previousStateDir === undefined) delete process.env.ALPHA_AOS_STATE_DIR;
+    else process.env.ALPHA_AOS_STATE_DIR = previousStateDir;
+  });
+}
+
 test("selectGateEngine follows Native-First precedence and visibly suppresses ECC skills (D-04, D-05)", async (context) => {
   const root = await scratchRoot(context, "gate-native-first");
 
@@ -183,6 +194,7 @@ test("writeGateReceipt writes an atomic receipt that readGateReceiptStrict valid
     evidenceHash: "c".repeat(64),
   };
 
+  redirectStateRoot(context, stateRoot);
   const written = await writeGateReceipt(root, receipt);
   assert.equal(written.receiptPath.endsWith("security-review.json"), true);
   assert.notEqual(written.transactionId, undefined);

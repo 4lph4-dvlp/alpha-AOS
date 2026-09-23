@@ -407,7 +407,38 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     describeHostDrift(afterPreviewManifests, afterReconcileManifests, undefined, "an idempotent reconcile must not change any sandbox byte"),
   );
 
-  const status = parseJsonResult<{ needsRepair?: unknown; managedStatePresent?: unknown }>(
+  // LIFE-08: `update --apply` reconciles the packaged stable lock only. An
+  // unreviewed candidate lock dropped into the installed package is ignored.
+  const candidateLockPath = join(release.installedPackage, "catalog", "candidate.lock.json");
+  const installedEcc = release.installedLock.components?.ecc;
+  const bogusCandidate = {
+    ...release.installedLock,
+    channel: "candidate",
+    components: { ...release.installedLock.components, ecc: { ...installedEcc, version: "9.9.9" } },
+  };
+  await writeFile(candidateLockPath, `${JSON.stringify(bogusCandidate, null, 2)}\n`, "utf8");
+  const beforeCandidateManifests = new Map<string, HostFingerprint>();
+  const beforeCandidate = await snapshotTargets(sandboxRoots, beforeCandidateManifests);
+  const candidateRun = sandbox.runCli(["update", "--apply", "--target", "codex", "--json"]);
+  const candidateUpdate = parseJsonResult<InstallResult>(candidateRun, "update --apply with an unreviewed candidate lock");
+  assert.deepEqual(candidateUpdate.applied, []);
+  assert.deepEqual(candidateUpdate.operationIds, []);
+  assert.ok(!`${candidateRun.stdout}\n${candidateRun.stderr}`.includes("9.9.9"), "the candidate ECC version must not reach update --apply output");
+  assert.deepEqual(
+    (await readdir(journalDir)).filter((name) => name.endsWith(".json")).sort(),
+    journalsBeforeReconcile,
+    "update --apply with an unreviewed candidate lock must not add a journal",
+  );
+  const afterCandidateManifests = new Map<string, HostFingerprint>();
+  const afterCandidate = await snapshotTargets(sandboxRoots, afterCandidateManifests);
+  assert.deepEqual(
+    afterCandidate,
+    beforeCandidate,
+    describeHostDrift(beforeCandidateManifests, afterCandidateManifests, undefined, "update --apply must ignore an unreviewed candidate lock"),
+  );
+  await rm(candidateLockPath);
+
+  const status =parseJsonResult<{ needsRepair?: unknown; managedStatePresent?: unknown }>(
     sandbox.runCli(["status", "--json"]),
     "status",
   );

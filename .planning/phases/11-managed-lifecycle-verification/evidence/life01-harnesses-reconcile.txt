@@ -1,0 +1,3243 @@
+probe: life01-harnesses
+head: 03c1310c20ecdfb7a492c91d58941a6d3e58f9e5
+dirty-tracked: 1
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: 795abe35be833367ae609cf5629b9bb9302a292f7e7c443787c0a6496af65b46
+started: 2026-09-23T16:02:29.370Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 2620
+--- stdout (18895B sha256=06b56731ca74) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590832,
+    "unpackedSize": 2455165,
+    "shasum": "a0112be0f4eff7c0c528937ccdcf6a536d8d2c59",
+    "integrity": "sha512-BUGqjdk7bE5Yn8/hfKncmrGt3nFtVFIPnNG0oodlALQnPd6F55tp1PkCQ0XswSiMZFa3rXPN22bhV2lcdWJ87g==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: seeding precondition (research Pitfall 5): for every harness the GSD gsd-core/VERSION, gsd-core/.gsd-runtime and .gsd-profile (not hermes: the stable lock installs no GSD for it), the three ECC skills rendered by the packed ecc-fixture module at the lock target hashes, the MCP config rendered by the packed renderMcpConfig, for pi the pi-mcp-adapter bridge manifest at the locked version, and for claude gsd-core/workflows/ship.md copied from the locked GSD package (the alpha-aos-ship upstreamWorkflow) are seeded before the initial apply, as the CI packed lifecycle test and plan 11-01 seed-selfcheck do. The locked ECC runtime is installed into each sandbox prefix with the host npm cache (eccCache).
+note: CLI output below is verbatim apart from path aliasing; any 64-hex value inside it is a lock or repository-owned source digest printed by the CLI itself, never a digest of a user file
+note: sandbox fingerprint roots per group: <sandbox-N>/home, <sandbox-N>/state, <sandbox-N>/prefix. Excluded by design: <sandbox-N>/temp (fixture scratch), <sandbox-N>/npm-cache and <sandbox-N>/npm-logs (npm writes a debug log on every invocation)
+note: sandbox aliases: <sandbox> claude, <sandbox-2> antigravity, <sandbox-3> pi, <sandbox-4> hermes, <sandbox-5> all five harnesses together; when the five-target initial apply fails, <sandbox-6> reproduces with codex and pi only, <sandbox-7> runs claude, antigravity and hermes together as the no-shared-destination control, and <sandbox-8> applies codex and then pi one target at a time
+note: claude: packed release installed; installed lock channel: stable
+
+## step 2: claude: seed the claude GSD ship workflow from the locked GSD package
+$ npm install --global @opengsd/gsd-core@1.12.0 --prefix <sandbox>\temp\gsd-package --ignore-scripts --no-audit --no-fund --prefer-offline
+env-overrides: npm_config_cache
+exit: 0
+duration-ms: 9669
+--- stdout (26B sha256=31144e29993d) ---
+
+added 105 packages in 9s
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: claude: claude GSD seed completed with gsd-core/workflows/ship.md copied from the locked @opengsd/gsd-core@1.12.0 package (34974B), the upstreamWorkflow the alpha-aos-ship owned skill requires
+
+## step 3: claude: initial install --target claude --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 10552
+--- stdout (3031B sha256=6c1d453c2ca2) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "claude"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:claude",
+        "component": "gsd",
+        "target": "claude",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/claude"
+      },
+      {
+        "id": "owned-skill:alpha-aos-ship:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:claude",
+        "component": "ecc-skills",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.claude\\skills"
+      },
+      {
+        "id": "mcp:claude",
+        "component": "mcp",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude.json"
+      },
+      {
+        "id": "policy:claude-ecc",
+        "component": "skill-policy",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\settings.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-ship:claude",
+    "owned-skill:alpha-aos-control:claude",
+    "policy:claude-ecc"
+  ],
+  "current": [
+    "gsd:claude",
+    "ecc:runtime",
+    "ecc:claude",
+    "mcp:claude"
+  ],
+  "operationIds": [
+    "2026-09-23T16-03-29-905Z-6d387e89-a28d-49ef-89c1-f2250437d0c9",
+    "2026-09-23T16-03-29-905Z-6d387e89-a28d-49ef-89c1-f2250437d0c9--2",
+    "2026-09-23T16-03-29-905Z-6d387e89-a28d-49ef-89c1-f2250437d0c9--3"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude.initial-apply OBSERVED exit=0; applied=3 (owned-skill:alpha-aos-ship:claude, owned-skill:alpha-aos-control:claude, policy:claude-ecc); journaled operations=3; journal files=3; external=none
+
+## step 4: claude: dry-run install --target claude (human form)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude
+env-overrides: none
+exit: 0
+duration-ms: 3977
+--- stdout (1670B sha256=fec9d5452ea3) ---
+alpha-AOS managed install (explicit)
+Targets: claude
+CURRENT gsd:claude - 1.12.0/standard/claude
+CURRENT owned-skill:alpha-aos-ship:claude - <sandbox>\home\.claude\skills\alpha-aos-ship\SKILL.md
+CURRENT owned-skill:alpha-aos-control:claude - <sandbox>\home\.claude\skills\alpha-aos-control\SKILL.md
+CURRENT ecc:runtime - 2.2.0
+CURRENT ecc:claude - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\home\.claude\skills
+CURRENT mcp:claude - <sandbox>\home\.claude.json
+CURRENT policy:claude-ecc - <sandbox>\home\.claude\settings.json
+WARNING The harness applications themselves are prerequisites and are never installed by alpha-AOS.
+WARNING External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.
+WARNING Restart harness processes after MCP or environment-variable changes.
+Dry-run only. Pass --apply to fixture, apply, and verify the selected stack.
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude.preview-current HOLDS exit=0; 7 step lines, every one CURRENT: gsd:claude, owned-skill:alpha-aos-ship:claude, owned-skill:alpha-aos-control:claude, ecc:runtime, ecc:claude, mcp:claude, policy:claude-ecc
+fingerprint claude sandbox home+state+prefix across the dry-run: a9f1523c8e2a -> a9f1523c8e2a
+CHECK life01.claude.preview-no-mutation HOLDS sandbox home, state and prefix digests are equal before and after the dry-run install
+
+## step 5: claude: dry-run install --target claude --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude --json
+env-overrides: none
+exit: 0
+duration-ms: 4619
+--- stdout (2396B sha256=f21a60543c5d) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "claude"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "gsd:claude",
+      "component": "gsd",
+      "target": "claude",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/claude"
+    },
+    {
+      "id": "owned-skill:alpha-aos-ship:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:claude",
+      "component": "ecc-skills",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.claude\\skills"
+    },
+    {
+      "id": "mcp:claude",
+      "component": "mcp",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude.json"
+    },
+    {
+      "id": "policy:claude-ecc",
+      "component": "skill-policy",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\settings.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude.preview-json-current HOLDS 7 steps, every steps[].action is current
+
+## step 6: claude: second install --target claude --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 6514
+--- stdout (2814B sha256=f31714365547) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "claude"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:claude",
+        "component": "gsd",
+        "target": "claude",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/claude"
+      },
+      {
+        "id": "owned-skill:alpha-aos-ship:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:claude",
+        "component": "ecc-skills",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.claude\\skills"
+      },
+      {
+        "id": "mcp:claude",
+        "component": "mcp",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude.json"
+      },
+      {
+        "id": "policy:claude-ecc",
+        "component": "skill-policy",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\settings.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:claude",
+    "owned-skill:alpha-aos-ship:claude",
+    "owned-skill:alpha-aos-control:claude",
+    "ecc:runtime",
+    "ecc:claude",
+    "mcp:claude",
+    "policy:claude-ecc"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude.second-apply-noop HOLDS applied=0; operationIds=0; current=7 of 7 steps; journal file names unchanged (3)
+fingerprint claude sandbox home+state+prefix across the second apply: a9f1523c8e2a -> a9f1523c8e2a
+CHECK life01.claude.second-apply-byte-identical HOLDS sandbox home, state and prefix digests after the second apply equal those after the initial apply
+note: antigravity: packed release installed; installed lock channel: stable
+
+## step 7: antigravity: initial install --target antigravity --apply
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target antigravity --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 10093
+--- stdout (2474B sha256=3dfe7e0b130b) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "antigravity"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:antigravity",
+        "component": "gsd",
+        "target": "antigravity",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/antigravity"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:antigravity",
+        "component": "owned-skill",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:antigravity",
+        "component": "ecc-skills",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.gemini\\antigravity\\skills"
+      },
+      {
+        "id": "mcp:antigravity",
+        "component": "mcp",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\config\\mcp_config.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:antigravity"
+  ],
+  "current": [
+    "gsd:antigravity",
+    "ecc:runtime",
+    "ecc:antigravity",
+    "mcp:antigravity"
+  ],
+  "operationIds": [
+    "2026-09-23T16-04-57-857Z-221f8f6e-6bfc-475e-8d57-fe1932f44e37"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.antigravity.initial-apply OBSERVED exit=0; applied=1 (owned-skill:alpha-aos-control:antigravity); journaled operations=1; journal files=1; external=none
+
+## step 8: antigravity: dry-run install --target antigravity (human form)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target antigravity
+env-overrides: none
+exit: 0
+duration-ms: 3882
+--- stdout (1476B sha256=ec90726df85f) ---
+alpha-AOS managed install (explicit)
+Targets: antigravity
+CURRENT gsd:antigravity - 1.12.0/standard/antigravity
+CURRENT owned-skill:alpha-aos-control:antigravity - <sandbox-2>\home\.gemini\antigravity\skills\alpha-aos-control\SKILL.md
+CURRENT ecc:runtime - 2.2.0
+CURRENT ecc:antigravity - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\home\.gemini\antigravity\skills
+CURRENT mcp:antigravity - <sandbox-2>\home\.gemini\config\mcp_config.json
+WARNING The harness applications themselves are prerequisites and are never installed by alpha-AOS.
+WARNING External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.
+WARNING Restart harness processes after MCP or environment-variable changes.
+Dry-run only. Pass --apply to fixture, apply, and verify the selected stack.
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.antigravity.preview-current HOLDS exit=0; 5 step lines, every one CURRENT: gsd:antigravity, owned-skill:alpha-aos-control:antigravity, ecc:runtime, ecc:antigravity, mcp:antigravity
+fingerprint antigravity sandbox home+state+prefix across the dry-run: 5ab6df01e771 -> 5ab6df01e771
+CHECK life01.antigravity.preview-no-mutation HOLDS sandbox home, state and prefix digests are equal before and after the dry-run install
+
+## step 9: antigravity: dry-run install --target antigravity --json
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target antigravity --json
+env-overrides: none
+exit: 0
+duration-ms: 4553
+--- stdout (2061B sha256=c30cfa38de48) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "antigravity"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "gsd:antigravity",
+      "component": "gsd",
+      "target": "antigravity",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/antigravity"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:antigravity",
+      "component": "owned-skill",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:antigravity",
+      "component": "ecc-skills",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.gemini\\antigravity\\skills"
+    },
+    {
+      "id": "mcp:antigravity",
+      "component": "mcp",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\config\\mcp_config.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.antigravity.preview-json-current HOLDS 5 steps, every steps[].action is current
+
+## step 10: antigravity: second install --target antigravity --apply
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target antigravity --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 5099
+--- stdout (2401B sha256=e128cee1605e) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "antigravity"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:antigravity",
+        "component": "gsd",
+        "target": "antigravity",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/antigravity"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:antigravity",
+        "component": "owned-skill",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:antigravity",
+        "component": "ecc-skills",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-2>\\home\\.gemini\\antigravity\\skills"
+      },
+      {
+        "id": "mcp:antigravity",
+        "component": "mcp",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\config\\mcp_config.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:antigravity",
+    "owned-skill:alpha-aos-control:antigravity",
+    "ecc:runtime",
+    "ecc:antigravity",
+    "mcp:antigravity"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.antigravity.second-apply-noop HOLDS applied=0; operationIds=0; current=5 of 5 steps; journal file names unchanged (1)
+fingerprint antigravity sandbox home+state+prefix across the second apply: 5ab6df01e771 -> 5ab6df01e771
+CHECK life01.antigravity.second-apply-byte-identical HOLDS sandbox home, state and prefix digests after the second apply equal those after the initial apply
+note: pi: packed release installed; installed lock channel: stable
+
+## step 11: pi: initial install --target pi --apply
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 10795
+--- stdout (2524B sha256=dc4361c2f9bc) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "pi"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:pi",
+        "component": "gsd",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/pi"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:pi",
+        "component": "owned-skill",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:pi",
+        "component": "ecc-skills",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-3>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp-bridge:pi",
+        "component": "mcp-bridge",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "pi-mcp-adapter@2.31.0"
+      },
+      {
+        "id": "mcp:pi",
+        "component": "mcp",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.pi\\agent\\mcp.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:pi"
+  ],
+  "current": [
+    "gsd:pi",
+    "ecc:runtime",
+    "mcp-bridge:pi",
+    "ecc:pi",
+    "mcp:pi"
+  ],
+  "operationIds": [
+    "2026-09-23T16-06-20-679Z-c6c3cb3e-d04c-4051-91d6-9cc106b914c3"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.pi.initial-apply OBSERVED exit=0; applied=1 (owned-skill:alpha-aos-control:pi); journaled operations=1; journal files=1; external=none
+
+## step 12: pi: dry-run install --target pi (human form)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi
+env-overrides: none
+exit: 0
+duration-ms: 4129
+--- stdout (1405B sha256=c2aca4902a69) ---
+alpha-AOS managed install (explicit)
+Targets: pi
+CURRENT gsd:pi - 1.12.0/standard/pi
+CURRENT owned-skill:alpha-aos-control:pi - <sandbox-3>\home\.agents\skills\alpha-aos-control\SKILL.md
+CURRENT ecc:runtime - 2.2.0
+CURRENT ecc:pi - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-3>\home\.agents\skills
+CURRENT mcp-bridge:pi - pi-mcp-adapter@2.31.0
+CURRENT mcp:pi - <sandbox-3>\home\.pi\agent\mcp.json
+WARNING The harness applications themselves are prerequisites and are never installed by alpha-AOS.
+WARNING External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.
+WARNING Restart harness processes after MCP or environment-variable changes.
+Dry-run only. Pass --apply to fixture, apply, and verify the selected stack.
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.pi.preview-current HOLDS exit=0; 6 step lines, every one CURRENT: gsd:pi, owned-skill:alpha-aos-control:pi, ecc:runtime, ecc:pi, mcp-bridge:pi, mcp:pi
+fingerprint pi sandbox home+state+prefix across the dry-run: 67374d907208 -> 67374d907208
+CHECK life01.pi.preview-no-mutation HOLDS sandbox home, state and prefix digests are equal before and after the dry-run install
+
+## step 13: pi: dry-run install --target pi --json
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi --json
+env-overrides: none
+exit: 0
+duration-ms: 4088
+--- stdout (2110B sha256=b65c9793a841) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "pi"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "gsd:pi",
+      "component": "gsd",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/pi"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:pi",
+      "component": "owned-skill",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:pi",
+      "component": "ecc-skills",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-3>\\home\\.agents\\skills"
+    },
+    {
+      "id": "mcp-bridge:pi",
+      "component": "mcp-bridge",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "pi-mcp-adapter@2.31.0"
+    },
+    {
+      "id": "mcp:pi",
+      "component": "mcp",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.pi\\agent\\mcp.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.pi.preview-json-current HOLDS 6 steps, every steps[].action is current
+
+## step 14: pi: second install --target pi --apply
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 5316
+--- stdout (2451B sha256=029b60f1d167) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "pi"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:pi",
+        "component": "gsd",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/pi"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:pi",
+        "component": "owned-skill",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:pi",
+        "component": "ecc-skills",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-3>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp-bridge:pi",
+        "component": "mcp-bridge",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "pi-mcp-adapter@2.31.0"
+      },
+      {
+        "id": "mcp:pi",
+        "component": "mcp",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.pi\\agent\\mcp.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:pi",
+    "owned-skill:alpha-aos-control:pi",
+    "ecc:runtime",
+    "ecc:pi",
+    "mcp-bridge:pi",
+    "mcp:pi"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.pi.second-apply-noop HOLDS applied=0; operationIds=0; current=6 of 6 steps; journal file names unchanged (1)
+fingerprint pi sandbox home+state+prefix across the second apply: 67374d907208 -> 67374d907208
+CHECK life01.pi.second-apply-byte-identical HOLDS sandbox home, state and prefix digests after the second apply equal those after the initial apply
+note: hermes: packed release installed; installed lock channel: stable
+
+## step 15: hermes: initial install --target hermes --apply
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target hermes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 9728
+--- stdout (2146B sha256=dcbda65f28f6) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "hermes"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "owned-skill:alpha-aos-control:hermes",
+        "component": "owned-skill",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:hermes",
+        "component": "ecc-skills",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-4>\\home\\.hermes\\skills"
+      },
+      {
+        "id": "mcp:hermes",
+        "component": "mcp",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\config.yaml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-control:hermes"
+  ],
+  "current": [
+    "ecc:runtime",
+    "ecc:hermes",
+    "mcp:hermes"
+  ],
+  "operationIds": [
+    "2026-09-23T16-07-41-862Z-fd32ce72-e8fd-47e0-a55d-26c288e6bbb8"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.hermes.initial-apply OBSERVED exit=0; applied=1 (owned-skill:alpha-aos-control:hermes); journaled operations=1; journal files=1; external=none
+
+## step 16: hermes: dry-run install --target hermes (human form)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target hermes
+env-overrides: none
+exit: 0
+duration-ms: 3919
+--- stdout (1352B sha256=208390432816) ---
+alpha-AOS managed install (explicit)
+Targets: hermes
+CURRENT owned-skill:alpha-aos-control:hermes - <sandbox-4>\home\.hermes\skills\alpha-aos-control\SKILL.md
+CURRENT ecc:runtime - 2.2.0
+CURRENT ecc:hermes - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-4>\home\.hermes\skills
+CURRENT mcp:hermes - <sandbox-4>\home\.hermes\config.yaml
+WARNING The harness applications themselves are prerequisites and are never installed by alpha-AOS.
+WARNING External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.
+WARNING Restart harness processes after MCP or environment-variable changes.
+Dry-run only. Pass --apply to fixture, apply, and verify the selected stack.
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.hermes.preview-current HOLDS exit=0; 4 step lines, every one CURRENT: owned-skill:alpha-aos-control:hermes, ecc:runtime, ecc:hermes, mcp:hermes
+fingerprint hermes sandbox home+state+prefix across the dry-run: 9e17946d5e1b -> 9e17946d5e1b
+CHECK life01.hermes.preview-no-mutation HOLDS sandbox home, state and prefix digests are equal before and after the dry-run install
+
+## step 17: hermes: dry-run install --target hermes --json
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target hermes --json
+env-overrides: none
+exit: 0
+duration-ms: 3983
+--- stdout (1787B sha256=78dbb29f836c) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "hermes"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "owned-skill:alpha-aos-control:hermes",
+      "component": "owned-skill",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:hermes",
+      "component": "ecc-skills",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-4>\\home\\.hermes\\skills"
+    },
+    {
+      "id": "mcp:hermes",
+      "component": "mcp",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\config.yaml"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.hermes.preview-json-current HOLDS 4 steps, every steps[].action is current
+
+## step 18: hermes: second install --target hermes --apply
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target hermes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 4788
+--- stdout (2073B sha256=53f45517550b) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "hermes"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "owned-skill:alpha-aos-control:hermes",
+        "component": "owned-skill",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:hermes",
+        "component": "ecc-skills",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-4>\\home\\.hermes\\skills"
+      },
+      {
+        "id": "mcp:hermes",
+        "component": "mcp",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\config.yaml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "owned-skill:alpha-aos-control:hermes",
+    "ecc:runtime",
+    "ecc:hermes",
+    "mcp:hermes"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.hermes.second-apply-noop HOLDS applied=0; operationIds=0; current=4 of 4 steps; journal file names unchanged (1)
+fingerprint hermes sandbox home+state+prefix across the second apply: 9e17946d5e1b -> 9e17946d5e1b
+CHECK life01.hermes.second-apply-byte-identical HOLDS sandbox home, state and prefix digests after the second apply equal those after the initial apply
+note: all: packed release installed; installed lock channel: stable; seeding order claude, codex, antigravity, pi, hermes in one sandbox (codex and pi share <sandbox-5>/home/.agents/skills as their ECC skill root)
+
+## step 19: all: seed the claude GSD ship workflow from the locked GSD package
+$ npm install --global @opengsd/gsd-core@1.12.0 --prefix <sandbox-5>\temp\gsd-package --ignore-scripts --no-audit --no-fund --prefer-offline
+env-overrides: npm_config_cache
+exit: 0
+duration-ms: 8850
+--- stdout (26B sha256=31144e29993d) ---
+
+added 105 packages in 9s
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: all: claude GSD seed completed with gsd-core/workflows/ship.md copied from the locked @opengsd/gsd-core@1.12.0 package (34974B), the upstreamWorkflow the alpha-aos-ship owned skill requires
+
+## step 20: all: initial install --target claude,codex,antigravity,pi,hermes --apply
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 19813
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (120B sha256=7f0db04264ba) ---
+alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed 7f1430cb18f9, observed 783b54b28a0b.
+CHECK life01.all.initial-apply VIOLATED exit=2; the initial apply failed for a non-environmental reason; stderr: "alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed <digest>, observed <digest>."
+CHECK life01.all.preview-current NOT-OBSERVED initial apply did not complete
+CHECK life01.all.preview-no-mutation NOT-OBSERVED initial apply did not complete
+CHECK life01.all.preview-json-current NOT-OBSERVED initial apply did not complete
+CHECK life01.all.second-apply-noop NOT-OBSERVED initial apply did not complete
+CHECK life01.all.second-apply-byte-identical NOT-OBSERVED initial apply did not complete
+note: all: after the failed five-target apply the sandbox state holds 5 journal file(s) with status: rolled-back, rolled-back, rolled-back, rolled-back, rolled-back
+
+## step 21: all: dry-run after the failed five-target apply (--json)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --json
+env-overrides: none
+exit: 0
+duration-ms: 5248
+--- stdout (8047B sha256=4fd2450d007d) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "claude",
+    "codex",
+    "antigravity",
+    "pi",
+    "hermes"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "policy:codex-execution",
+      "component": "execution-policy",
+      "target": "codex",
+      "action": "create",
+      "external": false,
+      "note": "~\\.codex\\AGENTS.md"
+    },
+    {
+      "id": "gsd:claude",
+      "component": "gsd",
+      "target": "claude",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/claude"
+    },
+    {
+      "id": "gsd:codex",
+      "component": "gsd",
+      "target": "codex",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/codex"
+    },
+    {
+      "id": "gsd:antigravity",
+      "component": "gsd",
+      "target": "antigravity",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/antigravity"
+    },
+    {
+      "id": "gsd:pi",
+      "component": "gsd",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/pi"
+    },
+    {
+      "id": "owned-skill:alpha-aos-ship:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "create",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "create",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:codex",
+      "component": "owned-skill",
+      "target": "codex",
+      "action": "create",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:antigravity",
+      "component": "owned-skill",
+      "target": "antigravity",
+      "action": "create",
+      "external": false,
+      "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:pi",
+      "component": "owned-skill",
+      "target": "pi",
+      "action": "create",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:hermes",
+      "component": "owned-skill",
+      "target": "hermes",
+      "action": "create",
+      "external": false,
+      "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:claude",
+      "component": "ecc-skills",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-5>\\home\\.claude\\skills"
+    },
+    {
+      "id": "ecc:codex",
+      "component": "ecc-skills",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-5>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:antigravity",
+      "component": "ecc-skills",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-5>\\home\\.gemini\\antigravity\\skills"
+    },
+    {
+      "id": "ecc:pi",
+      "component": "ecc-skills",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-5>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:hermes",
+      "component": "ecc-skills",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-5>\\home\\.hermes\\skills"
+    },
+    {
+      "id": "mcp-bridge:pi",
+      "component": "mcp-bridge",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "pi-mcp-adapter@2.31.0"
+    },
+    {
+      "id": "mcp:claude",
+      "component": "mcp",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude.json"
+    },
+    {
+      "id": "mcp:codex",
+      "component": "mcp",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\config.toml"
+    },
+    {
+      "id": "mcp:antigravity",
+      "component": "mcp",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\config\\mcp_config.json"
+    },
+    {
+      "id": "mcp:pi",
+      "component": "mcp",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.pi\\agent\\mcp.json"
+    },
+    {
+      "id": "mcp:hermes",
+      "component": "mcp",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\config.yaml"
+    },
+    {
+      "id": "policy:claude-ecc",
+      "component": "skill-policy",
+      "target": "claude",
+      "action": "create",
+      "external": false,
+      "note": "~\\.claude\\settings.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.all-failure.owned-skills OBSERVED owned-skill steps planned after the failure: owned-skill:alpha-aos-ship:claude=create, owned-skill:alpha-aos-control:claude=create, owned-skill:alpha-aos-control:codex=create, owned-skill:alpha-aos-control:antigravity=create, owned-skill:alpha-aos-control:pi=create, owned-skill:alpha-aos-control:hermes=create
+note: all-retry: the same five-target apply is run again on the same sandbox; life01.all-retry.initial-apply is that second attempt, and the remaining all-retry checks judge the reconcile from the state it leaves
+
+## step 22: all-retry: initial install --target claude,codex,antigravity,pi,hermes --apply
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,codex,antigravity,pi,hermes --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 17149
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (120B sha256=7f0db04264ba) ---
+alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed 7f1430cb18f9, observed 783b54b28a0b.
+CHECK life01.all-retry.initial-apply VIOLATED exit=2; the initial apply failed for a non-environmental reason; stderr: "alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed <digest>, observed <digest>."
+CHECK life01.all-retry.preview-current NOT-OBSERVED initial apply did not complete
+CHECK life01.all-retry.preview-no-mutation NOT-OBSERVED initial apply did not complete
+CHECK life01.all-retry.preview-json-current NOT-OBSERVED initial apply did not complete
+CHECK life01.all-retry.second-apply-noop NOT-OBSERVED initial apply did not complete
+CHECK life01.all-retry.second-apply-byte-identical NOT-OBSERVED initial apply did not complete
+note: codex-pi: packed release installed; installed lock channel: stable; seeded harnesses: codex, pi
+
+## step 23: codex-pi: dry-run install --target codex,pi --json
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex,pi --json
+env-overrides: none
+exit: 0
+duration-ms: 7413
+--- stdout (3665B sha256=3aee6967fe3a) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "codex",
+    "pi"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "policy:codex-execution",
+      "component": "execution-policy",
+      "target": "codex",
+      "action": "create",
+      "external": false,
+      "note": "~\\.codex\\AGENTS.md"
+    },
+    {
+      "id": "gsd:codex",
+      "component": "gsd",
+      "target": "codex",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/codex"
+    },
+    {
+      "id": "gsd:pi",
+      "component": "gsd",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/pi"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:codex",
+      "component": "owned-skill",
+      "target": "codex",
+      "action": "create",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:pi",
+      "component": "owned-skill",
+      "target": "pi",
+      "action": "create",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:codex",
+      "component": "ecc-skills",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-6>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:pi",
+      "component": "ecc-skills",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-6>\\home\\.agents\\skills"
+    },
+    {
+      "id": "mcp-bridge:pi",
+      "component": "mcp-bridge",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "pi-mcp-adapter@2.31.0"
+    },
+    {
+      "id": "mcp:codex",
+      "component": "mcp",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\config.toml"
+    },
+    {
+      "id": "mcp:pi",
+      "component": "mcp",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.pi\\agent\\mcp.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.codex-pi.owned-skill-plan OBSERVED owned-skill steps before any apply: owned-skill:alpha-aos-control:codex=create, owned-skill:alpha-aos-control:pi=create; codex and pi both render alpha-aos-control into <sandbox-6>/home/.agents/skills (src/core/owned-skills.ts destinationFor via globalEccSkillRoot)
+
+## step 24: codex-pi: initial install --target codex,pi --apply
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex,pi --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 10642
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (120B sha256=13db0920a8e0) ---
+alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed 5941ca3a25b4, observed c716d8928f95.
+CHECK life01.codex-pi.initial-apply VIOLATED exit=2; the initial apply failed for a non-environmental reason; stderr: "alpha-aos: plan-drift: owned-skill-sync changed between review and apply: reviewed <digest>, observed <digest>."
+CHECK life01.codex-pi.preview-current NOT-OBSERVED initial apply did not complete
+CHECK life01.codex-pi.preview-no-mutation NOT-OBSERVED initial apply did not complete
+CHECK life01.codex-pi.preview-json-current NOT-OBSERVED initial apply did not complete
+CHECK life01.codex-pi.second-apply-noop NOT-OBSERVED initial apply did not complete
+CHECK life01.codex-pi.second-apply-byte-identical NOT-OBSERVED initial apply did not complete
+note: claude-antigravity-hermes: packed release installed; installed lock channel: stable; seeded harnesses: claude, antigravity, hermes
+
+## step 25: claude-antigravity-hermes: seed the claude GSD ship workflow from the locked GSD package
+$ npm install --global @opengsd/gsd-core@1.12.0 --prefix <sandbox-7>\temp\gsd-package --ignore-scripts --no-audit --no-fund --prefer-offline
+env-overrides: npm_config_cache
+exit: 0
+duration-ms: 8744
+--- stdout (26B sha256=12a97b1e0a64) ---
+
+added 105 packages in 8s
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: claude-antigravity-hermes: claude GSD seed completed with gsd-core/workflows/ship.md copied from the locked @opengsd/gsd-core@1.12.0 package (34974B), the upstreamWorkflow the alpha-aos-ship owned skill requires
+
+## step 26: claude-antigravity-hermes: initial install --target claude,antigravity,hermes --apply
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,antigravity,hermes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 14702
+--- stdout (6167B sha256=1404113306d8) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "claude",
+      "antigravity",
+      "hermes"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:claude",
+        "component": "gsd",
+        "target": "claude",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/claude"
+      },
+      {
+        "id": "gsd:antigravity",
+        "component": "gsd",
+        "target": "antigravity",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/antigravity"
+      },
+      {
+        "id": "owned-skill:alpha-aos-ship:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:antigravity",
+        "component": "owned-skill",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:hermes",
+        "component": "owned-skill",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:claude",
+        "component": "ecc-skills",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.claude\\skills"
+      },
+      {
+        "id": "ecc:antigravity",
+        "component": "ecc-skills",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.gemini\\antigravity\\skills"
+      },
+      {
+        "id": "ecc:hermes",
+        "component": "ecc-skills",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.hermes\\skills"
+      },
+      {
+        "id": "mcp:claude",
+        "component": "mcp",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude.json"
+      },
+      {
+        "id": "mcp:antigravity",
+        "component": "mcp",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\config\\mcp_config.json"
+      },
+      {
+        "id": "mcp:hermes",
+        "component": "mcp",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\config.yaml"
+      },
+      {
+        "id": "policy:claude-ecc",
+        "component": "skill-policy",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\settings.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "owned-skill:alpha-aos-ship:claude",
+    "owned-skill:alpha-aos-control:claude",
+    "owned-skill:alpha-aos-control:antigravity",
+    "owned-skill:alpha-aos-control:hermes",
+    "policy:claude-ecc"
+  ],
+  "current": [
+    "gsd:claude",
+    "gsd:antigravity",
+    "ecc:runtime",
+    "ecc:claude",
+    "ecc:antigravity",
+    "ecc:hermes",
+    "mcp:claude",
+    "mcp:antigravity",
+    "mcp:hermes"
+  ],
+  "operationIds": [
+    "2026-09-23T16-11-03-371Z-be96000f-d303-4d67-a3fb-4c438868c8f4",
+    "2026-09-23T16-11-03-371Z-be96000f-d303-4d67-a3fb-4c438868c8f4--2",
+    "2026-09-23T16-11-03-371Z-be96000f-d303-4d67-a3fb-4c438868c8f4--3",
+    "2026-09-23T16-11-03-371Z-be96000f-d303-4d67-a3fb-4c438868c8f4--4",
+    "2026-09-23T16-11-03-371Z-be96000f-d303-4d67-a3fb-4c438868c8f4--5"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude-antigravity-hermes.initial-apply OBSERVED exit=0; applied=5 (owned-skill:alpha-aos-ship:claude, owned-skill:alpha-aos-control:claude, owned-skill:alpha-aos-control:antigravity, owned-skill:alpha-aos-control:hermes, policy:claude-ecc); journaled operations=5; journal files=5; external=none
+
+## step 27: claude-antigravity-hermes: dry-run install --target claude,antigravity,hermes (human form)
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,antigravity,hermes
+env-overrides: none
+exit: 0
+duration-ms: 4261
+--- stdout (3728B sha256=16d0220958d6) ---
+alpha-AOS managed install (explicit)
+Targets: claude, antigravity, hermes
+CURRENT gsd:claude - 1.12.0/standard/claude
+CURRENT gsd:antigravity - 1.12.0/standard/antigravity
+CURRENT owned-skill:alpha-aos-ship:claude - <sandbox-7>\home\.claude\skills\alpha-aos-ship\SKILL.md
+CURRENT owned-skill:alpha-aos-control:claude - <sandbox-7>\home\.claude\skills\alpha-aos-control\SKILL.md
+CURRENT owned-skill:alpha-aos-control:antigravity - <sandbox-7>\home\.gemini\antigravity\skills\alpha-aos-control\SKILL.md
+CURRENT owned-skill:alpha-aos-control:hermes - <sandbox-7>\home\.hermes\skills\alpha-aos-control\SKILL.md
+CURRENT ecc:runtime - 2.2.0
+CURRENT ecc:claude - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\home\.claude\skills
+CURRENT ecc:antigravity - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\home\.gemini\antigravity\skills
+CURRENT ecc:hermes - unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\home\.hermes\skills
+CURRENT mcp:claude - <sandbox-7>\home\.claude.json
+CURRENT mcp:antigravity - <sandbox-7>\home\.gemini\config\mcp_config.json
+CURRENT mcp:hermes - <sandbox-7>\home\.hermes\config.yaml
+CURRENT policy:claude-ecc - <sandbox-7>\home\.claude\settings.json
+WARNING The harness applications themselves are prerequisites and are never installed by alpha-AOS.
+WARNING External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.
+WARNING Restart harness processes after MCP or environment-variable changes.
+Dry-run only. Pass --apply to fixture, apply, and verify the selected stack.
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude-antigravity-hermes.preview-current HOLDS exit=0; 14 step lines, every one CURRENT: gsd:claude, gsd:antigravity, owned-skill:alpha-aos-ship:claude, owned-skill:alpha-aos-control:claude, owned-skill:alpha-aos-control:antigravity, owned-skill:alpha-aos-control:hermes, ecc:runtime, ecc:claude, ecc:antigravity, ecc:hermes, mcp:claude, mcp:antigravity, mcp:hermes, policy:claude-ecc
+fingerprint claude-antigravity-hermes sandbox home+state+prefix across the dry-run: bf1a4ff42774 -> bf1a4ff42774
+CHECK life01.claude-antigravity-hermes.preview-no-mutation HOLDS sandbox home, state and prefix digests are equal before and after the dry-run install
+
+## step 28: claude-antigravity-hermes: dry-run install --target claude,antigravity,hermes --json
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,antigravity,hermes --json
+env-overrides: none
+exit: 0
+duration-ms: 4412
+--- stdout (5074B sha256=cd37e75fe2ce) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "claude",
+    "antigravity",
+    "hermes"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "gsd:claude",
+      "component": "gsd",
+      "target": "claude",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/claude"
+    },
+    {
+      "id": "gsd:antigravity",
+      "component": "gsd",
+      "target": "antigravity",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/antigravity"
+    },
+    {
+      "id": "owned-skill:alpha-aos-ship:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:claude",
+      "component": "owned-skill",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:antigravity",
+      "component": "owned-skill",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:hermes",
+      "component": "owned-skill",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:claude",
+      "component": "ecc-skills",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.claude\\skills"
+    },
+    {
+      "id": "ecc:antigravity",
+      "component": "ecc-skills",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.gemini\\antigravity\\skills"
+    },
+    {
+      "id": "ecc:hermes",
+      "component": "ecc-skills",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.hermes\\skills"
+    },
+    {
+      "id": "mcp:claude",
+      "component": "mcp",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude.json"
+    },
+    {
+      "id": "mcp:antigravity",
+      "component": "mcp",
+      "target": "antigravity",
+      "action": "current",
+      "external": false,
+      "note": "~\\.gemini\\config\\mcp_config.json"
+    },
+    {
+      "id": "mcp:hermes",
+      "component": "mcp",
+      "target": "hermes",
+      "action": "current",
+      "external": false,
+      "note": "~\\.hermes\\config.yaml"
+    },
+    {
+      "id": "policy:claude-ecc",
+      "component": "skill-policy",
+      "target": "claude",
+      "action": "current",
+      "external": false,
+      "note": "~\\.claude\\settings.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude-antigravity-hermes.preview-json-current HOLDS 14 steps, every steps[].action is current
+
+## step 29: claude-antigravity-hermes: second install --target claude,antigravity,hermes --apply
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target claude,antigravity,hermes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 6845
+--- stdout (5806B sha256=1247117dc2ce) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "claude",
+      "antigravity",
+      "hermes"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:claude",
+        "component": "gsd",
+        "target": "claude",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/claude"
+      },
+      {
+        "id": "gsd:antigravity",
+        "component": "gsd",
+        "target": "antigravity",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/antigravity"
+      },
+      {
+        "id": "owned-skill:alpha-aos-ship:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-ship\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:claude",
+        "component": "owned-skill",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:antigravity",
+        "component": "owned-skill",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\antigravity\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:hermes",
+        "component": "owned-skill",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:claude",
+        "component": "ecc-skills",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.claude\\skills"
+      },
+      {
+        "id": "ecc:antigravity",
+        "component": "ecc-skills",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.gemini\\antigravity\\skills"
+      },
+      {
+        "id": "ecc:hermes",
+        "component": "ecc-skills",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.hermes\\skills"
+      },
+      {
+        "id": "mcp:claude",
+        "component": "mcp",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude.json"
+      },
+      {
+        "id": "mcp:antigravity",
+        "component": "mcp",
+        "target": "antigravity",
+        "action": "current",
+        "external": false,
+        "note": "~\\.gemini\\config\\mcp_config.json"
+      },
+      {
+        "id": "mcp:hermes",
+        "component": "mcp",
+        "target": "hermes",
+        "action": "current",
+        "external": false,
+        "note": "~\\.hermes\\config.yaml"
+      },
+      {
+        "id": "policy:claude-ecc",
+        "component": "skill-policy",
+        "target": "claude",
+        "action": "current",
+        "external": false,
+        "note": "~\\.claude\\settings.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:claude",
+    "gsd:antigravity",
+    "owned-skill:alpha-aos-ship:claude",
+    "owned-skill:alpha-aos-control:claude",
+    "owned-skill:alpha-aos-control:antigravity",
+    "owned-skill:alpha-aos-control:hermes",
+    "ecc:runtime",
+    "ecc:claude",
+    "ecc:antigravity",
+    "ecc:hermes",
+    "mcp:claude",
+    "mcp:antigravity",
+    "mcp:hermes",
+    "policy:claude-ecc"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.claude-antigravity-hermes.second-apply-noop HOLDS applied=0; operationIds=0; current=14 of 14 steps; journal file names unchanged (5)
+fingerprint claude-antigravity-hermes sandbox home+state+prefix across the second apply: bf1a4ff42774 -> bf1a4ff42774
+CHECK life01.claude-antigravity-hermes.second-apply-byte-identical HOLDS sandbox home, state and prefix digests after the second apply equal those after the initial apply
+note: codex-then-pi: packed release installed; installed lock channel: stable; seeded harnesses: codex, pi
+
+## step 30: codex-then-pi: install --target codex --apply
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 12645
+--- stdout (2704B sha256=924dd51d1e48) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T16-12-28-669Z-661cc563-80a3-4d52-bf6a-cac7e99533c5",
+    "2026-09-23T16-12-28-669Z-661cc563-80a3-4d52-bf6a-cac7e99533c5--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 31: codex-then-pi: install --target pi --apply
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target pi --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 5136
+--- stdout (2462B sha256=18edf7a556f5) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "pi"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "gsd:pi",
+        "component": "gsd",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/pi"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:pi",
+        "component": "owned-skill",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:pi",
+        "component": "ecc-skills",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp-bridge:pi",
+        "component": "mcp-bridge",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "pi-mcp-adapter@2.31.0"
+      },
+      {
+        "id": "mcp:pi",
+        "component": "mcp",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.pi\\agent\\mcp.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "gsd:pi",
+    "owned-skill:alpha-aos-control:pi",
+    "ecc:runtime",
+    "ecc:pi",
+    "mcp-bridge:pi",
+    "mcp:pi"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.codex-then-pi.serial-apply OBSERVED codex apply exit=0; pi apply exit=0, applied=none
+
+## step 32: codex-then-pi: dry-run install --target codex,pi --json
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex,pi --json
+env-overrides: none
+exit: 0
+duration-ms: 4283
+--- stdout (3678B sha256=08740669eed2) ---
+{
+  "schemaVersion": 1,
+  "targets": [
+    "codex",
+    "pi"
+  ],
+  "selection": "explicit",
+  "steps": [
+    {
+      "id": "policy:codex-execution",
+      "component": "execution-policy",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\AGENTS.md"
+    },
+    {
+      "id": "gsd:codex",
+      "component": "gsd",
+      "target": "codex",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/codex"
+    },
+    {
+      "id": "gsd:pi",
+      "component": "gsd",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "1.12.0/standard/pi"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:codex",
+      "component": "owned-skill",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "owned-skill:alpha-aos-control:pi",
+      "component": "owned-skill",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    },
+    {
+      "id": "ecc:runtime",
+      "component": "ecc-runtime",
+      "target": "machine",
+      "action": "current",
+      "external": true,
+      "note": "2.2.0"
+    },
+    {
+      "id": "ecc:codex",
+      "component": "ecc-skills",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+    },
+    {
+      "id": "ecc:pi",
+      "component": "ecc-skills",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+    },
+    {
+      "id": "mcp-bridge:pi",
+      "component": "mcp-bridge",
+      "target": "pi",
+      "action": "current",
+      "external": true,
+      "note": "pi-mcp-adapter@2.31.0"
+    },
+    {
+      "id": "mcp:codex",
+      "component": "mcp",
+      "target": "codex",
+      "action": "current",
+      "external": false,
+      "note": "~\\.codex\\config.toml"
+    },
+    {
+      "id": "mcp:pi",
+      "component": "mcp",
+      "target": "pi",
+      "action": "current",
+      "external": false,
+      "note": "~\\.pi\\agent\\mcp.json"
+    }
+  ],
+  "warnings": [
+    "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+    "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+    "Restart harness processes after MCP or environment-variable changes."
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.codex-then-pi.combined-plan OBSERVED owned-skill steps after the serial applies: owned-skill:alpha-aos-control:codex=current, owned-skill:alpha-aos-control:pi=current
+
+## step 33: codex-then-pi: install --target codex,pi --apply after the serial applies
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex,pi --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 6457
+--- stdout (4225B sha256=0c74480ad07e) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex",
+      "pi"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "gsd:pi",
+        "component": "gsd",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/pi"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:pi",
+        "component": "owned-skill",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+      },
+      {
+        "id": "ecc:pi",
+        "component": "ecc-skills",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp-bridge:pi",
+        "component": "mcp-bridge",
+        "target": "pi",
+        "action": "current",
+        "external": true,
+        "note": "pi-mcp-adapter@2.31.0"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      },
+      {
+        "id": "mcp:pi",
+        "component": "mcp",
+        "target": "pi",
+        "action": "current",
+        "external": false,
+        "note": "~\\.pi\\agent\\mcp.json"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "policy:codex-execution",
+    "gsd:codex",
+    "gsd:pi",
+    "owned-skill:alpha-aos-control:codex",
+    "owned-skill:alpha-aos-control:pi",
+    "ecc:runtime",
+    "ecc:codex",
+    "ecc:pi",
+    "mcp-bridge:pi",
+    "mcp:codex",
+    "mcp:pi"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life01.codex-then-pi.combined-apply OBSERVED exit=0; applied=0; operationIds=0; current=11 of 11
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=25 violated=3 not-observed=15 observed=10

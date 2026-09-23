@@ -1,0 +1,1418 @@
+probe: life02-status
+head: 9d535c6228a7eb05017df314e4fb42d9ed5a8180
+dirty-tracked: 1
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: a1736e27c97503d94bdf2555050bb1cf8b73676b52b3e9666539775d2cf0fbd7
+started: 2026-09-23T14:28:31.745Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 2410
+--- stdout (18895B sha256=7bc206f2ebbb) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590832,
+    "unpackedSize": 2455165,
+    "shasum": "ec8697bfeee2d929675d91f03c07b836cb71e935",
+    "integrity": "sha512-LSU5f1ePjaOPKdZ6FblpXSy+nfDV7md1oCeEHkznDH/3ECb96SCVzE8yvG8upIAmTRo/6qQRSTE48GrBpqAIaQ==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: packed release installed into <sandbox>/prefix with the host npm cache; installed lock channel: stable
+note: codex prerequisites seeded exactly as the CI packed lifecycle test does (GSD VERSION/.gsd-runtime/.gsd-profile, locked ECC runtime and skills, codex config.toml)
+note: CLI output below is verbatim apart from path aliasing; any 64-hex value inside it is a lock or repository-owned digest printed by the CLI itself
+
+## step 2: populate the state root: install --target codex --apply
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 11057
+--- stdout (2690B sha256=a34b5ff1fd5b) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T14-29-20-229Z-23a34910-df74-4528-b362-d5975ca3d7ed",
+    "2026-09-23T14-29-20-229Z-23a34910-df74-4528-b362-d5975ca3d7ed--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: the state root now holds the journals, snapshots and lock written by a real packed install (a populated state root, unlike the empty one the Phase 6 benchmark measures)
+
+## step 3: status (human) after install
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 0
+duration-ms: 807
+--- stdout (158B sha256=69525ea0ae80) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: free
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: OK
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 4: status --json after install
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 805
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life02.status.ok-after-install HOLDS status exit=0 (prints STATUS: OK); status --json exit=0, needsRepair=false, managedStatePresent=true, writerStatus=free
+note: packed CLI status --json x10 wall ms (process start to exit, includes Node startup and catalog/lock load): min=784.1 median=806.4 max=820.7; exit codes: 0,0,0,0,0,0,0,0,0,0
+CHECK life02.status.cli-timing OBSERVED wall times in note; 10 packed CLI runs of status --json, exit codes 0
+note: in-process getOfflineStatus x10 on <sandbox>/state (installed package modules, installed catalog and stable lock) ms: min=2.04 median=2.35 max=3.53
+CHECK life02.status.in-process-under-50ms HOLDS median of 10 in-process calls on the populated state root is below the Phase 6 fifty-millisecond interpretation (figures in note); needsRepair=false
+note: the trap is the checkout's compiled test/helpers/io-trap-preload.ts; the traced program is the packed release entrypoint <sandbox>/prefix/.../alpha-aos/dist/src/cli.js
+
+## step 5: trapped: status --json (packed entrypoint)
+$ node --import file:///<repo>/dist/test/helpers/io-trap-preload.js <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: ALPHA_AOS_IO_TRAP_LOG
+exit: 0
+duration-ms: 835
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: trap log status: 0 line(s)
+
+## step 6: trap control: inventory --json (packed entrypoint, spawns version probes)
+$ node --import file:///<repo>/dist/test/helpers/io-trap-preload.js <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js inventory --json
+env-overrides: ALPHA_AOS_IO_TRAP_LOG
+exit: 0
+duration-ms: 3674
+--- stdout (2138B sha256=1a9a848f900b) ---
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-23T14:29:33.056Z",
+  "platform": "win32",
+  "architecture": "x64",
+  "tools": {
+    "node": {
+      "version": "v24.13.1",
+      "command": "C:\\Program Files\\nodejs\\node.exe"
+    },
+    "npm": {
+      "version": "11.8.0",
+      "command": "C:\\Program Files\\nodejs\\npm.cmd"
+    },
+    "git": {
+      "version": "git version 2.55.0.windows.3",
+      "command": "C:\\Program Files\\Git\\mingw64\\bin\\git.exe"
+    }
+  },
+  "harnesses": [
+    {
+      "id": "claude",
+      "displayName": "Claude Code",
+      "command": "<home>\\.local\\bin\\claude.exe",
+      "version": "2.1.280 (Claude Code)",
+      "configRoots": [],
+      "detected": true,
+      "notes": []
+    },
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "command": "<home>\\AppData\\Roaming\\npm\\codex.cmd",
+      "version": null,
+      "configRoots": [
+        "~\\.codex"
+      ],
+      "detected": true,
+      "notes": [
+        "version unavailable: reading a version from .cmd shims would require an interpreter"
+      ]
+    },
+    {
+      "id": "antigravity",
+      "displayName": "Antigravity GUI/CLI/IDE",
+      "command": "<home>\\AppData\\Local\\agy\\bin\\agy.exe",
+      "version": "1.2.7",
+      "configRoots": [],
+      "detected": true,
+      "notes": []
+    },
+    {
+      "id": "pi",
+      "displayName": "Pi Agent",
+      "command": "<home>\\AppData\\Roaming\\npm\\pi.cmd",
+      "version": null,
+      "configRoots": [],
+      "detected": true,
+      "notes": [
+        "version unavailable: reading a version from .cmd shims would require an interpreter",
+        "Pi 0.84.4+ discovers Agent Skills from the shared ~/.agents/skills root; extensions remain separate"
+      ]
+    },
+    {
+      "id": "hermes",
+      "displayName": "Hermes Agent",
+      "command": "<home>\\AppData\\Local\\hermes\\bin\\hermes.exe",
+      "version": "Hermes Agent v0.21.3 (2026.9.14) · upstream a0500081",
+      "configRoots": [],
+      "detected": true,
+      "notes": [
+        "worker-only by stack policy; not a GSD state writer"
+      ]
+    }
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: trap log inventory: 14 line(s): child_process.spawnSync x14
+
+## step 7: trap control: loopback fetch to 127.0.0.1 port 9 (error swallowed)
+$ node --import file:///<repo>/dist/test/helpers/io-trap-preload.js --input-type=module -e "try { await fetch(\"http://127.0.0.1:9/\", { signal: AbortSignal.timeout(5000) }); } catch {}"
+env-overrides: ALPHA_AOS_IO_TRAP_LOG
+exit: 0
+duration-ms: 151
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: trap log fetch: 1 line(s): fetch x1
+CHECK life02.status.trap-control-spawn HOLDS inventory --json exit=0; child_process lines recorded: yes
+CHECK life02.status.trap-control-network HOLDS loopback fetch control exit=0; network lines recorded: fetch
+CHECK life02.status.zero-subprocess HOLDS packed status --json exit=0, needsRepair=false; the trap log holds no child_process line
+CHECK life02.status.zero-network HOLDS the trap log holds no net, tls, dns, http, https or fetch line
+
+## step 8: doctor --json on the healthy sandbox
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js doctor --json
+env-overrides: none
+exit: 0
+duration-ms: 3753
+--- stdout (2544B sha256=ad0f249df874) ---
+[
+  {
+    "level": "ok",
+    "code": "runtime.node",
+    "message": "Node v24.13.1 satisfies >=24"
+  },
+  {
+    "level": "ok",
+    "code": "runtime.npm",
+    "message": "npm 11.8.0 satisfies >=10"
+  },
+  {
+    "level": "ok",
+    "code": "lock.gsd",
+    "message": "@opengsd/gsd-core@1.12.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.ecc",
+    "message": "ecc-universal@2.2.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp.context7",
+    "message": "@upstash/context7-mcp@4.0.4 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp.exa",
+    "message": "exa-mcp-server@3.4.1 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp.firecrawl",
+    "message": "firecrawl-mcp@3.24.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp-bridge.pi",
+    "message": "pi-mcp-adapter@2.31.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.owned-skill.alpha-aos-ship",
+    "message": "alpha-aos-ship has SHA-256 source lock"
+  },
+  {
+    "level": "ok",
+    "code": "lock.owned-skill.alpha-aos-control",
+    "message": "alpha-aos-control has SHA-256 source lock"
+  },
+  {
+    "level": "ok",
+    "code": "harness.claude",
+    "message": "Claude Code detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.codex",
+    "message": "Codex detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.antigravity",
+    "message": "Antigravity GUI/CLI/IDE detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.pi",
+    "message": "Pi Agent detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.hermes",
+    "message": "Hermes Agent detected"
+  },
+  {
+    "level": "ok",
+    "code": "policy.ecc-profile",
+    "message": "ECC profile installation is disabled"
+  },
+  {
+    "level": "ok",
+    "code": "output.redaction",
+    "message": "Observable output is redacted: a withheld value is shown as [redacted:<kind>] and a private root as an alias."
+  },
+  {
+    "level": "warning",
+    "code": "policy.claude-ecc-skills",
+    "message": "Claude managed ECC skills are not all user-invocable-only; run skill-policy sync --target claude"
+  },
+  {
+    "level": "info",
+    "code": "ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH",
+    "message": "ecc-universal@2.2.0 skills/deep-research/SKILL.md names web_search_advanced_exa, crawling_exa (not published by any pinned server) and firecrawl_search (denied by alpha-aos policy). The allowlist is unchanged; the routing contract is stated in skills/alpha-aos-research-routing/SKILL.md."
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life02.doctor.coded HOLDS doctor --json exit=0; 19 findings, 0 without a non-empty code and level; levels seen: ok/warning/info; codes: runtime.node, runtime.npm, lock.gsd, lock.ecc, lock.mcp.context7, lock.mcp.exa, lock.mcp.firecrawl, lock.mcp-bridge.pi, lock.owned-skill.alpha-aos-ship, lock.owned-skill.alpha-aos-control, harness.claude, harness.codex, harness.antigravity, harness.pi, harness.hermes, policy.ecc-profile, output.redaction, policy.claude-ecc-skills, ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH
+note: wrote <sandbox>/state/journal/p11-corrupt.json with the 9 bytes `{not json` (synthetic, non-secret)
+
+## step 9: status (human) with a corrupt journal
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 1
+duration-ms: 816
+--- stdout (266B sha256=b432de893b99) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: free
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+Corrupt journals: p11-corrupt.json
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 10: status --json with a corrupt journal
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 829
+--- stdout (261B sha256=466f88bdd68b) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": true,
+  "incompleteTransactions": [],
+  "corruptJournals": [
+    "p11-corrupt.json"
+  ],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: status guidance line (verbatim): STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+CHECK life02.status.needs-repair HOLDS status exit=1; status --json exit=1, needsRepair=true, corruptJournals=["p11-corrupt.json"]
+
+## step 11: doctor --json with a corrupt journal
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js doctor --json
+env-overrides: none
+exit: 0
+duration-ms: 3758
+--- stdout (2544B sha256=ad0f249df874) ---
+[
+  {
+    "level": "ok",
+    "code": "runtime.node",
+    "message": "Node v24.13.1 satisfies >=24"
+  },
+  {
+    "level": "ok",
+    "code": "runtime.npm",
+    "message": "npm 11.8.0 satisfies >=10"
+  },
+  {
+    "level": "ok",
+    "code": "lock.gsd",
+    "message": "@opengsd/gsd-core@1.12.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.ecc",
+    "message": "ecc-universal@2.2.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp.context7",
+    "message": "@upstash/context7-mcp@4.0.4 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp.exa",
+    "message": "exa-mcp-server@3.4.1 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp.firecrawl",
+    "message": "firecrawl-mcp@3.24.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.mcp-bridge.pi",
+    "message": "pi-mcp-adapter@2.31.0 has sha512 integrity"
+  },
+  {
+    "level": "ok",
+    "code": "lock.owned-skill.alpha-aos-ship",
+    "message": "alpha-aos-ship has SHA-256 source lock"
+  },
+  {
+    "level": "ok",
+    "code": "lock.owned-skill.alpha-aos-control",
+    "message": "alpha-aos-control has SHA-256 source lock"
+  },
+  {
+    "level": "ok",
+    "code": "harness.claude",
+    "message": "Claude Code detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.codex",
+    "message": "Codex detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.antigravity",
+    "message": "Antigravity GUI/CLI/IDE detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.pi",
+    "message": "Pi Agent detected"
+  },
+  {
+    "level": "ok",
+    "code": "harness.hermes",
+    "message": "Hermes Agent detected"
+  },
+  {
+    "level": "ok",
+    "code": "policy.ecc-profile",
+    "message": "ECC profile installation is disabled"
+  },
+  {
+    "level": "ok",
+    "code": "output.redaction",
+    "message": "Observable output is redacted: a withheld value is shown as [redacted:<kind>] and a private root as an alias."
+  },
+  {
+    "level": "warning",
+    "code": "policy.claude-ecc-skills",
+    "message": "Claude managed ECC skills are not all user-invocable-only; run skill-policy sync --target claude"
+  },
+  {
+    "level": "info",
+    "code": "ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH",
+    "message": "ecc-universal@2.2.0 skills/deep-research/SKILL.md names web_search_advanced_exa, crawling_exa (not published by any pinned server) and firecrawl_search (denied by alpha-aos policy). The allowlist is unchanged; the routing contract is stated in skills/alpha-aos-research-routing/SKILL.md."
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life02.doctor.flags-corrupt-journal VIOLATED doctor --json exit=0; no error- or warning-level finding names the journal problem; error/warning findings present: warning:policy.claude-ecc-skills
+
+## step 12: dry-run of the named command: repair --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 789
+--- stdout (346B sha256=4dca4b332be1) ---
+{
+  "stateRoot": "<state>",
+  "operationId": "p11-corrupt",
+  "journalPath": "<state>\\journal\\p11-corrupt.json",
+  "action": "quarantine",
+  "writerPid": null,
+  "writerAlive": false,
+  "snapshotsIntact": false,
+  "affectedFiles": [],
+  "blockedReasons": [],
+  "planDigest": "b077293039d1fc4b80cdd27bb1c30f517c978a6bb9ff2ae38a2ef699e6b24b72"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: the guidance command ran as a dry-run: exit=0; planned action: quarantine; affectedFiles: 0; blockedReasons: 0 (the repair plan itself is judged under LIFE-06, plan 11-06)
+CHECK life02.doctor.actionable HOLDS the status guidance (not a doctor finding) names the runnable command `alpha-aos repair`; dry-run `alpha-aos repair --json` exit=0
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=9 violated=1 not-observed=0 observed=1

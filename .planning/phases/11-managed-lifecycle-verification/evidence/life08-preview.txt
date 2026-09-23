@@ -1,0 +1,1327 @@
+probe: life08-preview
+head: 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a
+dirty-tracked: 2
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: 795abe35be833367ae609cf5629b9bb9302a292f7e7c443787c0a6496af65b46
+started: 2026-09-23T19:22:19.539Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 11241
+--- stdout (18895B sha256=06b56731ca74) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590832,
+    "unpackedSize": 2455165,
+    "shasum": "a0112be0f4eff7c0c528937ccdcf6a536d8d2c59",
+    "integrity": "sha512-BUGqjdk7bE5Yn8/hfKncmrGt3nFtVFIPnNG0oodlALQnPd6F55tp1PkCQ0XswSiMZFa3rXPN22bhV2lcdWJ87g==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: packed release installed into <sandbox>/prefix; installed lock channel: stable; codex prerequisites seeded as in the CI packed lifecycle test (ECC runtime from the host npm cache)
+note: CLI output below is verbatim apart from path aliasing; any 64-hex value inside it is a lock, repository or commit digest printed by the CLI itself, never a digest of a user file
+note: fingerprint exclusions (by design, not by result): <sandbox>/npm-cache and <sandbox>/npm-logs, because npm writes debug logs and cache entries on every invocation including read-only queries (scripts/run-tests.mjs header); <sandbox>/temp, the fixture scratch space the CLI uses for plan-time fixtures. No other directory is excluded.
+note: fingerprintManifest hashes the bytes of every file up to 1 MiB and records the size of larger files; path, kind, size and hash prefix are the only drift metadata printed
+
+# scenario A: packed sandbox, update surfaces of the installed CLI
+
+## step 2: A: install --target codex --apply (managed state to preview against)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 11208
+--- stdout (2698B sha256=d6ddb78b4726) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T19-24-33-608Z-b2019d3c-d7a1-4fed-b279-7231f894f82a",
+    "2026-09-23T19-24-33-608Z-b2019d3c-d7a1-4fed-b279-7231f894f82a--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: A: the managed install exited 0; the preview checks below run either way, because no-mutation must hold for any starting state
+note: A: fingerprint roots: <sandbox>/home (harness configuration), <sandbox>/state (managed state), <sandbox>/prefix (installed package and global bin links)
+
+## step 3: A: update (no mode, defaults to --check)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js update
+env-overrides: none
+exit: 0
+duration-ms: 1028
+--- stdout (322B sha256=2ed07ab0f747) ---
+COMPONENT      STABLE  UPSTREAM  STATUS
+-------------  ------  --------  -------
+gsd            1.12.0  1.14.0    update
+ecc            2.2.0   2.2.1     update
+mcp:context7   4.0.4   4.1.1     update
+mcp:exa        3.4.1   3.4.1     current
+mcp:firecrawl  3.24.0  3.25.4    update
+mcp-bridge:pi  2.31.0  2.37.0    update
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint A home+state+prefix across update: d0e495622cea -> d0e495622cea
+CHECK life08.preview.update-default.no-mutation HOLDS exit=0; sandbox home, state and prefix digests are equal before and after `update`
+
+## step 4: A: update --check --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js update --check --json
+env-overrides: none
+exit: 0
+duration-ms: 1010
+--- stdout (3177B sha256=3d7316a2919d) ---
+{
+  "schemaVersion": 1,
+  "channel": "candidate",
+  "generatedAt": "2026-09-23T19:25:09.882Z",
+  "status": "unverified",
+  "components": {
+    "gsd": {
+      "package": "@opengsd/gsd-core",
+      "version": "1.14.0",
+      "integrity": "sha512-e05sV2c8KlcQ2hoJ4U3U1OBjqswQOon4C29Cs75fEAr+tq7qJ/XyFYrN/nwblREWUkPUUoxmVzLVj4Im2KjQxQ==",
+      "profile": "standard"
+    },
+    "ecc": {
+      "package": "ecc-universal",
+      "version": "2.2.1",
+      "integrity": "sha512-D8vFXQ++Aub1CD2RPyYfPEXVt51eEHzvImLd1XaOos/gUxYRWU+BRDXMDnmRrjDfWwX5+uFEJULYpqPYFPSGuw==",
+      "skills": [
+        "unified-memory",
+        "documentation-lookup",
+        "deep-research",
+        "accessibility",
+        "agent-harness-construction",
+        "ai-regression-testing",
+        "browser-qa",
+        "click-path-audit",
+        "database-migrations",
+        "deployment-patterns",
+        "docker-patterns",
+        "eval-harness",
+        "frontend-a11y",
+        "inherit-legacy-style",
+        "mcp-server-patterns",
+        "postgres-patterns",
+        "redis-patterns",
+        "scientific-db-pubmed-database",
+        "scientific-db-uspto-database",
+        "scientific-thinking-literature-review",
+        "scientific-thinking-scholar-evaluation",
+        "security-review"
+      ],
+      "sourceSha256": {},
+      "targetSha256": {}
+    },
+    "mcp": {
+      "context7": {
+        "package": "@upstash/context7-mcp",
+        "version": "4.1.1",
+        "integrity": "sha512-fUARTIZGVKzlzQKDhKUg4aIQ3yEU/12STdfxJDDnLMSN7yyHiPvNHI05iFwxkv3vC8G76Wp27MwK6Jucl/C5pA=="
+      },
+      "exa": {
+        "package": "exa-mcp-server",
+        "version": "3.4.1",
+        "integrity": "sha512-X6g4J9LXLJZ0uK52G8KE/KCaxpaD+wkEHzjkoDTYkC+afxfm5xqWgih3i0hgTfyufl6PggkLeR0L6rDAxW6ETg=="
+      },
+      "firecrawl": {
+        "package": "firecrawl-mcp",
+        "version": "3.25.4",
+        "integrity": "sha512-jF67Qe8ZXO5zBs29RMy6jX/uEO+vWqq0TtYhvBk+e6nzmSqN9nbKyUBrkkSY9L52JuBg+jQ6LTUxwWLj0OAkDg=="
+      }
+    },
+    "mcpBridges": {
+      "pi": {
+        "package": "pi-mcp-adapter",
+        "version": "2.37.0",
+        "integrity": "sha512-Adjvt70MZz9U68z50i+KIeTvI5H9ls31fHi5i0JIwVgXJyS3mEaYEfa4lkHbSUq/P8JHS1iO4BInt9MhdWnG9Q=="
+      }
+    },
+    "ownedSkills": {
+      "alpha-aos-ship": {
+        "sourceSha256": "0b9d85550717d43ac07d36ba0a6400e49d2e035eb1600f6a73d922345b91947a",
+        "targetSha256": {
+          "claude": "808cc67dbd6c8ba2574f1325cd5c4b32218ddad99bc3cc4e6e03c141872b2a48"
+        },
+        "upstreamWorkflow": "gsd-core/workflows/ship.md"
+      },
+      "alpha-aos-control": {
+        "sourceSha256": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+        "targetSha256": {
+          "claude": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "codex": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "antigravity": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "pi": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+          "hermes": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84"
+        }
+      }
+    }
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint A home+state+prefix across update --check --json: d0e495622cea -> d0e495622cea
+CHECK life08.preview.update-check.no-mutation HOLDS exit=0; sandbox home, state and prefix digests are equal before and after `update --check --json`
+CHECK life08.preview.update-check.result OBSERVED exit=0; candidate reported: channel=candidate; status=unverified; gsd=@opengsd/gsd-core@1.14.0, ecc=ecc-universal@2.2.1, mcp.context7=@upstash/context7-mcp@4.1.1, mcp.exa=exa-mcp-server@3.4.1, mcp.firecrawl=firecrawl-mcp@3.25.4, bridge.pi=pi-mcp-adapter@2.37.0
+
+## step 5: A: update --stage (no --apply)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js update --stage
+env-overrides: none
+exit: 0
+duration-ms: 1078
+--- stdout (322B sha256=2ed07ab0f747) ---
+COMPONENT      STABLE  UPSTREAM  STATUS
+-------------  ------  --------  -------
+gsd            1.12.0  1.14.0    update
+ecc            2.2.0   2.2.1     update
+mcp:context7   4.0.4   4.1.1     update
+mcp:exa        3.4.1   3.4.1     current
+mcp:firecrawl  3.24.0  3.25.4    update
+mcp-bridge:pi  2.31.0  2.37.0    update
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint A home+state+prefix across update --stage: d0e495622cea -> d0e495622cea
+CHECK life08.preview.update-stage.no-mutation HOLDS exit=0; sandbox home, state and prefix digests are equal before and after `update --stage`
+
+# scenario B: fixture checkout inside the sandbox, bootstrap update and the update scripts
+note: cwd for the next step: <sandbox>
+
+## step 6: B: bare mirror of the repository as the fixture origin (reads the repository once)
+$ git -c safe.directory=<repo> clone --bare --no-hardlinks --quiet <repo> <sandbox>\origin.git
+env-overrides: none
+exit: 0
+duration-ms: 1875
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: cwd for the next step: <sandbox>
+
+## step 7: B: clone the fixture origin as the user's checkout
+$ git clone --no-hardlinks --quiet <sandbox>\origin.git <sandbox>\checkout
+env-overrides: none
+exit: 0
+duration-ms: 2647
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: cwd for the next step: <sandbox>\checkout
+
+## step 8: B: npm ci in the checkout (sandbox env, host npm cache)
+$ npm ci --ignore-scripts --prefer-offline --no-audit --no-fund
+env-overrides: npm_config_cache
+exit: 0
+duration-ms: 4950
+--- stdout (26B sha256=21ec3382d159) ---
+
+added 101 packages in 5s
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: B: dist is built inside the checkout (npm run build = tsc + build-artifact write) instead of copied from <repo>/dist: the host working tree holds CRLF bytes for files the index stores as LF (.gitattributes `* text=auto eol=lf`), so a copied manifest does not describe the LF clone's inputs
+note: cwd for the next step: <sandbox>\checkout
+
+## step 9: B: npm run build in the checkout (the checkout's own build artifact)
+$ npm run build
+env-overrides: none
+exit: 0
+duration-ms: 8690
+--- stdout (174B sha256=312dca472d67) ---
+
+> alpha-aos@0.1.0 build
+> tsc -p tsconfig.json && node scripts/build-artifact.mjs write
+
+build artifact manifest written: dist\build-artifact.json (123 inputs, 240 outputs)
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: cwd for the next step: <sandbox>\checkout
+
+## step 10: B: node scripts/build-artifact.mjs check
+$ node scripts/build-artifact.mjs check
+env-overrides: none
+exit: 0
+duration-ms: 400
+--- stdout (49B sha256=bd7efcce5614) ---
+build artifact verified: 123 inputs, 240 outputs
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life08.preview.checkout-artifact HOLDS exit=0; the fixture checkout's build artifact is verified, so the bootstrap preview is a full preview
+note: cwd for the next step: <sandbox>\checkout
+
+## step 11: B: settle the checkout index before the baseline (git status --porcelain)
+$ git status --porcelain
+env-overrides: none
+exit: 0
+duration-ms: 310
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: B: one setup `git status` settles the index stat cache after the clone, the dist copy and npm ci, so the baseline is not taken over a stale index
+note: B: fingerprint roots: <sandbox>/checkout (work tree, .git, node_modules and dist: checkout, package and artifact), <sandbox>/home (configuration), <sandbox>/state (managed state), <sandbox>/prefix (global link target)
+note: cwd for the next step: <sandbox>\checkout
+
+## step 12: B: node dist/src/cli.js bootstrap update --json
+$ node dist/src/cli.js bootstrap update --json
+env-overrides: none
+exit: 2
+duration-ms: 11487
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (398B sha256=e86d012df7f4) ---
+alpha-aos: Refusing to print a JSON envelope over the observable byte budget of 262144 bytes. The envelope was built and hashed but not written: sha256=35983d184d515f49abd25595569a27c64525ca3ad7af9af2c0a0957d286ebc95. Nothing was written to stdout, because a document cut mid-token would parse as a truncated success. Narrow the scope with --project <path>, or read the same answer without --json.
+fingerprint B checkout+home+state+prefix across node dist/src/cli.js bootstrap update --json: 659ca6ed242b -> 659ca6ed242b
+CHECK life08.preview.bootstrap-update.no-mutation HOLDS exit=2; checkout (with .git, node_modules and dist), home, state and prefix digests are equal before and after `node dist/src/cli.js bootstrap update --json`
+note: cwd for the next step: <sandbox>\checkout
+
+## step 13: B: node dist/src/cli.js bootstrap update
+$ node dist/src/cli.js bootstrap update
+env-overrides: none
+exit: 0
+duration-ms: 11384
+--- stdout (473B sha256=0e02272789dc) ---
+Bootstrap update for <sandbox>\checkout
+Build artifact: verified
+Checkout: 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a -> 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a
+RUN git-merge-ff-only (checkout)
+RUN npm-ci (packages)
+RUN npm-build (artifact)
+RUN npm-link (link)
+Plan digest: fc89c239524ed69b65beb634a5f9662ebd2f47f3f2950d58ad13c6422d7e6f8b
+Preview only. Pass --apply to run these steps under one operation session.
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint B checkout+home+state+prefix across node dist/src/cli.js bootstrap update: 659ca6ed242b -> 659ca6ed242b
+CHECK life08.preview.bootstrap-update-human.no-mutation HOLDS exit=0; checkout (with .git, node_modules and dist), home, state and prefix digests are equal before and after `node dist/src/cli.js bootstrap update`
+note: cwd for the next step: <sandbox>\checkout
+
+## step 14: B: sh scripts/update.sh
+$ sh scripts/update.sh
+env-overrides: none
+exit: 0
+duration-ms: 11835
+--- stdout (620B sha256=f38deb551eb9) ---
+build artifact verified: 123 inputs, 240 outputs
+Showing the update plan only.
+Re-run with --apply to run it under one reviewed operation session.
+Bootstrap update for <sandbox>\checkout
+Build artifact: verified
+Checkout: 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a -> 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a
+RUN git-merge-ff-only (checkout)
+RUN npm-ci (packages)
+RUN npm-build (artifact)
+RUN npm-link (link)
+Plan digest: 1a0448842361db3c176c0d8e8047efe93ac1300b7a85e722127567d723ed0e85
+Preview only. Pass --apply to run these steps under one operation session.
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint B checkout+home+state+prefix across sh scripts/update.sh: 659ca6ed242b -> 659ca6ed242b
+CHECK life08.preview.update-sh.no-mutation HOLDS exit=0; checkout (with .git, node_modules and dist), home, state and prefix digests are equal before and after `sh scripts/update.sh`
+note: cwd for the next step: <sandbox>\checkout
+
+## step 15: B: pwsh -NoProfile -File scripts/update.ps1
+$ pwsh -NoProfile -File scripts/update.ps1
+env-overrides: none
+exit: 0
+duration-ms: 13574
+--- stdout (621B sha256=c26a2bc87c45) ---
+build artifact verified: 123 inputs, 240 outputs
+Showing the update plan only.
+Re-run with -Apply to run it under one reviewed operation session.
+Bootstrap update for <sandbox>\checkout
+Build artifact: verified
+Checkout: 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a -> 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a
+RUN git-merge-ff-only (checkout)
+RUN npm-ci (packages)
+RUN npm-build (artifact)
+RUN npm-link (link)
+Plan digest: 7a48d4ff631814ea53e8fc8238cb8eb520833fa8d17d2f52424cd8d76ce08b42
+Preview only. Pass --apply to run these steps under one operation session.
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint B checkout+home+state+prefix across pwsh -NoProfile -File scripts/update.ps1: 659ca6ed242b -> d4ce0e0b4679
+drift in B checkout+home+state+prefix across pwsh -NoProfile -File scripts/update.ps1
+<sandbox>\home: 348433856434 -> e1fc7fbaa57a (added 5, removed 0, changed 0, vanished 0)
+  added AppData - -> dir/-/-
+  added AppData/Local - -> dir/-/-
+  added AppData/Local/Microsoft - -> dir/-/-
+  added AppData/Local/Microsoft/PowerShell - -> dir/-/-
+  added AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive - -> file/71044/2d327713799d
+CHECK life08.preview.update-ps1.no-mutation VIOLATED exit=0; bytes changed across `pwsh -NoProfile -File scripts/update.ps1`; drift lines above
+CHECK life08.preview.update-ps1.drift-scope OBSERVED 5 drifted entries; every one under <sandbox>/home/AppData/Local/Microsoft/PowerShell: yes; checkout, state and prefix drift: none
+CHECK life08.preview.bootstrap-update.plan OBSERVED human preview exit=0: planned external steps git-merge-ff-only (checkout), npm-ci (packages), npm-build (artifact), npm-link (link); blocked reasons: none; Build artifact: verified; checkout target equals HEAD; "Preview only. Pass --apply to run these steps under one operation session.". bootstrap update --json exit=2 and no plan document; stderr: "alpha-aos: Refusing to print a JSON envelope over the observable byte budget of 262144 bytes. The envelope was built and hashed but not written: sha256=<digest>"
+
+## step 16: control: pwsh running only the cmdlets update.ps1 uses, against a fresh control home
+$ pwsh -NoProfile -Command "$null = Get-Command node -ErrorAction SilentlyContinue; $null = Split-Path -Parent $PWD; Push-Location $PWD; Write-Host control; Pop-Location; exit 0"
+env-overrides: HOME, USERPROFILE, APPDATA, LOCALAPPDATA
+exit: 0
+duration-ms: 1035
+--- stdout (9B sha256=df1457ecd6de) ---
+control
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint control home across the pwsh control: a518b1220104 -> 4e243833a754
+drift in control home across the pwsh control
+<sandbox>\pwsh-control\home: 52dc9e9a9390 -> b69e9f38d523 (added 5, removed 0, changed 0, vanished 0)
+  added AppData - -> dir/-/-
+  added AppData/Local - -> dir/-/-
+  added AppData/Local/Microsoft - -> dir/-/-
+  added AppData/Local/Microsoft/PowerShell - -> dir/-/-
+  added AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive - -> file/65564/22b14d45ff56
+CHECK life08.preview.update-ps1.pwsh-control OBSERVED exit=0; pwsh with the update.ps1 cmdlets and no alpha-AOS code added files: AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive
+note: cwd for the next step: <sandbox>\checkout
+
+## step 17: B: pwsh -NoProfile -File scripts/update.ps1 (re-run, steady state)
+$ pwsh -NoProfile -File scripts/update.ps1
+env-overrides: none
+exit: 0
+duration-ms: 12883
+--- stdout (621B sha256=e953dd8975d1) ---
+build artifact verified: 123 inputs, 240 outputs
+Showing the update plan only.
+Re-run with -Apply to run it under one reviewed operation session.
+Bootstrap update for <sandbox>\checkout
+Build artifact: verified
+Checkout: 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a -> 0b69ed266e34cd62cca2d2fe6b19aacc6eff282a
+RUN git-merge-ff-only (checkout)
+RUN npm-ci (packages)
+RUN npm-build (artifact)
+RUN npm-link (link)
+Plan digest: 5fdd30f3e18f895f018c83e0cba87ac44c94178d7f5d860b52191fe574ad27e3
+Preview only. Pass --apply to run these steps under one operation session.
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint B checkout+home+state+prefix across the update.ps1 re-run: d4ce0e0b4679 -> 8e99cef45678
+drift in B checkout+home+state+prefix across the update.ps1 re-run
+<sandbox>\home: e1fc7fbaa57a -> 57ff2c012b6c (added 0, removed 0, changed 1, vanished 0)
+  changed AppData/Local/Microsoft/PowerShell/StartupProfileData-NonInteractive file/71044/2d327713799d -> file/71116/b64672889ed6
+CHECK life08.preview.update-ps1-rerun.no-mutation VIOLATED exit=0; bytes changed across the update.ps1 re-run; drift lines above; every drifted entry under <sandbox>/home/AppData/Local/Microsoft/PowerShell: yes
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=7 violated=2 not-observed=0 observed=4

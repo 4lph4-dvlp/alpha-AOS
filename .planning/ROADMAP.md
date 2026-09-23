@@ -53,7 +53,7 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
   4. A regression test pins the diagnosed cause: it was observed failing against the unfixed code and passes against the fix.
   5. A single `main` CI run id shows ubuntu-latest, macos-latest, and windows-latest all green, with no leg individually re-run or taken from another run.
 
-**Plans**: 3/4 plans executed (3 waves)
+**Plans**: 4/4 plans executed (3 waves)
 
 Plans:
 **Wave 1**
@@ -67,7 +67,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 10-04-PLAN.md — CI-03: push-triggered `main` proof run green on all three legs in one attempt, recorded in CI_RUN.md (wave 3)
+- [x] 10-04-PLAN.md — CI-03: push-triggered `main` proof run green on all three legs in one attempt, recorded in CI_RUN.md (wave 3)
 
 **Planning note**: CI-02 is an investigation before it is a fix. Verified facts from run 35762417138 (`main` @ c6415a2): only the hash of the real `C:\Users\runneradmin\.alpha-aos` differs across the lifecycle, while every other host path stays `absent`; the POSIX legs fail only at `test/owned-skills.test.ts:52-53`. The red-matrix window is 638d3cc (last green, 2026-09-20) to f1ca570 (first red, 2026-09-21); whether the Windows failure began in that same window is not yet established. Loosening the assertion without a root cause is out of scope. The developer host is Windows, so CI-02 can be reproduced locally; CI-01 needs a POSIX leg to observe.
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Three-OS CI Baseline | v0.1.1 | 3/4 | In Progress|  |
+| 10. Three-OS CI Baseline | v0.1.1 | 4/4 | In Progress|  |
 | 11. Managed Lifecycle Verification | v0.1.1 | 0/TBD | Not started | - |
 | 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

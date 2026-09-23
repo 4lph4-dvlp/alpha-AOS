@@ -4,17 +4,17 @@ milestone: v0.1.1
 milestone_name: CI Green & Dependency Promotion
 current_phase: 10
 current_phase_name: Three-OS CI Baseline
-status: executing
-stopped_at: Completed 10-03-PLAN.md
-last_updated: "2026-09-23T04:21:42.089Z"
+status: verifying
+stopped_at: Completed 10-04-PLAN.md
+last_updated: "2026-09-23T04:36:37.533Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 10 execution started
-state_head: bea1fbf0560ca4f49b107f75ef79bf067ee97818
+state_head: 4e47615b8083a473f9f2d5028d8502da640af863
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 4
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 
 Phase: 10 (Three-OS CI Baseline) — EXECUTING
 Plan: 4 of 4
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-23 — Phase 10 execution started
 
 Progress: [░░░░░░░░░░] 0%
@@ -115,6 +115,7 @@ Progress: [░░░░░░░░░░] 0%
 | Phase 07 P04 | 1h 15m | 2 tasks | 8 files |
 | Phase 10 P01 | 6 min | 2 tasks | 4 files |
 | Phase 10 P02 | 8 min | 2 tasks | 4 files |
+| Phase 10 P04 | 13 min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -247,6 +248,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 10]: 10-01: path-literal guard marker is '// path-literal-ok: <reason>' (reason >= 4 chars) on the literal's own line; const bindings resolve by name (fail closed)
 - [Phase 10]: 10-01: test fixture roots asserted against host path output are built with join(tmpdir(), fixture-name, ...), never platform-absolute literals
 - [Phase 10]: 10-02: CI-02 classified as a test-isolation leak (D-01 class 3): mcp-proxy.test.ts npx cache writes to the real ~/.alpha-aos/mcp-cache/npm-cache; fixture alone writes nothing; D-02 governs 10-03, D-03 audit not triggered, D-06 not needed
+- [Phase 10]: CI-03 proof is push run 35818198049 attempt 1 on 35d4c15 (all four jobs success, no re-run); CI_RUN.md is pinned to that run id, not to origin/main head
 
 ### Pending Todos
 
@@ -316,8 +318,8 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-23T04:21:42.032Z
-Stopped at: Completed 10-03-PLAN.md
+Last session: 2026-09-23T04:36:37.472Z
+Stopped at: Completed 10-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

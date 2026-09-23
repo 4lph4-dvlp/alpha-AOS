@@ -3,11 +3,25 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { gzipSync } from "node:zlib";
-import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
+import {
+  createIsolatedSandbox,
+  describeHostDrift,
+  fingerprintManifest,
+  HOST_DRIFT_LISTING_LIMIT,
+  hostNpmCache,
+  installPackedRelease,
+  packRelease,
+  parseJsonResult,
+  seedHarnessPrerequisites,
+  snapshotTargets,
+  vanishedEntryCount,
+  type HostFingerprint,
+} from "./helpers/packed-sandbox.js";
 
 interface TarballEntry {
   readonly path: string;
@@ -19,200 +33,11 @@ interface AuditModule {
   auditTarballEntries(files: readonly TarballEntry[]): string[];
 }
 
-interface CommandResult {
-  readonly status: number;
-  readonly stdout: string;
-  readonly stderr: string;
-}
-
-export interface FixtureSandbox {
-  readonly root: string;
-  readonly home: string;
-  readonly state: string;
-  readonly prefix: string;
-  readonly repo: string;
-  readonly env: NodeJS.ProcessEnv;
-  resolveCli(): string;
-  runCli(args: readonly string[]): CommandResult;
-  runNpm(args: readonly string[], options?: { readonly cache?: string }): CommandResult;
-}
-
 const repositoryRoot = resolve(import.meta.dirname, "..", "..");
 const auditModuleUrl = pathToFileURL(join(repositoryRoot, "scripts", "audit-tarball.mjs")).href;
 const hostHome = homedir();
 const hostStateRoot = resolve(process.env.ALPHA_AOS_STATE_DIR?.trim() || join(hostHome, ".alpha-aos"));
 const hostCodexRoot = resolve(process.env.CODEX_HOME?.trim() || join(hostHome, ".codex"));
-
-function npmInvocation(): { executable: string; argsPrefix: string[] } {
-  if (process.platform !== "win32") return { executable: "npm", argsPrefix: [] };
-  const script = join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
-  assert.ok(existsSync(script), `npm CLI not found beside Node.js: ${script}`);
-  return { executable: process.execPath, argsPrefix: [script] };
-}
-
-function commandResult(result: ReturnType<typeof spawnSync>): CommandResult {
-  return {
-    status: result.status ?? 1,
-    stdout: typeof result.stdout === "string" ? result.stdout : "",
-    stderr: typeof result.stderr === "string" ? result.stderr : result.error?.message ?? "",
-  };
-}
-
-function runInstalledCli(cli: string, prefix: string, args: readonly string[], env: NodeJS.ProcessEnv): CommandResult {
-  if (process.platform === "win32") {
-    const entrypoint = join(prefix, "node_modules", "alpha-aos", "dist", "src", "cli.js");
-    assert.ok(existsSync(entrypoint), `installed CLI entrypoint was not found at ${entrypoint}`);
-    return commandResult(spawnSync(process.execPath, [entrypoint, ...args], {
-      env,
-      encoding: "utf8",
-      timeout: 600_000,
-      windowsHide: true,
-    }));
-  }
-  return commandResult(spawnSync(cli, [...args], {
-    env,
-    encoding: "utf8",
-    timeout: 600_000,
-    windowsHide: true,
-  }));
-}
-
-export async function createIsolatedSandbox(context: test.TestContext): Promise<FixtureSandbox> {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-fixture-"));
-  context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
-  const home = join(root, "home");
-  const state = join(root, "state");
-  const prefix = join(root, "prefix");
-  const repo = join(root, "repo");
-  const temp = join(root, "temp");
-  const cache = join(root, "npm-cache");
-  const npmLogs = join(root, "npm-logs");
-  const codexHome = join(home, ".codex");
-  await Promise.all([home, state, prefix, repo, temp, cache, npmLogs, codexHome].map((path) => mkdir(path, { recursive: true })));
-
-  const env: NodeJS.ProcessEnv = { ...process.env };
-  for (const key of Object.keys(env)) {
-    if (/^npm_/iu.test(key)) delete env[key];
-  }
-  Object.assign(env, {
-    HOME: home,
-    USERPROFILE: home,
-    XDG_CONFIG_HOME: join(home, ".config"),
-    APPDATA: join(home, "AppData", "Roaming"),
-    LOCALAPPDATA: join(home, "AppData", "Local"),
-    ALPHA_AOS_STATE_DIR: state,
-    CODEX_HOME: codexHome,
-    ANTIGRAVITY_CONFIG_DIR: join(home, ".gemini", "antigravity"),
-    CLAUDE_CONFIG_DIR: join(home, ".claude"),
-    PI_CODING_AGENT_DIR: join(home, ".pi", "agent"),
-    HERMES_HOME: join(home, ".hermes"),
-    npm_config_prefix: prefix,
-    npm_config_cache: cache,
-    npm_config_logs_dir: npmLogs,
-    npm_config_userconfig: join(root, ".npmrc"),
-    npm_config_audit: "false",
-    npm_config_fund: "false",
-    npm_config_update_notifier: "false",
-    TMPDIR: temp,
-    TEMP: temp,
-    TMP: temp,
-  });
-
-  const resolveCli = (): string => {
-    if (process.platform === "win32") {
-      const direct = join(prefix, "alpha-aos.cmd");
-      return existsSync(direct) ? direct : join(prefix, "bin", "alpha-aos.cmd");
-    }
-    return join(prefix, "bin", "alpha-aos");
-  };
-  const runNpm = (args: readonly string[], options: { readonly cache?: string } = {}): CommandResult => {
-    const npm = npmInvocation();
-    return commandResult(spawnSync(npm.executable, [...npm.argsPrefix, ...args], {
-      cwd: repo,
-      env: options.cache === undefined ? env : { ...env, npm_config_cache: options.cache },
-      encoding: "utf8",
-      timeout: 600_000,
-      windowsHide: true,
-    }));
-  };
-  return {
-    root,
-    home,
-    state,
-    prefix,
-    repo,
-    env,
-    resolveCli,
-    runCli: (args) => runInstalledCli(resolveCli(), prefix, args, env),
-    runNpm,
-  };
-}
-
-interface HostEntry {
-  readonly path: string;
-  readonly kind: "dir" | "file" | "link" | "vanished";
-  readonly size: number | null;
-  readonly sha256: string | null;
-}
-
-interface HostFingerprint {
-  readonly digest: string;
-  readonly entries: readonly HostEntry[];
-}
-
-function isMissingEntry(error: unknown): boolean {
-  return error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT";
-}
-
-// Another process may remove entries mid-walk; only ENOENT becomes a `vanished` entry, which keeps the oracle red.
-async function fingerprintManifest(path: string): Promise<HostFingerprint> {
-  if (!existsSync(path)) return { digest: "absent", entries: [] };
-  const hash = createHash("sha256");
-  const entries: HostEntry[] = [];
-  const vanished = (relativePath: string): void => {
-    hash.update(`vanished:${relativePath}\n`);
-    entries.push({ path: relativePath, kind: "vanished", size: null, sha256: null });
-  };
-  const visit = async (current: string, relativePath: string): Promise<void> => {
-    try {
-      const info = await lstat(current);
-      if (info.isSymbolicLink()) {
-        const target = await readlink(current);
-        hash.update(`link:${relativePath}:${target}\n`);
-        entries.push({
-          path: relativePath,
-          kind: "link",
-          size: Buffer.byteLength(target, "utf8"),
-          sha256: createHash("sha256").update(target).digest("hex"),
-        });
-        return;
-      }
-      if (info.isDirectory()) {
-        const children = await readdir(current, { withFileTypes: true });
-        hash.update(`dir:${relativePath}\n`);
-        entries.push({ path: relativePath, kind: "dir", size: null, sha256: null });
-        for (const entry of children.sort((left, right) => left.name.localeCompare(right.name))) {
-          await visit(join(current, entry.name), relativePath ? `${relativePath}/${entry.name}` : entry.name);
-        }
-        return;
-      }
-      const bytes = info.size <= 1024 * 1024 ? await readFile(current) : null;
-      hash.update(`file:${relativePath}:${info.size}\n`);
-      if (bytes) hash.update(bytes);
-      entries.push({
-        path: relativePath,
-        kind: "file",
-        size: info.size,
-        sha256: bytes ? createHash("sha256").update(bytes).digest("hex") : null,
-      });
-    } catch (error) {
-      if (!isMissingEntry(error)) throw error;
-      vanished(relativePath);
-    }
-  };
-  await visit(path, "");
-  return { digest: hash.digest("hex"), entries };
-}
 
 const hostMutationTargets = [
   hostStateRoot,
@@ -225,97 +50,8 @@ const hostMutationTargets = [
   join(hostHome, ".agents", "skills", "deep-research", "SKILL.md"),
 ];
 
-async function snapshotTargets(targets: readonly string[], manifests?: Map<string, HostFingerprint>): Promise<Map<string, string>> {
-  const fingerprints = await Promise.all(targets.map(async (path) => [path, await fingerprintManifest(path)] as const));
-  for (const [path, manifest] of fingerprints) manifests?.set(path, manifest);
-  return new Map(fingerprints.map(([path, manifest]) => [path, manifest.digest] as const));
-}
-
 async function hostSnapshot(manifests?: Map<string, HostFingerprint>): Promise<Map<string, string>> {
   return snapshotTargets(hostMutationTargets, manifests);
-}
-
-const HOST_DRIFT_LISTING_LIMIT = 50;
-const HOST_DRIFT_HASH_PREFIX = 12;
-
-type DriftStatus = "added" | "removed" | "changed" | "vanished";
-
-function compareCodeUnits(left: string, right: string): number {
-  if (left < right) return -1;
-  return left > right ? 1 : 0;
-}
-
-function describeHostEntry(entry: HostEntry | undefined): string {
-  if (!entry) return "-";
-  const size = entry.size === null ? "-" : String(entry.size);
-  const hash = entry.sha256 === null ? "-" : entry.sha256.slice(0, HOST_DRIFT_HASH_PREFIX);
-  return `${entry.kind}/${size}/${hash}`;
-}
-
-function describeDigest(digest: string | undefined): string {
-  if (digest === undefined || digest === "absent") return "absent";
-  return digest.slice(0, HOST_DRIFT_HASH_PREFIX);
-}
-
-// Metadata only: relative path, kind, size and a hash prefix. File content never enters the message.
-function describeHostDrift(
-  before: ReadonlyMap<string, HostFingerprint>,
-  after: ReadonlyMap<string, HostFingerprint>,
-  limit = HOST_DRIFT_LISTING_LIMIT,
-): string {
-  const lines = ["the packed lifecycle must not change any real managed host path"];
-  let listed = 0;
-  let unlisted = 0;
-  for (const [target, beforeManifest] of before) {
-    const afterManifest = after.get(target);
-    const beforeEntries = new Map(beforeManifest.entries.map((entry) => [entry.path, entry] as const));
-    const afterEntries = new Map((afterManifest?.entries ?? []).map((entry) => [entry.path, entry] as const));
-    const paths = [...new Set([...beforeEntries.keys(), ...afterEntries.keys()])].sort(compareCodeUnits);
-    const drift: { status: DriftStatus; path: string; before: HostEntry | undefined; after: HostEntry | undefined }[] = [];
-    for (const path of paths) {
-      const left = beforeEntries.get(path);
-      const right = afterEntries.get(path);
-      let status: DriftStatus | undefined;
-      if (left?.kind === "vanished" || right?.kind === "vanished") status = "vanished";
-      else if (!left) status = "added";
-      else if (!right) status = "removed";
-      else if (left.kind !== right.kind || left.size !== right.size || left.sha256 !== right.sha256) status = "changed";
-      if (status) drift.push({ status, path, before: left, after: right });
-    }
-    if (beforeManifest.digest === afterManifest?.digest && !drift.some((entry) => entry.status === "vanished")) continue;
-    const count = (status: DriftStatus): number => drift.filter((entry) => entry.status === status).length;
-    lines.push(
-      `${target}: ${describeDigest(beforeManifest.digest)} -> ${describeDigest(afterManifest?.digest)} ` +
-      `(added ${count("added")}, removed ${count("removed")}, changed ${count("changed")}, vanished ${count("vanished")})`,
-    );
-    for (const entry of drift) {
-      if (listed >= limit) {
-        unlisted += 1;
-        continue;
-      }
-      listed += 1;
-      lines.push(`  ${entry.status} ${entry.path || "."} ${describeHostEntry(entry.before)} -> ${describeHostEntry(entry.after)}`);
-    }
-  }
-  if (unlisted > 0) lines.push(`  ... ${unlisted} more entries not listed (limit ${limit})`);
-  return lines.join("\n");
-}
-
-function vanishedEntryCount(manifests: ReadonlyMap<string, HostFingerprint>): number {
-  let count = 0;
-  for (const manifest of manifests.values()) {
-    count += manifest.entries.filter((entry) => entry.kind === "vanished").length;
-  }
-  return count;
-}
-
-function parseJsonResult<T>(result: CommandResult, label: string): T {
-  assert.equal(result.status, 0, `${label} failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-  try {
-    return JSON.parse(result.stdout) as T;
-  } catch {
-    assert.fail(`${label} did not return JSON\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-  }
 }
 
 function writeOctal(header: Buffer, start: number, length: number, value: number): void {
@@ -586,17 +322,7 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
   const beforeManifests = new Map<string, HostFingerprint>();
   const beforeHost = await hostSnapshot(beforeManifests);
   const sandbox = await createIsolatedSandbox(context);
-  const npm = npmInvocation();
-  const cacheProbe = commandResult(spawnSync(npm.executable, [...npm.argsPrefix, "config", "get", "cache"], {
-    cwd: repositoryRoot,
-    env: process.env,
-    encoding: "utf8",
-    timeout: 30_000,
-    windowsHide: true,
-  }));
-  assert.equal(cacheProbe.status, 0, `npm cache lookup failed: ${cacheProbe.stderr}`);
-  const hostNpmCache = resolve(cacheProbe.stdout.trim());
-  assert.ok(existsSync(hostNpmCache), `npm cache does not exist: ${hostNpmCache}`);
+  const npmCache = hostNpmCache();
 
   let tarballPath: string;
   const authoritativeTarball = process.env.ALPHA_AOS_RELEASE_TARBALL?.trim();
@@ -604,114 +330,18 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     tarballPath = resolve(authoritativeTarball);
     assert.ok(existsSync(tarballPath), `authoritative CI tarball is missing: ${tarballPath}`);
   } else {
-    const packed = sandbox.runNpm([
-      "pack",
-      repositoryRoot,
-      "--ignore-scripts",
-      "--json",
-      "--pack-destination",
-      sandbox.repo,
-    ]);
-    assert.equal(packed.status, 0, `npm pack failed\n${packed.stdout}\n${packed.stderr}`);
-    const report = JSON.parse(packed.stdout) as readonly { filename?: unknown }[];
-    assert.equal(report.length, 1);
-    assert.equal(typeof report[0]?.filename, "string");
-    tarballPath = join(sandbox.repo, report[0]?.filename as string);
+    tarballPath = packRelease(sandbox, repositoryRoot).tarballPath;
   }
 
-  const tarballBefore = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
-  const audit = await import(auditModuleUrl) as AuditModule;
-  const packedEntries = audit.listTarballFiles(tarballPath);
-  assert.deepEqual(audit.auditTarballEntries(packedEntries), []);
-  assert.ok(packedEntries.some((entry) => entry.path === "dist/src/cli.js"));
-  assert.ok(!packedEntries.some((entry) => entry.path === "catalog/candidate.lock.json"));
-
-  const prefixInstall = sandbox.runNpm([
-    "install",
-    "--global",
-    tarballPath,
-    "--prefix",
-    sandbox.prefix,
-    "--ignore-scripts",
-    "--no-audit",
-    "--no-fund",
-    "--prefer-offline",
-  ], { cache: hostNpmCache });
-  assert.equal(prefixInstall.status, 0, `offline prefix install failed\n${prefixInstall.stdout}\n${prefixInstall.stderr}`);
-  const cli = sandbox.resolveCli();
-  assert.ok(existsSync(cli), `installed CLI was not found at ${cli}`);
-
-  const installedPackage = process.platform === "win32"
-    ? join(sandbox.prefix, "node_modules", "alpha-aos")
-    : join(sandbox.prefix, "lib", "node_modules", "alpha-aos");
-  const installedLock = JSON.parse(await readFile(join(installedPackage, "catalog", "stack.lock.json"), "utf8")) as {
-    channel?: unknown;
-    components?: {
-      gsd?: { version?: unknown; profile?: unknown };
-      ecc?: {
-        package?: unknown;
-        version?: unknown;
-        targetSha256?: Record<string, Record<string, string>>;
-      };
-    };
-  };
-  assert.equal(installedLock.channel, "stable");
-  assert.ok(!existsSync(join(installedPackage, "catalog", "candidate.lock.json")));
-
-  const lockedGsd = installedLock.components?.gsd;
-  assert.equal(typeof lockedGsd?.version, "string");
-  assert.equal(typeof lockedGsd?.profile, "string");
-  const sandboxCodexHome = join(sandbox.home, ".codex");
-  await mkdir(join(sandboxCodexHome, "gsd-core"), { recursive: true });
-  await writeFile(join(sandboxCodexHome, "gsd-core", "VERSION"), `${String(lockedGsd?.version)}\n`, "utf8");
-  await writeFile(join(sandboxCodexHome, "gsd-core", ".gsd-runtime"), "codex\n", "utf8");
-  await writeFile(join(sandboxCodexHome, ".gsd-profile"), `${String(lockedGsd?.profile)}\n`, "utf8");
-
-  const lockedEcc = installedLock.components?.ecc;
-  assert.equal(typeof lockedEcc?.package, "string");
-  assert.equal(typeof lockedEcc?.version, "string");
-  const eccInstall = sandbox.runNpm([
-    "install",
-    "--global",
-    `${String(lockedEcc?.package)}@${String(lockedEcc?.version)}`,
-    "--prefix",
-    sandbox.prefix,
-    "--ignore-scripts",
-    "--no-audit",
-    "--no-fund",
-  ]);
-  assert.equal(eccInstall.status, 0, `locked ECC prerequisite install failed\n${eccInstall.stdout}\n${eccInstall.stderr}`);
-  const eccPackage = process.platform === "win32"
-    ? join(sandbox.prefix, "node_modules", String(lockedEcc?.package))
-    : join(sandbox.prefix, "lib", "node_modules", String(lockedEcc?.package));
-  const packedEccFixtureUrl = pathToFileURL(join(installedPackage, "dist", "src", "core", "ecc-fixture.js")).href;
-  const { renderEccSkill } = await import(packedEccFixtureUrl) as {
-    renderEccSkill(skill: string, source: string, harness?: string): string;
-  };
-  for (const skill of ["unified-memory", "documentation-lookup", "deep-research"]) {
-    const source = await readFile(join(eccPackage, "skills", skill, "SKILL.md"), "utf8");
-    const expectedHash = lockedEcc?.targetSha256?.[skill]?.codex;
-    assert.match(expectedHash ?? "", /^[a-f0-9]{64}$/u);
-    let rendered = renderEccSkill(skill, source, "codex");
-    let renderedHash = createHash("sha256").update(rendered).digest("hex");
-    if (skill === "deep-research" && renderedHash !== expectedHash) {
-      rendered = rendered.replace("This alpha-AOS rendering", "This Alpha Vibe rendering");
-      renderedHash = createHash("sha256").update(rendered).digest("hex");
-    }
-    assert.equal(renderedHash, expectedHash, `${skill} prerequisite must match the stable target lock`);
-    const destination = join(sandbox.home, ".agents", "skills", skill, "SKILL.md");
-    await mkdir(dirname(destination), { recursive: true });
-    await writeFile(destination, rendered, "utf8");
-  }
-  const packedMcpUrl = pathToFileURL(join(installedPackage, "dist", "src", "core", "mcp.js")).href;
-  const { renderMcpConfig } = await import(packedMcpUrl) as {
-    renderMcpConfig(harness: string, existing: string, lock: unknown): string;
-  };
-  await writeFile(
-    join(sandboxCodexHome, "config.toml"),
-    renderMcpConfig("codex", "", installedLock),
-    "utf8",
-  );
+  // installPackedRelease audits the tarball (allowlist, dist/src/cli.js present, no
+  // catalog/candidate.lock.json), installs it into the sandbox prefix with the host npm
+  // cache, and asserts the installed lock channel is `stable` with no candidate lock.
+  // seedHarnessPrerequisites seeds GSD at the locked values, installs the locked ECC
+  // runtime with the sandbox cache, renders the three ECC skills against the lock target
+  // hashes, and renders the Codex MCP config with the packed renderMcpConfig.
+  const release = await installPackedRelease(sandbox, { tarballPath, hostNpmCache: npmCache });
+  const tarballBefore = release.tarballSha256;
+  await seedHarnessPrerequisites(sandbox, release, "codex");
 
   interface InstallResult {
     readonly plan: { readonly steps: readonly { readonly id: string; readonly action: string }[] };
@@ -738,6 +368,24 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     assert.ok(Array.isArray(journal.files), `journal ${name} must carry its file manifest`);
   }
 
+  const sandboxRoots = [sandbox.home, sandbox.state, sandbox.prefix];
+  const beforePreviewManifests = new Map<string, HostFingerprint>();
+  const beforePreview = await snapshotTargets(sandboxRoots, beforePreviewManifests);
+  const preview = sandbox.runCli(["install", "--target", "codex"]);
+  assert.equal(preview.status, 0, `dry-run install failed\nstdout:\n${preview.stdout}\nstderr:\n${preview.stderr}`);
+  const previewSteps = preview.stdout
+    .split(/\r?\n/u)
+    .filter((line) => /^[A-Z]+\s+\S+ - /u.test(line) && !line.startsWith("WARNING "));
+  assert.ok(previewSteps.length > 0, preview.stdout);
+  assert.ok(previewSteps.every((line) => line.startsWith("CURRENT ")), preview.stdout);
+  const afterPreviewManifests = new Map<string, HostFingerprint>();
+  const afterPreview = await snapshotTargets(sandboxRoots, afterPreviewManifests);
+  assert.deepEqual(
+    afterPreview,
+    beforePreview,
+    describeHostDrift(beforePreviewManifests, afterPreviewManifests, undefined, "a dry-run install must not change any sandbox byte"),
+  );
+
   const reconciled = parseJsonResult<InstallResult>(
     sandbox.runCli(["install", "--target", "codex", "--apply", "--json"]),
     "idempotent install",
@@ -750,6 +398,13 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
     (await readdir(journalDir)).filter((name) => name.endsWith(".json")).sort(),
     journalsBeforeReconcile,
     "idempotent install must not add a journal",
+  );
+  const afterReconcileManifests = new Map<string, HostFingerprint>();
+  const afterReconcile = await snapshotTargets(sandboxRoots, afterReconcileManifests);
+  assert.deepEqual(
+    afterReconcile,
+    afterPreview,
+    describeHostDrift(afterPreviewManifests, afterReconcileManifests, undefined, "an idempotent reconcile must not change any sandbox byte"),
   );
 
   const status = parseJsonResult<{ needsRepair?: unknown; managedStatePresent?: unknown }>(

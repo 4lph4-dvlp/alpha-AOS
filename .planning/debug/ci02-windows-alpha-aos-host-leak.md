@@ -1,9 +1,29 @@
 ---
-status: diagnosed
+status: resolved
 trigger: "CI run 35762417138 (main @ c6415a2) windows-latest: the packed release lifecycle test in test/tarball-fixture.test.ts failed because the aggregate hash of the real runner home `C:\\Users\\runneradmin\\.alpha-aos` moved (c0ec2afd... -> cc125717...) while the seven other host mutation targets stayed `absent`. The log carried only the two opaque hashes."
 created: 2026-09-23
 updated: 2026-09-23
 ---
+
+## Resolution
+
+Resolved on CI by run `35818198049`, attempt `1` (event `push`, branch `main`,
+head `35d4c1579102fd9effd2ad7bf0f4d438db7865ba`), recorded in
+`.planning/phases/10-three-os-ci-baseline/CI_RUN.md`. All four jobs are
+`success` in that single attempt, with no re-run. On `windows-latest / Node 24`
+(job `107044319963`) the test
+`packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle`
+passes (82.4 s) under the unchanged host-immutability oracle, in the same
+`npm test` step as cold context7, exa and firecrawl startups (37.0 s, 58.9 s,
+70.4 s). The regression tests from plan 10-03 pass on all three legs:
+`pinned upstream startups keep their npx cache under the test-owned state root, never the host state root`,
+`writeGateReceipt writes an atomic receipt that readGateReceiptStrict validates (D-06, SAFE-03)`
+and `Execution of gate check passes when engine succeeds, creating receipt and unblocking lifecycle (GATE-02, GATE-03)`.
+
+The fix commits are `8f17c7e` and `7a3ee28` (test code only; `src/` and
+`.github/workflows/ci.yml` unchanged from c6415a2). Phase 11 (LIFE-03,
+LIFE-04) cites this record as the CI-02 root-cause record. The follow-ups at the
+end of this file stay open and are outside Phase 10.
 
 ## Classification
 

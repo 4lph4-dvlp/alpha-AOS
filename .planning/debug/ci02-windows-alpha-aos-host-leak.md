@@ -270,6 +270,52 @@ variables unset. The developer's real `~/.alpha-aos` was never used.
   `_update-notifier-last-checked`) now lands under
   `%TEMP%\alpha-aos-test-mcp-proxy-state\mcp-cache\npm-cache`.
 
+### R2 and R3: gate-receipt journals (same-class writers)
+
+Both regressions share one RED commit and one RED run.
+
+- **R2 test:** `writeGateReceipt writes an atomic receipt that readGateReceiptStrict validates (D-06, SAFE-03)`
+  in `test/gate-engine.test.ts`. The assertion is that
+  `join(stateRoot, "journal", written.transactionId + ".json")` exists, where
+  `stateRoot = join(root, "state")`.
+- **R3 test:** `Execution of gate check passes when engine succeeds, creating receipt and unblocking lifecycle (GATE-02, GATE-03)`
+  in `test/gate-lifecycle.test.ts`. After the first
+  `gate check --obligation security-review --json`, the assertion is that
+  `join(stateRoot, "journal")` holds at least one `.json` file, where
+  `stateRoot = join(parent, "state")` is a sibling of the fixture repository.
+- **RED commit:** `d9e044a` (`test(10-03): pin gate receipt journals to test-owned state roots (RED)`)
+- **RED command:**
+
+  ```bash
+  H=$(mktemp -d "$SP/red2-home.XXXX"); WH=$(cygpath -w "$H")
+  npm run build
+  env -u ALPHA_AOS_STATE_DIR -u CODEX_HOME -u CLAUDE_CONFIG_DIR -u HERMES_HOME \
+    -u PI_CODING_AGENT_DIR -u ANTIGRAVITY_CONFIG_DIR HOME="$WH" USERPROFILE="$WH" \
+    node --test dist/test/gate-engine.test.js dist/test/gate-lifecycle.test.js
+  ```
+
+- **RED output excerpt:**
+
+  ```
+  ℹ tests 16 / pass 14 / fail 2
+  ✖ writeGateReceipt writes an atomic receipt that readGateReceiptStrict validates (D-06, SAFE-03) (167.6969ms)
+    AssertionError [ERR_ASSERTION]: the gate receipt journal must land in the test-owned state root, not the host state root
+  ✖ Execution of gate check passes when engine succeeds, creating receipt and unblocking lifecycle (GATE-02, GATE-03) (4060.6151ms)
+    AssertionError [ERR_ASSERTION]: gate check must journal its receipt into the test-owned state root, not the host state root
+  ```
+
+  The scratch home afterwards held `.alpha-aos/journal/*.json` (4 files) and
+  `.alpha-aos/snapshots/*` (4 directories): 1 from the gate-engine receipt test
+  and 3 from the gate-lifecycle CLI spawns that wrote receipts.
+- **GREEN commit:** `7a3ee28` (`fix(10-03): journal gate receipts into test-owned state roots`).
+  gate-engine calls `redirectStateRoot(context, stateRoot)` before
+  `writeGateReceipt`. gate-lifecycle passes `environment: gateEnvironment(stateRoot)`
+  to all seven `runProcess` calls, and that policy is the probe policy plus an
+  `ALPHA_AOS_STATE_DIR` literal.
+- **GREEN result:** the same command reports `tests 16 / pass 16 / fail 0`, and
+  the scratch home holds 0 entries (no `.alpha-aos`). The spawn-count gate
+  holds: 7 `runProcess({` calls and 7 `environment: gateEnvironment(stateRoot)`.
+
 ## Follow-ups (outside Phase 10)
 
 - `writeGateReceipt(projectRoot, receipt)` has no `stateRoot` option, unlike every

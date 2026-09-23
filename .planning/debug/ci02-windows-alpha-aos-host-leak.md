@@ -230,6 +230,46 @@ green vs 116 s red), so a bisect would measure latency, not code.
 Plan 10-03 records each regression's failing observation here (command, output
 excerpt, RED commit) before the state-root redirect lands.
 
+All RED and GREEN runs used a fresh `mktemp -d` scratch home under the session
+scratchpad (`<scratch>` below), with `ALPHA_AOS_STATE_DIR` and the harness root
+variables unset. The developer's real `~/.alpha-aos` was never used.
+
+### R1: mcp-proxy pinned-startup npx cache (primary writer)
+
+- **Test:** `pinned upstream startups keep their npx cache under the test-owned state root, never the host state root`
+- **File:** `test/mcp-proxy.test.ts`
+- **RED commit:** `ac67ffc` (`test(10-03): pin mcp-proxy startups to a test-owned state root (RED)`)
+- **RED command:**
+
+  ```bash
+  H=$(mktemp -d "$SP/red1-home.XXXX"); WH=$(cygpath -w "$H")
+  npm run build
+  env -u ALPHA_AOS_STATE_DIR -u CODEX_HOME -u CLAUDE_CONFIG_DIR -u HERMES_HOME \
+    -u PI_CODING_AGENT_DIR -u ANTIGRAVITY_CONFIG_DIR HOME="$WH" USERPROFILE="$WH" \
+    node --test --test-name-pattern="test-owned state root" dist/test/mcp-proxy.test.js
+  ```
+
+- **RED output excerpt:**
+
+  ```
+  ✖ pinned upstream startups keep their npx cache under the test-owned state root, never the host state root (3.6573ms)
+  ℹ tests 1 / pass 0 / fail 1
+  AssertionError [ERR_ASSERTION]: this file must resolve its own state root, not the host one
+  + '<scratch>\\red1-home.lMRk\\.alpha-aos'
+  - 'C:\\Users\\alpha\\AppData\\Local\\Temp\\alpha-aos-test-mcp-proxy-state'
+  ```
+
+  `userStateRoot()` resolved the scratch home's `.alpha-aos`: exactly the host
+  state root the pinned startups wrote their npx cache into.
+- **GREEN commit:** `8f17c7e` (`fix(10-03): redirect mcp-proxy test state root out of the host home`),
+  which sets `process.env.ALPHA_AOS_STATE_DIR = testStateRoot` at module scope.
+- **GREEN result:** the same command reports `tests 1 / pass 1 / fail 0`. The whole
+  file on a fresh scratch home with `ALPHA_AOS_REQUIRE_UPSTREAM_MCP=1` reports
+  `tests 37 / pass 37 / fail 0` (96.2 s), and the scratch home holds 0 entries
+  (no `.alpha-aos`). The npx cache (`_cacache`, `_npx`,
+  `_update-notifier-last-checked`) now lands under
+  `%TEMP%\alpha-aos-test-mcp-proxy-state\mcp-cache\npm-cache`.
+
 ## Follow-ups (outside Phase 10)
 
 - `writeGateReceipt(projectRoot, receipt)` has no `stateRoot` option, unlike every

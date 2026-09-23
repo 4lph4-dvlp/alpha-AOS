@@ -5,16 +5,16 @@ milestone_name: CI Green & Dependency Promotion
 current_phase: 11
 current_phase_name: Managed Lifecycle Verification
 status: executing
-stopped_at: Completed 11-01-PLAN.md
-last_updated: "2026-09-23T12:11:59.130Z"
+stopped_at: Completed 11-02-PLAN.md
+last_updated: "2026-09-23T15:07:22.905Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 11 execution started
-state_head: dd54d88fd4cc31c9204797d014f9a3b0d6090419
+state_head: c280fd2cf914a08b838f1022ed603d25388dc0b0
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 11
-  completed_plans: 5
+  completed_plans: 6
   percent: 25
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 ## Current Position
 
 Phase: 11 (Managed Lifecycle Verification) — EXECUTING
-Plan: 2 of 7
+Plan: 3 of 7
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 11 execution started
 
@@ -118,6 +118,7 @@ Progress: [███░░░░░░░] 25% (1/4 phases)
 | Phase 10 P02 | 8 min | 2 tasks | 4 files |
 | Phase 10 P04 | 13 min | 2 tasks | 2 files |
 | Phase 11 P01 | 25 min | 3 tasks | 12 files |
+| Phase 11 P02 | 44min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -254,6 +255,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 11]: LIFE-01 'the plan' is alpha-aos install without --apply; static alpha-aos plan is an OBSERVED fact and no docs line points users to it
 - [Phase 11]: Phase 11 probes share test/helpers/packed-sandbox.ts with the CI packed lifecycle test; probe-lib.mjs owns the transcript vocabulary, containment assertion and host guard
 - [Phase 11]: Packed lifecycle test now asserts dry-run CURRENT and sandbox byte identity across the dry-run and the second apply (tracer HOLDS)
+- [Phase 11]: 11-02: LIFE-02 provisional PARTIAL; codex and pi read-only execution evidence comes from doctor --discovery native invocations; claude cost-excluded legs map to G-07-2 / REL-02; doctor blind to corrupt journals is gap candidate LIFE-02/C6
 
 ### Pending Todos
 
@@ -324,8 +326,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-23T12:11:58.870Z
-Stopped at: Completed 11-01-PLAN.md
+Last session: 2026-09-23T15:07:22.600Z
+Stopped at: Completed 11-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

@@ -1,0 +1,1399 @@
+probe: life03-tty
+head: bcf53ccaae398aa4c1b1783ec41457f578fd41d3
+dirty-tracked: 1
+node: v26.8.2
+npm: 12.0.2
+platform: linux x64
+tarball-sha256: 2c9b46887dcafa3143f640493ce3098376aa936450568968d4bdfa789b70cd1f
+started: 2026-09-23T20:09:10.965Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+note: the host guard targets resolve against the WSL Linux home (<home>), not the Windows profile; the sandbox lives under the Linux os.tmpdir() (<tmp>)
+
+## step 1: npm pack the repository (probe-local, npm 11+ JSON shape)
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>
+env-overrides: none
+exit: 0
+duration-ms: 1202
+--- stdout (18908B sha256=5c5645f73798) ---
+{
+  "alpha-aos": {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590268,
+    "unpackedSize": 2455165,
+    "shasum": "a2d87bf98e7a472161560f254964ffd715257bcc",
+    "integrity": "sha512-kSVo4eyxGcpFfqoWaO2x5vIW+9gw7oQf0Krt3J7yw2K07WTn1ouyN/R9Tr44XnRjz6bTv/niKd7/JWbfpxm7Ew==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 493
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 493
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 493
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 493
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 493
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 493
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 493
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 493
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 493
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 493
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 493
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 493
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 493
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 493
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 493
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 493
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 493
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 493
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 493
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 493
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 493
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 493
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 493
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 493
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 493
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 493
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 493
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 493
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 493
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 493
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 493
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 493
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 493
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 493
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 493
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 493
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 493
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 493
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 493
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 493
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 493
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 493
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 493
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 493
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 493
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 493
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 493
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 493
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 493
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 493
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 493
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 493
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 493
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: the tarball was packed by the step above (npm 11+ prints `npm pack --json` as an object, which probe-lib packOnce does not parse) and handed to packOnce through ALPHA_AOS_P11_TARBALL, so the next note is expected
+note: tarball reused from ALPHA_AOS_P11_TARBALL (value not recorded)
+
+## step 2: refresh the WSL npm cache for @modelcontextprotocol/sdk@1.30.0
+$ npm cache add @modelcontextprotocol/sdk@1.30.0
+env-overrides: none
+exit: 0
+duration-ms: 436
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 3: refresh the WSL npm cache for ajv@8.20.0
+$ npm cache add ajv@8.20.0
+env-overrides: none
+exit: 0
+duration-ms: 357
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 4: refresh the WSL npm cache for ignore@7.0.5
+$ npm cache add ignore@7.0.5
+env-overrides: none
+exit: 0
+duration-ms: 361
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 5: refresh the WSL npm cache for jsonc-parser@3.3.1
+$ npm cache add jsonc-parser@3.3.1
+env-overrides: none
+exit: 0
+duration-ms: 373
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 6: refresh the WSL npm cache for smol-toml@1.8.0
+$ npm cache add smol-toml@1.8.0
+env-overrides: none
+exit: 0
+duration-ms: 346
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 7: refresh the WSL npm cache for yaml@2.9.0
+$ npm cache add yaml@2.9.0
+env-overrides: none
+exit: 0
+duration-ms: 349
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: packed release installed into the sandbox prefix (channel stable) with the WSL npm cache
+
+## step 8: codex-policy sync --apply (creates one journaled managed file)
+$ <sandbox>/prefix/bin/alpha-aos codex-policy sync --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 538
+--- stdout (13075B sha256=2f7bcaf8f319) ---
+{
+  "operationId": "2026-09-23T20-09-23-924Z-8a077c14-b269-4d2b-8a9c-8f1b5003ccc4",
+  "plan": {
+    "kind": "codex-execution-policy",
+    "root": "<sandbox>/prefix/lib/node_modules/alpha-aos",
+    "configRoot": "~/.codex",
+    "stateRoot": "<state>",
+    "source": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs/codex-execution-policy.md",
+    "target": "~/.codex/AGENTS.md",
+    "override": "~/.codex/AGENTS.override.md",
+    "action": "current",
+    "sourceHash": "da37ac8b1e9c203cb1f2013b44e3fecf29d54be4fb2af4bf0698269c33447ecc",
+    "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+    "renderedHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+    "allowedRoots": [
+      "~/.codex",
+      "<state>",
+      "<sandbox>/prefix/lib/node_modules/alpha-aos/docs"
+    ],
+    "proofs": {
+      "proofs": [
+        {
+          "role": "source",
+          "configured": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs/codex-execution-policy.md",
+          "canonical": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs/codex-execution-policy.md",
+          "allowedRoot": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs",
+          "components": [
+            {
+              "path": "/",
+              "canonical": "/",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 2128,
+              "inode": 2
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 1
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7005
+            },
+            {
+              "path": "<sandbox>/prefix",
+              "canonical": "<sandbox>/prefix",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7008
+            },
+            {
+              "path": "<sandbox>/prefix/lib",
+              "canonical": "<sandbox>/prefix/lib",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7017
+            },
+            {
+              "path": "<sandbox>/prefix/lib/node_modules",
+              "canonical": "<sandbox>/prefix/lib/node_modules",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7018
+            },
+            {
+              "path": "<sandbox>/prefix/lib/node_modules/alpha-aos",
+              "canonical": "<sandbox>/prefix/lib/node_modules/alpha-aos",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7019
+            },
+            {
+              "path": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs",
+              "canonical": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 9462
+            },
+            {
+              "path": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs/codex-execution-policy.md",
+              "canonical": "<sandbox>/prefix/lib/node_modules/alpha-aos/docs/codex-execution-policy.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 119,
+              "inode": 9481
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "source",
+          "configured": "~/.codex/AGENTS.override.md",
+          "canonical": "~/.codex/AGENTS.override.md",
+          "allowedRoot": "~/.codex",
+          "components": [
+            {
+              "path": "/",
+              "canonical": "/",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 2128,
+              "inode": 2
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 1
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7005
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7006
+            },
+            {
+              "path": "~/.codex",
+              "canonical": "~/.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7013
+            },
+            {
+              "path": "~/.codex/AGENTS.override.md",
+              "canonical": "~/.codex/AGENTS.override.md",
+              "kind": "missing",
+              "reparse": "none",
+              "device": null,
+              "inode": null
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "target",
+          "configured": "~/.codex/AGENTS.md",
+          "canonical": "~/.codex/AGENTS.md",
+          "allowedRoot": "~/.codex",
+          "components": [
+            {
+              "path": "/",
+              "canonical": "/",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 2128,
+              "inode": 2
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 1
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7005
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7006
+            },
+            {
+              "path": "~/.codex",
+              "canonical": "~/.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7013
+            },
+            {
+              "path": "~/.codex/AGENTS.md",
+              "canonical": "~/.codex/AGENTS.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 119,
+              "inode": 12140
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "state",
+          "configured": "<state>",
+          "canonical": "<state>",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "/",
+              "canonical": "/",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 2128,
+              "inode": 2
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 1
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7005
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7007
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "journal",
+          "configured": "<state>/journal",
+          "canonical": "<state>/journal",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "/",
+              "canonical": "/",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 2128,
+              "inode": 2
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 1
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7005
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7007
+            },
+            {
+              "path": "<state>/journal",
+              "canonical": "<state>/journal",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 12137
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "snapshot",
+          "configured": "<state>/snapshots",
+          "canonical": "<state>/snapshots",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "/",
+              "canonical": "/",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 2128,
+              "inode": 2
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 1
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7005
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 7007
+            },
+            {
+              "path": "<state>/snapshots",
+              "canonical": "<state>/snapshots",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 119,
+              "inode": 12135
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        }
+      ],
+      "proven": true,
+      "code": "ok",
+      "detail": null,
+      "get": "[redacted:function]",
+      "includes": "[redacted:function]"
+    },
+    "digest": "83703ca261a0bf4f51770539ac08a3a64ee352f0c1050cef2f395e81c939bead"
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.tty.setup OBSERVED codex-policy sync --apply exit=0; <sandbox>/home/.codex/AGENTS.md present
+
+## step 9: pty: uninstall --target codex --apply without --yes, answering n
+$ /usr/sbin/script -q -e -c "'<sandbox>/prefix/bin/alpha-aos' uninstall --target codex --apply" /dev/null
+env-overrides: none
+exit: 0
+duration-ms: 524
+--- stdout (53B sha256=0284e9556875) ---
+n
+Proceed with uninstall? [y/N] Uninstall aborted.
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint sandbox home+state+prefix across the n answer: 06b7324c21dc -> 06b7324c21dc
+CHECK life03.tty.prompt-shown HOLDS script exit=0; the pty output carries "Proceed with uninstall? [y/N]"
+CHECK life03.tty.no-aborts HOLDS the pty output carries "Uninstall aborted."; sandbox digests unchanged; codex AGENTS.md still present
+
+## step 10: pty: uninstall --target codex --apply without --yes, answering y
+$ /usr/sbin/script -q -e -c "'<sandbox>/prefix/bin/alpha-aos' uninstall --target codex --apply" /dev/null
+env-overrides: none
+exit: 0
+duration-ms: 526
+--- stdout (207B sha256=d74e3decc373) ---
+y
+Proceed with uninstall? [y/N] alpha-AOS Uninstall Complete (scope: target)
+Pruned configurations: 0
+Removed files:         1
+Swept directories:     0
+Preserved journals:    2 (audit trail preserved)
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life03.tty.yes-proceeds HOLDS script exit=0; prompt shown; codex AGENTS.md (the codex policy file) removed
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=3 violated=0 not-observed=0 observed=1

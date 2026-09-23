@@ -53,7 +53,7 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
   4. A regression test pins the diagnosed cause: it was observed failing against the unfixed code and passes against the fix.
   5. A single `main` CI run id shows ubuntu-latest, macos-latest, and windows-latest all green, with no leg individually re-run or taken from another run.
 
-**Plans**: 2/4 plans executed (3 waves)
+**Plans**: 3/4 plans executed (3 waves)
 
 Plans:
 **Wave 1**
@@ -63,7 +63,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 10-03-PLAN.md — CI-02 fix: test-owned state roots for mcp-proxy, gate-engine and gate-lifecycle, each regression observed RED then GREEN (wave 2)
+- [x] 10-03-PLAN.md — CI-02 fix: test-owned state roots for mcp-proxy, gate-engine and gate-lifecycle, each regression observed RED then GREEN (wave 2)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -123,7 +123,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Three-OS CI Baseline | v0.1.1 | 2/4 | In Progress|  |
+| 10. Three-OS CI Baseline | v0.1.1 | 3/4 | In Progress|  |
 | 11. Managed Lifecycle Verification | v0.1.1 | 0/TBD | Not started | - |
 | 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

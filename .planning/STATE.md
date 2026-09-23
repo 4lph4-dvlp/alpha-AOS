@@ -5,16 +5,16 @@ milestone_name: CI Green & Dependency Promotion
 current_phase: 11
 current_phase_name: Managed Lifecycle Verification
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-09-23T10:09:36.244Z"
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-09-23T12:11:59.130Z"
 last_activity: 2026-09-23
-last_activity_desc: Phase 10 complete, transitioned to Phase 11
-state_head: 4705bd979f5f499403dd19f9d6294684b0aee341
+last_activity_desc: Phase 11 execution started
+state_head: dd54d88fd4cc31c9204797d014f9a3b0d6090419
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 11
-  completed_plans: 4
+  completed_plans: 5
   percent: 25
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 
 ## Current Position
 
-Phase: 11 (Managed Lifecycle Verification) — READY TO EXECUTE
-Plan: Not started
+Phase: 11 (Managed Lifecycle Verification) — EXECUTING
+Plan: 2 of 7
 Status: Ready to execute
-Last activity: 2026-09-23 — Phase 10 complete, transitioned to Phase 11
+Last activity: 2026-09-23 — Phase 11 execution started
 
 Progress: [███░░░░░░░] 25% (1/4 phases)
 
@@ -117,6 +117,7 @@ Progress: [███░░░░░░░] 25% (1/4 phases)
 | Phase 10 P01 | 6 min | 2 tasks | 4 files |
 | Phase 10 P02 | 8 min | 2 tasks | 4 files |
 | Phase 10 P04 | 13 min | 2 tasks | 2 files |
+| Phase 11 P01 | 25 min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -250,6 +251,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 10]: 10-01: test fixture roots asserted against host path output are built with join(tmpdir(), fixture-name, ...), never platform-absolute literals
 - [Phase 10]: 10-02: CI-02 classified as a test-isolation leak (D-01 class 3): mcp-proxy.test.ts npx cache writes to the real ~/.alpha-aos/mcp-cache/npm-cache; fixture alone writes nothing; D-02 governs 10-03, D-03 audit not triggered, D-06 not needed
 - [Phase 10]: CI-03 proof is push run 35818198049 attempt 1 on 35d4c15 (all four jobs success, no re-run); CI_RUN.md is pinned to that run id, not to origin/main head
+- [Phase 11]: LIFE-01 'the plan' is alpha-aos install without --apply; static alpha-aos plan is an OBSERVED fact and no docs line points users to it
+- [Phase 11]: Phase 11 probes share test/helpers/packed-sandbox.ts with the CI packed lifecycle test; probe-lib.mjs owns the transcript vocabulary, containment assertion and host guard
+- [Phase 11]: Packed lifecycle test now asserts dry-run CURRENT and sandbox byte identity across the dry-run and the second apply (tracer HOLDS)
 
 ### Pending Todos
 
@@ -320,9 +324,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-23T06:29:29.582Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-managed-lifecycle-verification/11-CONTEXT.md
+Last session: 2026-09-23T12:11:58.870Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

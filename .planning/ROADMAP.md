@@ -83,12 +83,12 @@ Plans:
   3. Every LIFE requirement that is not met appears as a named gap stating what is missing and what would close it, instead of being marked verified.
   4. The v0.1.0 "LIFE-01..08 unverified" known gap in the project's milestone record is closed, or narrowed to exactly the report's named gaps.
 
-**Plans**: 7 plans (3 waves)
+**Plans**: 1/7 plans executed (3 waves)
 
 Plans:
 **Wave 1**
 
-- [ ] 11-01-PLAN.md — Tracer: packed-probe harness (sandbox helper, probe library, host guard) proven on LIFE-01 Codex reconcile; tarball-fixture oracle strengthened; Phase 6 suites and CI run 35818198049 corroboration; report skeleton (wave 1)
+- [x] 11-01-PLAN.md — Tracer: packed-probe harness (sandbox helper, probe library, host guard) proven on LIFE-01 Codex reconcile; tarball-fixture oracle strengthened; Phase 6 suites and CI run 35818198049 corroboration; report skeleton (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -101,6 +101,7 @@ Plans:
 **Wave 3** *(blocked on Wave 2 completion)*
 
 - [ ] 11-07-PLAN.md — Compile 06-VERIFICATION.md, register G-11 gaps, update MILESTONES and archived v0.1.0 records (wave 3)
+
 **Planning note**: Editing the archived v0.1.0 records for this phase is approved (2026-09-23). Expected report location is beside the archived Phase 6 artifacts, `.planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md`. LIFE-02 canary evidence must not depend on a Claude Code real-host receipt; G-07-2 / REL-02 remains a future requirement, not this milestone's.
 
 ### Phase 12: Red-Main Guard
@@ -141,6 +142,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
-| 11. Managed Lifecycle Verification | v0.1.1 | 0/TBD | Not started | - |
+| 11. Managed Lifecycle Verification | v0.1.1 | 1/7 | In Progress|  |
 | 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

@@ -256,3 +256,7 @@ The wave-2 plans (11-02..11-06) can reuse `probe-lib.mjs` and `packed-sandbox.ts
 ---
 *Phase: 11-managed-lifecycle-verification*
 *Completed: 2026-09-23*
+
+## Self-Check: PASSED
+
+All 11 created files and 1 modified file exist; commits 83a3053, 84bce0a, 3e8f438 and dd54d88 are in history; all four transcripts end with a RESULT line and carry no HOST-DRIFT marker.

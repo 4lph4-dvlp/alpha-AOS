@@ -1,0 +1,3912 @@
+probe: life02-discovery
+head: be6cfe25d4dcc4947abae651d57255d70c966d7a
+dirty-tracked: 1
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: a1736e27c97503d94bdf2555050bb1cf8b73676b52b3e9666539775d2cf0fbd7
+started: 2026-09-23T15:00:14.530Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 2857
+--- stdout (18895B sha256=7bc206f2ebbb) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590832,
+    "unpackedSize": 2455165,
+    "shasum": "ec8697bfeee2d929675d91f03c07b836cb71e935",
+    "integrity": "sha512-LSU5f1ePjaOPKdZ6FblpXSy+nfDV7md1oCeEHkznDH/3ECb96SCVzE8yvG8upIAmTRo/6qQRSTE48GrBpqAIaQ==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: packed release installed into <sandbox>/prefix; installed lock channel: stable; no harness seeding (the doctor steps read the real harness installations)
+
+## step 2: real repository porcelain before
+$ git -C <repo> status --porcelain
+env-overrides: none
+exit: 0
+duration-ms: 102
+--- stdout (234B sha256=afbcf65bb7fa) ---
+ M .planning/state.json
+?? .planning/milestone.lock
+?? .planning/phases/11-managed-lifecycle-verification/evidence/life02-discovery.txt
+?? .planning/phases/11-managed-lifecycle-verification/evidence/probes/life02-discovery.mjs
+?? nul
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 3: scratch clone of the repository (the canary writes vault files into the project it is given)
+$ git clone --no-hardlinks --quiet <repo> <sandbox>\project
+env-overrides: none
+exit: 0
+duration-ms: 3239
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: the doctor steps below run with the probe's real environment (real HOME and harness roots, so the harness binaries find their own configuration) plus ALPHA_AOS_STATE_DIR=<sandbox>/state; the runner refuses --apply, any command outside `doctor --discovery <project>` / `doctor --canary <project> --no-spend`, and a state root outside the sandbox
+note: CLI output below passed the CLI's own redaction seam and is otherwise verbatim apart from path aliasing
+note: harness-home exclusion: codex/.sandbox-secrets: credential material; never hashed into public evidence
+note: harness-home exclusion: codex/.tmp: Codex scratch directory (thousands of transient entries a running Codex rewrites)
+note: harness-home exclusion: codex/auth.json: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: codex/cache: harness cache
+note: harness-home exclusion: codex/history.jsonl: prompt history appended by the harness
+note: harness-home exclusion: codex/sessions: session transcripts a harness writes on every run
+note: harness-home exclusion: codex/thread-writer-locks: per-thread session lock files a running Codex keeps open under an exclusive lock (EBUSY on read)
+note: harness-home exclusion: codex/tmp: Codex scratch directory holding per-process lock files a running Codex keeps open (EBUSY on read)
+note: harness home codex (CODEX_HOME or <home>/.codex): 71 children, 63 fingerprinted
+note: harness-home exclusion: claude/.credentials.json: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: claude/.credentials.lock: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: claude/cache: harness cache
+note: harness-home exclusion: claude/file-history: state the executing Claude Code session rewrites
+note: harness-home exclusion: claude/history.jsonl: prompt history appended by the harness
+note: harness-home exclusion: claude/mcp-needs-auth-cache.json: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: claude/projects: per-project transcripts the executing Claude Code session rewrites
+note: harness-home exclusion: claude/session-env: state the executing Claude Code session rewrites
+note: harness-home exclusion: claude/sessions: session transcripts a harness writes on every run
+note: harness-home exclusion: claude/shell-snapshots: state the executing Claude Code session rewrites
+note: harness home claude (CLAUDE_CONFIG_DIR or <home>/.claude): 37 children, 27 fingerprinted
+note: harness home antigravity (ANTIGRAVITY_CONFIG_DIR or <home>/.gemini/antigravity): 23 children, 23 fingerprinted
+note: harness home gemini-config (<home>/.gemini/config): 9 children, 9 fingerprinted
+note: harness-home exclusion: pi/auth.json: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: pi/sessions: session transcripts a harness writes on every run
+note: harness home pi (PI_CODING_AGENT_DIR or <home>/.pi/agent): 17 children, 15 fingerprinted
+note: harness-home exclusion: hermes/.env: credential material (provider keys file); never hashed into public evidence
+note: harness-home exclusion: hermes/auth.json: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: hermes/auth.lock: credential material (name contains auth, credential, token or oauth); refreshed by the harness and never hashed into public evidence
+note: harness-home exclusion: hermes/cache: harness cache
+note: harness-home exclusion: hermes/hermes-agent: the Hermes application install tree (about 137k entries; one fingerprint pass exceeded 10 minutes on this host); a harness application, never an alpha-AOS-managed path, so it is recorded as unjudged here
+note: harness-home exclusion: hermes/logs: harness log output
+note: harness-home exclusion: hermes/sessions: session transcripts a harness writes on every run
+note: harness home hermes (HERMES_HOME or <home>/.hermes): 58 children, 51 fingerprinted
+note: harness home agents-skills (<home>/.agents/skills): 28 children, 28 fingerprinted
+note: harness-home fingerprint taken before the first doctor step: 216 targets (4169 ms)
+
+## step 4: doctor --discovery <project> --json (real home, sandbox state)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js doctor --discovery <sandbox>\project --json
+env-overrides: ALPHA_AOS_STATE_DIR
+exit: 0
+duration-ms: 40621
+--- stdout (115543B sha256=6d31dd8ba728) ---
+{
+  "command": "doctor --discovery",
+  "project": "<project>",
+  "packs": [
+    "BROWNFIELD_INIT",
+    "MCP_SERVER"
+  ],
+  "costsModelTurn": false,
+  "rows": [
+    {
+      "capability": "BROWNFIELD_INIT",
+      "harness": "claude",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "supported",
+        "nativeUse": null
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately"
+      },
+      "blockedReason": null,
+      "notRunReason": "driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately",
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "BROWNFIELD_INIT",
+      "harness": "codex",
+      "completeness": "COMPLETE",
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": null
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": [
+        {
+          "kind": "inference",
+          "statement": "The project-only capability cannot be invoked outside the project.",
+          "basis": "INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked."
+        }
+      ]
+    },
+    {
+      "capability": "BROWNFIELD_INIT",
+      "harness": "pi",
+      "completeness": "COMPLETE",
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": null
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "BROWNFIELD_INIT",
+      "harness": "hermes",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "unsupported",
+        "nativeUse": null
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "no discovery oracle is defined for hermes, so there is nothing free to run"
+      },
+      "blockedReason": null,
+      "notRunReason": "no discovery oracle is defined for hermes, so there is nothing free to run",
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "MCP_SERVER",
+      "harness": "claude",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "supported",
+        "nativeUse": null
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately"
+      },
+      "blockedReason": null,
+      "notRunReason": "driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately",
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "MCP_SERVER",
+      "harness": "codex",
+      "completeness": "COMPLETE",
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": null
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": [
+        {
+          "kind": "inference",
+          "statement": "The project-only capability cannot be invoked outside the project.",
+          "basis": "INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked."
+        }
+      ]
+    },
+    {
+      "capability": "MCP_SERVER",
+      "harness": "pi",
+      "completeness": "COMPLETE",
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": null
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "MCP_SERVER",
+      "harness": "hermes",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "unsupported",
+        "nativeUse": null
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "no discovery oracle is defined for hermes, so there is nothing free to run"
+      },
+      "blockedReason": null,
+      "notRunReason": "no discovery oracle is defined for hermes, so there is nothing free to run",
+      "incompleteReasons": [],
+      "claimNotes": []
+    }
+  ],
+  "sweeps": [
+    {
+      "capability": "BROWNFIELD_INIT",
+      "entries": [
+        {
+          "harness": "claude",
+          "ran": false,
+          "skippedReason": "driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately",
+          "costsModelTurn": true,
+          "discovery": null
+        },
+        {
+          "harness": "codex",
+          "ran": true,
+          "skippedReason": null,
+          "costsModelTurn": false,
+          "discovery": {
+            "harness": "codex",
+            "capability": "BROWNFIELD_INIT",
+            "unit": {
+              "capability": "BROWNFIELD_INIT",
+              "harness": "codex",
+              "completeness": "COMPLETE",
+              "positive": {
+                "projectId": "1f8fd5514351704b",
+                "harness": "codex",
+                "capability": "BROWNFIELD_INIT",
+                "polarity": "positive",
+                "nativeUse": "unverified",
+                "blockedReason": null,
+                "boundInputs": {
+                  "skillSourceHash": "242c198b94fd4e2ae90d879a011048f4bfa061376fce1f0c9f641d8867603df7",
+                  "mcpServerVersion": null,
+                  "evidenceHash": "9a7926efa45398ac297e8939d684ea9906e6210fcd99dfc813cf1697bb60ecbc"
+                },
+                "harnessVersion": {
+                  "exact": null,
+                  "minorKey": null,
+                  "raw": ""
+                },
+                "ancestorFreedom": null,
+                "observedAt": "2026-09-23T15:01:20.271Z",
+                "oracle": {
+                  "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+                  "exitCode": 0,
+                  "stdoutFingerprint": "4aaedef7c844fb665532358828750092a4b85b2bb31fa333e06ae8be1f984799",
+                  "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              },
+              "negative": {
+                "projectId": "1f8fd5514351704b",
+                "harness": "codex",
+                "capability": "BROWNFIELD_INIT",
+                "polarity": "negative",
+                "nativeUse": "unverified",
+                "claimNotes": [
+                  {
+                    "kind": "inference",
+                    "statement": "The project-only capability cannot be invoked outside the project.",
+                    "basis": "INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked."
+                  }
+                ],
+                "blockedReason": null,
+                "boundInputs": "[redacted:cycle]",
+                "harnessVersion": "[redacted:cycle]",
+                "ancestorFreedom": {
+                  "asserted": true,
+                  "checkedAncestors": [
+                    "<temp>\\alpha-aos-control-VnCbrx",
+                    "<temp>",
+                    "~\\AppData\\Local",
+                    "~\\AppData",
+                    "~ holds .agents/skills, .codex/skills as the harness user root, loaded as user scope — exempt",
+                    "C:\\Users",
+                    "C:\\"
+                  ]
+                },
+                "observedAt": "2026-09-23T15:01:20.271Z",
+                "oracle": {
+                  "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+                  "exitCode": 0,
+                  "stdoutFingerprint": "200a606ae851c4d212bee35eefaced4ffd1b374ad06146b0a9d2237d86b58f18",
+                  "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              },
+              "missingHalf": null,
+              "incompleteReasons": [],
+              "nativeUse": "unverified",
+              "summary": "COMPLETE — BROWNFIELD_INIT on codex: the positive and its negative control are one unit; native use is unverified."
+            },
+            "unsupportedReason": null,
+            "positive": {
+              "harness": "codex",
+              "cwd": "<project>",
+              "exitCode": 0,
+              "unsupportedReason": null,
+              "oracle": "[redacted:cycle]",
+              "costsModelTurn": false,
+              "skills": [
+                {
+                  "advertisedName": "imagegen",
+                  "directoryName": "imagegen",
+                  "path": "~\\.codex\\skills\\.system\\imagegen\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "openai-docs",
+                  "directoryName": "openai-docs",
+                  "path": "~\\.codex\\skills\\.system\\openai-docs\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "plugin-creator",
+                  "directoryName": "plugin-creator",
+                  "path": "~\\.codex\\skills\\.system\\plugin-creator\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "skill-creator",
+                  "directoryName": "skill-creator",
+                  "path": "~\\.codex\\skills\\.system\\skill-creator\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "skill-installer",
+                  "directoryName": "skill-installer",
+                  "path": "~\\.codex\\skills\\.system\\skill-installer\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "alpha-aos-control",
+                  "directoryName": "alpha-aos-control",
+                  "path": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "alpha-aos-pack-advisor",
+                  "directoryName": "alpha-aos-pack-advisor",
+                  "path": "~\\.agents\\skills\\alpha-aos-pack-advisor\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "browser:control-in-app-browser",
+                  "directoryName": "control-in-app-browser",
+                  "path": "~\\.codex\\plugins\\cache\\openai-bundled\\browser\\26.915.31945\\skills\\control-in-app-browser\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-bundled\\browser\\26.915.31945\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "chrome:control-chrome",
+                  "directoryName": "control-chrome",
+                  "path": "~\\.codex\\plugins\\cache\\openai-bundled\\chrome\\26.915.31945\\skills\\control-chrome\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-bundled\\chrome\\26.915.31945\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "computer-use:computer-use",
+                  "directoryName": "computer-use",
+                  "path": "~\\.codex\\plugins\\cache\\openai-bundled\\computer-use\\26.915.31945\\skills\\computer-use\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-bundled\\computer-use\\26.915.31945\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "deep-research",
+                  "directoryName": "deep-research",
+                  "path": "~\\.agents\\skills\\deep-research\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "documentation-lookup",
+                  "directoryName": "documentation-lookup",
+                  "path": "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "documents:documents",
+                  "directoryName": "documents",
+                  "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.909.12148\\skills\\documents\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.909.12148\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-code-review",
+                  "directoryName": "gsd-code-review",
+                  "path": "~\\.agents\\skills\\gsd-code-review\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-config",
+                  "directoryName": "gsd-config",
+                  "path": "~\\.agents\\skills\\gsd-config\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-discuss-phase",
+                  "directoryName": "gsd-discuss-phase",
+                  "path": "~\\.agents\\skills\\gsd-discuss-phase\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-execute-phase",
+                  "directoryName": "gsd-execute-phase",
+                  "path": "~\\.agents\\skills\\gsd-execute-phase\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-help",
+                  "directoryName": "gsd-help",
+                  "path": "~\\.agents\\skills\\gsd-help\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-import",
+                  "directoryName": "gsd-import",
+                  "path": "~\\.agents\\skills\\gsd-import\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-ingest-docs",
+                  "directoryName": "gsd-ingest-docs",
+                  "path": "~\\.agents\\skills\\gsd-ingest-docs\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-manager",
+                  "directoryName": "gsd-manager",
+                  "path": "~\\.agents\\skills\\gsd-manager\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-map-codebase",
+                  "directoryName": "gsd-map-codebase",
+                  "path": "~\\.agents\\skills\\gsd-map-codebase\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-new-project",
+                  "directoryName": "gsd-new-project",
+                  "path": "~\\.agents\\skills\\gsd-new-project\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-onboard",
+                  "directoryName": "gsd-onboard",
+                  "path": "~\\.agents\\skills\\gsd-onboard\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-pause-work",
+                  "directoryName": "gsd-pause-work",
+                  "path": "~\\.agents\\skills\\gsd-pause-work\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-phase",
+                  "directoryName": "gsd-phase",
+                  "path": "~\\.agents\\skills\\gsd-phase\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-plan-phase",
+                  "directoryName": "gsd-plan-phase",
+                  "path": "~\\.agents\\skills\\gsd-plan-phase\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-progress",
+                  "directoryName": "gsd-progress",
+                  "path": "~\\.agents\\skills\\gsd-progress\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-quick",
+                  "directoryName": "gsd-quick",
+                  "path": "~\\.agents\\skills\\gsd-quick\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-resume-work",
+                  "directoryName": "gsd-resume-work",
+                  "path": "~\\.agents\\skills\\gsd-resume-work\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-review",
+                  "directoryName": "gsd-review",
+                  "path": "~\\.agents\\skills\\gsd-review\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-settings",
+                  "directoryName": "gsd-settings",
+                  "path": "~\\.agents\\skills\\gsd-settings\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-surface",
+                  "directoryName": "gsd-surface",
+                  "path": "~\\.agents\\skills\\gsd-surface\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-update",
+                  "directoryName": "gsd-update",
+                  "path": "~\\.agents\\skills\\gsd-update\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-verify-work",
+                  "directoryName": "gsd-verify-work",
+                  "path": "~\\.agents\\skills\\gsd-verify-work\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "gsd-workspace",
+                  "directoryName": "gsd-workspace",
+                  "path": "~\\.agents\\skills\\gsd-workspace\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "kau-lxp",
+                  "directoryName": "kau-lxp",
+                  "path": "~\\.codex\\skills\\kau-lxp\\SKILL.md",
+                  "root": "~\\.codex\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "pdf:pdf",
+                  "directoryName": "pdf",
+                  "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\pdf\\26.909.12148\\skills\\pdf\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\pdf\\26.909.12148\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "presentations:Presentations",
+                  "directoryName": "presentations",
+                  "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\presentations\\26.909.12148\\skills\\presentations\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\presentations\\26.909.12148\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "spreadsheets:Spreadsheets",
+                  "directoryName": "spreadsheets",
+                  "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills\\spreadsheets\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "spreadsheets:excel-live-control",
+                  "directoryName": "excel-live-control",
+                  "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills\\excel-live-control\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "template-creator:template-creator",
+                  "directoryName": "template-creator",
+                  "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\template-creator\\26.909.12148\\skills\\template-creator\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\template-creator\\26.909.12148\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "unified-memory",
+                  "directoryName": "unified-memory",
+                  "path": "~\\.agents\\skills\\unified-memory\\SKILL.md",
+                  "root": "~\\.agents\\skills",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "visualize:visualize",
+                  "directoryName": "visualize",
+                  "path": "~\\.codex\\plugins\\cache\\openai-bundled\\visualize\\1.0.38\\skills\\visualize\\SKILL.md",
+                  "root": "~\\.codex\\plugins\\cache\\openai-bundled\\visualize\\1.0.38\\skills",
+                  "scope": "unknown"
+                }
+              ],
+              "roots": [
+                "~\\.codex\\skills",
+                "~\\.agents\\skills",
+                "~\\.codex\\skills\\.system",
+                "~\\.codex\\plugins\\cache\\openai-bundled",
+                "~\\.codex\\plugins\\cache\\openai-primary-runtime",
+                "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills"
+              ],
+              "mcpServers": [],
+              "findings": [],
+              "nativeUse": "discovered",
+              "unparsedReason": null
+            },
+            "negatives": [
+              {
+                "kind": "different-directory",
+                "result": {
+                  "harness": "codex",
+                  "cwd": "<temp>\\alpha-aos-control-VnCbrx",
+                  "exitCode": 0,
+                  "unsupportedReason": null,
+                  "oracle": "[redacted:cycle]",
+                  "costsModelTurn": false,
+                  "skills": [
+                    {
+                      "advertisedName": "imagegen",
+                      "directoryName": "imagegen",
+                      "path": "~\\.codex\\skills\\.system\\imagegen\\SKILL.md",
+                      "root": "~\\.codex\\skills\\.system",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "openai-docs",
+                      "directoryName": "openai-docs",
+                      "path": "~\\.codex\\skills\\.system\\openai-docs\\SKILL.md",
+                      "root": "~\\.codex\\skills\\.system",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "plugin-creator",
+                      "directoryName": "plugin-creator",
+                      "path": "~\\.codex\\skills\\.system\\plugin-creator\\SKILL.md",
+                      "root": "~\\.codex\\skills\\.system",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "skill-creator",
+                      "directoryName": "skill-creator",
+                      "path": "~\\.codex\\skills\\.system\\skill-creator\\SKILL.md",
+                      "root": "~\\.codex\\skills\\.system",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "skill-installer",
+                      "directoryName": "skill-installer",
+                      "path": "~\\.codex\\skills\\.system\\skill-installer\\SKILL.md",
+                      "root": "~\\.codex\\skills\\.system",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "alpha-aos-control",
+                      "directoryName": "alpha-aos-control",
+                      "path": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "alpha-aos-pack-advisor",
+                      "directoryName": "alpha-aos-pack-advisor",
+                      "path": "~\\.agents\\skills\\alpha-aos-pack-advisor\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "browser:control-in-app-browser",
+                      "directoryName": "control-in-app-browser",
+                      "path": "~\\.codex\\plugins\\cache\\openai-bundled\\browser\\26.915.31945\\skills\\control-in-app-browser\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-bundled\\browser\\26.915.31945\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "chrome:control-chrome",
+                      "directoryName": "control-chrome",
+                      "path": "~\\.codex\\plugins\\cache\\openai-bundled\\chrome\\26.915.31945\\skills\\control-chrome\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-bundled\\chrome\\26.915.31945\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "computer-use:computer-use",
+                      "directoryName": "computer-use",
+                      "path": "~\\.codex\\plugins\\cache\\openai-bundled\\computer-use\\26.915.31945\\skills\\computer-use\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-bundled\\computer-use\\26.915.31945\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "deep-research",
+                      "directoryName": "deep-research",
+                      "path": "~\\.agents\\skills\\deep-research\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "documentation-lookup",
+                      "directoryName": "documentation-lookup",
+                      "path": "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "documents:documents",
+                      "directoryName": "documents",
+                      "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.909.12148\\skills\\documents\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\documents\\26.909.12148\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-code-review",
+                      "directoryName": "gsd-code-review",
+                      "path": "~\\.agents\\skills\\gsd-code-review\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-config",
+                      "directoryName": "gsd-config",
+                      "path": "~\\.agents\\skills\\gsd-config\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-discuss-phase",
+                      "directoryName": "gsd-discuss-phase",
+                      "path": "~\\.agents\\skills\\gsd-discuss-phase\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-execute-phase",
+                      "directoryName": "gsd-execute-phase",
+                      "path": "~\\.agents\\skills\\gsd-execute-phase\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-help",
+                      "directoryName": "gsd-help",
+                      "path": "~\\.agents\\skills\\gsd-help\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-import",
+                      "directoryName": "gsd-import",
+                      "path": "~\\.agents\\skills\\gsd-import\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-ingest-docs",
+                      "directoryName": "gsd-ingest-docs",
+                      "path": "~\\.agents\\skills\\gsd-ingest-docs\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-manager",
+                      "directoryName": "gsd-manager",
+                      "path": "~\\.agents\\skills\\gsd-manager\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-map-codebase",
+                      "directoryName": "gsd-map-codebase",
+                      "path": "~\\.agents\\skills\\gsd-map-codebase\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-new-project",
+                      "directoryName": "gsd-new-project",
+                      "path": "~\\.agents\\skills\\gsd-new-project\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-onboard",
+                      "directoryName": "gsd-onboard",
+                      "path": "~\\.agents\\skills\\gsd-onboard\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-pause-work",
+                      "directoryName": "gsd-pause-work",
+                      "path": "~\\.agents\\skills\\gsd-pause-work\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-phase",
+                      "directoryName": "gsd-phase",
+                      "path": "~\\.agents\\skills\\gsd-phase\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-plan-phase",
+                      "directoryName": "gsd-plan-phase",
+                      "path": "~\\.agents\\skills\\gsd-plan-phase\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-progress",
+                      "directoryName": "gsd-progress",
+                      "path": "~\\.agents\\skills\\gsd-progress\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-quick",
+                      "directoryName": "gsd-quick",
+                      "path": "~\\.agents\\skills\\gsd-quick\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-resume-work",
+                      "directoryName": "gsd-resume-work",
+                      "path": "~\\.agents\\skills\\gsd-resume-work\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-review",
+                      "directoryName": "gsd-review",
+                      "path": "~\\.agents\\skills\\gsd-review\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-settings",
+                      "directoryName": "gsd-settings",
+                      "path": "~\\.agents\\skills\\gsd-settings\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-surface",
+                      "directoryName": "gsd-surface",
+                      "path": "~\\.agents\\skills\\gsd-surface\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-update",
+                      "directoryName": "gsd-update",
+                      "path": "~\\.agents\\skills\\gsd-update\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-verify-work",
+                      "directoryName": "gsd-verify-work",
+                      "path": "~\\.agents\\skills\\gsd-verify-work\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "gsd-workspace",
+                      "directoryName": "gsd-workspace",
+                      "path": "~\\.agents\\skills\\gsd-workspace\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "kau-lxp",
+                      "directoryName": "kau-lxp",
+                      "path": "~\\.codex\\skills\\kau-lxp\\SKILL.md",
+                      "root": "~\\.codex\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "pdf:pdf",
+                      "directoryName": "pdf",
+                      "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\pdf\\26.909.12148\\skills\\pdf\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\pdf\\26.909.12148\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "presentations:Presentations",
+                      "directoryName": "presentations",
+                      "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\presentations\\26.909.12148\\skills\\presentations\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\presentations\\26.909.12148\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "spreadsheets:Spreadsheets",
+                      "directoryName": "spreadsheets",
+                      "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills\\spreadsheets\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "spreadsheets:excel-live-control",
+                      "directoryName": "excel-live-control",
+                      "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills\\excel-live-control\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "template-creator:template-creator",
+                      "directoryName": "template-creator",
+                      "path": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\template-creator\\26.909.12148\\skills\\template-creator\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-primary-runtime\\template-creator\\26.909.12148\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "unified-memory",
+                      "directoryName": "unified-memory",
+                      "path": "~\\.agents\\skills\\unified-memory\\SKILL.md",
+                      "root": "~\\.agents\\skills",
+                      "scope": "unknown"
+                    },
+                    {
+                      "advertisedName": "visualize:visualize",
+                      "directoryName": "visualize",
+                      "path": "~\\.codex\\plugins\\cache\\openai-bundled\\visualize\\1.0.38\\skills\\visualize\\SKILL.md",
+                      "root": "~\\.codex\\plugins\\cache\\openai-bundled\\visualize\\1.0.38\\skills",
+                      "scope": "unknown"
+                    }
+                  ],
+                  "roots": [
+                    "~\\.codex\\skills",
+                    "~\\.agents\\skills",
+                    "~\\.codex\\skills\\.system",
+                    "~\\.codex\\plugins\\cache\\openai-bundled",
+                    "~\\.codex\\plugins\\cache\\openai-primary-runtime",
+                    "~\\.codex\\plugins\\cache\\openai-primary-runtime\\spreadsheets\\26.909.12148\\skills"
+                  ],
+                  "mcpServers": [],
+                  "findings": [],
+                  "nativeUse": "discovered",
+                  "unparsedReason": null
+                },
+                "proof": "[redacted:cycle]"
+              }
+            ],
+            "ancestorFreedom": "[redacted:cycle]",
+            "incompleteReasons": [],
+            "findings": []
+          }
+        },
+        {
+          "harness": "pi",
+          "ran": true,
+          "skippedReason": null,
+          "costsModelTurn": false,
+          "discovery": {
+            "harness": "pi",
+            "capability": "BROWNFIELD_INIT",
+            "unit": {
+              "capability": "BROWNFIELD_INIT",
+              "harness": "pi",
+              "completeness": "COMPLETE",
+              "positive": {
+                "projectId": "1f8fd5514351704b",
+                "harness": "pi",
+                "capability": "BROWNFIELD_INIT",
+                "polarity": "positive",
+                "nativeUse": "unverified",
+                "blockedReason": null,
+                "boundInputs": "[redacted:cycle]",
+                "harnessVersion": {
+                  "exact": null,
+                  "minorKey": null,
+                  "raw": ""
+                },
+                "ancestorFreedom": null,
+                "observedAt": "2026-09-23T15:01:26.966Z",
+                "oracle": {
+                  "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --approve --no-session",
+                  "exitCode": 3221226505,
+                  "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+                  "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+                }
+              },
+              "negative": {
+                "projectId": "1f8fd5514351704b",
+                "harness": "pi",
+                "capability": "BROWNFIELD_INIT",
+                "polarity": "negative",
+                "nativeUse": "unverified",
+                "blockedReason": null,
+                "boundInputs": "[redacted:cycle]",
+                "harnessVersion": "[redacted:cycle]",
+                "ancestorFreedom": {
+                  "asserted": true,
+                  "checkedAncestors": [
+                    "<temp>\\alpha-aos-control-VnCbrx",
+                    "<temp>",
+                    "~\\AppData\\Local",
+                    "~\\AppData",
+                    "~ holds .agents/skills as the harness user root, loaded as user scope — exempt",
+                    "C:\\Users",
+                    "C:\\"
+                  ]
+                },
+                "observedAt": "2026-09-23T15:01:26.966Z",
+                "oracle": {
+                  "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --approve --no-session",
+                  "exitCode": 3221226505,
+                  "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+                  "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+                }
+              },
+              "missingHalf": null,
+              "incompleteReasons": [],
+              "nativeUse": "unverified",
+              "summary": "COMPLETE — BROWNFIELD_INIT on pi: the positive and its negative control are one unit; native use is unverified."
+            },
+            "unsupportedReason": null,
+            "positive": {
+              "harness": "pi",
+              "cwd": "<project>",
+              "exitCode": 3221226505,
+              "unsupportedReason": null,
+              "oracle": "[redacted:cycle]",
+              "costsModelTurn": false,
+              "skills": null,
+              "roots": [],
+              "mcpServers": [],
+              "findings": [],
+              "nativeUse": "unverified",
+              "unparsedReason": "the pi oracle did not complete cleanly (non-zero-exit, exit 3221226505); stderr fingerprint 549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+            },
+            "negatives": [
+              {
+                "kind": "different-directory",
+                "result": {
+                  "harness": "pi",
+                  "cwd": "<temp>\\alpha-aos-control-VnCbrx",
+                  "exitCode": 3221226505,
+                  "unsupportedReason": null,
+                  "oracle": "[redacted:cycle]",
+                  "costsModelTurn": false,
+                  "skills": null,
+                  "roots": [],
+                  "mcpServers": [],
+                  "findings": [],
+                  "nativeUse": "unverified",
+                  "unparsedReason": "the pi oracle did not complete cleanly (non-zero-exit, exit 3221226505); stderr fingerprint 549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+                },
+                "proof": "[redacted:cycle]"
+              },
+              {
+                "kind": "trust-withheld",
+                "result": {
+                  "harness": "pi",
+                  "cwd": "<project>",
+                  "exitCode": 3221226505,
+                  "unsupportedReason": null,
+                  "oracle": {
+                    "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --no-approve --no-session",
+                    "exitCode": 3221226505,
+                    "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+                    "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+                  },
+                  "costsModelTurn": false,
+                  "skills": null,
+                  "roots": [],
+                  "mcpServers": [],
+                  "findings": [],
+                  "nativeUse": "unverified",
+                  "unparsedReason": "the pi oracle did not complete cleanly (non-zero-exit, exit 3221226505); stderr fingerprint 549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+                },
+                "proof": {
+                  "projectId": "1f8fd5514351704b",
+                  "harness": "pi",
+                  "capability": "BROWNFIELD_INIT",
+                  "polarity": "negative",
+                  "nativeUse": "unverified",
+                  "blockedReason": null,
+                  "boundInputs": "[redacted:cycle]",
+                  "harnessVersion": "[redacted:cycle]",
+                  "ancestorFreedom": {
+                    "asserted": false,
+                    "checkedAncestors": []
+                  },
+                  "observedAt": "2026-09-23T15:01:26.966Z",
+                  "oracle": "[redacted:cycle]"
+                }
+              }
+            ],
+            "ancestorFreedom": "[redacted:cycle]",
+            "incompleteReasons": [],
+            "findings": []
+          }
+        },
+        {
+          "harness": "hermes",
+          "ran": false,
+          "skippedReason": "no discovery oracle is defined for hermes, so there is nothing free to run",
+          "costsModelTurn": null,
+          "discovery": null
+        }
+      ],
+      "units": [
+        {
+          "capability": "BROWNFIELD_INIT",
+          "harness": "codex",
+          "completeness": "COMPLETE",
+          "positive": {
+            "projectId": "1f8fd5514351704b",
+            "harness": "codex",
+            "capability": "BROWNFIELD_INIT",
+            "polarity": "positive",
+            "nativeUse": "unverified",
+            "blockedReason": null,
+            "boundInputs": {
+              "skillSourceHash": "242c198b94fd4e2ae90d879a011048f4bfa061376fce1f0c9f641d8867603df7",
+              "mcpServerVersion": null,
+              "evidenceHash": "9a7926efa45398ac297e8939d684ea9906e6210fcd99dfc813cf1697bb60ecbc"
+            },
+            "harnessVersion": {
+              "exact": null,
+              "minorKey": null,
+              "raw": ""
+            },
+            "ancestorFreedom": null,
+            "observedAt": "2026-09-23T15:01:20.271Z",
+            "oracle": {
+              "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+              "exitCode": 0,
+              "stdoutFingerprint": "4aaedef7c844fb665532358828750092a4b85b2bb31fa333e06ae8be1f984799",
+              "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "negative": {
+            "projectId": "1f8fd5514351704b",
+            "harness": "codex",
+            "capability": "BROWNFIELD_INIT",
+            "polarity": "negative",
+            "nativeUse": "unverified",
+            "claimNotes": [
+              {
+                "kind": "inference",
+                "statement": "The project-only capability cannot be invoked outside the project.",
+                "basis": "INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked."
+              }
+            ],
+            "blockedReason": null,
+            "boundInputs": "[redacted:cycle]",
+            "harnessVersion": "[redacted:cycle]",
+            "ancestorFreedom": {
+              "asserted": true,
+              "checkedAncestors": [
+                "<temp>\\alpha-aos-control-VnCbrx",
+                "<temp>",
+                "~\\AppData\\Local",
+                "~\\AppData",
+                "~ holds .agents/skills, .codex/skills as the harness user root, loaded as user scope — exempt",
+                "C:\\Users",
+                "C:\\"
+              ]
+            },
+            "observedAt": "2026-09-23T15:01:20.271Z",
+            "oracle": {
+              "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+              "exitCode": 0,
+              "stdoutFingerprint": "200a606ae851c4d212bee35eefaced4ffd1b374ad06146b0a9d2237d86b58f18",
+              "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            }
+          },
+          "missingHalf": null,
+          "incompleteReasons": [],
+          "nativeUse": "unverified",
+          "summary": "COMPLETE — BROWNFIELD_INIT on codex: the positive and its negative control are one unit; native use is unverified."
+        },
+        {
+          "capability": "BROWNFIELD_INIT",
+          "harness": "pi",
+          "completeness": "COMPLETE",
+          "positive": {
+            "projectId": "1f8fd5514351704b",
+            "harness": "pi",
+            "capability": "BROWNFIELD_INIT",
+            "polarity": "positive",
+            "nativeUse": "unverified",
+            "blockedReason": null,
+            "boundInputs": "[redacted:cycle]",
+            "harnessVersion": {
+              "exact": null,
+              "minorKey": null,
+              "raw": ""
+            },
+            "ancestorFreedom": null,
+            "observedAt": "2026-09-23T15:01:26.966Z",
+            "oracle": {
+              "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --approve --no-session",
+              "exitCode": 3221226505,
+              "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+              "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+            }
+          },
+          "negative": {
+            "projectId": "1f8fd5514351704b",
+            "harness": "pi",
+            "capability": "BROWNFIELD_INIT",
+            "polarity": "negative",
+            "nativeUse": "unverified",
+            "blockedReason": null,
+            "boundInputs": "[redacted:cycle]",
+            "harnessVersion": "[redacted:cycle]",
+            "ancestorFreedom": {
+              "asserted": true,
+              "checkedAncestors": [
+                "<temp>\\alpha-aos-control-VnCbrx",
+                "<temp>",
+                "~\\AppData\\Local",
+                "~\\AppData",
+                "~ holds .agents/skills as the harness user root, loaded as user scope — exempt",
+                "C:\\Users",
+                "C:\\"
+              ]
+            },
+            "observedAt": "2026-09-23T15:01:26.966Z",
+            "oracle": {
+              "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --approve --no-session",
+              "exitCode": 3221226505,
+              "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+              "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+            }
+          },
+          "missingHalf": null,
+          "incompleteReasons": [],
+          "nativeUse": "unverified",
+          "summary": "COMPLETE — BROWNFIELD_INIT on pi: the positive and its negative control are one unit; native use is unverified."
+        }
+      ],
+      "proofs": [
+        {
+          "projectId": "1f8fd5514351704b",
+          "harness": "codex",
+          "capability": "BROWNFIELD_INIT",
+          "polarity": "positive",
+          "nativeUse": "unverified",
+          "blockedReason": null,
+          "boundInputs": {
+            "skillSourceHash": "242c198b94fd4e2ae90d879a011048f4bfa061376fce1f0c9f641d8867603df7",
+            "mcpServerVersion": null,
+            "evidenceHash": "9a7926efa45398ac297e8939d684ea9906e6210fcd99dfc813cf1697bb60ecbc"
+          },
+          "harnessVersion": {
+            "exact": null,
+            "minorKey": null,
+            "raw": ""
+          },
+          "ancestorFreedom": null,
+          "observedAt": "2026-09-23T15:01:20.271Z",
+          "oracle": {
+            "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+            "exitCode": 0,
+            "stdoutFingerprint": "4aaedef7c844fb665532358828750092a4b85b2bb31fa333e06ae8be1f984799",
+            "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "projectId": "1f8fd5514351704b",
+          "harness": "codex",
+          "capability": "BROWNFIELD_INIT",
+          "polarity": "negative",
+          "nativeUse": "unverified",
+          "claimNotes": [
+            {
+              "kind": "inference",
+              "statement": "The project-only capability cannot be invoked outside the project.",
+              "basis": "INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked."
+            }
+          ],
+          "blockedReason": null,
+          "boundInputs": "[redacted:cycle]",
+          "harnessVersion": "[redacted:cycle]",
+          "ancestorFreedom": {
+            "asserted": true,
+            "checkedAncestors": [
+              "<temp>\\alpha-aos-control-VnCbrx",
+              "<temp>",
+              "~\\AppData\\Local",
+              "~\\AppData",
+              "~ holds .agents/skills, .codex/skills as the harness user root, loaded as user scope — exempt",
+              "C:\\Users",
+              "C:\\"
+            ]
+          },
+          "observedAt": "2026-09-23T15:01:20.271Z",
+          "oracle": {
+            "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+            "exitCode": 0,
+            "stdoutFingerprint": "200a606ae851c4d212bee35eefaced4ffd1b374ad06146b0a9d2237d86b58f18",
+            "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        {
+          "projectId": "1f8fd5514351704b",
+          "harness": "pi",
+          "capability": "BROWNFIELD_INIT",
+          "polarity": "positive",
+          "nativeUse": "unverified",
+          "blockedReason": null,
+          "boundInputs": "[redacted:cycle]",
+          "harnessVersion": {
+            "exact": null,
+            "minorKey": null,
+            "raw": ""
+          },
+          "ancestorFreedom": null,
+          "observedAt": "2026-09-23T15:01:26.966Z",
+          "oracle": {
+            "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --approve --no-session",
+            "exitCode": 3221226505,
+            "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+            "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+          }
+        },
+        {
+          "projectId": "1f8fd5514351704b",
+          "harness": "pi",
+          "capability": "BROWNFIELD_INIT",
+          "polarity": "negative",
+          "nativeUse": "unverified",
+          "blockedReason": null,
+          "boundInputs": "[redacted:cycle]",
+          "harnessVersion": "[redacted:cycle]",
+          "ancestorFreedom": {
+            "asserted": true,
+            "checkedAncestors": [
+              "<temp>\\alpha-aos-control-VnCbrx",
+              "<temp>",
+              "~\\AppData\\Local",
+              "~\\AppData",
+              "~ holds .agents/skills as the harness user root, loaded as user scope — exempt",
+              "C:\\Users",
+              "C:\\"
+            ]
+          },
+          "observedAt": "2026-09-23T15:01:26.966Z",
+          "oracle": {
+            "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@earendil-works\\pi-coding-agent\\dist\\bundle\\cli.js --mode rpc --approve --no-session",
+            "exitCode": 3221226505,
+            "stdoutFingerprint": "1c3ae91a3928cb72fe210100c300f95932fa12e6fc935a521b7465d48284911a",
+            "stderrFingerprint": "549bc7ef042d1bc45426d9e2ebe950a63ea9fd831c4912e35a1be421af9915a1"
+          }
+        }
+      ],
+      "costsModelTurn": false
+    },
+    {
+      "capability": "MCP_SERVER",
+      "entries": [
+        {
+          "harness": "claude",
+          "ran": false,
+          "skippedReason": "driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately",
+          "costsModelTurn": true,
+          "discovery": null
+        },
+        {
+          "harness": "codex",
+          "ran": true,
+          "skippedReason": null,
+          "costsModelTurn": false,
+          "discovery": {
+            "harness": "codex",
+            "capability": "MCP_SERVER",
+            "unit": {
+              "capability": "MCP_SERVER",
+              "harness": "codex",
+              "completeness": "COMPLETE",
+              "positive": {
+                "projectId": "1f8fd5514351704b",
+                "harness": "codex",
+                "capability": "MCP_SERVER",
+                "polarity": "positive",
+                "nativeUse": "unverified",
+                "blockedReason": null,
+                "boundInputs": {
+                  "skillSourceHash": "877f33c1a663b1a623552e28fc86f1f5d0ac3667fa44cd39f50ab57c2159d9dd",
+                  "mcpServerVersion": null,
+                  "evidenceHash": "9a7926efa45398ac297e8939d684ea9906e6210fcd99dfc813cf1697bb60ecbc"
+                },
+                "harnessVersion": "[redacted:cycle]",
+                "ancestorFreedom": null,
+                "observedAt": "2026-09-23T15:01:34.152Z",
+                "oracle": {
+                  "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+                  "exitCode": 0,
+                  "stdoutFingerprint": "5e8eb671ec4f2b4d10173516cc3bd85bb5fba48ccbfa66736686b62cf95a27c7",
+                  "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              },
+              "negative": {
+                "projectId": "1f8fd5514351704b",
+                "harness": "codex",
+                "capability": "MCP_SERVER",
+                "polarity": "negative",
+                "nativeUse": "unverified",
+                "claimNotes": [
+                  "[redacted:cycle]"
+                ],
+                "blockedReason": null,
+                "boundInputs": "[redacted:cycle]",
+                "harnessVersion": "[redacted:cycle]",
+                "ancestorFreedom": {
+                  "asserted": true,
+                  "checkedAncestors": [
+                    "<temp>\\alpha-aos-control-VnCbrx",
+                    "<temp>",
+                    "~\\AppData\\Local",
+                    "~\\AppData",
+                    "~ holds .agents/skills, .codex/skills as the harness user root, loaded as user scope — exempt",
+                    "C:\\Users",
+                    "C:\\"
+                  ]
+                },
+                "observedAt": "2026-09-23T15:01:34.152Z",
+                "oracle": {
+                  "command": "C:\\Program Files\\nodejs\\node.exe <home>\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js debug prompt-input placeholder",
+                  "exitCode": 0,
+                  "stdoutFingerprint": "c6e5b9f3c8d70b33e060038bc39e0b758066c9cf6b6f1845d8446f04abaf8be1",
+                  "stderrFingerprint": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                }
+              },
+              "missingHalf": null,
+              "incompleteReasons": [],
+              "nativeUse": "unverified",
+              "summary": "COMPLETE — MCP_SERVER on codex: the positive and its negative control are one unit; native use is unverified."
+            },
+            "unsupportedReason": null,
+            "positive": {
+              "harness": "codex",
+              "cwd": "<project>",
+              "exitCode": 0,
+              "unsupportedReason": null,
+              "oracle": "[redacted:cycle]",
+              "costsModelTurn": false,
+              "skills": [
+                {
+                  "advertisedName": "imagegen",
+                  "directoryName": "imagegen",
+                  "path": "~\\.codex\\skills\\.system\\imagegen\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "advertisedName": "openai-docs",
+                  "directoryName": "openai-docs",
+                  "path": "~\\.codex\\skills\\.system\\openai-docs\\SKILL.md",
+                  "root": "~\\.codex\\skills\\.system",
+                  "scope": "unknown"
+                },
+                {
+                  "adver
+[truncated: 115543 bytes total]
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 5: doctor --discovery <project> (human form)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js doctor --discovery <sandbox>\project
+env-overrides: ALPHA_AOS_STATE_DIR
+exit: 0
+duration-ms: 29080
+--- stdout (2835B sha256=020ad84f3c16) ---
+Free discovery sweep: 2 applicable pack(s) in <sandbox>\project
+
+EVIDENCE  CAPABILITY       HARNESS  DEPLOYMENT    SUPPORT      NATIVE USE  DETAIL
+--------  ---------------  -------  ------------  -----------  ----------  ------------------------------------------------------------------------------------------------------------------------
+-         BROWNFIELD_INIT  claude   not-measured  supported    unverified  driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately
+COMPLETE  BROWNFIELD_INIT  codex    not-measured  unverified   unverified
+-         BROWNFIELD_INIT  hermes   not-measured  unsupported  unverified  no discovery oracle is defined for hermes, so there is nothing free to run
+COMPLETE  BROWNFIELD_INIT  pi       not-measured  unverified   unverified
+-         MCP_SERVER       claude   not-measured  supported    unverified  driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately
+COMPLETE  MCP_SERVER       codex    not-measured  unverified   unverified
+-         MCP_SERVER       hermes   not-measured  unsupported  unverified  no discovery oracle is defined for hermes, so there is nothing free to run
+COMPLETE  MCP_SERVER       pi       not-measured  unverified   unverified
+
+NOT-RUN BROWNFIELD_INIT on claude — driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately
+CLAIM-INFERENCE BROWNFIELD_INIT on codex — The project-only capability cannot be invoked outside the project. Basis: INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked.
+NOT-RUN BROWNFIELD_INIT on hermes — no discovery oracle is defined for hermes, so there is nothing free to run
+NOT-RUN MCP_SERVER on claude — driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately
+CLAIM-INFERENCE MCP_SERVER on codex — The project-only capability cannot be invoked outside the project. Basis: INFERRED from the paired negative, which ran the same oracle from a control directory proven free of any ancestor skill root and did not list any skill of the capability; a capability a harness never loads cannot be invoked.
+NOT-RUN MCP_SERVER on hermes — no discovery oracle is defined for hermes, so there is nothing free to run
+This sweep spent nothing: every oracle that would cost a model turn was skipped rather than run.
+Ledger: written (8 proof(s) recorded at <sandbox>\state\capabilities\ledger.json).
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: discovery JSON: exit=0; packs=BROWNFIELD_INIT, MCP_SERVER; 8 rows; harnesses with rows: claude, codex, hermes, pi
+CHECK life02.discovery.claude NOT-OBSERVED not executed (cost): BROWNFIELD_INIT: completeness=null support=supported nativeUse=null notRun="driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately"; MCP_SERVER: completeness=null support=supported nativeUse=null notRun="driving claude spends a model turn, and this sweep spends nothing; run `alpha-aos doctor --canary` to spend deliberately"
+CHECK life02.discovery.codex HOLDS COMPLETE discovery row: BROWNFIELD_INIT: completeness=COMPLETE support=unverified nativeUse=unverified; MCP_SERVER: completeness=COMPLETE support=unverified nativeUse=unverified
+CHECK life02.discovery.antigravity VIOLATED absent from discovery rows
+CHECK life02.discovery.pi HOLDS COMPLETE discovery row: BROWNFIELD_INIT: completeness=COMPLETE support=unverified nativeUse=unverified; MCP_SERVER: completeness=COMPLETE support=unverified nativeUse=unverified
+CHECK life02.discovery.hermes VIOLATED BROWNFIELD_INIT: completeness=null support=unsupported nativeUse=null notRun="no discovery oracle is defined for hermes, so there is nothing free to run"; MCP_SERVER: completeness=null support=unsupported nativeUse=null notRun="no discovery oracle is defined for hermes, so there is nothing free to run"
+
+## step 6: doctor --canary <project> --no-spend --json (real home, sandbox state)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js doctor --canary <sandbox>\project --no-spend --json
+env-overrides: ALPHA_AOS_STATE_DIR
+exit: 0
+duration-ms: 8076
+--- stdout (193353B sha256=7fd2f3271972) ---
+{
+  "command": "doctor --canary",
+  "project": "<project>",
+  "spend": false,
+  "cost": [
+    "This run would drive 10 canary/harness pair(s): 10 spend a model turn, 0 do not.",
+    "  SPENDS DOCUMENTATION_VERSION_SCOPED on claude",
+    "  SPENDS DOCUMENTATION_VERSION_SCOPED on codex",
+    "  SPENDS RESEARCH_MULTI_SOURCE on claude",
+    "  SPENDS RESEARCH_MULTI_SOURCE on codex",
+    "  SPENDS PACK_EXERCISE_FRONTEND_A11Y on claude",
+    "  SPENDS PACK_EXERCISE_FRONTEND_A11Y on codex",
+    "  SPENDS CROSS_HARNESS_HANDOFF on claude",
+    "  SPENDS CROSS_HARNESS_HANDOFF on codex",
+    "  SPENDS ORDINARY_LOOKUP_CONTROL on claude",
+    "  SPENDS ORDINARY_LOOKUP_CONTROL on codex",
+    "  --no-spend: every leg above that spends a model turn will be recorded `unverified` (not attempted) instead of run."
+  ],
+  "rows": [
+    {
+      "capability": "CAPA-03 (CROSS_HARNESS_HANDOFF)",
+      "harness": "codex",
+      "completeness": "COMPLETE",
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "discovered"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline"
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-03 (CROSS_HARNESS_HANDOFF)",
+      "harness": "codex",
+      "completeness": "COMPLETE",
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "discovered"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline"
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-01 (DOCUMENTATION_VERSION_SCOPED)",
+      "harness": "claude",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "supported",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-01 (DOCUMENTATION_VERSION_SCOPED)",
+      "harness": "codex",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-02 (RESEARCH_MULTI_SOURCE)",
+      "harness": "claude",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "supported",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-02 (RESEARCH_MULTI_SOURCE)",
+      "harness": "codex",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y)",
+      "harness": "claude",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "supported",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y)",
+      "harness": "codex",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-02 (ORDINARY_LOOKUP_CONTROL)",
+      "harness": "claude",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "supported",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    },
+    {
+      "capability": "CAPA-02 (ORDINARY_LOOKUP_CONTROL)",
+      "harness": "codex",
+      "completeness": null,
+      "axes": {
+        "deployment": null,
+        "support": "unverified",
+        "nativeUse": "unverified"
+      },
+      "axisNotes": {
+        "deployment": "not measured by this command; the deployment axis is read from receipts by `alpha-aos project status`",
+        "nativeUse": "not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured."
+      },
+      "blockedReason": null,
+      "notRunReason": null,
+      "incompleteReasons": [],
+      "claimNotes": []
+    }
+  ],
+  "results": [],
+  "handoffResults": [
+    {
+      "canary": "CROSS_HARNESS_HANDOFF",
+      "capability": "CAPA-03",
+      "pair": {
+        "source": "hermes",
+        "target": "codex",
+        "why": "D-17 active non-Claude handoff pair: hermes worker to codex receiver"
+      },
+      "pairResolution": {
+        "pair": "[redacted:cycle]",
+        "considered": [
+          {
+            "pair": "[redacted:cycle]",
+            "sourceResolved": true,
+            "targetResolved": true
+          }
+        ],
+        "blockedReasons": []
+      },
+      "harnessVersions": {
+        "source": "0.21.3",
+        "target": null
+      },
+      "scopeLimit": "alpha-AOS proved the state of the project's planning tree across the round trip, byte for byte. It did NOT observe or restrict what the memory tool did elsewhere on the filesystem: policing that would require being an invocation proxy for every tool call, which PROJECT.md's control-plane decision and 03-CONTEXT.md D-02 rule out.",
+      "vaultBefore": 0,
+      "vaultAfter": 1,
+      "sentinelTitle": "ALPHA-AOS-HANDOFF-CANARY-4f884aa8-41eb-4da3-9902-aebefd4584d1",
+      "writtenMemoryId": "mem_20260923_cb76f0237ca34c2ca2c9",
+      "writtenPath": "project:handoffs/mem_20260923_cb76f0237ca34c2ca2c9.md",
+      "recalled": true,
+      "recallCount": 1,
+      "vaultRefusal": null,
+      "planningBefore": {
+        "root": "<temp>\\alpha-aos-p11-life02d-rCujBF\\project\\.planning",
+        "digest": "40069f840f1b0216052bee5da39f82c1a14d1e0f75382bcb18d17329472c03d9",
+        "complete": true,
+        "files": [
+          {
+            "path": "MILESTONES.md",
+            "sha256": "46268bc47cc093ce3762facabaa165ba279df51141fa815a1463251a0caeb0b0"
+          },
+          {
+            "path": "PROJECT.md",
+            "sha256": "085b4e825556384a7a18c030740a2c5cb6a7e43f91e2a996cd5933bfac1ff336"
+          },
+          {
+            "path": "REQUIREMENTS.md",
+            "sha256": "738abbeebb7201c814a4a8a0edfa9bae049d482012995811547cd50622f343ca"
+          },
+          {
+            "path": "RETROSPECTIVE.md",
+            "sha256": "bd93ede7245ca545aa425d11754780ed6a1882a58c774247a10aefc5e766fcfc"
+          },
+          {
+            "path": "ROADMAP.md",
+            "sha256": "30845749365e1c58fba17aec78d4bf250d1c86d315f3175b92ab90b1dce09f5d"
+          },
+          {
+            "path": "STATE.md",
+            "sha256": "cc88b669fa56ba919616c89d8e42f100a0a7cedcc512984d27ade5f9f9112557"
+          },
+          {
+            "path": "WINDOWS.md",
+            "sha256": "a03d9c138de28b622139411d1b3f531965ca1e33c7ee2452d4c7d69ed8e3260c"
+          },
+          {
+            "path": "codebase/ARCHITECTURE.md",
+            "sha256": "6d7899daac7af6ea5f210d897468ce3e00da2737cf57e7a6af17f0756e89c164"
+          },
+          {
+            "path": "codebase/CONCERNS.md",
+            "sha256": "125e32ac05b6741264790c1f82bc99b9ae3527667b1e06b55b9924cee129fc32"
+          },
+          {
+            "path": "codebase/CONVENTIONS.md",
+            "sha256": "2abf57823e3ab62d77b90e8e3d21efcbfd54e7644010332f39b1a1e43d139d18"
+          },
+          {
+            "path": "codebase/INTEGRATIONS.md",
+            "sha256": "c735cb12c05974d966b454771cdb6fae1389d0683ff426837e71ccb81ce4322c"
+          },
+          {
+            "path": "codebase/STACK.md",
+            "sha256": "b31cbc9089d929e107a941dae37f189ad54ae3fb058815262d04c5ce30a01272"
+          },
+          {
+            "path": "codebase/STRUCTURE.md",
+            "sha256": "83856865e1a5eb7aea7229ced66944305f69cfadd2d97df3afb89f414d54656e"
+          },
+          {
+            "path": "codebase/TESTING.md",
+            "sha256": "317600e433d62ee955e21d053f8ff4d8d22f1b97ebb14602f118a37ffd1ff553"
+          },
+          {
+            "path": "config.json",
+            "sha256": "83df3129c93e8938a86d8ebef190b88b1aa4722ce83ae43b202b926636942915"
+          },
+          {
+            "path": "debug/ci02-windows-alpha-aos-host-leak.md",
+            "sha256": "b60bae280b685b8e11b3f5a387ab3789de081a91a2f5cbb46d6dde78f978b224"
+          },
+          {
+            "path": "debug/codex-native-verification-gap.md",
+            "sha256": "0b5845e100a62693a80782d40de3c401b7e3e704f2c2568242f2611fde817cb6"
+          },
+          {
+            "path": "debug/uat-safety-boundary-parallel.md",
+            "sha256": "26d4cd96762402e68e2b1b50684def239b736a2b86c0b1222c152ff71771a881"
+          },
+          {
+            "path": "milestones/v0.1.0-REQUIREMENTS.md",
+            "sha256": "acefa80c4aa03ef3ee68c55557765bb674ef036eb8b1975527563ee836138910"
+          },
+          {
+            "path": "milestones/v0.1.0-ROADMAP.md",
+            "sha256": "72795f969c6dec0d31a44060fda825a4706722933c70b0a2ae40ede70e87f180"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-01-PLAN.md",
+            "sha256": "16ac5de1257b5b9c7b44899a0021c3cd3a36722ef495af1cae3d33f17926c768"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-01-SUMMARY.md",
+            "sha256": "13c318fc428b72af7a581883f0148a403c66093c3a11c0afd8da66097672a501"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-02-PLAN.md",
+            "sha256": "0dae6a6077bd3319b35b5876ef497d3e0270d4c8119cd8d4029d88674faa90ed"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-02-SUMMARY.md",
+            "sha256": "3e53987b3668d04538c32b7c88b87e96969b1ec7262a4463217fad244649738e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-03-PLAN.md",
+            "sha256": "3181c35c36879d8a5c24ceabcfd8956ff44c6fdb585fafd3b3bf939f6a7f6bb1"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-03-SUMMARY.md",
+            "sha256": "16ac5bb40a365de06e400c6baf1cdf884e05f201592f11b7bb4a7b74da3fcece"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-04-PLAN.md",
+            "sha256": "b05c18a39823edecd157948274b74e8086e335a7a8e755754effc518c515536f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-04-SUMMARY.md",
+            "sha256": "e26314470f0786fcafce113d117ce1d9850d97474adcd17e10c08e966d839df6"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-05-PLAN.md",
+            "sha256": "507dae637b448d5fab34bb06d50344607cfdfd8a4b0c3d7daa295075717ac4fe"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-05-SUMMARY.md",
+            "sha256": "b4079829510970f6a1d92a1bd4942ebb3e71610357e072f084b0d406407ff0a1"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-06-PLAN.md",
+            "sha256": "718942d7b85f8370d1c373a2b233ec2e112309b7e6ed663d5b6d9ec930bb8665"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-06-SUMMARY.md",
+            "sha256": "c15785bb858078bdeaf519f8205aab1ffd23ac9163bca292ace1338030f1a710"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-07-PLAN.md",
+            "sha256": "dd90e06b60572a0337f916a5446c9e0597529fb263787dd90ec5b9e22e3908f0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-07-SUMMARY.md",
+            "sha256": "a84859859df134780b225f959977343ee2c914dfed629838b23b76f01ee1e1c5"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-08-PLAN.md",
+            "sha256": "8d0f87e8cfa3da1a28bcd0520d9f18e4692af7b11fd9bc63b262bbfe3247b179"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-08-SUMMARY.md",
+            "sha256": "0869c74c91bfa666b6e61c3f583f03b3a11701c6f8c468d4558443764af891b7"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-09-PLAN.md",
+            "sha256": "34b3f403edd4d556d1a00651c81bed5948b06c3ac2205f0e805b41b0cb6ab9ce"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-09-SUMMARY.md",
+            "sha256": "570ad4752bfbe62fd25c5663279e4daa6b251b4caddf463b67c9e5f5a30ac116"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-10-PLAN.md",
+            "sha256": "4fe7cd5851ad8745ec9fb6d0ada5f3ef2ed97d8fde7947aba938e6befd596654"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-10-SUMMARY.md",
+            "sha256": "d89a9fe6f3ac1be4f7c003a8f3cc400754389d7c5332afe88976c5c3827d6db0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-11-PLAN.md",
+            "sha256": "0cee0a2a8152f0f0c559124772f9878c2fc7bca3295e2ba95b565f8aabbdb4d8"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-11-SUMMARY.md",
+            "sha256": "02976bd4c0295c17fe152314ec2c3aee62421e1ae2d387c3ac6c547812167835"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-12-PLAN.md",
+            "sha256": "02d9c7091321cdec028bef179c192a243c6bee93454663c3a1e2f1e38698aec6"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-12-SUMMARY.md",
+            "sha256": "45cc975daa45da6d3e75961cc3667ff68848946b861572a1dcaee44dda2e84c4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-13-PLAN.md",
+            "sha256": "6bbbeefa87d2f535a7e0f11c7c8aa2666851f5d0d741a128c7d6b8ad69a93095"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-13-SUMMARY.md",
+            "sha256": "47e900f54790e2823142f3f0e31dd8ca715c11a368c58fc1b485731f7744ac61"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-14-PLAN.md",
+            "sha256": "87c12f4e905bd5e052b4755b24a85991d229bfeddc54860018c8b132151ef5ea"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-14-SUMMARY.md",
+            "sha256": "9be1ab8acd2b732339d54178b5846af12276644ffc757997887f450445c20f86"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-15-PLAN.md",
+            "sha256": "9e86bc8978dc84744546cd19bbd0481102df6301fc7aa51d305b411a1c12f607"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-15-SUMMARY.md",
+            "sha256": "a5d30da6557bace93e1744ee1edfc8833d05866ec903e5940d029a5482219fe3"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-16-PLAN.md",
+            "sha256": "134ee780c4e380d14866cdb3811be56ab0fab353404de0144eaacc3345b453b2"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-16-SUMMARY.md",
+            "sha256": "5ffa6a4ac1822d7399fa57965aee833fa0c4c14acea6966bc7785eb06cc64b04"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-17-PLAN.md",
+            "sha256": "6e4c56ed9e298c17ce28b7f5c1582824d4c273ce967ba858c81e4a5f4da0dafe"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-17-SUMMARY.md",
+            "sha256": "c8ce44d357e6471604889e137c9a0aae1ce136306486ae9af881fd7a18e3328e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-18-PLAN.md",
+            "sha256": "c24f4ccc6d9f986845eb365638d404c8dc870b0d653b1b24f06516b9dc682412"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-18-SUMMARY.md",
+            "sha256": "51d3d9ebd55fb1c779ce776828a301233a352a50ae2dea88ab61f38ec429ab31"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-19-PLAN.md",
+            "sha256": "2a811c391e418ff9d80d2e1e6d4b64e369ee086935376d6b215377bc9ab6fffd"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-19-SUMMARY.md",
+            "sha256": "eb29fc9c1c31bb7b8b58d9699bf7e33dd61dd8f0d201ddd82794fe70a2add7d9"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-20-PLAN.md",
+            "sha256": "c3d01f5cf9c669391984f8aef81f070baf9e14b9622f2155a4b1a0e9fdafed84"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-20-SUMMARY.md",
+            "sha256": "b014dbd7867229af1f00175c16946f1d2a04777181832edb130b0f970010390e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-21-PLAN.md",
+            "sha256": "3cb62739f2920ada3a027eb6e16bac9558bff9cef92d0ebe69511ddcb845e249"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-21-SUMMARY.md",
+            "sha256": "905853e8a3eab6cad43bb7dc57bab2ab857873f438f41fdb9dbd0d7335bc9257"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-22-PLAN.md",
+            "sha256": "7d31284718be82ae7be78d8ffda5e572196a1649022221599414d959a5cc3a73"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-22-SUMMARY.md",
+            "sha256": "d1ce793144a4af0ad6ca99d0ee10369f9f956934caf4a8e9f54f376b3eab8b6d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-23-PLAN.md",
+            "sha256": "fd6e6269a350a12c1a0fcad47f05aa35452606643aede0116e7be6b961b0587b"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-23-SUMMARY.md",
+            "sha256": "c65846b8e76e13c11fdf17426624c61235a04d26150b8e1d3c0cd10032781abf"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-24-PLAN.md",
+            "sha256": "ccc134acd765c0fadc0910ab354d76184f088dd698c0a394af3d0315323c8727"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-24-SUMMARY.md",
+            "sha256": "e5e7fac07aa78c15228a5059268376f92bdec39008323aaa15ac23f6866d4fc8"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-25-PLAN.md",
+            "sha256": "0faa8ca4dd30173d5285cfc149963e468d9404861e9c7682b0c933c3b05fa69a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-25-SUMMARY.md",
+            "sha256": "f8ac6d780ad468a0ce128d5fcb2abf25cd42b4def54fd6af0c5fe0facb4ff521"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-26-PLAN.md",
+            "sha256": "c8b5f19fdafe7586cbe9ddcb1a10039dd6ce83a79b799d8dfa8c0e477e6dd65d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-26-SUMMARY.md",
+            "sha256": "5fefd55eef0767c3d8126fcf9f33a47daf9050e770c7ef08c57640b90a4d3272"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-27-PLAN.md",
+            "sha256": "ef2d2ae998faa22ed78309de2cb66d8f42ac0ca74c7f888a2a7c1cb243625685"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-27-SUMMARY.md",
+            "sha256": "3b8db2e4cf97e0dd01493f1d46b15196de18fe219815369b15eea5c3e3e50c98"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-CONTEXT.md",
+            "sha256": "f6bdb4379c682af9af8230074c5ee5eb14d5e6c9597e2c801f607d14debde158"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-DISCUSSION-LOG.md",
+            "sha256": "57614fe393190dc1856a594799b0f55f9e5ccae25f2b34d66dd14c682d7cbdad"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-PATTERNS.md",
+            "sha256": "91b92a47e83ac6af3ec944b0dcf85e7b8114bfa17a966390d16de101721af322"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-RESEARCH.md",
+            "sha256": "d50d843bd84c2d3bde36482a56f28ed4a45f0d367c0457fb3ceca4d3e3392db0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-UAT.md",
+            "sha256": "572ef5c1af65e1388fcde5ece1d1cc13bb6740bf173ee275b4b38b8a85516858"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-VALIDATION.md",
+            "sha256": "e870149fac5ac8926fffb36aa64b683ccabb59f456c38bc99c91c0369d21b0ff"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-VERIFICATION.md",
+            "sha256": "6bc56e5d3e7ae47b05ad63abd2ef6ea89a6ddddb65fb4d385f9c506194c7724a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/deferred-items.md",
+            "sha256": "9565de06b39af7d1b160e5ecedd8bc44fd273a96170f0bae30fc876c2e1553d6"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-01-PLAN.md",
+            "sha256": "3c70d6b46beae8134d24fd87b1dc201daae90ce21005219f53e900fdd5f704d5"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-01-SUMMARY.md",
+            "sha256": "575874affac9f4f6f27121c7a622a4c7cd959dfb57c0e42a344a4b7e9eeadbe2"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-02-PLAN.md",
+            "sha256": "c21cb466f90048138134cd02601843076d97eab640a22c03e811e6272229c0d0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-02-SUMMARY.md",
+            "sha256": "e2e16aaee83427cbaeb3d7d336b93e4959d9b1944b9a195965ef69a343cc5a38"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-03-PLAN.md",
+            "sha256": "ad17451c3883343272c71c145205043a692af7486972e15f3666f3e5ba24be99"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-03-SUMMARY.md",
+            "sha256": "2cbd75e8f2c489f78ab5530e8fb4ba37f8a8d1d09bf8d217311a0cf8e6035e1c"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-04-PLAN.md",
+            "sha256": "03f31d86bde4d0a61ed4713331002df507bfa5c1c853c4776f75c371be67ea55"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-04-SUMMARY.md",
+            "sha256": "57bac0ab7b569e2f153b136d6bd7950b2b252a8bbca2ed03834b26a05e4fbd37"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-05-PLAN.md",
+            "sha256": "487d54a106f287e032a568cf992753436494bc7af3815cae208ece82304da626"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-05-SUMMARY.md",
+            "sha256": "7a2437030fb33491fd186628f4ff9725a38eedfaf3b3746a96c9765b19694fff"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-06-PLAN.md",
+            "sha256": "e8287d25f00fa2ed91959186f3bf65d0fa2d1862dbdc18f2535e04533a23a6f4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-06-SUMMARY.md",
+            "sha256": "9ff0e7c07019840836285b563ebb552f810a2360cbd74832972d8b025262b9d5"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-07-PLAN.md",
+            "sha256": "13c0400a1f5af45e08c7080b9c754720a3a30fd3ac24dbd108618543a6875826"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-07-SUMMARY.md",
+            "sha256": "79509008cecf0d07fa50af8fb715d17166cf230585df0d90baf1fde6d54fdcc8"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-08-PLAN.md",
+            "sha256": "6ae98c87e4565ee545ce9f2fb3cb34ea218e55a85a4d5dc5642a0a76b77b6c7f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-08-SUMMARY.md",
+            "sha256": "393e13a8646d7d2bf807711e14f75571a0d7224f48b0dba23221bed6a776f453"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-09-PLAN.md",
+            "sha256": "01fb1e58a69dad47c34f8290ee7eac527fc628c857e743fabcc587d915475c62"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-09-SUMMARY.md",
+            "sha256": "ed7ffbf0c6694a5616e44ef01e7aeb0de534d5c7613aa4a64f56eb18a9d98608"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-10-PLAN.md",
+            "sha256": "4e81b28a5b14887dd63f35c7f75fe93a1ffa486f0923af1d322f7f8a9d43fbfa"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-10-SUMMARY.md",
+            "sha256": "914d851a8e68300b3f43b4b38e25b825b0117cf0e4b5f02cfa877bae25cdf0bc"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-11-PLAN.md",
+            "sha256": "609190953d4a661201706ad693c249826d9c5a8366d4472e883e1559695ddffe"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-11-SUMMARY.md",
+            "sha256": "a0c21089d3c4581e903154a06a2d4162e57539304455110d26e18d19fdbc3108"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-12-PLAN.md",
+            "sha256": "e67476b38b0d2887d6ccfd476bad344f0d025f83f7d83393d159e9116832bb0d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-12-SUMMARY.md",
+            "sha256": "8dc1337f37490343b3e51fd166b689e349e09be2ff6aaad41d36ca1867a1e83d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-13-PLAN.md",
+            "sha256": "f891fbb6955d5862841e3679f8b7cabfe5b44af400e57d37dba0aebd545dc7b1"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-13-SUMMARY.md",
+            "sha256": "ba33718c04adbc251b507ebd670f6a386ce4303e5b2d048eb9e59201fe2a2a67"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-14-PLAN.md",
+            "sha256": "5799d2711ae2870bab7f1429456079898dea597a999ebfaa5a0e3824dec1afa3"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-14-SUMMARY.md",
+            "sha256": "d99f7084762867afd50a7860d7af7bae1d914217e16c9dc3edfca35413247196"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-15-PLAN.md",
+            "sha256": "e15952d7c1d43472d37f6b4f9087e4a094b313de891458e4ff3cef357a43e1dc"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-15-SUMMARY.md",
+            "sha256": "b86e098934a89077c55b76d27a490a667f3c5a516cc318de3bf95be2620d9ad5"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-16-PLAN.md",
+            "sha256": "b0d8795671bcf41cfc822bf4a21a24f4176aadea12a7f060389ed50617a2e742"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-16-SUMMARY.md",
+            "sha256": "8f61d377d1d0ce5f4169527c8f0ae0911c0a1e82408db6f341fadf403400c769"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-CONTEXT.md",
+            "sha256": "6ad46b0b92b130fbdbbd67f4bda3a3055128e1d59e284a6f092bd6494b2ae87f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-DISCUSSION-LOG.md",
+            "sha256": "0669073acb3e4abf3f6f00f504e69cc4c94d45d096f7193f4e232f0e569eed0d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-PATTERNS.md",
+            "sha256": "6b9e6955f2c7dd7179f41e9563f3bb07ae8299b7bc2675c9160c206ff4cd8f08"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-RESEARCH.md",
+            "sha256": "2fbffcf243084e7b4da0ced670376ed8737c67c980ea631be6774ea08339ca8a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-REVIEW.md",
+            "sha256": "2500dbad9b32954a89e3d5575b938cfee27bf2deeb3d3036fd9db30b4f8dd4f4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-UAT.md",
+            "sha256": "603f12b3bac84bc15df5a101eeaa70a23e4ecd1bb64237ce9fbf5f0ecfe95d87"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-VALIDATION.md",
+            "sha256": "bd60ad18710a2db5e9469a8ae73f34488a85bc5c58f7d31fa4e8f44a549dcf76"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/02-evidence-bound-project-planning/02-VERIFICATION.md",
+            "sha256": "ddb5caa915434e512b4787460efa815ba820b62ab6f9bedc2c1f5540dcfbfab9"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-01-PLAN.md",
+            "sha256": "ae8b0099e745cd189868d808c610bc7eed732bd9657383a3a5399aa1ab4f2abc"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-01-SUMMARY.md",
+            "sha256": "ada6da4a1e4f5e879e47448efa2ddc6b2d2a8d8df315f6712c76d736cbe662e8"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-02-PLAN.md",
+            "sha256": "6046c400e20ced2e953821e933c19a33a6c56397a453d09b3f6d0afed71ff18f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-02-SUMMARY.md",
+            "sha256": "6bb6dbfd1a69179cbdd79d9f6c877608dbbd748941b93420fd90b3ebe8ad4cd2"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-03-PLAN.md",
+            "sha256": "dc51e1cea114f7c70d9358bd99b32f941e069052ef4e409111d98e95857cf393"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-03-SUMMARY.md",
+            "sha256": "84e93d66502ef2d383912bbbd3731c61799819e5abce462739f118d5b962e917"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-04-PLAN.md",
+            "sha256": "a91cde4b94e45006323a67c67bb34db0b3f81a6085419f9c1bc4221a248f39e7"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-04-SUMMARY.md",
+            "sha256": "931bf623b2943c053a8602792d0389056545a71420589095e492ddf85f48df1f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-05-PLAN.md",
+            "sha256": "0c64faf1444504726aaf37b6734b0def3b1e3b143573452de4db806688052c64"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-05-SUMMARY.md",
+            "sha256": "7851c31c71eefbe4703b2a377a05609a9bff92db80a665764541a0a641762b5e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-06-PLAN.md",
+            "sha256": "8a5bd0e671f09071d08520648a9fa16007876542dd445a331ef9b174bf32397c"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-06-SUMMARY.md",
+            "sha256": "bcd75afffb79113e0e436cdd9c6b148da9cf8a532fde28338d3da91c1fd1d4f5"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-07-PLAN.md",
+            "sha256": "c0431efdde9b8b6cb8cd0e4c9e7e0ff0459b9529cb93f8f93eebd48e9c714e69"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-07-SUMMARY.md",
+            "sha256": "401df768c2d65b8a7d5220f481992d6a1c35ed0dab328e879949196e5f32fd8a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-08-PLAN.md",
+            "sha256": "fbf781e1c6e8595f34bb0976449ee64a758124ef7c8d9211bf89816f0446767d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-08-SUMMARY.md",
+            "sha256": "f11204da2542794b2cf5478f99d7290e126ca3e40d06a4a120f7bf480d6cc8f0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-09-PLAN.md",
+            "sha256": "fd97904d2e6f5c7d7f37b7f9e021ac74760a4426793cc0f11110597f24449f42"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-09-SUMMARY.md",
+            "sha256": "51dcac710c980ad2b85b46ab884a439f9063b5c2d09eaec74123b0cc11e0953e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-10-PLAN.md",
+            "sha256": "17ff7d801024d2828c2ca0d50ff5c6c9032adc453ee6294b5024f1853ed16231"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-10-SUMMARY.md",
+            "sha256": "37efcec9c7b0bc91cb7ab87e7c18eacb5558e9ff70cda16150d611df28385fdf"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-11-PLAN.md",
+            "sha256": "b4a5ec027e2fd3a1cb78a27546ea81a138d1a887373f701bf4ffbed9320e0312"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-11-SUMMARY.md",
+            "sha256": "e59c108d730b5d8f41a1b25fa2bf227e4fea262d90f34d5d8bf0760d4de2ee58"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-12-PLAN.md",
+            "sha256": "0f5aa7a6064c5e8bcdfef468b27f15ff1bfe3f6bc482f0cd65cfd28e5ef866f3"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-12-SUMMARY.md",
+            "sha256": "0b988959ec230682f99ed6d447c3c68bf40636b2a30f24520d6bb2fbb58b49b1"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-13-PLAN.md",
+            "sha256": "95f9e55a3a5083bebcf114ad7181ac487b8462fa62db9a534cace9399820a22d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-13-RECOVERY.md",
+            "sha256": "b9e075052d532a327381be7f43e2fcea89b4624dbea17d0d49c91c051e9799bf"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-13-SUMMARY.md",
+            "sha256": "2991410b2eeedd183cc340b948ff59916d3efc32fa7410f1b03e0c5b37fb020f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-14-PLAN.md",
+            "sha256": "5cca0a71bd2ea9c66021a2cd178ca4f99afce6ff56d67ca31f19877f1984aa8e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-14-SUMMARY.md",
+            "sha256": "d7cc4aaef91a89e609af9c5b45d09377aec1367dd55ca84d22ec6846cb37358a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-15-PLAN.md",
+            "sha256": "8bdc66703f898ee138effb68948e6c1504e379af69ff8a619903d57101fba0e0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-15-SUMMARY.md",
+            "sha256": "a2dfdd10266005cbdffd8fa5269e1c4be4857217275b119d43abcaed8015268c"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-16-PLAN.md",
+            "sha256": "cd52fdd29f30e381c01b3e570bfc4b1fe33435b84861e208b43b9c69cc78b6e4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-16-SUMMARY.md",
+            "sha256": "0d135af5fff486863e26a43a36830fc49a4b0c46b164ee7f64a89971a886a4cb"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-17-PLAN.md",
+            "sha256": "113dcd3f836b1c890ff66fd78f281f34052111cfd8ce0ac2ab61da02200fa39f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-17-SUMMARY.md",
+            "sha256": "ae396289a4f3e8e78639bc85ff13ac2f545d71435ea8adc62c1b8dbac9a3e17b"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-18-PLAN.md",
+            "sha256": "907e974a88b0a9eea447e64e249d3eeaa97320ea1c6e00500deea96cbecb130d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-18-SUMMARY.md",
+            "sha256": "4542d9915e767a633fce4a5bdff66e2e691f8357c2816f56107dd566944b5e7c"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-19-PLAN.md",
+            "sha256": "3f5ee58246b26f37b5648b9935d13b03b0219d1705ac1dc98a298ba1bd0c7337"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-19-SUMMARY.md",
+            "sha256": "ec00bd2b4eb260cfb75984236a134d963e2ce889432411307ff4069f3942c29a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-20-PLAN.md",
+            "sha256": "c79904d4389a40a8136a0773b64905cbaae5c2edda33e29c83662b6ef78439d3"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-20-SUMMARY.md",
+            "sha256": "6f1d5abd0e100e0783c4c8b7ef520e426812b348ce8da6461fe098cdf63cfb8d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-21-PLAN.md",
+            "sha256": "59d63607dd12f0a47aa14e967de6a6cc9384e15bc64d6858fc1d6db160a5f2dd"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-21-SUMMARY.md",
+            "sha256": "d5910553b2bbd4fc156f47cc523068493469af61db7c7e712f60de385421ab0e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-22-PLAN.md",
+            "sha256": "e0e62b76371a9d4a75e6684c934233cd7b270e90e643a0f8c0a29c2fa70cd473"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-22-SUMMARY.md",
+            "sha256": "644c53503249cce3bd8d3e80a98994ca5756f71bce0560ba372a8cf1e53eb3e9"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-CONTEXT.md",
+            "sha256": "26dd1ca7ccaa50c624d119f8a14d99846970a595ec8ef47d355e45b7daf657f7"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-DISCUSSION-LOG.md",
+            "sha256": "fcc963ddd70f513d6c47ed993813d843b34309c88d8b58d6ff96cd0c3a5d938d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-PATTERNS.md",
+            "sha256": "29cdd392b30d1ca059715084b15fa3bf5503628f87210e16b67dbda73dc3308b"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-RESEARCH.md",
+            "sha256": "f5d7de2c7e1a4647639915827fd146c4d55f2d498cd122c7d2061721f3240b23"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-UAT.md",
+            "sha256": "7b189da132c48da3a0f0da0c4e5997abb71850fcf82935cba157c00a6ac9d254"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-VALIDATION.md",
+            "sha256": "bccaec928c2c03a7899e7bcada87e3d44005d1762472bea8bac17d15ca08d60e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/03-VERIFICATION.md",
+            "sha256": "528923489df45accdd9fe8e1519a1d528e1dcbea1b8eecef7a91c3163d978ec0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/03-transactional-project-packs-and-native-optional-use/deferred-items.md",
+            "sha256": "934fb55f6339c825a6cb24294acb2c6aee49560885303393257026ad07fdfdcc"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-01-PLAN.md",
+            "sha256": "f16a0fca954662df985bcf0480a34404adb831e62eb356f06dea54e6d7094e3f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-01-SUMMARY.md",
+            "sha256": "47b52fbc074571246383026e58a74aae45c9b911118bbee99f7d501b6de89ffd"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-02-PLAN.md",
+            "sha256": "7db20c92852d2625b8748c286c2d881b8afeb5d9b07b5be058f0395c7d84c6d3"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-02-SUMMARY.md",
+            "sha256": "446b55754f8c52b19053395fe54e8f0a7812e3d92c2ae7efae8564b617316f08"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-03-PLAN.md",
+            "sha256": "f395d3ceb214105bdc1985df4a788a0f4bea78cfbf392b212bec2060ba7c1e96"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-03-SUMMARY.md",
+            "sha256": "98eec252444d3cf7fcfa74b7a5c829158295aa4f20a392cebf10306636e67585"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-04-PLAN.md",
+            "sha256": "b786948f311b5e297870e752987a8b68f43fc49454468ce2e4de752c57e9d8fc"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-04-SUMMARY.md",
+            "sha256": "80d3effaa04473fdfab1bdeaeb777e5ea353a04ff27225172da41e1fbeae4950"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-CONTEXT.md",
+            "sha256": "7f79ee52c5edc84368b69e67889e61085c8c9fb245d9a58f10c7d69c8dc3ad20"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-DISCUSSION-LOG.md",
+            "sha256": "e943fdd12a74324561307b35a2cf697886382275c7cfdd6fb19068d067be8885"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-RESEARCH.md",
+            "sha256": "fdd354e144333b49a9b03885d9401b4b91ed65103a8612766a138f3661d87bb4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-UAT.md",
+            "sha256": "53444eda178eb5adf714dd9378efa0a2503dc029a16dc5fb784a5f1a4d9940ac"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/04-mandatory-gsd-gates/04-VERIFICATION.md",
+            "sha256": "a230ffc18aa6b1ae4cfbfc85ba656fbc257921fed7832abbc984427c344bc71b"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-01-PLAN.md",
+            "sha256": "a7585f8e95015045fec88fffe8f2fd83f14592d74ada1a17b89f2debdc0fc34b"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-01-SUMMARY.md",
+            "sha256": "3c0417638ef2c8a183d4543592ff2302165c9f6c420b613ca98ea64252b54455"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-02-PLAN.md",
+            "sha256": "4fab451413ec66f1f163e24bd8674a0ca6b0031687070e70f1217b47def0ba04"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-02-SUMMARY.md",
+            "sha256": "0904d0b9473902b65ffdbec2e3f02c90ee0565d07ce942307515bc72c90ef5d9"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-03-PLAN.md",
+            "sha256": "1443a063040841f8387deffbd831f49b7c91bd1fd6e31f9ada1ee2fd8bdeb8ff"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-03-SUMMARY.md",
+            "sha256": "48f6a7a1390e6a01b73a2e55292219a267bd3b5d1b4197bf8ebdcec81449e650"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-04-PLAN.md",
+            "sha256": "0d6a1c74d5e54763f0e0b5965e69587b86d6351c8ba0228212653a82832eaa82"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-04-SUMMARY.md",
+            "sha256": "64de946e997ed5e37ce8e885580961385ea2fd88cd652c1bb69380565c66ccc4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-CONTEXT.md",
+            "sha256": "c42c87c631b32b0d84a463c22419266fa60f0bdfb75f8e06b7945c74ad5b1513"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-DISCUSSION-LOG.md",
+            "sha256": "186afed1fb6a6a372bb6bfa74b66786732dd39c9e3b5c4527b1a3d049eba80cf"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-RESEARCH.md",
+            "sha256": "58da39b4d433878e46fedf5898a07e8dbf1d0e871122e98d0d6e697e3a086f6c"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/05-persistent-tree-off-preload-isolation/05-UAT.md",
+            "sha256": "bda6aaa2a5a8aced83adba22169de7e44a0f82d7757e35af824f6181be3ecfd3"
+          },
+          "[redacted:items-limit:113]"
+        ],
+        "unreadable": [],
+        "rootPresent": true,
+        "bounds": []
+      },
+      "planningAfter": {
+        "root": "<temp>\\alpha-aos-p11-life02d-rCujBF\\project\\.planning",
+        "digest": "40069f840f1b0216052bee5da39f82c1a14d1e0f75382bcb18d17329472c03d9",
+        "complete": true,
+        "files": [
+          {
+            "path": "MILESTONES.md",
+            "sha256": "46268bc47cc093ce3762facabaa165ba279df51141fa815a1463251a0caeb0b0"
+          },
+          {
+            "path": "PROJECT.md",
+            "sha256": "085b4e825556384a7a18c030740a2c5cb6a7e43f91e2a996cd5933bfac1ff336"
+          },
+          {
+            "path": "REQUIREMENTS.md",
+            "sha256": "738abbeebb7201c814a4a8a0edfa9bae049d482012995811547cd50622f343ca"
+          },
+          {
+            "path": "RETROSPECTIVE.md",
+            "sha256": "bd93ede7245ca545aa425d11754780ed6a1882a58c774247a10aefc5e766fcfc"
+          },
+          {
+            "path": "ROADMAP.md",
+            "sha256": "30845749365e1c58fba17aec78d4bf250d1c86d315f3175b92ab90b1dce09f5d"
+          },
+          {
+            "path": "STATE.md",
+            "sha256": "cc88b669fa56ba919616c89d8e42f100a0a7cedcc512984d27ade5f9f9112557"
+          },
+          {
+            "path": "WINDOWS.md",
+            "sha256": "a03d9c138de28b622139411d1b3f531965ca1e33c7ee2452d4c7d69ed8e3260c"
+          },
+          {
+            "path": "codebase/ARCHITECTURE.md",
+            "sha256": "6d7899daac7af6ea5f210d897468ce3e00da2737cf57e7a6af17f0756e89c164"
+          },
+          {
+            "path": "codebase/CONCERNS.md",
+            "sha256": "125e32ac05b6741264790c1f82bc99b9ae3527667b1e06b55b9924cee129fc32"
+          },
+          {
+            "path": "codebase/CONVENTIONS.md",
+            "sha256": "2abf57823e3ab62d77b90e8e3d21efcbfd54e7644010332f39b1a1e43d139d18"
+          },
+          {
+            "path": "codebase/INTEGRATIONS.md",
+            "sha256": "c735cb12c05974d966b454771cdb6fae1389d0683ff426837e71ccb81ce4322c"
+          },
+          {
+            "path": "codebase/STACK.md",
+            "sha256": "b31cbc9089d929e107a941dae37f189ad54ae3fb058815262d04c5ce30a01272"
+          },
+          {
+            "path": "codebase/STRUCTURE.md",
+            "sha256": "83856865e1a5eb7aea7229ced66944305f69cfadd2d97df3afb89f414d54656e"
+          },
+          {
+            "path": "codebase/TESTING.md",
+            "sha256": "317600e433d62ee955e21d053f8ff4d8d22f1b97ebb14602f118a37ffd1ff553"
+          },
+          {
+            "path": "config.json",
+            "sha256": "83df3129c93e8938a86d8ebef190b88b1aa4722ce83ae43b202b926636942915"
+          },
+          {
+            "path": "debug/ci02-windows-alpha-aos-host-leak.md",
+            "sha256": "b60bae280b685b8e11b3f5a387ab3789de081a91a2f5cbb46d6dde78f978b224"
+          },
+          {
+            "path": "debug/codex-native-verification-gap.md",
+            "sha256": "0b5845e100a62693a80782d40de3c401b7e3e704f2c2568242f2611fde817cb6"
+          },
+          {
+            "path": "debug/uat-safety-boundary-parallel.md",
+            "sha256": "26d4cd96762402e68e2b1b50684def239b736a2b86c0b1222c152ff71771a881"
+          },
+          {
+            "path": "milestones/v0.1.0-REQUIREMENTS.md",
+            "sha256": "acefa80c4aa03ef3ee68c55557765bb674ef036eb8b1975527563ee836138910"
+          },
+          {
+            "path": "milestones/v0.1.0-ROADMAP.md",
+            "sha256": "72795f969c6dec0d31a44060fda825a4706722933c70b0a2ae40ede70e87f180"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-01-PLAN.md",
+            "sha256": "16ac5de1257b5b9c7b44899a0021c3cd3a36722ef495af1cae3d33f17926c768"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-01-SUMMARY.md",
+            "sha256": "13c318fc428b72af7a581883f0148a403c66093c3a11c0afd8da66097672a501"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-02-PLAN.md",
+            "sha256": "0dae6a6077bd3319b35b5876ef497d3e0270d4c8119cd8d4029d88674faa90ed"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-02-SUMMARY.md",
+            "sha256": "3e53987b3668d04538c32b7c88b87e96969b1ec7262a4463217fad244649738e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-03-PLAN.md",
+            "sha256": "3181c35c36879d8a5c24ceabcfd8956ff44c6fdb585fafd3b3bf939f6a7f6bb1"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-03-SUMMARY.md",
+            "sha256": "16ac5bb40a365de06e400c6baf1cdf884e05f201592f11b7bb4a7b74da3fcece"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-04-PLAN.md",
+            "sha256": "b05c18a39823edecd157948274b74e8086e335a7a8e755754effc518c515536f"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-04-SUMMARY.md",
+            "sha256": "e26314470f0786fcafce113d117ce1d9850d97474adcd17e10c08e966d839df6"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-05-PLAN.md",
+            "sha256": "507dae637b448d5fab34bb06d50344607cfdfd8a4b0c3d7daa295075717ac4fe"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-05-SUMMARY.md",
+            "sha256": "b4079829510970f6a1d92a1bd4942ebb3e71610357e072f084b0d406407ff0a1"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-06-PLAN.md",
+            "sha256": "718942d7b85f8370d1c373a2b233ec2e112309b7e6ed663d5b6d9ec930bb8665"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-06-SUMMARY.md",
+            "sha256": "c15785bb858078bdeaf519f8205aab1ffd23ac9163bca292ace1338030f1a710"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-07-PLAN.md",
+            "sha256": "dd90e06b60572a0337f916a5446c9e0597529fb263787dd90ec5b9e22e3908f0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-07-SUMMARY.md",
+            "sha256": "a84859859df134780b225f959977343ee2c914dfed629838b23b76f01ee1e1c5"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-08-PLAN.md",
+            "sha256": "8d0f87e8cfa3da1a28bcd0520d9f18e4692af7b11fd9bc63b262bbfe3247b179"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-08-SUMMARY.md",
+            "sha256": "0869c74c91bfa666b6e61c3f583f03b3a11701c6f8c468d4558443764af891b7"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-09-PLAN.md",
+            "sha256": "34b3f403edd4d556d1a00651c81bed5948b06c3ac2205f0e805b41b0cb6ab9ce"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-09-SUMMARY.md",
+            "sha256": "570ad4752bfbe62fd25c5663279e4daa6b251b4caddf463b67c9e5f5a30ac116"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-10-PLAN.md",
+            "sha256": "4fe7cd5851ad8745ec9fb6d0ada5f3ef2ed97d8fde7947aba938e6befd596654"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-10-SUMMARY.md",
+            "sha256": "d89a9fe6f3ac1be4f7c003a8f3cc400754389d7c5332afe88976c5c3827d6db0"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-11-PLAN.md",
+            "sha256": "0cee0a2a8152f0f0c559124772f9878c2fc7bca3295e2ba95b565f8aabbdb4d8"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-11-SUMMARY.md",
+            "sha256": "02976bd4c0295c17fe152314ec2c3aee62421e1ae2d387c3ac6c547812167835"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-12-PLAN.md",
+            "sha256": "02d9c7091321cdec028bef179c192a243c6bee93454663c3a1e2f1e38698aec6"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-12-SUMMARY.md",
+            "sha256": "45cc975daa45da6d3e75961cc3667ff68848946b861572a1dcaee44dda2e84c4"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-13-PLAN.md",
+            "sha256": "6bbbeefa87d2f535a7e0f11c7c8aa2666851f5d0d741a128c7d6b8ad69a93095"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-13-SUMMARY.md",
+            "sha256": "47e900f54790e2823142f3f0e31dd8ca715c11a368c58fc1b485731f7744ac61"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-14-PLAN.md",
+            "sha256": "87c12f4e905bd5e052b4755b24a85991d229bfeddc54860018c8b132151ef5ea"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-14-SUMMARY.md",
+            "sha256": "9be1ab8acd2b732339d54178b5846af12276644ffc757997887f450445c20f86"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-15-PLAN.md",
+            "sha256": "9e86bc8978dc84744546cd19bbd0481102df6301fc7aa51d305b411a1c12f607"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-15-SUMMARY.md",
+            "sha256": "a5d30da6557bace93e1744ee1edfc8833d05866ec903e5940d029a5482219fe3"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-16-PLAN.md",
+            "sha256": "134ee780c4e380d14866cdb3811be56ab0fab353404de0144eaacc3345b453b2"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-16-SUMMARY.md",
+            "sha256": "5ffa6a4ac1822d7399fa57965aee833fa0c4c14acea6966bc7785eb06cc64b04"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-17-PLAN.md",
+            "sha256": "6e4c56ed9e298c17ce28b7f5c1582824d4c273ce967ba858c81e4a5f4da0dafe"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-17-SUMMARY.md",
+            "sha256": "c8ce44d357e6471604889e137c9a0aae1ce136306486ae9af881fd7a18e3328e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-18-PLAN.md",
+            "sha256": "c24f4ccc6d9f986845eb365638d404c8dc870b0d653b1b24f06516b9dc682412"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-18-SUMMARY.md",
+            "sha256": "51d3d9ebd55fb1c779ce776828a301233a352a50ae2dea88ab61f38ec429ab31"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-19-PLAN.md",
+            "sha256": "2a811c391e418ff9d80d2e1e6d4b64e369ee086935376d6b215377bc9ab6fffd"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-19-SUMMARY.md",
+            "sha256": "eb29fc9c1c31bb7b8b58d9699bf7e33dd61dd8f0d201ddd82794fe70a2add7d9"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-20-PLAN.md",
+            "sha256": "c3d01f5cf9c669391984f8aef81f070baf9e14b9622f2155a4b1a0e9fdafed84"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-20-SUMMARY.md",
+            "sha256": "b014dbd7867229af1f00175c16946f1d2a04777181832edb130b0f970010390e"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-21-PLAN.md",
+            "sha256": "3cb62739f2920ada3a027eb6e16bac9558bff9cef92d0ebe69511ddcb845e249"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-21-SUMMARY.md",
+            "sha256": "905853e8a3eab6cad43bb7dc57bab2ab857873f438f41fdb9dbd0d7335bc9257"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-22-PLAN.md",
+            "sha256": "7d31284718be82ae7be78d8ffda5e572196a1649022221599414d959a5cc3a73"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-22-SUMMARY.md",
+            "sha256": "d1ce793144a4af0ad6ca99d0ee10369f9f956934caf4a8e9f54f376b3eab8b6d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-23-PLAN.md",
+            "sha256": "fd6e6269a350a12c1a0fcad47f05aa35452606643aede0116e7be6b961b0587b"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-23-SUMMARY.md",
+            "sha256": "c65846b8e76e13c11fdf17426624c61235a04d26150b8e1d3c0cd10032781abf"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-24-PLAN.md",
+            "sha256": "ccc134acd765c0fadc0910ab354d76184f088dd698c0a394af3d0315323c8727"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-24-SUMMARY.md",
+            "sha256": "e5e7fac07aa78c15228a5059268376f92bdec39008323aaa15ac23f6866d4fc8"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-25-PLAN.md",
+            "sha256": "0faa8ca4dd30173d5285cfc149963e468d9404861e9c7682b0c933c3b05fa69a"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-25-SUMMARY.md",
+            "sha256": "f8ac6d780ad468a0ce128d5fcb2abf25cd42b4def54fd6af0c5fe0facb4ff521"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-26-PLAN.md",
+            "sha256": "c8b5f19fdafe7586cbe9ddcb1a10039dd6ce83a79b799d8dfa8c0e477e6dd65d"
+          },
+          {
+            "path": "milestones/v0.1.0-phases/01-safe-operation-boundary/01-26-SUMMARY.md",
+            "sha256": "5fefd55eef0767c3d8126fcf9f33a47daf905
+[truncated: 193353 bytes total]
+--- stderr (633B sha256=9682d7863770) ---
+This run would drive 10 canary/harness pair(s): 10 spend a model turn, 0 do not.
+  SPENDS DOCUMENTATION_VERSION_SCOPED on claude
+  SPENDS DOCUMENTATION_VERSION_SCOPED on codex
+  SPENDS RESEARCH_MULTI_SOURCE on claude
+  SPENDS RESEARCH_MULTI_SOURCE on codex
+  SPENDS PACK_EXERCISE_FRONTEND_A11Y on claude
+  SPENDS PACK_EXERCISE_FRONTEND_A11Y on codex
+  SPENDS CROSS_HARNESS_HANDOFF on claude
+  SPENDS CROSS_HARNESS_HANDOFF on codex
+  SPENDS ORDINARY_LOOKUP_CONTROL on claude
+  SPENDS ORDINARY_LOOKUP_CONTROL on codex
+  --no-spend: every leg above that spends a model turn will be recorded `unverified` (not attempted) instead of run.
+fingerprint scratch project .planning across canary --no-spend --json: 16b5ab7c2746 -> 16b5ab7c2746
+
+## step 7: doctor --canary <project> --no-spend (human form)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js doctor --canary <sandbox>\project --no-spend
+env-overrides: ALPHA_AOS_STATE_DIR
+exit: 0
+duration-ms: 7839
+--- stdout (6468B sha256=c1ad6ebb28a5) ---
+Invocation canaries: 2 run(s) in <sandbox>\project
+
+EVIDENCE  CAPABILITY                              HARNESS  DEPLOYMENT    SUPPORT     NATIVE USE  DETAIL
+--------  --------------------------------------  -------  ------------  ----------  ----------  --------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-         CAPA-01 (DOCUMENTATION_VERSION_SCOPED)  claude   not-measured  supported   unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+-         CAPA-01 (DOCUMENTATION_VERSION_SCOPED)  codex    not-measured  unverified  unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+-         CAPA-02 (ORDINARY_LOOKUP_CONTROL)       claude   not-measured  supported   unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+-         CAPA-02 (ORDINARY_LOOKUP_CONTROL)       codex    not-measured  unverified  unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+-         CAPA-02 (RESEARCH_MULTI_SOURCE)         claude   not-measured  supported   unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+-         CAPA-02 (RESEARCH_MULTI_SOURCE)         codex    not-measured  unverified  unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+COMPLETE  CAPA-03 (CROSS_HARNESS_HANDOFF)         codex    not-measured  unverified  discovered  the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline
+COMPLETE  CAPA-03 (CROSS_HARNESS_HANDOFF)         codex    not-measured  unverified  discovered  the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline
+-         CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y)   claude   not-measured  supported   unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+-         CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y)   codex    not-measured  unverified  unverified  not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.
+
+This run would drive 10 canary/harness pair(s): 10 spend a model turn, 0 do not.
+  SPENDS DOCUMENTATION_VERSION_SCOPED on claude
+  SPENDS DOCUMENTATION_VERSION_SCOPED on codex
+  SPENDS RESEARCH_MULTI_SOURCE on claude
+  SPENDS RESEARCH_MULTI_SOURCE on codex
+  SPENDS PACK_EXERCISE_FRONTEND_A11Y on claude
+  SPENDS PACK_EXERCISE_FRONTEND_A11Y on codex
+  SPENDS CROSS_HARNESS_HANDOFF on claude
+  SPENDS CROSS_HARNESS_HANDOFF on codex
+  SPENDS ORDINARY_LOOKUP_CONTROL on claude
+  SPENDS ORDINARY_LOOKUP_CONTROL on codex
+  --no-spend: every leg above that spends a model turn will be recorded `unverified` (not attempted) instead of run.
+HANDOFF PAIR — source hermes 0.21.3, target codex (version unreadable); D-17 active non-Claude handoff pair: hermes worker to codex receiver
+HANDOFF VAULT — memories before 2, after 3; sentinel title ALPHA-AOS-HANDOFF-CANARY-39fafdff-a3d7-4862-9210-eaba3b01c27f; written at project:handoffs/mem_20260923_bab3df9e45a843018100.md
+HANDOFF RECALL — a filtered recall for codex returned 3 entr(ies) and DID include the sentinel
+HANDOFF PLANNING — before 40069f840f1b, after 40069f840f1b over <temp>\alpha-aos-p11-life02d-rCujBF\project\.planning; byte-for-byte identical
+HANDOFF RECEIVING — the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline
+HANDOFF UNIT — COMPLETE — CAPA-03 on codex: the positive and its negative control are one unit; native use is discovered.
+HANDOFF SCOPE — alpha-AOS proved the state of the project's planning tree across the round trip, byte for byte. It did NOT observe or restrict what the memory tool did elsewhere on the filesystem: policing that would require being an invocation proxy for every tool call, which PROJECT.md's control-plane decision and 03-CONTEXT.md D-02 rule out.
+HANDOFF PAIR — source hermes 0.21.3, target codex (version unreadable); D-17 active non-Claude handoff pair: hermes worker to codex receiver
+HANDOFF VAULT — memories before 3, after 4; sentinel title ALPHA-AOS-HANDOFF-CANARY-bc5c458d-8958-41cf-a5e3-9b3a467097a2; written at project:handoffs/mem_20260923_b045575bd50546c797cd.md
+HANDOFF RECALL — a filtered recall for codex returned 4 entr(ies) and DID include the sentinel
+HANDOFF PLANNING — before 40069f840f1b, after 40069f840f1b over <temp>\alpha-aos-p11-life02d-rCujBF\project\.planning; byte-for-byte identical
+HANDOFF RECEIVING — the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline
+HANDOFF UNIT — COMPLETE — CAPA-03 on codex: the positive and its negative control are one unit; native use is discovered.
+HANDOFF SCOPE — alpha-AOS proved the state of the project's planning tree across the round trip, byte for byte. It did NOT observe or restrict what the memory tool did elsewhere on the filesystem: policing that would require being an invocation proxy for every tool call, which PROJECT.md's control-plane decision and 03-CONTEXT.md D-02 rule out.
+Ledger: written (4 proof(s) recorded at <sandbox>\state\capabilities\ledger.json).
+Every canary runtime was removed; a runtime is single-use and ephemeral.
+--- stderr (633B sha256=9682d7863770) ---
+This run would drive 10 canary/harness pair(s): 10 spend a model turn, 0 do not.
+  SPENDS DOCUMENTATION_VERSION_SCOPED on claude
+  SPENDS DOCUMENTATION_VERSION_SCOPED on codex
+  SPENDS RESEARCH_MULTI_SOURCE on claude
+  SPENDS RESEARCH_MULTI_SOURCE on codex
+  SPENDS PACK_EXERCISE_FRONTEND_A11Y on claude
+  SPENDS PACK_EXERCISE_FRONTEND_A11Y on codex
+  SPENDS CROSS_HARNESS_HANDOFF on claude
+  SPENDS CROSS_HARNESS_HANDOFF on codex
+  SPENDS ORDINARY_LOOKUP_CONTROL on claude
+  SPENDS ORDINARY_LOOKUP_CONTROL on codex
+  --no-spend: every leg above that spends a model turn will be recorded `unverified` (not attempted) instead of run.
+fingerprint scratch project .planning across canary --no-spend (human): 16b5ab7c2746 -> 16b5ab7c2746
+note: harness-home fingerprint taken after the last canary step (3727 ms)
+note: canary JSON: exit=0; spend=false; results=0; handoffResults=2; skipped=8; retainedRuntimes=0
+note: canary cost line: This run would drive 10 canary/harness pair(s): 10 spend a model turn, 0 do not.
+note: canary cost line:   SPENDS DOCUMENTATION_VERSION_SCOPED on claude
+note: canary cost line:   SPENDS DOCUMENTATION_VERSION_SCOPED on codex
+note: canary cost line:   SPENDS RESEARCH_MULTI_SOURCE on claude
+note: canary cost line:   SPENDS RESEARCH_MULTI_SOURCE on codex
+note: canary cost line:   SPENDS PACK_EXERCISE_FRONTEND_A11Y on claude
+note: canary cost line:   SPENDS PACK_EXERCISE_FRONTEND_A11Y on codex
+note: canary cost line:   SPENDS CROSS_HARNESS_HANDOFF on claude
+note: canary cost line:   SPENDS CROSS_HARNESS_HANDOFF on codex
+note: canary cost line:   SPENDS ORDINARY_LOOKUP_CONTROL on claude
+note: canary cost line:   SPENDS ORDINARY_LOOKUP_CONTROL on codex
+note: canary cost line:   --no-spend: every leg above that spends a model turn will be recorded `unverified` (not attempted) instead of run.
+note: handoff 1: CAPA-03 (CROSS_HARNESS_HANDOFF) source hermes, target codex; free legs completeness=COMPLETE, recalled=true; receiving leg not attempted
+note: handoff 2: CAPA-03 (CROSS_HARNESS_HANDOFF) pair "[redacted:cycle]"; free legs completeness=COMPLETE, recalled=true; receiving leg not attempted
+CHECK life02.canary.claude.no-spend-execution VIOLATED no no-spend leg launched this harness's own native surface; legs: CAPA-01 (DOCUMENTATION_VERSION_SCOPED): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.); CAPA-02 (RESEARCH_MULTI_SOURCE): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.); CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.); CAPA-02 (ORDINARY_LOOKUP_CONTROL): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.)
+CHECK life02.canary.codex.no-spend-execution VIOLATED no no-spend leg launched this harness's own native surface; legs: CAPA-03 (CROSS_HARNESS_HANDOFF): evidence=COMPLETE nativeUse=discovered (the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline); CAPA-03 (CROSS_HARNESS_HANDOFF): evidence=COMPLETE nativeUse=discovered (the receiving leg drives codex with the declared prompt and spends a model turn, and it was not requested; every other leg of this canary is deterministic and offline); CAPA-01 (DOCUMENTATION_VERSION_SCOPED): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.); CAPA-02 (RESEARCH_MULTI_SOURCE): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.); CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.); CAPA-02 (ORDINARY_LOOKUP_CONTROL): evidence=- nativeUse=unverified (not attempted: this leg spends a model turn and the run was asked not to spend. Re-run without --no-spend to spend deliberately; nothing here is missing or misconfigured.)
+CHECK life02.canary.antigravity.no-spend-execution VIOLATED no canary leg is declared for this harness, so no no-spend leg launched its native surface
+CHECK life02.canary.pi.no-spend-execution VIOLATED no canary leg is declared for this harness, so no no-spend leg launched its native surface
+CHECK life02.canary.hermes.no-spend-execution VIOLATED no no-spend leg launched this harness's own native surface; legs: CAPA-03 handoff source: alpha-AOS writes the vault memory on this harness's behalf; this harness is not launched
+CHECK life02.canary.json-cycle-markers OBSERVED the canary --json envelope carries 21 "[redacted:cycle]" marker(s) where a shared object reference appears a second time (skipped[].selection for the second harness sharing a declaration, handoffResults[].pair for the second handoff sharing a pair); rows[] keep harness and capability
+CHECK life02.canary.spend-legs OBSERVED not executed (cost): codex:CAPA-03 (CROSS_HARNESS_HANDOFF) receiving leg, codex:CAPA-03 (CROSS_HARNESS_HANDOFF) receiving leg, claude:CAPA-01 (DOCUMENTATION_VERSION_SCOPED), codex:CAPA-01 (DOCUMENTATION_VERSION_SCOPED), claude:CAPA-02 (RESEARCH_MULTI_SOURCE), codex:CAPA-02 (RESEARCH_MULTI_SOURCE), claude:CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y), codex:CAPA-05 (PACK_EXERCISE_FRONTEND_A11Y), claude:CAPA-02 (ORDINARY_LOOKUP_CONTROL), codex:CAPA-02 (ORDINARY_LOOKUP_CONTROL)
+CHECK life02.canary.planning-unchanged HOLDS the scratch project's .planning fingerprint is equal before and after both canary runs
+CHECK life02.canary.vault-writes OBSERVED new paths under the scratch project after both canary runs (expected product behavior in the given project, not a mutation of the user's tree): .ecc/memory/project/.gitignore, .ecc/memory/project/handoffs/mem_<id>.md, .ecc/memory/project/handoffs/mem_<id>.md, .ecc/memory/project/handoffs/mem_<id>.md, .ecc/memory/project/handoffs/mem_<id>.md
+
+## step 8: real repository porcelain after
+$ git -C <repo> status --porcelain
+env-overrides: none
+exit: 0
+duration-ms: 78
+--- stdout (234B sha256=afbcf65bb7fa) ---
+ M .planning/state.json
+?? .planning/milestone.lock
+?? .planning/phases/11-managed-lifecycle-verification/evidence/life02-discovery.txt
+?? .planning/phases/11-managed-lifecycle-verification/evidence/probes/life02-discovery.mjs
+?? nul
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life02.repo-unchanged HOLDS git status --porcelain of the real repository is identical before and after the doctor steps
+fingerprint real harness homes across the doctor steps: 14dc0a60b643 -> 9ac412731a92
+drift in real harness homes across the doctor steps
+<home>\.codex\logs_2.sqlite-shm: 980d061d5c99 -> 47e5a5be9a83 (added 0, removed 0, changed 1, vanished 0)
+  changed . file/65536/aa6f35cdd428 -> file/65536/6c8e1d424e1b
+<home>\.codex\models_cache.json: 0e28fbb0080b -> 2191a46ece5a (added 0, removed 0, changed 1, vanished 0)
+  changed . file/353135/8baa886965f9 -> file/352271/64a9cf4ac554
+<home>\.codex\sqlite: 148da4341929 -> 03956f577d83 (added 0, removed 0, changed 1, vanished 0)
+  changed codex-dev.db-shm file/32768/226b2fa806de -> file/32768/d1b17fb0dc3d
+<home>\AppData\Local\hermes\state.db-shm: 84316150cc76 -> 1b34fd9dd9e8 (added 0, removed 0, changed 1, vanished 0)
+  changed . file/32768/28005584ea96 -> file/32768/4215d8beb55d
+note: harness-native drifted entries: codex/logs_2.sqlite-shm, codex/models_cache.json, codex/sqlite, hermes/state.db-shm
+CHECK life02.harness-homes-unchanged OBSERVED harness-native drift in codex, hermes
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=4 violated=7 not-observed=1 observed=4

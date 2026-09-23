@@ -1,11 +1,12 @@
 ---
 phase: 10-three-os-ci-baseline
 verified: 2026-09-23T04:46:50Z
-status: human_needed
-score: 29/30 must-haves verified
+status: passed
+score: 30/30 must-haves verified (1 via override)
 behavior_unverified: 0
 overrides_applied: 1
 overrides:
+
   - must_have: "The suite fails if any test under test/ asserts against a platform-specific absolute path literal"
     reason: "Guard covers the CI-01 defect shape (literal into join/resolve/normalize/relative/dirname/basename or path.<fn>, directly or via const), proven 8/8 on the pre-fix sources; remaining shapes are caught by the POSIX CI legs themselves. A literal reading would flag ~50 legitimate opaque path literals in test/, none of which is a latent defect. let/alias/namespace coverage is a deferred follow-up in 10-UAT.md."
     accepted_by: "user (4lph4-dvlp)"
@@ -13,6 +14,7 @@ overrides:
 flagged_prohibitions: 13
 prohibitions_resolved: "13/13 held, confirmed by user in 10-UAT.md test 2 (2026-09-23)"
 human_verification:
+
   - test: "Decide whether the path-literal guard's scope satisfies ROADMAP success criterion 1, second clause ('the suite fails if any test under test/ asserts against a platform-specific absolute path literal')."
     expected: "Either accept the implemented scope (literal reaching join/resolve/normalize/relative/dirname/basename or path.<fn>, directly or through a const binding) with an override entry, or open a follow-up to widen it."
     why_human: "D-10 (10-CONTEXT.md line 36) names 'product path functions' in scope and left the heuristic to Claude's discretion; the plan narrowed it to host path calls. The verifier observed that five concrete shapes are not flagged (see Observable Truths #2). Whether that narrowing meets the roadmap contract is a scope decision, not a code fact."
@@ -25,10 +27,11 @@ human_verification:
 
 **Phase Goal:** Users can trust `main` CI again: each red leg is fixed at its diagnosed root cause, and one run proves ubuntu, macOS, and Windows green together.
 **Verified:** 2026-09-23T04:46:50Z
-**Status:** human_needed
+**Status:** passed (human items resolved in 10-UAT.md, 2026-09-23)
 **Re-verification:** No. This is the initial verification.
 
 **Primary evidence records:**
+
 - CI-03 proof (D-14): `.planning/phases/10-three-os-ci-baseline/CI_RUN.md`, run `35818198049` attempt `1`.
 - CI-02 root-cause record: `.planning/debug/ci02-windows-alpha-aos-host-leak.md` (`status: resolved`, `classification: test-isolation leak`).
 
@@ -64,7 +67,7 @@ Roadmap success criteria (the contract) come first. Plan truths that restate a s
 | # | Truth | Status | Evidence |
 |---|---|---|---|
 | 1 | SC1a: On ubuntu-latest and macos-latest, `destinationFor resolves destinations across all five harnesses` passes, with its fixture root built from host path APIs | ✓ VERIFIED | `test/owned-skills.test.ts` builds `base = join(tmpdir(), "alpha-aos-destination-fixture")` and every root from it (no drive-letter literal left). Proof run: `✔ destinationFor ...` on ubuntu (1.96 ms) and macOS (4.06 ms). Red in 35762417138. Passes locally on Windows. |
-| 2 | SC1b: The suite fails if any test under `test/` asserts against a platform-specific absolute path literal | ? UNCERTAIN (WARNING) | Guard `test/path-literal-guard.test.ts` + `test/helpers/path-literal-scan.ts` exist, are wired, and pass on all three legs. The pre-fix sources at c6415a2 scan to 5 + 3 = 8 violations (the verifier re-ran this). An injected `const injected = "/home/runner/x"; join(injected, "y")` is flagged. **Not flagged** by the scanner (verifier probe): (a) a literal passed straight to a product path function and compared with a bare literal expectation, e.g. `assert.equal(destinationFor("claude","s","C:\\root"), "C:\\root\\skills\\s\\SKILL.md")`, which is the CI-01 defect class and red on POSIX; (b) a `let` binding; (c) an aliased import `join as pj`; (d) a namespace import `p.join`; (e) an object-property value `env.HOME`. D-10 names "product path functions" in scope. The plan narrowed the scope to host path calls. Human decision requested. |
+| 2 | SC1b: The suite fails if any test under `test/` asserts against a platform-specific absolute path literal | ✓ PASSED (override) | Guard `test/path-literal-guard.test.ts` + `test/helpers/path-literal-scan.ts` exist, are wired, and pass on all three legs. The pre-fix sources at c6415a2 scan to 5 + 3 = 8 violations (the verifier re-ran this). An injected `const injected = "/home/runner/x"; join(injected, "y")` is flagged. **Not flagged** by the scanner (verifier probe): (a) a literal passed straight to a product path function and compared with a bare literal expectation, e.g. `assert.equal(destinationFor("claude","s","C:\\root"), "C:\\root\\skills\\s\\SKILL.md")`, which is the CI-01 defect class and red on POSIX; (b) a `let` binding; (c) an aliased import `join as pj`; (d) a namespace import `p.join`; (e) an object-property value `env.HOME`. D-10 names "product path functions" in scope. The plan narrowed the scope to host path calls. Human decision requested. |
 | 3 | SC2: The Windows packed lifecycle leaves every real host managed path, including `~/.alpha-aos`, byte-identical, and the immutability assertion is unchanged | ✓ VERIFIED | Proof run windows leg: `✔ packed release completes ... lifecycle (82396.9 ms)` in the same `npm test` step as the cold context7/exa/firecrawl startups (37.0 s, 58.9 s, 70.4 s). The `hostMutationTargets` block has the same sha256 at c6415a2 and HEAD (`18ed4bc8...`). The verifier ran the c6415a2 `fingerprint` and the new `fingerprintManifest(...).digest` on `skills/`, `catalog/`, `schemas/`, `test/`, `package.json` and a missing path: all identical. `assert.deepEqual(afterHost, beforeHost, ...)` still compares the same map. The only added assertion (`vanishedEntryCount == 0`) is stricter. |
 | 4 | SC3: The Windows `~/.alpha-aos` change has a recorded, classified root cause with the deciding evidence (which bytes changed, which step wrote them) | ✓ VERIFIED | `.planning/debug/ci02-windows-alpha-aos-host-leak.md`: `classification: test-isolation leak`; the writer chain runs `startPinnedServer` → `upstreamEnvironmentPolicy` → `proxyCacheRoot` → `userStateRoot`; the per-entry drift is 20,447 added entries under `mcp-cache/npm-cache/{_npx,_cacache,_update-notifier-last-checked}`; a control run of the fixture alone left 0 entries; it records the CI timing overlap (~27 s) and the onset table. The product and test-oracle classes are ruled out with evidence. |
 | 5 | SC4: A regression test pins the diagnosed cause. It was observed failing against the unfixed code and passes against the fix | ✓ VERIFIED | The verifier reproduced RED on its own: the `git archive` of `ac67ffc` built in scratch fails `pinned upstream startups keep their npx cache ...` with `this file must resolve its own state root, not the host one`, and `d9e044a` fails both gate regressions (`tests 16 / pass 14 / fail 2`; the scratch home gained `.alpha-aos/journal` and `snapshots`). At HEAD on a scratch home, all pass (`16/16`, `1/1`) with 0 home entries. On CI all three regressions pass on all three legs. |
@@ -207,6 +210,7 @@ If accepted, add to this file's frontmatter:
 
 ```yaml
 overrides:
+
   - must_have: "The suite fails if any test under test/ asserts against a platform-specific absolute path literal"
     reason: "Guard covers the CI-01 defect shape (literal into join/resolve/normalize/relative/dirname/basename or path.<fn>, directly or via const), proven 8/8 on the pre-fix sources; remaining shapes are caught by the POSIX CI legs themselves"
     accepted_by: "{name}"
@@ -222,6 +226,7 @@ overrides:
 ### Gaps Summary
 
 No blocking gaps. The three red legs of run 35762417138 were each fixed at a diagnosed root cause:
+
 - CI-01: drive-letter fixture literals became `join(tmpdir(), ...)`, and a source guard was added.
 - CI-02: the test-isolation leak from `mcp-proxy`, `gate-engine` and `gate-lifecycle` writing the real `~/.alpha-aos` was fixed with test-owned state roots. The oracle is unchanged.
 

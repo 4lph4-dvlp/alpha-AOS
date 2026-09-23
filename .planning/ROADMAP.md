@@ -33,7 +33,7 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
 - Integer phases (10, 11, 12, 13): Planned milestone work, continuing from v0.1.0 Phase 9
 - Decimal phases (10.1, 10.2): Urgent insertions (marked with INSERTED)
 
-- [ ] **Phase 10: Three-OS CI Baseline** - Fix both red legs at their root cause and prove all three OS legs green in one `main` run
+- [x] **Phase 10: Three-OS CI Baseline** - Fix both red legs at their root cause and prove all three OS legs green in one `main` run (completed 2026-09-23)
 - [ ] **Phase 11: Managed Lifecycle Verification** - Give LIFE-01..08 an evidence-backed verification report, with unmet items recorded as named gaps
 - [ ] **Phase 12: Red-Main Guard** - Surface a red `main` as a self-closing tracking issue and block candidate promotion while it is red
 - [ ] **Phase 13: Dependency Candidate Promotion** - Refresh candidate PR #1 on green `main` and promote only the components with green, integrity-verified evidence
@@ -123,7 +123,7 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 10. Three-OS CI Baseline | v0.1.1 | 4/4 | In Progress|  |
+| 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
 | 11. Managed Lifecycle Verification | v0.1.1 | 0/TBD | Not started | - |
 | 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

@@ -41,12 +41,16 @@ A user can enter any supported project on any supported operating system and get
 - ✓ Directory-tree opt-out persists externally and ordinary harness entrypoints start from a clean baseline — v0.1.0 (Phase 5)
 - ✓ Repository-owned skills (`alpha-aos-control`, formerly `alpha-aos-pack-advisor`) are distributed to all five active harnesses with unsupported parity reported explicitly — v0.1.0 (Phases 8-9)
 - ✓ Filesystem boundaries, subprocess-output redaction, and bounded process/protocol transports are hardened — v0.1.0 (Phase 1)
+- ✓ `main` CI is green on ubuntu, macOS and Windows in a single push run (35818198049, attempt 1), each red leg fixed at a diagnosed root cause (CI-01..03) — v0.1.1 Phase 10
+
+### Active (keep-green)
+
+- [ ] Keep `main` green on all three OS legs so the dependency-candidate workflow remains a trustworthy promotion signal (guard owned by a later v0.1.1 phase)
 
 ### Active
 
-- [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack across active targets — built in v0.1.0 Phase 6 but never formally verified (no `06-VERIFICATION.md`), and the packed lifecycle test is red on windows-latest because the real host `~/.alpha-aos` changes across an isolated install/uninstall
+- [ ] Provide safe, comprehensible install, update, remove/uninstall, rollback, status, and doctor flows for the complete managed stack across active targets — built in v0.1.0 Phase 6 but never formally verified (no `06-VERIFICATION.md`) (the windows-latest packed-lifecycle red was fixed as a test-isolation leak in v0.1.1 Phase 10)
 - [ ] Validate every active supported harness on at least one real host; Claude Code's own real-host invocation receipt is the outstanding item (G-07-2, REL-02)
-- [ ] Restore a green three-OS CI on `main` and keep it green, so the dependency-candidate workflow is a trustworthy promotion signal
 - [ ] Promote the validated dependency candidate (PR #1: GSD 1.14.0, ecc 2.2.1, context7 4.1.1, firecrawl 3.25.2, pi 2.36.0) into the stable lock only on green evidence
 - [ ] Publish the v0.1.0 release artifacts and documentation (v0.1.0 closed with a non-publishing release preview)
 - [ ] Widen `PathProof.inode` beyond a JS double so a Windows file index above 2^53 cannot make two distinct inodes compare equal and hide a TOCTOU swap — emerged in Phase 2, currently owned by no phase
@@ -104,6 +108,7 @@ The authority boundaries are:
 | Treat `project-only` as configuration isolation, not a security boundary | Process-level isolation cannot honestly guarantee filesystem, network, or host-secret containment | ✓ Good |
 | Configure opt-out once and enforce it before normal harness startup | Directory-specific global exclusion cannot be applied reliably after skills, instructions, and MCP schemas have entered a running agent context | — Pending |
 | Scope drift-naming to callers that hold the reviewed plan value, rather than letting the preview persist one | Naming which noun moved is a diagnostic property; a non-persisting preview is a stated safety property (SAFE-01). Both drift branches already refuse with a runnable next step, so the safety property was kept and the must-have narrowed | ✓ Good |
+| Scope the path-literal test guard to host path semantics (literal reaching join/resolve/normalize/relative/dirname/basename or path.<fn>, directly or via const), not every absolute literal | A literal reading would flag ~50 legitimate opaque path strings; product-function shapes are caught by the POSIX CI legs. let/alias/namespace coverage deferred (10-UAT.md) | ✓ Good |
 | Defer true `sealed` isolation until after v0.1.0 | A real OS/container adapter is substantial and must not delay proving the core workflow and scoping model | — Pending |
 
 ## Evolution
@@ -124,4 +129,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-23 after v0.1.0 milestone*
+*Last updated: 2026-09-23 after Phase 10*

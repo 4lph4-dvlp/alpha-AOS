@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: CI Green & Dependency Promotion
-current_phase: 10
-current_phase_name: Three-OS CI Baseline
-status: verifying
-stopped_at: Completed 10-04-PLAN.md
-last_updated: "2026-09-23T04:36:37.533Z"
+current_phase: 11
+current_phase_name: Managed Lifecycle Verification
+status: planning
+stopped_at: Phase 10 complete, ready to plan Phase 11
+last_updated: "2026-09-23T05:58:28.196Z"
 last_activity: 2026-09-23
-last_activity_desc: Phase 10 execution started
-state_head: 4e47615b8083a473f9f2d5028d8502da640af863
+last_activity_desc: Phase 10 complete, transitioned to Phase 11
+state_head: 47366ab97a5cb19e61ccf0a9d89575f3c6ee999c
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 4
   completed_plans: 4
-  percent: 0
+  percent: 25
 ---
 
 # Project State
@@ -25,22 +25,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-23)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 10 — Three-OS CI Baseline
+**Current focus:** Phase 11 — Managed Lifecycle Verification
 
 ## Current Position
 
-Phase: 10 (Three-OS CI Baseline) — EXECUTING
-Plan: 4 of 4
-Status: Phase complete — ready for verification
-Last activity: 2026-09-23 — Phase 10 execution started
+Phase: 11 — Managed Lifecycle Verification
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-09-23 — Phase 10 complete, transitioned to Phase 11
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [███░░░░░░░] 25% (1/4 phases)
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 47
+- Total plans completed: 51
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -51,6 +51,7 @@ Progress: [░░░░░░░░░░] 0%
 | 01 | 27 | - | - |
 | 2 | 16 | - | - |
 | 4 | 4 | - | - |
+| 10 | 4 | - | - |
 
 **Recent Trend:**
 
@@ -252,10 +253,11 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ### Pending Todos
 
-None yet.
+- [Phase 10 follow-up] Widen `test/helpers/path-literal-scan.ts` to cover `let` bindings, aliased (`join as pj`) and namespace (`p.join`) `node:path` imports (10-UAT.md Deferred Follow-Ups).
 
 ### Blockers/Concerns
 
+- Advisory from 10-VERIFICATION: the ENOENT → `vanished` branch of `fingerprintManifest` (test/tarball-fixture.test.ts) has no in-repo regression test.
 - Partially resolved by Phase 02 (2026-09-09): evidence detection, pack selection and the reviewed, digest-bound plan are complete and verified; `project sync --apply` itself is still a stub. Phase 3 owns materialization, receipt writing and the transactional apply.
 - Full uninstall, external-package compensation, and interrupted-operation recovery are absent.
 - Ordinary-entrypoint tree-off suppression remains version- and surface-sensitive and must report unsupported unless exclusion is proven before load.
@@ -318,10 +320,10 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-09-23T04:36:37.472Z
-Stopped at: Completed 10-04-PLAN.md
+Last session: 2026-09-23T06:00:00Z
+Stopped at: Phase 10 complete, ready to plan Phase 11
 Resume file: None
 
 ## Operator Next Steps
 
-- Plan the first v0.1.1 phase with /gsd-discuss-phase 10 (or /gsd-plan-phase 10)
+- Phase 10 verified and complete (UAT 2/2). Next: /gsd-discuss-phase 11 (or /gsd-plan-phase 11)

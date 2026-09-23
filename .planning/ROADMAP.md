@@ -83,7 +83,7 @@ Plans:
   3. Every LIFE requirement that is not met appears as a named gap stating what is missing and what would close it, instead of being marked verified.
   4. The v0.1.0 "LIFE-01..08 unverified" known gap in the project's milestone record is closed, or narrowed to exactly the report's named gaps.
 
-**Plans**: 3/7 plans executed (3 waves)
+**Plans**: 4/7 plans executed (3 waves)
 
 Plans:
 **Wave 1**
@@ -94,7 +94,7 @@ Plans:
 
 - [x] 11-02-PLAN.md — LIFE-02: offline/fast status with a CLI-level I/O trap, coded doctor findings, doctor --discovery and --canary --no-spend per harness (wave 2)
 - [x] 11-03-PLAN.md — Phase 13 gate evidence: LIFE-01 five-harness reconcile and LIFE-08 update preview/apply (wave 2)
-- [ ] 11-04-PLAN.md — LIFE-03: uninstall previews, one-target and full-stack uninstall, both project-pack routes, isolated runtime clean, pseudo-terminal confirmation (wave 2)
+- [x] 11-04-PLAN.md — LIFE-03: uninstall previews, one-target and full-stack uninstall, both project-pack routes, isolated runtime clean, pseudo-terminal confirmation (wave 2)
 - [ ] 11-05-PLAN.md — LIFE-04 receipts and applied-state refusal; LIFE-07 external changes and recovery instructions (wave 2)
 - [ ] 11-06-PLAN.md — LIFE-05 rollback exact bytes and drift refusal; LIFE-06 failpoint interruption, repair and restart (wave 2)
 
@@ -142,6 +142,6 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
-| 11. Managed Lifecycle Verification | v0.1.1 | 3/7 | In Progress|  |
+| 11. Managed Lifecycle Verification | v0.1.1 | 4/7 | In Progress|  |
 | 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

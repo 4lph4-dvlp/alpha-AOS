@@ -5,16 +5,16 @@ milestone_name: CI Green & Dependency Promotion
 current_phase: 11
 current_phase_name: Managed Lifecycle Verification
 status: executing
-stopped_at: Completed 11-03-PLAN.md
-last_updated: "2026-09-23T19:37:19.368Z"
+stopped_at: Completed 11-04-PLAN.md
+last_updated: "2026-09-23T20:14:11.778Z"
 last_activity: 2026-09-23
 last_activity_desc: Phase 11 execution started
-state_head: b2ddedc3b79de4c33b21560f539ab963a94ea94b
+state_head: 385e8927d88f4bbcb3d615f89bdd08b1172ee596
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 11
-  completed_plans: 7
+  completed_plans: 8
   percent: 25
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 ## Current Position
 
 Phase: 11 (Managed Lifecycle Verification) — EXECUTING
-Plan: 4 of 7
+Plan: 5 of 7
 Status: Ready to execute
 Last activity: 2026-09-23 — Phase 11 execution started
 
@@ -120,6 +120,7 @@ Progress: [███░░░░░░░] 25% (1/4 phases)
 | Phase 11 P01 | 25 min | 3 tasks | 12 files |
 | Phase 11 P02 | 44min | 2 tasks | 7 files |
 | Phase 11 P03 | 4h27m | 3 tasks | 9 files |
+| Phase 11 P04 | 34 min | 3 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -259,6 +260,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 11]: 11-02: LIFE-02 provisional PARTIAL; codex and pi read-only execution evidence comes from doctor --discovery native invocations; claude cost-excluded legs map to G-07-2 / REL-02; doctor blind to corrupt journals is gap candidate LIFE-02/C6
 - [Phase 11]: 11-03: LIFE-01 provisional PARTIAL, gap candidate LIFE-01/C1 (combined codex+pi install refuses with plan-drift on shared ~/.agents/skills/alpha-aos-control); LIFE-01 blocks Phase 13: yes
 - [Phase 11]: 11-03: LIFE-08 provisional VERIFIED (all 7 preview surfaces byte-identical except pwsh engine cache, reproduced by a no-alpha-AOS control; update --apply ignores an unreviewed candidate lock); LIFE-08 blocks Phase 13: no; contingent LIFE-08/C1 left to 11-07
+- [Phase 11]: 11-04: LIFE-03 provisional GAP - uninstall --project removes user files and the reviewed stack.yaml while leaving pack targets; no uninstall scope removes alpha-aos-control/alpha-aos-ship owned skills (candidates LIFE-03/C1..C5)
+- [Phase 11]: 11-04: interactive uninstall [y/N] confirmation evidenced through a WSL util-linux script pty (prompt shown, n aborts byte-identical, y proceeds)
 
 ### Pending Todos
 
@@ -329,8 +332,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-23T19:37:19.082Z
-Stopped at: Completed 11-03-PLAN.md
+Last session: 2026-09-23T20:14:11.508Z
+Stopped at: Completed 11-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

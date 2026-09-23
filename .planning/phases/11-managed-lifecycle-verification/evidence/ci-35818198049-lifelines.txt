@@ -1,0 +1,166 @@
+probe: ci-35818198049-lifelines
+head: 84bce0a30da6f75ede03db7d352c41406b2b0520
+dirty-tracked: 4
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: n/a
+started: 2026-09-23T12:04:58.119Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: CI run 35818198049 identity
+$ gh run view 35818198049 --json headSha,conclusion,event,attempt
+env-overrides: none
+exit: 0
+duration-ms: 956
+--- stdout (105B sha256=81c671240faf) ---
+{"attempt":1,"conclusion":"success","event":"push","headSha":"35d4c1579102fd9effd2ad7bf0f4d438db7865ba"}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK ci.run HOLDS run 35818198049 attempt 1: conclusion=success, event=push, head=35d4c15
+note: Phase 6 titles matched against each job log: 33; packed lifecycle title: "packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle"
+
+## step 2: ubuntu-latest job 107044319989 log lines
+$ gh run view --job 107044319989 --log   (kept: lines containing a Phase 6 test title or the packed lifecycle title; ANSI stripped; 1405 log lines read)
+env-overrides: none
+exit: 0
+duration-ms: 3177
+--- stdout (5592B sha256=3c089ba05a70) ---
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:33.4650813Z ✔ stable-lock reconciliation against already-applied stack is idempotent and executes zero writes (LIFE-01, D-15) (178.503455ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:33.4652770Z ✔ idempotent repetition produces identical results without accumulating journals or snapshots (LIFE-01) (31.923293ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:33.4656209Z ✔ pure read-only update preview performs zero filesystem writes or package mutations (LIFE-08, D-16) (44.548072ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:33.4658172Z ✔ candidate locks are strictly rejected by stable lock reconciliation (LIFE-08, D-16) (78.194335ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3652209Z ✔ recovery receipt conforms strictly to schema and writes ahead durably (LIFE-07, D-13) (87.864483ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3653759Z ✔ invalid recovery receipt with missing or unknown fields is rejected (10.587314ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3655651Z ✔ GSD compensation generator outputs correct command for upgrade and fresh install (1.113067ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3657384Z ✔ ECC runtime compensation generator outputs correct command for upgrade and fresh install (0.254635ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3659037Z ✔ Pi bridge and npm link compensation generators output honest instructions (0.323724ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3682281Z ✔ snapshot crash repair safely restores pre-crash baseline and marks repaired (LIFE-06, D-09, D-10) (22.283525ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3683075Z ✔ repair refuses when writer process is still alive (LIFE-06, D-12) (4.616968ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3683722Z ✔ stale writer lock with dead process is released (LIFE-06, D-12) (3.411155ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3684651Z ✔ corrupt journal is quarantined to unblock operations (LIFE-06, D-11) (3.725228ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3685366Z ✔ incomplete journal with missing snapshots is quarantined (LIFE-06, D-11) (5.305839ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3686144Z ✔ all-or-nothing preflight refusal on drift performs zero writes (LIFE-05, D-05) (91.794877ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3687013Z ✔ drift diagnostics emit exact paths, hashes, unified diffs, and manual guidance (LIFE-05, D-06) (27.985331ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3687835Z ✔ strict LIFO ordering enforcement prevents non-head rollback (LIFE-05, D-07) (66.207388ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3688630Z ✔ clean reverse directory sweep removes only empty parent directories (LIFE-05, D-08) (40.194262ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3700998Z ✔ offline status strictly executes zero subprocesses (LIFE-02, D-14) (133.794086ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3701672Z ✔ offline status completes in under 50ms benchmark (LIFE-02, D-14) (21.495975ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3702324Z ✔ healthy stack reports needsRepair=false and free writer (LIFE-02) (9.866989ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3702984Z ✔ incomplete transaction flags needsRepair=true (LIFE-02, D-09) (15.572685ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3703687Z ✔ corrupt journal flags needsRepair=true and records filename (LIFE-02, D-09) (12.62765ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3704692Z ✔ stale lock flags needsRepair=true and writerStatus=needs-repair (LIFE-02, D-09) (7.753385ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3705353Z ✔ directory tree policies count is accurately reported (7.724622ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3717330Z ✔ packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle (13526.189727ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3763438Z ✔ target-level uninstall removes managed MCP servers while preserving user servers and credentials (LIFE-03, D-01) (106.42441ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3765262Z ✔ semantic pruning fidelity across TOML, JSON, YAML, and Markdown (LIFE-04, D-03) (28.148526ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3766759Z ✔ tampering and missing closing markers safely refuse with SemanticPruneDriftError (LIFE-04, D-03) (1.918389ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3768406Z ✔ project pack removal removes sidecars and sweeps empty directories (LIFE-03, D-01) (23.629021ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3770069Z ✔ full stack uninstall preserves historical transaction journals by default (LIFE-04, D-04) (77.497938ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3771500Z ✔ purge flag completely removes state directory (LIFE-04, D-04) (4.750813ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3772945Z ✔ formatUninstallPlan and formatUninstallResult format clear previews and summaries (0.496917ms)
+ubuntu-latest / Node 24	UNKNOWN STEP	2026-09-23T04:27:02.3774715Z ✔ non-interactive environment requires --yes to apply uninstall (LIFE-03, D-02) (491.188267ms)
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK ci.ubuntu.phase6-titles HOLDS 33/33 Phase 6 titles carry a pass marker and none a fail marker
+CHECK ci.ubuntu.packed-lifecycle HOLDS packed lifecycle title: pass marker present, fail marker absent
+
+## step 3: macos-latest job 107044319988 log lines
+$ gh run view --job 107044319988 --log   (kept: lines containing a Phase 6 test title or the packed lifecycle title; ANSI stripped; 1409 log lines read)
+env-overrides: none
+exit: 0
+duration-ms: 3454
+--- stdout (5549B sha256=ac7e0ebeedcc) ---
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:34.9586890Z ✔ stable-lock reconciliation against already-applied stack is idempotent and executes zero writes (LIFE-01, D-15) (96.110334ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:34.9588560Z ✔ idempotent repetition produces identical results without accumulating journals or snapshots (LIFE-01) (21.336833ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:34.9590730Z ✔ pure read-only update preview performs zero filesystem writes or package mutations (LIFE-08, D-16) (24.842542ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:25:34.9592350Z ✔ candidate locks are strictly rejected by stable lock reconciliation (LIFE-08, D-16) (33.533542ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3527000Z ✔ recovery receipt conforms strictly to schema and writes ahead durably (LIFE-07, D-13) (55.018042ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3527700Z ✔ invalid recovery receipt with missing or unknown fields is rejected (14.934625ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3528410Z ✔ GSD compensation generator outputs correct command for upgrade and fresh install (0.841334ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3529200Z ✔ ECC runtime compensation generator outputs correct command for upgrade and fresh install (0.175875ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3529930Z ✔ Pi bridge and npm link compensation generators output honest instructions (0.19925ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3723290Z ✔ snapshot crash repair safely restores pre-crash baseline and marks repaired (LIFE-06, D-09, D-10) (11.864375ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3724020Z ✔ repair refuses when writer process is still alive (LIFE-06, D-12) (6.404667ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3724650Z ✔ stale writer lock with dead process is released (LIFE-06, D-12) (4.296916ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3725300Z ✔ corrupt journal is quarantined to unblock operations (LIFE-06, D-11) (4.205541ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3725970Z ✔ incomplete journal with missing snapshots is quarantined (LIFE-06, D-11) (2.623041ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3726760Z ✔ all-or-nothing preflight refusal on drift performs zero writes (LIFE-05, D-05) (62.357375ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3728290Z ✔ drift diagnostics emit exact paths, hashes, unified diffs, and manual guidance (LIFE-05, D-06) (24.571417ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3729090Z ✔ strict LIFO ordering enforcement prevents non-head rollback (LIFE-05, D-07) (71.1705ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3733560Z ✔ clean reverse directory sweep removes only empty parent directories (LIFE-05, D-08) (54.488833ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3766120Z ✔ offline status strictly executes zero subprocesses (LIFE-02, D-14) (51.562166ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3766870Z ✔ offline status completes in under 50ms benchmark (LIFE-02, D-14) (6.063916ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3767510Z ✔ healthy stack reports needsRepair=false and free writer (LIFE-02) (4.014667ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3768250Z ✔ incomplete transaction flags needsRepair=true (LIFE-02, D-09) (6.514583ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3768930Z ✔ corrupt journal flags needsRepair=true and records filename (LIFE-02, D-09) (4.574292ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3769660Z ✔ stale lock flags needsRepair=true and writerStatus=needs-repair (LIFE-02, D-09) (3.530666ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3770290Z ✔ directory tree policies count is accurately reported (3.627666ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3788880Z ✔ packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle (8962.986042ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3878110Z ✔ target-level uninstall removes managed MCP servers while preserving user servers and credentials (LIFE-03, D-01) (76.653333ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3880360Z ✔ semantic pruning fidelity across TOML, JSON, YAML, and Markdown (LIFE-04, D-03) (7.940666ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3881190Z ✔ tampering and missing closing markers safely refuse with SemanticPruneDriftError (LIFE-04, D-03) (1.252708ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3882010Z ✔ project pack removal removes sidecars and sweeps empty directories (LIFE-03, D-01) (25.039834ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3882830Z ✔ full stack uninstall preserves historical transaction journals by default (LIFE-04, D-04) (34.181209ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3889690Z ✔ purge flag completely removes state directory (LIFE-04, D-04) (3.337417ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3891180Z ✔ formatUninstallPlan and formatUninstallResult format clear previews and summaries (0.353583ms)
+macos-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:51.3892000Z ✔ non-interactive environment requires --yes to apply uninstall (LIFE-03, D-02) (213.896458ms)
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK ci.macos.phase6-titles HOLDS 33/33 Phase 6 titles carry a pass marker and none a fail marker
+CHECK ci.macos.packed-lifecycle HOLDS packed lifecycle title: pass marker present, fail marker absent
+
+## step 4: windows-latest job 107044319963 log lines
+$ gh run view --job 107044319963 --log   (kept: lines containing a Phase 6 test title or the packed lifecycle title; ANSI stripped; 1393 log lines read)
+env-overrides: none
+exit: 0
+duration-ms: 3215
+--- stdout (5562B sha256=cc93624207f4) ---
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:43.4217165Z ✔ stable-lock reconciliation against already-applied stack is idempotent and executes zero writes (LIFE-01, D-15) (514.9892ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:43.4219338Z ✔ idempotent repetition produces identical results without accumulating journals or snapshots (LIFE-01) (52.3266ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:43.4221119Z ✔ pure read-only update preview performs zero filesystem writes or package mutations (LIFE-08, D-16) (75.426ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:26:43.4222715Z ✔ candidate locks are strictly rejected by stable lock reconciliation (LIFE-08, D-16) (318.2501ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3784837Z ✔ recovery receipt conforms strictly to schema and writes ahead durably (LIFE-07, D-13) (67.1811ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3785616Z ✔ invalid recovery receipt with missing or unknown fields is rejected (13.5868ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3786366Z ✔ GSD compensation generator outputs correct command for upgrade and fresh install (0.9554ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3787214Z ✔ ECC runtime compensation generator outputs correct command for upgrade and fresh install (0.1781ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3787987Z ✔ Pi bridge and npm link compensation generators output honest instructions (0.3445ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3805452Z ✔ snapshot crash repair safely restores pre-crash baseline and marks repaired (LIFE-06, D-09, D-10) (23.9271ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3806167Z ✔ repair refuses when writer process is still alive (LIFE-06, D-12) (4.3876ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3806753Z ✔ stale writer lock with dead process is released (LIFE-06, D-12) (3.827ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3807354Z ✔ corrupt journal is quarantined to unblock operations (LIFE-06, D-11) (6.9817ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3808000Z ✔ incomplete journal with missing snapshots is quarantined (LIFE-06, D-11) (37.4551ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3808684Z ✔ all-or-nothing preflight refusal on drift performs zero writes (LIFE-05, D-05) (554.6938ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3809458Z ✔ drift diagnostics emit exact paths, hashes, unified diffs, and manual guidance (LIFE-05, D-06) (245.1868ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3810199Z ✔ strict LIFO ordering enforcement prevents non-head rollback (LIFE-05, D-07) (516.424ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3810917Z ✔ clean reverse directory sweep removes only empty parent directories (LIFE-05, D-08) (482.2191ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3822264Z ✔ offline status strictly executes zero subprocesses (LIFE-02, D-14) (127.1999ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3822973Z ✔ offline status completes in under 50ms benchmark (LIFE-02, D-14) (12.4302ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3823583Z ✔ healthy stack reports needsRepair=false and free writer (LIFE-02) (7.6704ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3824177Z ✔ incomplete transaction flags needsRepair=true (LIFE-02, D-09) (14.198ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3824825Z ✔ corrupt journal flags needsRepair=true and records filename (LIFE-02, D-09) (8.3994ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3825519Z ✔ stale lock flags needsRepair=true and writerStatus=needs-repair (LIFE-02, D-09) (5.6133ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:00.3826143Z ✔ directory tree policies count is accurately reported (6.2827ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1027987Z ✔ packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle (82396.8753ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1207311Z ✔ target-level uninstall removes managed MCP servers while preserving user servers and credentials (LIFE-03, D-01) (510.0871ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1208463Z ✔ semantic pruning fidelity across TOML, JSON, YAML, and Markdown (LIFE-04, D-03) (15.4274ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1209259Z ✔ tampering and missing closing markers safely refuse with SemanticPruneDriftError (LIFE-04, D-03) (1.1645ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1210056Z ✔ project pack removal removes sidecars and sweeps empty directories (LIFE-03, D-01) (100.6725ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1210821Z ✔ full stack uninstall preserves historical transaction journals by default (LIFE-04, D-04) (63.9638ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1211501Z ✔ purge flag completely removes state directory (LIFE-04, D-04) (6.9779ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1212162Z ✔ formatUninstallPlan and formatUninstallResult format clear previews and summaries (0.5812ms)
+windows-latest / Node 24	UNKNOWN STEP	2026-09-23T04:30:53.1212905Z ✔ non-interactive environment requires --yes to apply uninstall (LIFE-03, D-02) (590.4477ms)
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK ci.windows.phase6-titles HOLDS 33/33 Phase 6 titles carry a pass marker and none a fail marker
+CHECK ci.windows.packed-lifecycle HOLDS packed lifecycle title: pass marker present, fail marker absent
+
+## step 5: staleness diff 35d4c15..HEAD
+$ git diff --stat 35d4c15 HEAD -- src scripts catalog package.json package-lock.json test/lifecycle.test.ts test/status.test.ts test/recovery-receipt.test.ts test/repair.test.ts test/rollback.test.ts test/uninstall.test.ts test/transaction.test.ts test/transaction-crash.test.ts test/isolation.test.ts test/update.test.ts test/canary.test.ts test/doctor.test.ts
+env-overrides: none
+exit: 0
+duration-ms: 52
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK ci.staleness HOLDS src, scripts, catalog, package.json, package-lock.json and the 12 cited suite files are byte-identical between 35d4c15 and HEAD
+note: test/tarball-fixture.test.ts changed in plan 11-01 (helpers moved to test/helpers/packed-sandbox.ts, dry-run CURRENT and sandbox byte-identity assertions added), so run 35818198049 corroborates its 35d4c15 form; its new oracle is corroborated on POSIX only by the next main CI run
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=8 violated=0 not-observed=0 observed=0

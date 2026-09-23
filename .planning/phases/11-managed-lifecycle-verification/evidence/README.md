@@ -58,7 +58,7 @@ node .planning/phases/11-managed-lifecycle-verification/evidence/probes/<probe>.
 diff <(grep '^CHECK' .planning/phases/11-managed-lifecycle-verification/evidence/<transcript>.txt) <(grep '^CHECK' <scratch file>)
 ```
 
-`--out <path>` writes the transcript to a scratch file and leaves the committed transcript untouched. `--keep` keeps the sandbox directories for inspection. `ALPHA_AOS_P11_TARBALL=<path>` reuses an existing tarball instead of packing (its path is aliased to `<pack>`). The diff prints nothing when the evidence reproduces.
+`--out <path>` writes the transcript to a scratch file and leaves the committed transcript untouched. A probe that writes more than one transcript (`suites-and-ci.mjs`) takes `--out-dir <dir>` instead and writes each transcript under its committed file name into that directory. `--keep` keeps the sandbox directories for inspection. `ALPHA_AOS_P11_TARBALL=<path>` reuses an existing tarball instead of packing (its path is aliased to `<pack>`). The diff prints nothing when the evidence reproduces.
 
 ## Findings file template (`LIFE-0N-findings.md`)
 

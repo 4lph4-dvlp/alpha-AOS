@@ -19,7 +19,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "..");
@@ -70,7 +70,7 @@ export const CONTAINED_LOCATION_NAMES = Object.freeze([
 // ---------------------------------------------------------------- arguments
 
 function parseProbeArgs(argv) {
-  const result = { keep: false, out: null, rest: [] };
+  const result = { keep: false, out: null, outDir: null, rest: [] };
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
     if (value === "--keep") result.keep = true;
@@ -78,6 +78,11 @@ function parseProbeArgs(argv) {
       const next = argv[index + 1];
       if (!next) throw new Error("--out needs a path");
       result.out = resolve(next);
+      index += 1;
+    } else if (value === "--out-dir") {
+      const next = argv[index + 1];
+      if (!next) throw new Error("--out-dir needs a directory");
+      result.outDir = resolve(next);
       index += 1;
     } else result.rest.push(value);
   }
@@ -168,7 +173,7 @@ function oneLine(value) {
 let activeTranscript = null;
 
 export function createTranscript(probeId, outPath) {
-  const target = probeArgs.out ?? outPath;
+  const target = probeArgs.out ?? (probeArgs.outDir ? join(probeArgs.outDir, basename(outPath)) : outPath);
   const head = (gitQuery(["rev-parse", "HEAD"]) ?? "unknown").trim();
   const porcelain = gitQuery(["status", "--porcelain", "--untracked-files=no"]) ?? "";
   const dirty = porcelain.split("\n").filter((line) => line.trim().length > 0).length;

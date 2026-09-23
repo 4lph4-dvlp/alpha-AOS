@@ -1,0 +1,251 @@
+probe: suites-local
+head: 84bce0a30da6f75ede03db7d352c41406b2b0520
+dirty-tracked: 4
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: n/a
+started: 2026-09-23T12:03:49.383Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+note: child env: process.env with HOME and USERPROFILE set to <scratch-home> and ALPHA_AOS_STATE_DIR, CODEX_HOME, CLAUDE_CONFIG_DIR, HERMES_HOME, PI_CODING_AGENT_DIR, ANTIGRAVITY_CONFIG_DIR removed (the Phase 10 host-safe pattern); scripts/run-tests.mjs strips npm lifecycle names
+note: per-test lines and summary lines below are the runner's own output with ANSI escapes stripped
+
+## step 1: Phase 6 suites
+$ node scripts/run-tests.mjs --files dist/test/lifecycle.test.js dist/test/status.test.js dist/test/recovery-receipt.test.js dist/test/repair.test.js dist/test/rollback.test.js dist/test/uninstall.test.js
+env-overrides: HOME, USERPROFILE
+exit: 0
+duration-ms: 2625
+--- stdout (3301B sha256=7f410afc785b) ---
+✔ stable-lock reconciliation against already-applied stack is idempotent and executes zero writes (LIFE-01, D-15) (785.6704ms)
+✔ idempotent repetition produces identical results without accumulating journals or snapshots (LIFE-01) (81.9509ms)
+✔ pure read-only update preview performs zero filesystem writes or package mutations (LIFE-08, D-16) (106.9631ms)
+✔ candidate locks are strictly rejected by stable lock reconciliation (LIFE-08, D-16) (477.8548ms)
+✔ recovery receipt conforms strictly to schema and writes ahead durably (LIFE-07, D-13) (171.414ms)
+✔ invalid recovery receipt with missing or unknown fields is rejected (29.4488ms)
+✔ GSD compensation generator outputs correct command for upgrade and fresh install (2.1319ms)
+✔ ECC runtime compensation generator outputs correct command for upgrade and fresh install (0.4642ms)
+✔ Pi bridge and npm link compensation generators output honest instructions (0.3798ms)
+✔ snapshot crash repair safely restores pre-crash baseline and marks repaired (LIFE-06, D-09, D-10) (62.9815ms)
+✔ repair refuses when writer process is still alive (LIFE-06, D-12) (13.0913ms)
+✔ stale writer lock with dead process is released (LIFE-06, D-12) (12.6731ms)
+✔ corrupt journal is quarantined to unblock operations (LIFE-06, D-11) (14.5281ms)
+✔ incomplete journal with missing snapshots is quarantined (LIFE-06, D-11) (17.2004ms)
+✔ all-or-nothing preflight refusal on drift performs zero writes (LIFE-05, D-05) (257.3027ms)
+✔ drift diagnostics emit exact paths, hashes, unified diffs, and manual guidance (LIFE-05, D-06) (106.2575ms)
+✔ strict LIFO ordering enforcement prevents non-head rollback (LIFE-05, D-07) (214.0106ms)
+✔ clean reverse directory sweep removes only empty parent directories (LIFE-05, D-08) (166.0569ms)
+✔ offline status strictly executes zero subprocesses (LIFE-02, D-14) (239.0927ms)
+✔ offline status completes in under 50ms benchmark (LIFE-02, D-14) (19.5795ms)
+✔ healthy stack reports needsRepair=false and free writer (LIFE-02) (14.6145ms)
+✔ incomplete transaction flags needsRepair=true (LIFE-02, D-09) (25.3087ms)
+✔ corrupt journal flags needsRepair=true and records filename (LIFE-02, D-09) (18.8115ms)
+✔ stale lock flags needsRepair=true and writerStatus=needs-repair (LIFE-02, D-09) (14.7866ms)
+✔ directory tree policies count is accurately reported (18.9766ms)
+✔ target-level uninstall removes managed MCP servers while preserving user servers and credentials (LIFE-03, D-01) (364.207ms)
+✔ semantic pruning fidelity across TOML, JSON, YAML, and Markdown (LIFE-04, D-03) (17.7329ms)
+✔ tampering and missing closing markers safely refuse with SemanticPruneDriftError (LIFE-04, D-03) (2.6403ms)
+✔ project pack removal removes sidecars and sweeps empty directories (LIFE-03, D-01) (81.0459ms)
+✔ full stack uninstall preserves historical transaction journals by default (LIFE-04, D-04) (88.5144ms)
+✔ purge flag completely removes state directory (LIFE-04, D-04) (14.0684ms)
+✔ formatUninstallPlan and formatUninstallResult format clear previews and summaries (0.8719ms)
+✔ non-interactive environment requires --yes to apply uninstall (LIFE-03, D-02) (895.5316ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2446.6866
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK suites.phase6 HOLDS exit=0; tests=33 pass=33 fail=0 skipped=0 todo=0 cancelled=0
+
+## step 2: supporting oracle suites
+$ node scripts/run-tests.mjs --files dist/test/transaction.test.js dist/test/transaction-crash.test.js dist/test/isolation.test.js dist/test/update.test.js dist/test/canary.test.js dist/test/doctor.test.js
+env-overrides: HOME, USERPROFILE
+exit: 0
+duration-ms: 36360
+--- stdout (17277B sha256=a1b3c31411c9) ---
+✔ the shipped catalog declares the documentation canary, the research canary and the fan-out control (206.58ms)
+✔ the shipped documentation canary declares one Codex leg while retaining Claude (0.6165ms)
+✔ the shipped research canary and ordinary lookup control declare Codex legs while retaining Claude (0.42ms)
+✔ catalog/stack.yaml declares policy.canaryHarness as codex under D-17 (5.2219ms)
+✔ an explicit harness filter with no declaration is refused with stable alternatives (2.1202ms)
+✔ an explicit capability filter with no declaration names the available ids and capabilities (0.6091ms)
+✔ an unfiltered empty catalog remains a valid zero-work sweep (0.7398ms)
+✔ an explicit empty selection refuses before announcements or run callbacks (0.6269ms)
+✔ the shipped Codex CAPA-01 filter selects one pair and reaches its runner (1.3239ms)
+✔ compiled doctor refuses an undeclared Pi canary before creating managed state (1086.5692ms)
+✔ compiled doctor accounts for the one Codex CAPA-01 no-spend leg without launching it (3002.0068ms)
+﹣ opt-in live Codex CAPA-01 agrees immediately and after its temporary ledger round trip (0.369ms) # SKIP
+✔ an explicit-filter CLI refusal exposes no auth, credential, environment, or runtime value (995.9151ms)
+✔ the doctor branch validates selection before state and version work (1.937ms)
+✔ every declared prompt names none of its expected tools, no pinned server id and no locked skill id (3.6577ms)
+✔ prompt hygiene compares token sequences, so an ordinary word carrying a server id is not a hint (0.3741ms)
+✔ loadCanaryCatalog refuses a catalog carrying an unknown property (62.5036ms)
+✔ loadCanaryCatalog refuses a prompt reworded to name the tool it should elicit (57.4079ms)
+✔ loadCanaryCatalog refuses a duplicated canary id rather than silently keeping one (53.7565ms)
+✔ the canary catalog schema is a closed world at every object level (1.983ms)
+✔ a declaration's expectation lists carry the tool names so the prompt does not have to (0.2887ms)
+✔ an unset required variable is blocked with a code, the variable name and a next action (1.2528ms)
+✔ a set credential value never reaches the serialized readiness report (0.4214ms)
+✔ with every requirement satisfied the readiness report is ready and the canary may run (1.8954ms)
+✔ an unconfigured provider is blocked with the provider named, from the harness's own readiness output (0.7129ms)
+✔ a failed MCP server is blocked naming the server, and a registered-but-pending one is not (0.8044ms)
+✔ the connection listing parser keeps server names and states and retains no command line (0.2881ms)
+✔ an unresolvable harness is blocked, and the readiness report says which command was looked for (0.2546ms)
+✔ the readiness report records the provider and model the harness would actually run on (0.6284ms)
+✔ a failure no probe named stays unverified, and no cause yields both blocked and unverified (0.3772ms)
+✔ BLOCKED_CODES is a frozen table of upper-snake codes covering the four named causes (0.2527ms)
+✔ a BlockedReason has exactly code, variable and nextAction, and no field able to hold a value (0.2504ms)
+✔ no readiness argument vector carries a flag whose documented effect is to emit a secret (7.4623ms)
+✔ the preview-context guard refuses with a stable code and names the command to run instead (0.8803ms)
+✔ a canary entry point reached from a preview context is refused before it launches anything (0.58ms)
+✔ the preview module does not import the canary module, at the source level (7.5524ms)
+✔ every canary declaration exposes whether a run would spend a model turn (0.9476ms)
+✔ Codex discovery remains free while invocation uses the costed ephemeral exec surface (0.6335ms)
+✔ the canary runtime's MCP configuration points every server at the alpha-AOS observation front (656.2199ms)
+✔ a credential value never reaches the rendered canary runtime configuration, and its name does (198.271ms)
+✔ a second canary runtime does not inherit the first run's observation records (361.3301ms)
+✔ the invocation axis is computed from observation records only, never from what the harness said (482.1888ms)
+✔ a declared argument pattern is reported unchecked, never satisfied, because the record has no arguments (0.5348ms)
+✔ a canary run leaves every harness config root byte-identical and gains no entry (288.1162ms)
+✔ a canary run creates paths only under the managed state root, and only ones it declared (260.7341ms)
+✔ a canary runtime is single-use, so a second run cannot inherit the first run's records (234.5866ms)
+✔ a canary with an unavailable observation sink refuses before the harness launches (178.3273ms)
+✔ no environment name outside the platform floor plus the declared canary names reaches the harness child (183.0196ms)
+✔ the free discovery sweep completes with no credential, spends no model turn, and records an evidence unit (1.8811ms)
+✔ the canary sweep prints what it would spend before it runs anything (0.7953ms)
+✔ a canary blocked on an unset credential names the variable and the next action, and never a value (1.3102ms)
+✔ --json carries all three axes for every capability and the human output carries one line each (0.9225ms)
+✔ a supported row says NOT-RUN when no discovery leg ran and repeats the reason in its detail cell (0.38ms)
+✔ a complete discovery row exposes both halves' claim notes in positive-then-negative order (0.3694ms)
+✔ claim notes render in full on tagged lines after incompleteness without changing the table (0.7598ms)
+✔ an INCOMPLETE unit renders INCOMPLETE and never the positive's native-use value (0.4329ms)
+✔ the canary runtime carries the alpha-AOS-owned routing instruction inside the config root the launch points at (381.1168ms)
+✔ runtime instruction ids name exactly the materialized targets, including the scoped CAPA-03 instruction (486.6145ms)
+✔ codex runtime materializes owned steering instructions including scoped CAPA-03 into .agents/skills (plan 03-21 / G-03-2) (532.5373ms)
+✔ the serialized doctor discovery envelope has no cycle placeholder and keeps the canonical unit complete (7.6968ms)
+✔ discovery rows preserve the driven unit and the skipped leg's stated absence (0.4673ms)
+✔ a validated Codex runtime supplies readiness evidence and ordered observations decide invocation (408.6171ms)
+✔ Codex canary artifacts preserve credential names but never credential values or copied auth bytes (230.8803ms)
+✔ a Codex runtime derives overrides for exactly its validated observation-front servers (161.6587ms)
+✔ Codex authentication fallback preserves the platform home while every controlled write root stays runtime-local (383.4424ms)
+✔ Codex boundary mutations are refused before any launcher can run (181.7275ms)
+✔ a launched canary proof records its runtime scope and the recorded instruction ids without recomputing them (271.3512ms)
+✔ a refused canary carries runtime instruction ids but has no proof or claim note (165.7332ms)
+✔ a canary runtime refuses to be created when its owned instruction is missing (8.8736ms)
+✔ a harness with no reachable skill root gets no instruction rather than one written where nothing reads it (124.2766ms)
+✔ the canary runtime for codex carries the alpha-AOS-owned routing instruction under .agents/skills (184.0743ms)
+✔ the shipped documentation canary has one strict completion route and five fail-closed controls (0.6447ms)
+✔ a documentation pair whose query carried a version-scoped identifier matches, and the same pair without one does not (0.3983ms)
+✔ a declared pattern is still reported unchecked when the record carries no shape for it (0.2296ms)
+✔ expectations are matched as an ordered sequence, so extraction-before-discovery is a different verdict from discovery-then-extraction (0.2775ms)
+✔ the ordered match is a subsequence, so an unrelated call between the two legs does not break the order (0.1179ms)
+✔ the distinct-server boundary passes at exactly the declared maximum and fails at one past it (0.2013ms)
+✔ two calls to one research server count as one touch and two calls to two servers count as two (0.1456ms)
+✔ a forbidden tool anywhere in the observation list is a finding naming that tool, even when the expectations matched (0.188ms)
+✔ an empty observation list yields the unverified axis with the empty oracle output fingerprinted, never discovered (240.7115ms)
+✔ a discovery leg that returned zero results is unverified with its reason and carries no invocation record for the leg that never ran (0.3752ms)
+✔ the observation record gained exactly one new metadata field, and it records a shape rather than a value (0.1965ms)
+✔ a version-scoped identifier's full value is absent from the serialized observation record (0.3193ms)
+✔ a reader skips an observation line whose identifier shape is not one this repository declared (0.1579ms)
+✔ a second proof for one project-harness-capability triple replaces the first and retains the replaced exact harness version (0.5434ms)
+✔ a replaced proof's superseded versions accumulate rather than overwrite, and null exact versions are not recorded (0.2983ms)
+✔ a connected server is read as connected in both glyph spellings the harness prints (0.6217ms)
+✔ the connection gate blocks on a server this host reports as needing authentication (0.4837ms)
+✔ the vault doctor envelope is read through its declared schema identifier, and a mismatch is refused naming both (1.6483ms)
+✔ a handoff is written for a named source and target harness and returns the envelope the vault produced (0.5877ms)
+✔ a filtered recall returns only the entries whose target is the named harness (0.479ms)
+✔ the memory adapter makes no direct child-process call and travels the bounded process adapter (14.1723ms)
+✔ a handoff body travels the non-argument input path and its sentinel never reaches the recorded arguments (0.4921ms)
+✔ an absent vault CLI is unsupported with its reason and an unreadable envelope is unparsed, never a success (0.8569ms)
+✔ two consecutive digests over an unchanged planning tree are identical (28.2626ms)
+✔ changing one byte under the planning tree moves the digest and names the file that moved (26.3695ms)
+✔ adding a file and removing a file each move the digest and name the path (36.7613ms)
+✔ a path under the planning tree that cannot be read is undecidable with its errno, and the digest is incomplete (40.5189ms)
+✔ the same planning content under two different directory names produces the same digest (40.54ms)
+✔ hashing the planning tree writes nothing: bytes and modification times are identical afterwards (40.3611ms)
+✔ the handoff canary is declared in the shipped catalog and names neither a harness pair nor a tool (0.6557ms)
+✔ a handoff run pairs the vault positive with the planning-tree negative into one COMPLETE unit (29.2088ms)
+✔ a planning file that moves during the handoff makes the negative fail and the unit INCOMPLETE, naming the file (28.0752ms)
+✔ a handoff whose recall does not return the sentinel yields no positive, and the unit says which half is missing (27.7639ms)
+✔ a vault that gained TWO memories yields no positive: the claim is exactly one, not at least one (25.5918ms)
+✔ a host that cannot run two harnesses records blocked with the requirement named, and nothing is attempted (12.8764ms)
+✔ the handoff report names both harnesses with their versions and states the scope limit last (24.2686ms)
+✔ the memory-handoff steering instruction is materialized for CAPA-03 and for nothing else (1.8722ms)
+✔ an unavailable preferred pair falls back to the declared fallback, and the row says which pair actually ran (39.1294ms)
+✔ handoff pair resolution preserves fallback to legacy Claude pairs when active non-Claude targets are unavailable (0.5314ms)
+✔ both handoff proofs survive the ledger write-then-read round trip (130.5178ms)
+✔ a no-spend sweep records every spending leg unverified with its reason, and never blocked (1.1806ms)
+✔ offline equal-strength documentation proofs render in stable, byte-identical harness-id ascending order across active non-Claude surfaces (03-08 backstop / G-03-4) (0.3684ms)
+✔ Codex CAPA-02 multi-source research strict matrix verifies ordered Exa -> Firecrawl matching and fail-closed controls (0.3683ms)
+✔ Codex ORDINARY_LOOKUP_CONTROL fan-out negative control enforces max 1 research server (0.2235ms)
+﹣ opt-in live Codex CAPA-02 multi-source research and ordinary lookup control canaries (0.1523ms) # SKIP
+✔ the pack-exercise canary is declared for Codex and Claude in shipped catalog (plan 03-22 / G-03-3) (0.2484ms)
+﹣ opt-in live Codex CAPA-05 representative pack exercise canary (0.077ms) # SKIP
+✔ doctor treats missing optional harness commands as warnings (223.0661ms)
+✔ isolation init preserves existing project policy and writes through a transaction (262.7241ms)
+✔ runtime sync is idempotent and writes only below the external isolated root (5272.1032ms)
+✔ doctor rejects project skills outside the explicit allowlist (3726.0937ms)
+✔ doctor rejects project MCP servers outside the explicit allowlist (3635.728ms)
+✔ sealed mode is fail-closed until a container adapter is available (2976.4781ms)
+✔ Codex project-only adapter isolates both CODEX_HOME and generic skill home (149.048ms)
+✔ project-only launch adapters hide user resources without claiming a sealed sandbox (679.881ms)
+✔ an untrusted isolation manifest cannot be launched (2696.0869ms)
+✔ clean removes only a marked generated runtime (2968.1918ms)
+✔ GSD fixture spec isolates shared Agent Skills and GSD defaults roots (145.3744ms)
+✔ ECC exact-file renderer removes Claude-only Task orchestration without changing other selected skills (0.5906ms)
+✔ ECC skill roots are explicit for every supported harness (0.2345ms)
+✔ Antigravity documentation lookup names GUI tools and the IDE MCP gateway without web fallback (0.154ms)
+✔ a runtime marker is read strictly before a directory is removed (120.0409ms)
+✔ a supported older runtime marker is readable but is not acted on (9.1085ms)
+✔ the reviewed isolation plans name their path roles and write nothing (2773.7559ms)
+✔ nested isolation applies consume the caller session and take no second writer lock (91.7835ms)
+✔ an active writer blocks isolation mutations while plans and doctor stay readable (3616.9706ms)
+✔ a clean journals every removal instead of deleting the tree outright (2029.3422ms)
+✔ an isolation plan reviewed before the runtime changed refuses and writes nothing (1884.6196ms)
+✔ the canary launch variant points claude at the runtime configuration and excludes every other MCP source (272.1208ms)
+✔ a Claude canary runs on a linked login and refuses before spending without one (420.2756ms)
+✔ a Claude canary grants the fronted servers it is measured against (411.4988ms)
+✔ canary isolation supports Claude and Codex while every other harness retains an explicit refusal (816.824ms)
+✔ the Codex canary branch reuses authentication but carries only measured runtime MCP overrides (131.8094ms)
+✔ the ordinary Codex project-only branch remains byte-for-byte stable (133.3631ms)
+✔ a second writer fails immediately instead of waiting or clearing the lock (558.8504ms)
+✔ a reader can inspect writer state while a writer holds the lock (66.5131ms)
+✔ a writer lock is never removed on the basis of elapsed time or a missing pid (244.4438ms)
+✔ every durable boundary leaves the target diagnosable as before, after, or neither (1221.5834ms)
+✔ repair diagnosis is read-only and its plan digest is stable (4189.0685ms)
+✔ an explicit repair finalizes a fully proven interruption (260.0388ms)
+✔ a neither-hash target blocks repair and keeps its drift (243.0495ms)
+✔ an interruption before the target was touched restores to the before state (233.8132ms)
+✔ an interruption with no journal evidence refuses rather than guessing (13.7942ms)
+✔ an in-process transaction serializes against a held session (229.5158ms)
+✔ transaction restores existing bytes and removes files it created (295.1156ms)
+✔ transaction rejects paths outside its ownership roots (34.3727ms)
+✔ managed rollback refuses to overwrite post-transaction edits (127.1584ms)
+✔ transactional removal can be restored byte-for-byte (129.9418ms)
+✔ candidate staging ignores timestamps and detects component version changes (3.4594ms)
+✔ the reviewed candidate stage names its path roles and writes nothing (59.1896ms)
+✔ candidate staging journals the write, is idempotent, and releases its writer (331.6881ms)
+✔ a nested candidate stage consumes the caller session and takes no second writer lock (135.3044ms)
+✔ a candidate plan reviewed before the staged file changed refuses and writes nothing (64.8892ms)
+✔ an update preflight binds the exact resolved remote commit without touching the checkout (6193.7404ms)
+✔ a dirty checkout blocks an update before any external step is declared runnable (3729.5233ms)
+✔ an update refuses a target source object it cannot inspect locally (4214.5689ms)
+ℹ tests 167
+ℹ suites 0
+ℹ pass 164
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 3
+ℹ todo 0
+ℹ duration_ms 36181.3869
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK suites.supporting HOLDS exit=0; tests=167 pass=164 fail=0 skipped=3 todo=0 cancelled=0; every non-passing test is an explicit skip or todo: opt-in live Codex CAPA-01 agrees immediately and after its temporary ledger round trip; opt-in live Codex CAPA-02 multi-source research and ordinary lookup control canaries; opt-in live Codex CAPA-05 representative pack exercise canary
+CHECK suites.scratch-home-clean HOLDS <scratch-home> has no .alpha-aos after both runs
+note: Phase 6 test titles (33), used to filter the CI job logs: stable-lock reconciliation against already-applied stack is idempotent and executes zero writes (LIFE-01, D-15) || idempotent repetition produces identical results without accumulating journals or snapshots (LIFE-01) || pure read-only update preview performs zero filesystem writes or package mutations (LIFE-08, D-16) || candidate locks are strictly rejected by stable lock reconciliation (LIFE-08, D-16) || recovery receipt conforms strictly to schema and writes ahead durably (LIFE-07, D-13) || invalid recovery receipt with missing or unknown fields is rejected || GSD compensation generator outputs correct command for upgrade and fresh install || ECC runtime compensation generator outputs correct command for upgrade and fresh install || Pi bridge and npm link compensation generators output honest instructions || snapshot crash repair safely restores pre-crash baseline and marks repaired (LIFE-06, D-09, D-10) || repair refuses when writer process is still alive (LIFE-06, D-12) || stale writer lock with dead process is released (LIFE-06, D-12) || corrupt journal is quarantined to unblock operations (LIFE-06, D-11) || incomplete journal with missing snapshots is quarantined (LIFE-06, D-11) || all-or-nothing preflight refusal on drift performs zero writes (LIFE-05, D-05) || drift diagnostics emit exact paths, hashes, unified diffs, and manual guidance (LIFE-05, D-06) || strict LIFO ordering enforcement prevents non-head rollback (LIFE-05, D-07) || clean reverse directory sweep removes only empty parent directories (LIFE-05, D-08) || offline status strictly executes zero subprocesses (LIFE-02, D-14) || offline status completes in under 50ms benchmark (LIFE-02, D-14) || healthy stack reports needsRepair=false and free writer (LIFE-02) || incomplete transaction flags needsRepair=true (LIFE-02, D-09) || corrupt journal flags needsRepair=true and records filename (LIFE-02, D-09) || stale lock flags needsRepair=true and writerStatus=needs-repair (LIFE-02, D-09) || directory tree policies count is accurately reported || target-level uninstall removes managed MCP servers while preserving user servers and credentials (LIFE-03, D-01) || semantic pruning fidelity across TOML, JSON, YAML, and Markdown (LIFE-04, D-03) || tampering and missing closing markers safely refuse with SemanticPruneDriftError (LIFE-04, D-03) || project pack removal removes sidecars and sweeps empty directories (LIFE-03, D-01) || full stack uninstall preserves historical transaction journals by default (LIFE-04, D-04) || purge flag completely removes state directory (LIFE-04, D-04) || formatUninstallPlan and formatUninstallResult format clear previews and summaries || non-interactive environment requires --yes to apply uninstall (LIFE-03, D-02)
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=3 violated=0 not-observed=0 observed=0

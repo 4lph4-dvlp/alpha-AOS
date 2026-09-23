@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -158,6 +159,7 @@ test("computeRiskSurfaceDigest generates a deterministic 64-hex digest", async (
 
 test("writeGateReceipt writes an atomic receipt that readGateReceiptStrict validates (D-06, SAFE-03)", async (context) => {
   const root = await scratchRoot(context, "gate-receipt-io");
+  const stateRoot = join(root, "state");
 
   const receipt: GateReceipt = {
     schemaVersion: 1,
@@ -184,6 +186,11 @@ test("writeGateReceipt writes an atomic receipt that readGateReceiptStrict valid
   const written = await writeGateReceipt(root, receipt);
   assert.equal(written.receiptPath.endsWith("security-review.json"), true);
   assert.notEqual(written.transactionId, undefined);
+  assert.equal(
+    existsSync(join(stateRoot, "journal", `${written.transactionId}.json`)),
+    true,
+    "the gate receipt journal must land in the test-owned state root, not the host state root",
+  );
 
   const read = await readGateReceiptStrict(root, "security-review");
   assert.notEqual(read, null);

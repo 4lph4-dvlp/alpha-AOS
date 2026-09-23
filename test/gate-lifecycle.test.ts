@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -158,6 +158,7 @@ test("Risky change without receipt blocks lifecycle with actionable error (GATE-
 
 test("Execution of gate check passes when engine succeeds, creating receipt and unblocking lifecycle (GATE-02, GATE-03)", async (context) => {
   const parent = await scratchRoot(context, "gate-pass-unblock");
+  const stateRoot = join(parent, "state");
   const created = await createOrdinaryRepository(parent, "repo");
   if (!created.ok) {
     context.skip(created.reason);
@@ -191,6 +192,13 @@ test("Execution of gate check passes when engine succeeds, creating receipt and 
   assert.equal(parsed.ok, true);
   assert.equal(parsed.passed, true);
   assert.equal(parsed.verdicts[0]?.status, "passed");
+  const journals = (await readdir(join(stateRoot, "journal")).catch(() => [] as string[])).filter((name) =>
+    name.endsWith(".json"),
+  );
+  assert.ok(
+    journals.length > 0,
+    "gate check must journal its receipt into the test-owned state root, not the host state root",
+  );
 
   // Subsequent gate check passes without re-running
   const nextResult = await runProcess({

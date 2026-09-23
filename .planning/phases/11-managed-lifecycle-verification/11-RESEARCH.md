@@ -422,11 +422,14 @@ Not applicable (internal verification of an existing codebase; no external ecosy
 | A3 | A five-harness packed install is feasible on this host within a reasonable time budget | Pitfall 5 | LIFE-01/03 coverage limited to Codex. Record as not observed, not as a gap |
 | A4 | Predicted verdicts (per LIFE section) | Evidence Map | These are leads. The phase's own evidence decides |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Which command is "the plan" for LIFE-01?** `install` (dry-run) reports `CURRENT`; `plan` never does. Recommendation: treat `install` without `--apply` as the plan (it is what D-15 of Phase 6 names), and record the static `plan` command as an observation. Raise it as a gap only if the user-facing docs point users to `plan` for this.
+   - **RESOLVED (plans 11-01, 11-03):** `install` without `--apply` is "the plan". Plan 11-01 adopts it as a must-have truth and records the static `plan` table as `CHECK life01.plan-command-static` OBSERVED plus a docs scan `CHECK life01.plan-command-docs`; plan 11-03 carries the decision into `LIFE-01-findings.md` and raises a gap candidate only if the docs check finds a line telling users to run `alpha-aos plan` for reconcile state.
 2. **Is a `failed` journal "interrupted"?** Recommendation: attempt a real reproduction (a transaction failure whose compensating rollback hits drift). If reproduced, record it under LIFE-06. Otherwise keep it as a lead.
+   - **RESOLVED (plan 11-06):** resolved by rule. A `failed` journal counts as "interrupted" under LIFE-06 only if a real CLI command path produces it with target bytes matching neither the pre- nor the post-state. Plan 11-06 makes at most two bounded reproduction attempts (`CHECK life06.p6.real-failed-journal`); without a reproduction the behavior stays a lead with the synthetic observation `CHECK life06.p6.synthetic` recorded, and `LIFE-06-findings.md` states the rule.
 3. **Which project-pack removal route does LIFE-03 judge?** Both exist. Recommendation: judge both. The approve route can evidence "remove a project pack"; `uninstall --project` still violates LIFE-04's "only".
+   - **RESOLVED (plan 11-04):** both routes are judged. Plan 11-04 evidences "remove a project pack" through the approve route (`project status` removal digest, then `project approve <p> --plan-digest <removal-digest> --apply`, `CHECK life03.pack.approve-route`) and through `uninstall --project <p>`, which is also judged for the unrelated-user-resources clause (`CHECK life03.project.user-file-kept`). A defect on the `uninstall --project` route that also fails LIFE-04's "only" clause is kept as its own LIFE-03 candidate cross-referencing the LIFE-04 key (the adjacency rule plans 11-04 and 11-05 share), and plan 11-07 assigns one gap id per failed clause.
 
 ## Environment Availability
 

@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 30
+open_count: 31
 waived_count: 2
 fixed_count: 19
-total_count: 51
-last_updated: 2026-09-20T04:44:15.026Z
+total_count: 52
+last_updated: 2026-09-23T12:10:37.005Z
 ---
 
 # Broken Windows Ledger
@@ -66,6 +66,7 @@ last_updated: 2026-09-20T04:44:15.026Z
 | 49 | 07 | deviation | .github/workflows/ci.yml |  | 07-01 replaced non-portable GNU checksum commands with Node crypto | fixed |  | 2026-09-19T13:44:30.734Z | 2026-09-19T13:44:58.385Z |
 | 50 | 07 | deviation | test/tarball-fixture.test.ts |  | 07-01 used uninstall --purge in the disposable fixture to align with preserved-journal semantics | fixed |  | 2026-09-19T13:44:36.781Z | 2026-09-19T13:45:04.617Z |
 | 51 | 07 | unrun-verify | scripts/smoke-test.mjs |  | Stage 2 public-registry smoke test was not run because publication was explicitly prohibited during plan execution. | open |  | 2026-09-20T04:44:15.026Z |  |
+| 52 | 11 | stub | .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md |  | 06-VERIFICATION.md skeleton: every section except the LIFE-01 Codex rows reads TO-BE-COMPILED until plan 11-07 compiles it | open |  | 2026-09-23T12:10:37.005Z |  |
 
 ````json
 [
@@ -679,6 +680,18 @@ last_updated: 2026-09-20T04:44:15.026Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-20T04:44:15.026Z",
+    "resolved_at": null
+  },
+  {
+    "id": 52,
+    "kind": "stub",
+    "phase": "11",
+    "file": ".planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md",
+    "line": null,
+    "description": "06-VERIFICATION.md skeleton: every section except the LIFE-01 Codex rows reads TO-BE-COMPILED until plan 11-07 compiles it",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-23T12:10:37.005Z",
     "resolved_at": null
   }
 ]

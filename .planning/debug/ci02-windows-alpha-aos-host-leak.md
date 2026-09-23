@@ -316,6 +316,102 @@ Both regressions share one RED commit and one RED run.
   the scratch home holds 0 entries (no `.alpha-aos`). The spawn-count gate
   holds: 7 `runProcess({` calls and 7 `environment: gateEnvironment(stateRoot)`.
 
+## Fix (local)
+
+Plan 10-03, 2026-09-23, Windows developer host. Every run used a fresh scratch
+home with `ALPHA_AOS_STATE_DIR` and the harness root variables unset. The
+developer's real `~/.alpha-aos` was not read, modified or deleted.
+
+### Fix commits
+
+| Writer | RED commit | GREEN (fix) commit |
+|--------|------------|--------------------|
+| `test/mcp-proxy.test.ts` pinned startups (primary) | `ac67ffc` | `8f17c7e` |
+| `test/gate-engine.test.ts` direct `writeGateReceipt` | `d9e044a` | `7a3ee28` |
+| `test/gate-lifecycle.test.ts` CLI `gate check` spawns | `d9e044a` | `7a3ee28` |
+
+All fixes are in test code. `hostMutationTargets`, `hostStateRoot` and the
+lifecycle `assert.deepEqual(afterHost, beforeHost, ...)` in
+`test/tarball-fixture.test.ts` are untouched. Nothing was serialized or
+reordered, and no suite-wide guard was added.
+
+### Pair reproduction after the fix
+
+Same command as the Evidence section, on a fresh scratch home:
+
+```bash
+env -u ALPHA_AOS_STATE_DIR -u CODEX_HOME -u CLAUDE_CONFIG_DIR -u HERMES_HOME \
+  -u PI_CODING_AGENT_DIR -u ANTIGRAVITY_CONFIG_DIR \
+  HOME="$WH" USERPROFILE="$WH" ALPHA_AOS_REQUIRE_UPSTREAM_MCP=1 \
+  node --test --test-concurrency=2 dist/test/mcp-proxy.test.js dist/test/tarball-fixture.test.js
+```
+
+| Run | npx cache | TAP summary | packed lifecycle | `.alpha-aos` in scratch home |
+|-----|-----------|-------------|------------------|------------------------------|
+| 1 (scratchpad home) | warm | tests 47 / pass 47 / fail 0 (64.4 s) | ok (60.6 s) | absent, 0 entries |
+| 2 (scratchpad home) | cold (the test-owned `%TEMP%\alpha-aos-test-mcp-proxy-state` was removed first) | tests 47 / pass 47 / fail 0 (105.6 s) | ok (71.4 s) | absent, 0 entries |
+| 3 (plan recipe, `mktemp -d` home) | warm | tests 47 / pass 47 / fail 0 (66.7 s) | ok (63.6 s) | absent |
+
+In run 2 the context7, exa and firecrawl startups downloaded cold (16.9 s,
+18.6 s, 22.4 s) while the fixture had its snapshot window open. That is the
+condition that reproduced the leak before the fix, and the host oracle now
+stays byte-identical. The test count rose from 46 to 47 because of the new
+mcp-proxy regression test.
+
+### Per-file home-write probe after the fix
+
+Each of the 53 compiled `dist/test/*.test.js` files ran alone, four at a time.
+Each had its own fresh scratch home (under the session scratchpad) and
+`ALPHA_AOS_REQUIRE_UPSTREAM_MCP=1`. Entries are counted with
+`find HOME -mindepth 1`.
+
+| Test file | Exit | Pass / fail | Entries under home | Paths (depth 4) | Classification |
+|-----------|------|-------------|--------------------|-----------------|----------------|
+| `mcp-proxy.test.js` | 0 | 37 / 0 | 0 | none | fixed (was 20,447) |
+| `gate-engine.test.js` | 0 | 9 / 0 | 0 | none | fixed (was 5) |
+| `gate-lifecycle.test.js` | 0 | 7 / 0 | 0 | none | fixed (was 9) |
+| `tarball-fixture.test.js` | 0 | 10 / 0 | 0 | none | unchanged |
+| `capability-oracle.test.js` | 1 | 25 / 6 | 4 | `.pi/agent/{auth.json,models-store.json}` | dev-host only (Assumption A2): `pi` and `codex` are on this host's PATH. The `.alpha-aos/mcp-cache/npm-cache` empty directories the research probe saw no longer appear |
+| `preview.test.js` | 0 | 11 / 0 | 4 | `AppData/Local/Microsoft/PowerShell` | pwsh startup cache, not an alpha-AOS managed path |
+| `redaction.test.js` | 1 | 20 / 1 | 0 | none | probe artifact: `path aliases are segment-aware across roots, separators and case` fails only because the probe's scratch home sits inside `%TEMP%`, so the `<temp>` alias wins over the home alias. It passes in the suite run below, whose home is outside `%TEMP%` |
+| all 46 others | 0 | pass / 0 | 0 | none | unchanged |
+
+No file writes under the home's `.alpha-aos` any more, and no additional
+same-class writer appeared.
+
+### Suite run on a scratch home
+
+```bash
+H=$(mktemp -d); WH=$(cygpath -w "$H")
+env -u ALPHA_AOS_STATE_DIR -u CODEX_HOME -u CLAUDE_CONFIG_DIR -u HERMES_HOME \
+  -u PI_CODING_AGENT_DIR -u ANTIGRAVITY_CONFIG_DIR \
+  HOME="$WH" USERPROFILE="$WH" ALPHA_AOS_REQUIRE_UPSTREAM_MCP=1 \
+  node scripts/run-tests.mjs --files $(ls dist/test/*.test.js | grep -v capability-oracle)
+```
+
+Result: `tests 888 / pass 879 / fail 0 / skipped 9` (311.0 s), exit 0, and no
+`.alpha-aos` in the scratch home. The only home entries are
+`AppData/Local/Microsoft/PowerShell` (the pwsh startup cache from
+`preview.test.js`). On this host Git Bash `mktemp -d` resolves outside `%TEMP%`,
+so the redaction alias test passes here.
+
+`capability-oracle.test.js` alone on another `mktemp -d` scratch home:
+`tests 31 / pass 25 / fail 6`, exit 1. The home held `.pi/agent/auth.json` and
+`.pi/agent/models-store.json`, and no `.alpha-aos`. The six failures are the
+ancestor-walk, ancestor-skill-root, codex evidence-unit, pi two-negatives,
+materialized-pack discovery and codex representative-pack tests. They come from
+this developer host's PATH (`pi` and `codex` are installed under
+`%APPDATA%\npm`) under a redirected home (10-RESEARCH Finding 3, Pitfall 6). It
+is excluded from the local gate for that reason only; the CI legs in 10-04 run
+it.
+
+### Product and workflow unchanged
+
+`git diff --quiet c6415a2 -- src/ .github/workflows/ci.yml` exits 0: `src/` and
+`.github/workflows/ci.yml` are byte-identical to c6415a2. The D-03 product audit
+is not triggered. The status stays `diagnosed`; 10-04 sets `resolved` once the
+three-OS proof run is green.
+
 ## Follow-ups (outside Phase 10)
 
 - `writeGateReceipt(projectRoot, receipt)` has no `stateRoot` option, unlike every

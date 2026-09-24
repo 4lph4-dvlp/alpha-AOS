@@ -10,7 +10,7 @@
 - [x] **CI-01**: User running the suite on ubuntu or macOS sees `destinationFor resolves destinations across all five harnesses` pass, because its fixture root is built with the host platform's path APIs, and no test in `test/` asserts against a platform-specific absolute path literal
 - [x] **CI-02**: User running the packed release lifecycle (install, reconcile, diagnose, uninstall) on Windows leaves every real host managed path, including `~/.alpha-aos`, byte-identical; the root cause is classified as a product isolation leak, a test-oracle defect, or a test-isolation leak (another test file writing the real host state during the lifecycle's snapshot window), recorded, and pinned by a regression test
 - [x] **CI-03**: User sees `main` CI pass on ubuntu-latest, macos-latest, and windows-latest in a single run id
-- [ ] **CI-04**: User sees a red `main` CI surfaced as an opened or refreshed tracking issue that closes when `main` is green again
+- [x] **CI-04**: User sees a red `main` CI surfaced as an opened or refreshed tracking issue that closes when `main` is green again
 
 ### Lifecycle Verification
 
@@ -20,7 +20,7 @@
 
 - [ ] **DEP-01**: User can see dependency candidate PR #1 refreshed onto a green `main` and run through the three-OS CI and fixtures, with a per-component result recorded
 - [ ] **DEP-02**: User receives the candidate versions (GSD Core 1.14.0, ecc-universal 2.2.1, context7-mcp 4.1.1, firecrawl-mcp 3.25.2, pi-mcp-adapter 2.36.0) in `catalog/stack.lock.json` only after green evidence and verified integrity hashes
-- [ ] **DEP-03**: User sees the dependency candidate workflow mark promotion blocked, naming the failing run, whenever the `main` baseline CI is red
+- [x] **DEP-03**: User sees the dependency candidate workflow mark promotion blocked, naming the failing run, whenever the `main` baseline CI is red
 
 ## Future Requirements
 
@@ -70,11 +70,11 @@
 | CI-01 | Phase 10 | Complete |
 | CI-02 | Phase 10 | Complete |
 | CI-03 | Phase 10 | Complete |
-| CI-04 | Phase 12 | Pending |
+| CI-04 | Phase 12 | Complete |
 | LIFE-09 | Phase 11 | Pending |
 | DEP-01 | Phase 13 | Pending |
 | DEP-02 | Phase 13 | Pending |
-| DEP-03 | Phase 12 | Pending |
+| DEP-03 | Phase 12 | Complete |
 
 **Coverage:**
 

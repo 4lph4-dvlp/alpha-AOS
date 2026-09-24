@@ -1,0 +1,2858 @@
+probe: life05-rollback
+head: 41dd0a78b3d45c9d69992c1275bf64cb9d5b8710
+dirty-tracked: 0
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: f10d0b88eb9820e103ca7d2fe5ffca60a437fb1b5c8525ed89bb5dfcae20f02c
+started: 2026-09-24T03:01:05.631Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 4347
+--- stdout (18895B sha256=16af9c437a3c) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 591006,
+    "unpackedSize": 2455521,
+    "shasum": "1981aad110c5741ed7c333be661d1328eda7c635",
+    "integrity": "sha512-aiXE+dFiXGHuCEtwBfZHyajnqh49LLaP/CAOeDE7bxo91eeF8sQK1JRWstrCOkCMEV18aj4MjITjU0O1QUcBNQ==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38527,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: chosen command: codex-policy sync --apply --json; pre-existing target: <sandbox>\home\.codex\AGENTS.md (pre-state sha256 b50218c344e0baaab6c2ac6948919c00380b4217656dbe0fdcb884093e015759)
+
+## step 2: step 1: codex-policy sync --apply --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js codex-policy sync --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1967
+--- stdout (21246B sha256=4123fd6133ad) ---
+{
+  "operationId": "2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2",
+  "plan": {
+    "kind": "codex-execution-policy",
+    "root": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+    "configRoot": "~\\.codex",
+    "stateRoot": "<state>",
+    "source": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+    "target": "~\\.codex\\AGENTS.md",
+    "override": "~\\.codex\\AGENTS.override.md",
+    "action": "current",
+    "sourceHash": "da37ac8b1e9c203cb1f2013b44e3fecf29d54be4fb2af4bf0698269c33447ecc",
+    "currentHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+    "renderedHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+    "allowedRoots": [
+      "~\\.codex",
+      "<state>",
+      "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs"
+    ],
+    "proofs": {
+      "proofs": [
+        {
+          "role": "source",
+          "configured": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+          "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+          "allowedRoot": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<sandbox>\\prefix",
+              "canonical": "<sandbox>\\prefix",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683040
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules",
+              "canonical": "<sandbox>\\prefix\\node_modules",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 6755399442481578
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 6473924465770923
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 2814749768560917
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 2814749768560941
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "source",
+          "configured": "~\\.codex\\AGENTS.override.md",
+          "canonical": "~\\.codex\\AGENTS.override.md",
+          "allowedRoot": "~\\.codex",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683037
+            },
+            {
+              "path": "~\\.codex",
+              "canonical": "~\\.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683043
+            },
+            {
+              "path": "~\\.codex\\AGENTS.override.md",
+              "canonical": "~\\.codex\\AGENTS.override.md",
+              "kind": "missing",
+              "reparse": "none",
+              "device": null,
+              "inode": null
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "target",
+          "configured": "~\\.codex\\AGENTS.md",
+          "canonical": "~\\.codex\\AGENTS.md",
+          "allowedRoot": "~\\.codex",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683037
+            },
+            {
+              "path": "~\\.codex",
+              "canonical": "~\\.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683043
+            },
+            {
+              "path": "~\\.codex\\AGENTS.md",
+              "canonical": "~\\.codex\\AGENTS.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3377699721998692
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "state",
+          "configured": "<state>",
+          "canonical": "<state>",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "journal",
+          "configured": "<state>\\journal",
+          "canonical": "<state>\\journal",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            },
+            {
+              "path": "<state>\\journal",
+              "canonical": "<state>\\journal",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 4503599628795923
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "snapshot",
+          "configured": "<state>\\snapshots",
+          "canonical": "<state>\\snapshots",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            },
+            {
+              "path": "<state>\\snapshots",
+              "canonical": "<state>\\snapshots",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 5066549582217179
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        }
+      ],
+      "proven": true,
+      "code": "ok",
+      "detail": null,
+      "get": "[redacted:function]",
+      "includes": "[redacted:function]"
+    },
+    "digest": "b7b687268e7dd46fbb574eedd27a09feae00608fc2abba34bc738100d9eb74dd"
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: initial transaction id: 2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2
+
+## step 3: step 2: rollback <id> (human preview)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2
+env-overrides: none
+exit: 0
+duration-ms: 996
+--- stdout (292B sha256=db6cf8f1eb8e) ---
+Rollback transaction: 2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2
+Status: applied
+RESTORE <sandbox>\home\.codex\AGENTS.md
+Dry-run only. Pass --apply to restore only if every target still matches its post-transaction hash.
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 4: step 3: rollback <id> --json (preview)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2 --json
+env-overrides: none
+exit: 0
+duration-ms: 923
+--- stdout (706B sha256=175d796b5461) ---
+{
+  "schemaVersion": 1,
+  "id": "2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2",
+  "createdAt": "2026-09-24T03:02:04.894Z",
+  "status": "applied",
+  "allowedRoots": [
+    "~\\.codex"
+  ],
+  "files": [
+    {
+      "target": "~\\.codex\\AGENTS.md",
+      "existed": true,
+      "snapshot": "<state>\\snapshots\\2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2\\0.bin",
+      "beforeHash": "b50218c344e0baaab6c2ac6948919c00380b4217656dbe0fdcb884093e015759",
+      "afterHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+      "proofDigest": "eab10b680b7a55ae98646bdee8e2f8e1d6c0ec2df0bbc1ff735f955df4af049b"
+    }
+  ],
+  "directorySyncSupported": false
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint rollback preview no mutation: b7ba6652335c -> b7ba6652335c
+CHECK life05.preview.no-mutation HOLDS fingerprints of home and state are identical before and after rollback preview
+CHECK life05.preview.lists-targets HOLDS preview lists target AGENTS.md with RESTORE/REMOVE action
+
+## step 5: step 4: rollback <id> --apply --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2 --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1123
+--- stdout (710B sha256=9e07b282858f) ---
+{
+  "schemaVersion": 1,
+  "id": "2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2",
+  "createdAt": "2026-09-24T03:02:04.894Z",
+  "status": "rolled-back",
+  "allowedRoots": [
+    "~\\.codex"
+  ],
+  "files": [
+    {
+      "target": "~\\.codex\\AGENTS.md",
+      "existed": true,
+      "snapshot": "<state>\\snapshots\\2026-09-24T03-02-04-777Z-74ed935b-0982-4327-bf68-0a8b1a4ad8c2\\0.bin",
+      "beforeHash": "b50218c344e0baaab6c2ac6948919c00380b4217656dbe0fdcb884093e015759",
+      "afterHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+      "proofDigest": "eab10b680b7a55ae98646bdee8e2f8e1d6c0ec2df0bbc1ff735f955df4af049b"
+    }
+  ],
+  "directorySyncSupported": false
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life05.apply.exact-bytes HOLDS apply exit=0; target sha256 restored=b50218c344e0baaab6c2ac6948919c00380b4217656dbe0fdcb884093e015759, pre-state=b50218c344e0baaab6c2ac6948919c00380b4217656dbe0fdcb884093e015759 (match=true)
+CHECK life05.apply.created-removed HOLDS the transaction modified pre-existing AGENTS.md (0 created files to remove)
+
+## step 6: step 5: codex-policy sync --apply --json (second transaction for drift test)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js codex-policy sync --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1253
+--- stdout (21246B sha256=0ab74547fd52) ---
+{
+  "operationId": "2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352",
+  "plan": {
+    "kind": "codex-execution-policy",
+    "root": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+    "configRoot": "~\\.codex",
+    "stateRoot": "<state>",
+    "source": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+    "target": "~\\.codex\\AGENTS.md",
+    "override": "~\\.codex\\AGENTS.override.md",
+    "action": "current",
+    "sourceHash": "da37ac8b1e9c203cb1f2013b44e3fecf29d54be4fb2af4bf0698269c33447ecc",
+    "currentHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+    "renderedHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+    "allowedRoots": [
+      "~\\.codex",
+      "<state>",
+      "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs"
+    ],
+    "proofs": {
+      "proofs": [
+        {
+          "role": "source",
+          "configured": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+          "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+          "allowedRoot": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<sandbox>\\prefix",
+              "canonical": "<sandbox>\\prefix",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683040
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules",
+              "canonical": "<sandbox>\\prefix\\node_modules",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 6755399442481578
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 6473924465770923
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 2814749768560917
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 2814749768560941
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "source",
+          "configured": "~\\.codex\\AGENTS.override.md",
+          "canonical": "~\\.codex\\AGENTS.override.md",
+          "allowedRoot": "~\\.codex",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683037
+            },
+            {
+              "path": "~\\.codex",
+              "canonical": "~\\.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683043
+            },
+            {
+              "path": "~\\.codex\\AGENTS.override.md",
+              "canonical": "~\\.codex\\AGENTS.override.md",
+              "kind": "missing",
+              "reparse": "none",
+              "device": null,
+              "inode": null
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "target",
+          "configured": "~\\.codex\\AGENTS.md",
+          "canonical": "~\\.codex\\AGENTS.md",
+          "allowedRoot": "~\\.codex",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683037
+            },
+            {
+              "path": "~\\.codex",
+              "canonical": "~\\.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683043
+            },
+            {
+              "path": "~\\.codex\\AGENTS.md",
+              "canonical": "~\\.codex\\AGENTS.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3377699721998695
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "state",
+          "configured": "<state>",
+          "canonical": "<state>",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "journal",
+          "configured": "<state>\\journal",
+          "canonical": "<state>\\journal",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            },
+            {
+              "path": "<state>\\journal",
+              "canonical": "<state>\\journal",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 4503599628795923
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "snapshot",
+          "configured": "<state>\\snapshots",
+          "canonical": "<state>\\snapshots",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            },
+            {
+              "path": "<state>\\snapshots",
+              "canonical": "<state>\\snapshots",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 5066549582217179
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        }
+      ],
+      "proven": true,
+      "code": "ok",
+      "detail": null,
+      "get": "[redacted:function]",
+      "includes": "[redacted:function]"
+    },
+    "digest": "b7b687268e7dd46fbb574eedd27a09feae00608fc2abba34bc738100d9eb74dd"
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: drift transaction id: 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352
+note: appended drift line to <sandbox>\home\.codex\AGENTS.md
+
+## step 7: step 6: rollback <id2> preview on drifted target
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352
+env-overrides: none
+exit: 0
+duration-ms: 972
+--- stdout (292B sha256=d1c6652bbd32) ---
+Rollback transaction: 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352
+Status: applied
+RESTORE <sandbox>\home\.codex\AGENTS.md
+Dry-run only. Pass --apply to restore only if every target still matches its post-transaction hash.
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life05.preview.reflects-drift VIOLATED preview printed RESTORE and dry-run footer without reporting that target has drifted
+
+## step 8: step 7: rollback <id2> --apply --json (drift refusal, redacted)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352 --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 974
+--- stdout (740B sha256=f2a24f24e19d) ---
+{
+  "ok": false,
+  "error": "Rollback blocked by post-transaction drift on 1 file(s): <sandbox>\\home\\.codex\\AGENTS.md",
+  "diagnostics": [
+    {
+      "target": "~\\.codex\\AGENTS.md",
+      "expectedHash": "6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d",
+      "actualHash": "2cb1f3bc3de00d42447f32f8b4d45e08c1a05c16cdd6a6e8d949207fd2f1d19f",
+      "unifiedDiff": "[diff body redacted: 15 lines, sha256=d6cc98b52351]",
+      "remediation": "Reconcile file manually or restore from snapshot: <sandbox>\\state\\snapshots\\2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352\\0.bin"
+    }
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 9: step 8: rollback <id2> --apply (drift refusal, human, redacted)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352 --apply
+env-overrides: none
+exit: 2
+duration-ms: 911
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (772B sha256=bdb0c1491b2c) ---
+alpha-AOS Rollback Drift Error: post-transaction drift detected
+Drifted files: 1
+Zero file writes performed (all-or-nothing preflight refusal).
+
+Target:   <sandbox>\home\.codex\AGENTS.md
+Expected: 6483ac683f83a812b186b2b4f920a439160f880810b495c40183826c06d5792d
+Actual:   2cb1f3bc3de00d42447f32f8b4d45e08c1a05c16cdd6a6e8d949207fd2f1d19f
+Unified Diff snippet:
+  --- a/AGENTS.md	(expected sha256: 6483ac683f83)
+  +++ b/AGENTS.md	(actual sha256: 2cb1f3bc3de0)
+  [diff body redacted: 14 lines, sha256=72edcd8e5d0f]
+Remediation: Reconcile file manually or restore from snapshot: <sandbox>\state\snapshots\2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352\0.bin
+CHECK life05.drift.refuses HOLDS exit=2 (expected 2), ok=false (expected false)
+fingerprint drift refusal zero writes: 9f03f36637fc -> 9f03f36637fc
+CHECK life05.drift.zero-writes HOLDS fingerprints of home and whole state root are unchanged across the refused rollback apply
+
+## step 10: step 9: codex-policy sync --apply --json (third transaction to make id2 non-head)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js codex-policy sync --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1196
+--- stdout (21246B sha256=5e63303bc00f) ---
+{
+  "operationId": "2026-09-24T03-02-13-223Z-b1aa4e96-b419-42ea-8b19-83133cc26580",
+  "plan": {
+    "kind": "codex-execution-policy",
+    "root": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+    "configRoot": "~\\.codex",
+    "stateRoot": "<state>",
+    "source": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+    "target": "~\\.codex\\AGENTS.md",
+    "override": "~\\.codex\\AGENTS.override.md",
+    "action": "current",
+    "sourceHash": "da37ac8b1e9c203cb1f2013b44e3fecf29d54be4fb2af4bf0698269c33447ecc",
+    "currentHash": "69bd099db4b2df094d814450e52d219ea29872b0f9230b9bd459ed3d6a6a13ef",
+    "renderedHash": "69bd099db4b2df094d814450e52d219ea29872b0f9230b9bd459ed3d6a6a13ef",
+    "allowedRoots": [
+      "~\\.codex",
+      "<state>",
+      "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs"
+    ],
+    "proofs": {
+      "proofs": [
+        {
+          "role": "source",
+          "configured": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+          "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+          "allowedRoot": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<sandbox>\\prefix",
+              "canonical": "<sandbox>\\prefix",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683040
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules",
+              "canonical": "<sandbox>\\prefix\\node_modules",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 6755399442481578
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 6473924465770923
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 2814749768560917
+            },
+            {
+              "path": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+              "canonical": "<sandbox>\\prefix\\node_modules\\alpha-aos\\docs\\codex-execution-policy.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 2814749768560941
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "source",
+          "configured": "~\\.codex\\AGENTS.override.md",
+          "canonical": "~\\.codex\\AGENTS.override.md",
+          "allowedRoot": "~\\.codex",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683037
+            },
+            {
+              "path": "~\\.codex",
+              "canonical": "~\\.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683043
+            },
+            {
+              "path": "~\\.codex\\AGENTS.override.md",
+              "canonical": "~\\.codex\\AGENTS.override.md",
+              "kind": "missing",
+              "reparse": "none",
+              "device": null,
+              "inode": null
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "target",
+          "configured": "~\\.codex\\AGENTS.md",
+          "canonical": "~\\.codex\\AGENTS.md",
+          "allowedRoot": "~\\.codex",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "~",
+              "canonical": "~",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683037
+            },
+            {
+              "path": "~\\.codex",
+              "canonical": "~\\.codex",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683043
+            },
+            {
+              "path": "~\\.codex\\AGENTS.md",
+              "canonical": "~\\.codex\\AGENTS.md",
+              "kind": "file",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3377699721998698
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "state",
+          "configured": "<state>",
+          "canonical": "<state>",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "journal",
+          "configured": "<state>\\journal",
+          "canonical": "<state>\\journal",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            },
+            {
+              "path": "<state>\\journal",
+              "canonical": "<state>\\journal",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 4503599628795923
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        },
+        {
+          "role": "snapshot",
+          "configured": "<state>\\snapshots",
+          "canonical": "<state>\\snapshots",
+          "allowedRoot": "<state>",
+          "components": [
+            {
+              "path": "C:\\",
+              "canonical": "C:\\",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 1407374883553285
+            },
+            {
+              "path": "C:\\Users",
+              "canonical": "C:\\Users",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 281474976714312
+            },
+            {
+              "path": "<home>",
+              "canonical": "<home>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482396
+            },
+            {
+              "path": "<home>\\AppData",
+              "canonical": "<home>\\AppData",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482407
+            },
+            {
+              "path": "<home>\\AppData\\Local",
+              "canonical": "<home>\\AppData\\Local",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482432
+            },
+            {
+              "path": "<tmp>",
+              "canonical": "<tmp>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 562949953482433
+            },
+            {
+              "path": "<sandbox>",
+              "canonical": "<sandbox>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683027
+            },
+            {
+              "path": "<state>",
+              "canonical": "<state>",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 3659174698683039
+            },
+            {
+              "path": "<state>\\snapshots",
+              "canonical": "<state>\\snapshots",
+              "kind": "directory",
+              "reparse": "none",
+              "device": 3262666171,
+              "inode": 5066549582217179
+            }
+          ],
+          "capability": {
+            "supported": true,
+            "reason": null,
+            "componentIdentity": true,
+            "canonicalResolution": true
+          },
+          "code": "ok",
+          "proven": true,
+          "detail": null
+        }
+      ],
+      "proven": true,
+      "code": "ok",
+      "detail": null,
+      "get": "[redacted:function]",
+      "includes": "[redacted:function]"
+    },
+    "digest": "3a1a5788176e7463f3ae06068c6817aaff5141329af411422f0b941f2e92a9c6"
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: third transaction (head): 2026-09-24T03-02-13-223Z-b1aa4e96-b419-42ea-8b19-83133cc26580; older active: 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352
+
+## step 11: step 10: rollback <older id> --apply --json (LIFO violation attempt)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js rollback 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352 --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 995
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (293B sha256=46d426fe28ad) ---
+alpha-aos: LIFO violation: transaction 2026-09-24T03-02-09-117Z-735a448e-54d1-4c1f-b4f9-ac7e9911c352 is not the most recent active transaction (head: 2026-09-24T03-02-13-223Z-b1aa4e96-b419-42ea-8b19-83133cc26580). Roll back 2026-09-24T03-02-13-223Z-b1aa4e96-b419-42ea-8b19-83133cc26580 first.
+fingerprint LIFO refusal zero writes: 370258446b61 -> 370258446b61
+CHECK life05.lifo.enforced HOLDS exit=2, stderr mentions LIFO: true; zero bytes changed: true
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=7 violated=1 not-observed=0 observed=0

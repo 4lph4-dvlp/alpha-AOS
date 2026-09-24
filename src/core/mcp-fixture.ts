@@ -7,6 +7,7 @@ import { mcpStdioCommand, planMcpSync } from "./mcp.js";
 import { allowedMcpTools } from "./mcp-proxy.js";
 import { openProtocolProcess, resolveCommand, resolveNodePackageCli, runProcess } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
+import { resolveDirectLaunch } from "../adapters/capability-oracle.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
 import {
@@ -41,7 +42,7 @@ function inside(root: string, target: string): boolean {
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
 }
 
-function parsePackResult(stdout: string): PackResult {
+export function parsePackResult(stdout: string): PackResult {
   const start = stdout.indexOf("[");
   if (start < 0) throw new Error(`npm pack did not return JSON: ${stdout}`);
   const value = JSON.parse(stdout.slice(start)) as unknown;
@@ -60,6 +61,7 @@ async function verifyPackage(fixtureRoot: string, locked: LockedPackage, label: 
     args: [...npm.argsPrefix, "pack", `${locked.package}@${locked.version}`, "--json", "--pack-destination", packRoot],
     cwd: fixtureRoot,
     timeoutMs: 180_000,
+    excerptBytes: 256 * 1024,
     maxOutputBytes: 256 * 1024,
     environment: nodeRuntimeEnvironment(),
   });
@@ -155,13 +157,15 @@ export async function discoverTools(
 
 async function installPiBridge(fixtureRoot: string, bridge: LockedPackage): Promise<string> {
   await verifyPackage(fixtureRoot, bridge, "pi-mcp-adapter");
-  const pi = resolveCommand("pi");
-  if (!pi) throw new Error("Pi executable is required for the Pi MCP bridge fixture");
+  const rawPi = resolveCommand("pi");
+  if (!rawPi) throw new Error("Pi executable is required for the Pi MCP bridge fixture");
+  const launch = resolveDirectLaunch(rawPi);
+  if (!launch) throw new Error(`Cannot launch Pi executable directly: ${rawPi}`);
   const agentRoot = join(fixtureRoot, "home", ".pi", "agent");
   await mkdir(agentRoot, { recursive: true });
   const installed = await runProcess({
-    executable: pi,
-    args: ["install", `npm:${bridge.package}@${bridge.version}`],
+    executable: launch.executable,
+    args: [...launch.argsPrefix, "install", `npm:${bridge.package}@${bridge.version}`],
     cwd: fixtureRoot,
     timeoutMs: 180_000,
     maxOutputBytes: 256 * 1024,

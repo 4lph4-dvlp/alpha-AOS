@@ -11,6 +11,7 @@
 ### Known Gaps
 
 - **LIFE-01..08** (Phase 6): implemented and summarized, but Phase 6 has no `06-VERIFICATION.md`; `packed release completes the isolated install, reconcile, diagnose, and uninstall lifecycle` is red on windows-latest because the real host `~/.alpha-aos` hash changes across the isolated lifecycle.
+  - 2026-09-24: Narrowed to G-11-1..G-11-26 — see [06-VERIFICATION.md](milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md) (1/8 VERIFIED; Phase 13 gating: BLOCKED). The windows-latest lifecycle red half of this line was resolved in Phase 10: .planning/debug/ci02-windows-alpha-aos-host-leak.md (test-isolation leak) and .planning/phases/10-three-os-ci-baseline/CI_RUN.md (run 35818198049).
 - **REL-02** (Phase 7, G-07-2): Claude Code has no real-host invocation receipt; its support-matrix cells remain UNVERIFIED.
 - **CI**: `main` has been red on all three OS legs since at least 2026-09-21 (`destinationFor` test hard-codes a Windows path on ubuntu/macos; the Windows lifecycle failure above), so dependency candidate PR #1 cannot be promoted.
 - **Codex native verification driver**: debug session `codex-native-verification-gap` diagnosed but not fixed.

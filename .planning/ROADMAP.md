@@ -116,12 +116,12 @@ Plans:
   3. When the dependency candidate workflow runs while the latest `main` baseline run is red, the candidate is marked promotion-blocked and the block names the failing `main` run; when the baseline is green, the candidate is not blocked.
   4. The guard decides from the conclusion of an actual completed `main` CI run: with no completed baseline run to read, it reports promotion as blocked rather than promotable.
 
-**Plans**: 2 plans
+**Plans**: 1/2 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 12-01-PLAN.md — Tracer: red-main-guard & check-main-baseline modules and unit test suites (wave 1)
+- [x] 12-01-PLAN.md — Tracer: red-main-guard & check-main-baseline modules and unit test suites (wave 1)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -153,5 +153,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 |-------|-----------|----------------|--------|-----------|
 | 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
 | 11. Managed Lifecycle Verification | v0.1.1 | 6/7 | In Progress|  |
-| 12. Red-Main Guard | v0.1.1 | 0/2 | Ready to execute | - |
+| 12. Red-Main Guard | v0.1.1 | 1/2 | In Progress|  |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

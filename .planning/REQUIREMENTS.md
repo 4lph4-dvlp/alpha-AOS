@@ -14,7 +14,7 @@
 
 ### Lifecycle Verification
 
-- [ ] **LIFE-09**: User can consult a verification report for the Phase 6 managed lifecycle in which each of LIFE-01..08 carries inspectable evidence, and any requirement not met is recorded as a named gap
+- [x] **LIFE-09**: User can consult a verification report for the Phase 6 managed lifecycle in which each of LIFE-01..08 carries inspectable evidence, and any requirement not met is recorded as a named gap
 
 ### Dependency Promotion
 
@@ -71,7 +71,7 @@
 | CI-02 | Phase 10 | Complete |
 | CI-03 | Phase 10 | Complete |
 | CI-04 | Phase 12 | Complete |
-| LIFE-09 | Phase 11 | Pending |
+| LIFE-09 | Phase 11 | Complete |
 | DEP-01 | Phase 13 | Pending |
 | DEP-02 | Phase 13 | Pending |
 | DEP-03 | Phase 12 | Complete |

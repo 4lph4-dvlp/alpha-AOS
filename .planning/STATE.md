@@ -2,20 +2,20 @@
 gsd_state_version: 1.0
 milestone: v0.1.1
 milestone_name: CI Green & Dependency Promotion
-current_phase: 11
-current_phase_name: Managed Lifecycle Verification
+current_phase: 13
+current_phase_name: Dependency Candidate Promotion
 status: planning
-stopped_at: Phase 12 complete, ready to plan Phase 11
-last_updated: "2026-09-24T10:57:54.805Z"
+stopped_at: Phase 11 and 12 complete, ready to plan Phase 13
+last_updated: "2026-09-24T13:15:00.000Z"
 last_activity: 2026-09-24
-last_activity_desc: Phase 12 complete, transitioned to Phase 11
-state_head: 1194d051767cf61fde608c8e986619d36c1ed303
+last_activity_desc: Phase 11 verified and completed; ready for Phase 13
+state_head: a8be9a4
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 13
   completed_plans: 13
-  percent: 50
+  percent: 75
 ---
 
 # Project State
@@ -25,16 +25,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-23)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 12 — Red-Main Guard
+**Current focus:** Phase 13 — Dependency Candidate Promotion
 
 ## Current Position
 
-Phase: 11 — Managed Lifecycle Verification
+Phase: 13 — Dependency Candidate Promotion
 Plan: Not started
 Status: Ready to plan
-Last activity: 2026-09-24 — Phase 12 complete, transitioned to Phase 11
+Last activity: 2026-09-24 — Phase 11 verified and completed; ready for Phase 13
 
-Progress: [█████░░░░░] 50% (2/4 phases)
+Progress: [████████░░] 75% (3/4 phases)
 
 ## Performance Metrics
 
@@ -337,10 +337,12 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-24T05:15:28.725Z
-Stopped at: Phase 12 complete, ready to plan Phase 11
-Resume file: .planning/phases/12-red-main-guard/12-CONTEXT.md
+Last session: 2026-09-24T13:15:00.000Z
+Stopped at: Phase 11 and 12 complete, ready to plan Phase 13
+Resume file: None
 
 ## Operator Next Steps
 
-- Phase 11 verified and complete (7/7 plans, 06-VERIFICATION.md compiled, 26 gaps registered). Next: Phase 12 (Red-Main Guard)
+- Phase 11 verified and complete (7/7 plans, 06-VERIFICATION.md compiled, 26 gaps registered, 11-VERIFICATION.md passed).
+- Phase 12 verified and complete (2/2 plans, red-main guard and baseline gate active).
+- Note on Phase 13 gating: Currently BLOCKED by gap G-11-1 (LIFE-01 combined codex+pi install drift). Next: /gsd-plan-phase 13 or resolve G-11-1 blocker.

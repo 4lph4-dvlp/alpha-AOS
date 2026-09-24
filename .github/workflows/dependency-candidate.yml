@@ -8,6 +8,8 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  issues: write
+  actions: read
 
 jobs:
   stage:
@@ -47,3 +49,7 @@ jobs:
               --title "chore: validate dependency candidate" \
               --body "Automated discovery only. This candidate is unverified and must not be promoted until package-integrity, renderer-hash, and Windows/macOS/Linux fixture gates pass."
           fi
+      - name: Check main CI baseline and update candidate promotion status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/check-main-baseline.mjs --update-pr --candidate-branch automation/dependency-candidate

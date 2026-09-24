@@ -261,6 +261,17 @@ function expandAliasedPath(aliased: string): string {
   if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
     return join(homedir(), trimmed.slice(2));
   }
+  if (trimmed === "<temp>") return tmpdir();
+  if (trimmed.startsWith("<temp>/") || trimmed.startsWith("<temp>\\")) {
+    return join(tmpdir(), trimmed.slice(7));
+  }
+  const stateRoot = process.env.ALPHA_AOS_STATE_DIR?.trim();
+  if (stateRoot) {
+    if (trimmed === "<state>") return resolve(stateRoot);
+    if (trimmed.startsWith("<state>/") || trimmed.startsWith("<state>\\")) {
+      return join(resolve(stateRoot), trimmed.slice(8));
+    }
+  }
   return trimmed;
 }
 
@@ -838,13 +849,30 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
       const result = await applyCodexPolicy({ plan: reviewed.components.codexPolicy, session });
       remember("policy:codex-execution", result.operationId, result.plan.configRoot);
     }
+    const writtenDestinations = new Map<string, string>();
     for (const component of reviewed.components.ownedSkills) {
+      const destination = resolve(component.sync.destination);
+      if (writtenDestinations.has(destination)) {
+        if (writtenDestinations.get(destination) !== component.expectedHash) {
+          throw new Error(`Conflicting rendered hashes for shared destination: ${destination}`);
+        }
+        remember(`owned-skill:${component.id}:${component.target}`, null, dirname(destination));
+        continue;
+      }
       const result = await applyOwnedSkillSync(options.root, options.catalog, options.lock, component.id, component.target, { plan: component, session });
       remember(`owned-skill:${component.id}:${component.target}`, result.operationId, dirname(result.plan.destination));
+      writtenDestinations.set(destination, component.expectedHash);
     }
+    const writtenEccRoots = new Set<string>();
     for (const component of reviewed.components.eccSkills) {
+      const targetRoot = resolve(component.targetRoot);
+      if (writtenEccRoots.has(targetRoot)) {
+        remember(`ecc:${component.harness}`, null, globalEccSkillRoot(component.harness));
+        continue;
+      }
       const result = await applyEccSkillSync(component.harness, options.lock, { plan: component, session });
       remember(`ecc:${component.harness}`, result.operationId, globalEccSkillRoot(component.harness));
+      writtenEccRoots.add(targetRoot);
     }
 
     for (const fixture of reviewed.fixtures.mcpCanary) {

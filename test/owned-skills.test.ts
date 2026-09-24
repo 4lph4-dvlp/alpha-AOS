@@ -13,7 +13,15 @@ import {
   applyOwnedSkillSync,
 } from "../src/core/owned-skills.js";
 import { createInstallPlan } from "../src/core/plan.js";
-import { createManagedInstallPlan, type ManagedInstallStep } from "../src/core/install.js";
+import {
+  createManagedInstallPlan,
+  applyManagedInstall,
+  type ManagedInstallStep,
+  type ManagedInstallOperationPlan,
+  type ManagedInstallOptions,
+} from "../src/core/install.js";
+import { planEccSkillOperation } from "../src/core/ecc-skills.js";
+import { renderMcpConfig } from "../src/core/mcp.js";
 import { rollbackManagedTransaction } from "../src/core/transaction.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
@@ -340,3 +348,113 @@ test("createManagedInstallPlan emits owned skill steps for all detected targets"
 
   await rm(tempRoot, { recursive: true, force: true });
 });
+
+test("applyManagedInstall succeeds on combined codex and pi install without plan-drift on shared destination (G-11-1)", async () => {
+  const root = packageRoot();
+  const catalog = await loadCatalog(root);
+  const lock = await loadLock(root);
+
+  const tempRoot = await mkdtemp(join(tmpdir(), "alpha-aos-codex-pi-install-"));
+  const stateRoot = join(tempRoot, "state");
+  const home = join(tempRoot, "home");
+  const prefixDir = join(tempRoot, "npm-prefix");
+  await mkdir(home, { recursive: true });
+  await mkdir(stateRoot, { recursive: true });
+  await mkdir(prefixDir, { recursive: true });
+
+  const savedEnv: Record<string, string | undefined> = {};
+  const setEnv = (key: string, val: string | undefined): void => {
+    savedEnv[key] = process.env[key];
+    if (val === undefined) delete process.env[key];
+    else process.env[key] = val;
+  };
+
+  setEnv("HOME", home);
+  setEnv("USERPROFILE", home);
+  setEnv("CODEX_HOME", join(home, ".codex"));
+  setEnv("PI_CODING_AGENT_DIR", join(home, ".pi", "agent"));
+  setEnv("npm_config_prefix", prefixDir);
+
+  try {
+    // 1. Seed GSD prerequisites for codex and pi
+    const gsd = lock.components.gsd!;
+    const codexGsdRoot = join(home, ".codex", "gsd-core");
+    await mkdir(codexGsdRoot, { recursive: true });
+    await writeFile(join(codexGsdRoot, "VERSION"), `${gsd.version}\n`, "utf8");
+    await writeFile(join(codexGsdRoot, ".gsd-runtime"), "codex\n", "utf8");
+    await writeFile(join(home, ".codex", ".gsd-profile"), `${gsd.profile}\n`, "utf8");
+    await mkdir(join(home, ".codex", "hooks", "lib"), { recursive: true });
+    await writeFile(join(home, ".codex", "AGENTS.md"), "# Codex Execution Policy\n", "utf8");
+    await writeFile(join(home, ".codex", "config.toml"), renderMcpConfig("codex", "", lock), "utf8");
+
+    const piGsdRoot = join(home, ".pi", "agent", "gsd-core");
+    await mkdir(piGsdRoot, { recursive: true });
+    await writeFile(join(piGsdRoot, "VERSION"), `${gsd.version}\n`, "utf8");
+    await writeFile(join(piGsdRoot, ".gsd-runtime"), "pi\n", "utf8");
+    await writeFile(join(home, ".pi", "agent", ".gsd-profile"), `${gsd.profile}\n`, "utf8");
+    await writeFile(join(home, ".pi", "agent", "mcp.json"), renderMcpConfig("pi", "", lock), "utf8");
+
+    const piBridge = lock.components.mcpBridges!.pi!;
+    const piBridgePkgDir = join(home, ".pi", "agent", "npm", "node_modules", piBridge.package);
+    await mkdir(piBridgePkgDir, { recursive: true });
+    await writeFile(join(piBridgePkgDir, "package.json"), JSON.stringify({ name: piBridge.package, version: piBridge.version }), "utf8");
+
+    // 2. Seed ECC runtime package in npm-prefix
+    const ecc = lock.components.ecc!;
+    const eccPkgDir = join(
+      prefixDir,
+      process.platform === "win32" ? "node_modules" : join("lib", "node_modules"),
+      ...ecc.package.split("/"),
+    );
+    await mkdir(eccPkgDir, { recursive: true });
+    await writeFile(join(eccPkgDir, "package.json"), JSON.stringify({ name: ecc.package, version: ecc.version }), "utf8");
+
+    const installOptions: ManagedInstallOptions = {
+      root,
+      catalog,
+      lock,
+      inventory: createMockInventory(["codex", "pi"]),
+      requestedTargets: ["codex", "pi"],
+      stateRoot,
+    };
+
+    // 3. Preview plan shows create for both codex and pi owned-skill steps
+    const preview = await createManagedInstallPlan(installOptions);
+    const codexSkillStep = preview.steps.find((s) => s.id === "owned-skill:alpha-aos-control:codex");
+    const piSkillStep = preview.steps.find((s) => s.id === "owned-skill:alpha-aos-control:pi");
+    assert.ok(codexSkillStep, "codex owned-skill step must exist");
+    assert.ok(piSkillStep, "pi owned-skill step must exist");
+    assert.equal(codexSkillStep.action, "create");
+    assert.equal(piSkillStep.action, "create");
+
+    // 4. Initial apply across combined targets must complete without plan-drift error
+    const result1 = await applyManagedInstall(installOptions);
+
+    // Verify shared skill was written
+    const sharedSkillPath = join(home, ".agents", "skills", "alpha-aos-control", "SKILL.md");
+    assert.ok(existsSync(sharedSkillPath), "shared skill file must exist on disk");
+
+    // First target applied, second target satisfied without error
+    assert.ok(result1.applied.includes("owned-skill:alpha-aos-control:codex"));
+    assert.ok(result1.current.includes("owned-skill:alpha-aos-control:pi"));
+    assert.ok(result1.applied.includes("ecc:codex"));
+    assert.ok(result1.current.includes("ecc:pi"));
+
+    // 5. Second apply (reconcile) must report all steps as current and zero applied
+    const result2 = await applyManagedInstall(installOptions);
+
+    assert.deepEqual(result2.applied, [], "second apply must have 0 applied steps");
+    assert.equal(result2.operationIds.length, 0, "second apply must have 0 operationIds");
+    assert.ok(result2.current.includes("owned-skill:alpha-aos-control:codex"));
+    assert.ok(result2.current.includes("owned-skill:alpha-aos-control:pi"));
+    assert.ok(result2.current.includes("ecc:codex"));
+    assert.ok(result2.current.includes("ecc:pi"));
+  } finally {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+    await rm(tempRoot, { recursive: true, force: true });
+  }
+});
+

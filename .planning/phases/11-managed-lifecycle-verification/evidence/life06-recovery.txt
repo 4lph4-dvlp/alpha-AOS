@@ -1,0 +1,2301 @@
+probe: life06-recovery
+head: 41dd0a78b3d45c9d69992c1275bf64cb9d5b8710
+dirty-tracked: 0
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: f10d0b88eb9820e103ca7d2fe5ffca60a437fb1b5c8525ed89bb5dfcae20f02c
+started: 2026-09-24T03:05:02.582Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 3119
+--- stdout (18895B sha256=16af9c437a3c) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 591006,
+    "unpackedSize": 2455521,
+    "shasum": "1981aad110c5741ed7c333be661d1328eda7c635",
+    "integrity": "sha512-aiXE+dFiXGHuCEtwBfZHyajnqh49LLaP/CAOeDE7bxo91eeF8sQK1JRWstrCOkCMEV18aj4MjITjU0O1QUcBNQ==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38527,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 2: command-check: owned-skills sync alpha-aos-control --target codex --apply --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1793
+--- stdout (712B sha256=479aab6269fd) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": "2026-09-24T03-06-01-481Z-4988d8c9-fc39-4b88-b1ac-c620714935fb",
+  "digest": "33bdc344ed209e53d728018d38ae6e1d9529b218973990165d20db37aeaacbe5"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.command.single-transaction OBSERVED owned-skills sync exit=0; journals before=0, after=1 (added=1)
+
+## step 3: fp after-snapshot-sync: run command with failpoint override
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: ALPHA_AOS_FAILPOINT
+exit: 70
+duration-ms: 1658
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (64B sha256=4e819a207558) ---
+alpha-aos: deterministic failpoint reached: after-snapshot-sync
+CHECK life06.after-snapshot-sync.interrupted HOLDS exit=70 (expected 70), failpoint stderr line: "alpha-aos: deterministic failpoint reached: after-snapshot-sync"
+
+## step 4: fp after-snapshot-sync: status (human)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 1
+duration-ms: 965
+--- stdout (326B sha256=c77d8d58ff61) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: needs-repair
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+Incomplete transactions: 2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 5: fp after-snapshot-sync: status --json
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 986
+--- stdout (314B sha256=50e30f8fd54e) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "needs-repair",
+  "needsRepair": true,
+  "incompleteTransactions": [
+    "2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a"
+  ],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-snapshot-sync.status-needs-repair OBSERVED status exit=1; needsRepair=true; incompleteTransactions=["2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a"]
+CHECK life06.after-snapshot-sync.no-false-success HOLDS status reported needsRepair=true; journalStatus=applying; target exists=false (sha=none)
+
+## step 6: fp after-snapshot-sync: repair (preview)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js repair
+env-overrides: none
+exit: 0
+duration-ms: 944
+--- stdout (236B sha256=ae023b09c297) ---
+alpha-AOS Crash Repair Plan
+Action:           snapshot-rollback
+Operation ID:     2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a
+Writer PID:       16260
+Writer alive:     no
+Snapshots intact: YES
+Affected files:   (none)
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 7: fp after-snapshot-sync: repair --json (preview)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 931
+--- stdout (453B sha256=48f1ef52826d) ---
+{
+  "stateRoot": "<state>",
+  "operationId": "2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a",
+  "journalPath": "<state>\\journal\\2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a.json",
+  "action": "snapshot-rollback",
+  "writerPid": 16260,
+  "writerAlive": false,
+  "snapshotsIntact": true,
+  "affectedFiles": [],
+  "blockedReasons": [],
+  "planDigest": "caaed61934b9fc376d7aa69bf153628e5cf7b72327fdcb4e42ad15c0c5b05a6f"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 8: fp after-snapshot-sync: repair --apply --json
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 931
+--- stdout (536B sha256=c786c8f9ea05) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "operationId": "2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a",
+    "journalPath": "<state>\\journal\\2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a.json",
+    "action": "snapshot-rollback",
+    "writerPid": 16260,
+    "writerAlive": false,
+    "snapshotsIntact": true,
+    "affectedFiles": [],
+    "blockedReasons": [],
+    "planDigest": "caaed61934b9fc376d7aa69bf153628e5cf7b72327fdcb4e42ad15c0c5b05a6f"
+  },
+  "restoredFiles": [],
+  "lockReleased": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 9: fp after-snapshot-sync: repair --apply (human)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply
+env-overrides: none
+exit: 2
+duration-ms: 919
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+CHECK life06.after-snapshot-sync.repair-apply HOLDS repair --apply exit=0; stdout={ |   "plan": { |     "stateRoot": "<state>", |     "operationId": "2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a", |     "journalPath": "<state>\\journal\\2026-09-24T03-06-28-574Z-2998bfcd-9e1a-4518-9e4a-6c5f92c9d28a.json", |     "action": "snapshot-rollback", |     "writerPid": 16260, |     "writerAlive": false, |     "snapshotsIntact": true, |     "affectedFiles": [], |     "blockedReasons": [], |     "planDigest": "caaed61934b9fc376d7aa69bf153628e5cf7b72327fdcb4e42ad15c0c5b05a6f" |   }, |   "restoredFiles": [], |   "lockReleased": true | }
+
+## step 10: fp after-snapshot-sync: status --json after repair
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 913
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-snapshot-sync.status-ok-after-repair HOLDS status after repair exit=0, needsRepair=false
+CHECK life06.after-snapshot-sync.target-consistent HOLDS target state after repair sha=absent (pre-state was absent)
+
+## step 11: fp after-snapshot-sync: re-run command without failpoint override
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1079
+--- stdout (725B sha256=527f085a7d6a) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox-2>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": "2026-09-24T03-06-36-214Z-89e7f3d8-0590-40a2-bde0-0e3f9856122b",
+  "digest": "8f179cd0f9692dd14ab3e5b1648f610f46cd1b03c743f38ccd4edfdb2fe38107"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 12: fp after-snapshot-sync: status --json after restart
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 921
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-snapshot-sync.restart-succeeds HOLDS restart exit=0; status needsRepair=false; target sha=a66debb56c9f
+
+## step 13: fp after-snapshot-sync: second repair --apply --json (idempotence)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 914
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+fingerprint fp after-snapshot-sync repair idempotent: ffbe8f46846c -> ffbe8f46846c
+CHECK life06.after-snapshot-sync.repair-idempotent VIOLATED exit=2, fingerprints unchanged=true
+
+## step 14: fp after-intent-journal-sync: run command with failpoint override
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: ALPHA_AOS_FAILPOINT
+exit: 70
+duration-ms: 1621
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (70B sha256=a3479be96041) ---
+alpha-aos: deterministic failpoint reached: after-intent-journal-sync
+CHECK life06.after-intent-journal-sync.interrupted HOLDS exit=70 (expected 70), failpoint stderr line: "alpha-aos: deterministic failpoint reached: after-intent-journal-sync"
+
+## step 15: fp after-intent-journal-sync: status (human)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 1
+duration-ms: 925
+--- stdout (326B sha256=e2819d1a4107) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: needs-repair
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+Incomplete transactions: 2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 16: fp after-intent-journal-sync: status --json
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 933
+--- stdout (314B sha256=d8c978b3a864) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "needs-repair",
+  "needsRepair": true,
+  "incompleteTransactions": [
+    "2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6"
+  ],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-intent-journal-sync.status-needs-repair OBSERVED status exit=1; needsRepair=true; incompleteTransactions=["2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6"]
+CHECK life06.after-intent-journal-sync.no-false-success HOLDS status reported needsRepair=true; journalStatus=applying; target exists=false (sha=none)
+
+## step 17: fp after-intent-journal-sync: repair (preview)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js repair
+env-overrides: none
+exit: 0
+duration-ms: 900
+--- stdout (360B sha256=61ca36eb4efe) ---
+alpha-AOS Crash Repair Plan
+Action:           snapshot-rollback
+Operation ID:     2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6
+Writer PID:       46424
+Writer alive:     no
+Snapshots intact: YES
+Affected files:   <sandbox-3>\home\.agents\skills\alpha-aos-control\SKILL.md
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 18: fp after-intent-journal-sync: repair --json (preview)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 894
+--- stdout (510B sha256=a44551dba936) ---
+{
+  "stateRoot": "<state>",
+  "operationId": "2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6",
+  "journalPath": "<state>\\journal\\2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6.json",
+  "action": "snapshot-rollback",
+  "writerPid": 46424,
+  "writerAlive": false,
+  "snapshotsIntact": true,
+  "affectedFiles": [
+    "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+  ],
+  "blockedReasons": [],
+  "planDigest": "c673251e936c4481ed2a26e9432245ed69e399da866ad69f85492ad1d91595e8"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 19: fp after-intent-journal-sync: repair --apply --json
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 927
+--- stdout (654B sha256=db0c4a098a95) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "operationId": "2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6",
+    "journalPath": "<state>\\journal\\2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6.json",
+    "action": "snapshot-rollback",
+    "writerPid": 46424,
+    "writerAlive": false,
+    "snapshotsIntact": true,
+    "affectedFiles": [
+      "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    ],
+    "blockedReasons": [],
+    "planDigest": "c673251e936c4481ed2a26e9432245ed69e399da866ad69f85492ad1d91595e8"
+  },
+  "restoredFiles": [
+    "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+  ],
+  "lockReleased": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 20: fp after-intent-journal-sync: repair --apply (human)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply
+env-overrides: none
+exit: 2
+duration-ms: 916
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+CHECK life06.after-intent-journal-sync.repair-apply HOLDS repair --apply exit=0; stdout={ |   "plan": { |     "stateRoot": "<state>", |     "operationId": "2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6", |     "journalPath": "<state>\\journal\\2026-09-24T03-07-02-598Z-0db59c7a-806d-4bb0-ae08-97010dc213a6.json", |     "action": "snapshot-rollback", |     "writerPid": 46424, |     "writerAlive": false, |     "snapshotsIntact": true, |     "affectedFiles": [ |       "~\\.agents\\skills\\alpha-aos-control\\SKILL.md" |     ], |     "blockedReasons": [], |     "planDigest": "c673251e936c4481ed2a26e9432245ed69e399da866ad69f85492ad1d91595e8" |   }, |   "restoredFiles": [ |     "~\\.agents\\skills\\alpha-aos-control\\SKILL.md" |   ], |   "lockReleased": true | }
+
+## step 21: fp after-intent-journal-sync: status --json after repair
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 898
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-intent-journal-sync.status-ok-after-repair HOLDS status after repair exit=0, needsRepair=false
+CHECK life06.after-intent-journal-sync.target-consistent HOLDS target state after repair sha=absent (pre-state was absent)
+
+## step 22: fp after-intent-journal-sync: re-run command without failpoint override
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1033
+--- stdout (731B sha256=6672a0e2c608) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox-3>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": "2026-09-24T03-07-10-008Z-38a1f669-78a4-4243-91e1-4ed4e9f6501c",
+  "digest": "82ac619efe3245d62e79b095d026e63742cb2d9cb278f0ecaa4f99ea58fb3075"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 23: fp after-intent-journal-sync: status --json after restart
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 879
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-intent-journal-sync.restart-succeeds HOLDS restart exit=0; status needsRepair=false; target sha=a66debb56c9f
+
+## step 24: fp after-intent-journal-sync: second repair --apply --json (idempotence)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 866
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+fingerprint fp after-intent-journal-sync repair idempotent: 5da6a2d7bf6d -> 5da6a2d7bf6d
+CHECK life06.after-intent-journal-sync.repair-idempotent VIOLATED exit=2, fingerprints unchanged=true
+
+## step 25: fp after-target-rename: run command with failpoint override
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: ALPHA_AOS_FAILPOINT
+exit: 70
+duration-ms: 1576
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (64B sha256=fa0732dbf164) ---
+alpha-aos: deterministic failpoint reached: after-target-rename
+CHECK life06.after-target-rename.interrupted HOLDS exit=70 (expected 70), failpoint stderr line: "alpha-aos: deterministic failpoint reached: after-target-rename"
+
+## step 26: fp after-target-rename: status (human)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 1
+duration-ms: 900
+--- stdout (326B sha256=e94b4389029b) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: needs-repair
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+Incomplete transactions: 2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 27: fp after-target-rename: status --json
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 902
+--- stdout (314B sha256=99ed5b6ffa9c) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "needs-repair",
+  "needsRepair": true,
+  "incompleteTransactions": [
+    "2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545"
+  ],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-target-rename.status-needs-repair OBSERVED status exit=1; needsRepair=true; incompleteTransactions=["2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545"]
+CHECK life06.after-target-rename.no-false-success HOLDS status reported needsRepair=true; journalStatus=applying; target exists=true (sha=a66debb56c9f)
+
+## step 28: fp after-target-rename: repair (preview)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js repair
+env-overrides: none
+exit: 0
+duration-ms: 1232
+--- stdout (354B sha256=79db5732d7b2) ---
+alpha-AOS Crash Repair Plan
+Action:           snapshot-rollback
+Operation ID:     2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545
+Writer PID:       47492
+Writer alive:     no
+Snapshots intact: YES
+Affected files:   <sandbox-4>\home\.agents\skills\alpha-aos-control\SKILL.md
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 29: fp after-target-rename: repair --json (preview)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 1275
+--- stdout (510B sha256=3238a591c3d5) ---
+{
+  "stateRoot": "<state>",
+  "operationId": "2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545",
+  "journalPath": "<state>\\journal\\2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545.json",
+  "action": "snapshot-rollback",
+  "writerPid": 47492,
+  "writerAlive": false,
+  "snapshotsIntact": true,
+  "affectedFiles": [
+    "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+  ],
+  "blockedReasons": [],
+  "planDigest": "0258ee159b8f44435f7b2833877b206b6f8f43fa1fcc99871578170b8cbdad31"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 30: fp after-target-rename: repair --apply --json
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1313
+--- stdout (654B sha256=6014b36bebdc) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "operationId": "2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545",
+    "journalPath": "<state>\\journal\\2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545.json",
+    "action": "snapshot-rollback",
+    "writerPid": 47492,
+    "writerAlive": false,
+    "snapshotsIntact": true,
+    "affectedFiles": [
+      "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    ],
+    "blockedReasons": [],
+    "planDigest": "0258ee159b8f44435f7b2833877b206b6f8f43fa1fcc99871578170b8cbdad31"
+  },
+  "restoredFiles": [
+    "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+  ],
+  "lockReleased": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 31: fp after-target-rename: repair --apply (human)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply
+env-overrides: none
+exit: 2
+duration-ms: 1304
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+CHECK life06.after-target-rename.repair-apply HOLDS repair --apply exit=0; stdout={ |   "plan": { |     "stateRoot": "<state>", |     "operationId": "2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545", |     "journalPath": "<state>\\journal\\2026-09-24T03-07-35-369Z-7af4a453-9195-419f-ae6b-13f6a75f3545.json", |     "action": "snapshot-rollback", |     "writerPid": 47492, |     "writerAlive": false, |     "snapshotsIntact": true, |     "affectedFiles": [ |       "~\\.agents\\skills\\alpha-aos-control\\SKILL.md" |     ], |     "blockedReasons": [], |     "planDigest": "0258ee159b8f44435f7b2833877b206b6f8f43fa1fcc99871578170b8cbdad31" |   }, |   "restoredFiles": [ |     "~\\.agents\\skills\\alpha-aos-control\\SKILL.md" |   ], |   "lockReleased": true | }
+
+## step 32: fp after-target-rename: status --json after repair
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1323
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-target-rename.status-ok-after-repair HOLDS status after repair exit=0, needsRepair=false
+CHECK life06.after-target-rename.target-consistent HOLDS target state after repair sha=absent (pre-state was absent)
+
+## step 33: fp after-target-rename: re-run command without failpoint override
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1585
+--- stdout (725B sha256=e4fd21a0e1a4) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox-4>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": "2026-09-24T03-07-45-142Z-58943c1b-2600-427c-9ba9-8ba2deaa3e01",
+  "digest": "170659e1bdd72c82c7299ff40ca62d0de6084ad27c381789a7ae6e03441abbcb"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 34: fp after-target-rename: status --json after restart
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1289
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-target-rename.restart-succeeds HOLDS restart exit=0; status needsRepair=false; target sha=a66debb56c9f
+
+## step 35: fp after-target-rename: second repair --apply --json (idempotence)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 1293
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+fingerprint fp after-target-rename repair idempotent: 5d65fb44bd6e -> 5d65fb44bd6e
+CHECK life06.after-target-rename.repair-idempotent VIOLATED exit=2, fingerprints unchanged=true
+
+## step 36: fp after-step-sync: run command with failpoint override
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: ALPHA_AOS_FAILPOINT
+exit: 70
+duration-ms: 1614
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (60B sha256=1499be051a26) ---
+alpha-aos: deterministic failpoint reached: after-step-sync
+CHECK life06.after-step-sync.interrupted HOLDS exit=70 (expected 70), failpoint stderr line: "alpha-aos: deterministic failpoint reached: after-step-sync"
+
+## step 37: fp after-step-sync: status (human)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 1
+duration-ms: 894
+--- stdout (326B sha256=8176438a3456) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: needs-repair
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+Incomplete transactions: 2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 38: fp after-step-sync: status --json
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 876
+--- stdout (314B sha256=290c96a4c31b) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "needs-repair",
+  "needsRepair": true,
+  "incompleteTransactions": [
+    "2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260"
+  ],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-step-sync.status-needs-repair OBSERVED status exit=1; needsRepair=true; incompleteTransactions=["2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260"]
+CHECK life06.after-step-sync.no-false-success HOLDS status reported needsRepair=true; journalStatus=applying; target exists=true (sha=a66debb56c9f)
+
+## step 39: fp after-step-sync: repair (preview)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js repair
+env-overrides: none
+exit: 0
+duration-ms: 1052
+--- stdout (350B sha256=3d7f76387492) ---
+alpha-AOS Crash Repair Plan
+Action:           snapshot-rollback
+Operation ID:     2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260
+Writer PID:       43488
+Writer alive:     no
+Snapshots intact: YES
+Affected files:   <sandbox-5>\home\.agents\skills\alpha-aos-control\SKILL.md
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 40: fp after-step-sync: repair --json (preview)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 1194
+--- stdout (510B sha256=a6f17941f7fd) ---
+{
+  "stateRoot": "<state>",
+  "operationId": "2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260",
+  "journalPath": "<state>\\journal\\2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260.json",
+  "action": "snapshot-rollback",
+  "writerPid": 43488,
+  "writerAlive": false,
+  "snapshotsIntact": true,
+  "affectedFiles": [
+    "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+  ],
+  "blockedReasons": [],
+  "planDigest": "90c47e8065b9186e3e0b4855e599ee6a1d9bdca23f889c721201f638bd0bccdc"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 41: fp after-step-sync: repair --apply --json
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1005
+--- stdout (654B sha256=54e0e756cf55) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "operationId": "2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260",
+    "journalPath": "<state>\\journal\\2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260.json",
+    "action": "snapshot-rollback",
+    "writerPid": 43488,
+    "writerAlive": false,
+    "snapshotsIntact": true,
+    "affectedFiles": [
+      "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+    ],
+    "blockedReasons": [],
+    "planDigest": "90c47e8065b9186e3e0b4855e599ee6a1d9bdca23f889c721201f638bd0bccdc"
+  },
+  "restoredFiles": [
+    "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+  ],
+  "lockReleased": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 42: fp after-step-sync: repair --apply (human)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply
+env-overrides: none
+exit: 2
+duration-ms: 1024
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+CHECK life06.after-step-sync.repair-apply HOLDS repair --apply exit=0; stdout={ |   "plan": { |     "stateRoot": "<state>", |     "operationId": "2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260", |     "journalPath": "<state>\\journal\\2026-09-24T03-08-19-321Z-a96bd1b0-ecab-4ceb-92a7-2bd485296260.json", |     "action": "snapshot-rollback", |     "writerPid": 43488, |     "writerAlive": false, |     "snapshotsIntact": true, |     "affectedFiles": [ |       "~\\.agents\\skills\\alpha-aos-control\\SKILL.md" |     ], |     "blockedReasons": [], |     "planDigest": "90c47e8065b9186e3e0b4855e599ee6a1d9bdca23f889c721201f638bd0bccdc" |   }, |   "restoredFiles": [ |     "~\\.agents\\skills\\alpha-aos-control\\SKILL.md" |   ], |   "lockReleased": true | }
+
+## step 43: fp after-step-sync: status --json after repair
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1071
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-step-sync.status-ok-after-repair HOLDS status after repair exit=0, needsRepair=false
+CHECK life06.after-step-sync.target-consistent HOLDS target state after repair sha=absent (pre-state was absent)
+
+## step 44: fp after-step-sync: re-run command without failpoint override
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1094
+--- stdout (721B sha256=17c8d60d22b4) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox-5>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": "2026-09-24T03-08-27-522Z-b6a8191b-7ba6-4b5b-9fda-da9ac9ac66e0",
+  "digest": "4ef94efb30f753a468279eeb281f4fb15b2a4e565603eabf6773bd85e3ee740c"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 45: fp after-step-sync: status --json after restart
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 910
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-step-sync.restart-succeeds HOLDS restart exit=0; status needsRepair=false; target sha=a66debb56c9f
+
+## step 46: fp after-step-sync: second repair --apply --json (idempotence)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 878
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+fingerprint fp after-step-sync repair idempotent: 9e42c943a2af -> 9e42c943a2af
+CHECK life06.after-step-sync.repair-idempotent VIOLATED exit=2, fingerprints unchanged=true
+
+## step 47: fp after-final-sync: run command with failpoint override
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: ALPHA_AOS_FAILPOINT
+exit: 70
+duration-ms: 1800
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (61B sha256=6b1dc37ee34b) ---
+alpha-aos: deterministic failpoint reached: after-final-sync
+CHECK life06.after-final-sync.interrupted HOLDS exit=70 (expected 70), failpoint stderr line: "alpha-aos: deterministic failpoint reached: after-final-sync"
+
+## step 48: fp after-final-sync: status (human)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js status
+env-overrides: none
+exit: 1
+duration-ms: 920
+--- stdout (239B sha256=752344d56969) ---
+alpha-AOS offline status (stable)
+Generated at: 2026-09-01T00:00:00+09:00
+Writer lock: needs-repair
+Directory tree policies: 0
+Managed state present: yes
+
+STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 49: fp after-final-sync: status --json
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 911
+--- stdout (243B sha256=60ce03edd364) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "needs-repair",
+  "needsRepair": true,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-final-sync.status-needs-repair OBSERVED status exit=1; needsRepair=true; incompleteTransactions=[]
+CHECK life06.after-final-sync.no-false-success HOLDS status reported needsRepair=true; journalStatus=applied; target exists=true (sha=a66debb56c9f)
+
+## step 50: fp after-final-sync: repair (preview)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js repair
+env-overrides: none
+exit: 0
+duration-ms: 996
+--- stdout (174B sha256=fe998027e228) ---
+alpha-AOS Crash Repair Plan
+Action:           release-only
+Operation ID:     (none)
+Writer PID:       1528
+Writer alive:     no
+Snapshots intact: no
+Affected files:   (none)
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 51: fp after-final-sync: repair --json (preview)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 975
+--- stdout (307B sha256=67798eb5a83d) ---
+{
+  "stateRoot": "<state>",
+  "operationId": null,
+  "journalPath": null,
+  "action": "release-only",
+  "writerPid": 1528,
+  "writerAlive": false,
+  "snapshotsIntact": false,
+  "affectedFiles": [],
+  "blockedReasons": [],
+  "planDigest": "b9af1312664ae80e898b09e0371da105594099a00eb5b9e95266de73b2879673"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 52: fp after-final-sync: repair --apply --json
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1130
+--- stdout (390B sha256=3762f37c249d) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "operationId": null,
+    "journalPath": null,
+    "action": "release-only",
+    "writerPid": 1528,
+    "writerAlive": false,
+    "snapshotsIntact": false,
+    "affectedFiles": [],
+    "blockedReasons": [],
+    "planDigest": "b9af1312664ae80e898b09e0371da105594099a00eb5b9e95266de73b2879673"
+  },
+  "restoredFiles": [],
+  "lockReleased": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 53: fp after-final-sync: repair --apply (human)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply
+env-overrides: none
+exit: 2
+duration-ms: 1044
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+CHECK life06.after-final-sync.repair-apply HOLDS repair --apply exit=0; stdout={ |   "plan": { |     "stateRoot": "<state>", |     "operationId": null, |     "journalPath": null, |     "action": "release-only", |     "writerPid": 1528, |     "writerAlive": false, |     "snapshotsIntact": false, |     "affectedFiles": [], |     "blockedReasons": [], |     "planDigest": "b9af1312664ae80e898b09e0371da105594099a00eb5b9e95266de73b2879673" |   }, |   "restoredFiles": [], |   "lockReleased": true | }
+
+## step 54: fp after-final-sync: status --json after repair
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1012
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-final-sync.status-ok-after-repair HOLDS status after repair exit=0, needsRepair=false
+CHECK life06.after-final-sync.target-consistent HOLDS target state after repair sha=a66debb56c9f (pre-state was absent)
+
+## step 55: fp after-final-sync: re-run command without failpoint override
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1185
+--- stdout (663B sha256=e61361b5d54d) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox-6>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": null,
+  "digest": "ceb46f250c2f33d59593cd5131a119559bb5fc2dc01a861718c1592febfcf85f"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 56: fp after-final-sync: status --json after restart
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1151
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.after-final-sync.restart-succeeds HOLDS restart exit=0; status needsRepair=false; target sha=a66debb56c9f
+
+## step 57: fp after-final-sync: second repair --apply --json (idempotence)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 1025
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+fingerprint fp after-final-sync repair idempotent: 0a4c5b27bec2 -> 0a4c5b27bec2
+CHECK life06.after-final-sync.repair-idempotent VIOLATED exit=2, fingerprints unchanged=true
+CHECK life06.guidance.names-repair-command HOLDS status when NEEDS-REPAIR names 'alpha-aos repair'
+CHECK life06.guidance.names-apply VIOLATED repair preview does not instruct passing '--apply'
+CHECK life06.guidance.says-rerun VIOLATED repair/status guidance does not instruct user to re-run the interrupted operation
+
+## step 58: corrupt-json: seed valid transaction
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js owned-skills sync alpha-aos-control --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1941
+--- stdout (715B sha256=d4d0a3479dca) ---
+{
+  "plan": {
+    "id": "alpha-aos-control",
+    "target": "codex",
+    "source": "<sandbox-7>\\prefix\\node_modules\\alpha-aos\\skills\\alpha-aos-control\\SKILL.md",
+    "destination": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md",
+    "expectedHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "currentHash": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+    "action": "current",
+    "workflow": null,
+    "workflowFound": true
+  },
+  "operationId": "2026-09-24T03-09-32-176Z-4a8bb6d6-528a-4c08-9e8d-caaa17e5467f",
+  "digest": "f3742bd8dbbde267a2743190c677490791b8b77e24485fd69a609cf46da1487f"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: wrote invalid JSON to <sandbox-7>\state\journal\p11-corrupt.json
+
+## step 59: corrupt-json: status --json (before repair)
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 933
+--- stdout (261B sha256=466f88bdd68b) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": true,
+  "incompleteTransactions": [],
+  "corruptJournals": [
+    "p11-corrupt.json"
+  ],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.corrupt.flagged HOLDS status exit=1; needsRepair=true; corruptJournals=["p11-corrupt.json"]
+
+## step 60: corrupt-json: repair --json
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 0
+duration-ms: 1110
+--- stdout (346B sha256=87d1abbb7364) ---
+{
+  "stateRoot": "<state>",
+  "operationId": "p11-corrupt",
+  "journalPath": "<state>\\journal\\p11-corrupt.json",
+  "action": "quarantine",
+  "writerPid": null,
+  "writerAlive": false,
+  "snapshotsIntact": false,
+  "affectedFiles": [],
+  "blockedReasons": [],
+  "planDigest": "a69a8e9eefa8ff40dbbf8322782c8f1c97ffc94624524bd281b7a952ef484748"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 61: corrupt-json: repair --apply --json
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1192
+--- stdout (513B sha256=b75833fa926f) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "operationId": "p11-corrupt",
+    "journalPath": "<state>\\journal\\p11-corrupt.json",
+    "action": "quarantine",
+    "writerPid": null,
+    "writerAlive": false,
+    "snapshotsIntact": false,
+    "affectedFiles": [],
+    "blockedReasons": [],
+    "planDigest": "a69a8e9eefa8ff40dbbf8322782c8f1c97ffc94624524bd281b7a952ef484748"
+  },
+  "restoredFiles": [],
+  "quarantinedJournal": "<state>\\journal\\p11-corrupt.json.corrupt.1790219375491",
+  "lockReleased": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 62: corrupt-json: status --json (after repair)
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1125
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.corrupt.resolved HOLDS repair exit=0; status after needsRepair=false
+note: wrote applying journal with missing files array to <sandbox-8>\state\journal\p11-nofiles.json
+
+## step 63: p5: status --json (before repair)
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 1616
+--- stdout (256B sha256=d9fb7128b5a6) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": true,
+  "incompleteTransactions": [
+    "p11-nofiles"
+  ],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.p5.flagged HOLDS status exit=1; needsRepair=true; incompleteTransactions=["p11-nofiles"]
+
+## step 64: p5: repair --json
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 2
+duration-ms: 877
+--- stdout (434B sha256=87afa08d0ef5) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "status": "free",
+    "operationId": null,
+    "journalPath": null,
+    "targets": [],
+    "transition": "none",
+    "blockedReasons": [
+      "no writer lock is present"
+    ],
+    "planDigest": "88a32b9e91945c93cc0ddb0459abd663d4ee507219d5bc878ee4a381d5beb323"
+  },
+  "state": {
+    "status": "free",
+    "lockPath": "<state>\\writer.lock",
+    "record": null,
+    "detail": null
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 65: p5: repair --apply --json
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --apply --json
+env-overrides: none
+exit: 2
+duration-ms: 877
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (82B sha256=9ef181405d45) ---
+alpha-aos: This state cannot be repaired automatically: no writer lock is present
+
+## step 66: p5: status --json (after repair)
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 1
+duration-ms: 958
+--- stdout (256B sha256=d9fb7128b5a6) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": true,
+  "incompleteTransactions": [
+    "p11-nofiles"
+  ],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.p5.resolved VIOLATED repair planned action unknown; status after still needsRepair=true
+note: Attempt A: pre-created blocker at <sandbox-9>\home\.agents\skills\deep-research
+
+## step 67: p6: attempt A - install --target codex with blocked target
+$ node <sandbox-9>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 48035
+--- stdout (2765B sha256=89554a7b7e32) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-9>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex",
+    "ecc:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-24T03-10-44-152Z-c0794903-250f-461b-a7ef-bc73960aa368",
+    "2026-09-24T03-10-44-152Z-c0794903-250f-461b-a7ef-bc73960aa368--2",
+    "2026-09-24T03-10-44-152Z-c0794903-250f-461b-a7ef-bc73960aa368--3"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: Attempt A outcome: exit=0; failed journal found: false
+
+## step 68: p6: attempt B - install with obstructed rollback
+$ node <sandbox-9>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 7663
+--- stdout (2519B sha256=ebd5b5028114) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-9>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [],
+  "current": [
+    "policy:codex-execution",
+    "gsd:codex",
+    "owned-skill:alpha-aos-control:codex",
+    "ecc:runtime",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: Attempt B outcome: exit=0; failed journal found: false
+CHECK life06.p6.real-failed-journal OBSERVED not produced (compensating rollback clean or rolled-back)
+
+## step 69: p6: synthetic failed status --json
+$ node <sandbox-9>\prefix\node_modules\alpha-aos\dist\src\cli.js status --json
+env-overrides: none
+exit: 0
+duration-ms: 1262
+--- stdout (236B sha256=c32176d11af1) ---
+{
+  "channel": "stable",
+  "generatedAt": "2026-09-01T00:00:00+09:00",
+  "writerStatus": "free",
+  "needsRepair": false,
+  "incompleteTransactions": [],
+  "corruptJournals": [],
+  "treePoliciesCount": 0,
+  "managedStatePresent": true
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 70: p6: synthetic failed repair --json
+$ node <sandbox-9>\prefix\node_modules\alpha-aos\dist\src\cli.js repair --json
+env-overrides: none
+exit: 2
+duration-ms: 1050
+--- stdout (434B sha256=87afa08d0ef5) ---
+{
+  "plan": {
+    "stateRoot": "<state>",
+    "status": "free",
+    "operationId": null,
+    "journalPath": null,
+    "targets": [],
+    "transition": "none",
+    "blockedReasons": [
+      "no writer lock is present"
+    ],
+    "planDigest": "88a32b9e91945c93cc0ddb0459abd663d4ee507219d5bc878ee4a381d5beb323"
+  },
+  "state": {
+    "status": "free",
+    "lockPath": "<state>\\writer.lock",
+    "record": null,
+    "detail": null
+  }
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life06.p6.synthetic OBSERVED synthetic failed journal status needsRepair=false; repair action=undefined
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=34 violated=8 not-observed=0 observed=8

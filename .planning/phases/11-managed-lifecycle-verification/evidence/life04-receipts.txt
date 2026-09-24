@@ -1,0 +1,2419 @@
+probe: life04-receipts
+head: e1f4f34006c3d0901a8d956d67fe80b43cb73dae
+dirty-tracked: 1
+node: v24.13.1
+npm: 11.8.0
+platform: win32 x64
+tarball-sha256: b770a6a72d4d3ba94eefcfd54cae21fd79a027f53953661b45a9741131cb21c7
+started: 2026-09-23T20:36:56.968Z
+note: <home>/.claude.json is not a host guard target: the executing Claude Code session rewrites it continuously, so its digest drifts independently of any probe.
+
+## step 1: npm pack the repository
+$ npm pack <repo> --ignore-scripts --json --pack-destination <pack>\repo
+env-overrides: none
+exit: 0
+duration-ms: 2538
+--- stdout (18895B sha256=55ee94ccf03f) ---
+[
+  {
+    "id": "alpha-aos@0.1.0",
+    "name": "alpha-aos",
+    "version": "0.1.0",
+    "size": 590832,
+    "unpackedSize": 2455165,
+    "shasum": "cb06a2bd2f4edd98046f2f1c0cde963464495a56",
+    "integrity": "sha512-SgSxGCLxhP8p4Za02yrdteP80KK7XWuTHwuppd2OGQc9baNVSycLAu9K6nACgT4MCFoTgShAC6bcQISqXTIndQ==",
+    "filename": "alpha-aos-0.1.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 5049,
+        "mode": 420
+      },
+      {
+        "path": "LICENSE",
+        "size": 11357,
+        "mode": 420
+      },
+      {
+        "path": "README.ko.md",
+        "size": 18428,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15395,
+        "mode": 420
+      },
+      {
+        "path": "catalog/canaries.yaml",
+        "size": 6873,
+        "mode": 420
+      },
+      {
+        "path": "catalog/facts.yaml",
+        "size": 10826,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/ai.yaml",
+        "size": 393,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/backend.yaml",
+        "size": 455,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/brownfield.yaml",
+        "size": 200,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/infra.yaml",
+        "size": 320,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/research.yaml",
+        "size": 286,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/security.yaml",
+        "size": 682,
+        "mode": 420
+      },
+      {
+        "path": "catalog/packs/web.yaml",
+        "size": 346,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.lock.json",
+        "size": 6788,
+        "mode": 420
+      },
+      {
+        "path": "catalog/stack.yaml",
+        "size": 1885,
+        "mode": 420
+      },
+      {
+        "path": "dist/build-artifact.json",
+        "size": 38171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js",
+        "size": 43241,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/capability-oracle.js.map",
+        "size": 24862,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js",
+        "size": 3104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/harnesses.js.map",
+        "size": 3147,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js",
+        "size": 14103,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/isolation.js.map",
+        "size": 7510,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js",
+        "size": 7504,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/shims.js.map",
+        "size": 6297,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js",
+        "size": 12590,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/adapters/unified-memory.js.map",
+        "size": 8557,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js",
+        "size": 84868,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/cli.js.map",
+        "size": 62283,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js",
+        "size": 20789,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/bootstrap.js.map",
+        "size": 18452,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js",
+        "size": 21865,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/brownfield-proof.js.map",
+        "size": 19113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js",
+        "size": 130380,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/canary.js.map",
+        "size": 77481,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js",
+        "size": 24089,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/capability-ledger.js.map",
+        "size": 12593,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js",
+        "size": 7418,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/catalog.js.map",
+        "size": 6532,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js",
+        "size": 6365,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/codex-policy.js.map",
+        "size": 6594,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js",
+        "size": 5493,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/component-session.js.map",
+        "size": 4360,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js",
+        "size": 7314,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/doctor.js.map",
+        "size": 6489,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js",
+        "size": 17568,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-fixture.js.map",
+        "size": 11214,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js",
+        "size": 11687,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ecc-skills.js.map",
+        "size": 10803,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js",
+        "size": 86625,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/evidence.js.map",
+        "size": 60902,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js",
+        "size": 6230,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-lifecycle.js.map",
+        "size": 4810,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js",
+        "size": 4874,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate-receipt.js.map",
+        "size": 4102,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js",
+        "size": 24516,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gate.js.map",
+        "size": 18697,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js",
+        "size": 17408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-compat.js.map",
+        "size": 15261,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js",
+        "size": 4210,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-context.js.map",
+        "size": 4099,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js",
+        "size": 9474,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/gsd-fixture.js.map",
+        "size": 8667,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js",
+        "size": 13484,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/ignore-list.js.map",
+        "size": 8090,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js",
+        "size": 34992,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/install.js.map",
+        "size": 31058,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js",
+        "size": 749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/inventory.js.map",
+        "size": 844,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js",
+        "size": 29320,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/isolation.js.map",
+        "size": 26708,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js",
+        "size": 13623,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-fixture.js.map",
+        "size": 12389,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js",
+        "size": 29252,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp-proxy.js.map",
+        "size": 14318,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js",
+        "size": 24454,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/mcp.js.map",
+        "size": 22171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js",
+        "size": 9396,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/owned-skills.js.map",
+        "size": 9373,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js",
+        "size": 10395,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/pack-catalog.js.map",
+        "size": 6749,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js",
+        "size": 15760,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/path-boundary.js.map",
+        "size": 11689,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js",
+        "size": 6359,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/paths.js.map",
+        "size": 4361,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js",
+        "size": 5795,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/plan.js.map",
+        "size": 4463,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js",
+        "size": 33641,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/process.js.map",
+        "size": 23933,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js",
+        "size": 46679,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-pack-sync.js.map",
+        "size": 29821,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js",
+        "size": 123171,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project-plan.js.map",
+        "size": 73718,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js",
+        "size": 7212,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/project.js.map",
+        "size": 3808,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js",
+        "size": 3377,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/recovery-receipt.js.map",
+        "size": 2696,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js",
+        "size": 15787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/redaction.js.map",
+        "size": 9383,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js",
+        "size": 6408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/repair.js.map",
+        "size": 5999,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js",
+        "size": 5964,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/skill-policy.js.map",
+        "size": 5600,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js",
+        "size": 2619,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/status.js.map",
+        "size": 2266,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js",
+        "size": 9975,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-bundle.js.map",
+        "size": 8529,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js",
+        "size": 7112,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/support-matrix.js.map",
+        "size": 5255,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js",
+        "size": 5832,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/surface-inspector.js.map",
+        "size": 4578,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js",
+        "size": 15876,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/transaction.js.map",
+        "size": 15139,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js",
+        "size": 15761,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/tree-policy.js.map",
+        "size": 13104,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js",
+        "size": 21372,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/uninstall.js.map",
+        "size": 19500,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js",
+        "size": 7413,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/update.js.map",
+        "size": 7577,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js",
+        "size": 26787,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/validation.js.map",
+        "size": 21899,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js",
+        "size": 7523,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/worker-authority.js.map",
+        "size": 6088,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js",
+        "size": 14877,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/core/writer-lock.js.map",
+        "size": 12408,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js",
+        "size": 47113,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/format.js.map",
+        "size": 35533,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js",
+        "size": 3859,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/shim-dispatch.js.map",
+        "size": 3778,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js",
+        "size": 44,
+        "mode": 420
+      },
+      {
+        "path": "dist/src/types.js.map",
+        "size": 105,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-claude.md",
+        "size": 35410,
+        "mode": 420
+      },
+      {
+        "path": "docs/alpha-vibe-stack-codex.md",
+        "size": 51306,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-policy.md",
+        "size": 1857,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-execution-validation.md",
+        "size": 3968,
+        "mode": 420
+      },
+      {
+        "path": "docs/codex-usage-audit.md",
+        "size": 1531,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_CONTROLS.md",
+        "size": 2508,
+        "mode": 420
+      },
+      {
+        "path": "docs/RELEASE_NOTES_v0.1.0.md",
+        "size": 5060,
+        "mode": 420
+      },
+      {
+        "path": "docs/SUPPORT_MATRIX.md",
+        "size": 2455,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 1581,
+        "mode": 420
+      },
+      {
+        "path": "schemas/approved-plan.schema.json",
+        "size": 13415,
+        "mode": 420
+      },
+      {
+        "path": "schemas/canary-catalog.schema.json",
+        "size": 7648,
+        "mode": 420
+      },
+      {
+        "path": "schemas/capability-ledger.schema.json",
+        "size": 18646,
+        "mode": 420
+      },
+      {
+        "path": "schemas/evidence.schema.json",
+        "size": 1928,
+        "mode": 420
+      },
+      {
+        "path": "schemas/fact-vocabulary.schema.json",
+        "size": 4678,
+        "mode": 420
+      },
+      {
+        "path": "schemas/gate-receipt.schema.json",
+        "size": 1916,
+        "mode": 420
+      },
+      {
+        "path": "schemas/install-state.schema.json",
+        "size": 925,
+        "mode": 420
+      },
+      {
+        "path": "schemas/lock.schema.json",
+        "size": 5140,
+        "mode": 420
+      },
+      {
+        "path": "schemas/pack-catalog.schema.json",
+        "size": 7636,
+        "mode": 420
+      },
+      {
+        "path": "schemas/project-stack.schema.json",
+        "size": 4129,
+        "mode": 420
+      },
+      {
+        "path": "schemas/receipt.schema.json",
+        "size": 3225,
+        "mode": 420
+      },
+      {
+        "path": "schemas/recovery-receipt.schema.json",
+        "size": 1596,
+        "mode": 420
+      },
+      {
+        "path": "schemas/stack.schema.json",
+        "size": 5506,
+        "mode": 420
+      },
+      {
+        "path": "schemas/transaction-journal.schema.json",
+        "size": 1922,
+        "mode": 420
+      },
+      {
+        "path": "schemas/tree-registry.schema.json",
+        "size": 1347,
+        "mode": 420
+      },
+      {
+        "path": "schemas/writer-lock.schema.json",
+        "size": 1077,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-codex-usage.mjs",
+        "size": 6460,
+        "mode": 420
+      },
+      {
+        "path": "scripts/audit-tarball.mjs",
+        "size": 13426,
+        "mode": 420
+      },
+      {
+        "path": "scripts/build-artifact.mjs",
+        "size": 5329,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.ps1",
+        "size": 1729,
+        "mode": 420
+      },
+      {
+        "path": "scripts/install.sh",
+        "size": 1679,
+        "mode": 420
+      },
+      {
+        "path": "scripts/pin-pack-skills.mjs",
+        "size": 8724,
+        "mode": 420
+      },
+      {
+        "path": "scripts/release.mjs",
+        "size": 9268,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-brownfield-proof.mjs",
+        "size": 1932,
+        "mode": 420
+      },
+      {
+        "path": "scripts/run-tests.mjs",
+        "size": 7414,
+        "mode": 420
+      },
+      {
+        "path": "scripts/smoke-test.mjs",
+        "size": 7397,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.ps1",
+        "size": 1256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/update.sh",
+        "size": 1225,
+        "mode": 420
+      },
+      {
+        "path": "scripts/verify-provenance.mjs",
+        "size": 9639,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-control/SKILL.md",
+        "size": 8231,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-memory-handoff/SKILL.md",
+        "size": 3097,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-research-routing/SKILL.md",
+        "size": 3554,
+        "mode": 420
+      },
+      {
+        "path": "skills/alpha-aos-ship/SKILL.md",
+        "size": 1490,
+        "mode": 420
+      }
+    ],
+    "entryCount": 172,
+    "bundled": []
+  }
+]
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: sandbox aliases in order: <sandbox>..<sandbox-5> the no-receipt sandboxes (claude, codex, antigravity, pi, hermes); <sandbox-6> P2 user-modified skill; <sandbox-7> user-modified MCP entry; <sandbox-8> P4 edit after preview; <sandbox-9> syntactic tamper; <sandbox-10> project scope with no receipt. Fingerprint roots: <sandbox-N>/home, <sandbox-N>/state, <sandbox-N>/prefix
+note: CLI output below is verbatim apart from path aliasing; any 64-hex value inside it is a plan digest, a file hash the CLI computed itself over a sandbox file, or a lock digest
+note: no-receipt claude: no alpha-AOS install ran in this sandbox; <state>/journal is absent. User-authored MCP config <sandbox>\home\.claude.json (sha 7bd24084c8ef; servers context7, exa, firecrawl, each `node p11-user-<server>.js`, no env, no marker); user-authored ECC-named skills <sandbox>\home\.claude\skills\unified-memory\SKILL.md (sha 7a77278a2219), <sandbox>\home\.claude\skills\documentation-lookup\SKILL.md (sha 7a77278a2219), <sandbox>\home\.claude\skills\deep-research\SKILL.md (sha 7a77278a2219)
+
+## step 2: no-receipt claude: uninstall --target claude --json (preview)
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target claude --json
+env-overrides: none
+exit: 0
+duration-ms: 842
+--- stdout (1044B sha256=5d89c881c14b) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "claude",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.claude.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "7bd24084c8ef736af87ef625e1558480499bda1786dafc3a3fbc07e769c64c2a",
+      "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    }
+  ],
+  "filesToRemove": [
+    "~\\.claude\\skills\\unified-memory\\SKILL.md",
+    "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.claude\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.claude\\skills\\unified-memory",
+    "~\\.claude\\skills\\documentation-lookup",
+    "~\\.claude\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "884ea4df17af3613b0ba25e6db127a9111f26879f36a3ceb95b42bc9644bb761"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.no-receipt.claude.planned OBSERVED with no journal and no alpha-AOS install, the preview plans 4 removal(s): prune ~\.claude.json removing [context7, exa, firecrawl]; remove ~\.claude\skills\unified-memory\SKILL.md; remove ~\.claude\skills\documentation-lookup\SKILL.md; remove ~\.claude\skills\deep-research\SKILL.md
+
+## step 3: no-receipt claude: uninstall --target claude --yes --apply --json
+$ node <sandbox>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target claude --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1095
+--- stdout (1708B sha256=9f8271ed9ca0) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "claude",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.claude.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "7bd24084c8ef736af87ef625e1558480499bda1786dafc3a3fbc07e769c64c2a",
+        "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.claude\\skills\\unified-memory\\SKILL.md",
+      "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.claude\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.claude\\skills\\unified-memory",
+      "~\\.claude\\skills\\documentation-lookup",
+      "~\\.claude\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "884ea4df17af3613b0ba25e6db127a9111f26879f36a3ceb95b42bc9644bb761"
+  },
+  "prunedFiles": [
+    "~\\.claude.json"
+  ],
+  "removedFiles": [
+    "~\\.claude\\skills\\unified-memory\\SKILL.md",
+    "~\\.claude\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.claude\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-37-49-762Z-83a2c597-f693-409f-aa54-1c2fa43d46ba.json",
+    "2026-09-23T20-37-49-834Z-1ae042b3-09c4-40ea-bcbf-910c8eee2343.json",
+    "2026-09-23T20-37-49-908Z-e1f837f1-828c-451b-bf6b-f8a2dabe0710.json",
+    "2026-09-23T20-37-49-962Z-c2f63f05-e05c-48e9-941b-37e6b9a271bc.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint no-receipt claude: home/state/prefix across the apply: 94a643093f8b -> d20f59e26da9
+drift in no-receipt claude: home/state/prefix across the apply
+<sandbox>\home: 73d59dd41971 -> b35cc7f3f76b (added 0, removed 3, changed 1, vanished 0)
+  changed .claude.json file/401/7bd24084c8ef -> file/3/ca3d163bab05
+  removed .claude/skills/deep-research/SKILL.md file/24/7a77278a2219 -> -
+  removed .claude/skills/documentation-lookup/SKILL.md file/24/7a77278a2219 -> -
+  removed .claude/skills/unified-memory/SKILL.md file/24/7a77278a2219 -> -
+<sandbox>\state: 52dc9e9a9390 -> 3c8e534fe39e (added 14, removed 0, changed 0, vanished 0)
+  added journal - -> dir/-/-
+  added journal/2026-09-23T20-37-49-762Z-83a2c597-f693-409f-aa54-1c2fa43d46ba.json - -> file/1026/80ee3e77c0a7
+  added journal/2026-09-23T20-37-49-834Z-1ae042b3-09c4-40ea-bcbf-910c8eee2343.json - -> file/1026/d2237bedb74b
+  added journal/2026-09-23T20-37-49-908Z-e1f837f1-828c-451b-bf6b-f8a2dabe0710.json - -> file/1038/a4d9870bb2a3
+  added journal/2026-09-23T20-37-49-962Z-c2f63f05-e05c-48e9-941b-37e6b9a271bc.json - -> file/1024/9acfc36461a5
+  added snapshots - -> dir/-/-
+  added snapshots/2026-09-23T20-37-49-762Z-83a2c597-f693-409f-aa54-1c2fa43d46ba - -> dir/-/-
+  added snapshots/2026-09-23T20-37-49-762Z-83a2c597-f693-409f-aa54-1c2fa43d46ba/0.bin - -> file/401/7bd24084c8ef
+  added snapshots/2026-09-23T20-37-49-834Z-1ae042b3-09c4-40ea-bcbf-910c8eee2343 - -> dir/-/-
+  added snapshots/2026-09-23T20-37-49-834Z-1ae042b3-09c4-40ea-bcbf-910c8eee2343/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-37-49-908Z-e1f837f1-828c-451b-bf6b-f8a2dabe0710 - -> dir/-/-
+  added snapshots/2026-09-23T20-37-49-908Z-e1f837f1-828c-451b-bf6b-f8a2dabe0710/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-37-49-962Z-c2f63f05-e05c-48e9-941b-37e6b9a271bc - -> dir/-/-
+  added snapshots/2026-09-23T20-37-49-962Z-c2f63f05-e05c-48e9-941b-37e6b9a271bc/0.bin - -> file/24/7a77278a2219
+CHECK life04.no-receipt.claude.entries VIOLATED exit=0; user-authored entries with no receipt removed: context7, exa, firecrawl; changed: none; config file sha 7bd24084c8ef -> ca3d163bab05
+CHECK life04.no-receipt.claude.skills VIOLATED user-authored skills with no receipt removed or changed: <sandbox>\home\.claude\skills\unified-memory\SKILL.md 7a77278a2219 -> absent; <sandbox>\home\.claude\skills\documentation-lookup\SKILL.md 7a77278a2219 -> absent; <sandbox>\home\.claude\skills\deep-research\SKILL.md 7a77278a2219 -> absent
+note: no-receipt codex: no alpha-AOS install ran in this sandbox; <state>/journal is absent. User-authored MCP config <sandbox-2>\home\.codex\config.toml (sha c341ebc08086; servers context7, exa, firecrawl, each `node p11-user-<server>.js`, no env, no marker); user-authored ECC-named skills <sandbox-2>\home\.agents\skills\unified-memory\SKILL.md (sha 7a77278a2219), <sandbox-2>\home\.agents\skills\documentation-lookup\SKILL.md (sha 7a77278a2219), <sandbox-2>\home\.agents\skills\deep-research\SKILL.md (sha 7a77278a2219)
+
+## step 4: no-receipt codex: uninstall --target codex --json (preview)
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --json
+env-overrides: none
+exit: 0
+duration-ms: 892
+--- stdout (989B sha256=4a57d46f7082) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "codex",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.codex\\config.toml",
+      "format": "toml",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "delete",
+      "currentHash": "c341ebc08086f496c5c3c74ec2b3dec110a04df96b4e9de112302b23a91211c8",
+      "expectedAfterHash": null
+    }
+  ],
+  "filesToRemove": [
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "11bc2091e5df6d5fc0d96e6f4176c0ba171e39c9ca2f866d8a86a5873eff4bb8"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.no-receipt.codex.planned OBSERVED with no journal and no alpha-AOS install, the preview plans 4 removal(s): delete ~\.codex\config.toml removing [context7, exa, firecrawl]; remove ~\.agents\skills\unified-memory\SKILL.md; remove ~\.agents\skills\documentation-lookup\SKILL.md; remove ~\.agents\skills\deep-research\SKILL.md
+
+## step 5: no-receipt codex: uninstall --target codex --yes --apply --json
+$ node <sandbox-2>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1176
+--- stdout (1658B sha256=9188167a4ffb) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "codex",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.codex\\config.toml",
+        "format": "toml",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "delete",
+        "currentHash": "c341ebc08086f496c5c3c74ec2b3dec110a04df96b4e9de112302b23a91211c8",
+        "expectedAfterHash": null
+      }
+    ],
+    "filesToRemove": [
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "11bc2091e5df6d5fc0d96e6f4176c0ba171e39c9ca2f866d8a86a5873eff4bb8"
+  },
+  "prunedFiles": [],
+  "removedFiles": [
+    "~\\.codex\\config.toml",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-38-22-169Z-205f83a0-c576-4e11-9f4d-9170f111ee02.json",
+    "2026-09-23T20-38-22-237Z-68e8613a-767f-4a16-b886-80605c804c69.json",
+    "2026-09-23T20-38-22-297Z-6dfef62b-37fb-4d93-88f8-fc741d813e59.json",
+    "2026-09-23T20-38-22-352Z-8576c285-35bc-43e8-aa61-c5d423ba7481.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint no-receipt codex: home/state/prefix across the apply: af8c3be7153b -> a0c53df76fe7
+drift in no-receipt codex: home/state/prefix across the apply
+<sandbox-2>\home: d15a627c944b -> f445a87e812d (added 0, removed 4, changed 0, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/24/7a77278a2219 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/24/7a77278a2219 -> -
+  removed .agents/skills/unified-memory/SKILL.md file/24/7a77278a2219 -> -
+  removed .codex/config.toml file/210/c341ebc08086 -> -
+<sandbox-2>\state: 52dc9e9a9390 -> 7ced447b535a (added 14, removed 0, changed 0, vanished 0)
+  added journal - -> dir/-/-
+  added journal/2026-09-23T20-38-22-169Z-205f83a0-c576-4e11-9f4d-9170f111ee02.json - -> file/975/003b7f500009
+  added journal/2026-09-23T20-38-22-237Z-68e8613a-767f-4a16-b886-80605c804c69.json - -> file/1022/bee28829aef0
+  added journal/2026-09-23T20-38-22-297Z-6dfef62b-37fb-4d93-88f8-fc741d813e59.json - -> file/1034/7f35d5d96d64
+  added journal/2026-09-23T20-38-22-352Z-8576c285-35bc-43e8-aa61-c5d423ba7481.json - -> file/1020/32c5abfb23d9
+  added snapshots - -> dir/-/-
+  added snapshots/2026-09-23T20-38-22-169Z-205f83a0-c576-4e11-9f4d-9170f111ee02 - -> dir/-/-
+  added snapshots/2026-09-23T20-38-22-169Z-205f83a0-c576-4e11-9f4d-9170f111ee02/0.bin - -> file/210/c341ebc08086
+  added snapshots/2026-09-23T20-38-22-237Z-68e8613a-767f-4a16-b886-80605c804c69 - -> dir/-/-
+  added snapshots/2026-09-23T20-38-22-237Z-68e8613a-767f-4a16-b886-80605c804c69/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-38-22-297Z-6dfef62b-37fb-4d93-88f8-fc741d813e59 - -> dir/-/-
+  added snapshots/2026-09-23T20-38-22-297Z-6dfef62b-37fb-4d93-88f8-fc741d813e59/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-38-22-352Z-8576c285-35bc-43e8-aa61-c5d423ba7481 - -> dir/-/-
+  added snapshots/2026-09-23T20-38-22-352Z-8576c285-35bc-43e8-aa61-c5d423ba7481/0.bin - -> file/24/7a77278a2219
+CHECK life04.no-receipt.codex.entries VIOLATED exit=0; user-authored entries with no receipt removed: context7, exa, firecrawl; changed: none; config file sha c341ebc08086 -> absent
+CHECK life04.no-receipt.codex.skills VIOLATED user-authored skills with no receipt removed or changed: <sandbox-2>\home\.agents\skills\unified-memory\SKILL.md 7a77278a2219 -> absent; <sandbox-2>\home\.agents\skills\documentation-lookup\SKILL.md 7a77278a2219 -> absent; <sandbox-2>\home\.agents\skills\deep-research\SKILL.md 7a77278a2219 -> absent
+note: no-receipt antigravity: no alpha-AOS install ran in this sandbox; <state>/journal is absent. User-authored MCP config <sandbox-3>\home\.gemini\config\mcp_config.json (sha 038be98fd048; servers context7, exa, firecrawl, each `node p11-user-<server>.js`, no env, no marker); user-authored ECC-named skills <sandbox-3>\home\.gemini\antigravity\skills\unified-memory\SKILL.md (sha 7a77278a2219), <sandbox-3>\home\.gemini\antigravity\skills\documentation-lookup\SKILL.md (sha 7a77278a2219), <sandbox-3>\home\.gemini\antigravity\skills\deep-research\SKILL.md (sha 7a77278a2219)
+
+## step 6: no-receipt antigravity: uninstall --target antigravity --json (preview)
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target antigravity --json
+env-overrides: none
+exit: 0
+duration-ms: 858
+--- stdout (1147B sha256=7a309c1a3c48) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "antigravity",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.gemini\\config\\mcp_config.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "038be98fd048223bea334a617c7ed066acba7e00911734f1ce4b8e8215689b5b",
+      "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    }
+  ],
+  "filesToRemove": [
+    "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.gemini\\antigravity\\skills\\unified-memory",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup",
+    "~\\.gemini\\antigravity\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "058be7f9ec3f9e3f83a954e5eecc13a0d0dae54a7ade6fc23202a1a97a3b4f9f"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.no-receipt.antigravity.planned OBSERVED with no journal and no alpha-AOS install, the preview plans 4 removal(s): prune ~\.gemini\config\mcp_config.json removing [context7, exa, firecrawl]; remove ~\.gemini\antigravity\skills\unified-memory\SKILL.md; remove ~\.gemini\antigravity\skills\documentation-lookup\SKILL.md; remove ~\.gemini\antigravity\skills\deep-research\SKILL.md
+
+## step 7: no-receipt antigravity: uninstall --target antigravity --yes --apply --json
+$ node <sandbox-3>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target antigravity --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1053
+--- stdout (1870B sha256=b652ac1b36bd) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "antigravity",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.gemini\\config\\mcp_config.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "038be98fd048223bea334a617c7ed066acba7e00911734f1ce4b8e8215689b5b",
+        "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.gemini\\antigravity\\skills\\unified-memory",
+      "~\\.gemini\\antigravity\\skills\\documentation-lookup",
+      "~\\.gemini\\antigravity\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "058be7f9ec3f9e3f83a954e5eecc13a0d0dae54a7ade6fc23202a1a97a3b4f9f"
+  },
+  "prunedFiles": [
+    "~\\.gemini\\config\\mcp_config.json"
+  ],
+  "removedFiles": [
+    "~\\.gemini\\antigravity\\skills\\unified-memory\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.gemini\\antigravity\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-38-57-507Z-10f762c9-24a6-493b-9733-c938415a805c.json",
+    "2026-09-23T20-38-57-574Z-8fe1367f-8693-4809-815b-64a4b79c8380.json",
+    "2026-09-23T20-38-57-627Z-a9f7a3aa-5b86-4939-af6a-0517971cee27.json",
+    "2026-09-23T20-38-57-683Z-7ffb1f34-8e3a-4063-9adc-e965bdb7881f.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint no-receipt antigravity: home/state/prefix across the apply: e4cf2d259025 -> d8da3e264e5c
+drift in no-receipt antigravity: home/state/prefix across the apply
+<sandbox-3>\home: 920520013632 -> df60dccc8614 (added 0, removed 3, changed 1, vanished 0)
+  removed .gemini/antigravity/skills/deep-research/SKILL.md file/24/7a77278a2219 -> -
+  removed .gemini/antigravity/skills/documentation-lookup/SKILL.md file/24/7a77278a2219 -> -
+  removed .gemini/antigravity/skills/unified-memory/SKILL.md file/24/7a77278a2219 -> -
+  changed .gemini/config/mcp_config.json file/332/038be98fd048 -> file/3/ca3d163bab05
+<sandbox-3>\state: 52dc9e9a9390 -> c7c40b3bf35e (added 14, removed 0, changed 0, vanished 0)
+  added journal - -> dir/-/-
+  added journal/2026-09-23T20-38-57-507Z-10f762c9-24a6-493b-9733-c938415a805c.json - -> file/1083/85168024e56c
+  added journal/2026-09-23T20-38-57-574Z-8fe1367f-8693-4809-815b-64a4b79c8380.json - -> file/1072/1648abf7d2dc
+  added journal/2026-09-23T20-38-57-627Z-a9f7a3aa-5b86-4939-af6a-0517971cee27.json - -> file/1084/dc4626d23eaa
+  added journal/2026-09-23T20-38-57-683Z-7ffb1f34-8e3a-4063-9adc-e965bdb7881f.json - -> file/1070/8731e6c8cee3
+  added snapshots - -> dir/-/-
+  added snapshots/2026-09-23T20-38-57-507Z-10f762c9-24a6-493b-9733-c938415a805c - -> dir/-/-
+  added snapshots/2026-09-23T20-38-57-507Z-10f762c9-24a6-493b-9733-c938415a805c/0.bin - -> file/332/038be98fd048
+  added snapshots/2026-09-23T20-38-57-574Z-8fe1367f-8693-4809-815b-64a4b79c8380 - -> dir/-/-
+  added snapshots/2026-09-23T20-38-57-574Z-8fe1367f-8693-4809-815b-64a4b79c8380/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-38-57-627Z-a9f7a3aa-5b86-4939-af6a-0517971cee27 - -> dir/-/-
+  added snapshots/2026-09-23T20-38-57-627Z-a9f7a3aa-5b86-4939-af6a-0517971cee27/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-38-57-683Z-7ffb1f34-8e3a-4063-9adc-e965bdb7881f - -> dir/-/-
+  added snapshots/2026-09-23T20-38-57-683Z-7ffb1f34-8e3a-4063-9adc-e965bdb7881f/0.bin - -> file/24/7a77278a2219
+CHECK life04.no-receipt.antigravity.entries VIOLATED exit=0; user-authored entries with no receipt removed: context7, exa, firecrawl; changed: none; config file sha 038be98fd048 -> ca3d163bab05
+CHECK life04.no-receipt.antigravity.skills VIOLATED user-authored skills with no receipt removed or changed: <sandbox-3>\home\.gemini\antigravity\skills\unified-memory\SKILL.md 7a77278a2219 -> absent; <sandbox-3>\home\.gemini\antigravity\skills\documentation-lookup\SKILL.md 7a77278a2219 -> absent; <sandbox-3>\home\.gemini\antigravity\skills\deep-research\SKILL.md 7a77278a2219 -> absent
+note: no-receipt pi: no alpha-AOS install ran in this sandbox; <state>/journal is absent. User-authored MCP config <sandbox-4>\home\.pi\agent\mcp.json (sha 038be98fd048; servers context7, exa, firecrawl, each `node p11-user-<server>.js`, no env, no marker); user-authored ECC-named skills <sandbox-4>\home\.agents\skills\unified-memory\SKILL.md (sha 7a77278a2219), <sandbox-4>\home\.agents\skills\documentation-lookup\SKILL.md (sha 7a77278a2219), <sandbox-4>\home\.agents\skills\deep-research\SKILL.md (sha 7a77278a2219)
+
+## step 8: no-receipt pi: uninstall --target pi --json (preview)
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target pi --json
+env-overrides: none
+exit: 0
+duration-ms: 767
+--- stdout (1048B sha256=01b9687d6461) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "pi",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.pi\\agent\\mcp.json",
+      "format": "json",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "038be98fd048223bea334a617c7ed066acba7e00911734f1ce4b8e8215689b5b",
+      "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    }
+  ],
+  "filesToRemove": [
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "59110def5fd274a85c2f0a4c0c82ff5ed7e632623544498584ff68267552b349"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.no-receipt.pi.planned OBSERVED with no journal and no alpha-AOS install, the preview plans 4 removal(s): prune ~\.pi\agent\mcp.json removing [context7, exa, firecrawl]; remove ~\.agents\skills\unified-memory\SKILL.md; remove ~\.agents\skills\documentation-lookup\SKILL.md; remove ~\.agents\skills\deep-research\SKILL.md
+
+## step 9: no-receipt pi: uninstall --target pi --yes --apply --json
+$ node <sandbox-4>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target pi --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1082
+--- stdout (1720B sha256=688b14b34ffe) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "pi",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.pi\\agent\\mcp.json",
+        "format": "json",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "038be98fd048223bea334a617c7ed066acba7e00911734f1ce4b8e8215689b5b",
+        "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "59110def5fd274a85c2f0a4c0c82ff5ed7e632623544498584ff68267552b349"
+  },
+  "prunedFiles": [
+    "~\\.pi\\agent\\mcp.json"
+  ],
+  "removedFiles": [
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-39-29-507Z-a12c7989-d020-4f63-aaa9-5fddd029f0a3.json",
+    "2026-09-23T20-39-29-577Z-5575329d-f3c8-41c4-9fc9-2987511ccf2d.json",
+    "2026-09-23T20-39-29-631Z-ccbdf4a2-9cda-4969-b0bc-5bb07884cdd4.json",
+    "2026-09-23T20-39-29-684Z-9e22e590-045f-4cec-bc51-4828b5126edb.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint no-receipt pi: home/state/prefix across the apply: 14bf515e74e0 -> 7b7e16ba4ee4
+drift in no-receipt pi: home/state/prefix across the apply
+<sandbox-4>\home: f89366109b57 -> 38f0a72305ce (added 0, removed 3, changed 1, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/24/7a77278a2219 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/24/7a77278a2219 -> -
+  removed .agents/skills/unified-memory/SKILL.md file/24/7a77278a2219 -> -
+  changed .pi/agent/mcp.json file/332/038be98fd048 -> file/3/ca3d163bab05
+<sandbox-4>\state: 52dc9e9a9390 -> ed0087b0aee9 (added 14, removed 0, changed 0, vanished 0)
+  added journal - -> dir/-/-
+  added journal/2026-09-23T20-39-29-507Z-a12c7989-d020-4f63-aaa9-5fddd029f0a3.json - -> file/1030/3bbff966f821
+  added journal/2026-09-23T20-39-29-577Z-5575329d-f3c8-41c4-9fc9-2987511ccf2d.json - -> file/1010/0bd268a60acf
+  added journal/2026-09-23T20-39-29-631Z-ccbdf4a2-9cda-4969-b0bc-5bb07884cdd4.json - -> file/1022/323630e584eb
+  added journal/2026-09-23T20-39-29-684Z-9e22e590-045f-4cec-bc51-4828b5126edb.json - -> file/1008/4b7c692fa7c5
+  added snapshots - -> dir/-/-
+  added snapshots/2026-09-23T20-39-29-507Z-a12c7989-d020-4f63-aaa9-5fddd029f0a3 - -> dir/-/-
+  added snapshots/2026-09-23T20-39-29-507Z-a12c7989-d020-4f63-aaa9-5fddd029f0a3/0.bin - -> file/332/038be98fd048
+  added snapshots/2026-09-23T20-39-29-577Z-5575329d-f3c8-41c4-9fc9-2987511ccf2d - -> dir/-/-
+  added snapshots/2026-09-23T20-39-29-577Z-5575329d-f3c8-41c4-9fc9-2987511ccf2d/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-39-29-631Z-ccbdf4a2-9cda-4969-b0bc-5bb07884cdd4 - -> dir/-/-
+  added snapshots/2026-09-23T20-39-29-631Z-ccbdf4a2-9cda-4969-b0bc-5bb07884cdd4/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-39-29-684Z-9e22e590-045f-4cec-bc51-4828b5126edb - -> dir/-/-
+  added snapshots/2026-09-23T20-39-29-684Z-9e22e590-045f-4cec-bc51-4828b5126edb/0.bin - -> file/24/7a77278a2219
+CHECK life04.no-receipt.pi.entries VIOLATED exit=0; user-authored entries with no receipt removed: context7, exa, firecrawl; changed: none; config file sha 038be98fd048 -> ca3d163bab05
+CHECK life04.no-receipt.pi.skills VIOLATED user-authored skills with no receipt removed or changed: <sandbox-4>\home\.agents\skills\unified-memory\SKILL.md 7a77278a2219 -> absent; <sandbox-4>\home\.agents\skills\documentation-lookup\SKILL.md 7a77278a2219 -> absent; <sandbox-4>\home\.agents\skills\deep-research\SKILL.md 7a77278a2219 -> absent
+note: no-receipt hermes: no alpha-AOS install ran in this sandbox; <state>/journal is absent. User-authored MCP config <sandbox-5>\home\.hermes\config.yaml (sha 0e63302eacab; servers context7, exa, firecrawl, each `node p11-user-<server>.js`, no env, no marker); user-authored ECC-named skills <sandbox-5>\home\.hermes\skills\unified-memory\SKILL.md (sha 7a77278a2219), <sandbox-5>\home\.hermes\skills\documentation-lookup\SKILL.md (sha 7a77278a2219), <sandbox-5>\home\.hermes\skills\deep-research\SKILL.md (sha 7a77278a2219)
+
+## step 10: no-receipt hermes: uninstall --target hermes --json (preview)
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target hermes --json
+env-overrides: none
+exit: 0
+duration-ms: 870
+--- stdout (1084B sha256=e0501e65ef2f) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "hermes",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.hermes\\config.yaml",
+      "format": "yaml",
+      "existedBefore": true,
+      "userKeysPreserved": [
+        "user-yaml-keys"
+      ],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "prune",
+      "currentHash": "0e63302eacabd4bbf6cbe4d5bb10a7fcc157753555a7df433aacacb8cfb90a15",
+      "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    }
+  ],
+  "filesToRemove": [
+    "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+    "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.hermes\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.hermes\\skills\\unified-memory",
+    "~\\.hermes\\skills\\documentation-lookup",
+    "~\\.hermes\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "bc494861fafea0ea8a8b101a50a58831fbfdb92a5289085e486ee1edfa0a37c6"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.no-receipt.hermes.planned OBSERVED with no journal and no alpha-AOS install, the preview plans 4 removal(s): prune ~\.hermes\config.yaml removing [context7, exa, firecrawl]; remove ~\.hermes\skills\unified-memory\SKILL.md; remove ~\.hermes\skills\documentation-lookup\SKILL.md; remove ~\.hermes\skills\deep-research\SKILL.md
+
+## step 11: no-receipt hermes: uninstall --target hermes --yes --apply --json
+$ node <sandbox-5>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target hermes --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1073
+--- stdout (1760B sha256=e0449a7ae672) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "hermes",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.hermes\\config.yaml",
+        "format": "yaml",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "user-yaml-keys"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "0e63302eacabd4bbf6cbe4d5bb10a7fcc157753555a7df433aacacb8cfb90a15",
+        "expectedAfterHash": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+      }
+    ],
+    "filesToRemove": [
+      "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+      "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.hermes\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.hermes\\skills\\unified-memory",
+      "~\\.hermes\\skills\\documentation-lookup",
+      "~\\.hermes\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "bc494861fafea0ea8a8b101a50a58831fbfdb92a5289085e486ee1edfa0a37c6"
+  },
+  "prunedFiles": [
+    "~\\.hermes\\config.yaml"
+  ],
+  "removedFiles": [
+    "~\\.hermes\\skills\\unified-memory\\SKILL.md",
+    "~\\.hermes\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.hermes\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-40-02-028Z-0d819f48-2f15-47ed-a0cd-9f4f8220af3f.json",
+    "2026-09-23T20-40-02-098Z-5a482f4d-67de-4adc-8039-e6741cb16a6c.json",
+    "2026-09-23T20-40-02-154Z-85f4d581-153a-4130-a7e5-fce6145dc360.json",
+    "2026-09-23T20-40-02-205Z-e36f7ef6-8e0d-437b-be5e-032266fd52e1.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint no-receipt hermes: home/state/prefix across the apply: 394138ddadd8 -> 80090ad695b2
+drift in no-receipt hermes: home/state/prefix across the apply
+<sandbox-5>\home: 4a85ad5b93b5 -> 0eaeb51234bb (added 0, removed 3, changed 1, vanished 0)
+  changed .hermes/config.yaml file/212/0e63302eacab -> file/3/ca3d163bab05
+  removed .hermes/skills/deep-research/SKILL.md file/24/7a77278a2219 -> -
+  removed .hermes/skills/documentation-lookup/SKILL.md file/24/7a77278a2219 -> -
+  removed .hermes/skills/unified-memory/SKILL.md file/24/7a77278a2219 -> -
+<sandbox-5>\state: 52dc9e9a9390 -> 2a2cc81a431e (added 14, removed 0, changed 0, vanished 0)
+  added journal - -> dir/-/-
+  added journal/2026-09-23T20-40-02-028Z-0d819f48-2f15-47ed-a0cd-9f4f8220af3f.json - -> file/1043/83f707a07180
+  added journal/2026-09-23T20-40-02-098Z-5a482f4d-67de-4adc-8039-e6741cb16a6c.json - -> file/1026/3a87db1ad9e2
+  added journal/2026-09-23T20-40-02-154Z-85f4d581-153a-4130-a7e5-fce6145dc360.json - -> file/1038/fbb70305d3f0
+  added journal/2026-09-23T20-40-02-205Z-e36f7ef6-8e0d-437b-be5e-032266fd52e1.json - -> file/1024/0cb748dc4e55
+  added snapshots - -> dir/-/-
+  added snapshots/2026-09-23T20-40-02-028Z-0d819f48-2f15-47ed-a0cd-9f4f8220af3f - -> dir/-/-
+  added snapshots/2026-09-23T20-40-02-028Z-0d819f48-2f15-47ed-a0cd-9f4f8220af3f/0.bin - -> file/212/0e63302eacab
+  added snapshots/2026-09-23T20-40-02-098Z-5a482f4d-67de-4adc-8039-e6741cb16a6c - -> dir/-/-
+  added snapshots/2026-09-23T20-40-02-098Z-5a482f4d-67de-4adc-8039-e6741cb16a6c/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-40-02-154Z-85f4d581-153a-4130-a7e5-fce6145dc360 - -> dir/-/-
+  added snapshots/2026-09-23T20-40-02-154Z-85f4d581-153a-4130-a7e5-fce6145dc360/0.bin - -> file/24/7a77278a2219
+  added snapshots/2026-09-23T20-40-02-205Z-e36f7ef6-8e0d-437b-be5e-032266fd52e1 - -> dir/-/-
+  added snapshots/2026-09-23T20-40-02-205Z-e36f7ef6-8e0d-437b-be5e-032266fd52e1/0.bin - -> file/24/7a77278a2219
+CHECK life04.no-receipt.hermes.entries VIOLATED exit=0; user-authored entries with no receipt removed: context7, exa, firecrawl; changed: none; config file sha 0e63302eacab -> ca3d163bab05
+CHECK life04.no-receipt.hermes.skills VIOLATED user-authored skills with no receipt removed or changed: <sandbox-5>\home\.hermes\skills\unified-memory\SKILL.md 7a77278a2219 -> absent; <sandbox-5>\home\.hermes\skills\documentation-lookup\SKILL.md 7a77278a2219 -> absent; <sandbox-5>\home\.hermes\skills\deep-research\SKILL.md 7a77278a2219 -> absent
+
+## step 12: p2: install --target codex --apply --json
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 11223
+--- stdout (2693B sha256=c9e3c81c4ba9) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-6>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T20-40-37-190Z-4d627baf-ff74-4db3-8823-31b0aceb691d",
+    "2026-09-23T20-40-37-190Z-4d627baf-ff74-4db3-8823-31b0aceb691d--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: p2: codex seeded (GSD version files, ECC skills at the lock target hashes, MCP config rendered by the packed renderMcpConfig) and installed by alpha-AOS: applied policy:codex-execution, owned-skill:alpha-aos-control:codex; external none
+
+## step 13: p2: ecc-skills sync --target codex --apply --json (skills seeded at the lock hashes)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js ecc-skills sync --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1247
+--- stdout (1221B sha256=09173bfb892d) ---
+{
+  "operationId": null,
+  "plan": {
+    "harness": "codex",
+    "targetRoot": "~\\.agents\\skills",
+    "entries": [
+      {
+        "skill": "unified-memory",
+        "destination": "~\\.agents\\skills\\unified-memory\\SKILL.md",
+        "expectedHash": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+        "currentHash": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+        "action": "current"
+      },
+      {
+        "skill": "documentation-lookup",
+        "destination": "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+        "expectedHash": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+        "currentHash": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+        "action": "current"
+      },
+      {
+        "skill": "deep-research",
+        "destination": "~\\.agents\\skills\\deep-research\\SKILL.md",
+        "expectedHash": "fdd97098a3a4a02513baf0428faacbe390b42fd4f86362387938e3455c80d90c",
+        "currentHash": "fdd97098a3a4a02513baf0428faacbe390b42fd4f86362387938e3455c80d90c",
+        "action": "current"
+      }
+    ]
+  },
+  "digest": "45fe6121f851877fc67d49f066fe0051679e3e480aa4a8d644ac0064e89569c2"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 14: p2: ecc-skills sync --target codex --apply --json (after removing the three seeded codex ECC skill files)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js ecc-skills sync --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 26766
+--- stdout (1280B sha256=6365aab86da6) ---
+{
+  "operationId": "2026-09-23T20-40-41-020Z-10b561cf-1175-4d27-8376-858f59f5327f",
+  "plan": {
+    "harness": "codex",
+    "targetRoot": "~\\.agents\\skills",
+    "entries": [
+      {
+        "skill": "unified-memory",
+        "destination": "~\\.agents\\skills\\unified-memory\\SKILL.md",
+        "expectedHash": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+        "currentHash": "a6eb9a96b92dfd4a700bceff15195ca1fd4b7fad2944bb014c08812d1a0dc8b0",
+        "action": "current"
+      },
+      {
+        "skill": "documentation-lookup",
+        "destination": "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+        "expectedHash": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+        "currentHash": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
+        "action": "current"
+      },
+      {
+        "skill": "deep-research",
+        "destination": "~\\.agents\\skills\\deep-research\\SKILL.md",
+        "expectedHash": "fdd97098a3a4a02513baf0428faacbe390b42fd4f86362387938e3455c80d90c",
+        "currentHash": "fdd97098a3a4a02513baf0428faacbe390b42fd4f86362387938e3455c80d90c",
+        "action": "current"
+      }
+    ]
+  },
+  "digest": "d5b7f13b134d7990482ba86fd1d3ad86a1c3de4dff05ba887733f090e856c78d"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.modified.skill-receipted OBSERVED ecc-skills sync exit=0; operationId null (the seeded skills already match the lock, so nothing was written); journals recording <sandbox-6>\home\.agents\skills\deep-research\SKILL.md: 0; after removing the seeded files a second sync exit=0; operationId set; journals recording <sandbox-6>\home\.agents\skills\deep-research\SKILL.md: 1
+note: p2: appended the synthetic user-edit line to <sandbox-6>\home\.agents\skills\deep-research\SKILL.md: sha fdd97098a3a4 -> 71a72d3b9b52 (the file is journaled by alpha-AOS)
+
+## step 15: p2: uninstall --target codex --yes --apply --json (after the user edit)
+$ node <sandbox-6>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 1001
+--- stdout (2371B sha256=95d8d4c73308) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "codex",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.codex\\config.toml",
+        "format": "toml",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "delete",
+        "currentHash": "8cdd5023375a1fcb5ad18664b07453517a97e2176934d6ae1c9138cc56316e80",
+        "expectedAfterHash": null
+      },
+      {
+        "path": "~\\.codex\\AGENTS.md",
+        "format": "markdown",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "alpha-AOS:codex-execution"
+        ],
+        "action": "delete",
+        "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+        "expectedAfterHash": null
+      }
+    ],
+    "filesToRemove": [
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "e248e5d12f4bb110a54ea9849f0d301a63890892caf90a26723320bb9dfa9cd7"
+  },
+  "prunedFiles": [],
+  "removedFiles": [
+    "~\\.codex\\config.toml",
+    "~\\.codex\\AGENTS.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-40-37-190Z-4d627baf-ff74-4db3-8823-31b0aceb691d--2.json",
+    "2026-09-23T20-40-37-190Z-4d627baf-ff74-4db3-8823-31b0aceb691d.json",
+    "2026-09-23T20-40-41-020Z-10b561cf-1175-4d27-8376-858f59f5327f.json",
+    "2026-09-23T20-41-33-359Z-77fabc39-69a1-428a-851e-899d1964e586.json",
+    "2026-09-23T20-41-33-412Z-9ca90666-b890-4ec4-ae62-0239f969cef3.json",
+    "2026-09-23T20-41-33-455Z-d169399e-4065-401f-af2a-40ac91b56497.json",
+    "2026-09-23T20-41-33-499Z-0f0c3b47-83a0-4207-807f-aa2d0d33dff8.json",
+    "2026-09-23T20-41-33-542Z-d659a0c3-c1f4-40df-afa9-e9cdbf602a8f.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint p2: home/state/prefix across the apply: 9c054c2c395a -> 9da9204ef24f
+drift in p2: home/state/prefix across the apply
+<sandbox-6>\home: 49de6768b20e -> 84490c39d848 (added 0, removed 5, changed 0, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/5238/71a72d3b9b52 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .agents/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  removed .codex/AGENTS.md file/1937/bdead072b365 -> -
+  removed .codex/config.toml file/835/8cdd5023375a -> -
+<sandbox-6>\state: 6fada10c0ea5 -> 612b9fe32f57 (added 15, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T20-41-33-359Z-77fabc39-69a1-428a-851e-899d1964e586.json - -> file/951/89fc178b2bee
+  added journal/2026-09-23T20-41-33-412Z-9ca90666-b890-4ec4-ae62-0239f969cef3.json - -> file/949/0ca1fca79df5
+  added journal/2026-09-23T20-41-33-455Z-d169399e-4065-401f-af2a-40ac91b56497.json - -> file/998/e689482a5574
+  added journal/2026-09-23T20-41-33-499Z-0f0c3b47-83a0-4207-807f-aa2d0d33dff8.json - -> file/1010/fa12e835a7ec
+  added journal/2026-09-23T20-41-33-542Z-d659a0c3-c1f4-40df-afa9-e9cdbf602a8f.json - -> file/996/20da279081af
+  added snapshots/2026-09-23T20-41-33-359Z-77fabc39-69a1-428a-851e-899d1964e586 - -> dir/-/-
+  added snapshots/2026-09-23T20-41-33-359Z-77fabc39-69a1-428a-851e-899d1964e586/0.bin - -> file/835/8cdd5023375a
+  added snapshots/2026-09-23T20-41-33-412Z-9ca90666-b890-4ec4-ae62-0239f969cef3 - -> dir/-/-
+  added snapshots/2026-09-23T20-41-33-412Z-9ca90666-b890-4ec4-ae62-0239f969cef3/0.bin - -> file/1937/bdead072b365
+  added snapshots/2026-09-23T20-41-33-455Z-d169399e-4065-401f-af2a-40ac91b56497 - -> dir/-/-
+  added snapshots/2026-09-23T20-41-33-455Z-d169399e-4065-401f-af2a-40ac91b56497/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T20-41-33-499Z-0f0c3b47-83a0-4207-807f-aa2d0d33dff8 - -> dir/-/-
+  added snapshots/2026-09-23T20-41-33-499Z-0f0c3b47-83a0-4207-807f-aa2d0d33dff8/0.bin - -> file/4912/81ad2b5b4acb
+  added snapshots/2026-09-23T20-41-33-542Z-d659a0c3-c1f4-40df-afa9-e9cdbf602a8f - -> dir/-/-
+  added snapshots/2026-09-23T20-41-33-542Z-d659a0c3-c1f4-40df-afa9-e9cdbf602a8f/0.bin - -> file/5238/71a72d3b9b52
+CHECK life04.modified.skill VIOLATED exit=0; the user-edited (journaled) deep-research SKILL.md is removed; no refusal names the user modification
+
+## step 16: p3: install --target codex --apply --json
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 9937
+--- stdout (2693B sha256=0af7e358f307) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-7>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T20-42-08-875Z-f178fc20-2cea-4647-8293-93df5541c4c8",
+    "2026-09-23T20-42-08-875Z-f178fc20-2cea-4647-8293-93df5541c4c8--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: p3: codex seeded (GSD version files, ECC skills at the lock target hashes, MCP config rendered by the packed renderMcpConfig) and installed by alpha-AOS: applied policy:codex-execution, owned-skill:alpha-aos-control:codex; external none
+note: p3: changed one argument of the managed exa entry in <sandbox-7>\home\.codex\config.toml to the synthetic p11-user-arg; alpha-AOS markers intact: true
+
+## step 17: p3: uninstall --target codex --yes --apply --json (after the user edit to exa)
+$ node <sandbox-7>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 965
+--- stdout (2297B sha256=8c38517ce645) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "codex",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.codex\\config.toml",
+        "format": "toml",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "delete",
+        "currentHash": "eaea6681fd72d8a856be58064385ac920f320438a80fad169ae83d0cbf1919f9",
+        "expectedAfterHash": null
+      },
+      {
+        "path": "~\\.codex\\AGENTS.md",
+        "format": "markdown",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "alpha-AOS:codex-execution"
+        ],
+        "action": "delete",
+        "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+        "expectedAfterHash": null
+      }
+    ],
+    "filesToRemove": [
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "d6cea368cb5f461ca6c1fa896b851bd5c76fd84089d6b769731bcf6306983c41"
+  },
+  "prunedFiles": [],
+  "removedFiles": [
+    "~\\.codex\\config.toml",
+    "~\\.codex\\AGENTS.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-42-08-875Z-f178fc20-2cea-4647-8293-93df5541c4c8--2.json",
+    "2026-09-23T20-42-08-875Z-f178fc20-2cea-4647-8293-93df5541c4c8.json",
+    "2026-09-23T20-42-33-159Z-65c8f06e-7a13-43e9-b38b-30bd53dd2e23.json",
+    "2026-09-23T20-42-33-208Z-46ae8f8b-a9e6-49f9-b7ba-c92c24da1ea1.json",
+    "2026-09-23T20-42-33-248Z-d4e89a9b-878b-4e86-b9ce-d7836b2bbf31.json",
+    "2026-09-23T20-42-33-290Z-7eace176-a5c1-4cda-b7da-389be910252e.json",
+    "2026-09-23T20-42-33-332Z-6d188a2a-c453-49b7-91c8-986fd78dd6a7.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint p3: home/state/prefix across the apply: 10a9c5965755 -> a868e7378593
+drift in p3: home/state/prefix across the apply
+<sandbox-7>\home: b0674dd90d17 -> 84490c39d848 (added 0, removed 5, changed 0, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .agents/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  removed .codex/AGENTS.md file/1937/bdead072b365 -> -
+  removed .codex/config.toml file/827/eaea6681fd72 -> -
+<sandbox-7>\state: 585e2e4ba702 -> 67dea35ebc8b (added 15, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T20-42-33-159Z-65c8f06e-7a13-43e9-b38b-30bd53dd2e23.json - -> file/951/ba49369927e7
+  added journal/2026-09-23T20-42-33-208Z-46ae8f8b-a9e6-49f9-b7ba-c92c24da1ea1.json - -> file/949/0f0cf5f0dbd3
+  added journal/2026-09-23T20-42-33-248Z-d4e89a9b-878b-4e86-b9ce-d7836b2bbf31.json - -> file/998/3ee98bbd44f0
+  added journal/2026-09-23T20-42-33-290Z-7eace176-a5c1-4cda-b7da-389be910252e.json - -> file/1010/bcf0abdecb6f
+  added journal/2026-09-23T20-42-33-332Z-6d188a2a-c453-49b7-91c8-986fd78dd6a7.json - -> file/996/4c05f6ff0154
+  added snapshots/2026-09-23T20-42-33-159Z-65c8f06e-7a13-43e9-b38b-30bd53dd2e23 - -> dir/-/-
+  added snapshots/2026-09-23T20-42-33-159Z-65c8f06e-7a13-43e9-b38b-30bd53dd2e23/0.bin - -> file/827/eaea6681fd72
+  added snapshots/2026-09-23T20-42-33-208Z-46ae8f8b-a9e6-49f9-b7ba-c92c24da1ea1 - -> dir/-/-
+  added snapshots/2026-09-23T20-42-33-208Z-46ae8f8b-a9e6-49f9-b7ba-c92c24da1ea1/0.bin - -> file/1937/bdead072b365
+  added snapshots/2026-09-23T20-42-33-248Z-d4e89a9b-878b-4e86-b9ce-d7836b2bbf31 - -> dir/-/-
+  added snapshots/2026-09-23T20-42-33-248Z-d4e89a9b-878b-4e86-b9ce-d7836b2bbf31/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T20-42-33-290Z-7eace176-a5c1-4cda-b7da-389be910252e - -> dir/-/-
+  added snapshots/2026-09-23T20-42-33-290Z-7eace176-a5c1-4cda-b7da-389be910252e/0.bin - -> file/4912/81ad2b5b4acb
+  added snapshots/2026-09-23T20-42-33-332Z-6d188a2a-c453-49b7-91c8-986fd78dd6a7 - -> dir/-/-
+  added snapshots/2026-09-23T20-42-33-332Z-6d188a2a-c453-49b7-91c8-986fd78dd6a7/0.bin - -> file/5224/fdd97098a3a4
+CHECK life04.modified.mcp-entry VIOLATED exit=0; the user-modified exa entry (argument changed to p11-user-arg) is removed; sandbox bytes changed; no refusal names the modification
+CHECK life04.receipted.owned-skill-removed VIOLATED after uninstall --target codex the owned skill <sandbox-7>\home\.agents\skills\alpha-aos-control\SKILL.md is still present; journaled by 1 journal(s) (existed before install: false); its bytes still match the journal's recorded afterHash; the uninstall preview and apply never list it (cross-reference LIFE-03/C1)
+
+## step 18: p4: install --target codex --apply --json
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 10309
+--- stdout (2693B sha256=e1eb60a9b56f) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-8>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T20-43-07-868Z-4b4bc555-17f8-4f55-af5f-39fca23e8fd4",
+    "2026-09-23T20-43-07-868Z-4b4bc555-17f8-4f55-af5f-39fca23e8fd4--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: p4: codex seeded (GSD version files, ECC skills at the lock target hashes, MCP config rendered by the packed renderMcpConfig) and installed by alpha-AOS: applied policy:codex-execution, owned-skill:alpha-aos-control:codex; external none
+
+## step 19: p4: uninstall --target codex --json (preview)
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --json
+env-overrides: none
+exit: 0
+duration-ms: 752
+--- stdout (1351B sha256=b925a4fcb326) ---
+{
+  "schemaVersion": 1,
+  "scope": "target",
+  "targetHarness": "codex",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [
+    {
+      "path": "~\\.codex\\config.toml",
+      "format": "toml",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "action": "delete",
+      "currentHash": "5bce3741108a60a0beff515377f12be85cf4f24d5bb1eb35708e6f59e28c7269",
+      "expectedAfterHash": null
+    },
+    {
+      "path": "~\\.codex\\AGENTS.md",
+      "format": "markdown",
+      "existedBefore": true,
+      "userKeysPreserved": [],
+      "injectedKeysRemoved": [
+        "alpha-AOS:codex-execution"
+      ],
+      "action": "delete",
+      "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+      "expectedAfterHash": null
+    }
+  ],
+  "filesToRemove": [
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "directoriesToSweep": [
+    "~\\.agents\\skills\\unified-memory",
+    "~\\.agents\\skills\\documentation-lookup",
+    "~\\.agents\\skills\\deep-research"
+  ],
+  "externalCompensation": [],
+  "planDigest": "cdc4a583d2a3282fb22539231ecb80340df792f6442a62f779286a398bca7fcd"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: p4: preview currentHash values: ~\.codex\config.toml 5bce3741108a; ~\.codex\AGENTS.md bdead072b365
+note: p4: added the user server p11-user-server to <sandbox-8>\home\.codex\config.toml outside the managed markers after the preview; planned currentHash 5bce3741108a, pre-apply hash 8bee0508cec9
+
+## step 20: p4: uninstall --target codex --yes --apply --json (after the edit)
+$ node <sandbox-8>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 977
+--- stdout (2393B sha256=35739687c7ea) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "target",
+    "targetHarness": "codex",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [
+      {
+        "path": "~\\.codex\\config.toml",
+        "format": "toml",
+        "existedBefore": true,
+        "userKeysPreserved": [
+          "user-tables"
+        ],
+        "injectedKeysRemoved": [
+          "context7",
+          "exa",
+          "firecrawl"
+        ],
+        "action": "prune",
+        "currentHash": "8bee0508cec951577b364b6386716b61d4c46d6c0b90a4032bce409edfb4a97f",
+        "expectedAfterHash": "6e554aa3c1fbe7b8bdcaaf3418f8b562f2e6f70e245757fe491c7eceb385bb38"
+      },
+      {
+        "path": "~\\.codex\\AGENTS.md",
+        "format": "markdown",
+        "existedBefore": true,
+        "userKeysPreserved": [],
+        "injectedKeysRemoved": [
+          "alpha-AOS:codex-execution"
+        ],
+        "action": "delete",
+        "currentHash": "bdead072b3652a0c461c015776f8afb7e16cccea2628cf8568837ec459db4d7a",
+        "expectedAfterHash": null
+      }
+    ],
+    "filesToRemove": [
+      "~\\.agents\\skills\\unified-memory\\SKILL.md",
+      "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+      "~\\.agents\\skills\\deep-research\\SKILL.md"
+    ],
+    "directoriesToSweep": [
+      "~\\.agents\\skills\\unified-memory",
+      "~\\.agents\\skills\\documentation-lookup",
+      "~\\.agents\\skills\\deep-research"
+    ],
+    "externalCompensation": [],
+    "planDigest": "df1c7d5b026e9645fae36b765edac5834f9f7f263608a3431a3c4d343d1b64e5"
+  },
+  "prunedFiles": [
+    "~\\.codex\\config.toml"
+  ],
+  "removedFiles": [
+    "~\\.codex\\AGENTS.md",
+    "~\\.agents\\skills\\unified-memory\\SKILL.md",
+    "~\\.agents\\skills\\documentation-lookup\\SKILL.md",
+    "~\\.agents\\skills\\deep-research\\SKILL.md"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-43-07-868Z-4b4bc555-17f8-4f55-af5f-39fca23e8fd4--2.json",
+    "2026-09-23T20-43-07-868Z-4b4bc555-17f8-4f55-af5f-39fca23e8fd4.json",
+    "2026-09-23T20-43-32-331Z-6bfc53a7-8d0a-40b0-ae6d-236aa2e2cd48.json",
+    "2026-09-23T20-43-32-389Z-5ae82df2-3d3e-4361-9436-bbc7888e7f4b.json",
+    "2026-09-23T20-43-32-431Z-ea2278e5-7d98-4290-b0d2-89890f514b97.json",
+    "2026-09-23T20-43-32-473Z-41d41c11-231f-49e4-bccb-ea330e21ebbc.json",
+    "2026-09-23T20-43-32-520Z-9ab9ec86-2b17-4816-ad22-321fbe2355f9.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+fingerprint p4: home/state/prefix across the apply: e2d3b7782af6 -> d8670f79ded1
+drift in p4: home/state/prefix across the apply
+<sandbox-8>\home: 65536f38dfba -> 795ecf5b05b7 (added 0, removed 4, changed 1, vanished 0)
+  removed .agents/skills/deep-research/SKILL.md file/5224/fdd97098a3a4 -> -
+  removed .agents/skills/documentation-lookup/SKILL.md file/4912/81ad2b5b4acb -> -
+  removed .agents/skills/unified-memory/SKILL.md file/6032/a6eb9a96b92d -> -
+  removed .codex/AGENTS.md file/1937/bdead072b365 -> -
+  changed .codex/config.toml file/913/8bee0508cec9 -> file/79/6e554aa3c1fb
+<sandbox-8>\state: b2a38d6d0bce -> fc7d1ee7b0da (added 15, removed 0, changed 0, vanished 0)
+  added journal/2026-09-23T20-43-32-331Z-6bfc53a7-8d0a-40b0-ae6d-236aa2e2cd48.json - -> file/1013/d2d865b7e186
+  added journal/2026-09-23T20-43-32-389Z-5ae82df2-3d3e-4361-9436-bbc7888e7f4b.json - -> file/949/c5c558ba3787
+  added journal/2026-09-23T20-43-32-431Z-ea2278e5-7d98-4290-b0d2-89890f514b97.json - -> file/998/539ab2f645c5
+  added journal/2026-09-23T20-43-32-473Z-41d41c11-231f-49e4-bccb-ea330e21ebbc.json - -> file/1010/d85708b425f8
+  added journal/2026-09-23T20-43-32-520Z-9ab9ec86-2b17-4816-ad22-321fbe2355f9.json - -> file/996/3b6512ecb5a7
+  added snapshots/2026-09-23T20-43-32-331Z-6bfc53a7-8d0a-40b0-ae6d-236aa2e2cd48 - -> dir/-/-
+  added snapshots/2026-09-23T20-43-32-331Z-6bfc53a7-8d0a-40b0-ae6d-236aa2e2cd48/0.bin - -> file/913/8bee0508cec9
+  added snapshots/2026-09-23T20-43-32-389Z-5ae82df2-3d3e-4361-9436-bbc7888e7f4b - -> dir/-/-
+  added snapshots/2026-09-23T20-43-32-389Z-5ae82df2-3d3e-4361-9436-bbc7888e7f4b/0.bin - -> file/1937/bdead072b365
+  added snapshots/2026-09-23T20-43-32-431Z-ea2278e5-7d98-4290-b0d2-89890f514b97 - -> dir/-/-
+  added snapshots/2026-09-23T20-43-32-431Z-ea2278e5-7d98-4290-b0d2-89890f514b97/0.bin - -> file/6032/a6eb9a96b92d
+  added snapshots/2026-09-23T20-43-32-473Z-41d41c11-231f-49e4-bccb-ea330e21ebbc - -> dir/-/-
+  added snapshots/2026-09-23T20-43-32-473Z-41d41c11-231f-49e4-bccb-ea330e21ebbc/0.bin - -> file/4912/81ad2b5b4acb
+  added snapshots/2026-09-23T20-43-32-520Z-9ab9ec86-2b17-4816-ad22-321fbe2355f9 - -> dir/-/-
+  added snapshots/2026-09-23T20-43-32-520Z-9ab9ec86-2b17-4816-ad22-321fbe2355f9/0.bin - -> file/5224/fdd97098a3a4
+CHECK life04.preview-hash.enforced VIOLATED exit=0; apply proceeded although config.toml no longer matched the previewed currentHash (planned differs from the pre-apply hash; prefixes in the note above); p11-user-server survived; managed entries left: none
+
+## step 21: p5: install --target codex --apply --json
+$ node <sandbox-9>\prefix\node_modules\alpha-aos\dist\src\cli.js install --target codex --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 11113
+--- stdout (2693B sha256=37ee191a6635) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "targets": [
+      "codex"
+    ],
+    "selection": "explicit",
+    "steps": [
+      {
+        "id": "policy:codex-execution",
+        "component": "execution-policy",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\AGENTS.md"
+      },
+      {
+        "id": "gsd:codex",
+        "component": "gsd",
+        "target": "codex",
+        "action": "current",
+        "external": true,
+        "note": "1.12.0/standard/codex"
+      },
+      {
+        "id": "owned-skill:alpha-aos-control:codex",
+        "component": "owned-skill",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.agents\\skills\\alpha-aos-control\\SKILL.md"
+      },
+      {
+        "id": "ecc:runtime",
+        "component": "ecc-runtime",
+        "target": "machine",
+        "action": "current",
+        "external": true,
+        "note": "2.2.0"
+      },
+      {
+        "id": "ecc:codex",
+        "component": "ecc-skills",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "unified-memory, documentation-lookup, deep-research, accessibility, agent-harness-construction, ai-regression-testing, browser-qa, click-path-audit, database-migrations, deployment-patterns, docker-patterns, eval-harness, frontend-a11y, inherit-legacy-style, mcp-server-patterns, postgres-patterns, redis-patterns, scientific-db-pubmed-database, scientific-db-uspto-database, scientific-thinking-literature-review, scientific-thinking-scholar-evaluation, security-review -> <sandbox-9>\\home\\.agents\\skills"
+      },
+      {
+        "id": "mcp:codex",
+        "component": "mcp",
+        "target": "codex",
+        "action": "current",
+        "external": false,
+        "note": "~\\.codex\\config.toml"
+      }
+    ],
+    "warnings": [
+      "The harness applications themselves are prerequisites and are never installed by alpha-AOS.",
+      "External package installers are fixture-gated but are not automatically rolled back; alpha-AOS-owned file transactions are rolled back on failure.",
+      "Restart harness processes after MCP or environment-variable changes."
+    ]
+  },
+  "applied": [
+    "policy:codex-execution",
+    "owned-skill:alpha-aos-control:codex"
+  ],
+  "current": [
+    "gsd:codex",
+    "ecc:runtime",
+    "gsd:codex:hook-compat",
+    "ecc:codex",
+    "mcp:codex"
+  ],
+  "operationIds": [
+    "2026-09-23T20-44-12-550Z-81b1a750-f3b3-4d26-b58f-7b7a35219081",
+    "2026-09-23T20-44-12-550Z-81b1a750-f3b3-4d26-b58f-7b7a35219081--2"
+  ],
+  "externalChanges": []
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+note: p5: codex seeded (GSD version files, ECC skills at the lock target hashes, MCP config rendered by the packed renderMcpConfig) and installed by alpha-AOS: applied policy:codex-execution, owned-skill:alpha-aos-control:codex; external none
+note: p5: deleted the managed end marker line from <sandbox-9>\home\.codex\config.toml
+
+## step 22: p5: uninstall --target codex --yes --apply (tampered markers)
+$ node <sandbox-9>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --target codex --yes --apply
+env-overrides: none
+exit: 2
+duration-ms: 769
+--- stdout (0B sha256=e3b0c44298fc) ---
+--- stderr (130B sha256=afc9ad8549ca) ---
+alpha-aos uninstall: Malformed or tampered alpha-AOS Codex MCP block in config.toml: missing closing marker '# alpha-aos:end mcp'
+fingerprint p5: home/state across the refused apply: 75c234bf4529 -> 75c234bf4529
+CHECK life04.tamper.refuses HOLDS exit=2; stderr: "alpha-aos uninstall: Malformed or tampered alpha-AOS Codex MCP block in config.toml: missing closing marker '# alpha-aos:end mcp'"
+CHECK life04.tamper.zero-bytes-changed HOLDS home and state byte fingerprints equal before and after the refused apply
+note: project: <sandbox-10>\repo\p11-project holds only the user-authored <sandbox-10>\repo\p11-project\.alpha-aos\p11-user-notes.txt (sha 11ba49aa0500) under .alpha-aos/; no pack was materialized, so no pack receipt and no journal exist
+
+## step 23: project: uninstall --project <project> --json (preview)
+$ node <sandbox-10>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --project <sandbox-10>\repo\p11-project --json
+env-overrides: none
+exit: 0
+duration-ms: 3264
+--- stdout (397B sha256=1403eeffcf66) ---
+{
+  "schemaVersion": 1,
+  "scope": "project",
+  "projectPath": "<project>",
+  "purgeRequested": false,
+  "stateRoot": "<state>",
+  "prunePlans": [],
+  "filesToRemove": [
+    "<project>\\.alpha-aos\\p11-user-notes.txt"
+  ],
+  "directoriesToSweep": [
+    "<project>\\.alpha-aos"
+  ],
+  "externalCompensation": [],
+  "planDigest": "46aa2d1f5811afa49efdd571144692ad4b5edd835584aff93e3eaf23b8135af5"
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+
+## step 24: project: uninstall --project <project> --yes --apply --json
+$ node <sandbox-10>\prefix\node_modules\alpha-aos\dist\src\cli.js uninstall --project <sandbox-10>\repo\p11-project --yes --apply --json
+env-overrides: none
+exit: 0
+duration-ms: 793
+--- stdout (664B sha256=7d69368799c2) ---
+{
+  "plan": {
+    "schemaVersion": 1,
+    "scope": "project",
+    "projectPath": "<project>",
+    "purgeRequested": false,
+    "stateRoot": "<state>",
+    "prunePlans": [],
+    "filesToRemove": [
+      "<project>\\.alpha-aos\\p11-user-notes.txt"
+    ],
+    "directoriesToSweep": [
+      "<project>\\.alpha-aos"
+    ],
+    "externalCompensation": [],
+    "planDigest": "46aa2d1f5811afa49efdd571144692ad4b5edd835584aff93e3eaf23b8135af5"
+  },
+  "prunedFiles": [],
+  "removedFiles": [
+    "<project>\\.alpha-aos\\p11-user-notes.txt"
+  ],
+  "sweptDirectories": [],
+  "preservedJournals": [
+    "2026-09-23T20-44-25-591Z-98a0c92f-fac7-442c-b4b2-9906db10c2e2.json"
+  ]
+}
+--- stderr (0B sha256=e3b0c44298fc) ---
+CHECK life04.project.non-receipted VIOLATED exit=0; the preview listed .alpha-aos/p11-user-notes.txt for removal and the apply removed the non-receipted user note (sha 11ba49aa0500 -> absent) (cross-reference LIFE-03/C3)
+
+host-guard: unchanged (17 targets)
+
+RESULT: holds=2 violated=15 not-observed=0 observed=6

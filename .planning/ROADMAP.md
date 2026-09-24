@@ -141,7 +141,21 @@ Plans:
   3. `catalog/stack.lock.json` carries a candidate version only for components whose evidence is green, each with an integrity hash re-verified against the registry artifact; a failing component stays at its current stable version with the reason recorded.
   4. After the promotion lands, a single `main` CI run is green on all three OS legs with the packed release lifecycle exercising the promoted lock, and `alpha-aos update --apply` still reconciles only the stable lock, never the unverified `catalog/candidate.lock.json`.
 
-**Plans**: TBD
+**Plans**: 0/3 plans executed (3 waves)
+
+Plans:
+**Wave 1**
+
+- [ ] 13-01-PLAN.md — Tracer: fixture hardening in `src/core/mcp-fixture.ts`, `scripts/promote-candidate.mjs` maintainer tool, and candidate pre-flight fixtures (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 13-02-PLAN.md — Remote baseline green, PR #1 rebase, Red-Main Guard unblocking, and 3-OS CI matrix run (wave 2)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 13-03-PLAN.md — Partial candidate promotion, ECC 2.2.1 pack skill hash pinning, code/test sync, release hygiene, and PROMOTION-EVIDENCE.md (wave 3)
+
 **Planning note**: The ecc-universal bump reaches past the lock. `ecc-universal@2.2.0` is named in `src/core/ecc-fixture.ts`, `src/core/mcp-proxy.ts`, `src/core/project-plan.ts`, `test/mcp-proxy.test.ts`, and `catalog/canaries.yaml`; the 19 pack skills are pinned from the 2.2.0 tarball via `pin-pack-skills.mjs`; and the CAPA-02 `narrow` finding is pinned to 2.2.0. Each must be re-derived for 2.2.1 or explicitly held back. GSD Core 1.14.0 may move GSD compatibility renderer hashes.
 
 ## Progress
@@ -154,4 +168,4 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 | 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
 | 11. Managed Lifecycle Verification | v0.1.1 | 7/7 | Complete    | 2026-09-24 |
 | 12. Red-Main Guard | v0.1.1 | 2/2 | Complete    | 2026-09-24 |
-| 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |
+| 13. Dependency Candidate Promotion | v0.1.1 | 0/3 | Ready to execute | - |

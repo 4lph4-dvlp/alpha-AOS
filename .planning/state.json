@@ -25,9 +25,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-plan-phase 13",
-    "label": "Plan Phase 13 (Dependency Candidate Promotion)",
-    "reason": "Phase 13 of 4 — needs a plan"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 13 of 4 · 75% · executing"
   },
-  "updated_at": "2026-09-24T13:12:00.000Z"
+  "updated_at": "2026-09-24T16:46:38.252Z"
 }

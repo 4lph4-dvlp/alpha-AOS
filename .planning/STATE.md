@@ -5,16 +5,16 @@ milestone_name: CI Green & Dependency Promotion
 current_phase: 11
 current_phase_name: Managed Lifecycle Verification
 status: executing
-stopped_at: Completed 11-04-PLAN.md
-last_updated: "2026-09-23T20:14:11.778Z"
-last_activity: 2026-09-23
+stopped_at: Completed 11-05-PLAN.md
+last_updated: "2026-09-24T02:42:00.000Z"
+last_activity: 2026-09-24
 last_activity_desc: Phase 11 execution started
-state_head: 385e8927d88f4bbcb3d615f89bdd08b1172ee596
+state_head: c17df1e9f2fedde637b85bfc5d06923b97f64dba
 progress:
   total_phases: 4
   completed_phases: 1
   total_plans: 11
-  completed_plans: 8
+  completed_plans: 9
   percent: 25
 ---
 
@@ -30,9 +30,9 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 ## Current Position
 
 Phase: 11 (Managed Lifecycle Verification) — EXECUTING
-Plan: 5 of 7
+Plan: 6 of 7
 Status: Ready to execute
-Last activity: 2026-09-23 — Phase 11 execution started
+Last activity: 2026-09-24 — Phase 11 execution started
 
 Progress: [███░░░░░░░] 25% (1/4 phases)
 
@@ -121,6 +121,7 @@ Progress: [███░░░░░░░] 25% (1/4 phases)
 | Phase 11 P02 | 44min | 2 tasks | 7 files |
 | Phase 11 P03 | 4h27m | 3 tasks | 9 files |
 | Phase 11 P04 | 34 min | 3 tasks | 7 files |
+| Phase 11 P05 | 45 min | 2 tasks | 6 files |
 
 ## Accumulated Context
 
@@ -262,6 +263,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 11]: 11-03: LIFE-08 provisional VERIFIED (all 7 preview surfaces byte-identical except pwsh engine cache, reproduced by a no-alpha-AOS control; update --apply ignores an unreviewed candidate lock); LIFE-08 blocks Phase 13: no; contingent LIFE-08/C1 left to 11-07
 - [Phase 11]: 11-04: LIFE-03 provisional GAP - uninstall --project removes user files and the reviewed stack.yaml while leaving pack targets; no uninstall scope removes alpha-aos-control/alpha-aos-ship owned skills (candidates LIFE-03/C1..C5)
 - [Phase 11]: 11-04: interactive uninstall [y/N] confirmation evidenced through a WSL util-linux script pty (prompt shown, n aborts byte-identical, y proceeds)
+- [Phase 11]: 11-05: LIFE-04 provisional GAP - uninstall removes same-named user MCP entries and skills with no receipt on all five harnesses; user edits and post-preview drift are not refused (candidates LIFE-04/C1..C5)
+- [Phase 11]: 11-05: LIFE-07 provisional GAP - external changes shown and verified, but install failure rollback writes no recovery receipt; uninstall compensation commands cite obsolete packages (@enterprise-coding-companion/companion) and wrong GSD paths (candidates LIFE-07/C1..C4)
 
 ### Pending Todos
 
@@ -332,8 +335,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-23T20:14:11.508Z
-Stopped at: Completed 11-04-PLAN.md
+Last session: 2026-09-24T02:42:00.000Z
+Stopped at: Completed 11-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

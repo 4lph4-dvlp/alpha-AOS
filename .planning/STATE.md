@@ -334,15 +334,17 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 260922-47e | Fix Windows Firecrawl fixture environment propagation and add regression coverage | 2026-09-22 | 57e70d1 | [260922-47e](./quick/260922-47e-fix-windows-firecrawl-fixture-environmen/) |
 | 260922-om1 | Reinstate Claude Code into active v0.1.0 harness scope (D-18, reversing 260914-x2c) | 2026-09-22 | ae05eec | [260922-om1](./quick/260922-om1-reverse-quick-task-260914-x2c-reinstate-/) |
 | 260922-puy | Register Phase 7 evidence gap G-07-1 for stale Truth 2/REL-02 claim under D-18 | 2026-09-22 | 1e785ad | [260922-puy](./quick/260922-puy-register-phase-7-evidence-gap-g-07-1-in-/) |
+| 260924-g11 | Deduplicate shared skill destinations across harnesses in applyManagedInstall (G-11-1) | 2026-09-24 | fcd91a5 | [260924-g11](./quick/260924-g11-resolve-multi-target-skill-drift/) |
 
 ## Session Continuity
 
-Last session: 2026-09-24T13:15:00.000Z
-Stopped at: Phase 11 and 12 complete, ready to plan Phase 13
+Last session: 2026-09-24T13:30:00.000Z
+Stopped at: Gap G-11-1 resolved; ready to plan Phase 13
 Resume file: None
 
 ## Operator Next Steps
 
 - Phase 11 verified and complete (7/7 plans, 06-VERIFICATION.md compiled, 26 gaps registered, 11-VERIFICATION.md passed).
 - Phase 12 verified and complete (2/2 plans, red-main guard and baseline gate active).
-- Note on Phase 13 gating: Currently BLOCKED by gap G-11-1 (LIFE-01 combined codex+pi install drift). Next: /gsd-plan-phase 13 or resolve G-11-1 blocker.
+- Gap G-11-1 resolved: combined codex and pi managed install succeeds and reconciles idempotently, unblocking Phase 13 gating constraint D-08.
+- Next: /gsd-plan-phase 13 to plan Dependency Candidate Promotion.

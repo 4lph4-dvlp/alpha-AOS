@@ -116,7 +116,17 @@ Plans:
   3. When the dependency candidate workflow runs while the latest `main` baseline run is red, the candidate is marked promotion-blocked and the block names the failing `main` run; when the baseline is green, the candidate is not blocked.
   4. The guard decides from the conclusion of an actual completed `main` CI run: with no completed baseline run to read, it reports promotion as blocked rather than promotable.
 
-**Plans**: TBD
+**Plans**: 2 plans
+
+Plans:
+**Wave 1**
+
+- [ ] 12-01-PLAN.md — Tracer: red-main-guard & check-main-baseline modules and unit test suites (wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 12-02-PLAN.md — Workflow integration (red-main-guard.yml, dependency-candidate.yml) & full suite verification (wave 2)
+
 **Planning note**: The guard is mutable external automation, so its decision must be deterministic (no LLM judgment) and it should widen workflow permissions only as far as the issue and candidate-status writes require. `.github/workflows/dependency-candidate.yml` currently holds `contents: write` and `pull-requests: write`.
 
 ### Phase 13: Dependency Candidate Promotion
@@ -143,5 +153,5 @@ Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each 
 |-------|-----------|----------------|--------|-----------|
 | 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
 | 11. Managed Lifecycle Verification | v0.1.1 | 6/7 | In Progress|  |
-| 12. Red-Main Guard | v0.1.1 | 0/TBD | Not started | - |
+| 12. Red-Main Guard | v0.1.1 | 0/2 | Ready to execute | - |
 | 13. Dependency Candidate Promotion | v0.1.1 | 0/TBD | Not started | - |

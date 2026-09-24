@@ -83,7 +83,7 @@ Plans:
   3. Every LIFE requirement that is not met appears as a named gap stating what is missing and what would close it, instead of being marked verified.
   4. The v0.1.0 "LIFE-01..08 unverified" known gap in the project's milestone record is closed, or narrowed to exactly the report's named gaps.
 
-**Plans**: 6/7 plans executed (3 waves)
+**Plans**: 7/7 plans executed (3 waves)
 
 Plans:
 **Wave 1**
@@ -100,7 +100,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 11-07-PLAN.md — Compile 06-VERIFICATION.md, register G-11 gaps, update MILESTONES and archived v0.1.0 records (wave 3)
+- [x] 11-07-PLAN.md — Compile 06-VERIFICATION.md, register G-11 gaps, update MILESTONES and archived v0.1.0 records (wave 3)
 
 **Planning note**: Editing the archived v0.1.0 records for this phase is approved (2026-09-23). Expected report location is beside the archived Phase 6 artifacts, `.planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md`. LIFE-02 canary evidence must not depend on a Claude Code real-host receipt; G-07-2 / REL-02 remains a future requirement, not this milestone's.
 

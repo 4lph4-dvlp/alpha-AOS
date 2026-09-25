@@ -3,7 +3,7 @@
 ## Milestones
 
 - ✅ **v0.1.0 Vertical MVP** — Phases 1-9 (closed 2026-09-23, override closeout — see `.planning/MILESTONES.md`)
-- 🚧 **v0.1.1 CI Green & Dependency Promotion** — Phases 10-13 (in progress)
+- ✅ **v0.1.1 CI Green & Dependency Promotion** — Phases 10-13 (completed 2026-09-25)
 
 ## Phases
 
@@ -24,7 +24,7 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
 
 </details>
 
-### 🚧 v0.1.1 CI Green & Dependency Promotion
+### ✅ v0.1.1 CI Green & Dependency Promotion
 
 **Milestone Goal:** Restore a green three-OS CI on `main`, close the v0.1.0 lifecycle verification gap, and promote the validated dependency candidate into the stable lock on that green baseline.
 
@@ -36,7 +36,7 @@ Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
 - [x] **Phase 10: Three-OS CI Baseline** - Fix both red legs at their root cause and prove all three OS legs green in one `main` run (completed 2026-09-23)
 - [x] **Phase 11: Managed Lifecycle Verification** - Give LIFE-01..08 an evidence-backed verification report, with unmet items recorded as named gaps (completed 2026-09-24)
 - [x] **Phase 12: Red-Main Guard** - Surface a red `main` as a self-closing tracking issue and block candidate promotion while it is red (completed 2026-09-24)
-- [ ] **Phase 13: Dependency Candidate Promotion** - Refresh candidate PR #1 on green `main` and promote only the components with green, integrity-verified evidence
+- [x] **Phase 13: Dependency Candidate Promotion** - Refresh candidate PR #1 on green `main` and promote only the components with green, integrity-verified evidence (completed 2026-09-25)
 
 ## Phase Details
 

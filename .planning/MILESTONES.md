@@ -1,5 +1,17 @@
 # Milestones
 
+## v0.1.1 CI Green & Dependency Promotion (Shipped: 2026-09-25)
+
+**Phases completed:** 4 phases (10-13), 16 plans, 35 tasks
+
+**Closeout type:** clean_closeout
+
+**Key accomplishments:**
+- **Phase 10 (Three-OS CI Baseline)**: Fixed root causes for red CI legs on Ubuntu, macOS, and Windows. Proven green baseline on all 3 OS platforms in a single run (`35818198049` and `36092161231`).
+- **Phase 11 (Managed Lifecycle Verification)**: Conducted rigorous verification of LIFE-01..08 requirements across all supported harnesses, cataloging verified capabilities and establishing durable audit baselines.
+- **Phase 12 (Red-Main Guard)**: Automated detection of red `main` CI with self-closing tracking issues (`scripts/red-main-guard.mjs`), gating candidate PRs via `scripts/check-main-baseline.mjs` to strictly block promotion onto failing baselines.
+- **Phase 13 (Dependency Candidate Promotion)**: Promoted verified candidate dependencies into `catalog/stack.lock.json` (@opengsd/gsd-core 1.14.0, ecc-universal 2.2.1, @upstash/context7-mcp 4.1.1, firecrawl-mcp 3.25.2, pi-mcp-adapter 2.36.0), re-pinned 22 pack skills with target hash invariance, reset candidate channel to empty, authored `docs/how-to/promote-dependencies.md`, and validated Strategy B-1 release hygiene via `scripts/audit-tarball.mjs`.
+
 ## v0.1.0 Vertical MVP (Shipped: 2026-09-23)
 
 **Phases completed:** 9 phases, 88 plans, 165 tasks

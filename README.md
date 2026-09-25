@@ -27,16 +27,25 @@ alpha-AOS stores only these variable names, never their values or secrets.
 
 ---
 
-## Quick Start (Workstation Setup)
+## Installation
 
-Clone the repository and run the platform bootstrap script from the repository root:
+Currently, alpha-AOS is installed from source. (Direct package manager installation such as `npm install -g alpha-aos` will be available upon official npm registry release).
+
+### Installation from Source (Git Clone)
+
+Clone the repository, install dependencies, and build the verified build artifact:
 
 ```sh
+# 1. Clone repository and enter directory
 git clone https://github.com/4lph4-dvlp/alpha-AOS.git
 cd alpha-AOS
+
+# 2. Install dependencies and build verified artifact (required)
+npm ci
+npm run build
 ```
 
-### Windows (PowerShell)
+#### Windows (PowerShell)
 
 ```powershell
 # Preview what would be configured across detected harnesses
@@ -49,7 +58,7 @@ cd alpha-AOS
 .\scripts\install.ps1 -Apply -Target "claude,codex,antigravity"
 ```
 
-### macOS / Linux (POSIX Shell)
+#### macOS / Linux (POSIX Shell)
 
 ```sh
 # Preview what would be configured

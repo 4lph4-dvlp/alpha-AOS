@@ -88,6 +88,11 @@ async function check() {
   const target = join(repositoryRoot, MANIFEST);
   if (!existsSync(target)) {
     process.stderr.write(`alpha-aos: no build artifact manifest at ${MANIFEST}; run npm run build first.\n`);
+    process.stderr.write("This appears to be a fresh clone or unbuilt environment.\n");
+    process.stderr.write("To build alpha-AOS, run:\n");
+    process.stderr.write("  npm ci\n");
+    process.stderr.write("  npm run build\n");
+    process.stderr.write("Then re-run the installation or update command.\n");
     return 3;
   }
   let manifest;

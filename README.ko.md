@@ -27,16 +27,25 @@ alpha-AOS는 환경 변수 **이름**만 참조하며, 민감한 키 값 자체�
 
 ---
 
-## 빠른 시작 (Workstation Setup)
+## 설치 가이드 (Installation)
 
-저장소를 복제(clone)한 후, 루트 디렉터리에서 플랫폼별 부트스트랩 스크립트를 실행합니다:
+현재 alpha-AOS는 소스 복제(Git clone)를 통한 빌드 설치를 지원합니다. (`npm install -g alpha-aos`와 같은 npm 공식 레지스트리 기반 배포 패키지 직접 설치는 향후 공식 레지스트리 배포 시 제공될 예정입니다.)
+
+### 소스 복제를 통한 설치 (Installation from Source)
+
+저장소를 복제한 후, 의존성을 설치하고 검증된 빌드 아티팩트를 컴파일합니다:
 
 ```sh
+# 1. 저장소 복제 및 디렉터리 이동
 git clone https://github.com/4lph4-dvlp/alpha-AOS.git
 cd alpha-AOS
+
+# 2. 의존성 설치 및 빌드 아티팩트 생성 (필수)
+npm ci
+npm run build
 ```
 
-### Windows (PowerShell)
+#### Windows (PowerShell)
 
 ```powershell
 # 감지된 하네스 및 적용 예정 계획 미리보기 (Dry-run)
@@ -49,7 +58,7 @@ cd alpha-AOS
 .\scripts\install.ps1 -Apply -Target "claude,codex,antigravity"
 ```
 
-### macOS / Linux (POSIX Shell)
+#### macOS / Linux (POSIX Shell)
 
 ```sh
 # 적용 예정 계획 미리보기 (Dry-run)

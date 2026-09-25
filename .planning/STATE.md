@@ -336,6 +336,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 260922-puy | Register Phase 7 evidence gap G-07-1 for stale Truth 2/REL-02 claim under D-18 | 2026-09-22 | 1e785ad | [260922-puy](./quick/260922-puy-register-phase-7-evidence-gap-g-07-1-in-/) |
 | 260924-g11 | Deduplicate shared skill destinations across harnesses in applyManagedInstall (G-11-1) | 2026-09-24 | fcd91a5 | [260924-g11](./quick/260924-g11-resolve-multi-target-skill-drift/) |
 | 260925-p1c | Fix Windows Pi MCP bridge direct launch resolution preventing spawn EINVAL | 2026-09-25 | a0d569b | [260925-p1c](./quick/260925-p1c-fix-windows-pi-mcp-bridge-spawn/) |
+| 260925-r2d | Sync README docs with CLI syntax, promoted versions, and update cadence | 2026-09-25 | 0c532ad | [260925-r2d](./quick/260925-r2d-sync-readme-docs-and-update-cadence/) |
 
 ## Session Continuity
 

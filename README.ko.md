@@ -131,10 +131,10 @@ alpha-AOS는 공통 전역 도구와 프로젝트 맞춤 기능 간의 경계를
 어떤 폴더나 프로젝트에서든 자연어로 지시하면 에이전트가 alpha-AOS 명령을 안전하게 수행합니다:
 - **디렉터리 격리 (Tree-Off 정책)**:
   - 사용자: *"이 프로젝트는 다른 팀원들과 사용하고 있으니 alpha-AOS 기능을 사용하지 못하게 격리시켜줘"* (또는 *"alpha-aos 꺼줘"*)
-  - 에이전트가 `alpha-aos tree policy set . --mode off`를 실행하고 결과를 확인합니다. 저장소 내에 어떠한 파일도 추가/수정하지 않고 외부 레지스트리에만 격리 정책을 영구 등록합니다.
+  - 에이전트가 `alpha-aos tree set . --mode off`를 실행하고 결과를 확인합니다. 저장소 내에 어떠한 파일도 추가/수정하지 않고 외부 레지스트리에만 격리 정책을 영구 등록합니다.
 - **디렉터리 격리 해제 (Inherit 정책)**:
   - 사용자: *"alpha-AOS 다시 활성화해줘"* (또는 *"격리 풀어줘"*)
-  - 에이전트가 `alpha-aos tree policy set . --mode inherit`을 실행하여 원래 상태로 복원합니다.
+  - 에이전트가 `alpha-aos tree remove .` (또는 `alpha-aos tree set . --mode managed`)을 실행하여 원래 상태로 복원합니다.
 - **상태 점검 및 진단**:
   - 사용자: *"alpha-AOS 상태 점검해줘"* / *"닥터 실행해줘"*
   - 에이전트가 `alpha-aos status` / `alpha-aos doctor`를 실행하여 진단 결과를 요약 보고합니다.
@@ -186,7 +186,7 @@ alpha-aos project status .
 - **질문**: *"회사 기밀 저장소나 보안 프로젝트에서는 alpha-AOS 기능이나 AI 에이전트 연동을 완전히 배제하고 싶습니다."*
 - **해결책**: `--mode off` 정책을 설정합니다:
   ```sh
-  alpha-aos tree policy set /경로/보안프로젝트 --mode off
+  alpha-aos tree set /경로/보안프로젝트 --mode off
   ```
   설정 즉시 alpha-AOS는 해당 디렉터리 하위에서 일체의 파일 쓰기나 스캔을 Fail-closed(즉시 차단) 처리하며 어떠한 상태 파일도 남기지 않습니다.
 
@@ -246,12 +246,12 @@ alpha-aos project status .
 
 | 레이어 | 패키지 / 구성 요소 | 타깃 | 설명 |
 |---|---|---|---|
-| **워크플로우 척추** | GSD Core `standard` (`1.12.0`) | Claude, Codex, Antigravity, Pi | 프로젝트 기획, 단계별 계획/실행 및 검증 총괄. |
+| **워크플로우 척추** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | 프로젝트 기획, 단계별 계획/실행 및 검증 총괄. |
 | **작업자 하네스** | Hermes Agent | Hermes | 작업자 전용(Worker-only)으로 설정되어 GSD 기획 상태를 임의 변경하지 않음. |
 | **에이전트 통합 메모리** | ECC `unified-memory` | 5대 하네스 공통 | 에이전트 간 맥락과 결정 사항을 공유하는 Memory Vault. |
 | **최신 라이브러리 문서** | ECC `documentation-lookup` + Context7 | 5대 하네스 공통 | Context7 stdio MCP 게이트웨이를 통한 실시간 최신 공식 문서 조회. |
 | **심층 멀티 웹 리서치** | ECC `deep-research` + Exa/Firecrawl | 5대 하네스 공통 | Exa 검색 및 안전하게 필터링된 Firecrawl 기반의 리서치. |
-| **웹 스크래핑 프록시** | Firecrawl Proxy (`3.24.0`) | 5대 하네스 공통 | 상위 25개 도구 중 안전한 4개 추출/크롤링 도구만 노출하는 로컬 SDK 프록시. |
+| **웹 스크래핑 프록시** | Firecrawl Proxy (`3.25.2`) | 5대 하네스 공통 | 상위 25개 도구 중 안전한 4개 추출/크롤링 도구만 노출하는 로컬 SDK 프록시. |
 | **자율형 통합 제어기** | `alpha-aos-control` | 5대 하네스 공통 | 프로젝트 팩 추천·자동설치, 폴더 격리(Tree-Off), 진단, 롤백을 통합 제어. |
 | **GSD PR 배포 스킬** | `alpha-aos-ship` | Claude Code | 사용자 호출 전용의 브랜치 푸시 및 PR 생성 스킬. |
 | **프로젝트 격리 지원** | alpha-AOS 런타임 어댑터 | 5대 하네스 공통 | Fail-closed 보장을 갖춘 프로젝트 독립 샌드박스 실행. |
@@ -262,19 +262,46 @@ alpha-aos project status .
 
 업데이트 시스템은 항상 검증되고 동결된 안정 락(`catalog/stack.lock.json`)만을 반영합니다:
 
+### 1. 저장소 및 전역 CLI 갱신 (원클릭 부트스트랩 스크립트)
+
 ```powershell
-# Windows
-.\scripts\update.ps1          # 업데이트 계획 미리보기
-.\scripts\update.ps1 -Apply   # 코드 pull, 빌드 및 스택 동기화
+# Windows (PowerShell)
+.\scripts\update.ps1          # 업데이트 계획 미리보기 (Dry-run)
+.\scripts\update.ps1 -Apply   # git ff-only, npm ci, 빌드, 링크 및 스택 동기화
 ```
 
 ```sh
-# macOS / Linux
+# macOS / Linux (POSIX Shell)
 sh ./scripts/update.sh
 sh ./scripts/update.sh --apply
 ```
 
-`git pull --ff-only`를 수행하고 CLI를 재빌드하며, 검증되지 않은 후보 버전(`candidate.lock.json`)은 일반 사용자 머신에 절대 적용되지 않습니다.
+### 2. CLI를 통한 직접 하네스 동기화 (Reconcile)
+
+이미 `alpha-aos` CLI를 설치해 사용 중인 경우 터미널에서 직접 동기화할 수 있습니다:
+
+```sh
+# 변경 예정 내역 미리보기 (Dry-run)
+alpha-aos update --check
+
+# 감지된 모든 하네스에 안정 락 최신 버전 일괄 적용
+alpha-aos update --apply
+
+# 또는 특정 하네스만 지정하여 적용
+alpha-aos update --apply --target codex,claude
+```
+
+alpha-AOS는 `git pull --ff-only`를 수행하고 CLI를 재빌드하며, 검증되지 않은 후보 버전(`candidate.lock.json`)은 일반 사용자 머신에 절대 적용되지 않습니다.
+
+### 3. 도구별 정기 업데이트 확인 주기 (Automated Upstream Cadence)
+
+상위 도구들(GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP 어댑터)의 신규 버전은 GitHub Actions 정기 워크플로우를 통해 자동으로 감지 및 검증됩니다:
+
+- **정기 확인 주기**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml)이 **매주 월요일 낮 12시 17분 KST (03:17 UTC)**에 자동 실행됩니다.
+- **후보 PR 자동 생성**: npm 레지스트리에 새로운 상위 버전이 등록되면 `automation/dependency-candidate` 브랜치를 생성하고 자동으로 후보 PR을 열어둡니다.
+- **팩 스킬 드리프트 점검**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml)이 **매주 월요일 낮 1시 17분 KST (04:17 UTC)**에 실행되어 카탈로그 팩 스킬의 해시 무결성을 점검합니다.
+- **3단계 CI 게이트 검증**: 검증되지 않은 후보는 무자격 격리 테스트(Fixture), Linux/macOS/Windows 3대 운영체제 회귀 테스트, 메인 브랜치 베이스라인 가드를 모두 통과해야만 메인테이너에 의해 공식 `catalog/stack.lock.json`으로 승격(Promote)됩니다.
+- **수동 즉시 확인**: 정기 주기 외에도 필요 시 언제든 GitHub Actions 웹 화면에서 `workflow_dispatch`(수동 실행) 버튼을 눌러 즉시 최신 버전을 확인할 수 있습니다.
 
 ---
 

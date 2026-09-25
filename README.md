@@ -131,10 +131,10 @@ When you finish project scaffolding (e.g. creating Vite/Next.js/FastAPI apps), c
 In any repository or workspace, you can manage alpha-AOS entirely through natural language:
 - **Directory Tree Exclusion (Tree-Off Policy)**:
   - User: *"이 프로젝트는 다른 팀원들과 사용하고 있으니 alpha-AOS 기능을 사용하지 못하게 격리시켜줘"* (or *"Disable alpha-AOS for this project"*)
-  - Agent executes `alpha-aos tree policy set . --mode off` and verifies with `alpha-aos tree status .`. Global skills and MCPs are excluded without writing a single file to your repository.
+  - Agent executes `alpha-aos tree set . --mode off` and verifies with `alpha-aos tree inspect .`. Global skills and MCPs are excluded without writing a single file to your repository.
 - **Directory Tree Restoration (Inherit Policy)**:
   - User: *"alpha-AOS 다시 켜줘"* (or *"Re-enable alpha-AOS for this project"*)
-  - Agent executes `alpha-aos tree policy set . --mode inherit`.
+  - Agent executes `alpha-aos tree remove .` (or `alpha-aos tree set . --mode managed`).
 - **Diagnostics & Health**:
   - User: *"alpha-AOS 상태 점검해줘"* / *"닥터 실행해줘"*
   - Agent executes `alpha-aos status` / `alpha-aos doctor` and reports findings.
@@ -187,7 +187,7 @@ alpha-aos project status .
 - **Solution**: Set an explicit tree policy with `--mode off`:
   ```sh
   # Block alpha-AOS from inspecting or managing this directory tree
-  alpha-aos tree policy set /path/to/confidential-project --mode off
+  alpha-aos tree set /path/to/confidential-project --mode off
   ```
   Once set, alpha-AOS fails closed on that directory and leaves zero state or files inside it.
 
@@ -248,12 +248,12 @@ alpha-aos project status .
 
 | Layer | Component / Package | Targets | Notes |
 |---|---|---|---|
-| **Workflow & State Spine** | GSD Core `standard` (`1.12.0`) | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
+| **Workflow & State Spine** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
 | **Worker Harness** | Hermes Agent | Hermes | Configured as worker-only; does not write GSD planning state. |
 | **Cross-Harness Memory** | ECC `unified-memory` | All five harnesses | Shared Memory Vault across agents. |
 | **Library Documentation** | ECC `documentation-lookup` + Context7 | All five harnesses | Real-time docs via Context7 stdio MCP gateway. |
 | **Multi-Source Research** | ECC `deep-research` + Exa/Firecrawl | All five harnesses | Multi-source web search & extraction. |
-| **Filtered Web Scraping** | Firecrawl Proxy (`3.24.0`) | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
+| **Filtered Web Scraping** | Firecrawl Proxy (`3.25.2`) | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
 | **Autonomous Controller** | `alpha-aos-control` | All five harnesses | Unifies autonomous capability pack advisory, directory tree-off policy, diagnostics, and rollback/repair. |
 | **GSD Shipping Workflow** | `alpha-aos-ship` | Claude Code | User-invocable PR & branch shipping skill. |
 | **Project Isolation** | alpha-AOS launch adapters | All five harnesses | Isolated runtime with fail-closed bounds. |
@@ -264,19 +264,46 @@ alpha-aos project status .
 
 The updater ensures your system stays on verified, immutable releases:
 
+### 1. Repository & Global CLI Update (One-Click Bootstrap)
+
 ```powershell
-# Windows
+# Windows (PowerShell)
 .\scripts\update.ps1          # check and preview update plan
-.\scripts\update.ps1 -Apply   # pull, rebuild, and reconcile
+.\scripts\update.ps1 -Apply   # git ff-only, npm ci, rebuild, link, and reconcile
 ```
 
 ```sh
-# macOS / Linux
+# macOS / Linux (POSIX Shell)
 sh ./scripts/update.sh
 sh ./scripts/update.sh --apply
 ```
 
+### 2. Direct Harness Reconcile via CLI
+
+You can also reconcile installed AI harness configurations directly using the CLI:
+
+```sh
+# Preview component changes across detected harnesses
+alpha-aos update --check
+
+# Reconcile all detected harnesses against the stable lock
+alpha-aos update --apply
+
+# Or restrict reconciliation to specific harnesses
+alpha-aos update --apply --target codex,claude
+```
+
 alpha-AOS uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the reviewed `catalog/stack.lock.json`. Unverified candidate releases (`candidate.lock.json`) are never applied on user workstations.
+
+### 3. Automated Upstream Version Check Cadence
+
+Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapter) are tracked through automated GitHub Actions workflows:
+
+- **Weekly Check Schedule**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml) runs automatically **every Monday at 03:17 UTC (12:17 KST)**.
+- **Automated PR Staging**: When newer upstream versions appear in the npm registry, the workflow automatically creates/refreshes an `automation/dependency-candidate` branch and opens a candidate PR.
+- **Pack Skill Drift Audit**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml) runs weekly **every Monday at 04:17 UTC (13:17 KST)** to verify that catalog pack skills match pinned hashes.
+- **3-Tier Verification Gate**: The candidate must pass credential-free isolated fixtures, comprehensive regression test suites across Linux/macOS/Windows, and red-main guard validation before maintainers promote it into `catalog/stack.lock.json`.
+- **Manual Trigger**: Maintainers can trigger an immediate upstream version check at any time via the GitHub Actions `workflow_dispatch` button.
 
 ---
 

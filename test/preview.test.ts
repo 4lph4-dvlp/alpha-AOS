@@ -204,6 +204,9 @@ async function createSandbox(context: { after: (fn: () => Promise<unknown> | unk
   env.npm_config_prefix = packageSentinel;
   // Keep the child from inheriting a real credential surface.
   env.NO_COLOR = "1";
+  env.POWERSHELL_TELEMETRY_OPTOUT = "1";
+  env.POWERSHELL_UPDATECHECK = "Off";
+  env.DOTNET_CLI_TELEMETRY_OPTOUT = "1";
 
   // The oracle asserting its own soundness: `npm_config_prefix` names what a
   // child may look at, and it is the only npm setting the sandbox supplies.
@@ -658,9 +661,9 @@ test("install and update wrappers preview without mutating either shell family",
       env: sandbox.env,
       encoding: "utf8",
       // A preview reports a plan; it does not fetch, build, or link. Sixty
-      // seconds is generous for the former and impossible for the latter, so
-      // exceeding it is itself evidence that install work is happening.
-      timeout: 60_000,
+      // seconds is generous for the former and impossible for the latter on POSIX,
+      // but Windows pwsh startup under CI runner contention needs a wider budget.
+      timeout: process.platform === "win32" ? 180_000 : 60_000,
       windowsHide: true,
     });
     executed += 1;
@@ -752,7 +755,7 @@ test("a wrapper refuses without a verified build artifact and delegates with one
       cwd: repositoryRoot,
       env: sandbox.env,
       encoding: "utf8",
-      timeout: 60_000,
+      timeout: process.platform === "win32" ? 180_000 : 60_000,
       windowsHide: true,
     });
     const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;

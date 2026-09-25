@@ -1454,7 +1454,7 @@ test("the recorded routing-contract finding carries the pinned runtime version a
   assert.match(ROUTING_CONTRACT_MISMATCH.code, /^[A-Z][A-Z0-9_]*$/u);
   assert.equal(
     ROUTING_CONTRACT_MISMATCH.runtime,
-    "ecc-universal@2.2.0",
+    "ecc-universal@2.2.1",
     "the finding must carry the exact pinned runtime, or a later bump that changed the text is invisible",
   );
 

@@ -159,7 +159,7 @@ export const RESEARCH_ROUTING_INSTRUCTION_SOURCE = "skills/alpha-aos-research-ro
  */
 export const ROUTING_CONTRACT_MISMATCH: RoutingContractFinding = Object.freeze({
   code: ROUTING_CONTRACT_MISMATCH_CODE,
-  runtime: "ecc-universal@2.2.0",
+  runtime: "ecc-universal@2.2.1",
   document: "skills/deep-research/SKILL.md",
   namesNotPublished: Object.freeze(["web_search_advanced_exa", "crawling_exa"]),
   namesDeniedByPolicy: Object.freeze(["firecrawl_search"]),

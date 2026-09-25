@@ -12,7 +12,7 @@
 # Expectation lists are FINAL as of plan 03-08 and were checked, name by name,
 # against `MEASURED_UPSTREAM_TOOLS` in src/core/mcp-proxy.ts — live `tools/list`
 # results, not against any document that describes those servers. The pinned
-# third-party research instructions (`ecc-universal@2.2.0`
+# third-party research instructions (`ecc-universal@2.2.1`
 # `skills/deep-research/SKILL.md`) name two tools no pinned server publishes and
 # one the alpha-AOS proxy denies; that disagreement is recorded as the finding
 # ECC_RESEARCH_ROUTING_CONTRACT_MISMATCH and is reconciled in

@@ -57,12 +57,12 @@ The system manages capability scope as well as installation: broadly useful, low
 
 - `@modelcontextprotocol/sdk` 1.30.0 - launches upstream MCP servers over stdio and exposes the local Firecrawl policy proxy in `src/core/mcp-proxy.ts`.
 - `yaml` 2.9.0 - parses the catalog, project manifests, and Hermes configuration in `src/core/catalog.ts`, `src/core/project.ts`, and `src/core/mcp.ts`.
-- `@opengsd/gsd-core` 1.12.0 - pinned external workflow/state spine installed for Claude, Codex, Antigravity, and Pi according to `catalog/stack.lock.json` and `src/core/install.ts`.
-- `ecc-universal` 2.2.0 - pinned runtime whose selected skill files are distributed through adapters in `src/core/ecc-skills.ts` and `catalog/stack.lock.json`.
-- `@upstash/context7-mcp` 4.0.4 - pinned Context7 MCP server in `catalog/stack.lock.json`.
+- `@opengsd/gsd-core` 1.14.0 - pinned external workflow/state spine installed for Claude, Codex, Antigravity, and Pi according to `catalog/stack.lock.json` and `src/core/install.ts`.
+- `ecc-universal` 2.2.1 - pinned runtime whose selected skill files are distributed through adapters in `src/core/ecc-skills.ts` and `catalog/stack.lock.json`.
+- `@upstash/context7-mcp` 4.1.1 - pinned Context7 MCP server in `catalog/stack.lock.json`.
 - `exa-mcp-server` 3.4.1 - pinned Exa MCP server in `catalog/stack.lock.json`.
-- `firecrawl-mcp` 3.24.0 - pinned upstream Firecrawl MCP server behind the local allow-list proxy in `src/core/mcp-proxy.ts`.
-- `pi-mcp-adapter` 2.31.0 - pinned Pi MCP bridge installed and verified separately by `src/core/install.ts` and `src/core/mcp-fixture.ts`.
+- `firecrawl-mcp` 3.25.2 - pinned upstream Firecrawl MCP server behind the local allow-list proxy in `src/core/mcp-proxy.ts`.
+- `pi-mcp-adapter` 2.36.0 - pinned Pi MCP bridge installed and verified separately by `src/core/install.ts` and `src/core/mcp-fixture.ts`.
 - `@types/node` 24.7.2 - Node.js type declarations used by the TypeScript compiler in `package.json`.
 
 ## Configuration

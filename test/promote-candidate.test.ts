@@ -23,8 +23,14 @@ async function setupTempRepo(): Promise<{ tempDir: string; stablePath: string; c
   await mkdir(schemasDir, { recursive: true });
   await copyFile(join(process.cwd(), "schemas", "lock.schema.json"), join(schemasDir, "lock.schema.json"));
 
-  // Copy current stable lock
-  await copyFile(join(process.cwd(), "catalog", "stack.lock.json"), stablePath);
+  // Copy current stable lock and set pre-promotion baseline versions for promotion test fixtures
+  const stableDoc = JSON.parse(await readFile(join(process.cwd(), "catalog", "stack.lock.json"), "utf8"));
+  if (stableDoc.components?.gsd) stableDoc.components.gsd.version = "1.12.0";
+  if (stableDoc.components?.ecc) stableDoc.components.ecc.version = "2.2.0";
+  if (stableDoc.components?.mcp?.context7) stableDoc.components.mcp.context7.version = "4.0.4";
+  if (stableDoc.components?.mcp?.firecrawl) stableDoc.components.mcp.firecrawl.version = "3.24.0";
+  if (stableDoc.components?.mcpBridges?.pi) stableDoc.components.mcpBridges.pi.version = "2.31.0";
+  await writeFile(stablePath, `${JSON.stringify(stableDoc, null, 2)}\n`, "utf8");
 
   // Write a fixture candidate lock with candidate components
   const candidateFixture = {

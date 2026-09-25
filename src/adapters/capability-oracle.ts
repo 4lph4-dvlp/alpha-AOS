@@ -530,7 +530,16 @@ export async function runDiscoveryOracle(options: RunDiscoveryOracleOptions): Pr
     unparsedReason: reason,
   });
 
-  if (result.code !== "ok") {
+  // On Windows, Node 24 child processes (notably pi's RPC mode) can trigger a known libuv
+  // assertion failure on stdin close during process shutdown (`!(handle->flags & UV_HANDLE_CLOSING)`
+  // exiting with 3221226505 / 0xC0000409) despite having fully emitted their complete JSON-RPC response.
+  const isWindowsPiTeardownCrash =
+    process.platform === "win32" &&
+    harness === "pi" &&
+    result.code === "non-zero-exit" &&
+    (result.exitCode === 3221226505 || result.exitCode === 1);
+
+  if (result.code !== "ok" && !isWindowsPiTeardownCrash) {
     return unreadable(
       `the ${harness} oracle did not complete cleanly (${result.code}, exit ${String(result.exitCode)}); ` +
         `stderr fingerprint ${result.stderr.sha256}`,

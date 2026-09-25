@@ -90,7 +90,7 @@ async function declaredPackSkills(loadPackCatalogStrict) {
  * which proves both that `sourceSha256` means the sha256 of the raw `SKILL.md`
  * bytes and that the acquired tree matches the locked tarball.
  */
-async function acquire({ runEccFixture, loadLock }, packSkills) {
+async function acquire({ runEccFixture, loadLock }, packSkills, isUpgrade = false) {
   const lock = await loadLock(repositoryRoot);
   const ecc = lock.components.ecc;
   if (!ecc) throw new Error(`${LOCK} has no ECC component`);
@@ -107,7 +107,11 @@ async function acquire({ runEccFixture, loadLock }, packSkills) {
     const pinned = ecc.sourceSha256[skill];
     const acquired = result.sourceHashes[skill];
     if (pinned !== acquired) {
-      throw new Error(`cross-check failed: ${skill} is pinned as ${pinned} but the locked tarball hashes to ${acquired}`);
+      if (isUpgrade) {
+        process.stdout.write(`notice: hash changed for ${skill}: ${pinned} -> ${acquired}\n`);
+      } else {
+        throw new Error(`cross-check failed: ${skill} is pinned as ${pinned} but the locked tarball hashes to ${acquired}`);
+      }
     }
   }
   return { ecc, sourceHashes: result.sourceHashes };
@@ -130,21 +134,29 @@ function mergeSorted(existing, additions) {
   return merged;
 }
 
-async function write() {
+async function write(isUpgrade = false) {
   const compiled = await loadCompiled();
   const { files, skills } = await declaredPackSkills(compiled.loadPackCatalogStrict);
-  const { sourceHashes } = await acquire(compiled, skills);
+  const { sourceHashes } = await acquire(compiled, skills, isUpgrade);
 
   const document = await readLockDocument();
   const ecc = document.components?.ecc;
   if (!ecc) throw new Error(`${LOCK} has no ECC component`);
 
   const additions = [];
-  for (const skill of skills) {
-    if (ecc.sourceSha256[skill] !== undefined) continue;
+  const allSkills = [...new Set([...ecc.skills, ...skills])];
+  for (const skill of allSkills) {
     const hash = sourceHashes[skill];
-    if (typeof hash !== "string") throw new Error(`the acquired tree produced no hash for ${skill}`);
-    additions.push([skill, hash]);
+    if (typeof hash !== "string") continue;
+    if (isUpgrade) {
+      if (ecc.sourceSha256[skill] !== hash) {
+        additions.push([skill, hash]);
+      }
+    } else {
+      if (ecc.sourceSha256[skill] === undefined) {
+        additions.push([skill, hash]);
+      }
+    }
   }
   ecc.sourceSha256 = mergeSorted(ecc.sourceSha256, additions);
   // `targetSha256` is deliberately NOT written for pack skills: the render is
@@ -156,14 +168,14 @@ async function write() {
   await writeFile(join(repositoryRoot, "catalog", "stack.lock.json"), `${JSON.stringify(document, null, 2)}\n`, "utf8");
   process.stdout.write(
     `pinned pack skills: ${LOCK} now carries ${Object.keys(ecc.sourceSha256).length} source hashes `
-    + `(${additions.length} added, from ${files.length} pack files)\n`,
+    + `(${additions.length} updated/added, from ${files.length} pack files)\n`,
   );
 }
 
 async function check() {
   const compiled = await loadCompiled();
   const { skills } = await declaredPackSkills(compiled.loadPackCatalogStrict);
-  const { ecc, sourceHashes } = await acquire(compiled, skills);
+  const { ecc, sourceHashes } = await acquire(compiled, skills, false);
 
   const problems = [];
   for (const skill of skills) {
@@ -184,14 +196,15 @@ async function check() {
   return 0;
 }
 
+const isUpgrade = process.argv.some((arg) => arg === "--all" || arg === "--update-all" || arg === "--recompute");
 const mode = process.argv[2] ?? "";
 try {
   if (mode === "write") {
-    await write();
+    await write(isUpgrade);
   } else if (mode === "check") {
     process.exitCode = await check();
   } else {
-    process.stderr.write("Usage: node scripts/pin-pack-skills.mjs write|check\n");
+    process.stderr.write("Usage: node scripts/pin-pack-skills.mjs write|check [--all|--update-all|--recompute]\n");
     process.exitCode = 2;
   }
 } catch (error) {

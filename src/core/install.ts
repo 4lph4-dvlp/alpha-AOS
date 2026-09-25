@@ -59,6 +59,7 @@ import {
   type ClaudeSkillPolicyOperationPlan,
 } from "./skill-policy.js";
 import { rollbackFileTransaction } from "./transaction.js";
+import { resolveDirectLaunch } from "../adapters/capability-oracle.js";
 
 const allHarnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
 const gsdHarnesses: GsdFixtureHarness[] = ["claude", "codex", "antigravity", "pi"];
@@ -644,9 +645,11 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
     mcpBridgeFixture = await createMcpFixtureOperationPlan({ server: "context7", harness: "pi", lock: options.lock, ...reuse("mcp-bridge:pi") });
     const pi = resolveCommand("pi");
     if (!pi) throw new Error("Pi CLI is required to install its MCP bridge");
+    const launch = resolveDirectLaunch(pi);
+    if (!launch) throw new Error(`Cannot launch Pi executable directly: ${pi}`);
     external.push({
       id: "mcp-bridge:pi",
-      spec: externalSpec(pi, ["install", `npm:${piBridge.package}@${piBridge.version}`]),
+      spec: externalSpec(launch.executable, [...launch.argsPrefix, "install", `npm:${piBridge.package}@${piBridge.version}`]),
     });
   }
 

@@ -451,3 +451,36 @@ test("the byte-identical entry points include both plan-builder callers", async 
     );
   }
 });
+
+test("managed install resolves Pi CLI via resolveDirectLaunch rather than spawning shims directly", async () => {
+  const source = await readFile(join(repositoryRoot, "src", "core", "install.ts"), "utf8");
+  assert.equal(
+    source.includes("resolveDirectLaunch(pi)"),
+    true,
+    "mcp-bridge:pi in createManagedInstallOperationPlan must unwrap pi command via resolveDirectLaunch to prevent spawn EINVAL on Windows .cmd shims",
+  );
+  assert.equal(
+    source.includes('externalSpec(launch.executable, [...launch.argsPrefix, "install"'),
+    true,
+    "mcp-bridge:pi external step spec must use direct launch executable and argsPrefix",
+  );
+
+  const catalog = await loadCatalog(repositoryRoot);
+  const lock = await loadLock(repositoryRoot);
+  const detected = inventory(["pi"]);
+  const plan = await createManagedInstallOperationPlan({
+    root: repositoryRoot,
+    catalog,
+    lock,
+    inventory: detected,
+    requestedTargets: ["pi"],
+  });
+  const piStep = plan.external.find((step) => step.id === "mcp-bridge:pi");
+  if (piStep) {
+    assert.equal(
+      piStep.spec.executable.toLowerCase().endsWith(".cmd") || piStep.spec.executable.toLowerCase().endsWith(".bat"),
+      false,
+      "mcp-bridge:pi spec executable must not be a .cmd or .bat batch file shim",
+    );
+  }
+});

@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import {
   applyManagedInstall,
+  createManagedInstallOperationPlan,
   createManagedInstallPlan,
   type ManagedInstallOptions,
 } from "../src/core/install.js";
@@ -321,4 +322,90 @@ test("candidate locks are strictly rejected by stable lock reconciliation (LIFE-
   assert.ok(gsdStep);
   assert.ok(!gsdStep.note.includes("99.0.0"), "candidate lock version 99.0.0 must never appear in stable install plan");
   assert.ok(gsdStep.note.includes(fixture.lock.components.gsd!.version), "must reflect stable lock version");
+});
+
+test("MCP plan proofs are re-established after an external installer rewrites the config target (fresh-install regression)", async (context) => {
+  const tempBase = await mkdtemp(join(tmpdir(), "alpha-aos-mcp-replan-"));
+  context.after(async () => rm(tempBase, { recursive: true, force: true }));
+
+  const home = join(tempBase, "home");
+  const stateRoot = join(tempBase, "state");
+  const prefixDir = join(tempBase, "npm-prefix");
+  await mkdir(home, { recursive: true });
+  await mkdir(stateRoot, { recursive: true });
+  await mkdir(prefixDir, { recursive: true });
+
+  const catalog = await loadCatalog(repositoryRoot);
+  const lock = await loadLock(repositoryRoot);
+  const gsd = lock.components.gsd;
+  const ecc = lock.components.ecc;
+  assert.ok(gsd && ecc);
+
+  const savedEnv: Record<string, string | undefined> = {};
+  const setEnv = (key: string, val: string | undefined): void => {
+    savedEnv[key] = process.env[key];
+    if (val === undefined) delete process.env[key];
+    else process.env[key] = val;
+  };
+  setEnv("HOME", home);
+  setEnv("USERPROFILE", home);
+  setEnv("CODEX_HOME", join(home, ".codex"));
+  setEnv("CLAUDE_CONFIG_DIR", join(home, ".claude"));
+  setEnv("ANTIGRAVITY_CONFIG_DIR", join(home, ".gemini", "antigravity"));
+  setEnv("PI_CODING_AGENT_DIR", join(home, ".pi", "agent"));
+  setEnv("HERMES_HOME", join(home, ".hermes"));
+  setEnv("npm_config_prefix", prefixDir);
+  context.after(() => {
+    for (const [k, v] of Object.entries(savedEnv)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  });
+
+  // GSD and the ECC runtime are current for codex, so no external installer
+  // runs; the MCP config carries user content only, so the MCP step plans an
+  // update - the exact path a fresh install broke when the GSD codex installer
+  // rewrote config.toml with identical content under a new file identity.
+  const codexGsdRoot = join(home, ".codex", "gsd-core");
+  await mkdir(codexGsdRoot, { recursive: true });
+  await writeFile(join(codexGsdRoot, "VERSION"), `${gsd.version}\n`, "utf8");
+  await writeFile(join(codexGsdRoot, ".gsd-runtime"), "codex\n", "utf8");
+  await writeFile(join(home, ".codex", ".gsd-profile"), `${gsd.profile}\n`, "utf8");
+  const eccPkgDir = join(prefixDir, "node_modules", ...ecc.package.split("/"));
+  await mkdir(eccPkgDir, { recursive: true });
+  await writeFile(join(eccPkgDir, "package.json"), JSON.stringify({ name: ecc.package, version: ecc.version }), "utf8");
+  const configPath = join(home, ".codex", "config.toml");
+  const userConfig = "[mcp_servers.figma]\nurl = \"https://mcp.figma.com/mcp\"\n";
+  await writeFile(configPath, userConfig, "utf8");
+
+  const options: ManagedInstallOptions = {
+    root: repositoryRoot,
+    catalog,
+    lock,
+    inventory: createInventory(["codex"]),
+    requestedTargets: ["codex"],
+    stateRoot,
+  };
+
+  // 1. Plan - the MCP target's filesystem identity is proven here.
+  const reviewed = await createManagedInstallOperationPlan(options);
+  const mcpStep = reviewed.install.steps.find((step) => step.id === "mcp:codex");
+  assert.ok(mcpStep, "the plan must contain the codex MCP step");
+  assert.ok(mcpStep.action !== "current", "the MCP step must plan a write for this fixture");
+
+  // 2. Simulate the GSD codex installer: byte-identical content under a new
+  // file identity - what invalidated the plan-time proof before the fix.
+  const before = await readFile(configPath, "utf8");
+  await rm(configPath);
+  await writeFile(configPath, before, "utf8");
+
+  // 3. Apply - the re-established MCP plan must match the rewritten file.
+  const result = await applyManagedInstall({ ...options, plan: reviewed });
+  assert.ok(
+    result.applied.includes("mcp:codex"),
+    `mcp:codex must apply despite the external rewrite; applied: ${result.applied.join(", ")}`,
+  );
+  const after = await readFile(configPath, "utf8");
+  assert.ok(after.includes("figma"), "the user's own servers must be preserved");
+  assert.ok(after.includes("context7"), "the alpha-AOS managed servers must be present");
 });

@@ -844,6 +844,17 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
       } else current.push("mcp-bridge:pi");
     }
 
+    // External installers legitimately rewrite the native config files the MCP
+    // syncs are about to write - the GSD codex installer rewrites config.toml
+    // with byte-identical content under a new file identity - so the plan-time
+    // MCP proofs are re-established here instead of being reused stale. The
+    // reviewed aggregate declared these external steps, so their changes are
+    // expected; anything that moves a config after this re-plan is still drift.
+    const mcpPlans: McpOperationPlan[] = [];
+    for (const target of plan.targets) {
+      mcpPlans.push(await planMcpOperation(target, options.lock, installStateOptions(options)));
+    }
+
     if (reviewed.components.gsdCompatibility) {
       const result = await applyCodexGsdHookCompatibility(options.lock, { plan: reviewed.components.gsdCompatibility, session });
       remember("gsd:codex:hook-compat", result.operationId, join(codexConfigRoot(), "hooks", "lib"));
@@ -881,7 +892,7 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
     for (const fixture of reviewed.fixtures.mcpCanary) {
       await runMcpFixture({ server: fixture.server, harness: fixture.harness, lock: options.lock, plan: fixture, session });
     }
-    for (const component of reviewed.components.mcp) {
+    for (const component of mcpPlans) {
       const result = await applyMcpSync(component.harness, options.lock, { plan: component, session });
       remember(`mcp:${component.harness}`, result.operationId, dirname(result.plan.configPath));
     }

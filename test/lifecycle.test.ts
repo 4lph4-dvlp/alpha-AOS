@@ -371,19 +371,37 @@ test("MCP plan proofs are re-established after an external installer rewrites th
   await writeFile(join(codexGsdRoot, "VERSION"), `${gsd.version}\n`, "utf8");
   await writeFile(join(codexGsdRoot, ".gsd-runtime"), "codex\n", "utf8");
   await writeFile(join(home, ".codex", ".gsd-profile"), `${gsd.profile}\n`, "utf8");
+  // The claude GSD root is staged too, so no external npx install runs in the
+  // test and the rewrite below stays the only thing that moves these files.
+  const claudeGsdRoot = join(home, ".claude", "gsd-core");
+  await mkdir(claudeGsdRoot, { recursive: true });
+  await writeFile(join(claudeGsdRoot, "VERSION"), `${gsd.version}\n`, "utf8");
+  await writeFile(join(claudeGsdRoot, ".gsd-runtime"), "claude\n", "utf8");
+  await writeFile(join(home, ".claude", ".gsd-profile"), `${gsd.profile}\n`, "utf8");
+  // alpha-aos-ship requires gsd-core/workflows/ship.md, which a real GSD
+  // install creates; stage it so the owned-skill gate sees it as present.
+  await mkdir(join(claudeGsdRoot, "workflows"), { recursive: true });
+  await writeFile(join(claudeGsdRoot, "workflows", "ship.md"), "# ship workflow\n", "utf8");
   const eccPkgDir = join(prefixDir, "node_modules", ...ecc.package.split("/"));
   await mkdir(eccPkgDir, { recursive: true });
   await writeFile(join(eccPkgDir, "package.json"), JSON.stringify({ name: ecc.package, version: ecc.version }), "utf8");
   const configPath = join(home, ".codex", "config.toml");
   const userConfig = "[mcp_servers.figma]\nurl = \"https://mcp.figma.com/mcp\"\n";
   await writeFile(configPath, userConfig, "utf8");
+  // settings.json exists up front the way a real Claude Code host does, so the
+  // claude-skill-policy step plans against an existing file - the second path
+  // the GSD claude installer's rewrite used to break.
+  const settingsPath = join(home, ".claude", "settings.json");
+  const userSettings = JSON.stringify({ theme: "dark" }, null, 2) + "\n";
+  await mkdir(join(home, ".claude"), { recursive: true });
+  await writeFile(settingsPath, userSettings, "utf8");
 
   const options: ManagedInstallOptions = {
     root: repositoryRoot,
     catalog,
     lock,
-    inventory: createInventory(["codex"]),
-    requestedTargets: ["codex"],
+    inventory: createInventory(["codex", "claude"]),
+    requestedTargets: ["codex", "claude"],
     stateRoot,
   };
 
@@ -393,11 +411,14 @@ test("MCP plan proofs are re-established after an external installer rewrites th
   assert.ok(mcpStep, "the plan must contain the codex MCP step");
   assert.ok(mcpStep.action !== "current", "the MCP step must plan a write for this fixture");
 
-  // 2. Simulate the GSD codex installer: byte-identical content under a new
-  // file identity - what invalidated the plan-time proof before the fix.
+  // 2. Simulate the GSD installers: byte-identical content under new file
+  // identities - what invalidated the plan-time proofs before the fix.
   const before = await readFile(configPath, "utf8");
   await rm(configPath);
   await writeFile(configPath, before, "utf8");
+  const settingsBefore = await readFile(settingsPath, "utf8");
+  await rm(settingsPath);
+  await writeFile(settingsPath, settingsBefore, "utf8");
 
   // 3. Apply - the re-established MCP plan must match the rewritten file.
   const result = await applyManagedInstall({ ...options, plan: reviewed });
@@ -405,7 +426,13 @@ test("MCP plan proofs are re-established after an external installer rewrites th
     result.applied.includes("mcp:codex"),
     `mcp:codex must apply despite the external rewrite; applied: ${result.applied.join(", ")}`,
   );
+  assert.ok(
+    result.applied.includes("policy:claude-ecc"),
+    `policy:claude-ecc must apply despite the external rewrite; applied: ${result.applied.join(", ")}`,
+  );
   const after = await readFile(configPath, "utf8");
   assert.ok(after.includes("figma"), "the user's own servers must be preserved");
   assert.ok(after.includes("context7"), "the alpha-AOS managed servers must be present");
+  const settingsAfter = await readFile(settingsPath, "utf8");
+  assert.ok(settingsAfter.length > settingsBefore.length, "the skill policy must merge into the user settings");
 });

@@ -199,7 +199,6 @@ export async function planOwnedSkillOperation(
     expectedHash: sync.expectedHash,
     action: sync.action,
     workflow: sync.workflow,
-    workflowFound: sync.workflowFound,
     boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
   });
 
@@ -235,7 +234,7 @@ export async function applyOwnedSkillSync(
   options: OwnedSkillApplyOptions = {},
 ): Promise<{ plan: OwnedSkillSyncPlan; operationId: string | null; digest: string }> {
   const reviewed = options.plan ?? await planOwnedSkillOperation(root, catalog, lock, id, target, options);
-  if (reviewed.sync.workflow && !reviewed.sync.workflowFound) {
+  if (reviewed.sync.workflow && !existsSync(reviewed.sync.workflow)) {
     throw new Error(`Required GSD workflow is missing: ${reviewed.sync.workflow}`);
   }
   if (reviewed.sync.action === "current") return { plan: reviewed.sync, operationId: null, digest: reviewed.digest };

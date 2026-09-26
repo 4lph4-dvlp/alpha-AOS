@@ -55,11 +55,20 @@ interface ProcessFixture {
    * not to a fixture that happens to use it.
    */
   mintHeartbeat(): { path: string; nonce: string; args: [string, string] };
+  confirmDescendantTermination(): void;
 }
 
 async function createProcessFixture(context: { after: (fn: () => Promise<unknown> | unknown) => void }): Promise<ProcessFixture> {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-process-"));
-  context.after(async () => rm(root, { recursive: true, force: true }));
+  let descendantTerminationConfirmed = false;
+  context.after(async () => rm(root, {
+    recursive: true,
+    force: true,
+    // A proven-dead Windows process can still have handles being released.
+    // Unobserved/live descendants never acquire this cleanup allowance.
+    maxRetries: process.platform === "win32" && descendantTerminationConfirmed ? 10 : 0,
+    retryDelay: 50,
+  }));
 
   const sideEffect = join(root, "SIDE-EFFECT");
   const echoScript = join(root, "echo.mjs");
@@ -126,6 +135,9 @@ async function createProcessFixture(context: { after: (fn: () => Promise<unknown
     sideEffect,
     mintHeartbeat(): { path: string; nonce: string; args: [string, string] } {
       return mintHeartbeat(root);
+    },
+    confirmDescendantTermination(): void {
+      descendantTerminationConfirmed = true;
     },
   };
 }
@@ -379,11 +391,7 @@ test("a timed-out command leaves no descendant process behind", async (context) 
   });
 
   const descendantPid = Number.parseInt(result.stdout.excerpt.trim(), 10);
-  if (!Number.isFinite(descendantPid)) {
-    // Not observable is recorded as not-run rather than reported as a pass.
-    context.diagnostic("descendant pid was not observable; the process tree assertion could not be evaluated");
-    return;
-  }
+  assert.ok(Number.isFinite(descendantPid), "descendant pid was not observable; termination assertion cannot pass without evidence");
 
   // The classifier's `pid-reused` branch is INERT at this site, and that is
   // recorded rather than hidden. A start-time baseline can only be read while
@@ -397,6 +405,7 @@ test("a timed-out command leaves no descendant process behind", async (context) 
   // is carried by the nonce heartbeat instead.
   const probe = await registerProbe({ pid: descendantPid, heartbeatPath: hb.path, nonce: hb.nonce });
   const termination = await waitForTermination(probe, CLOSE_TREE_DEADLINE_MS);
+  if (termination.terminated) fixture.confirmDescendantTermination();
 
   // A pid is signalled only once its identity is confirmed, exactly as every
   // signalling site in test/protocol-session.test.ts does it. `null` is no

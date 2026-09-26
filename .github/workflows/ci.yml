@@ -45,8 +45,8 @@ jobs:
     name: ${{ matrix.os }} / Node 24
     needs: package
     runs-on: ${{ matrix.os }}
-    # These three pinned-server startups are the repository's only
-    # registry-touching tests. Without this gate an air-gapped leg would lose
+    # These three pinned-server startups require the public registry.
+    # ECC has a separate required integration step below. Without this gate an air-gapped leg would lose
     # the Pitfall 8 firecrawl regression and still report green. A transient
     # upstream fault showing red is the accepted cost already recorded in
     # pack-skill-drift.yml.
@@ -76,6 +76,11 @@ jobs:
           if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"
       - run: npm run check
       - run: npm test
+
+      # Lifecycle regressions use tiny loopback registry fixtures. Verify the
+      # real stable ECC package once per OS, away from concurrent test installs.
+      - name: Verify locked upstream ECC package
+        run: node scripts/run-tests.mjs --files dist/test/ecc-upstream.integration.js
 
       # The artifact `npm test` just built must describe itself exactly. A
       # mismatch here means the build is not reproducible from these sources,

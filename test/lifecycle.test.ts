@@ -17,6 +17,7 @@ import { packageRoot } from "../src/core/paths.js";
 import { listManagedTransactions } from "../src/core/transaction.js";
 import { hasVersionChanges, planCandidateStage, resolveCandidate } from "../src/core/update.js";
 import type { HarnessId, Inventory, StackCatalog, StackLock } from "../src/types.js";
+import { createInstallRegistry } from "./helpers/install-registry.js";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -336,7 +337,7 @@ test("MCP plan proofs are re-established after an external installer rewrites th
   await mkdir(prefixDir, { recursive: true });
 
   const catalog = await loadCatalog(repositoryRoot);
-  const lock = await loadLock(repositoryRoot);
+  const lock = await createInstallRegistry(context, tempBase, await loadLock(repositoryRoot), true);
   const gsd = lock.components.gsd;
   const ecc = lock.components.ecc;
   assert.ok(gsd && ecc);
@@ -382,7 +383,7 @@ test("MCP plan proofs are re-established after an external installer rewrites th
   // install creates; stage it so the owned-skill gate sees it as present.
   await mkdir(join(claudeGsdRoot, "workflows"), { recursive: true });
   await writeFile(join(claudeGsdRoot, "workflows", "ship.md"), "# ship workflow\n", "utf8");
-  const eccPkgDir = join(prefixDir, "node_modules", ...ecc.package.split("/"));
+  const eccPkgDir = join(prefixDir, process.platform === "win32" ? "node_modules" : join("lib", "node_modules"), ...ecc.package.split("/"));
   await mkdir(eccPkgDir, { recursive: true });
   await writeFile(join(eccPkgDir, "package.json"), JSON.stringify({ name: ecc.package, version: ecc.version }), "utf8");
   const configPath = join(home, ".codex", "config.toml");

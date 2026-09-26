@@ -414,8 +414,8 @@ with a skill-roots table and one line per skill. Run from inside the fixture pro
 ```
 ### Skill roots
 - `r0` = `.../probe/proj/.codex/skills`
-- `r1` = `C:/Users/alpha/.agents/skills`
-- `r2` = `C:/Users/alpha/.codex/skills/.system`
+- `r1` = `~/.agents/skills`
+- `r2` = `~/.codex/skills/.system`
 - `r7` = `.../probe/proj/.agents/skills`
 ### Available skills
 - zzz-canary-widget: Use when the user asks to reticulate a splines manifest for the ZZZQ format. (file: r7/zzz-canary-widget/SKILL.md)
@@ -774,7 +774,7 @@ three environments built from the repository's own declarations:
 ```
 --- floor-only  status= 4294963238
    stderr: npm error code ENOENT | npm error syscall open |
-           npm error path C:\Users\alpha\npm-cache\_npx\db0efa1a1ed40fd1\package.json |
+           npm error path C:\Users\<user>\npm-cache\_npx\db0efa1a1ed40fd1\package.json |
            npm error errno -4058 | npm error enoent Could not read package.json …
 --- floor+APPDATA+LOCALAPPDATA  status= 0
    stderr: No FIRECRAWL_API_KEY or FIRECRAWL_API_URL set — running in keyless mode. …

@@ -246,7 +246,7 @@ Run this session with `C:\...\scratchpad\probe-leads.mjs` importing `D:/dev/alph
 
 ```
 P1 user-authored context7 (no receipt) removed by uninstall --target claude
-  {"planned":[["prune",["context7"]]],"removedFiles":[],"prunedFiles":["C:\\Users\\alpha\\AppData\\Local\\Temp\\alpha-aos-p11-probe-oQdm4h\\p1\\home\\.claude.json"],"cfgExistsAfter":true}
+  {"planned":[["prune",["context7"]]],"removedFiles":[],"prunedFiles":["C:\\Users\\<user>\\AppData\\Local\\Temp\\alpha-aos-p11-probe-oQdm4h\\p1\\home\\.claude.json"],"cfgExistsAfter":true}
 P2 user-edited deep-research SKILL.md removed; owned alpha-aos-control left
   {"filesToRemove":["...\\p2\\home\\.agents\\skills\\deep-research\\SKILL.md"],"removed":["...\\deep-research\\SKILL.md"],"userSkillExistsAfter":false,"ownedControlExistsAfter":true}
 P3 uninstall --project removes user file + manifest

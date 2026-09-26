@@ -115,7 +115,7 @@ which carries the D-05 diagnostics). TAP summary:
 ```
 
 Drift report excerpt exactly as printed (metadata only; the scratch prefix is
-`C:\Users\alpha\AppData\Local\Temp\claude\D--dev-alpha-AOS\e526dbf2-fdb0-4dc0-b57c-b95612d1dd9d\scratchpad`,
+`C:\Users\<user>\AppData\Local\Temp\claude\D--dev-alpha-AOS\e526dbf2-fdb0-4dc0-b57c-b95612d1dd9d\scratchpad`,
 shortened here to `<scratch>`; 42 listed lines are elided in the middle):
 
 ```
@@ -276,7 +276,7 @@ variables unset. The developer's real `~/.alpha-aos` was never used.
   ℹ tests 1 / pass 0 / fail 1
   AssertionError [ERR_ASSERTION]: this file must resolve its own state root, not the host one
   + '<scratch>\\red1-home.lMRk\\.alpha-aos'
-  - 'C:\\Users\\alpha\\AppData\\Local\\Temp\\alpha-aos-test-mcp-proxy-state'
+  - 'C:\\Users\\<user>\\AppData\\Local\\Temp\\alpha-aos-test-mcp-proxy-state'
   ```
 
   `userStateRoot()` resolved the scratch home's `.alpha-aos`: exactly the host

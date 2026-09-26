@@ -132,7 +132,7 @@ out_of_scope: RC-1 (os.tmpdir non-canonical -> outside-canonical-root, macOS/Win
   found: |
     bare `node -e ...`               -> npm_config_* keys: []
     `npm exec -- node ...` (lifecycle) -> ["npm_config_cache","npm_config_prefix","npm_config_userconfig"]
-                                         cache = C:\Users\alpha\AppData\Local\npm-cache
+                                         cache = C:\Users\<user>\AppData\Local\npm-cache
   implication: |
     `npm test` and the bare `node --test` CI step do NOT give the test process
     the same environment. npm injects npm_config_cache; the bare step does not.

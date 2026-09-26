@@ -1,10 +1,11 @@
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { machine, tmpdir } from "node:os";
 import { dirname, extname, isAbsolute, join } from "node:path";
 import type { RedactedExcerpt, RedactionContext, ScrubbedEnvironmentResult } from "../types.js";
 import { createRedactedExcerpt, createRedactionContext } from "./redaction.js";
+import { resolveWindowsCommand } from "./windows-command.js";
 
 /**
  * Stable outcome codes. Callers branch on these rather than on a message, so a
@@ -87,13 +88,16 @@ export interface ProcessResult {
  * Names the operating system hands a child regardless of the environment
  * block the parent supplies. alpha-AOS cannot suppress these, so it names
  * them instead of pretending the allowlist is total. The floor is a pure
- * function of the platform name so every branch stays assertable from any
+ * function of the platform and native machine so every branch stays assertable from any
  * host, not only from the host that happens to be running.
  *
  * Windows: libuv guarantees a fixed set of system variables so the child can
  * locate the system at all. Three of them (`USERNAME`, `USERPROFILE`,
  * `HOMEPATH`) are user-identifying, which is why diagnostics alias private
  * paths rather than assuming a child never learned who is running it.
+ * Windows ARM64 also injects and overrides `PROCESSOR_ARCHITECTURE`, even
+ * with an empty environment. Use the native machine, not a child's potentially
+ * emulated architecture, to declare that additional OS-provided name.
  *
  * macOS: CoreFoundation injects `__CF_USER_TEXT_ENCODING` into every child,
  * so it is observed even when alpha-AOS hands over an empty environment
@@ -103,7 +107,7 @@ export interface ProcessResult {
  *
  * Every other platform delivers nothing beyond the declared allowlist.
  */
-export function platformFloorEnvironment(platform: NodeJS.Platform): readonly string[] {
+export function platformFloorEnvironment(platform: NodeJS.Platform, nativeMachine = machine()): readonly string[] {
   switch (platform) {
     case "win32":
       return [
@@ -111,6 +115,7 @@ export function platformFloorEnvironment(platform: NodeJS.Platform): readonly st
         "HOMEPATH",
         "LOGONSERVER",
         "PATH",
+        ...(nativeMachine === "arm64" ? ["PROCESSOR_ARCHITECTURE"] : []),
         "SYSTEMDRIVE",
         "SYSTEMROOT",
         "TEMP",
@@ -839,16 +844,24 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
 // ---------------------------------------------------------------------------
 
 export function resolveCommand(command: string): string | null {
-  const resolver = process.platform === "win32" ? "where.exe" : "which";
-  const result = spawnSync(resolver, [command], { encoding: "utf8", timeout: 3000, windowsHide: true });
-  if (result.status !== 0) return null;
+  if (process.platform === "win32") {
+    return resolveWindowsCommand(command, {
+      cwd: process.cwd(),
+      path: process.env.PATH ?? "",
+      pathExt: process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
+    });
+  }
+  const result = spawnSync("which", [command], { encoding: "utf8", timeout: 3000, windowsHide: true });
+  if (result.error) {
+    const code = (result.error as NodeJS.ErrnoException).code;
+    throw new ProcessPolicyError(code === "ETIMEDOUT" ? "timeout" : "spawn-failed", "Command discovery probe failed");
+  }
+  if (result.status === 1) return null;
+  if (result.status !== 0) {
+    throw new ProcessPolicyError("non-zero-exit", "Command discovery probe did not complete successfully");
+  }
   const paths = result.stdout.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-  if (process.platform !== "win32") return paths[0] ?? null;
-  return paths.find((path) => extname(path).toLowerCase() === ".exe")
-    ?? paths.find((path) => extname(path).toLowerCase() === ".cmd")
-    ?? paths.find((path) => extname(path).toLowerCase() === ".ps1")
-    ?? paths[0]
-    ?? null;
+  return paths[0] ?? null;
 }
 
 /**

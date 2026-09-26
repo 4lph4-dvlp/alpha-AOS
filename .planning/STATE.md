@@ -1,21 +1,21 @@
 ---
-gsd_state_version: 1.0
+gsd_state_version: "1.0"
 milestone: v0.1.1
-milestone_name: CI Green & Dependency Promotion
 current_phase: 13
 current_phase_name: Dependency Candidate Promotion
 status: complete
 stopped_at: Phase 13 complete (Milestone v0.1.1 reached)
-last_updated: "2026-09-25T04:54:00.000Z"
-last_activity: 2026-09-25
-last_activity_desc: Phase 13 executed and verified; all candidate components promoted
-state_head: 0c9a54b4231b67f1ee0678ab2697ef7ffaf5b8e9
+last_updated: "2026-09-26T19:11:32.617Z"
+last_activity: 2026-09-27
+last_activity_desc: "Completed quick task 260927-5ha: backed-up Windows clean reinstall preparation; user installation and merge decision pending"
+state_head: baf110c474136e2bc0e7ad116df9a3fb30df2081
 progress:
   total_phases: 4
   completed_phases: 4
   total_plans: 16
   completed_plans: 16
   percent: 100
+milestone_name: CI Green & Dependency Promotion
 ---
 
 # Project State
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 Phase: 13 (Dependency Candidate Promotion) — COMPLETE
 Plan: 3 of 3
 Status: Milestone v0.1.1 Complete
-Last activity: 2026-09-26 - Completed quick task 260926-woa: re-establish all managed component plans after external installs
+Last activity: 2026-09-27 - Completed quick task 260927-5ha: backed-up Windows clean reinstall preparation; user installation and merge decision pending
 
 Progress: [██████████] 100% (4/4 phases)
 
@@ -327,19 +327,23 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ### Quick Tasks Completed
 
-| ID | Description | Date | Commit | Directory |
-|----|-------------|------|--------|-----------|
-| 260911-w4s | Portable Codex execution guidance and bounded usage validation | 2026-09-12 | 6605c55 | [260911-w4s](./quick/260911-w4s-make-codex-gsd-execution-context-bounded/) |
-| 260914-x2c | Rebaseline v0.1.0 around active non-Claude harnesses | 2026-09-17 | pending | [260914-x2c](./quick/260914-x2c-exclude-claude-from-the-v0-1-0-active-de/) |
-| 260922-47e | Fix Windows Firecrawl fixture environment propagation and add regression coverage | 2026-09-22 | 57e70d1 | [260922-47e](./quick/260922-47e-fix-windows-firecrawl-fixture-environmen/) |
-| 260922-om1 | Reinstate Claude Code into active v0.1.0 harness scope (D-18, reversing 260914-x2c) | 2026-09-22 | ae05eec | [260922-om1](./quick/260922-om1-reverse-quick-task-260914-x2c-reinstate-/) |
-| 260922-puy | Register Phase 7 evidence gap G-07-1 for stale Truth 2/REL-02 claim under D-18 | 2026-09-22 | 1e785ad | [260922-puy](./quick/260922-puy-register-phase-7-evidence-gap-g-07-1-in-/) |
-| 260924-g11 | Deduplicate shared skill destinations across harnesses in applyManagedInstall (G-11-1) | 2026-09-24 | fcd91a5 | [260924-g11](./quick/260924-g11-resolve-multi-target-skill-drift/) |
-| 260925-p1c | Fix Windows Pi MCP bridge direct launch resolution preventing spawn EINVAL | 2026-09-25 | a0d569b | [260925-p1c](./quick/260925-p1c-fix-windows-pi-mcp-bridge-spawn/) |
-| 260925-r2d | Sync README docs with CLI syntax, promoted versions, and update cadence | 2026-09-25 | 0c532ad | [260925-r2d](./quick/260925-r2d-sync-readme-docs-and-update-cadence/) |
-| 260925-s1a | Fix install guidance, actionable build artifact errors, and source install docs | 2026-09-25 | 48eee4e | [260925-s1a](./quick/260925-s1a-fix-install-guidance-and-readme/) |
-| 260926-ro0 | Re-establish MCP component plans after external installs so stale boundary proofs stop failing fresh installs | 2026-09-26 | 3f06c7b | [260926-ro0](./quick/260926-ro0-fix-install-re-establish-mcp-component-p/) |
-| 260926-woa | Re-establish all managed component plans after external installs so plan-time proofs survive GSD rewrites of settings.json and config.toml | 2026-09-26 | 0d6de8e | [260926-woa](./quick/260926-woa-fix-install-re-establish-all-managed-com/) |
+| # | Description | Date | Commit | Status | Directory |
+| --- | ------------- | ------ | -------- | -------- | ----------- |
+| 260911-w4s | Portable Codex execution guidance and bounded usage validation | 2026-09-12 | 6605c55 | — | [260911-w4s](./quick/260911-w4s-make-codex-gsd-execution-context-bounded/) |
+| 260914-x2c | Rebaseline v0.1.0 around active non-Claude harnesses | 2026-09-17 | pending | — | [260914-x2c](./quick/260914-x2c-exclude-claude-from-the-v0-1-0-active-de/) |
+| 260922-47e | Fix Windows Firecrawl fixture environment propagation and add regression coverage | 2026-09-22 | 57e70d1 | — | [260922-47e](./quick/260922-47e-fix-windows-firecrawl-fixture-environmen/) |
+| 260922-om1 | Reinstate Claude Code into active v0.1.0 harness scope (D-18, reversing 260914-x2c) | 2026-09-22 | ae05eec | — | [260922-om1](./quick/260922-om1-reverse-quick-task-260914-x2c-reinstate-/) |
+| 260922-puy | Register Phase 7 evidence gap G-07-1 for stale Truth 2/REL-02 claim under D-18 | 2026-09-22 | 1e785ad | — | [260922-puy](./quick/260922-puy-register-phase-7-evidence-gap-g-07-1-in-/) |
+| 260924-g11 | Deduplicate shared skill destinations across harnesses in applyManagedInstall (G-11-1) | 2026-09-24 | fcd91a5 | — | [260924-g11](./quick/260924-g11-resolve-multi-target-skill-drift/) |
+| 260925-p1c | Fix Windows Pi MCP bridge direct launch resolution preventing spawn EINVAL | 2026-09-25 | a0d569b | — | [260925-p1c](./quick/260925-p1c-fix-windows-pi-mcp-bridge-spawn/) |
+| 260925-r2d | Sync README docs with CLI syntax, promoted versions, and update cadence | 2026-09-25 | 0c532ad | — | [260925-r2d](./quick/260925-r2d-sync-readme-docs-and-update-cadence/) |
+| 260925-s1a | Fix install guidance, actionable build artifact errors, and source install docs | 2026-09-25 | 48eee4e | — | [260925-s1a](./quick/260925-s1a-fix-install-guidance-and-readme/) |
+| 260926-ro0 | Re-establish MCP component plans after external installs so stale boundary proofs stop failing fresh installs | 2026-09-26 | 3f06c7b | — | [260926-ro0](./quick/260926-ro0-fix-install-re-establish-mcp-component-p/) |
+| 260926-woa | Re-establish all managed component plans after external installs so plan-time proofs survive GSD rewrites of settings.json and config.toml | 2026-09-26 | 0d6de8e | — | [260926-woa](./quick/260926-woa-fix-install-re-establish-all-managed-com/) |
+| 260927-2h1 | Repair isolated Pi launch regression, local ECC/MCP fixtures and Windows ARM64 environment floor; 3-OS CI green | 2026-09-27 | 314f0d2 | Verified | [260927-2h1](./quick/260927-2h1-fix-hermetic-pi-install-regression-and-w/) |
+| 260927-3kt | Normalize 102 personal home paths in 50 planning documents without rewriting history | 2026-09-27 | 447eddf | Verified | [260927-3kt](./quick/260927-3kt-normalize-personal-windows-paths-in-trac/) |
+| 260927-420 | Root-cause Windows command discovery and evidence-gated fixture cleanup; two final-source three-OS CI runs passed | 2026-09-27 | 75ebbd4 | Verified | [260927-420](./quick/260927-420-root-cause-windows-command-discovery-and/) |
+| 260927-5ha | Backed-up Windows clean reinstall preparation; machine-only task at baseline baf110c, actual reinstall and merge decision pending | 2026-09-27 | baf110c | Verified | [260927-5ha](./quick/260927-5ha-prepare-backed-up-clean-windows-reinstal/) |
 
 ## Session Continuity
 

@@ -585,7 +585,7 @@ The installed global `ecc-universal` reports `version: 2.2.0` and every skill na
 | `scientific-thinking-literature-review` | `456e7ef6b33300bfefeeee46fc8dae55fec62e4a8b418ba2323e12779de70195` | 5181 |
 | `scientific-thinking-scholar-evaluation` | `e9f8a3bce2bce769a96611a52804a2b3955f2796ee2749bc8275aea38a26cd2d` | 4886 |
 
-`[VERIFIED: sha256sum over C:/Users/alpha/AppData/Roaming/npm/node_modules/ecc-universal/skills/<name>/SKILL.md, run 2026-09-07]`
+`[VERIFIED: sha256sum over ~/AppData/Roaming/npm/node_modules/ecc-universal/skills/<name>/SKILL.md, run 2026-09-07]`
 
 **Cross-check that validates the whole table:** the three already-pinned skills hash to exactly the values in `catalog/stack.lock.json`:
 

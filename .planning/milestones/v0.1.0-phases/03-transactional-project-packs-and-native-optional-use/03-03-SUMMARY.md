@@ -180,7 +180,7 @@ coverage:
         ref: "test/capability-ledger.test.ts#a second identical write is already-current and the bytes do not move"
         status: pass
       - kind: other
-        ref: "C:/Users/alpha/.alpha-aos/capabilities does not exist after the full suite — no ledger write reached the real user state root"
+        ref: "~/.alpha-aos/capabilities does not exist after the full suite — no ledger write reached the real user state root"
         status: pass
     human_judgment: false
   - id: D8
@@ -217,7 +217,7 @@ status: complete
 - **A credential value has nowhere to live, at three layers.** `BlockedReason` has `code`, `variable` and `nextAction` and no value field; the closed schema refuses a document whose `blockedReason` carries one; and `resolveNativeUse` copies the reason down to exactly those three fields, so a smuggled value reaches neither the resolved record nor anything rendered from it. Oracle output is stored as a fingerprint, never as bytes.
 - **An unpaired positive is visibly INCOMPLETE and its summary never prints an axis.** `pairEvidence` makes completeness a required field and reports `nativeUse: null` whenever the unit is INCOMPLETE, so a later gate cannot reach the axis without also holding the verdict that says the axis is not reportable (T-03-24). The INCOMPLETE summary names the missing half and is asserted NOT to contain the positive's axis value — printing it is precisely the unpaired-positive-as-pass failure D-14 exists to prevent.
 - **A negative control carries the assertion that makes it meaningful.** pi walks `.agents/skills` up through ancestors and, outside a repository, does not stop at a repo root but continues to the filesystem root (RESEARCH.md Pitfall 3). A negative whose control directory was not asserted free of an ancestor project skill root — or that claims `asserted: false` — is INCOMPLETE, not passing, and the assertion records every ancestor actually checked so it is auditable rather than a bare `true`.
-- **Every ledger byte goes through one write path, and that path takes no default.** `writeCapabilityLedger` requires `stateRoot` explicitly and resolves nothing without it, passes one operations array to one `applyFileTransaction` with `allowedRoots` holding the ledger root alone, and reports an identical re-write as `already-current` without allocating a transaction. After the full suite, `C:\Users\alpha\.alpha-aos\capabilities` does not exist — no test reached the developer's real state root.
+- **Every ledger byte goes through one write path, and that path takes no default.** `writeCapabilityLedger` requires `stateRoot` explicitly and resolves nothing without it, passes one operations array to one `applyFileTransaction` with `allowedRoots` holding the ledger root alone, and reports an identical re-write as `already-current` without allocating a transaction. After the full suite, `C:\Users\<user>\.alpha-aos\capabilities` does not exist — no test reached the developer's real state root.
 
 ## Task Commits
 
@@ -324,4 +324,4 @@ No gate violations. No REFACTOR commit was made for either TDD task because neit
 - `npm run check` clean; `npm run build` 69 inputs / 132 outputs; `npm test` 522 tests / 516 pass / 0 fail / 6 skipped.
 - Every task acceptance criterion re-run: the schema closed-world probe prints `closed` and exits 0; `capability-ledger` occurs 3 times in non-comment `src/core/validation.ts`; `export type PackState` and `export type SurfaceSupport` each occur once with unchanged unions and neither file appears in this plan's diff; `applyFileTransaction(` occurs exactly once in non-comment `src/core/capability-ledger.ts`.
 - No tracked file was deleted by this plan (`git diff --diff-filter=D --name-only 11c0e1b..HEAD` is empty).
-- `C:\Users\alpha\.alpha-aos\capabilities` does not exist after the full suite: no ledger write reached the developer state root.
+- `C:\Users\<user>\.alpha-aos\capabilities` does not exist after the full suite: no ledger write reached the developer state root.

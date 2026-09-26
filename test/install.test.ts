@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -503,7 +503,7 @@ test("managed install resolves and invokes an isolated Pi CLI without spawning W
   assert.ok(piStep, "the fixture must require the bridge installation");
   if (process.platform === "win32") {
     assert.equal(piStep.spec.executable, process.execPath);
-    assert.equal(piStep.spec.args[0], join(bin, "node_modules", "pi", "cli.js"));
+    assert.equal(await realpath(piStep.spec.args[0]!), await realpath(join(bin, "node_modules", "pi", "cli.js")));
   } else {
     assert.equal(piStep.spec.executable, piCommand);
   }

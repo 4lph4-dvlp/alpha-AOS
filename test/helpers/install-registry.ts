@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { createServer } from "node:http";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { chmod, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { delimiter, join } from "node:path";
 import type { TestContext } from "node:test";
 import { renderEccSkill } from "../../src/core/ecc-fixture.js";
 import { nodeRuntimeEnvironment } from "../../src/core/install.js";
@@ -16,7 +16,7 @@ const sources = {
   "deep-research": "---\nname: deep-research\n---\n## MCP Requirements\nFixture.\n## Workflow\n### Step 3: Execute Multi-Source Search\nFixture.\n### Step 4: Deep-Read Key Sources\nFixture.\n### Step 5: Synthesize and Write Report\nFixture.\n## Parallel Research with Subagents\nFixture.\n## Quality Rules\nFixture.\n",
 };
 
-/** Real npm and production integrity/render/sync paths, with a loopback-only package source. */
+/** Real npm and production integrity/render/sync paths, with local package and MCP fixtures. */
 export async function createInstallRegistry(context: TestContext, root: string, base: StackLock, includeMcp = false): Promise<StackLock> {
   const ecc = base.components.ecc;
   assert.ok(ecc);
@@ -60,6 +60,7 @@ export async function createInstallRegistry(context: TestContext, root: string, 
   const packages = new Map([[ecc.package, { manifest, archive, integrity }]]);
   const mcp = { ...base.components.mcp };
   if (includeMcp) {
+    const launchRoutes: Record<string, string> = {};
     for (const id of ["context7", "exa", "firecrawl"] as const) {
       const locked = mcp[id];
       assert.ok(locked);
@@ -83,6 +84,7 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
       const serverManifest = { name: locked.package, version: locked.version, bin: { fixture: "server.cjs" } };
       await writeFile(join(folder, "package.json"), JSON.stringify(serverManifest));
       await writeFile(join(folder, "server.cjs"), serverScript);
+      launchRoutes[`${locked.package}@${locked.version}`] = join(folder, "server.cjs");
       const result = await runProcess({ executable: npm.executable,
         args: [...npm.argsPrefix, "pack", folder, "--ignore-scripts", "--pack-destination", destination],
         cwd: root, environment: nodeRuntimeEnvironment(), timeoutMs: 30_000 });
@@ -94,6 +96,24 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
       packages.set(locked.package, { manifest: serverManifest, archive: bytes, integrity: hash });
       mcp[id] = { ...locked, integrity: hash };
     }
+    // The proxy intentionally strips registry/userconfig overrides from its
+    // upstream environment. An exact-package npx fixture prevents that nested
+    // child from reaching the public registry; the public MCP gate stays real.
+    const bin = join(root, "mcp-bin");
+    const scripts = join(bin, "node_modules", "npm", "bin");
+    await mkdir(scripts, { recursive: true });
+    const launcher = `const routes = ${JSON.stringify(launchRoutes)};
+const args = process.argv.slice(2).filter(arg => arg !== "--yes");
+if (args.length !== 1 || !Object.hasOwn(routes, args[0])) throw new Error("Unplanned fixture package");
+require(routes[args[0]]);
+`;
+    await writeFile(join(scripts, "npx-cli.js"), launcher);
+    const command = join(bin, process.platform === "win32" ? "npx.cmd" : "npx");
+    await writeFile(command, process.platform === "win32"
+      ? `@echo off\r\nSET "dp0=%~dp0"\r\n"${process.execPath}" "%dp0%\\node_modules\\npm\\bin\\npx-cli.js" %*\r\n`
+      : `#!${process.execPath}\n${launcher}`);
+    await chmod(command, 0o755);
+    set("PATH", `${bin}${delimiter}${process.env.PATH ?? ""}`);
   }
   const unexpected: string[] = [];
   const fetched = new Set<string>();

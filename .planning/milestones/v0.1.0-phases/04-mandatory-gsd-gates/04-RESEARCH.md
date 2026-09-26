@@ -633,10 +633,10 @@ export function formatGateBlockingFeedback(params: {
 - `D:/dev/alpha-AOS/.planning/phases/04-mandatory-gsd-gates/04-DISCUSSION-LOG.md` - Context rationale and alternatives.
 - `D:/dev/alpha-AOS/catalog/facts.yaml` - 8 deferred risk facts under `SECURITY_REVIEW`.
 - `D:/dev/alpha-AOS/catalog/packs/security.yaml` - Security capability pack definition.
-- `C:/Users/alpha/.gemini/antigravity/gsd-core/workflows/verify-work.md` - GSD `verify:pre` hook dispatch specification.
-- `C:/Users/alpha/.gemini/antigravity/gsd-core/bin/lib/loop-resolver.cjs` - GSD loop hook resolution engine.
-- `C:/Users/alpha/.gemini/antigravity/gsd-core/bin/lib/gate-predicate-evaluator.cjs` - GSD `command-exit-zero` predicate contract.
-- `C:/Users/alpha/.gemini/antigravity/gsd-core/bin/lib/capability-loader.cjs` - GSD third-party capability overlay loader.
+- `~/.gemini/antigravity/gsd-core/workflows/verify-work.md` - GSD `verify:pre` hook dispatch specification.
+- `~/.gemini/antigravity/gsd-core/bin/lib/loop-resolver.cjs` - GSD loop hook resolution engine.
+- `~/.gemini/antigravity/gsd-core/bin/lib/gate-predicate-evaluator.cjs` - GSD `command-exit-zero` predicate contract.
+- `~/.gemini/antigravity/gsd-core/bin/lib/capability-loader.cjs` - GSD third-party capability overlay loader.
 - `D:/dev/alpha-AOS/src/core/canary.ts` - `hashPlanningTree` and `comparePlanningTrees` witness functions.
 - `D:/dev/alpha-AOS/src/core/process.ts` - `runProcess` shell-free bounded execution adapter.
 - `D:/dev/alpha-AOS/src/core/transaction.ts` - `applyFileTransaction` atomic write engine.

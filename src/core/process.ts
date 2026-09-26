@@ -5,6 +5,7 @@ import { machine, tmpdir } from "node:os";
 import { dirname, extname, isAbsolute, join } from "node:path";
 import type { RedactedExcerpt, RedactionContext, ScrubbedEnvironmentResult } from "../types.js";
 import { createRedactedExcerpt, createRedactionContext } from "./redaction.js";
+import { resolveWindowsCommand } from "./windows-command.js";
 
 /**
  * Stable outcome codes. Callers branch on these rather than on a message, so a
@@ -843,16 +844,21 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
 // ---------------------------------------------------------------------------
 
 export function resolveCommand(command: string): string | null {
-  const resolver = process.platform === "win32" ? "where.exe" : "which";
-  const result = spawnSync(resolver, [command], { encoding: "utf8", timeout: 3000, windowsHide: true });
+  if (process.platform === "win32") {
+    return resolveWindowsCommand(command, {
+      cwd: process.cwd(),
+      path: process.env.PATH ?? "",
+      pathExt: process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD",
+    });
+  }
+  const result = spawnSync("which", [command], { encoding: "utf8", timeout: 3000, windowsHide: true });
+  if (result.error) {
+    const code = (result.error as NodeJS.ErrnoException).code;
+    throw new ProcessPolicyError(code === "ETIMEDOUT" ? "timeout" : "spawn-failed", "Command discovery probe failed");
+  }
   if (result.status !== 0) return null;
   const paths = result.stdout.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
-  if (process.platform !== "win32") return paths[0] ?? null;
-  return paths.find((path) => extname(path).toLowerCase() === ".exe")
-    ?? paths.find((path) => extname(path).toLowerCase() === ".cmd")
-    ?? paths.find((path) => extname(path).toLowerCase() === ".ps1")
-    ?? paths[0]
-    ?? null;
+  return paths[0] ?? null;
 }
 
 /**

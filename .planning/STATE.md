@@ -5,10 +5,10 @@ current_phase: 13
 current_phase_name: Dependency Candidate Promotion
 status: complete
 stopped_at: Phase 13 complete (Milestone v0.1.1 reached)
-last_updated: "2026-09-26T17:36:28.000Z"
+last_updated: "2026-09-26T18:20:29.000Z"
 last_activity: 2026-09-27
-last_activity_desc: "Completed quick task 260927-3kt: normalize 102 personal home paths in 50 planning documents without rewriting history"
-state_head: 447eddf9321c94bb18ec5fe0a5c618cd5120fc46
+last_activity_desc: "Completed quick task 260927-420: root-cause Windows discovery and evidence-gated fixture cleanup; two final-source three-OS CI runs passed"
+state_head: 75ebbd4e9678ebf7afa9af817a543c332d14de0f
 progress:
   total_phases: 4
   completed_phases: 4
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 Phase: 13 (Dependency Candidate Promotion) — COMPLETE
 Plan: 3 of 3
 Status: Milestone v0.1.1 Complete
-Last activity: 2026-09-27 - Completed quick task 260927-3kt: normalize 102 personal home paths in 50 planning documents without rewriting history
+Last activity: 2026-09-27 - Completed quick task 260927-420: root-cause Windows discovery and evidence-gated fixture cleanup; two final-source three-OS CI runs passed
 
 Progress: [██████████] 100% (4/4 phases)
 
@@ -342,6 +342,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 260926-woa | Re-establish all managed component plans after external installs so plan-time proofs survive GSD rewrites of settings.json and config.toml | 2026-09-26 | 0d6de8e | — | [260926-woa](./quick/260926-woa-fix-install-re-establish-all-managed-com/) |
 | 260927-2h1 | Repair isolated Pi launch regression, local ECC/MCP fixtures and Windows ARM64 environment floor; 3-OS CI green | 2026-09-27 | 314f0d2 | Verified | [260927-2h1](./quick/260927-2h1-fix-hermetic-pi-install-regression-and-w/) |
 | 260927-3kt | Normalize 102 personal home paths in 50 planning documents without rewriting history | 2026-09-27 | 447eddf | Verified | [260927-3kt](./quick/260927-3kt-normalize-personal-windows-paths-in-trac/) |
+| 260927-420 | Root-cause Windows command discovery and evidence-gated fixture cleanup; two final-source three-OS CI runs passed | 2026-09-27 | 75ebbd4 | Verified | [260927-420](./quick/260927-420-root-cause-windows-command-discovery-and/) |
 
 ## Session Continuity
 

@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 Phase: 13 (Dependency Candidate Promotion) — COMPLETE
 Plan: 3 of 3
 Status: Milestone v0.1.1 Complete
-Last activity: 2026-09-26 - Completed quick task 260926-ro0: re-establish MCP component plans after external installs
+Last activity: 2026-09-26 - Completed quick task 260926-woa: re-establish all managed component plans after external installs
 
 Progress: [██████████] 100% (4/4 phases)
 
@@ -339,6 +339,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 260925-r2d | Sync README docs with CLI syntax, promoted versions, and update cadence | 2026-09-25 | 0c532ad | [260925-r2d](./quick/260925-r2d-sync-readme-docs-and-update-cadence/) |
 | 260925-s1a | Fix install guidance, actionable build artifact errors, and source install docs | 2026-09-25 | 48eee4e | [260925-s1a](./quick/260925-s1a-fix-install-guidance-and-readme/) |
 | 260926-ro0 | Re-establish MCP component plans after external installs so stale boundary proofs stop failing fresh installs | 2026-09-26 | 3f06c7b | [260926-ro0](./quick/260926-ro0-fix-install-re-establish-mcp-component-p/) |
+| 260926-woa | Re-establish all managed component plans after external installs so plan-time proofs survive GSD rewrites of settings.json and config.toml | 2026-09-26 | 0d6de8e | [260926-woa](./quick/260926-woa-fix-install-re-establish-all-managed-com/) |
 
 ## Session Continuity
 

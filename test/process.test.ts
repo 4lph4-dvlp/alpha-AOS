@@ -235,7 +235,7 @@ test("the platform floor is declared per platform rather than only for the runni
   );
 
   assert.deepEqual(
-    [...platformFloorEnvironment("win32")].sort(),
+    [...platformFloorEnvironment("win32", "x86_64")].sort(),
     [
       "HOMEDRIVE",
       "HOMEPATH",
@@ -251,6 +251,13 @@ test("the platform floor is declared per platform rather than only for the runni
     ].sort(),
     "the eleven Windows names libuv guarantees a child must stay declared, including the three that are user-identifying",
   );
+
+  assert.deepEqual(
+    [...platformFloorEnvironment("win32", "arm64")].sort(),
+    [...platformFloorEnvironment("win32", "x86_64"), "PROCESSOR_ARCHITECTURE"].sort(),
+    "Windows ARM64 injects its processor architecture in addition to libuv's required names",
+  );
+  assert.deepEqual(platformFloorEnvironment("linux", "arm64"), [], "ARM64 alone does not imply Windows injection");
 
   assert.deepEqual(
     platformFloorEnvironment("linux"),

@@ -79,6 +79,14 @@ test("POSIX locator failure is distinct from a genuinely missing command", { ski
   syncBuiltinESMExports();
   try {
     assert.throws(() => resolveCommand("git"), (error: unknown) => error instanceof ProcessPolicyError && error.code === "timeout");
+    context.mock.restoreAll();
+    context.mock.method(childProcess, "spawnSync", () => ({ status: 2 }));
+    syncBuiltinESMExports();
+    assert.throws(() => resolveCommand("git"), (error: unknown) => error instanceof ProcessPolicyError && error.code === "non-zero-exit");
+    context.mock.restoreAll();
+    context.mock.method(childProcess, "spawnSync", () => ({ status: null, signal: "SIGTERM" }));
+    syncBuiltinESMExports();
+    assert.throws(() => resolveCommand("git"), (error: unknown) => error instanceof ProcessPolicyError && error.code === "non-zero-exit");
   } finally {
     context.mock.restoreAll();
     syncBuiltinESMExports();

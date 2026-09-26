@@ -856,7 +856,10 @@ export function resolveCommand(command: string): string | null {
     const code = (result.error as NodeJS.ErrnoException).code;
     throw new ProcessPolicyError(code === "ETIMEDOUT" ? "timeout" : "spawn-failed", "Command discovery probe failed");
   }
-  if (result.status !== 0) return null;
+  if (result.status === 1) return null;
+  if (result.status !== 0) {
+    throw new ProcessPolicyError("non-zero-exit", "Command discovery probe did not complete successfully");
+  }
   const paths = result.stdout.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
   return paths[0] ?? null;
 }

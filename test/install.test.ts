@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { delimiter, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createManagedInstallOperationPlan, inspectGsdInstall, npmProbeEnvironment, selectInstallTargets } from "../src/core/install.js";
@@ -15,7 +15,7 @@ import {
 } from "../src/core/bootstrap.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
-import { materializeEnvironment } from "../src/core/process.js";
+import { materializeEnvironment, runProcess } from "../src/core/process.js";
 import { listManagedTransactions } from "../src/core/transaction.js";
 import { acquireMutationSession, WriterConflictError, writerLockPath } from "../src/core/writer-lock.js";
 import type { HarnessId, Inventory, StackLock } from "../src/types.js";
@@ -452,35 +452,64 @@ test("the byte-identical entry points include both plan-builder callers", async 
   }
 });
 
-test("managed install resolves Pi CLI via resolveDirectLaunch rather than spawning shims directly", async () => {
-  const source = await readFile(join(repositoryRoot, "src", "core", "install.ts"), "utf8");
-  assert.equal(
-    source.includes("resolveDirectLaunch(pi)"),
-    true,
-    "mcp-bridge:pi in createManagedInstallOperationPlan must unwrap pi command via resolveDirectLaunch to prevent spawn EINVAL on Windows .cmd shims",
-  );
-  assert.equal(
-    source.includes('externalSpec(launch.executable, [...launch.argsPrefix, "install"'),
-    true,
-    "mcp-bridge:pi external step spec must use direct launch executable and argsPrefix",
-  );
-
+test("managed install resolves and invokes an isolated Pi CLI without spawning Windows shims", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-pi-launch-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const bin = join(root, "bin");
+  await mkdir(bin);
+  const saved = new Map<string, string | undefined>();
+  const environment: Record<string, string> = {
+    HOME: root, USERPROFILE: root, ALPHA_AOS_STATE_DIR: join(root, "state"),
+    CODEX_HOME: join(root, ".codex"), CLAUDE_CONFIG_DIR: join(root, ".claude"),
+    ANTIGRAVITY_CONFIG_DIR: join(root, ".gemini"), PI_CODING_AGENT_DIR: join(root, ".pi", "agent"),
+    HERMES_HOME: join(root, ".hermes"), npm_config_prefix: join(root, "prefix"),
+    PATH: [bin, ...(process.platform === "win32" ? [join(process.env.SystemRoot!, "System32")] : ["/usr/bin", "/bin"])].join(delimiter),
+  };
+  context.after(() => {
+    for (const [key, value] of saved) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  for (const [key, value] of Object.entries(environment)) {
+    saved.set(key, process.env[key]);
+    process.env[key] = value;
+  }
+  let piCommand = "";
+  for (const name of ["pi", "npm", "npx"]) {
+    const script = name === "pi" ? join(bin, "node_modules", "pi", "cli.js") : join(bin, "node_modules", "npm", "bin", `${name}-cli.js`);
+    await mkdir(dirname(script), { recursive: true });
+    const body = "process.stdout.write(JSON.stringify(process.argv.slice(2)));\n";
+    const command = join(bin, process.platform === "win32" ? `${name}.cmd` : name);
+    await writeFile(script, body);
+    await writeFile(command, process.platform === "win32"
+      ? `@echo off\r\nSET "dp0=%~dp0"\r\n"${process.execPath}" "%dp0%\\node_modules\\${name === "pi" ? "pi\\cli.js" : `npm\\bin\\${name}-cli.js`}" %*\r\n`
+      : `#!${process.execPath}\n${body}`);
+    await chmod(command, 0o755);
+    if (name === "pi") piCommand = command;
+  }
   const catalog = await loadCatalog(repositoryRoot);
   const lock = await loadLock(repositoryRoot);
   const detected = inventory(["pi"]);
-  const plan = await createManagedInstallOperationPlan({
+  const options = {
     root: repositoryRoot,
     catalog,
     lock,
     inventory: detected,
-    requestedTargets: ["pi"],
-  });
+    requestedTargets: ["pi"] as HarnessId[],
+  };
+  const plan = await createManagedInstallOperationPlan(options);
   const piStep = plan.external.find((step) => step.id === "mcp-bridge:pi");
-  if (piStep) {
-    assert.equal(
-      piStep.spec.executable.toLowerCase().endsWith(".cmd") || piStep.spec.executable.toLowerCase().endsWith(".bat"),
-      false,
-      "mcp-bridge:pi spec executable must not be a .cmd or .bat batch file shim",
-    );
+  assert.ok(piStep, "the fixture must require the bridge installation");
+  if (process.platform === "win32") {
+    assert.equal(piStep.spec.executable, process.execPath);
+    assert.equal(piStep.spec.args[0], join(bin, "node_modules", "pi", "cli.js"));
+  } else {
+    assert.equal(piStep.spec.executable, piCommand);
   }
+  const result = await runProcess(piStep.spec);
+  assert.equal(result.code, "ok", result.stderr.excerpt);
+  assert.deepEqual(JSON.parse(result.stdout.excerpt), ["install", `npm:${lock.components.mcpBridges!.pi!.package}@${lock.components.mcpBridges!.pi!.version}`]);
+  await rm(piCommand);
+  await assert.rejects(createManagedInstallOperationPlan(options), /Pi CLI is required/u);
 });

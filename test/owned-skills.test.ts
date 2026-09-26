@@ -26,6 +26,7 @@ import { rollbackManagedTransaction } from "../src/core/transaction.js";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import type { HarnessId, Inventory, StackCatalog, StackLock } from "../src/types.js";
+import { createInstallRegistry } from "./helpers/install-registry.js";
 
 const ALL_HARNESSES: readonly HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
 
@@ -349,12 +350,11 @@ test("createManagedInstallPlan emits owned skill steps for all detected targets"
   await rm(tempRoot, { recursive: true, force: true });
 });
 
-test("applyManagedInstall succeeds on combined codex and pi install without plan-drift on shared destination (G-11-1)", async () => {
+test("applyManagedInstall succeeds on combined codex and pi install without plan-drift on shared destination (G-11-1)", async (context) => {
   const root = packageRoot();
   const catalog = await loadCatalog(root);
-  const lock = await loadLock(root);
-
   const tempRoot = await mkdtemp(join(tmpdir(), "alpha-aos-codex-pi-install-"));
+  const lock = await createInstallRegistry(context, tempRoot, await loadLock(root));
   const stateRoot = join(tempRoot, "state");
   const home = join(tempRoot, "home");
   const prefixDir = join(tempRoot, "npm-prefix");
@@ -457,4 +457,3 @@ test("applyManagedInstall succeeds on combined codex and pi install without plan
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
-

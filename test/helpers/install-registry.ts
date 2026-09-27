@@ -34,6 +34,9 @@ export async function createInstallRegistry(context: TestContext, root: string, 
   set("npm_config_cache", join(root, "npm-cache"));
   set("npm_config_userconfig", join(root, "empty.npmrc"));
   await writeFile(join(root, "empty.npmrc"), "audit=false\nfund=false\nupdate-notifier=false\n");
+  // Local npm pack seeds its cache with the archive; keep that out of the
+  // install cache so the loopback download assertions measure real fetches.
+  const packEnvironment = nodeRuntimeEnvironment({ literal: { npm_config_cache: join(root, "npm-pack-cache") } });
   const sourceRoot = join(root, "ecc-package");
   const packRoot = join(root, "ecc-archive");
   await mkdir(packRoot, { recursive: true });
@@ -49,7 +52,7 @@ export async function createInstallRegistry(context: TestContext, root: string, 
     executable: npm.executable,
     args: [...npm.argsPrefix, "pack", sourceRoot, "--ignore-scripts", "--pack-destination", packRoot],
     cwd: root,
-    environment: nodeRuntimeEnvironment(),
+    environment: packEnvironment,
     timeoutMs: 30_000,
   });
   assert.equal(packed.code, "ok", packed.stderr.excerpt);
@@ -87,7 +90,7 @@ readline.createInterface({ input: process.stdin }).on("line", line => {
       launchRoutes[`${locked.package}@${locked.version}`] = join(folder, "server.cjs");
       const result = await runProcess({ executable: npm.executable,
         args: [...npm.argsPrefix, "pack", folder, "--ignore-scripts", "--pack-destination", destination],
-        cwd: root, environment: nodeRuntimeEnvironment(), timeoutMs: 30_000 });
+        cwd: root, environment: packEnvironment, timeoutMs: 30_000 });
       assert.equal(result.code, "ok", result.stderr.excerpt);
       const files = await readdir(destination);
       assert.equal(files.length, 1);

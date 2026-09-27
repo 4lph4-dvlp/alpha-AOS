@@ -5,10 +5,10 @@ current_phase: 13
 current_phase_name: Dependency Candidate Promotion
 status: complete
 stopped_at: Phase 13 complete (Milestone v0.1.1 reached)
-last_updated: "2026-09-26T19:35:00.000Z"
+last_updated: "2026-09-27T02:16:36.000Z"
 last_activity: 2026-09-27
-last_activity_desc: "Completed quick task 260927-eqm: updated all five Windows harnesses; two reproduced fixture test failures recorded"
-state_head: 17e402b14507bd54938d186edd3fb8354843b3a8
+last_activity_desc: "Completed quick task 260927-feo: isolated fixture caches; full Windows suite passes with 942 passed and 10 skipped"
+state_head: 5597657417f5f4c287a4137022d6f3986ea24f31
 progress:
   total_phases: 4
   completed_phases: 4
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-09-23)
 Phase: 13 (Dependency Candidate Promotion) — COMPLETE
 Plan: 3 of 3
 Status: Milestone v0.1.1 Complete
-Last activity: 2026-09-27 - Completed quick task 260927-eqm: updated all five Windows harnesses; two reproduced fixture test failures recorded
+Last activity: 2026-09-27 - Completed quick task 260927-feo: isolated fixture caches; full Windows suite passes with 942 passed and 10 skipped
 
 Progress: [██████████] 100% (4/4 phases)
 
@@ -346,6 +346,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 260927-5ha | Backed-up Windows clean reinstall preparation; machine-only task at baseline baf110c, actual reinstall and merge decision pending | 2026-09-27 | baf110c | Verified | [260927-5ha](./quick/260927-5ha-prepare-backed-up-clean-windows-reinstal/) |
 | 260927-60x | Merged verified Windows repair PR #5 and cleaned local/remote repair branches | 2026-09-27 | 17e402b | Verified | [260927-60x](./quick/260927-60x-merge-verified-windows-repair-pr-and-cle/) |
 | 260927-eqm | Updated all five Windows harnesses at 64e2ce2; all 24 managed steps current; two fixture failures reproduced and recorded | 2026-09-27 | 64e2ce2 | Machine verified; suite failures | [260927-eqm](./quick/260927-eqm-update-the-verified-local-alpha-aos-buil/) |
+| 260927-feo | Separated fixture preparation and installation npm caches; preserved download assertions; full Windows suite passes | 2026-09-27 | 5597657 | Verified | [260927-feo](./quick/260927-feo-separate-fixture-package-preparation-fro/) |
 
 ## Session Continuity
 

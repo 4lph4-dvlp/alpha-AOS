@@ -58,6 +58,16 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
+**Plans:** 6 plans
+
+Plans:
+- [ ] 14-01-PLAN.md — Tracer: approved contract through startTask to a measured, reviewed verdict receipt; `task preview|approve|report` CLI
+- [ ] 14-02-PLAN.md — Contract authority boundaries: canonical digest, changed-field drift, revision reuse, authority and secret guards, root binding
+- [ ] 14-03-PLAN.md — Verdict evidence depth: exact snapshot measurement, confirmed reproductions, stale refusals, named unknowns, recorded decisions
+- [ ] 14-04-PLAN.md — Native bootstrap pair: Codex controller/executor (codex-cli 0.158.0) and fresh read-only Claude reviewer (Claude Code 2.1.285)
+- [ ] 14-05-PLAN.md — GSD quick bridge and authority audit: read-only GSD evidence, blocked new authority, D-07 pack checkpoint, wall-time stop
+- [ ] 14-06-PLAN.md — `task start` and the live tracer: real accepted run, real success-claiming defect rejected, real stale review refused
+
 ### Phase 15: Durable Supervisor and Effect Ledger
 
 **Goal:** A run can continue after interruption, honor user-selected limits and reconcile external effects without duplicate action.

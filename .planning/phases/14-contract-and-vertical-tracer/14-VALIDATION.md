@@ -19,7 +19,7 @@ created: "2026-09-29"
 |----------|-------|
 | **Framework** | TypeScript 컴파일 후 Node 내장 `node:test` |
 | **Config file** | `tsconfig.json`, `scripts/run-tests.mjs` |
-| **Quick run command** | `npm run build && node scripts/run-tests.mjs --files dist/test/task-contract.test.js dist/test/task-verdict.test.js dist/test/task-cli.test.js` |
+| **Quick run command** | `npm run build && node scripts/run-tests.mjs --files dist/test/task-run.test.js dist/test/task-contract.test.js dist/test/task-check.test.js dist/test/task-verdict.test.js dist/test/task-agents.test.js dist/test/task-gsd.test.js dist/test/task-effects.test.js dist/test/task-cli.test.js` |
 | **Full suite command** | `npm test && npm run check` |
 | **Estimated runtime** | 신규 테스트를 작성한 뒤 측정; 실제 에이전트 tracer는 별도 실행 |
 
@@ -36,24 +36,35 @@ created: "2026-09-29"
 
 ## Per-Task Verification Map
 
-| Task ID (provisional) | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|-----------------------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 14-01-01 | 01 | 1 | CON-01, CON-03 | approval replay | 계약 canonical digest 변경이 이전 승인을 무효화 | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-contract.test.js` | ❌ W0 | ⬜ pending |
-| 14-01-02 | 01 | 1 | AUTO-01, AUTO-02, AUTO-03 | consent leakage | 미리보기는 읽기 전용, 별도 승인과 시작, 다음 작업 기본 off | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js` | ❌ W0 | ⬜ pending |
-| 14-02-01 | 02 | 2 | RUN-01 | unsafe child process | 정확한 네이티브 실행 파일, 명시적 환경, 유계 출력과 별도 reviewer 세션 | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-tracer.integration.js` | ❌ W0 | ⬜ pending |
-| 14-03-01 | 03 | 3 | CON-02, REV-01 | stale evidence | 의미 있는 위임 결정의 이유, 기준별 pass/fail/unknown, exact artifact/review digest | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-verdict.test.js` | ❌ W0 | ⬜ pending |
-| 14-04-01 | 04 | 4 | RUN-01, REV-01 | false acceptance | 독립된 실제 성공·실패 실행과 stale review 주입이 수락 오판을 막음 | live integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-tracer.integration.js` | ❌ W0 | ⬜ pending |
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
+| 14-01-01 (tracer) | 01 | 1 | CON-01, AUTO-01, AUTO-03, RUN-01, REV-01 | T-14-01..05 | 승인된 digest만 시작, 승인 1회 소비, 측정이 실행자 주장을 무시, stale review 거부 | unit + API e2e | `npm run build && node scripts/run-tests.mjs --files dist/test/task-run.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-01-02 | 01 | 1 | CON-01, AUTO-01, REV-01 | T-14-06 | 읽기 전용 preview, exact-digest approve, D-13 report | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-run.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-02-01 | 02 | 2 | CON-03, AUTO-01 | T-14-09, T-14-10 | canonical digest, 변경 필드 표시, revision 재사용 거부 | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-contract.test.js dist/test/task-run.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-02-02 | 02 | 2 | AUTO-02, CON-01 | T-14-11..14 | 권한 경계, 비밀 값 거부, canonical root 바인딩, wall-time 경계 | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-contract.test.js dist/test/task-run.test.js dist/test/task-cli.test.js` | ❌ W0 | ⬜ pending |
+| 14-03-01 | 03 | 2 | REV-01, RUN-01 | T-14-19, T-14-21 | exact snapshot 측정, 명명된 unavailable, entry-only substitute (D-08) | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-check.test.js dist/test/task-run.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-03-02 | 03 | 2 | REV-01, CON-02 | T-14-16..18, T-14-20, T-14-22 | 기준별 pass/fail/unknown, 재현 확인 (D-14), stale-review/stale-artifact, 결정 기록 | unit + API e2e | `npm run build && node scripts/run-tests.mjs --files dist/test/task-verdict.test.js dist/test/task-check.test.js dist/test/task-run.test.js dist/test/task-cli.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-04-01 | 04 | 2 | RUN-01 | T-14-23, T-14-24, T-14-27, T-14-28 | Codex 절대 실행 파일, 이름만 선언한 환경, workspace-write sandbox, claim은 증거 아님 | unit (offline) | `npm run build && node scripts/run-tests.mjs --files dist/test/task-agents.test.js dist/test/process.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-04-02 | 04 | 2 | REV-01, RUN-01 | T-14-25, T-14-26, T-14-29 | 새 UUID 세션의 읽기 전용 Claude reviewer, bootstrap pair 외 조합 거부, 호스트 버전 probe | unit (offline) + host probe | `npm run build && node scripts/run-tests.mjs --files dist/test/task-agents.test.js dist/test/process.test.js` | ❌ W0 | ⬜ pending |
+| 14-05-01 | 05 | 3 | RUN-01, CON-02 | T-14-33 | 설치된 GSD quick 경유 prompt, 읽기 전용 GSD evidence 검증 | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-gsd.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-05-02 | 05 | 3 | AUTO-02, RUN-01, CON-02 | T-14-31, T-14-32, T-14-35..37 | 새 권한은 blocked, 의존성 변경 시 read-only pack checkpoint (D-07), wall-time stopped | unit + API e2e | `npm run build && node scripts/run-tests.mjs --files dist/test/task-effects.test.js dist/test/task-gsd.test.js dist/test/task-run.test.js dist/test/task-verdict.test.js dist/test/task-check.test.js dist/test/task-cli.test.js dist/test/task-contract.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-06-01 | 06 | 4 | AUTO-01, AUTO-03, CON-03, CON-01 | T-14-38..40 | task start만 supervisor 진입, 소비·타 계약 digest 거부, 일반 명령은 run 생성 안 함 | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-run.test.js dist/test/task-effects.test.js` | ✅ (14-01에서 생성) | ⬜ pending |
+| 14-06-02 | 06 | 4 | RUN-01, REV-01 | T-14-41..43 | 실제 Codex GSD quick + 새 Claude 세션이 같은 artifact digest에서 accepted | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js` | ❌ W0 (task가 생성) | ⬜ pending |
+| 14-06-03 | 06 | 4 | REV-01, RUN-01 | T-14-41, T-14-42 | 성공을 주장한 실제 결함 실행은 rejected, 실제 review의 변경 artifact 대입은 stale 거부 | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="rejected by measurement\|refused as stale" --files dist/test/task-tracer.integration.js` | ❌ W0 | ⬜ pending |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. 작업 ID와 wave는 최종 PLAN.md에 맞춰 갱신한다.*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. 각 task는 자신의 테스트 파일을 같은 task에서 먼저 작성한다(tdd). live tracer는 필요 조건이 없으면 `NOT PROVEN:`으로 실패하며 skip하지 않는다.*
 
 ---
 
 ## Wave 0 Requirements
 
-- [ ] `test/task-contract.test.ts` — canonicalization, 계약 변경, 이전 승인 거부.
-- [ ] `test/task-verdict.test.ts` — 기준별 판정, stale review, unknown, 결정 이유.
-- [ ] `test/task-cli.test.ts` — 읽기 전용 미리보기, 승인/시작 분리, 기본 off.
-- [ ] `test/task-tracer.integration.ts`와 `test/fixtures/task-json-cli/` — 격리된 실제 성공·실패 경로. 지원되지 않는 호스트에서 skip은 **미증명**으로 보고하며 Phase 14 수락 근거가 될 수 없다.
+- [ ] `test/task-run.test.ts`와 `test/helpers/task-fixture.ts` (14-01-01) — tracer 경로, 승인 소비, 측정 우선, stale review. fixture는 정적 디렉터리 대신 임시 디렉터리에 git 저장소와 GSD `.planning/` seed를 생성한다.
+- [ ] `test/task-cli.test.ts` (14-01-02, 14-06-01) — 읽기 전용 미리보기, 승인/시작 분리, 기본 off, 일반 명령의 무개입.
+- [ ] `test/task-contract.test.ts` (14-02) — canonicalization, 변경 필드, revision 재사용, 권한 경계, 비밀 값.
+- [ ] `test/task-check.test.ts`, `test/task-verdict.test.ts` (14-03) — snapshot 측정, 기준별 판정, 재현 확인, stale review/artifact, unknown 다음 조치, 결정 기록.
+- [ ] `test/task-agents.test.ts` (14-04) — 네이티브 어댑터의 인자·환경·파싱; 모델 turn을 쓰지 않는다.
+- [ ] `test/task-gsd.test.ts`, `test/task-effects.test.ts` (14-05) — GSD quick evidence, 효과 감사, pack checkpoint, wall-time.
+- [ ] `test/task-tracer.integration.ts` (14-06-02, 14-06-03) — 격리된 실제 성공·실패 경로와 실제 review의 stale 대입. 필요 조건이 없으면 `NOT PROVEN:`으로 실패하며 Phase 14 수락 근거가 될 수 없다.
 - [ ] 새 테스트는 기존 `node:test`와 TypeScript 인프라를 재사용한다.
 
 ---

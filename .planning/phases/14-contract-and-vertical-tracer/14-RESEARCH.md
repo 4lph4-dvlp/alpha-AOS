@@ -1,7 +1,7 @@
 # Phase 14: Contract and Vertical Tracer - Research
 
-**Researched:** 2026-09-29  
-**Domain:** Opt-in autonomous development, contract approval, measured acceptance, native agent CLI handoff  
+**Researched:** 2026-09-29
+**Domain:** Opt-in autonomous development, contract approval, measured acceptance, native agent CLI handoff
 **Confidence:** MEDIUM overall (repository and local probes HIGH; production adapter handoff unproven)
 
 <user_constraints>
@@ -285,5 +285,5 @@ No dependency is presently known missing. macOS/Linux native pair behavior, prod
 
 **Confidence breakdown:** Contract/verdict boundaries HIGH (approved design and code); stack HIGH (pinned repo and observed versions); native pair MEDIUM (real local probes, production launch pending); GSD bridge MEDIUM (installed workflow inspected, isolated execution pending); cross-OS LOW (not probed). `classify-confidence --provider context7` returned MEDIUM. [VERIFIED: local `gsd_run query classify-confidence` 2026-09-29]
 
-**Research date:** 2026-09-29  
+**Research date:** 2026-09-29
 **Valid until:** 2026-10-06 for fast-moving native CLI interfaces; re-probe exact versions before the live tracer.

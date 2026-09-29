@@ -1,10 +1,10 @@
 # Project Research Summary: Universal Autonomous Work
 
-*Generated 2026-09-29. Active v0.2.0 summary. Detailed v0.2.0 research is in `v0.2.0/`; older root research files document v0.1.0 and are historical.*
+*Generated 2026-09-29. This is v0.2.0 research; the parent directory's legacy files document v0.1.0.*
 
 ## Key Findings
 
-The existing Node/TypeScript stack is sufficient. `runProcess`, `openProtocolProcess`, file transactions, writer locks, evidence ledgers and GSD hooks provide reusable primitives. None currently comprise a persistent multi-harness task supervisor. The new feature should compose those primitives and keep GSD Core as the only project lifecycle authority. See [stack](v0.2.0/STACK.md) and [architecture](v0.2.0/ARCHITECTURE.md).
+The existing Node/TypeScript stack is sufficient. `runProcess`, `openProtocolProcess`, file transactions, writer locks, evidence ledgers and GSD hooks provide reusable primitives. None currently comprise a persistent multi-harness task supervisor. The new feature should compose those primitives and keep GSD Core as the only project lifecycle authority. See [stack](STACK.md) and [architecture](ARCHITECTURE.md).
 
 Ordinary conversational GSD remains the default. Autopilot requires an explicit request or approved in-agent offer for each task. Its capability router must inventory every applicable global/project ECC skill, MCP tool, owned skill, project pack, native tool and hook, then prove required native calls at the matching GSD step. Configured or discovered does not mean invoked. The current `alpha-aos-control` pack checkpoint already requires exact plan-digest approval and a fresh agent session after sync; autopilot must preserve both gates.
 
@@ -12,7 +12,7 @@ All five target harnesses have documented candidates for machine invocation: Cod
 
 Hermes controller eligibility conflicts with the existing D-10 code and project decision. To satisfy the user's all-combinations goal, replace harness-name restrictions with verified role capabilities while preserving an exclusive GSD writer. Rollout must fail closed for role/version pairs without a real receipt. The post-action planning-tree witness is insufficient as concurrent write prevention.
 
-Task completion must be criterion-specific. Reviewer prose, process exit 0, a passing skill-only gate, or an old receipt cannot pass a changed artifact. The reviewer should be a fresh session and return an exact-digest report with evidence and abstentions. General external effects require stable operation keys and reconciliation after crashes. See [features](v0.2.0/FEATURES.md) and [pitfalls](v0.2.0/PITFALLS.md).
+Task completion must be criterion-specific. Reviewer prose, process exit 0, a passing skill-only gate, or an old receipt cannot pass a changed artifact. The reviewer should be a fresh session and return an exact-digest report with evidence and abstentions. General external effects require stable operation keys and reconciliation after crashes. See [features](FEATURES.md) and [pitfalls](PITFALLS.md).
 
 ## Implications for Requirements
 
@@ -26,7 +26,7 @@ Start with a default-off, explicitly approved production-quality tracer through 
 
 - Repository: `src/core/process.ts`, `src/core/worker-authority.ts`, `src/core/writer-lock.ts`, `src/core/gate.ts`, `src/core/gate-receipt.ts`, `src/core/capability-ledger.ts`, `src/core/project-pack-sync.ts`, `src/core/ecc-skills.ts`, `src/core/mcp.ts`, `src/adapters/capability-oracle.ts`, `.gsd/capabilities/alpha-aos/capability.json`, `skills/alpha-aos-control/SKILL.md`.
 - Local task contract: `C:/Users/alpha/.codex/skills/coursepilot/SKILL.md` and `JSON_CONTRACT.md` (source-specific evidence rules; must be resolved at runtime).
-- Official harness and Node references linked above and in [stack](v0.2.0/STACK.md).
+- Official harness and Node references linked above and in [stack](STACK.md).
 
 ## Confidence and Gaps
 

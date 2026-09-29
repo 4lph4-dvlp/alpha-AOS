@@ -1,171 +1,221 @@
-# Roadmap: alpha-AOS
+# Roadmap: alpha-AOS v0.2.0 Universal Autonomous Work
+
+**Milestone goal:** With explicit per-task opt-in, one approved contract drives GSD-governed work through the full applicable alpha-AOS capability inventory, including global/project ECC skills, MCPs, project packs and native tools. It survives interruption, obtains independent evidence, repairs confirmed gaps and ends with an honest accepted or blocked outcome. Ordinary conversational GSD remains the default. Scope refined 2026-09-29. The [requirements](REQUIREMENTS.md) define release behavior; the [design](../docs/design/autonomous-work/README.md) defines module boundaries.
 
 ## Milestones
 
-- ✅ **v0.1.0 Vertical MVP** — Phases 1-9 (closed 2026-09-23, override closeout — see `.planning/MILESTONES.md`)
-- ✅ **v0.1.1 CI Green & Dependency Promotion** — Phases 10-13 (completed 2026-09-25)
+- ✅ **v0.1.0 Vertical MVP** — archived in `milestones/v0.1.0-ROADMAP.md`.
+- ✅ **v0.1.1 CI Green & Dependency Promotion** — archived in `milestones/v0.1.1-ROADMAP.md`.
+- ◇ **v0.2.0 Universal Autonomous Work** — Phases 14–22; roadmap approved, implementation pending.
 
 ## Phases
 
-<details>
-<summary>✅ v0.1.0 Vertical MVP (Phases 1-9) — CLOSED 2026-09-23</summary>
+- [ ] **Phase 14: Contract and Vertical Tracer** - Explicit opt-in, approved contract and real implementation-to-review path
+- [ ] **Phase 15: Durable Supervisor and Effect Ledger** - Recovery, limits, no-progress strategy and effect reconciliation
+- [ ] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller
+- [ ] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD
+- [ ] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD
+- [ ] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit
+- [ ] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar
+- [ ] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX
+- [ ] **Phase 22: Release Proof** - Three-OS, packed and live-harness evidence
 
-- [x] Phase 1: Safe Operation Boundary (27/27 plans) — completed 2026-09-07
-- [x] Phase 2: Evidence-Bound Project Planning (16/16 plans) — completed 2026-09-09
-- [x] Phase 3: Transactional Project Packs and Native Optional Use (18/18 plans) — completed 2026-09-12
-- [x] Phase 4: Mandatory GSD Gates (4/4 plans) — completed 2026-09-17
-- [x] Phase 5: Persistent Tree-Off Preload Isolation (4/4 plans) — completed 2026-09-18
-- [x] Phase 6: Managed Lifecycle, Uninstall, and Recovery (3/3 plans) — completed 2026-09-18, not formally verified
-- [x] Phase 7: Cross-Platform Release Proof (7/7 plans) — completed 2026-09-20, gap G-07-2 open
-- [x] Phase 8: Autonomous Project Pack Advisor and Cross-Harness Materializer (2/2 plans) — completed 2026-09-21
-- [x] Phase 9: Unified Natural Language Controller and Capability Checkpoint Automation (2/2 plans) — completed 2026-09-21
+## Phase Map
 
-Full detail: `.planning/milestones/v0.1.0-ROADMAP.md`
+| Phase | Goal | Requirements | Depends on |
+|---:|---|---|---|
+| 14 | Explicit opt-in, approved contract and real vertical tracer | CON-01..03, AUTO-01..03, RUN-01, REV-01 | None |
+| 15 | Durable supervisor, limits and effect reconciliation | RUN-02..05, TOOL-03 | 14 |
+| 16 | Proven five-harness role adapters and one GSD writer | ROL-01..05 | 15 |
+| 17 | Full GSD lifecycle and mandatory gate bridge | GSD-01..04 | 14–16 |
+| 18 | Complete alpha-AOS capability inventory and automatic GSD-step invocation | CAP-01..05 | 16–17 |
+| 19 | Independent structured review and repair loop | REV-02..05 | 17–18 |
+| 20 | General connectors and CoursePilot materials proof | TOOL-01..02, TOOL-04 | 15, 19 |
+| 21 | Natural-language skill, opt-in mode and persistent CLI | UX-01..03 | 16–20 |
+| 22 | Cross-platform, packed-release and live support proof | VER-01..04 | 14–21 |
 
-</details>
-
-### ✅ v0.1.1 CI Green & Dependency Promotion
-
-**Milestone Goal:** Restore a green three-OS CI on `main`, close the v0.1.0 lifecycle verification gap, and promote the validated dependency candidate into the stable lock on that green baseline.
-
-**Phase Numbering:**
-
-- Integer phases (10, 11, 12, 13): Planned milestone work, continuing from v0.1.0 Phase 9
-- Decimal phases (10.1, 10.2): Urgent insertions (marked with INSERTED)
-
-- [x] **Phase 10: Three-OS CI Baseline** - Fix both red legs at their root cause and prove all three OS legs green in one `main` run (completed 2026-09-23)
-- [x] **Phase 11: Managed Lifecycle Verification** - Give LIFE-01..08 an evidence-backed verification report, with unmet items recorded as named gaps (completed 2026-09-24)
-- [x] **Phase 12: Red-Main Guard** - Surface a red `main` as a self-closing tracking issue and block candidate promotion while it is red (completed 2026-09-24)
-- [x] **Phase 13: Dependency Candidate Promotion** - Refresh candidate PR #1 on green `main` and promote only the components with green, integrity-verified evidence (completed 2026-09-25)
+Every requirement maps to exactly one phase. Subsequent phases can reuse a previous capability but must not claim its requirement complete without the owning phase's verification. Each phase starts with the existing GSD discuss → plan → plan check workflow; execute and verify when its plan passes. One production-quality end-to-end tracer leads each plan unless the phase planner documents a specific reason to vary it.
 
 ## Phase Details
 
-### Phase 10: Three-OS CI Baseline
+### Phase 14: Contract and Vertical Tracer
 
-**Goal**: Users can trust `main` CI again: each red leg is fixed at its diagnosed root cause, and one run proves ubuntu, macOS, and Windows green together.
-**Depends on**: Nothing in this milestone (continues from v0.1.0 Phase 9)
-**Requirements**: CI-01, CI-02, CI-03
+**Goal:** An explicitly opted-in, approved task can travel through GSD-governed implementation, one measured criterion and an independent fresh reviewer session to a trustworthy accepted/rejected verdict; ordinary GSD interaction stays unchanged.
+
+**Requirements**: CON-01, CON-02, CON-03, AUTO-01, AUTO-02, AUTO-03, RUN-01, REV-01.
+
+**Depends on:** Nothing in this milestone.
+
+**Implementation slices:** Default-off autopilot mode and per-task consent; contract schema and canonical digest; read-only preview and explicit approval binding; one production agent adapter pair using existing bounded process APIs; criterion runner and exact-revision acceptance receipt; minimal GSD quick/phase bridge; deliberately failing tracer case. The fixed pair is an implementation bootstrap, not a product restriction.
+
 **Success Criteria** (what must be TRUE):
 
-  1. On ubuntu-latest and macos-latest, `destinationFor resolves destinations across all five harnesses` passes with its fixture root built from the host platform's path APIs, and the suite fails if any test under `test/` asserts against a platform-specific absolute path literal.
-  2. Running the packed release lifecycle (install, reconcile, diagnose, uninstall) on Windows leaves every real host managed path, including `~/.alpha-aos`, byte-identical before and after, and the host-path immutability assertion is unchanged unless the investigation proves the oracle itself wrong.
-  3. The Windows `~/.alpha-aos` change has a recorded root cause, classified as a product isolation leak, a test-oracle defect, or a test-isolation leak, together with the evidence that decided it (which bytes changed and which lifecycle step wrote them).
-  4. A regression test pins the diagnosed cause: it was observed failing against the unfixed code and passes against the fix.
-  5. A single `main` CI run id shows ubuntu-latest, macos-latest, and windows-latest all green, with no leg individually re-run or taken from another run.
+1. An ordinary GSD conversation never starts the supervisor; explicit request or a clearly approved in-agent offer binds autopilot to one contract, and ending it does not enable the next task.
+2. Changing goal, effect permission or role after approval makes `start` refuse the old digest; delegated routine decisions remain auditable and new authority pauses for approval.
+3. A real end-to-end task reaches accepted only after its check and fresh reviewer both evaluate the same artifact digest.
+4. A failing or unknown required check produces rejected/unknown, even if the executor claims success or exits 0.
+5. A test substitutes stale review output and observes refusal before GSD completion.
 
-**Plans**: 4/4 plans executed (3 waves)
+**Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-Plans:
-**Wave 1**
+### Phase 15: Durable Supervisor and Effect Ledger
 
-- [x] 10-01-PLAN.md — CI-01: host-native `destinationFor`/ECC-root fixtures and a TS-AST path-literal guard over `test/*.ts` (wave 1)
-- [x] 10-02-PLAN.md — CI-02 investigation: per-entry host drift diagnostics, local windows reproduction, classified root-cause record, three-class wording (wave 1)
+**Goal:** A run can continue after interruption, honor user-selected limits and reconcile external effects without duplicate action.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Requirements**: RUN-02, RUN-03, RUN-04, RUN-05, TOOL-03.
 
-- [x] 10-03-PLAN.md — CI-02 fix: test-owned state roots for mcp-proxy, gate-engine and gate-lifecycle, each regression observed RED then GREEN (wave 2)
+**Depends on:** Phase 14.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Implementation slices:** Append-only run journal and atomic checkpoints; process cancellation/descendant cleanup; stable effect keys and unknown/reconcile state; optional resource counters and quota classifier; no-progress fingerprint and alternate strategy policy. Keep mandatory per-attempt safety bounds even when overall limits are unset.
 
-- [x] 10-04-PLAN.md — CI-03: push-triggered `main` proof run green on all three legs in one attempt, recorded in CI_RUN.md (wave 3)
-
-**Planning note**: CI-02 is an investigation before it is a fix. Verified facts from run 35762417138 (`main` @ c6415a2): only the hash of the real `C:\Users\runneradmin\.alpha-aos` differs across the lifecycle, while every other host path stays `absent`; the POSIX legs fail only at `test/owned-skills.test.ts:52-53`. The red-matrix window is 638d3cc (last green, 2026-09-20) to f1ca570 (first red, 2026-09-21); whether the Windows failure began in that same window is not yet established. Loosening the assertion without a root cause is out of scope. The developer host is Windows, so CI-02 can be reproduced locally; CI-01 needs a POSIX leg to observe.
-
-### Phase 11: Managed Lifecycle Verification
-
-**Goal**: Users can consult a verification record that states, with inspectable evidence, whether each v0.1.0 Phase 6 managed-lifecycle promise actually holds.
-**Depends on**: Phase 10
-**Requirements**: LIFE-09
 **Success Criteria** (what must be TRUE):
 
-  1. User can open a Phase 6 verification report in which each of LIFE-01 through LIFE-08 carries a verdict backed by inspectable evidence (a command and its output, a named test and its result, or a CI run id) rather than a restated SUMMARY claim.
-  2. The verdicts for the removal and host-safety requirements (LIFE-03, LIFE-04) reflect the Phase 10 root-cause classification: if the Windows change was a product isolation leak, the report names the requirement it violated and the fix and regression test that now cover it.
-  3. Every LIFE requirement that is not met appears as a named gap stating what is missing and what would close it, instead of being marked verified.
-  4. The v0.1.0 "LIFE-01..08 unverified" known gap in the project's milestone record is closed, or narrowed to exactly the report's named gaps.
+1. Kill the supervisor before and after an effect's result is written; resume reconstructs an accurate state and does not replay a completed or uncertain effect without source reconciliation.
+2. Unlimited, cycle-limited, time-limited and measured-usage-limited runs stop for their correct reasons; an unavailable required cost meter fails closed.
+3. A repeated identical failure triggers an observable strategy change and eventually an actionable blocked result if alternatives are exhausted.
+4. A cancelled agent leaves no descendant process under Windows, macOS or Linux fixture runs and retains bounded, redacted evidence.
 
-**Plans**: 7/7 plans executed (3 waves)
+**Verification:** Fault injection at each journal/effect boundary, idempotent resume tests, and platform process-tree tests.
 
-Plans:
-**Wave 1**
+### Phase 16: Composable Harness Roles
 
-- [x] 11-01-PLAN.md — Tracer: packed-probe harness (sandbox helper, probe library, host guard) proven on LIFE-01 Codex reconcile; tarball-fixture oracle strengthened; Phase 6 suites and CI run 35818198049 corroboration; report skeleton (wave 1)
+**Goal:** Claude Code, Codex, Antigravity, Pi and Hermes can perform every advertised operational role through native, version-proven adapters while exactly one controller writes GSD state.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Requirements**: ROL-01..05.
 
-- [x] 11-02-PLAN.md — LIFE-02: offline/fast status with a CLI-level I/O trap, coded doctor findings, doctor --discovery and --canary --no-spend per harness (wave 2)
-- [x] 11-03-PLAN.md — Phase 13 gate evidence: LIFE-01 five-harness reconcile and LIFE-08 update preview/apply (wave 2)
-- [x] 11-04-PLAN.md — LIFE-03: uninstall previews, one-target and full-stack uninstall, both project-pack routes, isolated runtime clean, pseudo-terminal confirmation (wave 2)
-- [x] 11-05-PLAN.md — LIFE-04 receipts and applied-state refusal; LIFE-07 external changes and recovery instructions (wave 2)
-- [x] 11-06-PLAN.md — LIFE-05 rollback exact bytes and drift refusal; LIFE-06 failpoint interruption, repair and restart (wave 2)
+**Depends on:** Phase 15.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Implementation slices:** Common launch/result/session protocol; per-harness headless/RPC adapters; capability and provider/usage receipts; support-matrix projection; exclusive fenced controller lease; migrate D-10 name-based Hermes restriction after role proof. Integrate with existing process and capability ledgers, not direct child-process forks.
 
-- [x] 11-07-PLAN.md — Compile 06-VERIFICATION.md, register G-11 gaps, update MILESTONES and archived v0.1.0 records (wave 3)
-
-**Planning note**: Editing the archived v0.1.0 records for this phase is approved (2026-09-23). Expected report location is beside the archived Phase 6 artifacts, `.planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md`. LIFE-02 canary evidence must not depend on a Claude Code real-host receipt; G-07-2 / REL-02 remains a future requirement, not this milestone's.
-
-### Phase 12: Red-Main Guard
-
-**Goal**: A red `main` cannot go unnoticed, and while it is red no dependency candidate can be presented as promotable.
-**Depends on**: Phase 10
-**Requirements**: CI-04, DEP-03
 **Success Criteria** (what must be TRUE):
 
-  1. When a `main` CI run finishes with any OS leg red, the user sees one tracking issue opened, or the existing one refreshed and never duplicated, naming the failing run id and the failing legs.
-  2. When the next `main` CI run is green on all three legs, the tracking issue closes on its own and references the green run.
-  3. When the dependency candidate workflow runs while the latest `main` baseline run is red, the candidate is marked promotion-blocked and the block names the failing `main` run; when the baseline is green, the candidate is not blocked.
-  4. The guard decides from the conclusion of an actual completed `main` CI run: with no completed baseline run to read, it reports promotion as blocked rather than promotable.
+1. The registry composes all 5×5×5 role triples in a deterministic fixture, accepting only triples whose component role/version capabilities are proven and naming missing proof for the rest.
+2. Each advertised harness/role has a successful real native invocation, completion interpretation and cancellation receipt; a CLI version drift demotes support until reprobed.
+3. Two simultaneous candidate controllers cannot both mutate one project's GSD state; a losing controller sees a coded lock result without restoring the winner's work.
+4. A same-harness reviewer runs in a fresh, separately identified read-only session; different-model/harness policy is applied when specified.
+5. Usage and cost output identifies measured fields, provider/model and unknown values without asserting that an agent is free by brand.
 
-**Plans**: 2/2 plans executed
+**Verification:** Adapter contract suite, adversarial lease fixtures, exact-version canaries, support-matrix checks and representative live handoffs. Unsupported native surfaces remain visible rather than simulated.
 
-Plans:
-**Wave 1**
+### Phase 17: GSD Lifecycle Bridge
 
-- [x] 12-01-PLAN.md — Tracer: red-main-guard & check-main-baseline modules and unit test suites (wave 1)
+**Goal:** A development run moves through the installed GSD discuss, plan, execute, verify and gap paths without a second project state machine or skipped mandatory gates.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Requirements**: GSD-01..04.
 
-- [x] 12-02-PLAN.md — Workflow integration (red-main-guard.yml, dependency-candidate.yml) & full suite verification (wave 2)
+**Depends on:** Phases 14–16.
 
-**Planning note**: The guard is mutable external automation, so its decision must be deterministic (no LLM judgment) and it should widen workflow permissions only as far as the issue and candidate-status writes require. `.github/workflows/dependency-candidate.yml` currently holds `contents: write` and `pull-requests: write`.
+**Implementation slices:** GSD command adapter using installed workflow context and stable lock; authorized default-answer policy; phase/plan discovery and recovery; gap-plan/new-phase routing; hook receipt upgrade to actual invocation. The bridge must use native GSD state transitions and preserve GSD checkpoints that genuinely require user or external input.
 
-### Phase 13: Dependency Candidate Promotion
-
-**Goal**: Users receive the validated dependency candidate in the stable lock, promoted only through the red-main guard on green three-OS evidence with verified integrity.
-**Depends on**: Phase 11, Phase 12
-**Requirements**: DEP-01, DEP-02
 **Success Criteria** (what must be TRUE):
 
-  1. Dependency candidate PR #1 is refreshed onto green `main`, passes the red-main guard unblocked, and its three-OS CI and fixture run is recorded by run id.
-  2. Each of the five candidate components (GSD Core 1.14.0, ecc-universal 2.2.1, context7-mcp 4.1.1, firecrawl-mcp 3.25.2, pi-mcp-adapter 2.36.0) has a recorded per-component result covering its integrity check, fixture outcome, and three-OS outcome, with any failure named.
-  3. `catalog/stack.lock.json` carries a candidate version only for components whose evidence is green, each with an integrity hash re-verified against the registry artifact; a failing component stays at its current stable version with the reason recorded.
-  4. After the promotion lands, a single `main` CI run is green on all three OS legs with the packed release lifecycle exercising the promoted lock, and `alpha-aos update --apply` still reconciles only the stable lock, never the unverified `catalog/candidate.lock.json`.
+1. A development task advances across two phases without typing commands; current GSD STATE and ROADMAP match the observed completed work and contain no supervisor-owned substitute transition.
+2. An injected gap becomes a GSD gap plan or new phase, is executed, and is re-verified before the run resumes.
+3. A skill-only gate or process exit 0 without the required review witness cannot count as acceptance.
+4. An interrupted phase restarts at GSD's recorded boundary without duplicating completed plans or silently defaulting a new scope decision.
 
-**Plans**: 3/3 plans executed (3 waves)
+**Verification:** Synthetic GSD fixture with failed hook, missing artifact, interrupted phase and real installed-GSD smoke test. Run `alpha-aos gsd-context execute-phase` and its step slices while executing this phase.
 
-Plans:
-**Wave 1**
+### Phase 18: Capability Fabric and Automatic Invocation
 
-- [x] 13-01-PLAN.md — Tracer: fixture hardening in `src/core/mcp-fixture.ts`, `scripts/promote-candidate.mjs` maintainer tool, and candidate pre-flight fixtures (wave 1)
+**Goal:** Every alpha-AOS capability that applies to a task is discoverable, safely activated and actually used at its natural GSD step, with missing required invocations preventing false completion.
 
-**Wave 2** *(blocked on Wave 1 completion)*
+**Requirements**: CAP-01..05.
 
-- [x] 13-02-PLAN.md — Remote baseline green, PR #1 rebase, Red-Main Guard unblocking, and 3-OS CI matrix run (wave 2)
+**Depends on:** Phases 16–17.
 
-**Wave 3** *(blocked on Wave 2 completion)*
+**Implementation slices:** Versioned capability graph across GSD, owned/global/project ECC skills, MCP tools, project packs, alpha-AOS control commands, native harness tools and hooks; setup-completion event to `alpha-aos project plan/status`; digest-bound pack approval/sync; fresh-session activation; policy-driven task/phase matcher; actual invocation receipts and drift-triggered replanning. Reuse `alpha-aos-control`, project-pack sync, canary and capability-ledger surfaces.
 
-- [x] 13-03-PLAN.md — Partial candidate promotion, ECC 2.2.1 pack skill hash pinning, code/test sync, release hygiene, and PROMOTION-EVIDENCE.md (wave 3)
+**Success Criteria** (what must be TRUE):
 
-**Planning note**: The ecc-universal bump reaches past the lock. `ecc-universal@2.2.0` is named in `src/core/ecc-fixture.ts`, `src/core/mcp-proxy.ts`, `src/core/project-plan.ts`, `test/mcp-proxy.test.ts`, and `catalog/canaries.yaml`; the 19 pack skills are pinned from the 2.2.0 tarball via `pin-pack-skills.mjs`; and the CAPA-02 `narrow` finding is pinned to 2.2.0. Each must be re-derived for 2.2.1 or explicitly held back. GSD Core 1.14.0 may move GSD compatibility renderer hashes.
+1. After a fixture scaffolds a project and installs dependencies, autopilot runs the pack checkpoint before application work, presents exact matched packs/evidence, and cannot sync an unapproved or stale digest.
+2. Once an approved project pack is CURRENT, a fresh agent session discovers its project-only ECC skill plus configured MCP tools, calls those applicable to the matching GSD plan/execute/verify step, and records actual result receipts; a newly irrelevant capability stays unused with a reason.
+3. A task requiring framework documentation invokes Context7 through `documentation-lookup`; a research task invokes the selected Exa/Firecrawl route; a cross-harness handoff invokes unified memory when its selection predicate applies. A missing required call fails the gate despite installed configuration or a successful agent exit.
+4. Changing the phase, manifest, pack, skill source, harness version or tool availability recomputes selection and proof. A missing applicable capability is repaired, replaced by a proven equivalent or reported blocked; it is never silently omitted.
+5. Every declared alpha-AOS capability has a matching and nonmatching task fixture; all five harnesses have a support matrix that separates installed, discovered, invoked, unsupported and unverified for global/project skills, MCPs, control commands and mandatory hooks, with exact-version evidence for advertised native paths.
 
-## Progress
+**Verification:** Scenario-driven positive/negative selection tests, pack approval and fresh-session fixtures, skill/MCP invocation canaries and a real GSD multi-step trace with observation receipts.
 
-**Execution Order:**
-Phases execute in numeric order: 10 → 11 → 12 → 13. Phases 11 and 12 each depend only on Phase 10; Phase 13 needs both, so promotion runs through the guard and through a verified update/reconcile lifecycle.
+### Phase 19: Structured Independent Review
 
-| Phase | Milestone | Plans Complete | Status | Completed |
-|-------|-----------|----------------|--------|-----------|
-| 10. Three-OS CI Baseline | v0.1.1 | 4/4 | Complete    | 2026-09-23 |
-| 11. Managed Lifecycle Verification | v0.1.1 | 7/7 | Complete    | 2026-09-24 |
-| 12. Red-Main Guard | v0.1.1 | 2/2 | Complete    | 2026-09-24 |
-| 13. Dependency Candidate Promotion | v0.1.1 | 3/3 | Complete    | 2026-09-25 |
+**Goal:** Review findings on the exact result drive focused repairs, and final acceptance covers both features and codebase quality.
+
+**Requirements**: REV-02..05.
+
+**Depends on:** Phases 17–18.
+
+**Implementation slices:** Schema-validated reviewer report; evidence locator/reproducer; severity/scope classification; finding deduplication; review invalidation on new artifact digest; final integration/architecture/code review; bounded correction cycle and no-progress escalation.
+
+**Success Criteria** (what must be TRUE):
+
+1. A malformed, stale or ambiguous report is rejected or marked unknown; it cannot mark mandatory criteria passed.
+2. A reproducible defect yields one GSD repair item; after repair, a new reviewer session checks the new revision and old resolved finding is not reopened without a new failure.
+3. A final review finds a seeded missing required feature and an architectural defect, maps both to actionable work, and reports unrelated enhancement ideas as suggestions outside current scope.
+4. The terminal report names each criterion, automated check, reviewer identity, evidence ref and any remaining unknown.
+
+**Verification:** Adversarial report fixtures, deliberately broken implementation trial, reviewer independence receipt and code-review/UAT gate.
+
+### Phase 20: General Tool Connectors
+
+**Goal:** The same contract/run/review engine can execute non-code work and prove per-item outcomes with CoursePilot as the first real connector.
+
+**Requirements**: TOOL-01, TOOL-02, TOOL-04.
+
+**Depends on:** Phases 15 and 19.
+
+**Implementation slices:** Connector manifest/preview/perform/reconcile/verify API; versioned schema and bounded source data; CoursePilot skill/runtime resolver and materials CLI parser; per-file verifier; partial/fatal result handling. Do not change CoursePilot's own implementation or credentials.
+
+**Success Criteria** (what must be TRUE):
+
+1. A generic fixture connector proves the engine can run an itemized task without assuming Git diffs or code tests.
+2. A CoursePilot fixture with downloaded, planned, viewed-only, already-present and errored materials reports exact saved/unsaved counts, and verifies actual file existence for successes.
+3. A partial exit keeps successful item evidence and queues only failed items; fatal/config/schema errors stop with a named next action.
+4. A repeated run reconciles existing verified files and uncertain effects without duplicate downloads; malicious LMS text is treated as data.
+
+**Verification:** Versioned JSON contract fixtures and bounded local CoursePilot dry-run/live test only where the user's account and approved task scope permit it.
+
+### Phase 21: Natural Entry and Operator CLI
+
+**Goal:** A user can start and control the same durable run from any supported harness or CLI after the initial chat closes.
+
+**Requirements**: UX-01..03.
+
+**Depends on:** Phases 16–20.
+
+**Implementation slices:** Repository-owned alpha-AOS task skill distributed through native target surfaces; ordinary GSD versus explicit per-task autopilot choice; `alpha-aos task plan|start|status|stop|resume|doctor|report`; JSON/human output; digest-bound preview; selected-tool and cost/limit explanations.
+
+**Success Criteria** (what must be TRUE):
+
+1. Each supported harness discovers the skill through a meaningful native invocation, offers a clear optional autopilot choice and reaches the same approved contract preview without switching modes by default.
+2. The CLI resumes/stops a run in a new process and presents the same journal/GSD state as the skill.
+3. A user can distinguish accepted, blocked, stopped, failed and unknown states, and see exact agent/model, tool choices, consumed measured resources and next action.
+4. An unapproved or stale contract cannot be started by hand-editing an old preview or replaying its command.
+
+**Verification:** Packed CLI scenarios, skill discovery canaries and malformed/stale contract tests.
+
+### Phase 22: Release Proof
+
+**Goal:** The capability is safe to advertise across Windows, macOS and Linux with its actual harness coverage and limitations visible.
+
+**Requirements**: VER-01..04.
+
+**Depends on:** Phases 14–21.
+
+**Implementation slices:** Three-OS fault matrix; exact-version live role and skill/MCP/pack receipts and representative cross-harness handoffs; packed release lifecycle; development and CoursePilot end-to-end examples; ordinary-GSD non-autopilot control; support matrix and user documentation; final independent milestone review.
+
+**Success Criteria** (what must be TRUE):
+
+1. One CI run reports green on all three OS legs with fault cases for crash, cancellation, duplicate effects, concurrency and false acceptance; tests show they fail against injected broken behavior.
+2. Support diagnostics distinguish advertised, unverified and unsupported per harness/version/role, with real receipts for every advertised cell.
+3. The packed install/doctor/uninstall exercise changes no unrelated real-host managed path and preserves the stable-lock supply-chain gate.
+4. Both development and CoursePilot exemplar tasks produce criterion-by-criterion evidence and actual applicable ECC/MCP/pack calls; partial or unverifiable outcomes are reported without a false completed status.
+5. A normal GSD task remains interactive and does not enter autopilot without a per-task request or approval.
+6. GSD milestone audit, cross-phase integration check and independent code review find no unresolved blocking requirement gap before closeout.
+
+**Verification:** Final full `npm run check`, `npm test`, `npm run build`, three-OS CI run and GSD audit/verify-work; record role, skill, MCP, pack and hook invocation receipts and limits in the release matrix. Do not claim a missing paid or authenticated canary passed.
+
+## Planning and Execution Gates
+
+For each phase, use `$gsd-discuss-phase N` (or approved `--auto` defaults), `$gsd-plan-phase N` with research and plan-check verification, `$gsd-review N` when the plan has cross-harness or safety impact, `$gsd-execute-phase N`, `$gsd-code-review`, and `$gsd-verify-work N`. Resolve `human_needed` with observed evidence or a real user test, never an invented pass. Use `$gsd-progress` to route incomplete work and `$gsd-audit-milestone` at closeout if surfaced; missing GSD skills are read through the installed GSD workflow and run inline only where the runtime contract permits it. The installed GSD Core remains the state authority.
+
+**Release rule:** Phase summaries, automated tests, support receipts and reviewed completion criteria must agree. A green gate with no actual reviewer invocation is a failure. Candidate dependency changes remain in the candidate channel until their existing promotion gates pass.

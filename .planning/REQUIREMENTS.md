@@ -1,87 +1,110 @@
-# Requirements: alpha-AOS v0.1.1 CI Green & Dependency Promotion
+# Requirements: alpha-AOS v0.2.0 Universal Autonomous Work
 
-**Defined:** 2026-09-23
-**Core Value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
+**Defined:** 2026-09-29
+**Status:** Approved for v0.2.0 implementation on 2026-09-29
+**Core value:** When a user explicitly enables autopilot for a task, alpha-AOS coordinates the full applicable capability inventory through GSD, independent review, correction and recovery until evidence proves completion or a named stop condition. Ordinary interactive GSD work remains the default.
 
-## v0.1.1 Requirements
+Every requirement below is a user-visible capability. `Supported` means an exact harness/version/role combination has a native invocation receipt. A configured executable alone is insufficient. Detailed behavior: [design](../docs/design/autonomous-work/README.md).
 
-### CI Baseline
+## v0.2.0 Requirements
 
-- [x] **CI-01**: User running the suite on ubuntu or macOS sees `destinationFor resolves destinations across all five harnesses` pass, because its fixture root is built with the host platform's path APIs, and no test in `test/` asserts against a platform-specific absolute path literal
-- [x] **CI-02**: User running the packed release lifecycle (install, reconcile, diagnose, uninstall) on Windows leaves every real host managed path, including `~/.alpha-aos`, byte-identical; the root cause is classified as a product isolation leak, a test-oracle defect, or a test-isolation leak (another test file writing the real host state during the lifecycle's snapshot window), recorded, and pinned by a regression test
-- [x] **CI-03**: User sees `main` CI pass on ubuntu-latest, macos-latest, and windows-latest in a single run id
-- [x] **CI-04**: User sees a red `main` CI surfaced as an opened or refreshed tracking issue that closes when `main` is green again
+### Goal contracts
 
-### Lifecycle Verification
+- [ ] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
+- [ ] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
+- [ ] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
 
-- [x] **LIFE-09**: User can consult a verification report for the Phase 6 managed lifecycle in which each of LIFE-01..08 carries inspectable evidence, and any requirement not met is recorded as a named gap
+### Explicit autopilot mode
 
-### Dependency Promotion
+- [ ] **AUTO-01**: A user enters autopilot only by explicitly requesting it or approving a clearly presented in-agent offer; the mode is off by default for every new task.
+- [ ] **AUTO-02**: A user can see autopilot consent, scope, authority and duration bound to the approved task contract; routine GSD questions may be answered automatically only within that authority, and new authority or effects pause for approval.
+- [ ] **AUTO-03**: A user can continue ordinary conversational GSD work without invoking the autonomous supervisor; ending or stopping one autopilot run does not silently enable it for another task.
 
-- [ ] **DEP-01**: User can see dependency candidate PR #1 refreshed onto a green `main` and run through the three-OS CI and fixtures, with a per-component result recorded
-- [ ] **DEP-02**: User receives the candidate versions (GSD Core 1.14.0, ecc-universal 2.2.1, context7-mcp 4.1.1, firecrawl-mcp 3.25.2, pi-mcp-adapter 2.36.0) in `catalog/stack.lock.json` only after green evidence and verified integrity hashes
-- [x] **DEP-03**: User sees the dependency candidate workflow mark promotion blocked, naming the failing run, whenever the `main` baseline CI is red
+### Execution and recovery
+
+- [ ] **RUN-01**: A user can start an approved development task and observe one production-quality path from GSD-governed implementation through measured checks, independent review and accepted or rejected result.
+- [ ] **RUN-02**: A user can inspect a durable, redacted attempt journal that distinguishes alpha-AOS process state from GSD project lifecycle state.
+- [ ] **RUN-03**: A user can resume after process interruption without replaying completed attempts or uncertain external actions as though they were undone.
+- [ ] **RUN-04**: A user can choose unlimited cycles or set time, cycle, usage or measured cost limits, and sees the precise limit/telemetry reason when the run stops.
+- [ ] **RUN-05**: A user sees a changed repair strategy when the same evidenced failure repeats, and receives a named blocked result if no viable next action remains.
+
+### Agent roles
+
+- [ ] **ROL-01**: A user can assign controller, executor and independent reviewer roles using any supported combination of Claude Code, Codex, Antigravity, Pi and Hermes; unsupported role/version combinations fail in preview with the missing proof named.
+- [ ] **ROL-02**: A user can see each of the five harnesses launched, cancelled and judged by its native machine interface with exact-version invocation receipts before its role is advertised.
+- [ ] **ROL-03**: A user can select any harness with proven controller capability, including Hermes, while concurrent runs are prevented from producing two GSD writers for the same project.
+- [ ] **ROL-04**: A user can require a different reviewer harness/model where available; even a same-harness review runs in a fresh, separately identified read-only session.
+- [ ] **ROL-05**: A user can inspect role support, native skill/MCP availability and model/provider usage evidence separately for each harness, without treating a harness name as a price or quota guarantee.
+
+### GSD lifecycle
+
+- [ ] **GSD-01**: A user can run the appropriate GSD discuss, plan, execute and verify steps for a development goal without typing each step, with authorized defaults recorded.
+- [ ] **GSD-02**: A user sees confirmed implementation gaps routed into GSD gap plans or new phases, then re-executed and re-verified against the approved criteria.
+- [ ] **GSD-03**: A user can inspect GSD as the sole project lifecycle authority while alpha-AOS owns attempts, role dispatch, limits and recovery in a separate journal.
+- [ ] **GSD-04**: A user sees mandatory GSD gates backed by actual execution and same-revision evidence; a configured skill or exit code alone cannot satisfy independent-review acceptance.
+
+### Full alpha-AOS capability use
+
+- [ ] **CAP-01**: A user can inspect a versioned, project-scoped inventory of all applicable alpha-AOS capabilities: GSD workflows, global and project ECC skills, owned skills, MCP tools, capability packs, alpha-AOS control commands, native harness tools and mandatory hooks, including installed, active, unavailable and excluded states.
+- [ ] **CAP-02**: After scaffolding, manifest changes or dependency installation, autopilot automatically runs the alpha-aos-control capability-pack plan/status checkpoint and materializes matching project packs only with an exact approved plan digest; it verifies CURRENT status and starts a fresh tool-aware agent session before using newly delivered project skills or changed tool configuration.
+- [ ] **CAP-03**: At GSD discuss, plan, execute, review and verify boundaries, autopilot matches task needs and mandatory policy to the current capability inventory, automatically invokes every applicable required skill/MCP/tool at the appropriate step, and records actual invocation and outcome rather than treating installation or discovery as use.
+- [ ] **CAP-04**: A user sees capability selection recomputed when phase, task scope, dependencies, pack state, harness version or tool availability changes; an applicable unavailable capability triggers a repair, alternate proven path or explicit blocked result instead of silent omission.
+- [ ] **CAP-05**: A user can verify positive and negative selection fixtures for every declared alpha-AOS capability and per-harness native discovery and meaningful invocation receipts for advertised global/project skills, MCPs, project packs, control commands and gate hooks; a missing call required by the task or policy prevents a success verdict.
+
+### Independent acceptance
+
+- [ ] **REV-01**: A user receives a verdict for every mandatory criterion supported by current measured evidence, including an explicit `unknown` when the result cannot be verified.
+- [ ] **REV-02**: A user receives structured reviewer findings with contract/revision identity, severity, criterion ID, reproduction steps and evidence, and cannot accept stale or malformed reports.
+- [ ] **REV-03**: A user sees an independent final review of required features, implementation quality, architecture and test evidence before a development milestone is accepted.
+- [ ] **REV-04**: A user sees review receipts invalidated when the artifact changes, with resolved findings reconciled and a new review run on the changed artifact.
+- [ ] **REV-05**: A user can distinguish a review suggestion outside approved scope from a blocking requirement defect, without the controller silently expanding the goal.
+
+### General task tools
+
+- [ ] **TOOL-01**: A user can run a non-code task through a versioned connector that previews a bounded item/effect manifest and verifies each required outcome independently.
+- [ ] **TOOL-02**: A user can request all in-scope CoursePilot teaching-material downloads and see actual saved files reconciled against a fresh item manifest; `planned`, LMS completion and `viewed_only` never count as downloads.
+- [ ] **TOOL-03**: A user sees external actions assigned stable operation keys and an uncertain effect reconciled before retry, preventing duplicate actions after a crash when source evidence is available.
+- [ ] **TOOL-04**: A user sees partial, fatal and schema-version errors from a connector reported per item, with untrusted source content handled as data.
+
+### Entry and release proof
+
+- [ ] **UX-01**: A user can state a task naturally through an alpha-AOS skill in each supported harness, choose ordinary GSD interaction or explicitly opt into autopilot, and review the resulting task contract.
+- [ ] **UX-02**: A user can preview, start, inspect, stop, resume and diagnose a task through a local CLI, including after the original chat ends.
+- [ ] **UX-03**: A user can view selected tools, agent/model identities, progress, limits, failed criteria and actionable stop reasons in human-readable and JSON output.
+- [ ] **VER-01**: A user can see three-OS CI evidence for crash recovery, concurrency, cancellation, false acceptance and effect deduplication, including tests that fail against the broken behavior.
+- [ ] **VER-02**: A user can inspect exact-version real-host invocation receipts for every advertised role capability and representative cross-harness handoffs; unproven cells remain unverified.
+- [ ] **VER-03**: A user can verify a packed install/doctor/uninstall lifecycle that leaves unrelated real-host paths unchanged after the new capability is distributed.
+- [ ] **VER-04**: A user can run development and CoursePilot end-to-end cases with applicable global/project ECC skills, MCPs and packs automatically invoked through GSD, and see every required criterion, capability receipt and remaining limitation reported honestly.
 
 ## Future Requirements
 
-- **REL-02 / G-07-2**: Claude Code real-host invocation receipt promoting its support-matrix cells from UNVERIFIED
-- Codex first-class native-verification driver (debug session `codex-native-verification-gap`)
-- Widen `PathProof.inode` beyond a JS double for Windows file indexes above 2^53
-- Publish the v0.1.0 release artifacts and documentation
-- [x] **G-11-1** (LIFE-01): install or reconcile the reviewed stable lock (combined codex and pi targets) — [Resolved by quick task 260924-g11] Destination and root deduplication in `applyManagedInstall` resolves multi-target skill drift across codex and pi sharing `~/.agents/skills`. Regression test in `test/owned-skills.test.ts`. See .planning/quick/260924-g11-resolve-multi-target-skill-drift/260924-g11-SUMMARY.md.
-- **G-11-2** (LIFE-02): native discovery (antigravity) — doctor --discovery produces no antigravity row at all, silently omitting a supported harness from discovery output; closes when doctor --discovery reports an antigravity row: a COMPLETE unit from a free native oracle, or an explicit unsupported/not-run row. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-3** (LIFE-02): native discovery (hermes) — No free discovery oracle is defined for hermes; both hermes discovery rows report unsupported; closes when A hermes discovery oracle that runs read-only and yields a COMPLETE paired unit. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-4** (LIFE-02): meaningful read-only execution evidence (claude) — Any Claude execution or discovery evidence that costs nothing; every Claude oracle and canary leg spends a model turn; closes when The REL-02 / G-07-2 real-host invocation receipt (the existing future requirement that owns Claude's cost-excluded legs, D-10), or a deliberate spending canary run. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-5** (LIFE-02): meaningful read-only execution evidence (antigravity) — Every read-only execution path for antigravity: there is no discovery row (C1) and no declared canary leg; closes when A free read-only antigravity invocation reachable from doctor --discovery or doctor --canary --no-spend that yields a COMPLETE unit or a launched, completed leg. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-6** (LIFE-02): meaningful read-only execution evidence (hermes) — Every read-only execution path for hermes: there is no discovery oracle (C2), and in CAPA-03 handoff hermes is only the source, whose memory alpha-AOS writes without launching hermes; closes when A free read-only hermes invocation, through a discovery oracle or a no-spend canary leg, that launches hermes and completes. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-7** (LIFE-02): actionable coded findings (for a needs-repair state) — A coded doctor finding for an unhealthy journal: status reports NEEDS-REPAIR with uncoded prose, while doctor --json exits 0 and names no journal problem; closes when doctor emits an error- or warning-level finding with a stable code for corrupt or incomplete journals and stale writer locks, naming the runnable next action (alpha-aos repair), or status --json carries a code for needs-repair. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-8** (LIFE-03): uninstall one target (all five harnesses) and uninstall the full managed stack — The uninstall planner never removes the owned skills written by install: alpha-aos-control/SKILL.md stays on all five harnesses, alpha-aos-ship/SKILL.md stays on claude, and settings.json is left pruned to 3B rather than removed; closes when After uninstall --target <h> --yes --apply, no file recorded as created for <h> remains; after uninstall --all --yes --apply, the leftover scan over every journal-recorded target is empty. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-9** (LIFE-03): uninstall one target — uninstall --target pi removes shared ECC skills from <home>/.agents/skills even though codex is still installed, dropping codex out of CURRENT; closes when uninstall --target <h> removes a file from a shared root only when no other installed target still claims it. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-10** (LIFE-03): remove a project pack (uninstall --project route), and without removing unrelated user resources — uninstall --project deletes all files under <project>/.alpha-aos/ (including user files and stack.yaml), while leaving all materialized pack skill files and sidecars in harness skill directories; closes when uninstall --project removes only receipted pack targets whose bytes still match receipts, leaving user files under .alpha-aos/ and the manifest intact. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-11** (LIFE-03): remove a project pack (approve route); uninstall one target and full stack (directory residue) — Approve-route pack removal leaves empty pack-created directories and keeps the pack receipt, causing project status to perpetually offer a removal that refuses; uninstall leaves empty skill directories; closes when Pack removal sweeps empty pack directories and retires the receipt; uninstall --all sweeps empty skill directories. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-12** (LIFE-03): uninstall the full managed stack (isolated runtimes) — uninstall --all does not remove marked isolated runtimes under <state>/isolated/<project-id>; closes when uninstall --all --yes --apply removes every marked isolated runtime through the marker-checked journaled clean path. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-13** (LIFE-04): remove only receipted alpha-AOS-owned bytes or semantic entries — Uninstall identifies managed MCP entries and skills by hardcoded name lists rather than verifying against journals/receipts, removing user-authored resources on all five harnesses when no alpha-AOS install exists; closes when Uninstall consults transaction journals or state receipts before removing MCP servers and skill directories, preserving unreceipted entries. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-14** (LIFE-04): user-modified resources cause a refusal — User modifications to managed skill files or MCP configurations do not trigger refusal during uninstall; uninstall deletes them with exit 0; closes when Uninstall verifies on-disk file and entry hashes against applied hashes in journals/receipts and refuses when user modifications are detected. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-15** (LIFE-04): entries that still match their recorded applied state, while drifted ... cause a refusal — Content modifications made after preview do not cause refusal during apply; currentHash in the uninstall plan is not re-checked against disk at apply time; closes when applyUninstall checks current file hashes against the reviewed plan's currentHash and refuses on drift. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-16** (LIFE-04): remove only receipted alpha-AOS-owned bytes — uninstall --project deletes non-receipted user files under <project>/.alpha-aos/; closes when uninstall --project checks pack receipts before deleting any file and leaves non-receipted user files intact. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-17** (LIFE-04): remove only receipted alpha-AOS-owned bytes ... that still match their recorded applied state — Receipted alpha-AOS-owned skills matching their applied journaled hashes are never removed by target or full stack uninstall; closes when Uninstall planner includes receipted owned skills matching journaled hashes in planned removals. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-18** (LIFE-05): preview ... rollback — alpha-aos rollback preview checks only structural existence and LIFO ordering, omitting hash preflight against disk; on drifted targets preview prints RESTORE and promises a restore that apply immediately refuses; closes when planManagedRollback checks target file hashes on disk against journal afterHash and indicates drift or refusal in the preview output. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-19** (LIFE-06): restart-safe recovery guidance — alpha-aos repair crash repair preview displays alpha-AOS Crash Repair Plan without instructing the user to pass --apply to execute it; closes when formatCrashRepairPlan prints 'Pass --apply to execute this repair plan' or equivalent guidance. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-20** (LIFE-06): restart-safe recovery guidance — Neither status nor repair advises the user to re-run the interrupted command after repair completes; closes when formatCrashRepairResult or formatOfflineStatus includes a note advising the user to re-run their interrupted operation after successful repair. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-21** (LIFE-06): restart-safe recovery guidance — alpha-aos repair --apply re-invoked on an already-repaired clean state exits 2 with 'no writer lock is present' rather than exiting 0 or no-op; closes when alpha-aos repair --apply on a clean state reports that no repair is needed and exits 0. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-22** (LIFE-06): diagnose corrupt journals as needs-repair — Incomplete journal missing files array causes planCrashRepair to throw unhandled TypeError, falling back to writer repair which plans none, leaving status permanently in needsRepair=true; closes when planCrashRepair validates Array.isArray(journal.files) and treats a journal missing files as corrupt/unrecoverable, quarantining it. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-23** (LIFE-07): component-specific recovery instructions when managed-file rollback cannot safely reverse — When install fails after external package changes have been applied, CLI reports retained changes but emits no component recovery instructions and writes no recovery receipt under <state>/receipts; closes when Install failure rollback writes a durable recovery receipt and prints actionable recovery commands naming the external package on disk. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-24** (LIFE-07): component-specific recovery instructions (ECC) — ECC compensation command in uninstall receipt specifies obsolete package npm uninstall -g @enterprise-coding-companion/companion instead of locked ecc-universal; closes when ECC compensation instructions derive package name directly from stable lock (components.ecc.package). See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-25** (LIFE-07): component-specific recovery instructions (GSD) — GSD compensation command in uninstall receipt specifies legacy path rm -rf ~/.claude/get-shit-done ~/.codex/get-shit-done instead of actual installed path <config root>/gsd-core; closes when GSD compensation commands reference actual installed paths <config root>/gsd-core and <config root>/.gsd-profile. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
-- **G-11-26** (LIFE-07): component-specific recovery instructions (Pi bridge) — Uninstall recovery receipt omits Pi bridge entirely; compensatePiBridge specifies npm unlink @modelcontextprotocol/server-pi instead of pi remove or pi-mcp-adapter; closes when Uninstall recovery receipt includes Pi bridge entry matching pi-mcp-adapter and its native Pi installation route. See .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md.
+- Additional first-party connectors beyond CoursePilot after the connector protocol has a release proof.
+- Hosted scheduling, cross-machine continuation, and team-wide task ownership.
+- Live proof for every 125 controller/executor/reviewer triples; v0.2.0 proves each role capability and synthetic composition of every triple, plus representative live cross-harness paths.
+- Existing v0.1.0/0.1.1 deferred lifecycle and publication gaps remain in [the previous milestone requirements](milestones/v0.1.1-REQUIREMENTS.md). This feature does not silently mark them resolved.
 
 ## Out of Scope
 
-| Feature | Reason |
-|---------|--------|
-| New harness capabilities or packs | This milestone restores a trustworthy baseline; feature work waits for green CI |
-| Loosening the host-path immutability assertion without a root cause | The assertion encodes the Safety constraint; it may change only if the investigation proves the oracle wrong |
-| Promoting any candidate component that fails its fixture | Supply-chain constraint: end users receive only the reviewed stable lock |
+| Item | Reason |
+|---|---|
+| Guarantee of eventual success for arbitrary goals | Some goals are impossible, under-specified or blocked by external access. |
+| Invoking unrelated installed tools for every task | Every applicable required capability must be selected and actually invoked at its workflow step; irrelevant tools remain available but unused with a recorded reason. |
+| Treating user subscription or harness identity as a zero-cost meter | Costs and quotas depend on provider, model and account; only observed usage may be enforced as a hard bound. |
+| Changing CoursePilot's LMS support or storing its credentials | The connector calls its documented local interface and respects its source contract. |
+| Publishing or deploying user work automatically | External irreversible actions require authority in the individual task contract. |
 
 ## Traceability
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| CI-01 | Phase 10 | Complete |
-| CI-02 | Phase 10 | Complete |
-| CI-03 | Phase 10 | Complete |
-| CI-04 | Phase 12 | Complete |
-| LIFE-09 | Phase 11 | Complete |
-| DEP-01 | Phase 13 | Pending |
-| DEP-02 | Phase 13 | Pending |
-| DEP-03 | Phase 12 | Complete |
+| Requirement IDs | Phase | Status |
+|---|---:|---|
+| CON-01..03, AUTO-01..03, RUN-01, REV-01 | 14 | Planned |
+| RUN-02..05, TOOL-03 | 15 | Planned |
+| ROL-01..05 | 16 | Planned |
+| GSD-01..04 | 17 | Planned |
+| CAP-01..05 | 18 | Planned |
+| REV-02..05 | 19 | Planned |
+| TOOL-01..02, TOOL-04 | 20 | Planned |
+| UX-01..03 | 21 | Planned |
+| VER-01..04 | 22 | Planned |
 
-**Coverage:**
-
-- v0.1.1 requirements: 8 total
-- Mapped to phases: 8
-- Unmapped: 0
-
----
-*Requirements defined: 2026-09-23*
-*Last updated: 2026-09-23 after v0.1.1 roadmap creation (Phases 10-13)*
+**Coverage:** 41 requirements; 41 mapped exactly once; 0 unmapped. Phase 14 is the opt-in vertical tracer; later phases deepen each seam without reassigning a requirement.

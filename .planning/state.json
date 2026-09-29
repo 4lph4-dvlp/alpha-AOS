@@ -1,33 +1,58 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v0.1.1 — CI Green & Dependency Promotion",
+  "milestone": "v0.2.0 — Universal Autonomous Work",
   "phases": [
     {
-      "number": "10",
-      "name": "Three-OS CI Baseline",
-      "status": "complete"
+      "number": "14",
+      "name": "Contract and Vertical Tracer",
+      "status": "pending"
     },
     {
-      "number": "11",
-      "name": "Managed Lifecycle Verification",
-      "status": "complete"
+      "number": "15",
+      "name": "Durable Supervisor and Effect Ledger",
+      "status": "pending"
     },
     {
-      "number": "12",
-      "name": "Red-Main Guard",
-      "status": "complete"
+      "number": "16",
+      "name": "Composable Harness Roles",
+      "status": "pending"
     },
     {
-      "number": "13",
-      "name": "Dependency Candidate Promotion",
+      "number": "17",
+      "name": "GSD Lifecycle Bridge",
+      "status": "pending"
+    },
+    {
+      "number": "18",
+      "name": "Capability Fabric and Automatic Invocation",
+      "status": "pending"
+    },
+    {
+      "number": "19",
+      "name": "Structured Independent Review",
+      "status": "pending"
+    },
+    {
+      "number": "20",
+      "name": "General Tool Connectors",
+      "status": "pending"
+    },
+    {
+      "number": "21",
+      "name": "Natural Entry and Operator CLI",
+      "status": "pending"
+    },
+    {
+      "number": "22",
+      "name": "Release Proof",
       "status": "pending"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 13 of 4 · 75% · executing"
+    "command": "/gsd:discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-09-24T17:06:39.845Z"
+  "updated_at": "2026-09-29T08:41:45.540Z"
 }

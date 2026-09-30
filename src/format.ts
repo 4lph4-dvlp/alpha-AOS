@@ -32,6 +32,8 @@ import {
 } from "./core/project-plan.js";
 import type { PackProvenance, ProjectPackSyncResult } from "./core/project-pack-sync.js";
 import type { SupportMatrixReport, SupportTier } from "./core/support-matrix.js";
+import type { TaskApprovalResult, TaskContractPreview } from "./core/task-contract.js";
+import type { TaskRunRecord } from "./core/task-run.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1074,6 +1076,90 @@ export function formatUninstallResult(result: UninstallResult): string {
   if (result.recoveryReceipt) {
     lines.push(`Recovery receipt emitted (${result.recoveryReceipt.operationId}). Run manual commands for external packages.`);
   }
+  return lines.join("\n");
+}
+
+/**
+ * The reviewable task contract (CON-01, D-03): everything an approval binds,
+ * with the allowed paths and effect kinds rather than a per-file list, and the
+ * command that persists consent for exactly this digest.
+ */
+export function formatTaskContractPreview(preview: TaskContractPreview, command: string): string {
+  const contract = preview.contract;
+  const minutes = contract.resourcePolicy.maxWallTimeMinutes;
+  return [
+    `Task: ${contract.id} (revision ${contract.revision})`,
+    `Contract digest: ${preview.digest}`,
+    `Mode: ${contract.mode} — approving authorizes one single run of this revision only; autopilot stays off for every other task.`,
+    `Goal: ${contract.goal}`,
+    `Project root: ${contract.scope.projectRoot}`,
+    `Workflow: ${contract.scope.workflow} — ${contract.scope.summary}`,
+    `Allowed roots: ${contract.allowedRoots.join(", ")}`,
+    `Allowed effect kinds: ${contract.allowedEffects.join(", ")}`,
+    "Mandatory criteria:",
+    ...contract.criterion.map(
+      (criterion) =>
+        `  ${criterion.id}: ${criterion.title} — measured by ${criterion.measurement.entry}, expected exit ${criterion.measurement.expect.exitCode}`,
+    ),
+    `Agents: controller ${contract.agentPolicy.controller}, executor ${contract.agentPolicy.executor}, reviewer ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession})`,
+    `Wall-time limit: ${minutes === null ? "no overall limit" : `${minutes} minutes`}`,
+    `Approval: ${preview.approved ? "this digest is approved" : "not approved"}`,
+    "",
+    "Preview only. Nothing was written: approving is a separate act from looking (D-01).",
+    `Approve exactly this digest: ${command}`,
+  ].join("\n");
+}
+
+/** What a task approve did, or did not need to do. */
+export function formatTaskApproval(result: TaskApprovalResult): string {
+  return [
+    `Contract digest: ${result.contractDigest}`,
+    `Approval record: ${result.recordPath}`,
+    `Transaction: ${result.transactionId ?? "none"}`,
+    result.status === "already-approved"
+      ? "Already approved. No bytes were written and no transaction was opened."
+      : "Approved for a single run of this exact revision. Starting the run is a separate act.",
+  ].join("\n");
+}
+
+/**
+ * The first verdict screen (D-13): one row per mandatory criterion with its
+ * verdict, measured outcome, review verdict, artifact digest and reason. The
+ * executor claim is shown last and labelled, because it is never evidence.
+ */
+export function formatTaskRunReport(run: TaskRunRecord): string {
+  const artifact = run.artifact === null ? "none" : run.artifact.digest.slice(0, 12);
+  const rows = (run.verdict?.rows ?? []).map((row) => [
+    row.criterionId,
+    row.verdict,
+    `${row.measured.outcome} (exit ${row.measured.exitCode === null ? "none" : String(row.measured.exitCode)})`,
+    row.review === null ? "none" : row.review.verdict,
+    row.artifactDigest.slice(0, 12),
+    row.reason,
+  ]);
+  const lines = [
+    `Task: ${run.contractId} (revision ${run.revision})`,
+    `Status: ${run.status.toUpperCase()}${run.verdict?.refusal ? ` (refused: ${run.verdict.refusal})` : ""}`,
+    `Contract digest: ${run.contractDigest.slice(0, 12)}`,
+    `Artifact digest: ${artifact}`,
+    `Run: ${run.runId}`,
+    "",
+    rows.length === 0
+      ? "No criterion was judged."
+      : table(["Criterion", "Verdict", "Measured", "Review", "Artifact", "Reason"], rows),
+  ];
+  if (run.stopReason !== null) lines.push("", `Stop reason: ${run.stopReason}`);
+  const actions = [
+    ...(run.verdict?.rows ?? []).flatMap((row) => (row.nextAction === null ? [] : [`${row.criterionId}: ${row.nextAction}`])),
+    ...(run.nextAction === null ? [] : [run.nextAction]),
+  ];
+  if (actions.length > 0) lines.push("", `Next action: ${Array.from(new Set(actions)).join("; ")}`);
+  const claim = run.executor?.claim;
+  lines.push(
+    "",
+    `Executor claim (not evidence): ${claim?.status ?? "none"}, exit ${run.executor?.exitCode ?? "none"}`,
+    `Reviewer session: ${run.reviewer?.sessionId ?? "none"}`,
+  );
   return lines.join("\n");
 }
 

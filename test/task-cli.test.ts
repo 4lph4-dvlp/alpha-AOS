@@ -174,7 +174,14 @@ test("task report prints one verdict row per criterion from the recorded run", a
 
   const machine = await cli(fixture, ["report", "inventory-summary", "--run", run.runId, "--json"]);
   assert.equal(machine.exitCode, 0, machine.stderr.excerpt);
-  assert.deepEqual(JSON.parse(machine.stdout.excerpt), run);
+  // The JSON seam is the redacted envelope: session-named fields are withheld
+  // by key, and everything else is the run record exactly as persisted.
+  assert.ok(run.executor !== null && run.reviewer !== null);
+  assert.deepEqual(JSON.parse(machine.stdout.excerpt), {
+    ...run,
+    executor: { ...run.executor, sessionId: "[redacted:value]" },
+    reviewer: { ...run.reviewer, sessionId: "[redacted:value]" },
+  });
   assert.deepEqual(await listing(fixture.stateRoot), before);
 
   const missing = await cli(fixture, ["report", "no-such-task"]);

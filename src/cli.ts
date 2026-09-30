@@ -46,6 +46,8 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { getOfflineStatus } from "./core/status.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
+import { approveTaskContract, previewTaskContract, taskApproveCommand, type TaskContractPreview } from "./core/task-contract.js";
+import { readTaskReport } from "./core/task-run.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -84,7 +86,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupportMatrixTable, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskRunReport, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
 import {
@@ -147,6 +149,9 @@ Usage:
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
+  alpha-aos task preview <contract.json> [--json]
+  alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
+  alpha-aos task report <contract-id> [--run <run-id>] [--json]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
   alpha-aos doctor --matrix [--json]
@@ -172,6 +177,10 @@ Usage:
 
 Mutation commands are dry-run by default. Live apply and rollback are enabled only
 after the fixture transaction gate passes.
+
+Autopilot is off by default. "task approve --apply" records consent for exactly one
+reviewed contract digest: it applies only to that approved contract revision and
+authorizes a single run. Approving never starts anything and enables no other task.
 
 "doctor --discovery" is the free evidence: it runs only the discovery oracles that
 spend no model turn, needs no credential, runs on every platform, and records what
@@ -1597,6 +1606,61 @@ async function main(): Promise<void> {
       }
       return;
     }
+  }
+
+  if (command === "task") {
+    const subcommand = args[1] ?? "";
+    // D-02: this surface previews, approves and reads. Starting a run is a
+    // separate verb that arrives with the native ports, so it is not offered.
+    if (!["preview", "approve", "report"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, report.`);
+    }
+    // D-01: looking and consenting are different acts, so --apply belongs to
+    // approve alone. Ignoring it elsewhere would let a user believe a preview
+    // or a report had persisted something.
+    if (subcommand === "preview" && hasFlag(args, "--apply")) {
+      throw new Error("`task preview` has no --apply: it previews and persists nothing. Approve a reviewed contract with `alpha-aos task approve <contract.json> --contract-digest <digest> --apply`.");
+    }
+    if (subcommand === "report" && hasFlag(args, "--apply")) {
+      throw new Error("`task report` has no --apply: it reads and persists nothing. Approve a reviewed contract with `alpha-aos task approve <contract.json> --contract-digest <digest> --apply`.");
+    }
+    const context = observableContext();
+    const stateRoot = userStateRoot();
+    const parts = positional(args.slice(2), ["--contract-digest", "--run"]);
+    const operand = parts[0];
+
+    if (subcommand === "report") {
+      if (operand === undefined) throw new Error("task report requires a contract id: alpha-aos task report <contract-id> [--run <run-id>]");
+      const runId = optionValue(args, "--run");
+      const run = await readTaskReport({ stateRoot, contractId: operand, ...(runId === null ? {} : { runId }) });
+      if (run === null) throw new Error(`no run recorded for task ${operand}${runId === null ? "" : ` with run id ${runId}`}`);
+      print(run, json, formatTaskRunReport(run), context);
+      return;
+    }
+
+    if (operand === undefined) throw new Error(`task ${subcommand} requires a contract file: alpha-aos task ${subcommand} <contract.json>`);
+    const showPreview = (preview: TaskContractPreview, command: string): void => {
+      print(
+        { applied: false, digest: preview.digest, approved: preview.approved, command, contract: preview.contract },
+        json,
+        formatTaskContractPreview(preview, command),
+        context,
+      );
+    };
+    const apply = hasFlag(args, "--apply");
+    const reviewed = optionValue(args, "--contract-digest");
+    if (subcommand === "preview" || !apply || reviewed === null) {
+      const preview = await previewTaskContract({ contractPath: operand, stateRoot });
+      const command = taskApproveCommand({ contractPath: preview.sourcePath, digest: preview.digest });
+      if (subcommand === "preview" || !apply) {
+        showPreview(preview, command);
+        return;
+      }
+      throw new Error(`task approve --apply requires the digest that was reviewed. The current contract digest is ${preview.digest}. Run: ${command}`);
+    }
+    const result = await approveTaskContract({ contractPath: operand, expectedDigest: reviewed, stateRoot });
+    print(result, json, formatTaskApproval(result), context);
+    return;
   }
 
   if (command === "tree") {

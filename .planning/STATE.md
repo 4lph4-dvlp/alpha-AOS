@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v0.2.0
 milestone_name: Universal Autonomous Work
 current_phase: 14
-current_phase_name: contract-and-vertical-tracer
+current_phase_name: Contract and Vertical Tracer
 status: executing
-stopped_at: "Completed 14-06-PLAN.md (halted: live tracer NOT PROVEN, decision D)"
-last_updated: "2026-09-30T14:45:10.136Z"
-last_activity: 2026-09-30
-last_activity_desc: Phase 14 execution started
-state_head: 6c3fa39ab79309f3219f0c3d50d98baaa5cb0494
+stopped_at: Completed 14-07-PLAN.md
+last_updated: "2026-09-30T15:47:28.354Z"
+last_activity: 2026-10-01
+last_activity_desc: Completed 14-07 controller git authority (git-dir-profile)
+state_head: 63417d430622f76da44143f62e14fb7dda5629bb
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 8
-  completed_plans: 6
+  completed_plans: 7
   percent: 0
 ---
 
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 ## Current Position
 
-Phase: 14 (contract-and-vertical-tracer) — READY TO EXECUTE
-Plan: 6 of 6
+Phase: 14 (Contract and Vertical Tracer) — EXECUTING
+Plan: 8 of 8 (14-07 complete; 14-08 next)
 Status: Ready to execute
-Last activity: 2026-09-30 — Phase 14 execution started
+Last activity: 2026-10-01 — Completed 14-07 controller git authority (git-dir-profile)
 
 ## Performance Metrics
 
@@ -128,6 +128,7 @@ Last activity: 2026-09-30 — Phase 14 execution started
 | Phase 14 P04 | 23min | 2 tasks | 7 files |
 | Phase 14 P05 | 28 min | 2 tasks | 8 files |
 | Phase 14 P06 | 1h 55m | 1 tasks | 9 files |
+| Phase 14 P07 | 55min | 3 tasks | 12 files |
 
 ## Accumulated Context
 
@@ -287,6 +288,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: 14-05: the wall-time limit is checked after GSD verification and again immediately before the reviewer is launched
 - [Phase 14]: 14-06: User decision D - RUN-01 live proof (14-06-02) and the defect/stale proof (14-06-03) recorded NOT PROVEN on this host; Codex sandbox, exec policy, supervisor commit behaviour and the 14-05 GSD evidence contract unchanged
 - [Phase 14]: 14-06: Research assumption A3 proven - codex exec drives the installed $gsd-quick (run munx7h9w-b9ec114f); only .gsd/dispatch-isolation-sentinel.json is GSD runtime state in the effect audit
+- [Phase 14]: Phase 14-07: controller git authority is option git-dir-profile (alpha-aos-task permission profile naming only the project's git directory with config/hooks/info read-only, --ignore-rules on every controller vector, run-scoped safe.directory GIT_CONFIG_GLOBAL); supersedes 14-06 user decision D
+- [Phase 14]: Phase 14-07: the approval record binds the canonical granted gitDirectory; the start gate refuses git-directory-changed before any run record, and an approval without the field compares as null
+- [Phase 14]: Phase 14-07: the user overrode GSD's halt-propagation gate (14-07/14-08 blocked_by 14-06 halted) for this gap-closure run because 14-07 Task 1 supersedes 14-06 decision D
 
 ### Pending Todos
 
@@ -372,8 +376,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-30T10:29:08.783Z
-Stopped at: Completed 14-06-PLAN.md (halted: live tracer NOT PROVEN, decision D)
+Last session: 2026-09-30T15:47:10.657Z
+Stopped at: Completed 14-07-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

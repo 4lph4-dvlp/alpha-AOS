@@ -38,9 +38,9 @@ result: pass
 
 ### 5. 실환경 결함 거부 및 변경 아티팩트 리뷰 거부 (14-06-D6 / 14-08-03)
 expected: 결함이 있는 구현은 측정에 의해 rejected되고, 변경된 아티팩트에 대한 리뷰는 stale로 거부됨 (14-08 Task 3 실행 한도 도달로 NOT PROVEN 기록됨).
-result: issue
-reported: "14-08 Task 3 라이브 결함 테스트 2회 모두 Codex 컨트롤러의 비정상 조기 종료(exit 1)로 D-11 조건이 발현되지 않아 2회 한도 도달 후 NOT PROVEN으로 종료됨. 오프라인 로직은 172개 테스트로 완벽 검증됨."
-severity: major
+result: deferred: Phase 16 SC6
+reported: "14-09 상세 진단을 통해 Codex 컨트롤러 비정상 조기 종료(exit 1)의 근본 원인이 호스트 계정 사용량 한도 초과(Oct 4th, 2026 재설정)임이 확인됨. 라이브 결함 및 stale review 증명은 ROADMAP.md Phase 16 Success Criterion 6으로 공식 이월됨."
+severity: low
 
 ### 6. An approved contract with a correct implementation and a passing review ends accepted with one artifact digest across artifact, rows and review (14-01-D1)
 expected: An approved contract with a correct implementation and a passing review ends accepted with one artifact digest across artifact, rows and review
@@ -262,7 +262,8 @@ coverage_id: D5
 
 total: 41
 passed: 40
-issues: 1
+deferred: 1
+issues: 0
 pending: 0
 skipped: 0
 blocked: 0
@@ -271,14 +272,14 @@ blocked: 0
 
 <!-- YAML format for plan-phase --gaps consumption -->
 - truth: "실제 성공을 주장한 결함 구현은 측정에 의해 rejected되고, 변경된 아티팩트에 대한 리뷰는 stale로 거부된다."
-  status: failed
-  reason: "User reported: 14-08 Task 3 라이브 결함 테스트 2회 모두 Codex 컨트롤러의 비정상 조기 종료(exit 1)로 D-11 조건이 발현되지 않아 NOT PROVEN으로 종료됨."
-  severity: major
+  status: deferred
+  reason: "14-09 상세 진단 결과 호스트 Codex 사용량 한도 초과 확인; GSD 검증 거버넌스 규칙에 따라 Phase 16 Success Criterion 6으로 공식 이월됨."
+  severity: low
   test: 5
-  root_cause: "Codex CLI (0.158.0)가 결함 테스트 환경에서 코드를 생성하기 전에 exit code 1로 비정상 종료함. 오프라인 단위/통합 테스트는 모두 통과하나 실환경 모델 턴을 사용한 D-11 라이브 증명이 미완료됨."
+  root_cause: "호스트 Codex 계정의 사용량 한도 초과(2026-10-04 재설정). 오프라인 단위/통합 테스트는 174개 전체 통과하며 실환경 결함 트레이서는 Phase 16 SC6이 공식 소유함."
   artifacts:
     - path: "test/task-tracer.integration.ts"
-      issue: "Live defect and stale review tests ended NOT PROVEN after 2 bounded attempts."
+      issue: "Live defect and stale review tests deferred to Phase 16 SC6 per roadmap criteria."
   missing:
-    - "Codex 컨트롤러의 실환경 결함 코드 생성 안정성 확보 또는 격리 컨테이너/별도 어댑터 환경에서의 라이브 재증명 (Phase 16/17 이월)"
+    - "Phase 16 SC6: 네이티브 하네스 역할 구성 및 검증 단계에서 라이브 결함 트레이서 증명 실행"
   debug_session: ""

@@ -58,7 +58,7 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 8/9 plans executed (14-07, 14-08 and 14-09 close the 14-VERIFICATION / 14-UAT gaps)
+**Plans:** 9/9 plans executed (14-07, 14-08 and 14-09 close the 14-VERIFICATION / 14-UAT gaps)
 
 Plans:
 **Wave 1**
@@ -89,7 +89,7 @@ Plans:
 
 **Wave 7 — gap closure** *(blocked on Wave 6 completion)*
 
-- [ ] 14-09-PLAN.md — Deep Codex controller diagnostics capture, live execution proof of defect rejection and stale review, or formalize legitimate roadmap deferral to Phase 16/17
+- [x] 14-09-PLAN.md — Deep Codex controller diagnostics capture, live execution proof of defect rejection and stale review, or formalize legitimate roadmap deferral to Phase 16/17
 
 ### Phase 15: Durable Supervisor and Effect Ledger
 
@@ -127,6 +127,7 @@ Plans:
 3. Two simultaneous candidate controllers cannot both mutate one project's GSD state; a losing controller sees a coded lock result without restoring the winner's work.
 4. A same-harness reviewer runs in a fresh, separately identified read-only session; different-model/harness policy is applied when specified.
 5. Usage and cost output identifies measured fields, provider/model and unknown values without asserting that an agent is free by brand.
+6. The Codex controller reliably executes GSD quick defect implementation under its native/isolated environment without premature non-zero exits, and the Phase 14 live defect tracer (14-06-03/14-08-03 seeded defect rejection and stale review substitution) reaches verified accepted/rejected verdicts.
 
 **Verification:** Adapter contract suite, adversarial lease fixtures, exact-version canaries, support-matrix checks and representative live handoffs. Unsupported native surfaces remain visible rather than simulated.
 

@@ -4,18 +4,18 @@ milestone: v0.2.0
 milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: contract-and-vertical-tracer
-status: executing
-stopped_at: Completed 14-07-PLAN.md
-last_updated: "2026-09-30T18:59:50.180Z"
+status: complete
+stopped_at: Completed 14-09-PLAN.md
+last_updated: "2026-09-30T19:35:00.000Z"
 last_activity: 2026-10-01
-last_activity_desc: Completed 14-07 controller git authority (git-dir-profile)
-state_head: 37e5ca1fab8e1452cd13550e150cdc585360b41b
+last_activity_desc: Completed 14-09 deep diagnostics and formalized Phase 16 SC6 deferral
+state_head: 89ee54a
 progress:
   total_phases: 9
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 9
-  completed_plans: 7
-  percent: 0
+  completed_plans: 9
+  percent: 11
 ---
 
 # Project State
@@ -29,10 +29,10 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 ## Current Position
 
-Phase: 14 (contract-and-vertical-tracer) — READY TO EXECUTE
-Plan: 8 of 8 (14-07 complete; 14-08 next)
-Status: Ready to execute
-Last activity: 2026-10-01 — Completed 14-07 controller git authority (git-dir-profile)
+Phase: 14 (contract-and-vertical-tracer) — COMPLETE
+Plan: 9 of 9 (14-09 complete; Phase 14 complete)
+Status: Complete
+Last activity: 2026-10-01 — Completed 14-09 deep diagnostics and formalized Phase 16 SC6 deferral
 
 ## Performance Metrics
 
@@ -129,6 +129,8 @@ Last activity: 2026-10-01 — Completed 14-07 controller git authority (git-dir-
 | Phase 14 P05 | 28 min | 2 tasks | 8 files |
 | Phase 14 P06 | 1h 55m | 1 tasks | 9 files |
 | Phase 14 P07 | 55min | 3 tasks | 12 files |
+| Phase 14 P08 | 40 min | 3 tasks | 8 files |
+| Phase 14 P09 | 20 min | 2 tasks | 5 files |
 
 ## Accumulated Context
 
@@ -291,6 +293,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: Phase 14-07: controller git authority is option git-dir-profile (alpha-aos-task permission profile naming only the project's git directory with config/hooks/info read-only, --ignore-rules on every controller vector, run-scoped safe.directory GIT_CONFIG_GLOBAL); supersedes 14-06 user decision D
 - [Phase 14]: Phase 14-07: the approval record binds the canonical granted gitDirectory; the start gate refuses git-directory-changed before any run record, and an approval without the field compares as null
 - [Phase 14]: Phase 14-07: the user overrode GSD's halt-propagation gate (14-07/14-08 blocked_by 14-06 halted) for this gap-closure run because 14-07 Task 1 supersedes 14-06 decision D
+- [Phase 14]: Phase 14-08: live accept test passed (14-08-02 run muoc4fm2-00d54647 accepted); git control file tampering and history rewrites are guarded and verified
+- [Phase 14]: Phase 14-09: Task 1 deep diagnostics captured Codex controller CLI exit 1 root cause as host usage limit exhaustion (resets Oct 4, 2026); live defect rejection and stale review proof is formally deferred to Phase 16 Success Criterion 6 in ROADMAP.md per GSD verification rules
 
 ### Pending Todos
 
@@ -340,7 +344,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - src/core/path-boundary.ts records component identity as Number(info.ino) and recheckPathProof compares those doubles, so two different inodes within one ulp compare equal and a TOCTOU swap can go unnoticed. Same root cause as the identity bug 02-13 fixed in evidence.ts; left open because PathProof.inode is a typed number|null in the public shape and widening it needs its own plan.
 - Open from 02-VERIFICATION (2026-09-09): a paste-ready re-approval command can name a path whose segment has been replaced by a redaction token, so the command as printed does not resolve. Reproduced on a scratch path with a UUID-shaped segment. The refusal, its exit code and its digests are all correct and an ordinary repository path never triggers it, so this is presentation, not safety — but CI checkout paths and temp dirs do carry UUIDs. Phase 6/7 decides whether a redacted path suppresses the runnable-command line instead of emitting an unresolvable one.
 - Open from 03-04 (2026-09-10): the suite baseline is now 545 tests (539 pass, 0 fail, 6 skipped) and npm run build:check reports 72 inputs / 138 outputs. Plan 03-05 must raise its own baseline to 545 rather than 522.
-- Phase 14 live tracer NOT PROVEN on this host: Codex workspace-write keeps .git read-only, so GSD quick cannot commit (run munx7h9w-b9ec114f blocked). .git write authority deferred to Phase 16/17 or a sealed/container adapter; RUN-01, REV-01 and the live half of AUTO-02 remain open
+- Phase 14 live accept tracer proven (14-08-02 run muoc4fm2-00d54647 green); live defect tracer and stale review proof (14-06-03/14-08-03/14-09-02) formally deferred to Phase 16 SC6 in ROADMAP.md due to host Codex usage limit exhaustion
 
 ## Deferred Items
 
@@ -349,7 +353,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | debug_sessions | codex-native-verification-gap | diagnosed | 2026-09-23 | v0.1.0 |
 | verification_gaps | 07/07-VERIFICATION.md (G-07-2) | gaps_found | 2026-09-23 | v0.1.0 |
 | Isolation | OS/container-backed `sealed` mode | Deferred | Roadmap creation | v2 |
-| verification_gaps | 14-06 live tracer (14-06-02/03) NOT PROVEN: `.git` write authority for GSD quick under Codex `workspace-write` (user decision D) | Deferred to Phase 16/17 or sealed/container adapter | 2026-09-30 | v0.2.0 |
+| verification_gaps | 14-06 live tracer (14-06-02/03) NOT PROVEN: live defect tracer and stale review proof | Deferred to Phase 16 SC6 in ROADMAP.md | 2026-10-01 | v0.2.0 |
 | Codex host state | sticky DENY entries that earlier Codex workspace-write sessions leave on a project's .git (T-14-51, host probe P6; this repository's .git carries 6) make the 14-07 git-directory grant fail closed; detecting them, and a no-spend git-directory grant probe before a task approval is consumed, are unplanned | Deferred — owner unassigned, candidate Phase 16 | 2026-10-01 | v0.2.0 |
 | Codex host state | trusted-project entries Codex writes into the user's Codex config for alpha-AOS task fixture directories (T-14-54); alpha-AOS never writes that file, so leftover entries stay until a user-approved cleanup exists; per-invocation counts are in 14-08-SUMMARY.md | Deferred — owner unassigned, candidate Phase 16 | 2026-10-01 | v0.2.0 |
 | Codex sandbox | the alpha-aos-task permission profile keeps :tmpdir writable at parity with legacy workspace-write (T-14-50); narrowing it to a run-scoped directory is unplanned | Deferred — owner unassigned, candidate Phase 15 or 16 | 2026-10-01 | v0.2.0 |

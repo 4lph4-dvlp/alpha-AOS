@@ -5,16 +5,16 @@ milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: Contract and Vertical Tracer
 status: executing
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-09-30T00:52:28.881Z"
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-09-30T04:32:41.538Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 14 execution started
-state_head: 6e65a1578742c0a17d448369738cbeded2c393ea
+state_head: 59353b337f230df20c595ac43c0300a49729dda6
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 6
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 ## Current Position
 
 Phase: 14 (Contract and Vertical Tracer) — EXECUTING
-Plan: 2 of 6
+Plan: 3 of 6
 Status: Ready to execute
 Last activity: 2026-09-30 — Phase 14 execution started
 
@@ -123,6 +123,7 @@ Last activity: 2026-09-30 — Phase 14 execution started
 | Phase 11 P05 | 45 min | 2 tasks | 6 files |
 | Phase 11 P06 | 40 min | 2 tasks | 7 files |
 | Phase 14 P01 | 26 min | 2 tasks | 11 files |
+| Phase 14 P02 | 27min | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -269,6 +270,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: 14-01: Task contract digest is reviewedDigest(task-contract) over a fixed-key-order view; approval binds one exact recomputed digest to single-run consent
 - [Phase 14]: 14-01: startTask verdict ignores the executor claim; measured fail rejects, review only confirms a measured pass, artifact re-hashed before the verdict
 - [Phase 14]: 14-01: canonicalProjectRoot uses resolve(scope.projectRoot) until 14-02 switches to canonicalizeWithMissingTail
+- [Phase 14]: 14-02: the contract digest canonicalizes text (NFC), paths and expected JSON; any post-approval change is contract-drift naming changed fields, and changed content needs a new revision (revision-reused)
+- [Phase 14]: 14-02: loadTaskContract refuses escaping or reserved roots (.git, .planning, .alpha-aos), out-of-root entries, gsd-quick without local-commit, hermes controllers and credential env values; approvals bind the canonical project root (root-changed)
 
 ### Pending Todos
 
@@ -352,8 +355,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-30T00:52:28.840Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-09-30T04:32:22.856Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

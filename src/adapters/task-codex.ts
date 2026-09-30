@@ -224,9 +224,12 @@ function numericFields(value: unknown): Record<string, number> | null {
 
 function eventMessage(event: Record<string, unknown>): string | null {
   const error = event.error;
+  if (typeof error === "string") return boundedSentence(error, EVENT_MESSAGE_LIMIT);
   if (typeof error === "object" && error !== null && typeof (error as Record<string, unknown>).message === "string") {
     return boundedSentence((error as Record<string, unknown>).message as string, EVENT_MESSAGE_LIMIT);
   }
+  if (typeof event.last_error === "string") return boundedSentence(event.last_error, EVENT_MESSAGE_LIMIT);
+  if (typeof event.details === "string") return boundedSentence(event.details, EVENT_MESSAGE_LIMIT);
   if (typeof event.message === "string") return boundedSentence(event.message, EVENT_MESSAGE_LIMIT);
   return null;
 }
@@ -386,11 +389,13 @@ function notLaunched(processCode: string, detail: string, extra: Partial<Control
 }
 
 function failureDetail(result: ProcessResult, events: CodexEvents, claimIssue: string | null): string | null {
+  const fallbackStderr = result.stderr.excerpt.trim() !== "" ? boundedSentence(result.stderr.excerpt.trim(), DETAIL_LIMIT) : null;
+  const message = events.message ?? fallbackStderr;
   if (result.code !== "ok") {
-    return `codex exec ended with ${result.code} (exit ${String(result.exitCode)})${events.message === null ? "" : `: ${events.message}`}`;
+    return `codex exec ended with ${result.code} (exit ${String(result.exitCode)})${message === null ? "" : `: ${message}`}`;
   }
   if (events.terminal !== "completed") {
-    return `codex exec exited 0 but its terminal event is ${events.terminal}${events.message === null ? "" : `: ${events.message}`}`;
+    return `codex exec exited 0 but its terminal event is ${events.terminal}${message === null ? "" : `: ${message}`}`;
   }
   return claimIssue;
 }

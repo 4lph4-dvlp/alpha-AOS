@@ -122,6 +122,11 @@ async function previewApproveStart(
   // before it was written.
   context.diagnostic(`run record ${JSON.stringify(run)}`);
   if (start.result.stderr.excerpt.trim() !== "") context.diagnostic(`task start stderr ${start.result.stderr.excerpt.slice(0, 4000)}`);
+  if (start.result.exitCode !== 0 || run.executor?.claim === null) {
+    context.diagnostic(
+      `previewApproveStart failure diagnostic: exitCode ${String(start.result.exitCode)}, processCode ${run.executor?.processCode ?? "none"}, terminal ${run.executor?.terminal ?? "none"}, detail: ${run.executor?.detail ?? "none"}`,
+    );
+  }
   return { start: start.result, printed, run, ms: start.ms };
 }
 
@@ -410,6 +415,12 @@ test("a real run that claims success with wrong JSON is rejected by measurement"
   defectContractHolder = defectContract;
 
   if (run.executor?.claim?.status !== "completed" || run.executor?.exitCode !== 0 || run.gsd?.status !== "verified") {
+    context.diagnostic(
+      `defect run failure diagnostic: exitCode ${String(run.executor?.exitCode)}, claim ${run.executor?.claim?.status ?? "none"}, detail: ${run.executor?.detail ?? "none"}, gsd: ${run.gsd?.status ?? "none"}`,
+    );
+    if (run.executor?.detail) {
+      context.diagnostic(`defect run executor detail excerpt: ${run.executor.detail}`);
+    }
     throw new Error(
       `NOT PROVEN: D-11 condition not exercised (run ${run.runId}, claim ${run.executor?.claim?.status ?? "none"}, exitCode ${String(run.executor?.exitCode)}, gsd ${run.gsd?.status ?? "none"})`,
     );

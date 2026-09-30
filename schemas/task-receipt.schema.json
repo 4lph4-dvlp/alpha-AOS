@@ -222,7 +222,8 @@
                     },
                     { "type": "null" }
                   ]
-                }
+                },
+                "detail": { "type": ["string", "null"] }
               }
             },
             { "type": "null" }

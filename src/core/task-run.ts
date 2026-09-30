@@ -198,6 +198,7 @@ export interface TaskRunExecutor {
   processCode: string;
   terminal: string;
   claim: ExecutorClaim | null;
+  detail: string | null;
 }
 
 export interface TaskRunReviewer {
@@ -664,6 +665,7 @@ function executorBlock(result: ControllerDispatchResult): TaskRunExecutor {
                 : { effect: result.claim.authorityRequest.effect, reason: result.claim.authorityRequest.reason },
             gsdQuickId: result.claim.gsdQuickId,
           },
+    detail: result.detail,
   };
 }
 

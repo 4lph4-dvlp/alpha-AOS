@@ -339,6 +339,47 @@ test("a codex event stream ending in turn.failed is failed with a bounded messag
   assert.ok(parsed.message.length <= 300, "the failure message is bounded");
 });
 
+test("parseCodexEvents extracts string errors, last_error and details", () => {
+  const parsedStringError = parseCodexEvents(
+    excerpt(
+      jsonl(
+        { type: "thread.started", thread_id: "thread-err1" },
+        { type: "turn.started" },
+        { type: "turn.failed", error: "top-level string error" },
+      ),
+    ),
+    false,
+  );
+  assert.equal(parsedStringError.terminal, "failed");
+  assert.equal(parsedStringError.message, "top-level string error");
+
+  const parsedLastError = parseCodexEvents(
+    excerpt(
+      jsonl(
+        { type: "thread.started", thread_id: "thread-err2" },
+        { type: "turn.started" },
+        { type: "turn.failed", last_error: "last error description" },
+      ),
+    ),
+    false,
+  );
+  assert.equal(parsedLastError.terminal, "failed");
+  assert.equal(parsedLastError.message, "last error description");
+
+  const parsedDetails = parseCodexEvents(
+    excerpt(
+      jsonl(
+        { type: "thread.started", thread_id: "thread-err3" },
+        { type: "turn.started" },
+        { type: "error", details: "error event details" },
+      ),
+    ),
+    false,
+  );
+  assert.equal(parsedDetails.terminal, "failed");
+  assert.equal(parsedDetails.message, "error event details");
+});
+
 test("a capped codex event stream is not-retained rather than a guessed completion", () => {
   const stream = jsonl({ type: "thread.started", thread_id: "thread-789" }, { type: "turn.completed", usage: {} });
   assert.equal(parseCodexEvents(excerpt(stream), true).terminal, "not-retained");
@@ -498,6 +539,26 @@ test("a deadline already in the past returns processCode deadline without launch
   assert.equal(result.processCode, "deadline");
   assert.equal(result.claim, null);
   assert.equal(calls.length, 0, "the runner is never called");
+});
+
+test("runCodexController populates detail with stderr excerpt on non-zero exit without turn events", async (context) => {
+  const request = await controllerRequest(context, null);
+  const { runner } = recordingRunner(async () =>
+    processResult("", {
+      code: "non-zero-exit",
+      exitCode: 1,
+      stderr: excerpt("SyntaxError: Unexpected token in JSON or Node crash"),
+    }),
+  );
+  const result = await runCodexController(request, {
+    runner,
+    resolve: () => join(request.scratchRoot, "codex.exe"),
+    now: () => FIXED_NOW,
+  });
+  assert.equal(result.processCode, "non-zero-exit");
+  assert.equal(result.exitCode, 1);
+  assert.ok(result.detail !== null);
+  assert.match(result.detail, /codex exec ended with non-zero-exit \(exit 1\): SyntaxError: Unexpected token/u);
 });
 
 test("an npm-style codex.cmd shim resolves to the running node binary plus its own script", async (context) => {

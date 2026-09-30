@@ -38,7 +38,9 @@ result: pass
 
 ### 5. 실환경 결함 거부 및 변경 아티팩트 리뷰 거부 (14-06-D6 / 14-08-03)
 expected: 결함이 있는 구현은 측정에 의해 rejected되고, 변경된 아티팩트에 대한 리뷰는 stale로 거부됨 (14-08 Task 3 실행 한도 도달로 NOT PROVEN 기록됨).
-result: [pending]
+result: issue
+reported: "14-08 Task 3 라이브 결함 테스트 2회 모두 Codex 컨트롤러의 비정상 조기 종료(exit 1)로 D-11 조건이 발현되지 않아 2회 한도 도달 후 NOT PROVEN으로 종료됨. 오프라인 로직은 172개 테스트로 완벽 검증됨."
+severity: major
 
 ### 6. An approved contract with a correct implementation and a passing review ends accepted with one artifact digest across artifact, rows and review (14-01-D1)
 expected: An approved contract with a correct implementation and a passing review ends accepted with one artifact digest across artifact, rows and review

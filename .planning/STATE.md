@@ -5,16 +5,16 @@ milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: Contract and Vertical Tracer
 status: executing
-stopped_at: Phase 14 context gathered
-last_updated: "2026-09-30T00:07:22.472Z"
-last_activity: 2026-09-29
-last_activity_desc: Milestone v0.2.0 started
-state_head: a42b3bd7d9df93c9664f10cbaa46b8d039cfe9b9
+stopped_at: Completed 14-01-PLAN.md
+last_updated: "2026-09-30T00:52:28.881Z"
+last_activity: 2026-09-30
+last_activity_desc: Phase 14 execution started
+state_head: 6e65a1578742c0a17d448369738cbeded2c393ea
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 6
-  completed_plans: 0
+  completed_plans: 1
   percent: 0
 ---
 
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** v0.2.0 roadmap approved; Phase 14 — Contract and Vertical Tracer is next
+**Current focus:** Phase 14 — Contract and Vertical Tracer
 
 ## Current Position
 
-Phase: 14 (Contract and Vertical Tracer) — READY TO EXECUTE
-Plan: —
+Phase: 14 (Contract and Vertical Tracer) — EXECUTING
+Plan: 2 of 6
 Status: Ready to execute
-Last activity: 2026-09-29 — Milestone v0.2.0 started
+Last activity: 2026-09-30 — Phase 14 execution started
 
 ## Performance Metrics
 
@@ -122,6 +122,7 @@ Last activity: 2026-09-29 — Milestone v0.2.0 started
 | Phase 11 P04 | 34 min | 3 tasks | 7 files |
 | Phase 11 P05 | 45 min | 2 tasks | 6 files |
 | Phase 11 P06 | 40 min | 2 tasks | 7 files |
+| Phase 14 P01 | 26 min | 2 tasks | 11 files |
 
 ## Accumulated Context
 
@@ -265,6 +266,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 11]: 11-04: interactive uninstall [y/N] confirmation evidenced through a WSL util-linux script pty (prompt shown, n aborts byte-identical, y proceeds)
 - [Phase 11]: 11-05: LIFE-04 provisional GAP - uninstall removes same-named user MCP entries and skills with no receipt on all five harnesses; user edits and post-preview drift are not refused (candidates LIFE-04/C1..C5)
 - [Phase 11]: 11-05: LIFE-07 provisional GAP - external changes shown and verified, but install failure rollback writes no recovery receipt; uninstall compensation commands cite obsolete packages (@enterprise-coding-companion/companion) and wrong GSD paths (candidates LIFE-07/C1..C4)
+- [Phase 14]: 14-01: Task contract digest is reviewedDigest(task-contract) over a fixed-key-order view; approval binds one exact recomputed digest to single-run consent
+- [Phase 14]: 14-01: startTask verdict ignores the executor claim; measured fail rejects, review only confirms a measured pass, artifact re-hashed before the verdict
+- [Phase 14]: 14-01: canonicalProjectRoot uses resolve(scope.projectRoot) until 14-02 switches to canonicalizeWithMissingTail
 
 ### Pending Todos
 
@@ -348,9 +352,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-29T10:43:28.813Z
-Stopped at: Phase 14 context gathered
-Resume file: .planning/phases/14-contract-and-vertical-tracer/14-CONTEXT.md
+Last session: 2026-09-30T00:52:28.840Z
+Stopped at: Completed 14-01-PLAN.md
+Resume file: None
 
 ## Operator Next Steps
 

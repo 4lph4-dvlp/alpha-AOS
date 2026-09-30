@@ -58,12 +58,12 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 
 Plans:
 **Wave 1**
 
-- [ ] 14-01-PLAN.md — Tracer: approved contract through startTask to a measured, reviewed verdict receipt; `task preview|approve|report` CLI
+- [x] 14-01-PLAN.md — Tracer: approved contract through startTask to a measured, reviewed verdict receipt; `task preview|approve|report` CLI
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

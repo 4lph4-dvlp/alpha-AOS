@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, realpath, symlink, unlink } from "node:fs/promises";
+import { mkdir, readdir, readFile, realpath, symlink, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
@@ -11,10 +11,24 @@ import {
   readTaskApprovals,
   TaskContractError,
   taskContractDigest,
+  taskSchema,
   type TaskContract,
   type TaskContractPreview,
 } from "../src/core/task-contract.js";
-import { createTaskFixture, inventorySummaryContract, writeTaskContract, type TaskFixture } from "./helpers/task-fixture.js";
+import { listTaskRuns, TaskRunError } from "../src/core/task-run.js";
+import { validateManagedDocument } from "../src/core/validation.js";
+import {
+  createTaskFixture,
+  fixturePorts,
+  inventorySummaryContract,
+  passingReview,
+  referenceControllerPort,
+  startFixtureTask,
+  staticReviewerPort,
+  writeTaskContract,
+  type TaskFixture,
+} from "./helpers/task-fixture.js";
+import { gitCommand } from "./helpers/git-fixture.js";
 
 const HEX64 = /[0-9a-f]{64}/u;
 
@@ -403,6 +417,127 @@ test("a project root retargeted after approval is refused as root-changed", asyn
     isCode("root-changed", (message) => {
       assert.ok(message.includes(approval?.canonicalProjectRoot ?? "<none>"), message);
       assert.ok(message.includes(retargeted), message);
+    }),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 14-07 Task 3: the approved git directory (CON-01, CON-03, AUTO-02, D-04)
+// ---------------------------------------------------------------------------
+
+async function canonicalGitDirectory(projectRoot: string): Promise<string> {
+  const root = await canonicalizeWithMissingTail(projectRoot);
+  assert.equal(root.reason, null);
+  return join(root.canonical, ".git");
+}
+
+async function stateListing(root: string): Promise<string[]> {
+  try {
+    return (await readdir(root, { recursive: true })).map((entry) => entry.replaceAll("\\", "/")).sort();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+function moveGitDirectory(fixture: TaskFixture): string {
+  const moved = join(fixture.scratch, "moved.git");
+  const result = gitCommand(fixture.projectRoot, ["init", "--separate-git-dir", moved]);
+  assert.ok(result.ok, result.stderr);
+  return moved;
+}
+
+test("preview names the git directory local-commit grants and writes nothing", async (context) => {
+  const fixture = await createTaskFixture(context);
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const before = await stateListing(fixture.stateRoot);
+  const preview = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  assert.deepEqual(preview.gitAuthority, {
+    grant: "git-directory",
+    gitDirectory: await canonicalGitDirectory(fixture.projectRoot),
+    layout: "in-tree",
+    reason: null,
+  });
+  assert.deepEqual(await stateListing(fixture.stateRoot), before);
+});
+
+test("preview of a project without .git grants no git directory and names the resolver reason", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const bare = join(fixture.scratch, "no-git-project");
+  await mkdir(bare, { recursive: true });
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(bare));
+  const preview = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  assert.deepEqual(preview.gitAuthority, {
+    grant: "none",
+    gitDirectory: null,
+    layout: "missing",
+    reason: "the project root holds no .git, so there is no git directory to grant",
+  });
+});
+
+test("approval records the canonical granted git directory and the record validates, with or without the field", async (context) => {
+  const fixture = await createTaskFixture(context);
+  await approveOriginal(fixture);
+  const [approval] = await readTaskApprovals({ stateRoot: fixture.stateRoot, contractId: "inventory-summary" });
+  assert.ok(approval !== undefined);
+  assert.equal(approval.gitDirectory, await canonicalGitDirectory(fixture.projectRoot));
+
+  const schema = await taskSchema("task-receipt");
+  const withField = validateManagedDocument({ text: JSON.stringify(approval), format: "json", kind: "task-receipt", schema });
+  assert.equal(withField.ok, true, JSON.stringify(withField.issues));
+  const { gitDirectory: _dropped, ...legacy } = approval;
+  const withoutField = validateManagedDocument({ text: JSON.stringify(legacy), format: "json", kind: "task-receipt", schema });
+  assert.equal(withoutField.ok, true, JSON.stringify(withoutField.issues));
+  const nullField = validateManagedDocument({ text: JSON.stringify({ ...legacy, gitDirectory: null }), format: "json", kind: "task-receipt", schema });
+  assert.equal(nullField.ok, true, JSON.stringify(nullField.issues));
+});
+
+test("a git directory moved after approval refuses the start as git-directory-changed before any run record exists", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approveOriginal(fixture);
+  const approved = await canonicalGitDirectory(fixture.projectRoot);
+  const moved = await realpath(moveGitDirectory(fixture));
+
+  await assert.rejects(
+    assertTaskStartable({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot }),
+    isCode("git-directory-changed", (message) => {
+      assert.ok(message.includes(approved), message);
+      assert.ok(message.includes(moved), message);
+      assert.match(message, /increase revision to 2/u);
+      assert.ok(message.includes("alpha-aos task preview"), message);
+    }),
+  );
+
+  await assert.rejects(
+    startFixtureTask(fixture, {
+      ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+      expectedDigest: digest,
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof TaskContractError || error instanceof TaskRunError, String(error));
+      assert.equal(error.code, "git-directory-changed");
+      return true;
+    },
+  );
+  assert.deepEqual(await listTaskRuns({ stateRoot: fixture.stateRoot, contractId: "inventory-summary" }), []);
+});
+
+test("an approval recorded before git-directory binding is refused as git-directory-changed for a grantable project", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approveOriginal(fixture);
+  const directory = join(fixture.stateRoot, "tasks", "inventory-summary", "approvals");
+  const [name] = (await readdir(directory)).filter((entry) => entry.endsWith(".json"));
+  assert.ok(name !== undefined);
+  const record = JSON.parse(await readFile(join(directory, name), "utf8")) as Record<string, unknown>;
+  delete record.gitDirectory;
+  await writeFile(join(directory, name), `${JSON.stringify(record, null, 2)}\n`, "utf8");
+
+  const now = await canonicalGitDirectory(fixture.projectRoot);
+  await assert.rejects(
+    assertTaskStartable({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot }),
+    isCode("git-directory-changed", (message) => {
+      assert.ok(message.includes("none (approved before git-directory binding)"), message);
+      assert.ok(message.includes(now), message);
     }),
   );
 });

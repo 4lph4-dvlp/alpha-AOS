@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { commandProbeEnvironment, runProcess, type EnvironmentPolicy, type ProcessResult } from "../src/core/process.js";
+import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
 import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src/core/task-contract.js";
 import type { ControllerPort } from "../src/core/task-run.js";
 import {
@@ -449,4 +450,61 @@ test("task report shows consent, decisions, GSD evidence, changed paths, the exe
   assert.match(output, /Executor claim \(not evidence\): completed, exit 0, terminal completed, codex fixture/u);
   assert.ok(output.includes(`requested session ${run.reviewer.requestedSessionId}`));
   assert.ok(output.includes(`observed session ${run.reviewer.sessionId ?? "missing"}`));
+});
+
+// ---------------------------------------------------------------------------
+// Plan 14-07 Task 3: the preview names what local-commit grants (CON-01, D-03)
+// ---------------------------------------------------------------------------
+
+test("task preview names the git directory local-commit lets the controller write, in text and JSON", async (context) => {
+  const { fixture } = await contractFixture(context);
+  const root = await canonicalizeWithMissingTail(fixture.projectRoot);
+  assert.equal(root.reason, null);
+  const gitDirectory = join(root.canonical, ".git");
+
+  const human = await cli(fixture, ["preview", fixture.contractPath]);
+  assert.equal(human.exitCode, 0, human.stderr.excerpt);
+  assert.ok(
+    human.stdout.excerpt.includes(
+      `Git authority (local-commit): the controller may write ${gitDirectory} for this run; its config, hooks and info stay read-only`,
+    ),
+    human.stdout.excerpt,
+  );
+  const lines = human.stdout.excerpt.split(/\r?\n/u);
+  const effects = lines.findIndex((line) => line.startsWith("Allowed effect kinds:"));
+  assert.ok(lines[effects + 1]?.startsWith("Git authority (local-commit): "), "the git authority line follows the effect kinds");
+
+  const machine = await cli(fixture, ["preview", fixture.contractPath, "--json"]);
+  assert.equal(machine.exitCode, 0, machine.stderr.excerpt);
+  const envelope = JSON.parse(machine.stdout.excerpt) as {
+    gitAuthority?: { grant: string; gitDirectory: string | null; layout: string; reason: string | null };
+  };
+  assert.ok(envelope.gitAuthority !== undefined, "the JSON envelope carries gitAuthority");
+  assert.equal(envelope.gitAuthority.grant, "git-directory");
+  assert.equal(envelope.gitAuthority.layout, "in-tree");
+  assert.equal(envelope.gitAuthority.reason, null);
+  assert.match(envelope.gitAuthority.gitDirectory ?? "", /inventory-summary[\\/]\.git$/u);
+  assert.deepEqual(await listing(fixture.stateRoot), []);
+});
+
+test("task preview of a project without .git names no git authority and the reason", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const bare = join(fixture.scratch, "no-git-project");
+  await mkdir(bare, { recursive: true });
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(bare));
+
+  const human = await cli(fixture, ["preview", fixture.contractPath]);
+  assert.equal(human.exitCode, 0, human.stderr.excerpt);
+  assert.ok(
+    human.stdout.excerpt.includes("Git authority (local-commit): none — the project root holds no .git, so there is no git directory to grant"),
+    human.stdout.excerpt,
+  );
+  const machine = await cli(fixture, ["preview", fixture.contractPath, "--json"]);
+  const envelope = JSON.parse(machine.stdout.excerpt) as { gitAuthority?: unknown };
+  assert.deepEqual(envelope.gitAuthority, {
+    grant: "none",
+    gitDirectory: null,
+    layout: "missing",
+    reason: "the project root holds no .git, so there is no git directory to grant",
+  });
 });

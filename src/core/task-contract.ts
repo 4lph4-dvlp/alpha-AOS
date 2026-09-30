@@ -112,6 +112,12 @@ export interface TaskApprovalRecord {
   contractDigest: string;
   approvedAt: string;
   canonicalProjectRoot: string;
+  /**
+   * The canonical git directory the approved local-commit effect lets the
+   * controller write, or null when none is grantable. Optional so records
+   * approved before git-directory binding still load.
+   */
+  gitDirectory?: string | null;
   consent: { mode: "autopilot"; grant: "explicit-cli-approval"; scope: "single-run" };
   contract: DigestableTaskContract;
 }
@@ -119,6 +125,7 @@ export interface TaskApprovalRecord {
 export type TaskContractErrorCode =
   | "contract-invalid"
   | "contract-drift"
+  | "git-directory-changed"
   | "not-approved"
   | "revision-reused"
   | "root-changed"
@@ -134,6 +141,14 @@ export class TaskContractError extends Error {
   }
 }
 
+/** What local-commit grants for this contract: the one writable git directory, or none with the reason. */
+export interface TaskGitAuthority {
+  grant: "git-directory" | "none";
+  gitDirectory: string | null;
+  layout: string;
+  reason: string | null;
+}
+
 export interface TaskContractPreview {
   contract: DigestableTaskContract;
   digest: string;
@@ -144,6 +159,8 @@ export interface TaskContractPreview {
   consent: { mode: "autopilot"; grant: "explicit-cli-approval"; scope: "single-run"; revision: number };
   /** The overall wall-time limit in minutes, or null when the contract sets none. */
   resourceLimit: number | null;
+  /** The git directory approving this digest lets the controller write (AUTO-02, D-03). */
+  gitAuthority: TaskGitAuthority;
 }
 
 export type TaskApprovalResult =
@@ -596,6 +613,7 @@ export async function previewTaskContract(options: { contractPath: string; state
     approved: approvals.some((approval) => approval.contractDigest === loaded.digest),
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: loaded.contract.revision },
     resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
+    gitAuthority: { grant: "none", gitDirectory: null, layout: "unsupported", reason: "not implemented" },
   };
 }
 

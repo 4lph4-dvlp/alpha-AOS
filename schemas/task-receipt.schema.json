@@ -37,12 +37,14 @@
           "anyOf": [
             {
               "type": "object",
-              "required": ["verdict", "severity", "evidence"],
+              "required": ["verdict", "severity", "evidence", "confirmed", "confirmationDetail"],
               "additionalProperties": false,
               "properties": {
                 "verdict": { "enum": ["pass", "fail", "unknown"] },
                 "severity": { "enum": ["blocking", "advisory"] },
-                "evidence": { "type": "string" }
+                "evidence": { "type": "string" },
+                "confirmed": { "type": ["boolean", "null"] },
+                "confirmationDetail": { "type": ["string", "null"], "maxLength": 1000 }
               }
             },
             { "type": "null" }
@@ -51,6 +53,47 @@
         "artifactDigest": { "$ref": "#/$defs/sha256" },
         "reason": { "type": "string", "minLength": 1, "maxLength": 1000 },
         "nextAction": { "type": ["string", "null"] }
+      }
+    },
+    "precondition": {
+      "type": "object",
+      "required": ["id", "satisfied", "reason", "nextAction"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "satisfied": { "type": "boolean" },
+        "reason": { "type": "string", "maxLength": 1000 },
+        "nextAction": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "decision": {
+      "description": "One controller decision copied from .alpha-aos/task-runs/<runId>/decisions.jsonl (CON-02, D-06). A substitute carries only an entry path, so a decision cannot change what a criterion measures (D-08).",
+      "type": "object",
+      "required": ["id", "at", "category", "choice", "rationale", "criterionIds", "substitute"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "at": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "category": {
+          "enum": ["implementation", "file-layout", "verification", "dependency", "measurement-substitute", "gsd-default"]
+        },
+        "choice": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "rationale": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "criterionIds": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/criterionId" } },
+        "substitute": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["criterionId", "entry"],
+              "additionalProperties": false,
+              "properties": {
+                "criterionId": { "$ref": "#/$defs/criterionId" },
+                "entry": { "type": "string", "minLength": 1, "maxLength": 500 }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
       }
     },
     "reviewReport": {
@@ -112,7 +155,9 @@
         "reviewer",
         "verdict",
         "stopReason",
-        "nextAction"
+        "nextAction",
+        "decisions",
+        "decisionLog"
       ],
       "additionalProperties": false,
       "properties": {
@@ -200,19 +245,36 @@
           "anyOf": [
             {
               "type": "object",
-              "required": ["overall", "refusal", "rows"],
+              "required": ["overall", "refusal", "rows", "preconditions"],
               "additionalProperties": false,
               "properties": {
                 "overall": { "enum": ["accepted", "rejected", "unknown"] },
                 "refusal": { "enum": ["stale-review", "stale-artifact", null] },
-                "rows": { "type": "array", "items": { "$ref": "#/$defs/row" } }
+                "rows": { "type": "array", "items": { "$ref": "#/$defs/row" } },
+                "preconditions": { "type": "array", "maxItems": 32, "items": { "$ref": "#/$defs/precondition" } }
               }
             },
             { "type": "null" }
           ]
         },
         "stopReason": { "type": ["string", "null"] },
-        "nextAction": { "type": ["string", "null"] }
+        "nextAction": { "type": ["string", "null"] },
+        "decisions": { "type": "array", "maxItems": 200, "items": { "$ref": "#/$defs/decision" } },
+        "decisionLog": {
+          "description": "Null until the decision log is read; an invalid log names its first bad line and contributes no decision.",
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["status", "reason"],
+              "additionalProperties": false,
+              "properties": {
+                "status": { "enum": ["absent", "valid", "invalid"] },
+                "reason": { "type": ["string", "null"], "maxLength": 1000 }
+              }
+            },
+            { "type": "null" }
+          ]
+        }
       }
     }
   }

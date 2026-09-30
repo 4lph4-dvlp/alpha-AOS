@@ -9,6 +9,7 @@ import {
   materializeTaskSnapshot,
   measureTaskCriterion,
   type TaskArtifactCause,
+  type TaskDecision,
   type TaskMeasurementSubstitute,
 } from "./task-check.js";
 import {
@@ -23,7 +24,10 @@ import {
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
+import type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
+
 export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
+export type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
 
 export interface ExecutorClaim {
   status: "completed" | "needs-authority" | "failed";
@@ -143,7 +147,14 @@ export interface TaskVerdictRow {
   criterionId: string;
   verdict: "pass" | "fail" | "unknown";
   measured: TaskMeasurement;
-  review: { verdict: "pass" | "fail" | "unknown"; severity: "blocking" | "advisory"; evidence: string } | null;
+  review: {
+    verdict: "pass" | "fail" | "unknown";
+    severity: "blocking" | "advisory";
+    evidence: string;
+    /** Whether alpha-AOS reproduced the reviewer's finding itself; null when none was attempted (D-14). */
+    confirmed: boolean | null;
+    confirmationDetail: string | null;
+  } | null;
   artifactDigest: string;
   reason: string;
   nextAction: string | null;
@@ -172,10 +183,11 @@ export interface TaskRunReviewer {
   report: TaskReviewReport | null;
 }
 
-export interface TaskRunVerdict {
-  overall: "accepted" | "rejected" | "unknown";
-  refusal: "stale-review" | "stale-artifact" | null;
-  rows: TaskVerdictRow[];
+export type TaskRunVerdict = TaskVerdict;
+
+export interface TaskDecisionLogStatus {
+  status: "absent" | "valid" | "invalid";
+  reason: string | null;
 }
 
 export interface TaskRunRecord {
@@ -194,6 +206,10 @@ export interface TaskRunRecord {
   verdict: TaskRunVerdict | null;
   stopReason: string | null;
   nextAction: string | null;
+  /** The controller's recorded decisions, copied from its decision log (CON-02, D-06). */
+  decisions: TaskDecision[];
+  /** Null until the decision log has been read for this run. */
+  decisionLog: TaskDecisionLogStatus | null;
 }
 
 export type TaskRunErrorCode = "approval-consumed" | "unsupported-agent-pair" | "run-record-invalid";
@@ -421,7 +437,10 @@ function reduceVerdict(input: ReductionInput): { verdict: TaskRunVerdict; nextAc
     };
     const matches = usable?.criteria.filter((entry) => entry.criterionId === criterion.id) ?? [];
     const reviewed = matches.length === 1 ? (matches[0] as TaskReviewCriterion) : null;
-    const review = reviewed === null ? null : { verdict: reviewed.verdict, severity: reviewed.severity, evidence: reviewed.evidence };
+    const review =
+      reviewed === null
+        ? null
+        : { verdict: reviewed.verdict, severity: reviewed.severity, evidence: reviewed.evidence, confirmed: null, confirmationDetail: null };
     const row = (verdict: TaskVerdictRow["verdict"], reason: string, nextAction: string | null): TaskVerdictRow => ({
       criterionId: criterion.id,
       verdict,
@@ -463,7 +482,18 @@ function reduceVerdict(input: ReductionInput): { verdict: TaskRunVerdict; nextAc
       : overall === "rejected"
         ? `fix the failing criteria (${failing.join(", ")}) and approve a new contract revision; this approval is consumed`
         : (unknown?.nextAction ?? rerunReview);
-  return { verdict: { overall, refusal: stale === null ? null : "stale-review", rows }, nextAction };
+  return { verdict: { overall, refusal: stale === null ? null : "stale-review", rows, preconditions: [] }, nextAction };
+}
+
+// ---------------------------------------------------------------------------
+// Decision log (CON-02, D-06)
+// ---------------------------------------------------------------------------
+
+export async function readTaskDecisionLog(_options: {
+  projectRoot: string;
+  runId: string;
+}): Promise<TaskDecisionLogStatus & { entries: TaskDecision[] }> {
+  throw new Error("readTaskDecisionLog is not implemented");
 }
 
 // ---------------------------------------------------------------------------
@@ -561,6 +591,8 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     verdict: null,
     stopReason: null,
     nextAction: null,
+    decisions: [],
+    decisionLog: null,
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
 

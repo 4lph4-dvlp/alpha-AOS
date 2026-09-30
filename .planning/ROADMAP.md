@@ -61,11 +61,22 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 **Plans:** 6 plans
 
 Plans:
+**Wave 1**
+
 - [ ] 14-01-PLAN.md — Tracer: approved contract through startTask to a measured, reviewed verdict receipt; `task preview|approve|report` CLI
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 14-02-PLAN.md — Contract authority boundaries: canonical digest, changed-field drift, revision reuse, authority and secret guards, root binding
 - [ ] 14-03-PLAN.md — Verdict evidence depth: exact snapshot measurement, confirmed reproductions, stale refusals, named unknowns, recorded decisions
 - [ ] 14-04-PLAN.md — Native bootstrap pair: Codex controller/executor (codex-cli 0.158.0) and fresh read-only Claude reviewer (Claude Code 2.1.285)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 14-05-PLAN.md — GSD quick bridge and authority audit: read-only GSD evidence, blocked new authority, D-07 pack checkpoint, wall-time stop
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
 - [ ] 14-06-PLAN.md — `task start` and the live tracer: real accepted run, real success-claiming defect rejected, real stale review refused
 
 ### Phase 15: Durable Supervisor and Effect Ledger

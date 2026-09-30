@@ -1,29 +1,29 @@
-import { createHash, randomUUID } from "node:crypto";
-import { lstat, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { isDeepStrictEqual } from "node:util";
+import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
-import { reviewedDigest } from "./component-session.js";
-import { nodeRuntimeEnvironment } from "./install.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
-import { runProcess, type ProcessResult } from "./process.js";
+import {
+  collectTaskArtifact,
+  materializeTaskSnapshot,
+  measureTaskCriterion,
+  type TaskArtifactCause,
+  type TaskMeasurementSubstitute,
+} from "./task-check.js";
 import {
   assertTaskStartable,
   describeIssue,
   isTaskContractId,
-  normalizeContractPath,
   TaskContractError,
   taskSchema,
   type TaskAgentPolicy,
   type TaskContract,
-  type TaskCriterion,
 } from "./task-contract.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
-/** The domain separator every task artifact digest is bound under. */
-export const TASK_ARTIFACT_DIGEST_KIND = "task-artifact";
+export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
 
 export interface ExecutorClaim {
   status: "completed" | "needs-authority" | "failed";
@@ -55,12 +55,19 @@ export interface ControllerDispatchResult {
   detail: string | null;
 }
 
+export type TaskMeasurementCause = "none" | "entry-missing" | "timeout" | "output-capped" | "spawn-failed";
+
 export interface TaskMeasurement {
   criterionId: string;
   outcome: "pass" | "fail" | "unavailable";
   exitCode: number | null;
   stdoutSha256: string | null;
   detail: string;
+  /** Why an unavailable measurement could not run; `none` when it ran (D-15). */
+  cause: TaskMeasurementCause;
+  /** Whether the contract entry or a recorded substitute entry was run (D-08). */
+  measuredBy: "contract" | "substitute";
+  substituteDecisionId: string | null;
 }
 
 export interface TaskReviewReproduction {
@@ -167,7 +174,7 @@ export interface TaskRunReviewer {
 
 export interface TaskRunVerdict {
   overall: "accepted" | "rejected" | "unknown";
-  refusal: "stale-review" | null;
+  refusal: "stale-review" | "stale-artifact" | null;
   rows: TaskVerdictRow[];
 }
 
@@ -209,10 +216,6 @@ export interface StartTaskOptions {
   now?: () => Date;
 }
 
-/** Path segments that are never part of a task artifact. */
-const ARTIFACT_SKIPPED_SEGMENTS = new Set([".git", ".planning", ".alpha-aos", "node_modules"]);
-const MEASUREMENT_TIMEOUT_MS = 30_000;
-const MEASUREMENT_OUTPUT_BYTES = 64 * 1024;
 const REPORT_TEXT_LIMIT = 4000;
 const REPORT_LIST_LIMIT = 64;
 
@@ -370,181 +373,6 @@ export async function readTaskReport(options: {
 }
 
 // ---------------------------------------------------------------------------
-// Artifact (the one thing measurement and review are both bound to)
-// ---------------------------------------------------------------------------
-
-class ArtifactRefusal extends Error {}
-
-interface CollectedArtifact {
-  digest: string;
-  fileCount: number;
-  totalBytes: number;
-}
-
-function outsideRoot(rel: string): boolean {
-  return rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel);
-}
-
-async function collectArtifact(projectRoot: string, allowedRoots: readonly string[]): Promise<CollectedArtifact> {
-  const files = new Map<string, { sha256: string; size: number }>();
-
-  async function walk(absolute: string, rel: string): Promise<void> {
-    if (rel !== "" && rel.split("/").some((segment) => ARTIFACT_SKIPPED_SEGMENTS.has(segment))) return;
-    let stat;
-    try {
-      stat = await lstat(absolute);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
-      throw error;
-    }
-    if (stat.isSymbolicLink()) throw new ArtifactRefusal(`${rel === "" ? "." : rel} is a symbolic link`);
-    if (stat.isDirectory()) {
-      for (const name of (await readdir(absolute)).sort()) {
-        await walk(join(absolute, name), rel === "" ? name : `${rel}/${name}`);
-      }
-      return;
-    }
-    if (!stat.isFile()) throw new ArtifactRefusal(`${rel} is not a regular file`);
-    if (files.has(rel)) return;
-    const content = await readFile(absolute);
-    files.set(rel, { sha256: createHash("sha256").update(content).digest("hex"), size: content.byteLength });
-  }
-
-  for (const allowed of allowedRoots) {
-    const entry = normalizeContractPath(allowed);
-    const absolute = resolve(projectRoot, entry);
-    const rel = relative(projectRoot, absolute);
-    if (outsideRoot(rel)) throw new ArtifactRefusal(`allowed root ${entry} resolves outside the project root`);
-    await walk(absolute, rel.split(sep).join("/"));
-  }
-
-  const paths = [...files.keys()].sort();
-  const pairs = paths.map((path) => [path, (files.get(path) as { sha256: string }).sha256]);
-  let totalBytes = 0;
-  for (const file of files.values()) totalBytes += file.size;
-  return { digest: reviewedDigest(TASK_ARTIFACT_DIGEST_KIND, pairs), fileCount: paths.length, totalBytes };
-}
-
-// ---------------------------------------------------------------------------
-// Measurement (D-11: the executor's claim never enters here)
-// ---------------------------------------------------------------------------
-
-function pointerSegment(key: string): string {
-  return /^[A-Za-z0-9_.-]{1,64}$/u.test(key) ? key.replaceAll("~", "~0").replaceAll("/", "~1") : "<key>";
-}
-
-/** The JSON pointer of the first place `actual` departs from `expected`. */
-function firstDifference(expected: unknown, actual: unknown, path: string): string {
-  if (Array.isArray(expected) && Array.isArray(actual)) {
-    if (expected.length !== actual.length) return path === "" ? "/" : path;
-    for (let index = 0; index < expected.length; index += 1) {
-      if (!isDeepStrictEqual(expected[index], actual[index])) {
-        return firstDifference(expected[index], actual[index], `${path}/${index}`);
-      }
-    }
-    return path === "" ? "/" : path;
-  }
-  const isObject = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value);
-  if (isObject(expected) && isObject(actual)) {
-    const keys = Array.from(new Set([...Object.keys(expected), ...Object.keys(actual)])).sort();
-    for (const key of keys) {
-      if (!(key in expected) || !(key in actual)) return `${path}/${pointerSegment(key)}`;
-      if (!isDeepStrictEqual(expected[key], actual[key])) {
-        return firstDifference(expected[key], actual[key], `${path}/${pointerSegment(key)}`);
-      }
-    }
-  }
-  return path === "" ? "/" : path;
-}
-
-function compareJson(stream: "stdout" | "stderr", expected: unknown, text: string): string | null {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text.trim());
-  } catch {
-    return `${stream} is not a single JSON value`;
-  }
-  if (isDeepStrictEqual(parsed, expected)) return null;
-  return `${stream} JSON differs from the expected value at ${firstDifference(expected, parsed, "")}`;
-}
-
-async function measureCriterion(
-  criterion: TaskCriterion,
-  index: number,
-  projectRoot: string,
-  scratchRoot: string,
-): Promise<TaskMeasurement> {
-  const unavailable = (detail: string, result?: ProcessResult): TaskMeasurement => ({
-    criterionId: criterion.id,
-    outcome: "unavailable",
-    exitCode: result?.exitCode ?? null,
-    stdoutSha256: result?.stdout.sha256 ?? null,
-    detail: bounded(detail, 500),
-  });
-  const measurement = criterion.measurement;
-  const entry = normalizeContractPath(measurement.entry);
-  const entryPath = resolve(projectRoot, entry);
-  const entryRel = relative(projectRoot, entryPath);
-  if (entryRel === "" || outsideRoot(entryRel)) return unavailable("the measurement entry resolves outside the project root");
-  try {
-    const stat = await lstat(entryPath);
-    if (!stat.isFile()) return unavailable(`the measurement entry ${entry} is not a regular file`);
-  } catch {
-    return unavailable(`the measurement entry ${entry} does not exist`);
-  }
-
-  const inputPath = join(scratchRoot, `${String(index).padStart(2, "0")}-${criterion.id}.input`);
-  await writeFile(inputPath, measurement.inputText, "utf8");
-  let result: ProcessResult;
-  try {
-    result = await runProcess({
-      executable: process.execPath,
-      args: [entryPath, inputPath],
-      cwd: projectRoot,
-      environment: nodeRuntimeEnvironment({ source: process.env }),
-      timeoutMs: MEASUREMENT_TIMEOUT_MS,
-      maxOutputBytes: MEASUREMENT_OUTPUT_BYTES,
-      excerptBytes: MEASUREMENT_OUTPUT_BYTES,
-    });
-  } catch (error) {
-    const code = (error as { code?: unknown }).code;
-    return unavailable(`the measurement could not start (${typeof code === "string" ? code : "spawn-refused"})`);
-  }
-  if (result.code !== "ok" && result.code !== "non-zero-exit") {
-    return unavailable(`the measurement ended with ${result.code}`, result);
-  }
-  if (result.stdout.capped || result.stderr.capped || result.outputCapped) {
-    return unavailable("the measurement output exceeded its bound", result);
-  }
-
-  const expect = measurement.expect;
-  const mismatches: string[] = [];
-  if (result.exitCode !== expect.exitCode) mismatches.push(`exit code ${String(result.exitCode)}, expected ${expect.exitCode}`);
-  if (expect.stdoutEmpty === true && result.stdout.totalBytes > 0) {
-    mismatches.push(`stdout carried ${result.stdout.totalBytes} bytes, expected none`);
-  }
-  if (expect.stdoutJson !== undefined) {
-    const mismatch = compareJson("stdout", expect.stdoutJson, result.stdout.excerpt);
-    if (mismatch !== null) mismatches.push(mismatch);
-  }
-  if (expect.stderrJson !== undefined) {
-    const mismatch = compareJson("stderr", expect.stderrJson, result.stderr.excerpt);
-    if (mismatch !== null) mismatches.push(mismatch);
-  }
-  return {
-    criterionId: criterion.id,
-    outcome: mismatches.length === 0 ? "pass" : "fail",
-    exitCode: result.exitCode,
-    stdoutSha256: result.stdout.sha256,
-    detail:
-      mismatches.length === 0
-        ? `exit code ${String(result.exitCode)} and output matched the contract`
-        : bounded(mismatches[0] as string, 500),
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Verdict reduction
 // ---------------------------------------------------------------------------
 
@@ -587,6 +415,9 @@ function reduceVerdict(input: ReductionInput): { verdict: TaskRunVerdict; nextAc
       exitCode: null,
       stdoutSha256: null,
       detail: "the criterion was not measured",
+      cause: "spawn-failed" as const,
+      measuredBy: "contract" as const,
+      substituteDecisionId: null,
     };
     const matches = usable?.criteria.filter((entry) => entry.criterionId === criterion.id) ?? [];
     const reviewed = matches.length === 1 ? (matches[0] as TaskReviewCriterion) : null;
@@ -638,6 +469,17 @@ function reduceVerdict(input: ReductionInput): { verdict: TaskRunVerdict; nextAc
 // ---------------------------------------------------------------------------
 // startTask
 // ---------------------------------------------------------------------------
+
+function artifactNextAction(cause: TaskArtifactCause): string {
+  switch (cause) {
+    case "artifact-link":
+      return "replace the symbolic link under the allowed roots with a regular file and approve a new contract revision";
+    case "artifact-too-large":
+      return "reduce the files under the allowed roots below the artifact bound or narrow the allowed roots in a new contract revision";
+    case "artifact-unreadable":
+      return "restore read access to the named path and approve a new contract revision";
+  }
+}
 
 function controllerPrompt(contract: TaskContract, contractDigest: string): string {
   return [
@@ -742,12 +584,39 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     });
     record = { ...record, executor: executorBlock(dispatched) };
 
-    const artifact = await collectArtifact(projectRoot, contract.allowedRoots);
+    const collected = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
+    if (collected.status === "unavailable") {
+      record = {
+        ...record,
+        status: "unknown",
+        finishedAt: clock().toISOString(),
+        stopReason: `${collected.cause}: ${collected.detail}`,
+        nextAction: artifactNextAction(collected.cause),
+      };
+      await writeRunRecord(options.stateRoot, options.packageRoot, record);
+      return { run: record, recordPath };
+    }
+    const artifact = { digest: collected.digest, fileCount: collected.fileCount, totalBytes: collected.totalBytes };
     record = { ...record, artifact };
 
+    // Measurement and review both run against this copy, never the live tree.
+    const snapshot = await materializeTaskSnapshot({
+      manifest: collected,
+      projectRoot,
+      destination: join(scratchRoot, "snapshot"),
+    });
+    const substitutes: TaskMeasurementSubstitute[] = [];
     const measurements: TaskMeasurement[] = [];
-    for (const [index, criterion] of contract.criterion.entries()) {
-      measurements.push(await measureCriterion(criterion, index, projectRoot, scratchRoot));
+    for (const criterion of contract.criterion) {
+      measurements.push(
+        await measureTaskCriterion({
+          criterion,
+          root: snapshot,
+          scratchRoot,
+          allowedRoots: contract.allowedRoots,
+          substitute: substitutes.find((entry) => entry.criterionId === criterion.id) ?? null,
+        }),
+      );
     }
 
     const request: ReviewRequest = {
@@ -757,7 +626,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       contract,
       contractDigest: digest,
       artifactDigest: artifact.digest,
-      reviewRoot: projectRoot,
+      reviewRoot: snapshot,
       measurements,
       deadlineAt,
     };
@@ -778,7 +647,8 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
 
     // Re-hash before judging: a verdict is only about the bytes that were
     // measured and reviewed, never about whatever is on disk afterwards.
-    const after = await collectArtifact(projectRoot, contract.allowedRoots);
+    const after = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
+    const afterSnapshot = await collectTaskArtifact({ projectRoot: snapshot, allowedRoots: contract.allowedRoots });
     const { verdict, nextAction } = reduceVerdict({
       contract,
       contractDigest: digest,
@@ -787,23 +657,24 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       measurements,
       report: checked.report,
       reportIssue: checked.issue,
-      artifactChanged: after.digest !== artifact.digest,
+      artifactChanged:
+        after.status !== "ok" ||
+        after.digest !== artifact.digest ||
+        afterSnapshot.status !== "ok" ||
+        afterSnapshot.digest !== artifact.digest,
     });
     record = { ...record, status: verdict.overall, finishedAt: clock().toISOString(), verdict, nextAction };
     await writeRunRecord(options.stateRoot, options.packageRoot, record);
     return { run: record, recordPath };
   } catch (error) {
-    const refused = error instanceof ArtifactRefusal;
     const message = bounded(error instanceof Error ? error.message : String(error), 300);
     const terminal = (base: TaskRunRecord): TaskRunRecord => ({
       ...base,
       status: "unknown",
       finishedAt: clock().toISOString(),
       verdict: null,
-      stopReason: refused ? `artifact-refused: ${message}` : `internal-error: ${message}`,
-      nextAction: refused
-        ? "remove the refused entry from the allowed roots and approve a new contract revision"
-        : "inspect the stop reason, repair the cause and approve a new contract revision",
+      stopReason: `internal-error: ${message}`,
+      nextAction: "inspect the stop reason, repair the cause and approve a new contract revision",
     });
     let failed = terminal(record);
     try {

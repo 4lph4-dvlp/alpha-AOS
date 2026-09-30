@@ -10,7 +10,7 @@
     "criterionId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$" },
     "measurement": {
       "type": "object",
-      "required": ["criterionId", "outcome", "exitCode", "stdoutSha256", "detail"],
+      "required": ["criterionId", "outcome", "exitCode", "stdoutSha256", "detail", "cause", "measuredBy", "substituteDecisionId"],
       "additionalProperties": false,
       "properties": {
         "criterionId": { "$ref": "#/$defs/criterionId" },
@@ -19,7 +19,10 @@
         "stdoutSha256": {
           "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
         },
-        "detail": { "type": "string", "maxLength": 1000 }
+        "detail": { "type": "string", "maxLength": 1000 },
+        "cause": { "enum": ["none", "entry-missing", "timeout", "output-capped", "spawn-failed"] },
+        "measuredBy": { "enum": ["contract", "substitute"] },
+        "substituteDecisionId": { "type": ["string", "null"], "maxLength": 64 }
       }
     },
     "row": {
@@ -201,7 +204,7 @@
               "additionalProperties": false,
               "properties": {
                 "overall": { "enum": ["accepted", "rejected", "unknown"] },
-                "refusal": { "enum": ["stale-review", null] },
+                "refusal": { "enum": ["stale-review", "stale-artifact", null] },
                 "rows": { "type": "array", "items": { "$ref": "#/$defs/row" } }
               }
             },

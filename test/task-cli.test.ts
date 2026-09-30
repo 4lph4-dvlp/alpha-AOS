@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import { readdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { commandProbeEnvironment, runProcess, type EnvironmentPolicy, type ProcessResult } from "../src/core/process.js";
 import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src/core/task-contract.js";
+import type { ControllerPort } from "../src/core/task-run.js";
 import {
   createTaskFixture,
   fixturePorts,
@@ -170,7 +172,7 @@ test("task report prints one verdict row per criterion from the recorded run", a
   assert.match(invalid, /^invalid-quantity\s+pass\s+pass \(exit 2\)\s+pass\s+/u);
   assert.match(output, /Next action: /u);
   assert.match(output, /Executor claim \(not evidence\): completed, exit 0/u);
-  assert.ok(output.includes(`Reviewer session: ${run.reviewer?.sessionId ?? "missing"}`));
+  assert.ok(output.includes(`observed session ${run.reviewer?.sessionId ?? "missing"}`));
 
   const machine = await cli(fixture, ["report", "inventory-summary", "--run", run.runId, "--json"]);
   assert.equal(machine.exitCode, 0, machine.stderr.excerpt);
@@ -201,11 +203,250 @@ test("task preview --apply and task report --apply are refused because they pers
   assert.deepEqual(await listing(fixture.stateRoot), []);
 });
 
-test("an unknown task subcommand lists exactly preview, approve and report", async (context) => {
+test("an unknown task subcommand lists exactly preview, approve, start and report", async (context) => {
   const { fixture, digest } = await contractFixture(context);
 
-  const result = await cli(fixture, ["start", fixture.contractPath, "--contract-digest", digest]);
+  const result = await cli(fixture, ["run", fixture.contractPath, "--contract-digest", digest]);
   assert.equal(result.exitCode, 2);
-  assert.match(result.stderr.excerpt, /Use one of: preview, approve, report\./u);
+  assert.match(result.stderr.excerpt, /Use one of: preview, approve, start, report\./u);
   assert.deepEqual(await listing(fixture.stateRoot), []);
+});
+
+// ---------------------------------------------------------------------------
+// task start (AUTO-01, AUTO-03, CON-03, D-02)
+//
+// Every start test below either stops before any agent launch (a refusal) or
+// is a readiness preview. Each one runs the CLI child with PATH set to an
+// empty scratch directory, so no host codex or claude can be resolved — let
+// alone launched — by this suite on any host.
+// ---------------------------------------------------------------------------
+
+async function emptyPath(fixture: TaskFixture): Promise<string> {
+  const directory = join(fixture.scratch, "empty-path");
+  await mkdir(directory, { recursive: true });
+  return directory;
+}
+
+async function startCli(fixture: TaskFixture, args: readonly string[]): Promise<ProcessResult> {
+  const path = await emptyPath(fixture);
+  const environment = taskEnvironment(fixture.stateRoot);
+  return runProcess({
+    executable: process.execPath,
+    args: [cliEntry, "task", "start", ...args],
+    cwd: fixture.scratch,
+    environment: { ...environment, literal: { ...environment.literal, PATH: path } },
+    maxOutputBytes: OUTPUT_BYTES,
+    excerptBytes: OUTPUT_BYTES,
+  });
+}
+
+function runDirectory(fixture: TaskFixture, contractId = "inventory-summary"): string {
+  return join(fixture.stateRoot, "tasks", contractId, "runs");
+}
+
+async function approvedFixture(context: Parameters<typeof createTaskFixture>[0]): Promise<{ fixture: TaskFixture; digest: string }> {
+  const { fixture, digest } = await contractFixture(context);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  return { fixture, digest };
+}
+
+test("task start without --apply prints the readiness of an approved contract and starts nothing", async (context) => {
+  const { fixture, digest } = await approvedFixture(context);
+  const before = await listing(fixture.stateRoot);
+
+  const result = await startCli(fixture, [fixture.contractPath, "--contract-digest", digest]);
+  const output = result.stdout.excerpt;
+  assert.ok(output.includes(`Contract digest: ${digest}`), result.stderr.excerpt);
+  assert.match(output, /Controller: codex /u);
+  assert.match(output, /Executor: codex /u);
+  assert.match(output, /Reviewer: claude /u);
+  assert.match(output, /GSD quick: /u);
+  assert.match(output, /Baseline: /u);
+  assert.match(output, /Approval: approved/u);
+  assert.match(output, /spend model turns under your own/u);
+  assert.ok(output.includes(`alpha-aos task start`));
+  assert.ok(output.includes(`--contract-digest ${digest} --apply`));
+  assert.equal(result.exitCode, 2, "an unproven pair makes the readiness preview exit 2");
+
+  assert.equal(existsSync(runDirectory(fixture)), false);
+  assert.deepEqual(await listing(fixture.stateRoot), before);
+});
+
+test("task start readiness with no codex or claude on PATH reports both as missing proof and writes nothing", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+
+  const result = await startCli(fixture, [fixture.contractPath]);
+  assert.equal(result.exitCode, 2);
+  const output = result.stdout.excerpt;
+  assert.match(output, /codex: codex (was not found on PATH|could not be located on PATH)/u);
+  assert.match(output, /claude: claude (was not found on PATH|could not be located on PATH)/u);
+  assert.match(output, /Approval: not approved/u);
+  assert.ok(output.includes(`--contract-digest ${digest} --apply`));
+  assert.deepEqual(await listing(fixture.stateRoot), []);
+});
+
+test("task start --apply without a digest names the current digest and the start command", async (context) => {
+  const { fixture, digest } = await approvedFixture(context);
+  const before = await listing(fixture.stateRoot);
+
+  const result = await startCli(fixture, [fixture.contractPath, "--apply"]);
+  assert.equal(result.exitCode, 2);
+  assert.ok(result.stderr.excerpt.includes(digest));
+  assert.match(result.stderr.excerpt, /alpha-aos task start /u);
+  assert.ok(result.stderr.excerpt.includes(`--contract-digest ${digest} --apply`));
+  assert.deepEqual(await listing(fixture.stateRoot), before);
+});
+
+test("task start --apply on an unapproved contract is refused as not-approved", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+
+  const result = await startCli(fixture, [fixture.contractPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(result.exitCode, 2);
+  assert.match(result.stderr.excerpt, /not-approved/u);
+  assert.ok(result.stderr.excerpt.includes("alpha-aos task approve"));
+  assert.deepEqual(await listing(fixture.stateRoot), []);
+});
+
+test("task start --apply with an unproven reviewer is refused as unsupported-agent-pair and records no run", async (context) => {
+  const fixture = await createTaskFixture(context);
+  await writeTaskContract(
+    fixture.contractPath,
+    inventorySummaryContract(fixture.projectRoot, {
+      agentPolicy: { controller: "codex", executor: "codex", reviewer: "pi", reviewerSession: "fresh-read-only" },
+    }),
+  );
+  const { digest } = await loadTaskContract(fixture.contractPath);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+
+  const result = await startCli(fixture, [fixture.contractPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(result.exitCode, 2);
+  assert.match(result.stderr.excerpt, /unsupported-agent-pair/u);
+  assert.match(result.stderr.excerpt, /reviewer pi: no native task adapter is proven/u);
+  assert.equal(existsSync(runDirectory(fixture)), false);
+});
+
+test("task start --apply with a consumed approval is refused and a foreign digest starts nothing", async (context) => {
+  const { fixture, digest } = await approvedFixture(context);
+  const { run } = await startFixtureTask(fixture, {
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    expectedDigest: digest,
+  });
+  assert.equal(run.status, "accepted");
+  const runsBefore = await listing(runDirectory(fixture));
+
+  const again = await startCli(fixture, [fixture.contractPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(again.exitCode, 2);
+  assert.match(again.stderr.excerpt, /approval-consumed/u);
+  assert.deepEqual(await listing(runDirectory(fixture)), runsBefore);
+
+  const secondPath = join(fixture.scratch, "second-contract.json");
+  await writeTaskContract(secondPath, inventorySummaryContract(fixture.projectRoot, { id: "inventory-report" }));
+  const foreign = await startCli(fixture, [secondPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(foreign.exitCode, 2);
+  assert.match(foreign.stderr.excerpt, /contract-drift/u);
+  assert.equal(existsSync(join(fixture.stateRoot, "tasks", "inventory-report")), false);
+  assert.deepEqual(await listing(runDirectory(fixture)), runsBefore);
+});
+
+test("task start with the old digest after the goal was edited names the changed field and the re-approval path", async (context) => {
+  const { fixture, digest } = await approvedFixture(context);
+  await writeTaskContract(
+    fixture.contractPath,
+    inventorySummaryContract(fixture.projectRoot, { goal: `${inventorySummaryContract(fixture.projectRoot).goal} Also print a trailing newline.` }),
+  );
+  const { digest: changed } = await loadTaskContract(fixture.contractPath);
+  assert.notEqual(changed, digest);
+
+  const result = await startCli(fixture, [fixture.contractPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(result.exitCode, 2);
+  assert.match(result.stderr.excerpt, /contract-drift/u);
+  assert.match(result.stderr.excerpt, /\bgoal\b/u);
+  assert.ok(result.stderr.excerpt.includes(changed));
+  assert.ok(result.stderr.excerpt.includes("alpha-aos task approve"));
+  assert.equal(existsSync(runDirectory(fixture)), false);
+});
+
+test("ordinary gsd-context, status and project plan commands never create a task run", async (context) => {
+  const { fixture } = await approvedFixture(context);
+  const environment = taskEnvironment(fixture.stateRoot);
+  const path = await emptyPath(fixture);
+  for (const argv of [["gsd-context", "quick", "--json"], ["status", "--json"], ["project", "plan", fixture.projectRoot, "--json"]]) {
+    await runProcess({
+      executable: process.execPath,
+      args: [cliEntry, ...argv],
+      cwd: fixture.scratch,
+      environment: { ...environment, literal: { ...environment.literal, PATH: path } },
+      maxOutputBytes: OUTPUT_BYTES,
+      excerptBytes: OUTPUT_BYTES,
+    });
+  }
+  assert.equal(existsSync(runDirectory(fixture)), false);
+  assert.ok(!(await listing(fixture.stateRoot)).some((entry) => /^tasks\/[^/]+\/runs(\/|$)/u.test(entry)));
+});
+
+async function filesUnder(root: string, keep: (path: string) => boolean): Promise<string[]> {
+  const entries = await readdir(root, { recursive: true });
+  return entries.map((entry) => entry.replaceAll("\\", "/")).filter(keep).sort();
+}
+
+test("startTask is called only by the task start branch and no shipped skill starts a task", async () => {
+  const callers: string[] = [];
+  for (const file of await filesUnder(join(repositoryRoot, "src"), (path) => path.endsWith(".ts"))) {
+    if ((await readFile(join(repositoryRoot, "src", file), "utf8")).includes("startTask(")) callers.push(`src/${file}`);
+  }
+  assert.deepEqual(callers, ["src/cli.ts", "src/core/task-run.ts"]);
+
+  const skills = await filesUnder(join(repositoryRoot, "skills"), (path) => path.endsWith("SKILL.md"));
+  assert.ok(skills.length > 0);
+  for (const skill of skills) {
+    assert.ok(!(await readFile(join(repositoryRoot, "skills", skill), "utf8")).includes("task start"), `skills/${skill} mentions task start`);
+  }
+});
+
+test("task report shows consent, decisions, GSD evidence, changed paths, the executor claim and both reviewer sessions", async (context) => {
+  const { fixture, digest } = await approvedFixture(context);
+  const reference = referenceControllerPort("correct");
+  const controller: ControllerPort = {
+    async dispatch(request) {
+      const result = await reference.dispatch(request);
+      const path = join(request.projectRoot, ...request.decisionLogPath.split("/"));
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(
+        path,
+        `${JSON.stringify({
+          id: "d-1",
+          at: "2026-09-30T00:00:00.000Z",
+          category: "implementation",
+          choice: "Parse the CSV line by line without a dependency.",
+          rationale: "The contract forbids dependencies and the input is small.",
+          criterionIds: ["valid-summary"],
+          substitute: null,
+        })}\n`,
+        "utf8",
+      );
+      return result;
+    },
+  };
+  const { run } = await startFixtureTask(fixture, {
+    ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }),
+    expectedDigest: digest,
+  });
+  assert.equal(run.status, "accepted");
+  assert.ok(run.reviewer !== null && run.gsd !== null && run.effects !== null);
+
+  const result = await cli(fixture, ["report", "inventory-summary"]);
+  assert.equal(result.exitCode, 0, result.stderr.excerpt);
+  const output = result.stdout.excerpt;
+  assert.match(output, /Status: ACCEPTED/u);
+  assert.match(output, /^valid-summary\s+pass\s+pass \(exit 0\)\s+pass\s+/mu);
+  assert.ok(output.includes("Consent: autopilot, single run of revision 1"));
+  assert.ok(output.includes("Decisions:"));
+  assert.ok(output.includes("implementation: Parse the CSV line by line without a dependency. — The contract forbids dependencies and the input is small."));
+  assert.ok(output.includes(`GSD: verified (quick ${run.gsd.quickId ?? "missing"})`));
+  assert.ok(output.includes("Changed paths:"));
+  assert.ok(output.includes("bin/inventory-summary.mjs"));
+  assert.match(output, /planning: .*\.planning\/STATE\.md/u);
+  assert.match(output, /Executor claim \(not evidence\): completed, exit 0, terminal completed, codex fixture/u);
+  assert.ok(output.includes(`requested session ${run.reviewer.requestedSessionId}`));
+  assert.ok(output.includes(`observed session ${run.reviewer.sessionId ?? "missing"}`));
 });

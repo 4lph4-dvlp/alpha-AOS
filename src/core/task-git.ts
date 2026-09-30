@@ -18,6 +18,16 @@ import { canonicalizeWithMissingTail } from "./path-boundary.js";
 /** A real `.git` pointer is one short line; anything larger is not one. */
 export const TASK_GIT_POINTER_MAX_BYTES = 4096;
 
+/** The maximum number of git control files snapshotGitControl will read before throwing. */
+export const TASK_GIT_CONTROL_MAX_FILES = 256;
+
+export async function snapshotGitControl(_options: {
+  projectRoot: string;
+  gitDirectory: string | null;
+}): Promise<Array<[string, string]>> {
+  return [];
+}
+
 export type TaskGitDirectory =
   | { status: "grantable"; layout: "in-tree" | "external"; gitDirectory: string }
   | {

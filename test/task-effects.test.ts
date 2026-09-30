@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
+import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
 import { packageRoot } from "../src/core/paths.js";
 import { planProjectCapabilities } from "../src/core/project-plan.js";
-import { approveTaskContract, previewTaskContract, type TaskContract } from "../src/core/task-contract.js";
+import { approveTaskContract, previewTaskContract, taskSchema, type TaskContract } from "../src/core/task-contract.js";
 import {
   auditTaskEffects,
   DEPENDENCY_FIELDS,
@@ -13,7 +14,10 @@ import {
   readTaskBaseline,
   readTaskChanges,
 } from "../src/core/task-effects.js";
-import { snapshotPlanningState } from "../src/core/task-gsd.js";
+import { snapshotGitControl, TASK_GIT_CONTROL_MAX_FILES } from "../src/core/task-git.js";
+import { runGitRead, snapshotPlanningState } from "../src/core/task-gsd.js";
+import { validateManagedDocument } from "../src/core/validation.js";
+import { formatTaskRunReport } from "../src/format.js";
 import {
   listTaskRuns,
   TaskRunError,
@@ -460,3 +464,151 @@ test("the audit allows only this run's decision log, flags commits without local
   assert.ok(DEPENDENCY_LOCKFILES.includes("package-lock.json"));
   assert.ok(DEPENDENCY_FIELDS.includes("devDependencies"));
 });
+
+// ---------------------------------------------------------------------------
+// Git control tampering, history rewrite and granted directory
+// ---------------------------------------------------------------------------
+
+test("snapshotGitControl returns sorted control pairs and detects changes, links, and file caps", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const gitDirectory = join(fixture.projectRoot, ".git");
+  const first = await snapshotGitControl({ projectRoot: fixture.projectRoot, gitDirectory });
+  const second = await snapshotGitControl({ projectRoot: fixture.projectRoot, gitDirectory });
+  assert.deepEqual(first, second);
+  assert.ok(first.some(([label]) => label === "pointer:.git"));
+  assert.ok(first.some(([label]) => label === "git:config"));
+  assert.ok(first.some(([label]) => label.startsWith("git:hooks/")));
+  assert.ok(first.some(([label]) => label.startsWith("git:info/")));
+  const labels = first.map(([l]) => l);
+  assert.deepEqual(labels, [...labels].sort());
+
+  await appendFile(join(gitDirectory, "config"), "\n[alias]\n\tprobe = status\n", "utf8");
+  const changedConfig = await snapshotGitControl({ projectRoot: fixture.projectRoot, gitDirectory });
+  assert.notDeepEqual(first, changedConfig);
+
+  await writeFile(join(gitDirectory, "hooks", "post-commit"), "#!/bin/sh\nexit 0\n", "utf8");
+  const changedHooks = await snapshotGitControl({ projectRoot: fixture.projectRoot, gitDirectory });
+  assert.notDeepEqual(changedConfig, changedHooks);
+  assert.ok(changedHooks.some(([label]) => label === "git:hooks/post-commit"));
+
+  const linkTarget = join(fixture.scratch, "target-link-dir");
+  await mkdir(linkTarget, { recursive: true });
+  const linkPath = join(gitDirectory, "hooks", "link-hook");
+  await symlink(linkTarget, linkPath, process.platform === "win32" ? "junction" : "dir");
+  const withLink = await snapshotGitControl({ projectRoot: fixture.projectRoot, gitDirectory });
+  const linkEntry = withLink.find(([label]) => label === "git:hooks/link-hook");
+  assert.deepEqual(linkEntry, ["git:hooks/link-hook", "link"]);
+
+  const overflowDir = join(fixture.scratch, "overflow-git");
+  await mkdir(join(overflowDir, "hooks"), { recursive: true });
+  for (let i = 0; i <= TASK_GIT_CONTROL_MAX_FILES; i++) {
+    await writeFile(join(overflowDir, "hooks", `hook-${i}`), "x", "utf8");
+  }
+  await assert.rejects(
+    snapshotGitControl({ projectRoot: fixture.projectRoot, gitDirectory: overflowDir }),
+    (error: unknown) => error instanceof Error && error.message.includes(String(TASK_GIT_CONTROL_MAX_FILES)),
+  );
+});
+
+test("the reference run records the granted git directory and formatTaskRunReport prints it", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approvedFixture(fixture);
+  const controller = controllerDouble(async (request) => writeInventorySummaryImplementation(request.projectRoot, "correct"));
+  const record = await run(fixture, digest, controller);
+
+  assert.equal(record.status, "accepted");
+  const canonicalDotGit = join((await canonicalizeWithMissingTail(fixture.projectRoot)).canonical, ".git");
+  assert.equal(record.gitDirectory, canonicalDotGit);
+
+  const report = formatTaskRunReport(record);
+  assert.ok(report.includes(`Git directory granted to the controller: ${canonicalDotGit} (config, hooks and info read-only)`));
+});
+
+test("a controller double that tampers with .git/config ends blocked before post-run git reads", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approvedFixture(fixture);
+  const reviewer = countedReviewer();
+  const controller = controllerDouble(async (request) => {
+    await writeInventorySummaryImplementation(request.projectRoot, "correct");
+    await appendFile(join(request.projectRoot, ".git", "config"), "\n[alias]\n\tprobe = status\n", "utf8");
+  });
+  const record = await run(fixture, digest, controller, reviewer);
+
+  assert.equal(record.status, "blocked");
+  assert.equal(record.stopReason, "new-authority-required: local-commit");
+  assert.deepEqual(record.effects?.implementationPaths, []);
+  assert.deepEqual(record.effects?.violations, [
+    {
+      effect: "local-commit",
+      path: "git:config",
+      detail: "git control file changed during the run; alpha-AOS ran no git command in this repository afterwards",
+    },
+  ]);
+  assert.match(record.nextAction ?? "", /The controller changed git control files \(git:config\)/u);
+  assert.equal(reviewer.calls, 0);
+});
+
+test("a controller double that adds .git/hooks/post-commit ends blocked naming the hook path", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approvedFixture(fixture);
+  const reviewer = countedReviewer();
+  const controller = controllerDouble(async (request) => {
+    await writeInventorySummaryImplementation(request.projectRoot, "correct");
+    await writeFile(join(request.projectRoot, ".git", "hooks", "post-commit"), "#!/bin/sh\nexit 0\n", "utf8");
+  });
+  const record = await run(fixture, digest, controller, reviewer);
+
+  assert.equal(record.status, "blocked");
+  assert.equal(record.stopReason, "new-authority-required: local-commit");
+  assert.deepEqual(record.effects?.implementationPaths, []);
+  assert.deepEqual(record.effects?.violations, [
+    {
+      effect: "local-commit",
+      path: "git:hooks/post-commit",
+      detail: "git control file changed during the run; alpha-AOS ran no git command in this repository afterwards",
+    },
+  ]);
+  assert.match(record.nextAction ?? "", /The controller changed git control files \(git:hooks\/post-commit\)/u);
+  assert.equal(reviewer.calls, 0);
+});
+
+test("a controller double that amends the base commit ends blocked with history rewritten", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approvedFixture(fixture);
+  const reviewer = countedReviewer();
+  const baseCommit = git(fixture.projectRoot, ["rev-parse", "HEAD"]).trim();
+
+  const controller = controllerDouble(async (request) => {
+    git(request.projectRoot, ["commit", "--amend", "--allow-empty", "-m", "amended base commit"]);
+    const count = await runGitRead(request.projectRoot, ["rev-list", "--count", baseCommit, "--not", "HEAD"]);
+    assert.equal(count.trim(), "1");
+    await writeInventorySummaryImplementation(request.projectRoot, "correct");
+  });
+  const record = await run(fixture, digest, controller, reviewer);
+
+  assert.equal(record.status, "blocked");
+  assert.equal(record.stopReason, "new-authority-required: local-commit");
+  assert.ok(record.effects?.violations.some(
+    (v) => v.effect === "local-commit" && v.detail.includes("history rewritten") && v.detail.includes(baseCommit.slice(0, 12)),
+  ));
+  assert.equal(reviewer.calls, 0);
+});
+
+test("a run record without gitDirectory validates against the task-receipt schema", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approvedFixture(fixture);
+  const controller = controllerDouble(async (request) => writeInventorySummaryImplementation(request.projectRoot, "correct"));
+  const record = await run(fixture, digest, controller);
+
+  const schema = await taskSchema("task-receipt");
+  const withField = validateManagedDocument({ text: JSON.stringify(record), format: "json", kind: "task-receipt", schema });
+  assert.equal(withField.ok, true, JSON.stringify(withField.issues));
+
+  const { gitDirectory: _dropped, ...legacyRun } = record;
+  const withoutField = validateManagedDocument({ text: JSON.stringify(legacyRun), format: "json", kind: "task-receipt", schema });
+  assert.equal(withoutField.ok, true, JSON.stringify(withoutField.issues));
+
+  const nullField = validateManagedDocument({ text: JSON.stringify({ ...legacyRun, gitDirectory: null }), format: "json", kind: "task-receipt", schema });
+  assert.equal(nullField.ok, true, JSON.stringify(nullField.issues));
+});
+

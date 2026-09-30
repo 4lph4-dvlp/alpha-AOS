@@ -257,12 +257,12 @@ alpha-aos project status .
 
 | Layer | Component / Package | Targets | Notes |
 |---|---|---|---|
-| **Workflow & State Spine** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
+| **Workflow & State Spine** | GSD Core `standard` | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
 | **Worker Harness** | Hermes Agent | Hermes | Configured as worker-only; does not write GSD planning state. |
 | **Cross-Harness Memory** | ECC `unified-memory` | All five harnesses | Shared Memory Vault across agents. |
 | **Library Documentation** | ECC `documentation-lookup` + Context7 | All five harnesses | Real-time docs via Context7 stdio MCP gateway. |
 | **Multi-Source Research** | ECC `deep-research` + Exa/Firecrawl | All five harnesses | Multi-source web search & extraction. |
-| **Filtered Web Scraping** | Firecrawl Proxy (`3.25.2`) | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
+| **Filtered Web Scraping** | Firecrawl Proxy | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
 | **Autonomous Controller** | `alpha-aos-control` | All five harnesses | Unifies autonomous capability pack advisory, directory tree-off policy, diagnostics, and rollback/repair. |
 | **GSD Shipping Workflow** | `alpha-aos-ship` | Claude Code | User-invocable PR & branch shipping skill. |
 | **Project Isolation** | alpha-AOS launch adapters | All five harnesses | Isolated runtime with fail-closed bounds. |

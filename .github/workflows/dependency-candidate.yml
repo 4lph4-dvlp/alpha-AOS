@@ -1,19 +1,36 @@
 name: Dependency candidate
 
+# Monday half of the unattended weekly dependency promotion.
+#
+# Resolves the latest registry versions, promotes every changed package into
+# catalog/stack.lock.json on automation/dependency-candidate, and runs the full
+# promotion verification against that commit. A green run leaves a
+# `verified-candidate` artifact naming the commit; auto-promote.yml lands it on
+# main on Wednesday. A red run leaves no artifact, so nothing is promoted and
+# GitHub sends the failure notification.
+
 on:
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
 
 permissions:
-  contents: write
-  pull-requests: write
-  issues: write
-  actions: read
+  contents: read
+
+concurrency:
+  group: dependency-promotion
+  cancel-in-progress: false
 
 jobs:
   stage:
+    name: Stage promotion commit
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.promote.outputs.changed }}
+      summary: ${{ steps.promote.outputs.summary }}
+      sha: ${{ steps.push.outputs.sha }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -22,34 +39,51 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Resolve registry versions into the unverified candidate
+      - name: Resolve registry versions into the candidate lock
         run: node dist/src/cli.js update --stage --apply
-      - name: Open or refresh candidate pull request
+      - name: Promote changed packages into the stable lock
+        id: promote
+        run: node scripts/auto-promote.mjs stage
+      - name: Push the promotion commit to the candidate branch
+        id: push
+        if: steps.promote.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          SUMMARY: ${{ steps.promote.outputs.summary }}
         shell: bash
         run: |
-          if git diff --quiet -- catalog/candidate.lock.json; then
-            echo "No dependency version changes."
-            exit 0
-          fi
-          branch=automation/dependency-candidate
-          git config user.name github-actions[bot]
-          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
-          git checkout -B "$branch"
-          git add catalog/candidate.lock.json
-          git commit -m "chore: stage dependency candidate"
-          git push --force origin "HEAD:$branch"
-          if gh pr view "$branch" >/dev/null 2>&1; then
-            echo "Candidate pull request already exists."
-          else
-            gh pr create \
-              --base main \
-              --head "$branch" \
-              --title "chore: validate dependency candidate" \
-              --body "Automated discovery only. This candidate is unverified and must not be promoted until package-integrity, renderer-hash, and Windows/macOS/Linux fixture gates pass."
-          fi
-      - name: Check main CI baseline and update candidate promotion status
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B automation/dependency-candidate
+          git add catalog/stack.lock.json catalog/candidate.lock.json
+          git commit -m "chore(deps): promote $SUMMARY"
+          git push --force origin HEAD:automation/dependency-candidate
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  verify:
+    name: Verify
+    needs: stage
+    if: needs.stage.outputs.changed == 'true'
+    uses: ./.github/workflows/promotion-verify.yml
+    with:
+      ref: ${{ needs.stage.outputs.sha }}
+
+  record:
+    name: Record verified candidate
+    needs: [stage, verify]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write the verified commit and summary
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/check-main-baseline.mjs --update-pr --candidate-branch automation/dependency-candidate
+          SHA: ${{ needs.stage.outputs.sha }}
+          SUMMARY: ${{ needs.stage.outputs.summary }}
+        shell: bash
+        run: |
+          mkdir verified
+          printf '%s\n' "$SHA" > verified/sha.txt
+          printf '%s\n' "$SUMMARY" > verified/summary.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: verified-candidate
+          path: verified/
+          retention-days: 14
+          if-no-files-found: error

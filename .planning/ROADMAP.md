@@ -58,7 +58,7 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 7/8 plans executed (14-07 and 14-08 close the 14-VERIFICATION gaps)
+**Plans:** 8/9 plans executed (14-07, 14-08 and 14-09 close the 14-VERIFICATION / 14-UAT gaps)
 
 Plans:
 **Wave 1**
@@ -85,7 +85,11 @@ Plans:
 
 **Wave 6 — gap closure** *(blocked on Wave 5 completion)*
 
-- [ ] 14-08-PLAN.md — Git control-file and history guards with recorded grant, then the live tracer: real accepted run, real success-claiming defect rejected by measurement, real review refused as stale on a changed artifact
+- [x] 14-08-PLAN.md — Git control-file and history guards with recorded grant, then the live tracer: real accepted run (PASSED), defect and stale review live tests hit NOT PROVEN checkpoint due to Codex CLI exit 1
+
+**Wave 7 — gap closure** *(blocked on Wave 6 completion)*
+
+- [ ] 14-09-PLAN.md — Deep Codex controller diagnostics capture, live execution proof of defect rejection and stale review, or formalize legitimate roadmap deferral to Phase 16/17
 
 ### Phase 15: Durable Supervisor and Effect Ledger
 

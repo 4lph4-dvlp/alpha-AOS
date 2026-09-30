@@ -1,0 +1,67 @@
+name: Promotion verification
+
+# Shared gate for the unattended weekly dependency promotion. Called by
+# dependency-candidate.yml (Monday) and auto-promote.yml (Wednesday) with the
+# exact commit whose catalog/stack.lock.json carries the new versions.
+#
+# `ci` is the full CI suite. `fixtures` installs every pinned package for real
+# into disposable fixture homes, because the unit suite exercises GSD and the
+# Pi bridge only through loopback registry fixtures and would stay green on a
+# release that no longer installs.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to verify.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.ref }}
+
+  fixtures:
+    name: Pinned component fixtures (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # The harness itself is not a managed dependency; the bridge fixture only
+      # needs a `pi` executable to run `pi install npm:<bridge>@<pinned>`.
+      - name: Install the Pi harness for the bridge fixture
+        run: npm install --global @earendil-works/pi-coding-agent
+      - name: GSD fixtures
+        shell: bash
+        run: |
+          for harness in claude codex antigravity pi; do
+            node dist/src/cli.js fixture gsd "$harness" --apply
+          done
+      - name: ECC fixtures
+        shell: bash
+        run: |
+          for harness in claude codex antigravity pi hermes; do
+            node dist/src/cli.js fixture ecc "$harness" --apply
+          done
+      - name: MCP server and Pi bridge fixtures
+        shell: bash
+        run: |
+          for server in context7 exa firecrawl; do
+            node dist/src/cli.js fixture mcp "$server" pi --apply
+          done

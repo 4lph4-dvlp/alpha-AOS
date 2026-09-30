@@ -257,12 +257,12 @@ alpha-aos project status .
 
 | Layer | Component / Package | Targets | Notes |
 |---|---|---|---|
-| **Workflow & State Spine** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
+| **Workflow & State Spine** | GSD Core `standard` | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
 | **Worker Harness** | Hermes Agent | Hermes | Configured as worker-only; does not write GSD planning state. |
 | **Cross-Harness Memory** | ECC `unified-memory` | All five harnesses | Shared Memory Vault across agents. |
 | **Library Documentation** | ECC `documentation-lookup` + Context7 | All five harnesses | Real-time docs via Context7 stdio MCP gateway. |
 | **Multi-Source Research** | ECC `deep-research` + Exa/Firecrawl | All five harnesses | Multi-source web search & extraction. |
-| **Filtered Web Scraping** | Firecrawl Proxy (`3.25.2`) | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
+| **Filtered Web Scraping** | Firecrawl Proxy | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
 | **Autonomous Controller** | `alpha-aos-control` | All five harnesses | Unifies autonomous capability pack advisory, directory tree-off policy, diagnostics, and rollback/repair. |
 | **GSD Shipping Workflow** | `alpha-aos-ship` | Claude Code | User-invocable PR & branch shipping skill. |
 | **Project Isolation** | alpha-AOS launch adapters | All five harnesses | Isolated runtime with fail-closed bounds. |
@@ -302,17 +302,17 @@ alpha-aos update --apply
 alpha-aos update --apply --target codex,claude
 ```
 
-alpha-AOS uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the reviewed `catalog/stack.lock.json`. Unverified candidate releases (`candidate.lock.json`) are never applied on user workstations.
+alpha-AOS uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the verified `catalog/stack.lock.json`. Unverified candidate releases (`candidate.lock.json`) are never applied on user workstations. `update --check` shows the registry's latest versions; an `update` status means the version has not been promoted into the stable lock yet, so `update --apply` will not install it until the weekly promotion lands.
 
-### 3. Automated Upstream Version Check Cadence
+### 3. Automated Weekly Dependency Promotion
 
-Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapter) are tracked through automated GitHub Actions workflows:
+Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapter) are promoted into the stable lock without manual approval, but only through verification gates:
 
-- **Weekly Check Schedule**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml) runs automatically **every Monday at 03:17 UTC (12:17 KST)**.
-- **Automated PR Staging**: When newer upstream versions appear in the npm registry, the workflow automatically creates/refreshes an `automation/dependency-candidate` branch and opens a candidate PR.
+- **Monday 03:17 UTC (12:17 KST)**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml) resolves the registry's latest versions, checks their integrity, writes every changed package into `catalog/stack.lock.json` on the `automation/dependency-candidate` branch (re-pinning ECC skill hashes when ECC moves), and verifies that commit with the full CI suite plus real GSD, ECC, MCP server, and Pi bridge fixtures on Linux, macOS, and Windows.
+- **Wednesday 03:17 UTC (12:17 KST)**: [`.github/workflows/auto-promote.yml`](.github/workflows/auto-promote.yml) takes the commit Monday verified, rebases it onto current `main`, re-checks the registry (a version that was unpublished, altered, or is younger than 36 hours is refused), verifies the rebased commit again, and fast-forwards `main` to exactly that commit.
+- **Refusal is the safe default**: Any failure fails the workflow run, leaves `main` untouched, and triggers GitHub's failure notification. All packages in a week are promoted together, so one failing package holds the whole week back. The next Monday run starts over from the latest registry versions.
 - **Pack Skill Drift Audit**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml) runs weekly **every Monday at 04:17 UTC (13:17 KST)** to verify that catalog pack skills match pinned hashes.
-- **3-Tier Verification Gate**: The candidate must pass credential-free isolated fixtures, comprehensive regression test suites across Linux/macOS/Windows, and red-main guard validation before maintainers promote it into `catalog/stack.lock.json`.
-- **Manual Trigger**: Maintainers can trigger an immediate upstream version check at any time via the GitHub Actions `workflow_dispatch` button.
+- **Manual Trigger**: Either workflow can be started at any time with the GitHub Actions `workflow_dispatch` button, for example to retry Wednesday's promotion after `main` moved during verification.
 
 ---
 

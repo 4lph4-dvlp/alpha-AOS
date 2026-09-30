@@ -1,11 +1,13 @@
-import { open, readdir, readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { open, readdir, readFile, stat } from "node:fs/promises";
+import { isAbsolute, join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { reviewedDigest } from "./component-session.js";
+import { canonicalizeWithMissingTail } from "./path-boundary.js";
 import { packageRoot } from "./paths.js";
 import { shellQuote } from "./project-plan.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
+import { assertControllerRole, WorkerAuthorityError } from "./worker-authority.js";
 
 /** The domain separator every task contract digest is bound under. */
 export const TASK_CONTRACT_DIGEST_KIND = "task-contract";
@@ -138,6 +140,10 @@ export interface TaskContractPreview {
   sourcePath: string;
   approvals: TaskApprovalRecord[];
   approved: boolean;
+  /** What approving this digest grants (AUTO-02): one run of this revision, by explicit CLI approval. */
+  consent: { mode: "autopilot"; grant: "explicit-cli-approval"; scope: "single-run"; revision: number };
+  /** The overall wall-time limit in minutes, or null when the contract sets none. */
+  resourceLimit: number | null;
 }
 
 export type TaskApprovalResult =
@@ -148,6 +154,10 @@ export type TaskSchemaName = "task-contract" | "task-receipt" | "task-review";
 
 const CONTRACT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
+
+/** Mirrors CREDENTIAL_NAME_PATTERN in src/cli.ts: the names whose values are treated as credentials. */
+const CREDENTIAL_NAME_PATTERN = /(?:secret|token|password|passwd|api[-_]?key|credential|auth|jwt|session)/iu;
+const CREDENTIAL_MIN_LENGTH = 8;
 
 const schemaCache = new Map<string, Record<string, unknown>>();
 
@@ -244,11 +254,130 @@ async function parseTaskContract(text: string, label: string): Promise<TaskContr
   return contract;
 }
 
-/** Reads, bounds, decodes and validates one contract file, and digests it. */
-export async function loadTaskContract(path: string): Promise<LoadedTaskContract> {
+/** Credential-named environment values long enough to be meaningful, by variable name. */
+function credentialEnvironmentValues(source: NodeJS.ProcessEnv): Array<[string, string]> {
+  const values: Array<[string, string]> = [];
+  for (const [name, value] of Object.entries(source)) {
+    if (typeof value !== "string" || !CREDENTIAL_NAME_PATTERN.test(name)) continue;
+    const trimmed = value.trim();
+    if (trimmed.length >= CREDENTIAL_MIN_LENGTH) values.push([name, trimmed]);
+  }
+  return values.sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0));
+}
+
+function pointerSegment(key: string): string {
+  return key.replaceAll("~", "~0").replaceAll("/", "~1");
+}
+
+/**
+ * A contract becomes prompt text and receipt content, so it may not carry the
+ * value of a live credential. The refusal names the document path and the
+ * variable, never the value; an object key that carries one is reported at
+ * its parent, because the key itself would be the value.
+ */
+function assertContractCredentialFree(contract: TaskContract, label: string, source: NodeJS.ProcessEnv): void {
+  const credentials = credentialEnvironmentValues(source);
+  if (credentials.length === 0) return;
+  const refuse = (text: string, path: string): void => {
+    const match = credentials.find(([, value]) => text.includes(value));
+    if (match === undefined) return;
+    throw new TaskContractError(
+      "secret-in-contract",
+      `Task contract ${label} carries the value of credential variable ${match[0]} at ${path}. A contract names what a task needs; remove the value from the contract.`,
+    );
+  };
+  const walk = (current: unknown, path: string): void => {
+    if (typeof current === "string") {
+      refuse(current, path === "" ? "/" : path);
+      return;
+    }
+    if (Array.isArray(current)) {
+      for (const [index, entry] of current.entries()) walk(entry, `${path}/${index}`);
+      return;
+    }
+    if (typeof current === "object" && current !== null) {
+      for (const [key, entry] of Object.entries(current as Record<string, unknown>)) {
+        refuse(key, `${path === "" ? "/" : path} (an object key)`);
+        walk(entry, `${path}/${pointerSegment(key)}`);
+      }
+    }
+  };
+  walk(contract, "");
+}
+
+/**
+ * Why a normalized project-relative path cannot be an allowed root, or null.
+ * Reserved names are compared case-insensitively and without the trailing
+ * dots and spaces Windows strips, so `.GIT` or `.planning.` cannot slip past.
+ */
+function projectPathProblem(normalized: string): string | null {
+  if (normalized === "") return "is empty after normalization";
+  if (normalized.startsWith("/")) return "is absolute";
+  if (/^[A-Za-z]:/u.test(normalized)) return "names a drive";
+  const segments = normalized.split("/");
+  if (segments.includes("..")) return "has a '..' segment";
+  if (segments.some((segment) => /^[. ]*$/u.test(segment))) return "has an empty or dot-only segment";
+  const bare = segments.map((segment) => segment.replace(/[. ]+$/u, "").toLowerCase());
+  if (bare.includes(".git")) return "names a .git directory";
+  if (bare[0] === ".planning") return "is inside .planning, which GSD owns through the workflow";
+  if (bare[0] === ".alpha-aos") return "is inside .alpha-aos, which alpha-AOS reserves";
+  return null;
+}
+
+/**
+ * The authority a contract may request (AUTO-02, D-03): project-relative
+ * roots inside its own project, measurement entries inside those roots, the
+ * commit effect GSD quick needs, a whole-minute limit and a controller the
+ * stack policy allows. Every refusal names a document path, never a value.
+ */
+function assertContractAuthority(contract: TaskContract, label: string): void {
+  const refuse = (detail: string, path: string) => invalid(`Task contract ${label} is invalid: ${detail} at ${path}.`);
+  if (!isAbsolute(contract.scope.projectRoot)) throw refuse("the project root must be an absolute path", "/scope/projectRoot");
+  const roots: string[] = [];
+  for (const [index, entry] of contract.allowedRoots.entries()) {
+    const normalized = normalizeContractPath(entry);
+    const problem = projectPathProblem(normalized);
+    if (problem !== null) throw refuse(`the allowed root ${problem}`, `/allowedRoots/${index}`);
+    roots.push(normalized);
+  }
+  for (const [index, criterion] of contract.criterion.entries()) {
+    const path = `/criterion/${index}/measurement/entry`;
+    const normalized = normalizeContractPath(criterion.measurement.entry);
+    const problem = projectPathProblem(normalized);
+    if (problem !== null) throw refuse(`the measurement entry ${problem}`, path);
+    if (!roots.some((root) => normalized === root || normalized.startsWith(`${root}/`))) {
+      throw refuse("the measurement entry is outside every allowed root", path);
+    }
+  }
+  if (contract.scope.workflow === "gsd-quick" && !contract.allowedEffects.includes("local-commit")) {
+    throw refuse("GSD quick records its work as local commits, so add local-commit to allowedEffects", "/allowedEffects");
+  }
+  const minutes = contract.resourcePolicy.maxWallTimeMinutes;
+  if (minutes !== undefined && !Number.isInteger(minutes)) {
+    throw refuse("the wall-time limit must be a whole number of minutes; a fractional limit is refused, never rounded", "/resourcePolicy/maxWallTimeMinutes");
+  }
+  try {
+    assertControllerRole(contract.agentPolicy.controller);
+  } catch (error) {
+    if (!(error instanceof WorkerAuthorityError)) throw error;
+    throw new TaskContractError(
+      "unsupported-controller",
+      `Task contract ${label} names ${contract.agentPolicy.controller} as controller at /agentPolicy/controller: hermes is worker-only under the current stack policy, and controller migration belongs to the role-proof phase.`,
+    );
+  }
+}
+
+/**
+ * Reads, bounds, decodes and validates one contract file, refuses authority it
+ * cannot bound or a credential value it carries, and digests it. `source` is
+ * the environment whose credential-named values the contract may not contain.
+ */
+export async function loadTaskContract(path: string, options: { source?: NodeJS.ProcessEnv } = {}): Promise<LoadedTaskContract> {
   const sourcePath = resolve(path);
   const text = await readContractText(sourcePath);
   const contract = await parseTaskContract(text, sourcePath);
+  assertContractCredentialFree(contract, sourcePath, options.source ?? process.env);
+  assertContractAuthority(contract, sourcePath);
   return { contract, digest: taskContractDigest(contract), sourcePath };
 }
 
@@ -465,7 +594,25 @@ export async function previewTaskContract(options: { contractPath: string; state
     sourcePath: loaded.sourcePath,
     approvals,
     approved: approvals.some((approval) => approval.contractDigest === loaded.digest),
+    consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: loaded.contract.revision },
+    resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
   };
+}
+
+/**
+ * The directory an approval is bound to: the canonical form path-boundary
+ * uses for every containment proof, so a link retargeted between approval
+ * and start resolves somewhere else. `problem` says why it cannot be bound.
+ */
+async function bindProjectRoot(projectRoot: string): Promise<{ canonical: string; problem: string | null }> {
+  const { canonical, reason } = await canonicalizeWithMissingTail(resolve(projectRoot));
+  if (reason !== null) return { canonical, problem: reason };
+  try {
+    if (!(await stat(canonical)).isDirectory()) return { canonical, problem: `${canonical} is not a directory` };
+  } catch (error) {
+    return { canonical, problem: `${canonical} does not exist (${(error as NodeJS.ErrnoException).code ?? "unreadable"})` };
+  }
+  return { canonical, problem: null };
 }
 
 /** The exact runnable line that approves one reviewed digest. */
@@ -553,6 +700,11 @@ export async function approveTaskContract(options: {
     );
   }
 
+  const root = await bindProjectRoot(contract.scope.projectRoot);
+  if (root.problem !== null) {
+    throw invalid(`Task contract ${loaded.sourcePath} is invalid: the project root must exist as a directory when it is approved at /scope/projectRoot (${root.problem}).`);
+  }
+
   const record: TaskApprovalRecord = {
     schemaVersion: 1,
     kind: "task-approval",
@@ -560,7 +712,7 @@ export async function approveTaskContract(options: {
     revision: contract.revision,
     contractDigest: digest,
     approvedAt: (options.now ?? (() => new Date()))().toISOString(),
-    canonicalProjectRoot: resolve(contract.scope.projectRoot),
+    canonicalProjectRoot: root.canonical,
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run" },
     contract: digestableTaskContract(contract),
   };
@@ -600,6 +752,14 @@ export async function assertTaskStartable(options: {
     throw new TaskContractError(
       "not-approved",
       `Task contract ${loaded.contract.id} r${loaded.contract.revision} digest ${loaded.digest} has no approval. Preview it, then run: ${taskApproveCommand({ contractPath: loaded.sourcePath, digest: loaded.digest })}`,
+    );
+  }
+  const root = await bindProjectRoot(loaded.contract.scope.projectRoot);
+  if (root.problem !== null || root.canonical !== approval.canonicalProjectRoot) {
+    const now = root.problem === null ? `now resolves to ${root.canonical}` : `can no longer be bound: ${root.problem}`;
+    throw new TaskContractError(
+      "root-changed",
+      `task ${loaded.contract.id}: the project root was approved as ${approval.canonicalProjectRoot} and ${now}. Restore the approved directory, or increase revision to ${nextRevision(approvals, loaded.contract.revision)} and approve the contract for the new directory after previewing it: ${taskPreviewCommand({ contractPath: loaded.sourcePath })}`,
     );
   }
   return { loaded, approval };

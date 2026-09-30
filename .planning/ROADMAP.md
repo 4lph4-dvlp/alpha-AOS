@@ -58,7 +58,7 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 
 Plans:
 **Wave 1**
@@ -68,7 +68,7 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 
 - [x] 14-02-PLAN.md — Contract authority boundaries: canonical digest, changed-field drift, revision reuse, authority and secret guards, root binding
-- [ ] 14-03-PLAN.md — Verdict evidence depth: exact snapshot measurement, confirmed reproductions, stale refusals, named unknowns, recorded decisions
+- [x] 14-03-PLAN.md — Verdict evidence depth: exact snapshot measurement, confirmed reproductions, stale refusals, named unknowns, recorded decisions
 - [ ] 14-04-PLAN.md — Native bootstrap pair: Codex controller/executor (codex-cli 0.158.0) and fresh read-only Claude reviewer (Claude Code 2.1.285)
 
 **Wave 3** *(blocked on Wave 2 completion)*

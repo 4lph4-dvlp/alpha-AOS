@@ -5,16 +5,16 @@ milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: Contract and Vertical Tracer
 status: executing
-stopped_at: Completed 14-02-PLAN.md
-last_updated: "2026-09-30T04:32:41.538Z"
+stopped_at: Completed 14-03-PLAN.md
+last_updated: "2026-09-30T05:03:07.017Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 14 execution started
-state_head: 59353b337f230df20c595ac43c0300a49729dda6
+state_head: 49a98ac9bd729fa625ed5b4ee9f4f2f12081c6c5
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 6
-  completed_plans: 2
+  completed_plans: 3
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 ## Current Position
 
 Phase: 14 (Contract and Vertical Tracer) — EXECUTING
-Plan: 3 of 6
+Plan: 4 of 6
 Status: Ready to execute
 Last activity: 2026-09-30 — Phase 14 execution started
 
@@ -124,6 +124,7 @@ Last activity: 2026-09-30 — Phase 14 execution started
 | Phase 11 P06 | 40 min | 2 tasks | 7 files |
 | Phase 14 P01 | 26 min | 2 tasks | 11 files |
 | Phase 14 P02 | 27min | 2 tasks | 2 files |
+| Phase 14 P03 | 25min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -272,6 +273,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: 14-01: canonicalProjectRoot uses resolve(scope.projectRoot) until 14-02 switches to canonicalizeWithMissingTail
 - [Phase 14]: 14-02: the contract digest canonicalizes text (NFC), paths and expected JSON; any post-approval change is contract-drift naming changed fields, and changed content needs a new revision (revision-reused)
 - [Phase 14]: 14-02: loadTaskContract refuses escaping or reserved roots (.git, .planning, .alpha-aos), out-of-root entries, gsd-quick without local-commit, hermes controllers and credential env values; approvals bind the canonical project root (root-changed)
+- [Phase 14]: 14-03: Artifact digest kind lives in task-check.ts and is re-exported from task-run.ts to avoid a runtime circular import
+- [Phase 14]: 14-03: Only a confirmed blocking reproduction overturns a measured pass; advisory, reproduction-less or unconfirmed reviewer fails reduce to unknown
+- [Phase 14]: 14-03: Verdict rows follow sorted criterion ids; stale-artifact makes measured-pass rows unknown; decisionLog is null until read
 
 ### Pending Todos
 
@@ -355,8 +359,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-30T04:32:22.856Z
-Stopped at: Completed 14-02-PLAN.md
+Last session: 2026-09-30T05:03:06.933Z
+Stopped at: Completed 14-03-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

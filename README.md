@@ -314,6 +314,65 @@ Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapte
 - **Pack Skill Drift Audit**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml) runs weekly **every Monday at 04:17 UTC (13:17 KST)** to verify that catalog pack skills match pinned hashes.
 - **Manual Trigger**: Either workflow can be started at any time with the GitHub Actions `workflow_dispatch` button, for example to retry Wednesday's promotion after `main` moved during verification.
 
+### 4. Running Verification and Promotion Manually
+
+You never have to do this for the weekly cycle. Run the two workflows by hand when you want a new upstream version sooner, or to retry after a refused run. The order is always the same:
+
+1. **Verify** — run *Dependency candidate* (the Monday workflow).
+2. **Promote** — run *Dependency auto-promotion* (the Wednesday workflow) after verification succeeded.
+3. **Apply** — update your machine from `main`.
+
+Two timing rules apply to step 2:
+
+- It promotes only a commit that a successful *Dependency candidate* run verified within the last 7 days.
+- Every newly promoted version must have been published at least 36 hours earlier. If one is younger, the run fails at *Re-verify promoted packages against the registry*; run it again after the 36 hours have passed.
+
+#### Option A: Command line (GitHub CLI)
+
+Requires the [GitHub CLI](https://cli.github.com/) logged in with write access to this repository (`gh auth status`). The commands work in PowerShell and POSIX shells.
+
+```sh
+# 0. See which upstream versions are newer than the stable lock
+alpha-aos update --check
+
+# 1. Verify: start the Monday workflow and follow it (about 15 minutes)
+gh workflow run dependency-candidate.yml --ref main
+# wait a few seconds so the new run is listed, then:
+gh run watch "$(gh run list --workflow dependency-candidate.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+
+#    Verified if every job passed and the run lists the "verified-candidate" artifact.
+#    The candidate commit message names the versions it will promote:
+git fetch origin automation/dependency-candidate
+git log -1 --format=%s FETCH_HEAD
+
+# 2. Promote: start the Wednesday workflow and follow it
+gh workflow run auto-promote.yml --ref main
+gh run watch "$(gh run list --workflow auto-promote.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+
+#    Promoted if main now ends with "chore(deps): promote ...":
+git fetch origin
+git log -1 --format=%s origin/main
+```
+
+If step 1 prints `No dependency version changes.` in *Stage promotion commit* and skips the other jobs, there is nothing to promote. If step 2 finishes with *Verify* and *Fast-forward main* skipped, there was no verified commit to land (or it is already on `main`).
+
+#### Option B: GitHub web
+
+1. **Verify**
+   - Open the repository's **Actions** tab and select **Dependency candidate** in the left sidebar.
+   - Click **Run workflow**, keep **Branch: main**, and click the green **Run workflow** button.
+   - Refresh and open the new run. It is verified when every job shows a green check and the **Artifacts** section at the bottom of the run's **Summary** lists `verified-candidate`. The *Stage promotion commit* job log names the promoted versions.
+2. **Promote**
+   - In **Actions**, select **Dependency auto-promotion**, then **Run workflow** → **Branch: main** → **Run workflow**.
+   - It is promoted when every job, including **Fast-forward main**, shows a green check. The **Code** tab then shows the latest commit on `main` as `chore(deps): promote ...`.
+3. **When a run fails**
+   - Open the red run and click the job with the red mark. The failing step name tells you why; the [refusal table](docs/how-to/promote-dependencies.md#4-when-a-week-is-refused) explains each step and what to do.
+   - To retry, click **Re-run all jobs** on the run page, or start the workflow again with **Run workflow**.
+
+#### Apply the promoted versions on your machine
+
+After `main` carries the promotion, use the bootstrap update from [section 1](#1-repository--global-cli-update-one-click-bootstrap) (`.\scripts\update.ps1 -Apply` or `sh ./scripts/update.sh --apply`), then confirm with `alpha-aos update --check`: every row should read `current`.
+
 ---
 
 ## Development and Testing

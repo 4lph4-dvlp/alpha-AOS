@@ -5,16 +5,16 @@ milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: Contract and Vertical Tracer
 status: executing
-stopped_at: Completed 14-04-PLAN.md
-last_updated: "2026-09-30T05:29:09.464Z"
+stopped_at: Completed 14-05-PLAN.md
+last_updated: "2026-09-30T09:32:05.040Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 14 execution started
-state_head: 698815128c686af15aa453c49a48de5f1b70bf1b
+state_head: ce898cc643ad335b23b660a6304cd55d280f14ca
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 5
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 ## Current Position
 
 Phase: 14 (Contract and Vertical Tracer) — EXECUTING
-Plan: 5 of 6
+Plan: 6 of 6
 Status: Ready to execute
 Last activity: 2026-09-30 — Phase 14 execution started
 
@@ -126,6 +126,7 @@ Last activity: 2026-09-30 — Phase 14 execution started
 | Phase 14 P02 | 27min | 2 tasks | 2 files |
 | Phase 14 P03 | 25min | 2 tasks | 7 files |
 | Phase 14 P04 | 23min | 2 tasks | 7 files |
+| Phase 14 P05 | 28 min | 2 tasks | 8 files |
 
 ## Accumulated Context
 
@@ -280,6 +281,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: 14-04: Shared task-agent launch helpers live in src/adapters/task-agent-launch.ts and are re-exported from task-agents.ts, so the registry and the codex/claude adapters form no circular import
 - [Phase 14]: 14-04: Bootstrap pair proven by host probe on 2026-09-30: codex-cli 0.158.0 (npm shim as node plus codex.js) controller/executor and 2.1.285 (Claude Code) fresh read-only reviewer; every other role assignment names its missing proof before launch
 - [Phase 14]: 14-04: Adapter output is untrusted: a capped codex stream is not-retained, the claim comes only from the schema-validated -o file, and a claude report is accepted only from a clean exit whose session id equals the alpha-AOS UUID
+- [Phase 14]: 14-05: a task run requires the project root to be the top level of its git repository; otherwise it is refused as dirty-baseline before the approval is consumed
+- [Phase 14]: 14-05: stopReason for new authority is exactly new-authority-required: <effect>; the offending paths are recorded in effects.violations
+- [Phase 14]: 14-05: the wall-time limit is checked after GSD verification and again immediately before the reviewer is launched
 
 ### Pending Todos
 
@@ -363,8 +367,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-30T05:28:44.627Z
-Stopped at: Completed 14-04-PLAN.md
+Last session: 2026-09-30T09:31:54.718Z
+Stopped at: Completed 14-05-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

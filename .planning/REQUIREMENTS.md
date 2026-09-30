@@ -11,7 +11,7 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 ### Goal contracts
 
 - [ ] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
-- [ ] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
+- [x] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
 - [ ] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
 
 ### Explicit autopilot mode

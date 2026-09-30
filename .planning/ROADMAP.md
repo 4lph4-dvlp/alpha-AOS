@@ -58,7 +58,7 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 4/6 plans executed
+**Plans:** 5/6 plans executed
 
 Plans:
 **Wave 1**
@@ -73,7 +73,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 14-05-PLAN.md — GSD quick bridge and authority audit: read-only GSD evidence, blocked new authority, D-07 pack checkpoint, wall-time stop
+- [x] 14-05-PLAN.md — GSD quick bridge and authority audit: read-only GSD evidence, blocked new authority, D-07 pack checkpoint, wall-time stop
 
 **Wave 4** *(blocked on Wave 3 completion)*
 

@@ -1,16 +1,19 @@
 import { randomUUID } from "node:crypto";
-import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { lstat, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
 import {
   collectTaskArtifact,
+  confirmReviewerReproduction,
   materializeTaskSnapshot,
   measureTaskCriterion,
+  selectMeasurementSubstitutes,
   type TaskArtifactCause,
   type TaskDecision,
-  type TaskMeasurementSubstitute,
+  type TaskDecisionCategory,
+  type TaskReproductionConfirmation,
 } from "./task-check.js";
 import {
   assertTaskStartable,
@@ -24,7 +27,7 @@ import {
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
-import type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
+import { assessTaskReview, reduceTaskVerdict, type TaskVerdict } from "./task-verdict.js";
 
 export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
 export type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
@@ -232,16 +235,12 @@ export interface StartTaskOptions {
   now?: () => Date;
 }
 
-const REPORT_TEXT_LIMIT = 4000;
+const REPORT_TEXT_LIMIT = 4096;
 const REPORT_LIST_LIMIT = 64;
 
 function bounded(text: string, limit: number): string {
   const single = text.replace(/\s+/gu, " ").trim();
   return single.length <= limit ? single : `${single.slice(0, limit - 3)}...`;
-}
-
-function digest12(digest: string): string {
-  return digest.slice(0, 12);
 }
 
 function runsDirectory(stateRoot: string, contractId: string): string {
@@ -389,111 +388,145 @@ export async function readTaskReport(options: {
 }
 
 // ---------------------------------------------------------------------------
-// Verdict reduction
-// ---------------------------------------------------------------------------
-
-interface ReductionInput {
-  contract: TaskContract;
-  contractDigest: string;
-  artifactDigest: string;
-  request: ReviewRequest;
-  measurements: readonly TaskMeasurement[];
-  report: TaskReviewReport | null;
-  reportIssue: string | null;
-  artifactChanged: boolean;
-}
-
-function staleness(input: ReductionInput): string | null {
-  if (input.artifactChanged) return "the artifact changed after it was measured and handed to review";
-  const report = input.report;
-  if (report === null) return null;
-  if (report.requestId !== input.request.requestId) return "the review report answers a different review request";
-  if (report.contractId !== input.contract.id) return "the review report names a different contract";
-  if (report.contractDigest !== input.contractDigest) return "the review report is bound to a different contract digest";
-  if (report.artifactDigest !== input.artifactDigest) return "the review report is bound to a different artifact digest";
-  return null;
-}
-
-/**
- * Measurement decides failure; review can only confirm a measured pass. The
- * executor claim and exit code are deliberately not inputs (D-11).
- */
-function reduceVerdict(input: ReductionInput): { verdict: TaskRunVerdict; nextAction: string | null } {
-  const artifact = digest12(input.artifactDigest);
-  const stale = staleness(input);
-  const usable = stale === null ? input.report : null;
-  const rerunReview = `re-run the review on artifact ${artifact}`;
-
-  const rows = input.contract.criterion.map((criterion): TaskVerdictRow => {
-    const measured = input.measurements.find((entry) => entry.criterionId === criterion.id) ?? {
-      criterionId: criterion.id,
-      outcome: "unavailable" as const,
-      exitCode: null,
-      stdoutSha256: null,
-      detail: "the criterion was not measured",
-      cause: "spawn-failed" as const,
-      measuredBy: "contract" as const,
-      substituteDecisionId: null,
-    };
-    const matches = usable?.criteria.filter((entry) => entry.criterionId === criterion.id) ?? [];
-    const reviewed = matches.length === 1 ? (matches[0] as TaskReviewCriterion) : null;
-    const review =
-      reviewed === null
-        ? null
-        : { verdict: reviewed.verdict, severity: reviewed.severity, evidence: reviewed.evidence, confirmed: null, confirmationDetail: null };
-    const row = (verdict: TaskVerdictRow["verdict"], reason: string, nextAction: string | null): TaskVerdictRow => ({
-      criterionId: criterion.id,
-      verdict,
-      measured,
-      review,
-      artifactDigest: input.artifactDigest,
-      reason: bounded(reason, 1000),
-      nextAction,
-    });
-
-    if (measured.outcome === "fail") {
-      return row("fail", `measured fail: ${measured.detail}${review === null ? "" : `; review ${review.verdict}`}`, null);
-    }
-    if (measured.outcome === "unavailable") {
-      return row(
-        "unknown",
-        `measurement unavailable: ${measured.detail}`,
-        `restore the measurement environment and re-measure ${criterion.id} on artifact ${artifact}`,
-      );
-    }
-    if (stale !== null) return row("unknown", `measured pass; review refused as stale: ${stale}`, rerunReview);
-    if (input.reportIssue !== null) return row("unknown", `measured pass; ${input.reportIssue}`, rerunReview);
-    if (reviewed === null) {
-      const missing = matches.length === 0 ? "no verdict" : "more than one verdict";
-      return row("unknown", `measured pass; the review has ${missing} for this criterion`, rerunReview);
-    }
-    if (reviewed.verdict === "pass") return row("pass", "measured pass; review pass", null);
-    const because = reviewed.abstainReason ?? reviewed.finding?.summary ?? reviewed.evidence;
-    return row("unknown", `measured pass; review ${reviewed.verdict}: ${because}`, rerunReview);
-  });
-
-  const failing = rows.filter((row) => row.verdict === "fail").map((row) => row.criterionId);
-  const unknown = rows.find((row) => row.verdict === "unknown");
-  const overall: TaskRunVerdict["overall"] =
-    failing.length > 0 ? "rejected" : unknown !== undefined || stale !== null ? "unknown" : "accepted";
-  const nextAction =
-    overall === "accepted"
-      ? null
-      : overall === "rejected"
-        ? `fix the failing criteria (${failing.join(", ")}) and approve a new contract revision; this approval is consumed`
-        : (unknown?.nextAction ?? rerunReview);
-  return { verdict: { overall, refusal: stale === null ? null : "stale-review", rows, preconditions: [] }, nextAction };
-}
-
-// ---------------------------------------------------------------------------
 // Decision log (CON-02, D-06)
 // ---------------------------------------------------------------------------
 
-export async function readTaskDecisionLog(_options: {
-  projectRoot: string;
-  runId: string;
-}): Promise<TaskDecisionLogStatus & { entries: TaskDecision[] }> {
-  throw new Error("readTaskDecisionLog is not implemented");
+const DECISION_LOG_MAX_BYTES = 256 * 1024;
+const DECISION_LOG_MAX_LINES = 200;
+const RUN_ID_PATTERN = /^[0-9a-z]{8,}-[0-9a-f]{8}$/u;
+const DECISION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,64}$/u;
+const CRITERION_ID_PATTERN = /^[a-z][a-z0-9-]{0,47}$/u;
+const DECISION_KEYS = ["at", "category", "choice", "criterionIds", "id", "rationale", "substitute"];
+const DECISION_CATEGORIES: readonly TaskDecisionCategory[] = [
+  "implementation",
+  "file-layout",
+  "verification",
+  "dependency",
+  "measurement-substitute",
+  "gsd-default",
+];
+
+export interface TaskDecisionLog extends TaskDecisionLogStatus {
+  entries: TaskDecision[];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function closedKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const own = Object.keys(value).sort();
+  return own.length === keys.length && own.every((key, index) => key === keys[index]);
+}
+
+function boundedText(value: unknown, max: number): value is string {
+  return typeof value === "string" && value.length >= 1 && value.length <= max;
+}
+
+/** The closed decision shape, or the name of the first field that breaks it. Never echoes a value. */
+function parseDecision(value: unknown): { decision: TaskDecision } | { problem: string } {
+  if (!isRecord(value)) return { problem: "the line is not a JSON object" };
+  if (!closedKeys(value, DECISION_KEYS)) return { problem: `the decision must carry exactly ${DECISION_KEYS.join(", ")}` };
+  if (typeof value.id !== "string" || !DECISION_ID_PATTERN.test(value.id)) return { problem: "id must be 1 to 64 letters, digits or ._:-" };
+  if (!boundedText(value.at, 64)) return { problem: "at must be a string of 1 to 64 characters" };
+  if (typeof value.category !== "string" || !DECISION_CATEGORIES.includes(value.category as TaskDecisionCategory)) {
+    return { problem: "category is not a recorded decision category" };
+  }
+  if (!boundedText(value.choice, 500)) return { problem: "choice must be a string of 1 to 500 characters" };
+  if (!boundedText(value.rationale, 1000)) return { problem: "rationale must be a string of 1 to 1000 characters" };
+  const ids = value.criterionIds;
+  if (!Array.isArray(ids) || ids.length > 32 || !ids.every((id) => typeof id === "string" && CRITERION_ID_PATTERN.test(id))) {
+    return { problem: "criterionIds must be up to 32 criterion ids" };
+  }
+  let substitute: TaskDecision["substitute"] = null;
+  if (value.substitute !== null) {
+    const candidate = value.substitute;
+    // Only an entry path may be substituted; an input or expectation field is refused (D-08).
+    if (!isRecord(candidate) || !closedKeys(candidate, ["criterionId", "entry"])) {
+      return { problem: "substitute must be null or carry exactly criterionId and entry" };
+    }
+    if (typeof candidate.criterionId !== "string" || !CRITERION_ID_PATTERN.test(candidate.criterionId)) {
+      return { problem: "substitute.criterionId is not a criterion id" };
+    }
+    if (!boundedText(candidate.entry, 500)) return { problem: "substitute.entry must be a string of 1 to 500 characters" };
+    substitute = { criterionId: candidate.criterionId, entry: candidate.entry };
+  }
+  return {
+    decision: {
+      id: value.id,
+      at: value.at as string,
+      category: value.category as TaskDecisionCategory,
+      choice: value.choice as string,
+      rationale: value.rationale as string,
+      criterionIds: [...(ids as string[])],
+      substitute,
+    },
+  };
+}
+
+/**
+ * Reads the controller's decision log for one run. The log is untrusted data:
+ * it is bounded, strictly shaped and credential-checked, and any bad line makes
+ * the whole log invalid so no decision from it is used (fail closed).
+ */
+export async function readTaskDecisionLog(options: { projectRoot: string; runId: string }): Promise<TaskDecisionLog> {
+  if (!RUN_ID_PATTERN.test(options.runId)) {
+    throw new Error(`Decision log refused: ${JSON.stringify(options.runId.slice(0, 40))} is not a task run id.`);
+  }
+  const invalid = (reason: string): TaskDecisionLog => ({ status: "invalid", entries: [], reason: bounded(reason, 300) });
+  const segments = [".alpha-aos", "task-runs", options.runId, "decisions.jsonl"];
+  let path = resolve(options.projectRoot);
+  for (const [index, segment] of segments.entries()) {
+    path = join(path, segment);
+    const shown = segments.slice(0, index + 1).join("/");
+    let stat;
+    try {
+      stat = await lstat(path);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") return { status: "absent", entries: [], reason: null };
+      return invalid(`${shown} could not be read (${typeof code === "string" ? code : "unknown error"})`);
+    }
+    if (stat.isSymbolicLink()) return invalid(`${shown} is a symbolic link`);
+    const last = index === segments.length - 1;
+    if (last ? !stat.isFile() : !stat.isDirectory()) return invalid(`${shown} is not a ${last ? "regular file" : "directory"}`);
+    if (last && stat.size > DECISION_LOG_MAX_BYTES) return invalid(`the decision log exceeds ${DECISION_LOG_MAX_BYTES} bytes`);
+  }
+
+  const bytes = await readFile(path);
+  if (bytes.byteLength > DECISION_LOG_MAX_BYTES) return invalid(`the decision log exceeds ${DECISION_LOG_MAX_BYTES} bytes`);
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return invalid("the decision log is not UTF-8 text");
+  }
+  const lines = text.split(/\r?\n/u);
+  if (lines.at(-1) === "") lines.pop();
+  if (lines.length > DECISION_LOG_MAX_LINES) {
+    return invalid(`line ${DECISION_LOG_MAX_LINES + 1}: the decision log exceeds ${DECISION_LOG_MAX_LINES} lines`);
+  }
+  const entries: TaskDecision[] = [];
+  const seen = new Set<string>();
+  for (const [index, line] of lines.entries()) {
+    const number = index + 1;
+    if (line.trim() === "") continue;
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return invalid(`line ${number}: the line is not JSON`);
+    }
+    const parsed = parseDecision(value);
+    if ("problem" in parsed) return invalid(`line ${number}: ${parsed.problem}`);
+    if (rejectRawCredentials(parsed.decision).length > 0) {
+      return invalid(`line ${number}: the decision carries a credential-shaped value`);
+    }
+    if (seen.has(parsed.decision.id)) return invalid(`line ${number}: decision id ${parsed.decision.id} is repeated`);
+    seen.add(parsed.decision.id);
+    entries.push(parsed.decision);
+  }
+  return { status: "valid", entries, reason: null };
 }
 
 // ---------------------------------------------------------------------------
@@ -509,6 +542,20 @@ function artifactNextAction(cause: TaskArtifactCause): string {
     case "artifact-unreadable":
       return "restore read access to the named path and approve a new contract revision";
   }
+}
+
+function runNextAction(verdict: TaskVerdict): string | null {
+  if (verdict.overall === "accepted") return null;
+  if (verdict.overall === "rejected") {
+    const failing = verdict.rows.filter((row) => row.verdict === "fail").map((row) => row.criterionId);
+    return `fix the failing criteria (${failing.join(", ")}) and approve a new contract revision; this approval is consumed`;
+  }
+  if (verdict.refusal === "stale-artifact") {
+    return "the artifact changed while it was being judged; keep the project unchanged during a run and approve a new contract revision to run again";
+  }
+  const unmet = verdict.preconditions.find((entry) => !entry.satisfied);
+  const unknown = verdict.rows.find((row) => row.verdict === "unknown");
+  return unknown?.nextAction ?? unmet?.nextAction ?? "re-run the review";
 }
 
 function controllerPrompt(contract: TaskContract, contractDigest: string): string {
@@ -616,6 +663,15 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     });
     record = { ...record, executor: executorBlock(dispatched) };
 
+    // The controller's own record of what it chose and why (CON-02, D-06).
+    const decisionLog = await readTaskDecisionLog({ projectRoot, runId });
+    record = {
+      ...record,
+      decisions: decisionLog.entries,
+      decisionLog: { status: decisionLog.status, reason: decisionLog.reason },
+    };
+    const substitutes = selectMeasurementSubstitutes(decisionLog.entries, contract);
+
     const collected = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
     if (collected.status === "unavailable") {
       record = {
@@ -637,7 +693,6 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       projectRoot,
       destination: join(scratchRoot, "snapshot"),
     });
-    const substitutes: TaskMeasurementSubstitute[] = [];
     const measurements: TaskMeasurement[] = [];
     for (const criterion of contract.criterion) {
       measurements.push(
@@ -677,25 +732,57 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       },
     };
 
+    const received = reviewed.report !== null && reviewed.report !== undefined;
+    const review = assessTaskReview({
+      report: checked.report,
+      request,
+      portSessionId: reviewed.sessionId,
+      contract,
+      issues: reviewed.issues.map((issue) => bounded(issue, 300)),
+      rejected: received ? checked.issue : null,
+    });
+
+    // A reviewer failure against a measured pass counts only when alpha-AOS
+    // reproduces it by running the contract entry on the reviewer's input (D-14).
+    const confirmations = new Map<string, TaskReproductionConfirmation>();
+    if (review.status === "ok") {
+      for (const criterion of contract.criterion) {
+        const measured = measurements.find((entry) => entry.criterionId === criterion.id);
+        const row = review.rows.get(criterion.id);
+        const reproduction = row?.finding?.reproduction ?? null;
+        if (measured?.outcome !== "pass" || row?.verdict !== "fail" || row.severity !== "blocking" || reproduction === null) continue;
+        confirmations.set(
+          criterion.id,
+          await confirmReviewerReproduction({ criterion, reproduction, root: snapshot, scratchRoot }),
+        );
+      }
+    }
+
     // Re-hash before judging: a verdict is only about the bytes that were
     // measured and reviewed, never about whatever is on disk afterwards.
     const after = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
     const afterSnapshot = await collectTaskArtifact({ projectRoot: snapshot, allowedRoots: contract.allowedRoots });
-    const { verdict, nextAction } = reduceVerdict({
+    const artifactChanged =
+      after.status !== "ok" ||
+      after.digest !== artifact.digest ||
+      afterSnapshot.status !== "ok" ||
+      afterSnapshot.digest !== artifact.digest;
+    const verdict = reduceTaskVerdict({
       contract,
-      contractDigest: digest,
       artifactDigest: artifact.digest,
-      request,
       measurements,
-      report: checked.report,
-      reportIssue: checked.issue,
-      artifactChanged:
-        after.status !== "ok" ||
-        after.digest !== artifact.digest ||
-        afterSnapshot.status !== "ok" ||
-        afterSnapshot.digest !== artifact.digest,
+      review,
+      confirmations,
+      preconditions: [],
+      refusal: artifactChanged ? "stale-artifact" : null,
     });
-    record = { ...record, status: verdict.overall, finishedAt: clock().toISOString(), verdict, nextAction };
+    record = {
+      ...record,
+      status: verdict.overall,
+      finishedAt: clock().toISOString(),
+      verdict,
+      nextAction: runNextAction(verdict),
+    };
     await writeRunRecord(options.stateRoot, options.packageRoot, record);
     return { run: record, recordPath };
   } catch (error) {

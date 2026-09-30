@@ -71,9 +71,10 @@ test("an approved contract with a correct implementation and a passing review is
   assert.equal(run.verdict.refusal, null);
   assert.deepEqual(
     run.verdict.rows.map((row) => [row.criterionId, row.verdict, row.measured.outcome]),
+    // Rows follow the contract's canonical criterion order: ids sorted by code unit.
     [
-      ["valid-summary", "pass", "pass"],
       ["invalid-quantity", "pass", "pass"],
+      ["valid-summary", "pass", "pass"],
     ],
   );
   for (const row of run.verdict.rows) assert.equal(row.artifactDigest, run.artifact.digest);

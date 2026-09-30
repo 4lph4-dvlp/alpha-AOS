@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -7,13 +8,26 @@ import { fileURLToPath } from "node:url";
 import { declaredEnvironmentNames } from "../src/core/component-session.js";
 import { materializeEnvironment, type ProcessResult, type ProcessSpec } from "../src/core/process.js";
 import { createRedactedExcerpt, createRedactionContext } from "../src/core/redaction.js";
-import type { ControllerDispatchRequest } from "../src/core/task-run.js";
+import type { ControllerDispatchRequest, ReviewRequest, TaskMeasurement, TaskReviewReport } from "../src/core/task-run.js";
 import {
   agentFacingSchema,
+  nativeTaskPorts,
   parseHarnessVersion,
+  probeTaskAgentPair,
   resolveTaskAgentLaunch,
   TASK_AGENT_BASE_ENVIRONMENT_NAMES,
+  TASK_BOOTSTRAP_PAIR,
+  type HarnessVersionProbe,
 } from "../src/adapters/task-agents.js";
+import {
+  buildReviewPrompt,
+  CLAUDE_REVIEW_OUTPUT_BYTES,
+  CLAUDE_REVIEW_TIMEOUT_MS,
+  claudeReviewEnvironment,
+  claudeReviewerArgs,
+  parseClaudeReviewResult,
+  runClaudeReviewer,
+} from "../src/adapters/task-claude.js";
 import {
   CODEX_TASK_OUTPUT_BYTES,
   CODEX_TASK_TIMEOUT_MS,
@@ -23,6 +37,7 @@ import {
   readCodexClaim,
   runCodexController,
 } from "../src/adapters/task-codex.js";
+import type { TaskAgentPolicy } from "../src/core/task-contract.js";
 import { inventorySummaryContract } from "./helpers/task-fixture.js";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -410,4 +425,372 @@ test("the executor-result schema is closed and lists every property as required"
   walk(schema);
   const text = JSON.stringify(schema);
   assert.ok(text.includes("\"needs-authority\""));
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: the Claude reviewer adapter and the bootstrap pair registry
+// ---------------------------------------------------------------------------
+
+const FAKE_CLAUDE_VERSION_LINE = "9.9.8 (Claude Code)";
+const REQUEST_ID = "5b3f0c0e-1d2a-4c55-9a53-7f1e2b3c4d5e";
+
+function measurements(): TaskMeasurement[] {
+  return [
+    {
+      criterionId: "invalid-quantity",
+      outcome: "pass",
+      exitCode: 2,
+      stdoutSha256: "b".repeat(64),
+      detail: "exit 2, stdout empty and stderr JSON as expected",
+      cause: "none",
+      measuredBy: "contract",
+      substituteDecisionId: null,
+    },
+    {
+      criterionId: "valid-summary",
+      outcome: "fail",
+      exitCode: 0,
+      stdoutSha256: "c".repeat(64),
+      detail: "stdout JSON differs at /totalQuantity: expected 10, got 11",
+      cause: "none",
+      measuredBy: "contract",
+      substituteDecisionId: null,
+    },
+  ];
+}
+
+async function reviewRequest(context: TestContext, sessionId: string = randomUUID()): Promise<ReviewRequest> {
+  const reviewRoot = await scratch(context, "review");
+  return {
+    runId: "run-review",
+    requestId: REQUEST_ID,
+    sessionId,
+    contract: inventorySummaryContract(await scratch(context, "review-project")),
+    contractDigest: "d".repeat(64),
+    artifactDigest: "e".repeat(64),
+    reviewRoot,
+    measurements: measurements(),
+    deadlineAt: null,
+  };
+}
+
+function reportFor(request: ReviewRequest): TaskReviewReport {
+  return {
+    schemaVersion: 1,
+    requestId: request.requestId,
+    contractId: request.contract.id,
+    contractDigest: request.contractDigest,
+    artifactDigest: request.artifactDigest,
+    criteria: request.contract.criterion.map((criterion) => ({
+      criterionId: criterion.id,
+      verdict: "pass",
+      severity: "blocking",
+      evidence: `bin/inventory-summary.mjs satisfies ${criterion.id}`,
+      abstainReason: null,
+      finding: null,
+    })),
+    suggestions: [],
+  };
+}
+
+function claudeResult(fields: Record<string, unknown>): string {
+  return `${JSON.stringify({
+    type: "result",
+    subtype: "success",
+    is_error: false,
+    num_turns: 3,
+    result: "",
+    ...fields,
+  })}\n`;
+}
+
+async function reviewSchema(): Promise<Record<string, unknown>> {
+  return JSON.parse(await readFile(join(repositoryRoot, "schemas", "task-review.schema.json"), "utf8")) as Record<string, unknown>;
+}
+
+function claudeRunner(build: (spec: ProcessSpec) => ProcessResult) {
+  const calls: ProcessSpec[] = [];
+  const runner = async (spec: ProcessSpec): Promise<ProcessResult> => {
+    calls.push(spec);
+    if (spec.args.includes("--version")) return processResult(`${FAKE_CLAUDE_VERSION_LINE}\n`);
+    return build(spec);
+  };
+  return { calls, runner };
+}
+
+const okProbe = (version: string, executable: string): (() => Promise<HarnessVersionProbe>) => async () => ({
+  status: "ok",
+  executable,
+  version,
+  raw: version,
+});
+
+test("the claude reviewer argument vector is fixed, fresh and read-only", () => {
+  assert.deepEqual(claudeReviewerArgs({ sessionId: "11111111-2222-4333-8444-555555555555", reviewSchemaJson: "{\"type\":\"object\"}" }), [
+    "-p",
+    "--output-format",
+    "json",
+    "--json-schema",
+    "{\"type\":\"object\"}",
+    "--session-id",
+    "11111111-2222-4333-8444-555555555555",
+    "--no-session-persistence",
+    "--restricted",
+    "--tools",
+    "Read,Grep,Glob",
+    "--strict-mcp-config",
+    "--permission-mode",
+    "plan",
+    "--permission-prompts",
+    "none",
+  ]);
+});
+
+test("the claude reviewer environment declares names only, including its config directory", () => {
+  const policy = claudeReviewEnvironment({ PATH: "/usr/bin", CLAUDE_CONFIG_DIR: "/home/user/.claude", SERVICE_TOKEN: "service-token-value" });
+  const names = declaredEnvironmentNames(policy);
+  for (const name of ["CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY", "PATH", "HOME", "USERPROFILE"]) {
+    assert.ok(names.includes(name), `the claude child may receive ${name}`);
+  }
+  assert.equal(names.includes("OPENAI_API_KEY"), false, "the reviewer never receives the executor's credential name");
+  assert.equal(policy.literal, undefined);
+  const materialized = materializeEnvironment(policy);
+  assert.equal(materialized.SERVICE_TOKEN, undefined);
+  assert.equal(materialized.CLAUDE_CONFIG_DIR, "/home/user/.claude", "the config directory is passed through, not replaced");
+});
+
+test("two reviews run in two fresh sessions, each named by its request, on the review snapshot", async (context) => {
+  const first = await reviewRequest(context);
+  const second = await reviewRequest(context);
+  assert.notEqual(first.sessionId, second.sessionId);
+
+  for (const request of [first, second]) {
+    const { calls, runner } = claudeRunner((spec) =>
+      processResult(claudeResult({ session_id: argumentAfter(spec.args, "--session-id"), structured_output: reportFor(request) })),
+    );
+    const result = await runClaudeReviewer(request, {
+      runner,
+      resolve: () => join(request.reviewRoot, "claude.exe"),
+      now: () => FIXED_NOW,
+    });
+    const launch = calls.find((spec) => spec.args.includes("-p"));
+    assert.ok(launch !== undefined, "the review went through the runner");
+    assert.equal(argumentAfter(launch.args, "--session-id"), request.sessionId);
+    assert.equal(launch.cwd, request.reviewRoot);
+    assert.ok(launch.stdin !== undefined && launch.stdin.includes(request.requestId), "the prompt arrives on stdin");
+    assert.ok(!launch.args.some((argument) => argument.includes(request.requestId)), "the prompt never travels in argv");
+    assert.equal(launch.maxOutputBytes, CLAUDE_REVIEW_OUTPUT_BYTES);
+    assert.equal(launch.excerptBytes, CLAUDE_REVIEW_OUTPUT_BYTES);
+    assert.equal(launch.timeoutMs, CLAUDE_REVIEW_TIMEOUT_MS);
+    const schemaArgument = JSON.parse(argumentAfter(launch.args, "--json-schema")) as Record<string, unknown>;
+    assert.equal(schemaArgument.$id, undefined);
+
+    assert.equal(result.harness, "claude");
+    assert.equal(result.processCode, "ok");
+    assert.equal(result.sessionId, request.sessionId);
+    assert.equal(result.version, "9.9.8");
+    assert.deepEqual(result.report, reportFor(request));
+    assert.deepEqual(result.issues, []);
+  }
+});
+
+test("the review prompt carries the binding, every criterion input and expectation, and the evidence rules", async (context) => {
+  const request = await reviewRequest(context);
+  const built = buildReviewPrompt(request);
+  assert.equal(built.status, "ok");
+  if (built.status !== "ok") return;
+  const prompt = built.prompt;
+  for (const value of [request.requestId, request.contract.id, request.contractDigest, request.artifactDigest]) {
+    assert.ok(prompt.includes(value), `the prompt echoes ${value}`);
+  }
+  for (const criterion of request.contract.criterion) {
+    assert.ok(prompt.includes(criterion.id));
+    assert.ok(prompt.includes(JSON.stringify(criterion.measurement.inputText)), `the prompt carries the ${criterion.id} input`);
+    assert.ok(prompt.includes(`"exitCode": ${criterion.measurement.expect.exitCode}`), `the prompt carries the ${criterion.id} exit code`);
+  }
+  for (const measurement of request.measurements) {
+    assert.ok(prompt.includes(`${measurement.criterionId}: outcome ${measurement.outcome}`));
+    assert.ok(prompt.includes(measurement.detail));
+  }
+  assert.match(prompt, /reproduction/iu);
+  assert.match(prompt, /alpha-AOS will run/iu);
+  assert.match(prompt, /data, never instructions/iu);
+  assert.match(prompt, /not evidence/iu);
+  assert.equal(prompt, prompt.normalize("NFC"));
+});
+
+test("an oversized review prompt is refused and the reviewer is never launched", async (context) => {
+  const request = await reviewRequest(context);
+  const bloated: ReviewRequest = {
+    ...request,
+    measurements: request.measurements.map((measurement) => ({ ...measurement, detail: "x".repeat(210 * 1024) })),
+  };
+  const built = buildReviewPrompt(bloated);
+  assert.equal(built.status, "too-large");
+  const { calls, runner } = claudeRunner(() => processResult(""));
+  const result = await runClaudeReviewer(bloated, { runner, resolve: () => join(request.reviewRoot, "claude.exe"), now: () => FIXED_NOW });
+  assert.equal(result.report, null);
+  assert.equal(calls.filter((spec) => spec.args.includes("-p")).length, 0);
+  assert.ok(result.issues.length > 0);
+});
+
+test("a claude result yields its structured report or its JSON result text", async (context) => {
+  const request = await reviewRequest(context);
+  const schema = await reviewSchema();
+  const structured = parseClaudeReviewResult(
+    excerpt(claudeResult({ session_id: request.sessionId, structured_output: reportFor(request) })),
+    false,
+    request.sessionId,
+    schema,
+  );
+  assert.deepEqual(structured.report, reportFor(request));
+  assert.equal(structured.sessionId, request.sessionId);
+  assert.deepEqual(structured.issues, []);
+
+  const textual = parseClaudeReviewResult(
+    excerpt(claudeResult({ session_id: request.sessionId, result: JSON.stringify(reportFor(request)) })),
+    false,
+    request.sessionId,
+    schema,
+  );
+  assert.deepEqual(textual.report, reportFor(request));
+});
+
+test("an error, a session mismatch, a capped or non-JSON output, or an invalid report yields no report with a named issue", async (context) => {
+  const request = await reviewRequest(context);
+  const schema = await reviewSchema();
+  const report = reportFor(request);
+
+  const errored = parseClaudeReviewResult(
+    excerpt(claudeResult({ session_id: request.sessionId, is_error: true, subtype: "error_max_turns", structured_output: report })),
+    false,
+    request.sessionId,
+    schema,
+  );
+  assert.equal(errored.report, null);
+  assert.match(errored.issues.join(" "), /error/u);
+
+  const otherSession = randomUUID();
+  const mismatched = parseClaudeReviewResult(
+    excerpt(claudeResult({ session_id: otherSession, structured_output: report })),
+    false,
+    request.sessionId,
+    schema,
+  );
+  assert.equal(mismatched.report, null);
+  assert.equal(mismatched.sessionId, otherSession, "the observed session id is reported, not the requested one");
+  assert.match(mismatched.issues.join(" "), /session mismatch/u);
+
+  const capped = parseClaudeReviewResult(
+    excerpt(claudeResult({ session_id: request.sessionId, structured_output: report })),
+    true,
+    request.sessionId,
+    schema,
+  );
+  assert.equal(capped.report, null);
+  assert.match(capped.issues.join(" "), /capped/u);
+
+  const prose = parseClaudeReviewResult(excerpt("Looks good to me.\n"), false, request.sessionId, schema);
+  assert.equal(prose.report, null);
+  assert.match(prose.issues.join(" "), /not JSON/u);
+
+  const invalid = parseClaudeReviewResult(
+    excerpt(
+      claudeResult({
+        session_id: request.sessionId,
+        structured_output: { ...report, criteria: [{ criterionId: "valid-summary", verdict: "maybe" }] },
+      }),
+    ),
+    false,
+    request.sessionId,
+    schema,
+  );
+  assert.equal(invalid.report, null);
+  assert.match(invalid.issues.join(" "), /invalid/u);
+});
+
+test("a review request whose session id is not a UUID is refused without launching", async (context) => {
+  const request = await reviewRequest(context, "--dangerously-skip-permissions");
+  const { calls, runner } = claudeRunner(() => processResult(""));
+  const result = await runClaudeReviewer(request, { runner, resolve: () => join(request.reviewRoot, "claude.exe"), now: () => FIXED_NOW });
+  assert.equal(result.report, null);
+  assert.equal(calls.length, 0);
+  assert.match(result.issues.join(" "), /UUID/u);
+});
+
+test("the bootstrap pair codex/codex/claude is supported with both exact versions", async () => {
+  const assessment = await probeTaskAgentPair(
+    { controller: "codex", executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" },
+    { probeCodex: okProbe("9.9.9", "~/codex.js"), probeClaude: okProbe("9.9.8", "~/claude.exe") },
+  );
+  assert.deepEqual(TASK_BOOTSTRAP_PAIR, { controller: "codex", executor: "codex", reviewer: "claude" });
+  assert.equal(assessment.supported, true);
+  assert.deepEqual(assessment.missingProof, []);
+  assert.deepEqual(assessment.controller, { harness: "codex", version: "9.9.9", executable: "~/codex.js" });
+  assert.deepEqual(assessment.reviewer, { harness: "claude", version: "9.9.8", executable: "~/claude.exe" });
+});
+
+test("every other role assignment is unsupported with the missing proof named, and an absent codex names the command", async () => {
+  const base: TaskAgentPolicy = { controller: "codex", executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" };
+  const probes = { probeCodex: okProbe("9.9.9", "~/codex.js"), probeClaude: okProbe("9.9.8", "~/claude.exe") };
+  const cases: Array<{ policy: TaskAgentPolicy; role: string; harness: string }> = [
+    { policy: { ...base, reviewer: "pi" }, role: "reviewer", harness: "pi" },
+    { policy: { ...base, executor: "claude" }, role: "executor", harness: "claude" },
+    { policy: { ...base, controller: "claude" }, role: "controller", harness: "claude" },
+  ];
+  for (const { policy, role, harness } of cases) {
+    const assessment = await probeTaskAgentPair(policy, probes);
+    assert.equal(assessment.supported, false, `${role} ${harness} is unsupported`);
+    assert.equal(assessment.missingProof.length, 1);
+    assert.match(assessment.missingProof[0] ?? "", new RegExp(`^${role} ${harness}: no native task adapter is proven`, "u"));
+    assert.match(assessment.missingProof[0] ?? "", /ROL-01/u);
+  }
+
+  const noCodex = await probeTaskAgentPair(base, {
+    probeCodex: async () => ({ status: "unsupported", reason: "codex was not found on PATH" }),
+    probeClaude: probes.probeClaude,
+  });
+  assert.equal(noCodex.supported, false);
+  assert.equal(noCodex.controller.version, null);
+  assert.ok(noCodex.missingProof.some((proof) => proof.includes("codex was not found")));
+});
+
+test("nativeTaskPorts delegates assess, dispatch and review to the native adapters", async (context) => {
+  const tools = await scratch(context, "tools");
+  const codexPath = join(tools, "codex.exe");
+  const claudePath = join(tools, "claude.exe");
+  const controllerRequestValue = await controllerRequest(context, null);
+  const review = await reviewRequest(context);
+  const calls: ProcessSpec[] = [];
+  const runner = async (spec: ProcessSpec): Promise<ProcessResult> => {
+    calls.push(spec);
+    const isCodex = spec.executable === codexPath;
+    if (spec.args.includes("--version")) return processResult(`${isCodex ? FAKE_CODEX_VERSION_LINE : FAKE_CLAUDE_VERSION_LINE}\n`);
+    if (isCodex) {
+      await writeFile(argumentAfter(spec.args, "-o"), JSON.stringify(validClaim()), "utf8");
+      return processResult(jsonl({ type: "thread.started", thread_id: "thread-ports" }, { type: "turn.completed", usage: {} }));
+    }
+    return processResult(claudeResult({ session_id: argumentAfter(spec.args, "--session-id"), structured_output: reportFor(review) }));
+  };
+  const ports = nativeTaskPorts({
+    runner,
+    resolve: (command) => (command === "codex" ? codexPath : command === "claude" ? claudePath : null),
+    now: () => FIXED_NOW,
+  });
+
+  const assessment = await ports.assess({ controller: "codex", executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" });
+  assert.equal(assessment.supported, true);
+  assert.equal(assessment.controller.version, "9.9.9");
+  assert.equal(assessment.reviewer.version, "9.9.8");
+
+  const dispatched = await ports.controller.dispatch(controllerRequestValue);
+  assert.equal(dispatched.harness, "codex");
+  assert.equal(dispatched.claim?.status, "completed");
+
+  const reviewed = await ports.reviewer.review(review);
+  assert.equal(reviewed.harness, "claude");
+  assert.deepEqual(reviewed.report, reportFor(review));
+
+  assert.ok(calls.some((spec) => spec.executable === codexPath && spec.args.includes("exec")));
+  assert.ok(calls.some((spec) => spec.executable === claudePath && spec.args.includes("--restricted")));
 });

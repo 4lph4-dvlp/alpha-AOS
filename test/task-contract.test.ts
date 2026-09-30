@@ -18,13 +18,6 @@ import { createTaskFixture, inventorySummaryContract, writeTaskContract, type Ta
 
 const HEX64 = /[0-9a-f]{64}/u;
 
-const loadWithSource = loadTaskContract as (
-  path: string,
-  options?: { source?: NodeJS.ProcessEnv },
-) => ReturnType<typeof loadTaskContract>;
-
-type BoundPreview = TaskContractPreview & { consent?: unknown; resourceLimit?: unknown };
-
 function isCode(code: string, check?: (message: string) => void): (error: unknown) => boolean {
   return (error: unknown) => {
     assert.ok(error instanceof TaskContractError, `unexpected error: ${String(error)}`);
@@ -236,7 +229,7 @@ test("a digest that was never approved is reported as unknown to this state root
 
 async function loadVariant(fixture: TaskFixture, contract: unknown, source: NodeJS.ProcessEnv = {}): Promise<void> {
   await writeTaskContract(fixture.contractPath, contract);
-  await loadWithSource(fixture.contractPath, { source });
+  await loadTaskContract(fixture.contractPath, { source });
 }
 
 test("the wall-time limit loads at 1 and 1440 minutes and is refused outside them", async (context) => {
@@ -256,7 +249,7 @@ test("the wall-time limit loads at 1 and 1440 minutes and is refused outside the
 test("an absent wall-time limit loads and the preview binds consent and reports no overall limit", async (context) => {
   const fixture = await createTaskFixture(context);
   await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot, { resourcePolicy: {} }));
-  const preview = (await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot })) as BoundPreview;
+  const preview: TaskContractPreview = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
   assert.equal(preview.contract.resourcePolicy.maxWallTimeMinutes, null);
   assert.equal(preview.resourceLimit, null);
   assert.deepEqual(preview.consent, { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: 1 });

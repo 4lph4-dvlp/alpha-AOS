@@ -6,7 +6,7 @@
     {
       "number": "14",
       "name": "Contract and Vertical Tracer",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "15",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:discuss-phase",
-    "label": "Discuss the first phase",
-    "reason": "Project initialized — plan your first phase"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 14 of 9 · 0% · executing"
   },
-  "updated_at": "2026-09-29T08:41:45.540Z"
+  "updated_at": "2026-09-30T00:07:22.556Z"
 }

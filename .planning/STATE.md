@@ -4,17 +4,17 @@ milestone: v0.2.0
 milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: Contract and Vertical Tracer
-status: executing
-stopped_at: Completed 14-05-PLAN.md
-last_updated: "2026-09-30T09:32:05.040Z"
+status: verifying
+stopped_at: "Completed 14-06-PLAN.md (halted: live tracer NOT PROVEN, decision D)"
+last_updated: "2026-09-30T10:29:08.868Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 14 execution started
-state_head: ce898cc643ad335b23b660a6304cd55d280f14ca
+state_head: 61f187a8ad6f8012358feba1179bd79096eed33d
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 6
-  completed_plans: 5
+  completed_plans: 6
   percent: 0
 ---
 
@@ -31,7 +31,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 Phase: 14 (Contract and Vertical Tracer) — EXECUTING
 Plan: 6 of 6
-Status: Ready to execute
+Status: Phase complete — ready for verification
 Last activity: 2026-09-30 — Phase 14 execution started
 
 ## Performance Metrics
@@ -127,6 +127,7 @@ Last activity: 2026-09-30 — Phase 14 execution started
 | Phase 14 P03 | 25min | 2 tasks | 7 files |
 | Phase 14 P04 | 23min | 2 tasks | 7 files |
 | Phase 14 P05 | 28 min | 2 tasks | 8 files |
+| Phase 14 P06 | 1h 55m | 1 tasks | 9 files |
 
 ## Accumulated Context
 
@@ -284,6 +285,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: 14-05: a task run requires the project root to be the top level of its git repository; otherwise it is refused as dirty-baseline before the approval is consumed
 - [Phase 14]: 14-05: stopReason for new authority is exactly new-authority-required: <effect>; the offending paths are recorded in effects.violations
 - [Phase 14]: 14-05: the wall-time limit is checked after GSD verification and again immediately before the reviewer is launched
+- [Phase 14]: 14-06: User decision D - RUN-01 live proof (14-06-02) and the defect/stale proof (14-06-03) recorded NOT PROVEN on this host; Codex sandbox, exec policy, supervisor commit behaviour and the 14-05 GSD evidence contract unchanged
+- [Phase 14]: 14-06: Research assumption A3 proven - codex exec drives the installed $gsd-quick (run munx7h9w-b9ec114f); only .gsd/dispatch-isolation-sentinel.json is GSD runtime state in the effect audit
 
 ### Pending Todos
 
@@ -333,6 +336,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - src/core/path-boundary.ts records component identity as Number(info.ino) and recheckPathProof compares those doubles, so two different inodes within one ulp compare equal and a TOCTOU swap can go unnoticed. Same root cause as the identity bug 02-13 fixed in evidence.ts; left open because PathProof.inode is a typed number|null in the public shape and widening it needs its own plan.
 - Open from 02-VERIFICATION (2026-09-09): a paste-ready re-approval command can name a path whose segment has been replaced by a redaction token, so the command as printed does not resolve. Reproduced on a scratch path with a UUID-shaped segment. The refusal, its exit code and its digests are all correct and an ordinary repository path never triggers it, so this is presentation, not safety — but CI checkout paths and temp dirs do carry UUIDs. Phase 6/7 decides whether a redacted path suppresses the runnable-command line instead of emitting an unresolvable one.
 - Open from 03-04 (2026-09-10): the suite baseline is now 545 tests (539 pass, 0 fail, 6 skipped) and npm run build:check reports 72 inputs / 138 outputs. Plan 03-05 must raise its own baseline to 545 rather than 522.
+- Phase 14 live tracer NOT PROVEN on this host: Codex workspace-write keeps .git read-only, so GSD quick cannot commit (run munx7h9w-b9ec114f blocked). .git write authority deferred to Phase 16/17 or a sealed/container adapter; RUN-01, REV-01 and the live half of AUTO-02 remain open
 
 ## Deferred Items
 
@@ -341,6 +345,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | debug_sessions | codex-native-verification-gap | diagnosed | 2026-09-23 | v0.1.0 |
 | verification_gaps | 07/07-VERIFICATION.md (G-07-2) | gaps_found | 2026-09-23 | v0.1.0 |
 | Isolation | OS/container-backed `sealed` mode | Deferred | Roadmap creation | v2 |
+| verification_gaps | 14-06 live tracer (14-06-02/03) NOT PROVEN: `.git` write authority for GSD quick under Codex `workspace-write` (user decision D) | Deferred to Phase 16/17 or sealed/container adapter | 2026-09-30 | v0.2.0 |
 
 ### Quick Tasks Completed
 
@@ -367,8 +372,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-30T09:31:54.718Z
-Stopped at: Completed 14-05-PLAN.md
+Last session: 2026-09-30T10:29:08.783Z
+Stopped at: Completed 14-06-PLAN.md (halted: live tracer NOT PROVEN, decision D)
 Resume file: None
 
 ## Operator Next Steps

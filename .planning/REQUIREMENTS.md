@@ -10,15 +10,15 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 ### Goal contracts
 
-- [ ] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
+- [x] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
 - [x] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
-- [ ] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
+- [x] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
 
 ### Explicit autopilot mode
 
-- [ ] **AUTO-01**: A user enters autopilot only by explicitly requesting it or approving a clearly presented in-agent offer; the mode is off by default for every new task.
+- [x] **AUTO-01**: A user enters autopilot only by explicitly requesting it or approving a clearly presented in-agent offer; the mode is off by default for every new task.
 - [ ] **AUTO-02**: A user can see autopilot consent, scope, authority and duration bound to the approved task contract; routine GSD questions may be answered automatically only within that authority, and new authority or effects pause for approval.
-- [ ] **AUTO-03**: A user can continue ordinary conversational GSD work without invoking the autonomous supervisor; ending or stopping one autopilot run does not silently enable it for another task.
+- [x] **AUTO-03**: A user can continue ordinary conversational GSD work without invoking the autonomous supervisor; ending or stopping one autopilot run does not silently enable it for another task.
 
 ### Execution and recovery
 

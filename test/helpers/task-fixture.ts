@@ -24,7 +24,12 @@ import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/pro
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
+import { uniqueNames } from "../../src/adapters/task-agent-launch.js";
+import { CLAUDE_REVIEW_ENVIRONMENT_NAMES } from "../../src/adapters/task-claude.js";
+import { CODEX_TASK_ENVIRONMENT_NAMES } from "../../src/adapters/task-codex.js";
+import { NODE_RUNTIME_ENVIRONMENT_NAMES } from "../../src/core/install.js";
 import { packageRoot } from "../../src/core/paths.js";
+import type { EnvironmentPolicy } from "../../src/core/process.js";
 import type { TaskContract } from "../../src/core/task-contract.js";
 import {
   startTask,
@@ -234,6 +239,53 @@ export function inventorySummaryContract(projectRoot: string, overrides: Partial
     agentPolicy: { controller: "codex", executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" },
     resourcePolicy: { maxWallTimeMinutes: 60 },
     ...overrides,
+  };
+}
+
+/**
+ * The D-11 seeded-defect contract: identical to inventorySummaryContract
+ * except for a neutral id and ONE planted value in the held-out measurement —
+ * valid-summary expects totalQuantity 11 where the visible goal still defines
+ * the plain sum (10 for its input). The controller prompt carries each
+ * criterion's id, title and description but never its input or expected
+ * output, so the controller sees the same task the accepted run implemented
+ * and has no text from which to detect or correct the planted value. A
+ * faithful implementation prints 10, claims success and exits 0; measurement
+ * against the approved criterion is what must reject it.
+ */
+export function seededDefectContract(projectRoot: string): TaskContract {
+  const base = inventorySummaryContract(projectRoot, { id: "inventory-summary-b" });
+  return {
+    ...base,
+    criterion: base.criterion.map((criterion) =>
+      criterion.id !== "valid-summary"
+        ? criterion
+        : {
+            ...criterion,
+            measurement: {
+              ...criterion.measurement,
+              expect: {
+                ...criterion.measurement.expect,
+                stdoutJson: { rows: 3, totalQuantity: 11, skus: { "A-100": 5, "B-200": 5 } },
+              },
+            },
+          },
+    ),
+  };
+}
+
+/**
+ * The environment a live `alpha-aos task start` child receives: exactly the
+ * names the Codex controller, the Claude reviewer and the Node runtime
+ * declare, read from the host by NAME, plus the scratch state root as the one
+ * literal. Nothing else from the parent environment reaches the CLI or the
+ * agents it launches.
+ */
+export function liveTaskEnvironment(stateRoot: string): EnvironmentPolicy {
+  return {
+    optional: uniqueNames([...CODEX_TASK_ENVIRONMENT_NAMES, ...CLAUDE_REVIEW_ENVIRONMENT_NAMES, ...NODE_RUNTIME_ENVIRONMENT_NAMES]),
+    literal: { ALPHA_AOS_STATE_DIR: stateRoot },
+    source: process.env,
   };
 }
 

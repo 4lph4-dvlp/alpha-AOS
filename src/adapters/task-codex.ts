@@ -1,5 +1,7 @@
 import { lstat, mkdir, open, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { homedir } from "node:os";
+import { isAbsolute, join } from "node:path";
+import { canonicalizeWithMissingTail } from "../core/path-boundary.js";
 import { packageRoot as defaultPackageRoot } from "../core/paths.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
 import type { ControllerDispatchRequest, ControllerDispatchResult, ExecutorClaim } from "../core/task-run.js";
@@ -82,31 +84,106 @@ interface ExecutorResultDocument {
   decisionsLogged: number;
 }
 
+/**
+ * The controller child environment: names only, read from the parent. With a
+ * granted git directory it adds exactly one literal, GIT_CONFIG_GLOBAL, naming
+ * the run-scoped git config that trusts the project root (see
+ * writeCodexRunGitConfig); it never carries a credential value.
+ */
 export function codexTaskEnvironment(
   source: NodeJS.ProcessEnv = process.env,
-  _options: { gitConfigGlobal?: string } = {},
+  options: { gitConfigGlobal?: string } = {},
 ): EnvironmentPolicy {
-  return nameOnlyEnvironment(CODEX_TASK_ENVIRONMENT_NAMES, source);
+  const policy = nameOnlyEnvironment(CODEX_TASK_ENVIRONMENT_NAMES, source);
+  if (options.gitConfigGlobal === undefined) return policy;
+  return { ...policy, literal: { GIT_CONFIG_GLOBAL: options.gitConfigGlobal } };
 }
 
+/** The alpha-AOS permission profile a controller with a granted git directory runs under. */
 export const CODEX_TASK_PERMISSION_PROFILE = "alpha-aos-task";
 
-export function codexGitAuthorityOverrides(_gitDirectory: string): string[] {
-  throw new Error("codexGitAuthorityOverrides is not implemented");
+// A double quote or any control character could end a TOML string early or
+// smuggle a second key, so such a path is refused before interpolation.
+const UNSAFE_PROFILE_PATH = /["\u0000-\u001f\u007f]/u;
+
+/**
+ * The config overrides that define and select the alpha-aos-task profile for
+ * one granted git directory: read everywhere, write the controller temp
+ * directory and the project root (its .codex read-only), write exactly that
+ * git directory, and keep its config, hooks and info read-only so the
+ * controller cannot plant settings or hooks that a later unsandboxed git
+ * command would execute (T-14-44, T-14-48). Paths travel with forward slashes
+ * as JSON-quoted TOML strings.
+ */
+export function codexGitAuthorityOverrides(gitDirectory: string): string[] {
+  if (!isAbsolute(gitDirectory)) {
+    throw new Error(`The granted git directory must be an absolute path: ${JSON.stringify(gitDirectory)}`);
+  }
+  if (UNSAFE_PROFILE_PATH.test(gitDirectory)) {
+    throw new Error("The granted git directory contains a double quote or a control character and cannot be named in a permission profile");
+  }
+  const directory = gitDirectory.replaceAll("\\", "/");
+  const entries = [
+    `":root"="read"`,
+    `":tmpdir"="write"`,
+    `":workspace_roots"={"."="write", ".codex"="read"}`,
+    `${JSON.stringify(directory)}="write"`,
+    ...["config", "hooks", "info"].map((name) => `${JSON.stringify(`${directory}/${name}`)}="read"`),
+  ];
+  return [
+    "-c",
+    `default_permissions="${CODEX_TASK_PERMISSION_PROFILE}"`,
+    "-c",
+    `permissions.${CODEX_TASK_PERMISSION_PROFILE}.filesystem={${entries.join(", ")}}`,
+  ];
 }
 
-export async function writeCodexRunGitConfig(_options: {
+async function isRegularFile(path: string): Promise<boolean> {
+  try {
+    return (await lstat(path)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Writes the run-scoped git config the controller reads as GIT_CONFIG_GLOBAL.
+ * The elevated sandbox runs as a separate user, so git would refuse the
+ * project as dubious ownership; Codex's own GIT_CONFIG_COUNT trust is
+ * overwritten by GSD Core 1.14.0's environment, so the trust lives here. It
+ * holds only safe.directory for the project root and an include of the
+ * user's existing global config, lives in the run scratch root and is removed
+ * with it (T-14-47). Values are quoted, so a path containing `#` or `;` is not
+ * cut at a comment character.
+ */
+export async function writeCodexRunGitConfig(options: {
   workDirectory: string;
   projectRoot: string;
   globalConfigPath?: string;
 }): Promise<string> {
-  throw new Error("writeCodexRunGitConfig is not implemented");
+  const globalConfigPath = options.globalConfigPath ?? join(homedir(), ".gitconfig");
+  for (const value of [options.projectRoot, globalConfigPath]) {
+    if (/["\r\n]/u.test(value)) {
+      throw new Error("A run git config path contains a double quote or a line break and cannot be written");
+    }
+  }
+  const lines = ["[safe]", `\tdirectory = "${options.projectRoot.replaceAll("\\", "/")}"`];
+  if (await isRegularFile(globalConfigPath)) {
+    lines.push("[include]", `\tpath = "${globalConfigPath.replaceAll("\\", "/")}"`);
+  }
+  const path = join(options.workDirectory, "gitconfig");
+  await writeFile(path, `${lines.join("\n")}\n`, "utf8");
+  return path;
 }
 
 /**
- * The whole controller argument vector. The sandbox is always
- * `workspace-write` confined by `-C` to the project root; the prompt arrives on
- * stdin (`-`), never in the argument vector.
+ * The whole controller argument vector. The sandbox is either the legacy
+ * `workspace-write` (no granted git directory) or the named alpha-aos-task
+ * permission profile that adds exactly the granted git directory; both are
+ * confined by `-C` to the project root. User and project execpolicy rules are
+ * never loaded (`--ignore-rules`), so no ambient allow rule can run a
+ * controller command outside the sandbox (T-14-24, T-14-45). The prompt
+ * arrives on stdin (`-`), never in the argument vector.
  */
 export function codexControllerArgs(paths: {
   projectRoot: string;
@@ -118,8 +195,8 @@ export function codexControllerArgs(paths: {
     "exec",
     "--json",
     "--ephemeral",
-    "--sandbox",
-    "workspace-write",
+    "--ignore-rules",
+    ...(paths.gitDirectory === null ? ["--sandbox", "workspace-write"] : codexGitAuthorityOverrides(paths.gitDirectory)),
     "-C",
     paths.projectRoot,
     "--output-schema",
@@ -330,7 +407,8 @@ export async function runCodexController(
 ): Promise<ControllerDispatchResult> {
   const clock = options.now ?? (() => new Date());
   const runner = options.runner ?? runProcess;
-  const environment = codexTaskEnvironment(options.source ?? process.env);
+  const source = options.source ?? process.env;
+  const environment = codexTaskEnvironment(source);
 
   const launch = resolveTaskAgentLaunch("codex", options.resolve === undefined ? {} : { resolve: options.resolve });
   if (launch.status !== "ok") return notLaunched("unsupported-executable", launch.reason);
@@ -358,14 +436,35 @@ export async function runCodexController(
   // A final message left from anything earlier must never be read as this run's.
   await rm(lastMessagePath, { force: true });
 
+  let args: string[];
+  let launchEnvironment = environment;
+  try {
+    args = [
+      ...launch.argsPrefix,
+      ...codexControllerArgs({ projectRoot: request.projectRoot, outputSchemaPath, lastMessagePath, gitDirectory: request.gitDirectory }),
+    ];
+    if (request.gitDirectory !== null) {
+      // git compares safe.directory with the real path it discovers, so the trust names the canonical root.
+      const root = await canonicalizeWithMissingTail(request.projectRoot);
+      const gitConfigGlobal = await writeCodexRunGitConfig({ workDirectory, projectRoot: root.canonical });
+      launchEnvironment = codexTaskEnvironment(source, { gitConfigGlobal });
+    }
+  } catch (error) {
+    return notLaunched(
+      "git-authority-refused",
+      `the granted git directory could not be expressed safely: ${error instanceof Error ? error.message : String(error)}`,
+      { executable, version },
+    );
+  }
+
   let result: ProcessResult;
   try {
     result = await runner({
       executable: launch.executable,
-      args: [...launch.argsPrefix, ...codexControllerArgs({ projectRoot: request.projectRoot, outputSchemaPath, lastMessagePath, gitDirectory: null })],
+      args,
       cwd: request.projectRoot,
       stdin: request.prompt,
-      environment,
+      environment: launchEnvironment,
       timeoutMs: remaining === null ? CODEX_TASK_TIMEOUT_MS : Math.min(CODEX_TASK_TIMEOUT_MS, remaining),
       maxOutputBytes: CODEX_TASK_OUTPUT_BYTES,
       excerptBytes: CODEX_TASK_OUTPUT_BYTES,

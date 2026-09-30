@@ -32,6 +32,12 @@
 // authority is deferred by user decision (14-06 checkpoint, option D) without
 // changing the sandbox, the exec policy or the GSD evidence contract; see
 // 14-06-SUMMARY.md and 14-VALIDATION.md rows 14-06-02 and 14-06-03.
+//
+// Plan 14-07 superseded decision D (option git-dir-profile): an approved
+// local-commit now launches Codex under the alpha-aos-task permission profile
+// that names exactly the project's git directory (config, hooks and info
+// read-only) with `--ignore-rules`. The no-spend canary below proves that
+// profile on the real host sandbox; the live accepted run is plan 14-08.
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";

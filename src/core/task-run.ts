@@ -44,6 +44,7 @@ import {
   type GsdEvidence,
   type GsdQuickOutline,
 } from "./task-gsd.js";
+import { grantedGitDirectory, resolveTaskGitDirectory } from "./task-git.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
@@ -768,6 +769,9 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     );
   }
 
+  // The one git directory the approved local-commit effect lets the controller write (AUTO-02).
+  const gitDirectory = grantedGitDirectory(contract, await resolveTaskGitDirectory(projectRoot));
+
   const started = clock();
   const runId = `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
   const minutes = contract.resourcePolicy.maxWallTimeMinutes;
@@ -829,7 +833,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       decisionLogPath,
       prompt: buildGsdControllerPrompt({ contract, contractDigest: digest, runId, decisionLogPath, outline }),
       deadlineAt,
-      gitDirectory: null,
+      gitDirectory,
     });
     record = { ...record, executor: executorBlock(dispatched) };
 

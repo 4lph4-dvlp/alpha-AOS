@@ -22,12 +22,6 @@ import {
   type TaskFixture,
 } from "./helpers/task-fixture.js";
 
-type Measured = TaskMeasurement & {
-  cause: string;
-  measuredBy: string;
-  substituteDecisionId: string | null;
-};
-
 const HANG_PROGRAM = "setTimeout(() => undefined, 60_000);\n";
 const FLOOD_PROGRAM = "process.stdout.write(\"x\".repeat(100 * 1024));\n";
 const THREE_ROWS = "sku,qty\nC-1,1\nC-2,2\nC-3,3\n";
@@ -63,17 +57,17 @@ async function measure(
   fixture: TaskFixture,
   criterion: TaskCriterion,
   options: { substitute?: TaskMeasurementSubstitute | null; timeoutMs?: number } = {},
-): Promise<Measured> {
+): Promise<TaskMeasurement> {
   const contract = inventorySummaryContract(fixture.projectRoot);
   const { scratchRoot, root } = await snapshotOf(fixture, contract.allowedRoots);
-  return (await measureTaskCriterion({
+  return await measureTaskCriterion({
     criterion,
     root,
     scratchRoot,
     allowedRoots: contract.allowedRoots,
     substitute: options.substitute ?? null,
     ...(options.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
-  })) as Measured;
+  });
 }
 
 async function writeProgram(fixture: TaskFixture, name: string, source: string): Promise<void> {
@@ -223,13 +217,13 @@ test("the correct implementation passes both criteria when measured on the snaps
   const contract = inventorySummaryContract(fixture.projectRoot);
   const { scratchRoot, root } = await snapshotOf(fixture, contract.allowedRoots);
   for (const criterion of contract.criterion) {
-    const measured = (await measureTaskCriterion({
+    const measured = await measureTaskCriterion({
       criterion,
       root,
       scratchRoot,
       allowedRoots: contract.allowedRoots,
       substitute: null,
-    })) as Measured;
+    });
     assert.equal(measured.outcome, "pass", `${criterion.id}: ${measured.detail}`);
     assert.equal(measured.cause, "none");
     assert.equal(measured.measuredBy, "contract");
@@ -306,26 +300,26 @@ test("a substitute outside the allowed roots or for a present contract entry is 
   await mkdir(join(root, "scripts"), { recursive: true });
   await writeFile(join(root, "scripts", "summary.mjs"), "process.stdout.write('{}');\n", "utf8");
 
-  const present = (await measureTaskCriterion({
+  const present = await measureTaskCriterion({
     criterion,
     root,
     scratchRoot,
     allowedRoots: contract.allowedRoots,
     substitute: { decisionId: "d-1", criterionId: "valid-summary", entry: "scripts/summary.mjs" },
-  })) as Measured;
+  });
   assert.equal(present.measuredBy, "contract");
   assert.equal(present.substituteDecisionId, null);
   assert.equal(present.outcome, "pass");
 
   const missing = withEntry(criterion, "bin/not-written.mjs");
   for (const entry of ["../outside.mjs", "scripts/summary.mjs"]) {
-    const measured = (await measureTaskCriterion({
+    const measured = await measureTaskCriterion({
       criterion: missing,
       root,
       scratchRoot,
       allowedRoots: contract.allowedRoots,
       substitute: { decisionId: "d-2", criterionId: "valid-summary", entry },
-    })) as Measured;
+    });
     assert.equal(measured.outcome, "unavailable", entry);
     assert.equal(measured.cause, "entry-missing", entry);
     assert.equal(measured.measuredBy, "contract", entry);

@@ -20,7 +20,7 @@
 // path-literal guard stays green, and every fixture repository gets its own
 // local git identity so a commit succeeds on a host with no global config.
 
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -45,6 +45,8 @@ export interface TaskFixture {
   readonly projectRoot: string;
   readonly stateRoot: string;
   readonly contractPath: string;
+  /** A Codex-style config root holding the GSD stub (`gsd-core/bin/gsd-tools.cjs`, `gsd-core/workflows/quick.md`). */
+  readonly gsdConfigRoot: string;
 }
 
 export type InventorySummaryVariant = "correct" | "off-by-one";
@@ -71,6 +73,58 @@ function git(cwd: string, args: readonly string[]): string {
   return result.stdout;
 }
 
+/**
+ * A stand-in for an installed GSD Core: a quick workflow with two recognized
+ * steps and a gsd-tools script that answers only `query init.quick`, computing
+ * roadmap_exists and planning_exists from its working directory. It reads and
+ * never writes, exactly like the real probe.
+ */
+export async function writeGsdStub(scratch: string): Promise<string> {
+  const configRoot = join(scratch, "gsd-config");
+  await mkdir(join(configRoot, "gsd-core", "workflows"), { recursive: true });
+  await mkdir(join(configRoot, "gsd-core", "bin"), { recursive: true });
+  await writeFile(
+    join(configRoot, "gsd-core", "workflows", "quick.md"),
+    [
+      "<purpose>",
+      "Execute a small ad-hoc task with GSD guarantees (fixture stub).",
+      "</purpose>",
+      "",
+      "**Step 1: Parse arguments**",
+      "",
+      "Read the task description.",
+      "",
+      "**Step 2: Initialize**",
+      "",
+      "Run gsd-tools query init.quick.",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  await writeFile(
+    join(configRoot, "gsd-core", "bin", "gsd-tools.cjs"),
+    [
+      "\"use strict\";",
+      "const { existsSync } = require(\"node:fs\");",
+      "const { join } = require(\"node:path\");",
+      "const args = process.argv.slice(2);",
+      "if (args[0] !== \"query\" || args[1] !== \"init.quick\") {",
+      "  process.stderr.write(\"gsd-tools stub: only query init.quick is supported\\n\");",
+      "  process.exit(1);",
+      "}",
+      "const planning = join(process.cwd(), \".planning\");",
+      "process.stdout.write(JSON.stringify({",
+      "  quick_id: \"000000-stb\",",
+      "  roadmap_exists: existsSync(join(planning, \"ROADMAP.md\")),",
+      "  planning_exists: existsSync(planning),",
+      "}, null, 2) + \"\\n\");",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  return configRoot;
+}
+
 /** A scratch root holding the project, a private state root and the contract path. */
 export async function createTaskFixture(context: TestContext): Promise<TaskFixture> {
   const scratch = await mkdtemp(join(tmpdir(), "alpha-aos-task-fixture-"));
@@ -80,6 +134,7 @@ export async function createTaskFixture(context: TestContext): Promise<TaskFixtu
   const projectRoot = join(scratch, "inventory-summary");
   const stateRoot = join(scratch, "state");
   const contractPath = join(scratch, "contract.json");
+  const gsdConfigRoot = await writeGsdStub(scratch);
 
   await mkdir(join(projectRoot, ".planning"), { recursive: true });
   await writeFile(
@@ -124,7 +179,7 @@ export async function createTaskFixture(context: TestContext): Promise<TaskFixtu
   git(projectRoot, ["add", "--all"]);
   git(projectRoot, ["commit", "-m", "fixture: seed inventory-summary project"]);
 
-  return { scratch, projectRoot, stateRoot, contractPath };
+  return { scratch, projectRoot, stateRoot, contractPath, gsdConfigRoot };
 }
 
 /** The Phase 14 tracer contract for the inventory-summary project. */
@@ -240,14 +295,67 @@ export async function writeInventorySummaryImplementation(
 }
 
 /**
+ * A test double of the controller's GSD quick work: the quick directory with
+ * its PLAN and SUMMARY, the STATE.md row and the `docs(quick-<id>)` commit.
+ * Only controller-port doubles call this; alpha-AOS itself never writes
+ * `.planning/` (RUN-01). `commit: false` leaves the artifacts uncommitted.
+ */
+export async function simulateGsdQuick(
+  projectRoot: string,
+  options: { quickId: string; slug: string; description: string; commit?: boolean },
+): Promise<void> {
+  const { quickId, slug, description } = options;
+  const directory = join(projectRoot, ".planning", "quick", `${quickId}-${slug}`);
+  await mkdir(directory, { recursive: true });
+  await writeFile(
+    join(directory, `${quickId}-PLAN.md`),
+    [`# Quick ${quickId}: ${description}`, "", "<tasks>", `<task>${description}</task>`, "</tasks>", ""].join("\n"),
+    "utf8",
+  );
+  await writeFile(join(directory, `${quickId}-SUMMARY.md`), [`# Quick ${quickId}: ${description} Summary`, "", "Done.", ""].join("\n"), "utf8");
+  const statePath = join(projectRoot, ".planning", "STATE.md");
+  const state = await readFile(statePath, "utf8");
+  if (!state.includes("### Quick Tasks Completed")) {
+    const table = [
+      "",
+      "### Quick Tasks Completed",
+      "",
+      "| # | Description | Date | Commit | Directory |",
+      "|---|-------------|------|--------|-----------|",
+      "",
+    ].join("\n");
+    await appendFile(statePath, `${state.endsWith("\n") ? "" : "\n"}${table}`, "utf8");
+  }
+  await appendFile(statePath, `| ${quickId} | ${description} | 2026-09-30 | - | [${quickId}-${slug}](./quick/${quickId}-${slug}/) |\n`, "utf8");
+  if (options.commit === false) return;
+  git(projectRoot, ["add", "--", ".planning"]);
+  git(projectRoot, ["commit", "-m", `docs(quick-${quickId}): ${description}`]);
+}
+
+/** A GSD-shaped quick id (`yymmdd-xyz`) derived from the run id, so one run always gets one id. */
+export function fixtureQuickId(runId: string): string {
+  const day = new Date().toISOString().slice(2, 10).replaceAll("-", "");
+  const letters = [...runId.slice(-3)].map((digit) => "abcdefghijklmnop"[Number.parseInt(digit, 16)] ?? "x").join("");
+  return `${day}-${letters}`;
+}
+
+/**
  * A controller double that leaves the reference implementation behind and
  * always claims success with exit 0 — including for the off-by-one variant,
- * which is exactly the claim D-11 says measurement must ignore.
+ * which is exactly the claim D-11 says measurement must ignore. It does its
+ * work the way a real controller must: commit the implementation, then leave
+ * GSD quick's own evidence behind.
  */
 export function referenceControllerPort(variant: InventorySummaryVariant): ControllerPort {
   return {
     async dispatch(request: ControllerDispatchRequest): Promise<ControllerDispatchResult> {
       await writeInventorySummaryImplementation(request.projectRoot, variant);
+      const quickId = fixtureQuickId(request.runId);
+      await simulateGsdQuick(request.projectRoot, {
+        quickId,
+        slug: "inventory-summary",
+        description: "Add the inventory-summary CLI",
+      });
       return {
         harness: "codex",
         version: "fixture",
@@ -260,7 +368,7 @@ export function referenceControllerPort(variant: InventorySummaryVariant): Contr
           status: "completed",
           summary: "Implemented bin/inventory-summary.mjs and verified it.",
           authorityRequest: null,
-          gsdQuickId: null,
+          gsdQuickId: quickId,
         },
         detail: null,
       };

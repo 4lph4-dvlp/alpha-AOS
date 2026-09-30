@@ -82,8 +82,25 @@ interface ExecutorResultDocument {
   decisionsLogged: number;
 }
 
-export function codexTaskEnvironment(source: NodeJS.ProcessEnv = process.env): EnvironmentPolicy {
+export function codexTaskEnvironment(
+  source: NodeJS.ProcessEnv = process.env,
+  _options: { gitConfigGlobal?: string } = {},
+): EnvironmentPolicy {
   return nameOnlyEnvironment(CODEX_TASK_ENVIRONMENT_NAMES, source);
+}
+
+export const CODEX_TASK_PERMISSION_PROFILE = "alpha-aos-task";
+
+export function codexGitAuthorityOverrides(_gitDirectory: string): string[] {
+  throw new Error("codexGitAuthorityOverrides is not implemented");
+}
+
+export async function writeCodexRunGitConfig(_options: {
+  workDirectory: string;
+  projectRoot: string;
+  globalConfigPath?: string;
+}): Promise<string> {
+  throw new Error("writeCodexRunGitConfig is not implemented");
 }
 
 /**
@@ -91,7 +108,12 @@ export function codexTaskEnvironment(source: NodeJS.ProcessEnv = process.env): E
  * `workspace-write` confined by `-C` to the project root; the prompt arrives on
  * stdin (`-`), never in the argument vector.
  */
-export function codexControllerArgs(paths: { projectRoot: string; outputSchemaPath: string; lastMessagePath: string }): string[] {
+export function codexControllerArgs(paths: {
+  projectRoot: string;
+  outputSchemaPath: string;
+  lastMessagePath: string;
+  gitDirectory: string | null;
+}): string[] {
   return [
     "exec",
     "--json",
@@ -340,7 +362,7 @@ export async function runCodexController(
   try {
     result = await runner({
       executable: launch.executable,
-      args: [...launch.argsPrefix, ...codexControllerArgs({ projectRoot: request.projectRoot, outputSchemaPath, lastMessagePath })],
+      args: [...launch.argsPrefix, ...codexControllerArgs({ projectRoot: request.projectRoot, outputSchemaPath, lastMessagePath, gitDirectory: null })],
       cwd: request.projectRoot,
       stdin: request.prompt,
       environment,

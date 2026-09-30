@@ -3,7 +3,10 @@
 // Explicitly invoked, never part of `npm test`: `scripts/run-tests.mjs`
 // enumerates only `*.test.js`, and this file ends in `.integration.ts`. Every
 // test here spends model turns under the user's own Codex and Claude accounts
-// (one GSD quick session and one review per run). Run it by name:
+// (one GSD quick session and one review per run), except one: the "sandboxed
+// GSD commit" canary drives only `codex sandbox` and `codex debug
+// prompt-input` with the adapter-built permission profile and spends no model
+// turn. Run a test by name:
 //
 //   npm run build && node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js
 //
@@ -31,11 +34,21 @@
 // 14-06-SUMMARY.md and 14-VALIDATION.md rows 14-06-02 and 14-06-03.
 
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { appendFile, lstat, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
-import { probeTaskAgentPair, TASK_BOOTSTRAP_PAIR } from "../src/adapters/task-agents.js";
-import { runProcess, type ProcessResult } from "../src/core/process.js";
+import { probeTaskAgentPair, resolveTaskAgentLaunch, TASK_BOOTSTRAP_PAIR } from "../src/adapters/task-agents.js";
+import {
+  CODEX_TASK_PERMISSION_PROFILE,
+  codexGitAuthorityOverrides,
+  codexTaskEnvironment,
+  writeCodexRunGitConfig,
+} from "../src/adapters/task-codex.js";
+import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
+import { resolveCommand, runProcess, type ProcessResult } from "../src/core/process.js";
+import { resolveTaskGitDirectory } from "../src/core/task-git.js";
 import { resolveInstalledGsdTools } from "../src/core/task-gsd.js";
 import { readTaskReport, type TaskRunRecord } from "../src/core/task-run.js";
 import {
@@ -45,6 +58,7 @@ import {
   writeTaskContract,
   type TaskFixture,
 } from "./helpers/task-fixture.js";
+import { gitCommand } from "./helpers/git-fixture.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -169,4 +183,174 @@ test("a real Codex GSD quick run and a fresh Claude review accept a correct inve
       `cli duration ${ms} ms`,
     ].join(" | "),
   );
+});
+
+const CANARY_TIMEOUT_MS = 120 * 1000;
+
+async function sha256OfFile(path: string): Promise<string> {
+  return createHash("sha256").update(await readFile(path)).digest("hex");
+}
+
+async function exists(path: string): Promise<boolean> {
+  try {
+    await lstat(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function hostGitSubject(projectRoot: string): string {
+  const log = gitCommand(projectRoot, ["log", "-1", "--format=%s"]);
+  assert.ok(log.ok, `host git log failed: ${log.stderr}`);
+  return log.stdout.trim();
+}
+
+function collectStrings(value: unknown, into: string[]): string[] {
+  if (typeof value === "string") into.push(value);
+  else if (Array.isArray(value)) for (const item of value) collectStrings(item, into);
+  else if (typeof value === "object" && value !== null) for (const item of Object.values(value)) collectStrings(item, into);
+  return into;
+}
+
+function normalizedPath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/\/+$/u, "").toLowerCase();
+}
+
+test("the approved git directory profile lets a sandboxed GSD commit land and keeps git control files read-only (no model turn)", async (context) => {
+  await requireLiveHarnesses();
+  const fixture = await createTaskFixture(context);
+  const resolution = await resolveTaskGitDirectory(fixture.projectRoot);
+  assert.equal(resolution.status, "grantable", `the fixture git directory must be grantable: ${JSON.stringify(resolution)}`);
+  if (resolution.status !== "grantable") return;
+  const gitDirectory = resolution.gitDirectory;
+  const root = await canonicalizeWithMissingTail(fixture.projectRoot);
+  assert.equal(root.reason, null);
+  const projectRoot = root.canonical;
+
+  const canary = join(fixture.scratch, "codex-canary");
+  await mkdir(canary, { recursive: true });
+  const gitConfigGlobal = await writeCodexRunGitConfig({ workDirectory: canary, projectRoot });
+  const environment = codexTaskEnvironment(process.env, { gitConfigGlobal });
+  const overrides = codexGitAuthorityOverrides(gitDirectory);
+  const launch = resolveTaskAgentLaunch("codex");
+  assert.equal(launch.status, "ok", launch.status === "ok" ? "" : `NOT PROVEN: ${launch.reason}`);
+  if (launch.status !== "ok") return;
+  const git = resolveCommand("git");
+  assert.ok(git !== null, "NOT PROVEN: git is not on PATH");
+  const gsdTools = resolveInstalledGsdTools();
+  assert.ok(gsdTools !== null, "NOT PROVEN: GSD Core is not installed for the Codex controller");
+
+  const steps: string[] = [];
+  const record = (step: string, result: ProcessResult): void => {
+    steps.push(`${step}: ${result.code} exit ${String(result.exitCode)}${result.stderr.excerpt.trim() === "" ? "" : ` stderr ${result.stderr.excerpt.trim().slice(0, 300)}`}`);
+  };
+  const sandboxed = async (step: string, command: readonly string[]): Promise<ProcessResult> => {
+    const result = await runProcess({
+      executable: launch.executable,
+      args: [...launch.argsPrefix, "sandbox", "-P", CODEX_TASK_PERMISSION_PROFILE, "-C", projectRoot, ...overrides, "--", ...command],
+      cwd: projectRoot,
+      environment,
+      timeoutMs: CANARY_TIMEOUT_MS,
+      maxOutputBytes: OUTPUT_BYTES,
+      excerptBytes: OUTPUT_BYTES,
+    });
+    record(step, result);
+    return result;
+  };
+
+  try {
+    // 1. A plain sandboxed git add and commit land in the granted git directory.
+    await appendFile(join(projectRoot, "README.md"), "\ncanary line one\n", "utf8");
+    const add = await sandboxed("sandboxed git add", [git, "add", "README.md"]);
+    assert.equal(add.exitCode, 0, `sandboxed git add failed: ${add.stderr.excerpt}`);
+    const commit = await sandboxed("sandboxed git commit", [git, "commit", "-m", "canary: sandboxed commit"]);
+    assert.equal(commit.exitCode, 0, `sandboxed git commit failed: ${commit.stderr.excerpt}`);
+    assert.equal(hostGitSubject(projectRoot), "canary: sandboxed commit");
+    steps.push(`host log after git commit: ${hostGitSubject(projectRoot)}`);
+
+    // 2. The installed gsd-tools commit (GSD quick's docs commit) lands too.
+    await appendFile(join(projectRoot, "README.md"), "canary line two\n", "utf8");
+    const gsd = await sandboxed("sandboxed gsd-tools query commit", [
+      process.execPath,
+      gsdTools,
+      "query",
+      "commit",
+      "docs(quick-000000-cnr): sandbox canary",
+      "--files",
+      "README.md",
+    ]);
+    assert.equal(gsd.exitCode, 0, `gsd-tools query commit failed: ${gsd.stderr.excerpt}`);
+    const envelope = JSON.parse(gsd.stdout.excerpt.slice(gsd.stdout.excerpt.indexOf("{"))) as { committed?: unknown };
+    assert.equal(envelope.committed, true, `gsd-tools did not commit: ${gsd.stdout.excerpt}`);
+    assert.match(hostGitSubject(projectRoot), /^docs\(quick-000000-cnr\)/u);
+    steps.push(`host log after gsd-tools commit: ${hostGitSubject(projectRoot)}`);
+
+    // 3. The git control files stay read-only and byte-identical.
+    const configPath = join(gitDirectory, "config");
+    const attributesPath = join(gitDirectory, "info", "attributes");
+    const preCommitPath = join(gitDirectory, "hooks", "pre-commit");
+    if (!(await exists(attributesPath))) await writeFile(attributesPath, "# canary baseline\n", "utf8");
+    const configBefore = await sha256OfFile(configPath);
+    const attributesBefore = await sha256OfFile(attributesPath);
+    assert.equal(await exists(preCommitPath), false);
+    const probeScript = join(canary, "write-control-files.cjs");
+    await writeFile(
+      probeScript,
+      [
+        "\"use strict\";",
+        "const { appendFileSync } = require(\"node:fs\");",
+        "const { join } = require(\"node:path\");",
+        `const gitDirectory = ${JSON.stringify(gitDirectory)};`,
+        "for (const relative of [\"config\", \"hooks/pre-commit\", \"info/attributes\"]) {",
+        "  try {",
+        "    appendFileSync(join(gitDirectory, relative), \"# planted\\n\");",
+        "    process.stdout.write(`${relative} WRITTEN\\n`);",
+        "  } catch (error) {",
+        "    process.stdout.write(`${relative} ${error.code}\\n`);",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const control = await sandboxed("sandboxed control-file writes", [process.execPath, probeScript]);
+    steps.push(`control-file write results: ${control.stdout.excerpt.trim().replaceAll(/\r?\n/gu, "; ")}`);
+    for (const relative of ["config", "hooks/pre-commit", "info/attributes"]) {
+      const line = control.stdout.excerpt.split(/\r?\n/u).find((entry) => entry.startsWith(`${relative} `));
+      assert.ok(line !== undefined, `the probe reported ${relative}: ${control.stdout.excerpt}`);
+      assert.match(line, / (EPERM|EACCES)$/u, `${relative} must be refused`);
+    }
+    assert.equal(await sha256OfFile(configPath), configBefore, ".git/config is byte-identical");
+    assert.equal(await sha256OfFile(attributesPath), attributesBefore, ".git/info/attributes is byte-identical");
+    assert.equal(await exists(preCommitPath), false, ".git/hooks/pre-commit is still absent");
+
+    // 4. The model-visible permissions name only the approved writable roots.
+    const rendered = await runProcess({
+      executable: launch.executable,
+      args: [...launch.argsPrefix, "debug", "prompt-input", ...overrides, "canary"],
+      cwd: projectRoot,
+      environment,
+      timeoutMs: CANARY_TIMEOUT_MS,
+      maxOutputBytes: OUTPUT_BYTES,
+      excerptBytes: OUTPUT_BYTES,
+    });
+    record("codex debug prompt-input", rendered);
+    assert.equal(rendered.exitCode, 0, `prompt-input failed: ${rendered.stderr.excerpt}`);
+    const text = collectStrings(JSON.parse(rendered.stdout.excerpt), []).join("\n");
+    assert.ok(text.includes("Network access is restricted"), "network access is restricted");
+    const sentence = /writable roots are ((?:`[^`]+`(?:, )?)+)/u.exec(text);
+    assert.ok(sentence !== null, "the permissions name their writable roots");
+    const writable = [...(sentence[1] as string).matchAll(/`([^`]+)`/gu)].map((match) => match[1] as string);
+    steps.push(`rendered writable roots: ${writable.join(", ")}`);
+    const allowed = new Set(
+      [projectRoot, gitDirectory, process.env.TMPDIR, process.env.TEMP, process.env.TMP]
+        .filter((value): value is string => typeof value === "string" && value !== "")
+        .map(normalizedPath),
+    );
+    for (const path of writable) assert.ok(allowed.has(normalizedPath(path)), `${path} is not an approved writable root`);
+    assert.ok(writable.map(normalizedPath).includes(normalizedPath(projectRoot)), "the project root is writable");
+  } finally {
+    context.diagnostic(`canary steps | ${steps.join(" | ")}`);
+  }
 });

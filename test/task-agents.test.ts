@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -30,12 +30,15 @@ import {
 } from "../src/adapters/task-claude.js";
 import {
   CODEX_TASK_OUTPUT_BYTES,
+  CODEX_TASK_PERMISSION_PROFILE,
   CODEX_TASK_TIMEOUT_MS,
   codexControllerArgs,
+  codexGitAuthorityOverrides,
   codexTaskEnvironment,
   parseCodexEvents,
   readCodexClaim,
   runCodexController,
+  writeCodexRunGitConfig,
 } from "../src/adapters/task-codex.js";
 import type { TaskAgentPolicy } from "../src/core/task-contract.js";
 import { inventorySummaryContract } from "./helpers/task-fixture.js";
@@ -44,6 +47,12 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..", ".
 const FIXED_NOW = new Date("2026-09-30T00:00:00.000Z");
 const TEN_MINUTES_LATER = "2026-09-30T00:10:00.000Z";
 const FAKE_CODEX_VERSION_LINE = "codex-cli 9.9.9";
+const FORBIDDEN_CONTROLLER_TOKENS = [
+  "--dangerously-bypass-approvals-and-sandbox",
+  "danger-full-access",
+  "--yolo",
+  "--add-dir",
+] as const;
 
 async function scratch(context: TestContext, name: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `alpha-aos-task-agents-${name}-`));
@@ -109,7 +118,11 @@ function argumentAfter(args: readonly string[], flag: string): string {
   return args[index + 1] as string;
 }
 
-async function controllerRequest(context: TestContext, deadlineAt: string | null): Promise<ControllerDispatchRequest> {
+async function controllerRequest(
+  context: TestContext,
+  deadlineAt: string | null,
+  gitDirectory: string | null = null,
+): Promise<ControllerDispatchRequest> {
   const projectRoot = await scratch(context, "project");
   const scratchRoot = await scratch(context, "scratch");
   return {
@@ -121,6 +134,7 @@ async function controllerRequest(context: TestContext, deadlineAt: string | null
     decisionLogPath: ".alpha-aos/task-runs/run-test/decisions.jsonl",
     prompt: "Implement the approved task contract through $gsd-quick.",
     deadlineAt,
+    gitDirectory,
   };
 }
 
@@ -154,11 +168,13 @@ test("the codex controller argument vector is fixed and never bypasses the sandb
     projectRoot: "/work/project",
     outputSchemaPath: "/scratch/codex/executor-result.schema.json",
     lastMessagePath: "/scratch/codex/last-message.json",
+    gitDirectory: null,
   });
   assert.deepEqual(args, [
     "exec",
     "--json",
     "--ephemeral",
+    "--ignore-rules",
     "--sandbox",
     "workspace-write",
     "-C",
@@ -169,9 +185,96 @@ test("the codex controller argument vector is fixed and never bypasses the sandb
     "/scratch/codex/last-message.json",
     "-",
   ]);
-  for (const forbidden of ["--dangerously-bypass-approvals-and-sandbox", "danger-full-access", "--yolo"]) {
+  for (const forbidden of FORBIDDEN_CONTROLLER_TOKENS) {
     assert.equal(args.includes(forbidden), false, `the vector never carries ${forbidden}`);
   }
+});
+
+test("a granted git directory replaces the sandbox flag with the alpha-aos-task profile overrides", async (context) => {
+  const gitDirectory = join(await scratch(context, "granted"), "project", ".git");
+  const paths = {
+    projectRoot: "/work/project",
+    outputSchemaPath: "/scratch/codex/executor-result.schema.json",
+    lastMessagePath: "/scratch/codex/last-message.json",
+  };
+  const args = codexControllerArgs({ ...paths, gitDirectory });
+  assert.deepEqual(args, [
+    "exec",
+    "--json",
+    "--ephemeral",
+    "--ignore-rules",
+    ...codexGitAuthorityOverrides(gitDirectory),
+    "-C",
+    "/work/project",
+    "--output-schema",
+    "/scratch/codex/executor-result.schema.json",
+    "-o",
+    "/scratch/codex/last-message.json",
+    "-",
+  ]);
+  assert.equal(args.includes("--sandbox"), false, "the profile replaces the legacy sandbox flag");
+  for (const forbidden of FORBIDDEN_CONTROLLER_TOKENS) {
+    assert.equal(args.includes(forbidden), false, `the granted vector never carries ${forbidden}`);
+  }
+});
+
+test("the git authority overrides name exactly one git directory with its control files read-only", async (context) => {
+  const root = await scratch(context, "overrides");
+  const gitDirectory = join(root, "project", ".git");
+  const forward = gitDirectory.replaceAll("\\", "/");
+  assert.equal(CODEX_TASK_PERMISSION_PROFILE, "alpha-aos-task");
+  assert.deepEqual(codexGitAuthorityOverrides(gitDirectory), [
+    "-c",
+    'default_permissions="alpha-aos-task"',
+    "-c",
+    `permissions.alpha-aos-task.filesystem={":root"="read", ":tmpdir"="write", ":workspace_roots"={"."="write", ".codex"="read"}, ${JSON.stringify(forward)}="write", ${JSON.stringify(`${forward}/config`)}="read", ${JSON.stringify(`${forward}/hooks`)}="read", ${JSON.stringify(`${forward}/info`)}="read"}`,
+  ]);
+  assert.ok(!codexGitAuthorityOverrides(gitDirectory).join(" ").includes("\\"), "paths use forward slashes");
+
+  assert.throws(() => codexGitAuthorityOverrides(join("relative", ".git")), /absolute/u);
+  for (const bad of [`${root}/a"b/.git`, `${root}/a\nb/.git`, `${root}/a\u0001b/.git`, `${root}/a\tb/.git`]) {
+    assert.throws(() => codexGitAuthorityOverrides(bad), /double quote or a control character/u, JSON.stringify(bad));
+  }
+});
+
+test("the run git config holds only safe.directory and an include of an existing global config", async (context) => {
+  const root = await scratch(context, "gitconfig");
+  const projectRoot = join(root, "project");
+  const globalConfig = join(root, "home", ".gitconfig");
+  await mkdir(join(root, "home"), { recursive: true });
+  await writeFile(globalConfig, "[user]\n\tname = someone\n", "utf8");
+
+  const withInclude = join(root, "with-include");
+  await mkdir(withInclude, { recursive: true });
+  const path = await writeCodexRunGitConfig({ workDirectory: withInclude, projectRoot, globalConfigPath: globalConfig });
+  assert.equal(path, join(withInclude, "gitconfig"));
+  const forwardRoot = projectRoot.replaceAll("\\", "/");
+  const forwardGlobal = globalConfig.replaceAll("\\", "/");
+  assert.equal(await readFile(path, "utf8"), `[safe]\n\tdirectory = "${forwardRoot}"\n[include]\n\tpath = "${forwardGlobal}"\n`);
+
+  const withoutInclude = join(root, "without-include");
+  await mkdir(withoutInclude, { recursive: true });
+  const absent = await writeCodexRunGitConfig({ workDirectory: withoutInclude, projectRoot, globalConfigPath: join(root, "home", "missing") });
+  assert.equal(await readFile(absent, "utf8"), `[safe]\n\tdirectory = "${forwardRoot}"\n`);
+  const directory = await writeCodexRunGitConfig({ workDirectory: withoutInclude, projectRoot, globalConfigPath: join(root, "home") });
+  assert.equal(await readFile(directory, "utf8"), `[safe]\n\tdirectory = "${forwardRoot}"\n`, "a directory is not a global config file");
+
+  await assert.rejects(writeCodexRunGitConfig({ workDirectory: withoutInclude, projectRoot: `${projectRoot}"x` }), /double quote or a line break/u);
+  await assert.rejects(
+    writeCodexRunGitConfig({ workDirectory: withoutInclude, projectRoot, globalConfigPath: `${globalConfig}\nx` }),
+    /double quote or a line break/u,
+  );
+});
+
+test("the codex child environment with a run git config adds exactly one literal, GIT_CONFIG_GLOBAL", () => {
+  const source: NodeJS.ProcessEnv = { PATH: "/usr/bin", OPENAI_API_KEY: "openai-value-for-test" };
+  const plain = codexTaskEnvironment(source);
+  assert.equal(plain.literal, undefined);
+  const granted = codexTaskEnvironment(source, { gitConfigGlobal: "/scratch/codex/gitconfig" });
+  assert.deepEqual(granted.optional, plain.optional, "the same names are read by name only");
+  assert.deepEqual(granted.literal, { GIT_CONFIG_GLOBAL: "/scratch/codex/gitconfig" });
+  assert.equal(granted.required, undefined);
+  assert.ok(!JSON.stringify(granted.literal).includes("openai-value-for-test"));
 });
 
 test("the codex child environment declares names only and passes no unrelated credential", () => {
@@ -340,6 +443,48 @@ test("runCodexController launches codex through the runner with stdin, cwd and a
   const schemaFile = JSON.parse(await readFile(argumentAfter(launch.args, "--output-schema"), "utf8")) as Record<string, unknown>;
   assert.equal(schemaFile.$id, undefined, "the agent receives only structural keywords");
   assert.equal(schemaFile.additionalProperties, false);
+
+  // Without a granted git directory the legacy sandbox stays and no literal is set.
+  assert.equal(argumentAfter(launch.args, "--sandbox"), "workspace-write");
+  assert.ok(launch.args.includes("--ignore-rules"), "user and project execpolicy rules are never loaded");
+  assert.equal(launch.environment?.literal, undefined);
+});
+
+test("runCodexController launches a granted git directory under the profile with a run-scoped GIT_CONFIG_GLOBAL", async (context) => {
+  const projectRoot = await scratch(context, "granted-project");
+  const gitDirectory = join(projectRoot, ".git");
+  const request = { ...(await controllerRequest(context, TEN_MINUTES_LATER, gitDirectory)), projectRoot };
+  const expectedConfig = join(request.scratchRoot, "codex", "gitconfig");
+  let configDuringLaunch = "";
+  const { calls, runner } = recordingRunner(async (spec) => {
+    const info = await lstat(expectedConfig);
+    assert.ok(info.isFile(), "the run git config exists during the launch");
+    configDuringLaunch = await readFile(expectedConfig, "utf8");
+    await writeFile(argumentAfter(spec.args, "-o"), JSON.stringify(validClaim()), "utf8");
+    return processResult(jsonl({ type: "thread.started", thread_id: "thread-granted" }, { type: "turn.completed", usage: {} }));
+  });
+
+  const result = await runCodexController(request, {
+    runner,
+    resolve: () => join(request.scratchRoot, "codex.exe"),
+    now: () => FIXED_NOW,
+  });
+  assert.equal(result.processCode, "ok");
+  const launch = calls.find((spec) => spec.args.includes("exec"));
+  assert.ok(launch !== undefined);
+  assert.equal(launch.args.includes("--sandbox"), false);
+  const overrides = codexGitAuthorityOverrides(gitDirectory);
+  const at = launch.args.indexOf(overrides[1] as string);
+  assert.ok(at > 0, "the profile overrides are in the vector");
+  assert.deepEqual(launch.args.slice(at - 1, at + 3), overrides);
+  assert.ok(launch.args.includes("--ignore-rules"));
+  for (const forbidden of FORBIDDEN_CONTROLLER_TOKENS) assert.equal(launch.args.includes(forbidden), false);
+  assert.deepEqual(launch.environment?.literal, { GIT_CONFIG_GLOBAL: expectedConfig });
+  assert.match(configDuringLaunch, /^\[safe\]\n\tdirectory = "/u);
+
+  // The version probe never receives the literal: it runs outside any grant.
+  const probe = calls.find((spec) => spec.args.includes("--version"));
+  assert.equal(probe?.environment?.literal, undefined);
 });
 
 test("a deadline already in the past returns processCode deadline without launching", async (context) => {

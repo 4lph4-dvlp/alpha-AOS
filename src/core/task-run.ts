@@ -68,6 +68,8 @@ export interface ControllerDispatchRequest {
   decisionLogPath: string;
   prompt: string;
   deadlineAt: string | null;
+  /** The one git directory the approved local-commit effect lets the controller write, or null. */
+  gitDirectory: string | null;
 }
 
 export interface ControllerDispatchResult {
@@ -827,6 +829,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       decisionLogPath,
       prompt: buildGsdControllerPrompt({ contract, contractDigest: digest, runId, decisionLogPath, outline }),
       deadlineAt,
+      gitDirectory: null,
     });
     record = { ...record, executor: executorBlock(dispatched) };
 

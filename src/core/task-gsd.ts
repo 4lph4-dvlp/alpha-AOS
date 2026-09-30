@@ -51,7 +51,7 @@ export interface GsdEvidence {
 
 const ONE_MIB = 1024 * 1024;
 const PLANNING_SNAPSHOT_MAX_FILES = 2000;
-const GIT_READ_SUBCOMMANDS: ReadonlySet<string> = new Set(["rev-parse", "status", "diff", "log", "ls-tree", "show"]);
+const GIT_READ_SUBCOMMANDS: ReadonlySet<string> = new Set(["rev-parse", "status", "diff", "log", "ls-tree", "show", "rev-list"]);
 const GIT_ENVIRONMENT_NAMES: readonly string[] = [
   ...PLATFORM_FLOOR_ENVIRONMENT,
   "PATH",

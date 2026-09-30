@@ -1153,6 +1153,9 @@ export function formatTaskRunReport(run: TaskRunRecord): string {
       : table(["Criterion", "Verdict", "Measured", "Review", "Artifact", "Reason"], rows),
     "",
     `Consent: autopilot, single run of revision ${run.revision}`,
+    run.gitDirectory !== null && run.gitDirectory !== undefined
+      ? `Git directory granted to the controller: ${run.gitDirectory} (config, hooks and info read-only)`
+      : "Git directory granted to the controller: none",
   ];
 
   // What the controller chose and why (CON-02, D-06).

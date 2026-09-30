@@ -350,6 +350,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | verification_gaps | 07/07-VERIFICATION.md (G-07-2) | gaps_found | 2026-09-23 | v0.1.0 |
 | Isolation | OS/container-backed `sealed` mode | Deferred | Roadmap creation | v2 |
 | verification_gaps | 14-06 live tracer (14-06-02/03) NOT PROVEN: `.git` write authority for GSD quick under Codex `workspace-write` (user decision D) | Deferred to Phase 16/17 or sealed/container adapter | 2026-09-30 | v0.2.0 |
+| Codex host state | sticky DENY entries that earlier Codex workspace-write sessions leave on a project's .git (T-14-51, host probe P6; this repository's .git carries 6) make the 14-07 git-directory grant fail closed; detecting them, and a no-spend git-directory grant probe before a task approval is consumed, are unplanned | Deferred — owner unassigned, candidate Phase 16 | 2026-10-01 | v0.2.0 |
+| Codex host state | trusted-project entries Codex writes into the user's Codex config for alpha-AOS task fixture directories (T-14-54); alpha-AOS never writes that file, so leftover entries stay until a user-approved cleanup exists; per-invocation counts are in 14-08-SUMMARY.md | Deferred — owner unassigned, candidate Phase 16 | 2026-10-01 | v0.2.0 |
+| Codex sandbox | the alpha-aos-task permission profile keeps :tmpdir writable at parity with legacy workspace-write (T-14-50); narrowing it to a run-scoped directory is unplanned | Deferred — owner unassigned, candidate Phase 15 or 16 | 2026-10-01 | v0.2.0 |
 
 ### Quick Tasks Completed
 

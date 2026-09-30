@@ -11,7 +11,8 @@
 // are shared, a pointer back into the root, a target without HEAD or an
 // oversized pointer — is not grantable, with a reason.
 
-import { lstat, open, readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, open, readdir, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import { canonicalizeWithMissingTail } from "./path-boundary.js";
 
@@ -21,11 +22,125 @@ export const TASK_GIT_POINTER_MAX_BYTES = 4096;
 /** The maximum number of git control files snapshotGitControl will read before throwing. */
 export const TASK_GIT_CONTROL_MAX_FILES = 256;
 
-export async function snapshotGitControl(_options: {
+/**
+ * Snapshots git control files (.git pointer or marker, config, hooks and info)
+ * before and after a task run to detect tampering. Read-only.
+ */
+export async function snapshotGitControl(options: {
   projectRoot: string;
   gitDirectory: string | null;
 }): Promise<Array<[string, string]>> {
-  return [];
+  if (options.gitDirectory === null) return [];
+
+  const pairs: Array<[string, string]> = [];
+  let fileCount = 0;
+
+  // 1. Pointer or marker at projectRoot/.git
+  const dotGit = join(options.projectRoot, ".git");
+  try {
+    const entry = await lstat(dotGit);
+    if (entry.isSymbolicLink()) {
+      pairs.push(["pointer:.git", "link"]);
+    } else if (entry.isDirectory()) {
+      pairs.push(["pointer:.git", "directory"]);
+    } else if (entry.isFile()) {
+      const bytes = await readFile(dotGit);
+      pairs.push(["pointer:.git", createHash("sha256").update(bytes).digest("hex")]);
+    } else {
+      pairs.push(["pointer:.git", "unsupported"]);
+    }
+  } catch (error) {
+    if (errnoCode(error) === "ENOENT") {
+      pairs.push(["pointer:.git", "absent"]);
+    } else {
+      pairs.push(["pointer:.git", "unsupported"]);
+    }
+  }
+
+  // 2. git:config
+  const configPath = join(options.gitDirectory, "config");
+  try {
+    const entry = await lstat(configPath);
+    fileCount += 1;
+    if (fileCount > TASK_GIT_CONTROL_MAX_FILES) {
+      throw new Error(`git control files exceed limit of ${TASK_GIT_CONTROL_MAX_FILES}`);
+    }
+    if (entry.isSymbolicLink()) {
+      pairs.push(["git:config", "link"]);
+    } else if (entry.isFile()) {
+      const bytes = await readFile(configPath);
+      pairs.push(["git:config", createHash("sha256").update(bytes).digest("hex")]);
+    } else {
+      pairs.push(["git:config", "unsupported"]);
+    }
+  } catch (error) {
+    if (errnoCode(error) === "ENOENT") {
+      pairs.push(["git:config", "absent"]);
+    } else if (error instanceof Error && error.message.includes("exceed limit")) {
+      throw error;
+    } else {
+      pairs.push(["git:config", "unsupported"]);
+    }
+  }
+
+  // 3. git:hooks and git:info walked recursively without following links
+  for (const sub of ["hooks", "info"] as const) {
+    const subDir = join(options.gitDirectory, sub);
+    let subEntry;
+    try {
+      subEntry = await lstat(subDir);
+    } catch (error) {
+      if (errnoCode(error) === "ENOENT") {
+        pairs.push([`git:${sub}`, "absent"]);
+        continue;
+      }
+      pairs.push([`git:${sub}`, "unsupported"]);
+      continue;
+    }
+
+    if (subEntry.isSymbolicLink()) {
+      fileCount += 1;
+      if (fileCount > TASK_GIT_CONTROL_MAX_FILES) {
+        throw new Error(`git control files exceed limit of ${TASK_GIT_CONTROL_MAX_FILES}`);
+      }
+      pairs.push([`git:${sub}`, "link"]);
+      continue;
+    }
+
+    if (!subEntry.isDirectory()) {
+      pairs.push([`git:${sub}`, "unsupported"]);
+      continue;
+    }
+
+    async function walk(dir: string, prefix: string): Promise<void> {
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        const relPath = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+        if (entry.isSymbolicLink()) {
+          fileCount += 1;
+          if (fileCount > TASK_GIT_CONTROL_MAX_FILES) {
+            throw new Error(`git control files exceed limit of ${TASK_GIT_CONTROL_MAX_FILES}`);
+          }
+          pairs.push([`git:${sub}/${relPath}`, "link"]);
+        } else if (entry.isDirectory()) {
+          await walk(fullPath, relPath);
+        } else if (entry.isFile()) {
+          fileCount += 1;
+          if (fileCount > TASK_GIT_CONTROL_MAX_FILES) {
+            throw new Error(`git control files exceed limit of ${TASK_GIT_CONTROL_MAX_FILES}`);
+          }
+          const bytes = await readFile(fullPath);
+          pairs.push([`git:${sub}/${relPath}`, createHash("sha256").update(bytes).digest("hex")]);
+        }
+      }
+    }
+
+    await walk(subDir, "");
+  }
+
+  pairs.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return pairs;
 }
 
 export type TaskGitDirectory =

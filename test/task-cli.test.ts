@@ -6,6 +6,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { commandProbeEnvironment, runProcess, type EnvironmentPolicy, type ProcessResult } from "../src/core/process.js";
 import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
+import { aliasPath, createPathAliases } from "../src/core/paths.js";
 import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src/core/task-contract.js";
 import type { ControllerPort } from "../src/core/task-run.js";
 import {
@@ -182,6 +183,7 @@ test("task report prints one verdict row per criterion from the recorded run", a
   assert.ok(run.executor !== null && run.reviewer !== null);
   assert.deepEqual(JSON.parse(machine.stdout.excerpt), {
     ...run,
+    gitDirectory: run.gitDirectory ? aliasPath(run.gitDirectory, createPathAliases({ projectRoot: fixture.scratch })) : null,
     executor: { ...run.executor, sessionId: "[redacted:value]" },
     reviewer: { ...run.reviewer, sessionId: "[redacted:value]" },
   });

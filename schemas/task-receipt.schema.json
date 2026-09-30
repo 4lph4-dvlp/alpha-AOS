@@ -346,6 +346,9 @@
             },
             { "type": "null" }
           ]
+        },
+        "gitDirectory": {
+          "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
         }
       }
     },

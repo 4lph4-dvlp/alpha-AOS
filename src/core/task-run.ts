@@ -39,12 +39,13 @@ import {
   probeGsdQuickReadiness,
   readGsdQuickOutline,
   resolveInstalledGsdTools,
+  runGitRead,
   snapshotPlanningState,
   verifyGsdEvidence,
   type GsdEvidence,
   type GsdQuickOutline,
 } from "./task-gsd.js";
-import { grantedGitDirectory, resolveTaskGitDirectory } from "./task-git.js";
+import { grantedGitDirectory, resolveTaskGitDirectory, snapshotGitControl } from "./task-git.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
@@ -264,6 +265,7 @@ export interface TaskRunRecord {
   deadlineAt: string | null;
   gsd: TaskRunGsd | null;
   effects: TaskRunEffects | null;
+  gitDirectory: string | null;
 }
 
 export type TaskRunErrorCode =
@@ -709,6 +711,19 @@ function gsdPrecondition(evidence: GsdEvidence, planningChanged: boolean): TaskP
   };
 }
 
+function diffGitControl(before: Array<[string, string]>, after: Array<[string, string]>): string[] {
+  const beforeMap = new Map(before);
+  const afterMap = new Map(after);
+  const changed = new Set<string>();
+  for (const [label, digest] of beforeMap) {
+    if (afterMap.get(label) !== digest) changed.add(label);
+  }
+  for (const [label, digest] of afterMap) {
+    if (beforeMap.get(label) !== digest) changed.add(label);
+  }
+  return [...changed].sort();
+}
+
 /**
  * Starts one run of an approved contract. The first record written consumes
  * the approval, so one approval authorizes exactly one run (D-02, AUTO-03).
@@ -717,7 +732,7 @@ function gsdPrecondition(evidence: GsdEvidence, planningChanged: boolean): TaskP
  */
 export async function startTask(options: StartTaskOptions): Promise<{ run: TaskRunRecord; recordPath: string }> {
   const clock = options.now ?? (() => new Date());
-  const { loaded } = await assertTaskStartable(options);
+  const { loaded, approval } = await assertTaskStartable(options);
   const { contract, digest } = loaded;
 
   const prior = await listTaskRuns({ stateRoot: options.stateRoot, contractId: contract.id, packageRoot: options.packageRoot });
@@ -770,7 +785,9 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   }
 
   // The one git directory the approved local-commit effect lets the controller write (AUTO-02).
-  const gitDirectory = grantedGitDirectory(contract, await resolveTaskGitDirectory(projectRoot));
+  const gitDirectory = contract.allowedEffects.includes("local-commit") ? approval.gitDirectory ?? null : null;
+  const resolvedGit = await resolveTaskGitDirectory(projectRoot);
+  const gitDirectoryForSnapshot = resolvedGit.status === "grantable" ? resolvedGit.gitDirectory : null;
 
   const started = clock();
   const runId = `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
@@ -798,6 +815,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     deadlineAt,
     gsd: null,
     effects: null,
+    gitDirectory,
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
 
@@ -823,6 +841,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     const decisionLogPath = `.alpha-aos/task-runs/${runId}/decisions.jsonl`;
     // alpha-AOS only ever reads `.planning/`; this proves whether the controller touched it.
     const planningBefore = await snapshotPlanningState(projectRoot);
+    const gitControlBefore = await snapshotGitControl({ projectRoot, gitDirectory: gitDirectoryForSnapshot });
 
     const dispatched = await options.ports.controller.dispatch({
       runId,
@@ -837,9 +856,48 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     });
     record = { ...record, executor: executorBlock(dispatched) };
 
+    const gitControlAfter = await snapshotGitControl({ projectRoot, gitDirectory: gitDirectoryForSnapshot });
+    const changedControlLabels = diffGitControl(gitControlBefore, gitControlAfter);
+    if (changedControlLabels.length > 0) {
+      const decisionLog = await readTaskDecisionLog({ projectRoot, runId });
+      const effects: TaskRunEffects = {
+        implementationPaths: [],
+        planningPaths: [],
+        violations: changedControlLabels.map((label) => ({
+          effect: "local-commit",
+          path: label,
+          detail: "git control file changed during the run; alpha-AOS ran no git command in this repository afterwards",
+        })),
+        dependencyChanged: false,
+        dependencyPaths: [],
+        packCheckpoint: null,
+      };
+      return await finish({
+        ...record,
+        status: "blocked",
+        finishedAt: clock().toISOString(),
+        effects,
+        decisions: decisionLog.entries,
+        decisionLog: { status: decisionLog.status, reason: decisionLog.reason },
+        gsd: gsdBlock(null, outline.sourceSha256),
+        stopReason: "new-authority-required: local-commit",
+        nextAction: `The controller changed git control files (${changedControlLabels.join(", ")}); inspect ${gitDirectoryForSnapshot ?? "the git directory"} before running any git command there; this run is not accepted.`,
+      });
+    }
+
     // Every effect is audited against the approved authority (AUTO-02, D-03).
     const changes = await readTaskChanges({ projectRoot, baseCommit: baseline.baseCommit });
     const audit = await auditTaskEffects({ contract, runId, changes, projectRoot, baseCommit: baseline.baseCommit });
+
+    const revListCount = (await runGitRead(projectRoot, ["rev-list", "--count", baseline.baseCommit, "--not", "HEAD"])).trim();
+    if (revListCount !== "0") {
+      audit.violations.push({
+        effect: "local-commit",
+        path: "",
+        detail: `the base commit ${baseline.baseCommit.slice(0, 12)} is no longer reachable from HEAD (history rewritten)`,
+      });
+    }
+
     let effects: TaskRunEffects = { ...audit, packCheckpoint: null };
     record = { ...record, effects };
 

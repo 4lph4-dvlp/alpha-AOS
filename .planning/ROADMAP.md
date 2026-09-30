@@ -58,7 +58,7 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 6/6 plans executed
+**Plans:** 6/8 plans executed (14-07 and 14-08 close the 14-VERIFICATION gaps)
 
 Plans:
 **Wave 1**
@@ -78,6 +78,14 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 14-06-PLAN.md — `task start` and the live tracer: real accepted run, real success-claiming defect rejected, real stale review refused — HALTED: `task start` shipped; live tracer 14-06-02/03 NOT PROVEN on this host (Codex sandbox keeps .git read-only), deferred by user decision D
+
+**Wave 5 — gap closure** *(blocked on Wave 4 completion)*
+
+- [ ] 14-07-PLAN.md — Reviewed controller git authority: one-way decision checkpoint (host evidence P1-P11), tracer granting exactly the project's git directory through an alpha-AOS Codex permission profile (config/hooks/info read-only, `--ignore-rules`, run-scoped safe.directory) proven by a no-spend host sandbox canary, approval-bound and named in the preview
+
+**Wave 6 — gap closure** *(blocked on Wave 5 completion)*
+
+- [ ] 14-08-PLAN.md — Git control-file and history guards with recorded grant, then the live tracer: real accepted run, real success-claiming defect rejected by measurement, real review refused as stale on a changed artifact
 
 ### Phase 15: Durable Supervisor and Effect Ledger
 

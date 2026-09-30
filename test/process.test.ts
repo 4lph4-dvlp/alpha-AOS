@@ -603,7 +603,17 @@ test("no source module spawns a child outside the process adapter", async () => 
     join("src", "cli.ts"),
     join("src", "adapters", "harnesses.ts"),
     join("src", "adapters", "isolation.ts"),
+    join("src", "adapters", "task-agent-launch.ts"),
+    join("src", "adapters", "task-agents.ts"),
+    join("src", "adapters", "task-codex.ts"),
   ];
+
+  // The task agent adapters launch real harness CLIs, so none may drop out of
+  // the enumeration silently.
+  assert.ok(
+    files.includes(join("src", "adapters", "task-codex.ts")),
+    "the codex task adapter must stay inside the enumeration",
+  );
 
   // The enumeration carries no exception set. The MCP fixture's long-lived
   // JSON-RPC child was the last holdout and now runs through the adapter's

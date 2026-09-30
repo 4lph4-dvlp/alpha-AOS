@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-executor-result.schema.json",
+  "title": "alpha-AOS task executor final message",
+  "description": "The executor's own claim about one task run (RUN-01). It is recorded and never evidence. Uses only the structured-output-safe keyword subset because the same file is handed to the executor CLI; length bounds are enforced in code.",
+  "type": "object",
+  "required": ["schemaVersion", "status", "summary", "gsd", "authorityRequest", "decisionsLogged"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "status": { "type": "string", "enum": ["completed", "needs-authority", "failed"] },
+    "summary": { "type": "string" },
+    "gsd": {
+      "type": "object",
+      "required": ["quickId", "summaryPath"],
+      "additionalProperties": false,
+      "properties": {
+        "quickId": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "summaryPath": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+      }
+    },
+    "authorityRequest": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "required": ["effect", "reason"],
+          "additionalProperties": false,
+          "properties": {
+            "effect": { "type": "string" },
+            "reason": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "decisionsLogged": { "type": "integer" }
+  }
+}

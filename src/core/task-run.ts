@@ -24,11 +24,30 @@ import {
   type TaskAgentPolicy,
   type TaskContract,
 } from "./task-contract.js";
+import { codexConfigRoot } from "./gsd-compat.js";
+import {
+  auditTaskEffects,
+  readTaskBaseline,
+  readTaskChanges,
+  runPackCheckpoint,
+  type TaskCommit,
+  type TaskEffectViolation,
+  type TaskPackCheckpoint,
+} from "./task-effects.js";
+import {
+  buildGsdControllerPrompt,
+  probeGsdQuickReadiness,
+  readGsdQuickOutline,
+  resolveInstalledGsdTools,
+  snapshotPlanningState,
+  verifyGsdEvidence,
+  type GsdEvidence,
+  type GsdQuickOutline,
+} from "./task-gsd.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
-import { assessTaskReview, reduceTaskVerdict, type TaskVerdict } from "./task-verdict.js";
-import type { TaskCommit, TaskEffectViolation, TaskPackCheckpoint } from "./task-effects.js";
+import { assessTaskReview, reduceTaskVerdict, type TaskPrecondition, type TaskVerdict } from "./task-verdict.js";
 
 export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
 export type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
@@ -594,19 +613,6 @@ function runNextAction(verdict: TaskVerdict): string | null {
   return unknown?.nextAction ?? unmet?.nextAction ?? "re-run the review";
 }
 
-function controllerPrompt(contract: TaskContract, contractDigest: string): string {
-  return [
-    `Task contract ${contract.id} revision ${contract.revision} (digest ${contractDigest}).`,
-    `Goal: ${contract.goal}`,
-    `Scope: ${contract.scope.summary}`,
-    `Workflow: ${contract.scope.workflow}`,
-    `Allowed roots: ${contract.allowedRoots.join(", ")}`,
-    `Allowed effects: ${contract.allowedEffects.join(", ")}`,
-    "Mandatory criteria:",
-    ...contract.criterion.map((criterion) => `- ${criterion.id}: ${criterion.title} — ${criterion.description}`),
-  ].join("\n");
-}
-
 function executorBlock(result: ControllerDispatchResult): TaskRunExecutor {
   return {
     harness: result.harness,
@@ -631,9 +637,55 @@ function executorBlock(result: ControllerDispatchResult): TaskRunExecutor {
   };
 }
 
+function gsdBlock(evidence: GsdEvidence | null, workflowSha256: string): TaskRunGsd {
+  if (evidence === null) {
+    return {
+      status: "not-run",
+      quickId: null,
+      planPath: null,
+      summaryPath: null,
+      stateRow: false,
+      commits: [],
+      missing: [],
+      workflowSha256,
+    };
+  }
+  return {
+    status: evidence.status,
+    quickId: evidence.quickId,
+    planPath: evidence.planPath,
+    summaryPath: evidence.summaryPath,
+    stateRow: evidence.stateRow,
+    commits: evidence.commits.map((commit) => ({ sha: commit.sha, subject: commit.subject })),
+    missing: [...evidence.missing],
+    workflowSha256,
+  };
+}
+
+function gsdPrecondition(evidence: GsdEvidence, planningChanged: boolean): TaskPrecondition {
+  if (evidence.status === "verified") {
+    return {
+      id: "gsd-evidence",
+      satisfied: true,
+      reason: bounded(`GSD quick ${evidence.quickId ?? ""} left its PLAN, SUMMARY, STATE.md row and docs(quick) commit`, 1000),
+      nextAction: "none",
+    };
+  }
+  const items = evidence.missing.join("; ");
+  const unchanged = planningChanged ? "" : " (the controller changed nothing under .planning)";
+  return {
+    id: "gsd-evidence",
+    satisfied: false,
+    reason: bounded(`GSD quick evidence is missing: ${items}${unchanged}`, 1000),
+    nextAction: bounded(`The controller did not complete GSD quick (missing: ${items}); re-run the task through GSD.`, 1000),
+  };
+}
+
 /**
  * Starts one run of an approved contract. The first record written consumes
  * the approval, so one approval authorizes exactly one run (D-02, AUTO-03).
+ * A dirty or non-git project and a project GSD quick cannot run in are refused
+ * before that record exists, so the approval stays usable once fixed (RUN-01).
  */
 export async function startTask(options: StartTaskOptions): Promise<{ run: TaskRunRecord; recordPath: string }> {
   const clock = options.now ?? (() => new Date());
@@ -656,8 +708,43 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     );
   }
 
+  // Every changed path is judged against one recorded clean commit (T-14-37).
+  const projectRoot = resolve(contract.scope.projectRoot);
+  const baseline = await readTaskBaseline({ projectRoot });
+  if (baseline.status !== "clean") {
+    const detail =
+      baseline.status === "dirty"
+        ? `the working tree has uncommitted or untracked paths: ${baseline.paths.slice(0, 20).join(", ")}${baseline.paths.length > 20 ? `, and ${baseline.paths.length - 20} more` : ""}`
+        : baseline.reason;
+    throw new TaskRunError(
+      "dirty-baseline",
+      `Task ${contract.id} cannot start in ${projectRoot}: ${detail}. Commit or remove them and start again; the approval is still usable.`,
+    );
+  }
+
+  // The controller must be able to run the installed GSD quick workflow here.
+  const configRoot = options.gsd?.configRoot ?? codexConfigRoot();
+  const readiness = await probeGsdQuickReadiness({ projectRoot, gsdToolsPath: resolveInstalledGsdTools(configRoot) });
+  if (!readiness.ready) {
+    throw new TaskRunError(
+      "gsd-not-ready",
+      `Task ${contract.id} cannot start: ${readiness.reason}. The approval is still usable once GSD is ready.`,
+    );
+  }
+  let outline: GsdQuickOutline;
+  try {
+    outline = await readGsdQuickOutline(configRoot);
+  } catch (error) {
+    throw new TaskRunError(
+      "gsd-not-ready",
+      `Task ${contract.id} cannot start: the installed GSD quick workflow could not be read (${bounded(error instanceof Error ? error.message : String(error), 200)}).`,
+    );
+  }
+
   const started = clock();
   const runId = `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  const minutes = contract.resourcePolicy.maxWallTimeMinutes;
+  const deadlineAt = minutes === undefined ? null : new Date(started.getTime() + minutes * 60_000).toISOString();
   const executing: TaskRunRecord = {
     schemaVersion: 1,
     kind: "task-run",
@@ -676,8 +763,8 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     nextAction: null,
     decisions: [],
     decisionLog: null,
-    baseCommit: null,
-    deadlineAt: null,
+    baseCommit: baseline.baseCommit,
+    deadlineAt,
     gsd: null,
     effects: null,
   };
@@ -685,11 +772,26 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
 
   let record = executing;
   let scratchRoot: string | null = null;
+  const finish = async (next: TaskRunRecord): Promise<{ run: TaskRunRecord; recordPath: string }> => {
+    record = next;
+    await writeRunRecord(options.stateRoot, options.packageRoot, record);
+    return { run: record, recordPath };
+  };
+  const wallTimeElapsed = (): boolean => deadlineAt !== null && clock().getTime() >= Date.parse(deadlineAt);
+  const stopForWallTime = () =>
+    finish({
+      ...record,
+      status: "stopped",
+      finishedAt: clock().toISOString(),
+      stopReason: "wall-time-limit",
+      nextAction: `The approved limit of ${minutes ?? 0} minutes elapsed before independent review; approve a new revision with a larger maxWallTimeMinutes to run again.`,
+    });
+
   try {
     scratchRoot = await mkdtemp(join(tmpdir(), "alpha-aos-task-run-"));
-    const projectRoot = resolve(contract.scope.projectRoot);
-    const minutes = contract.resourcePolicy.maxWallTimeMinutes;
-    const deadlineAt = minutes === undefined ? null : new Date(started.getTime() + minutes * 60_000).toISOString();
+    const decisionLogPath = `.alpha-aos/task-runs/${runId}/decisions.jsonl`;
+    // alpha-AOS only ever reads `.planning/`; this proves whether the controller touched it.
+    const planningBefore = await snapshotPlanningState(projectRoot);
 
     const dispatched = await options.ports.controller.dispatch({
       runId,
@@ -697,11 +799,17 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       contractDigest: digest,
       projectRoot,
       scratchRoot,
-      decisionLogPath: `.alpha-aos/task-runs/${runId}/decisions.jsonl`,
-      prompt: controllerPrompt(contract, digest),
+      decisionLogPath,
+      prompt: buildGsdControllerPrompt({ contract, contractDigest: digest, runId, decisionLogPath, outline }),
       deadlineAt,
     });
     record = { ...record, executor: executorBlock(dispatched) };
+
+    // Every effect is audited against the approved authority (AUTO-02, D-03).
+    const changes = await readTaskChanges({ projectRoot, baseCommit: baseline.baseCommit });
+    const audit = await auditTaskEffects({ contract, runId, changes, projectRoot, baseCommit: baseline.baseCommit });
+    let effects: TaskRunEffects = { ...audit, packCheckpoint: null };
+    record = { ...record, effects };
 
     // The controller's own record of what it chose and why (CON-02, D-06).
     const decisionLog = await readTaskDecisionLog({ projectRoot, runId });
@@ -710,19 +818,53 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       decisions: decisionLog.entries,
       decisionLog: { status: decisionLog.status, reason: decisionLog.reason },
     };
+
+    // New authority is never assumed: the run stops before it is judged.
+    const claim = dispatched.claim;
+    const requested =
+      claim?.status === "needs-authority" ? bounded(claim.authorityRequest?.effect ?? "unspecified", 100) : null;
+    const blockedBy = requested ?? audit.violations[0]?.effect ?? null;
+    if (blockedBy !== null) {
+      return await finish({
+        ...record,
+        status: "blocked",
+        finishedAt: clock().toISOString(),
+        gsd: gsdBlock(null, outline.sourceSha256),
+        stopReason: `new-authority-required: ${blockedBy}`,
+        nextAction: `Revise the contract as revision ${contract.revision + 1} with the needed authority, preview it, and approve it; this run is not accepted.`,
+      });
+    }
+
+    if (audit.dependencyChanged) {
+      effects = {
+        ...effects,
+        packCheckpoint: await runPackCheckpoint({ projectRoot, packageRoot: options.packageRoot, stateRoot: options.stateRoot }),
+      };
+      record = { ...record, effects };
+    }
+
+    // GSD's own evidence, read and never written (RUN-01).
+    const evidence = await verifyGsdEvidence({ projectRoot, baseCommit: baseline.baseCommit, claimQuickId: claim?.gsdQuickId ?? null });
+    record = { ...record, gsd: gsdBlock(evidence, outline.sourceSha256) };
+    const planningAfter = await snapshotPlanningState(projectRoot);
+    const preconditions: TaskPrecondition[] = [
+      gsdPrecondition(evidence, JSON.stringify(planningBefore) !== JSON.stringify(planningAfter)),
+      { id: "effect-audit", satisfied: true, reason: "all changed paths within the approved authority", nextAction: "none" },
+    ];
+
+    if (wallTimeElapsed()) return await stopForWallTime();
+
     const substitutes = selectMeasurementSubstitutes(decisionLog.entries, contract);
 
     const collected = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
     if (collected.status === "unavailable") {
-      record = {
+      return await finish({
         ...record,
         status: "unknown",
         finishedAt: clock().toISOString(),
         stopReason: `${collected.cause}: ${collected.detail}`,
         nextAction: artifactNextAction(collected.cause),
-      };
-      await writeRunRecord(options.stateRoot, options.packageRoot, record);
-      return { run: record, recordPath };
+      });
     }
     const artifact = { digest: collected.digest, fileCount: collected.fileCount, totalBytes: collected.totalBytes };
     record = { ...record, artifact };
@@ -745,6 +887,8 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
         }),
       );
     }
+
+    if (wallTimeElapsed()) return await stopForWallTime();
 
     const request: ReviewRequest = {
       runId,
@@ -813,18 +957,16 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       measurements,
       review,
       confirmations,
-      preconditions: [],
+      preconditions,
       refusal: artifactChanged ? "stale-artifact" : null,
     });
-    record = {
+    return await finish({
       ...record,
       status: verdict.overall,
       finishedAt: clock().toISOString(),
       verdict,
       nextAction: runNextAction(verdict),
-    };
-    await writeRunRecord(options.stateRoot, options.packageRoot, record);
-    return { run: record, recordPath };
+    });
   } catch (error) {
     const message = bounded(error instanceof Error ? error.message : String(error), 300);
     const terminal = (base: TaskRunRecord): TaskRunRecord => ({

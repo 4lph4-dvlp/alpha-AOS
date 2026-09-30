@@ -297,7 +297,7 @@
               "additionalProperties": false,
               "properties": {
                 "status": { "enum": ["verified", "missing", "not-run"] },
-                "quickId": { "type": ["string", "null"], "maxLength": 200 },
+                "quickId": { "type": ["string", "null"], "maxLength": 255 },
                 "planPath": { "type": ["string", "null"] },
                 "summaryPath": { "type": ["string", "null"] },
                 "stateRow": { "type": "boolean" },

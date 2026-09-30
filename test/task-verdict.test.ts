@@ -26,9 +26,11 @@ import {
 import {
   createTaskFixture,
   fixturePorts,
+  fixtureQuickId,
   inventorySummaryContract,
   passingReview,
   referenceControllerPort,
+  simulateGsdQuick,
   startFixtureTask,
   staticReviewerPort,
   writeInventorySummaryImplementation,
@@ -160,6 +162,9 @@ function controllerDouble(act: (request: ControllerDispatchRequest) => Promise<v
   return {
     async dispatch(request: ControllerDispatchRequest): Promise<ControllerDispatchResult> {
       await act(request);
+      // Like every controller, the double does its work through GSD quick (RUN-01).
+      const quickId = fixtureQuickId(request.runId);
+      await simulateGsdQuick(request.projectRoot, { quickId, slug: "verdict", description: "Implement the inventory summary" });
       return {
         harness: "codex",
         version: "fixture",
@@ -168,7 +173,7 @@ function controllerDouble(act: (request: ControllerDispatchRequest) => Promise<v
         exitCode: 0,
         processCode: "ok",
         terminal: "completed",
-        claim: { status: "completed", summary: "Done.", authorityRequest: null, gsdQuickId: null },
+        claim: { status: "completed", summary: "Done.", authorityRequest: null, gsdQuickId: quickId },
         detail: null,
       };
     },
@@ -468,7 +473,10 @@ test("the reference-correct run is accepted and records an absent decision log",
   const record = await run(fixture, digest, referenceControllerPort("correct"));
   assert.equal(record.status, "accepted");
   assert.equal(record.verdict?.overall, "accepted");
-  assert.deepEqual(record.verdict?.preconditions, []);
+  assert.deepEqual(
+    record.verdict?.preconditions.map((entry) => [entry.id, entry.satisfied]),
+    [["gsd-evidence", true], ["effect-audit", true]],
+  );
   assert.deepEqual(record.decisions, []);
   assert.deepEqual(record.decisionLog, { status: "absent", reason: null });
 });

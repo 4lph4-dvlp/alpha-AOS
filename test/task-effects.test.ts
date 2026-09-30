@@ -396,6 +396,32 @@ test("a run whose approved wall time elapses before review is stopped without a 
 // The audit itself
 // ---------------------------------------------------------------------------
 
+// Observed on the first live tracer run (munx7h9w-b9ec114f): installed GSD
+// quick's `query dispatch-isolation` unconditionally records its decision in
+// `<project>/.gsd/dispatch-isolation-sentinel.json`. That file is GSD quick's
+// own run state, like `.planning/`; any other `.gsd/` path still fails closed.
+test("GSD quick's dispatch-isolation sentinel is GSD state, and any other .gsd path is a violation", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const base = git(fixture.projectRoot, ["rev-parse", "HEAD"]).trim();
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  const audit = await auditTaskEffects({
+    contract,
+    runId: "0000abcd-0123abcd",
+    projectRoot: fixture.projectRoot,
+    baseCommit: base,
+    changes: {
+      paths: [".gsd/dispatch-isolation-sentinel.json", ".gsd/other-state.json", ".planning/STATE.md", "bin/inventory-summary.mjs"],
+      commits: [],
+    },
+  });
+  assert.deepEqual(audit.planningPaths, [".gsd/dispatch-isolation-sentinel.json", ".planning/STATE.md"]);
+  assert.deepEqual(audit.implementationPaths, ["bin/inventory-summary.mjs"]);
+  assert.deepEqual(
+    audit.violations.map((entry) => [entry.effect, entry.path]),
+    [["workspace-write", ".gsd/other-state.json"]],
+  );
+});
+
 test("the audit allows only this run's decision log, flags commits without local-commit and any lockfile", async (context) => {
   const fixture = await createTaskFixture(context);
   const base = git(fixture.projectRoot, ["rev-parse", "HEAD"]).trim();

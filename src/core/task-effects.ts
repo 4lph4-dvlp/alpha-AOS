@@ -193,8 +193,15 @@ function underRoot(path: string, root: string): boolean {
 }
 
 /**
+ * GSD quick's own run state outside `.planning/`: installed gsd-tools records
+ * every `query dispatch-isolation` decision in this project-root file. Exact
+ * paths only, so any other `.gsd/` write still fails closed.
+ */
+export const GSD_RUNTIME_STATE_PATHS: readonly string[] = [".gsd/dispatch-isolation-sentinel.json"];
+
+/**
  * Classifies every changed path against the approved authority. `.planning/`
- * belongs to the gsd-quick workflow, the run's own decision log is allowed,
+ * and GSD's run state belong to the gsd-quick workflow, the run's own decision log is allowed,
  * and a path equal to or under an allowed root is implementation; anything else
  * is a violation. Commits need local-commit, and a changed lockfile or
  * package.json dependency field needs dependency-change.
@@ -214,7 +221,7 @@ export async function auditTaskEffects(options: {
   const violations: TaskEffectViolation[] = [];
 
   for (const path of sortedUnique(changes.paths)) {
-    if (contract.scope.workflow === "gsd-quick" && underRoot(path, ".planning")) {
+    if (contract.scope.workflow === "gsd-quick" && (underRoot(path, ".planning") || GSD_RUNTIME_STATE_PATHS.includes(path))) {
       planningPaths.push(path);
     } else if (path === decisionLog) {
       continue;

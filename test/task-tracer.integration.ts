@@ -15,6 +15,20 @@
 // ALPHA_AOS_STATE_DIR, and the real agents only ever work inside a generated
 // project under the OS temp directory with its own git repository (D-09,
 // T-14-41) — never in this repository and never in the host state root.
+//
+// Status on the Windows 11 development host (2026-09-30, plan 14-06): NOT
+// PROVEN. The accept test below is expected to FAIL there, never to pass
+// silently. Live invocation 1 (run munx7h9w-b9ec114f) reached GSD quick and
+// produced a correct implementation, but ended `blocked` with
+// `new-authority-required: local-commit requiring write access to .git`:
+// Codex's `workspace-write` sandbox keeps the project `.git` read-only by
+// design, so GSD quick cannot make its required commits and the run can never
+// carry verified GSD evidence. The seeded-defect rejection and the
+// stale-review substitution tests (14-06 Task 3) are not written yet, because
+// their precondition is an accepted run from this file. The `.git` write
+// authority is deferred by user decision (14-06 checkpoint, option D) without
+// changing the sandbox, the exec policy or the GSD evidence contract; see
+// 14-06-SUMMARY.md and 14-VALIDATION.md rows 14-06-02 and 14-06-03.
 
 import assert from "node:assert/strict";
 import { dirname, join, resolve } from "node:path";

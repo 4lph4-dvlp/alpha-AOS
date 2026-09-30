@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-receipt.schema.json",
+  "title": "alpha-AOS task receipt",
+  "description": "Closed managed-state records under <state>/tasks/<contractId>/ (D-01, D-02, D-16). A task-approval record binds one exact contract digest to an explicit single-run consent; a task-run record binds the contract revision and digest, the artifact digest, the measurements and the independent review into one verdict.",
+  "oneOf": [{ "$ref": "#/$defs/approval" }, { "$ref": "#/$defs/run" }],
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "contractId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "criterionId": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$" },
+    "measurement": {
+      "type": "object",
+      "required": ["criterionId", "outcome", "exitCode", "stdoutSha256", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "criterionId": { "$ref": "#/$defs/criterionId" },
+        "outcome": { "enum": ["pass", "fail", "unavailable"] },
+        "exitCode": { "type": ["integer", "null"] },
+        "stdoutSha256": {
+          "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "detail": { "type": "string", "maxLength": 1000 }
+      }
+    },
+    "row": {
+      "type": "object",
+      "required": ["criterionId", "verdict", "measured", "review", "artifactDigest", "reason", "nextAction"],
+      "additionalProperties": false,
+      "properties": {
+        "criterionId": { "$ref": "#/$defs/criterionId" },
+        "verdict": { "enum": ["pass", "fail", "unknown"] },
+        "measured": { "$ref": "#/$defs/measurement" },
+        "review": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["verdict", "severity", "evidence"],
+              "additionalProperties": false,
+              "properties": {
+                "verdict": { "enum": ["pass", "fail", "unknown"] },
+                "severity": { "enum": ["blocking", "advisory"] },
+                "evidence": { "type": "string" }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "artifactDigest": { "$ref": "#/$defs/sha256" },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "nextAction": { "type": ["string", "null"] }
+      }
+    },
+    "reviewReport": {
+      "description": "The reviewer report as received. Re-validated against schemas/task-review.schema.json whenever it is read.",
+      "type": "object"
+    },
+    "approval": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "kind",
+        "contractId",
+        "revision",
+        "contractDigest",
+        "approvedAt",
+        "canonicalProjectRoot",
+        "consent",
+        "contract"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "kind": { "const": "task-approval" },
+        "contractId": { "$ref": "#/$defs/contractId" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "contractDigest": { "$ref": "#/$defs/sha256" },
+        "approvedAt": { "type": "string", "minLength": 1 },
+        "canonicalProjectRoot": { "type": "string", "minLength": 1 },
+        "consent": {
+          "type": "object",
+          "required": ["mode", "grant", "scope"],
+          "additionalProperties": false,
+          "properties": {
+            "mode": { "const": "autopilot" },
+            "grant": { "const": "explicit-cli-approval" },
+            "scope": { "const": "single-run" }
+          }
+        },
+        "contract": {
+          "description": "The digestable contract view that was approved. Re-digested on every read.",
+          "type": "object"
+        }
+      }
+    },
+    "run": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "kind",
+        "runId",
+        "contractId",
+        "revision",
+        "contractDigest",
+        "status",
+        "startedAt",
+        "finishedAt",
+        "artifact",
+        "executor",
+        "reviewer",
+        "verdict",
+        "stopReason",
+        "nextAction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "const": 1 },
+        "kind": { "const": "task-run" },
+        "runId": { "type": "string", "pattern": "^[0-9a-z]{8,}-[0-9a-f]{8}$" },
+        "contractId": { "$ref": "#/$defs/contractId" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "contractDigest": { "$ref": "#/$defs/sha256" },
+        "status": { "enum": ["executing", "accepted", "rejected", "unknown", "blocked", "stopped"] },
+        "startedAt": { "type": "string", "minLength": 1 },
+        "finishedAt": { "type": ["string", "null"] },
+        "artifact": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["digest", "fileCount", "totalBytes"],
+              "additionalProperties": false,
+              "properties": {
+                "digest": { "$ref": "#/$defs/sha256" },
+                "fileCount": { "type": "integer", "minimum": 0 },
+                "totalBytes": { "type": "integer", "minimum": 0 }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "executor": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["harness", "version", "executable", "sessionId", "exitCode", "processCode", "terminal", "claim"],
+              "additionalProperties": false,
+              "properties": {
+                "harness": { "type": "string", "minLength": 1 },
+                "version": { "type": ["string", "null"] },
+                "executable": { "type": ["string", "null"] },
+                "sessionId": { "type": ["string", "null"] },
+                "exitCode": { "type": ["integer", "null"] },
+                "processCode": { "type": "string" },
+                "terminal": { "type": "string" },
+                "claim": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "required": ["status", "summary", "authorityRequest", "gsdQuickId"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "status": { "enum": ["completed", "needs-authority", "failed"] },
+                        "summary": { "type": "string" },
+                        "authorityRequest": { "type": ["object", "null"] },
+                        "gsdQuickId": { "type": ["string", "null"] }
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "reviewer": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["harness", "version", "executable", "sessionId", "requestId", "requestedSessionId", "report"],
+              "additionalProperties": false,
+              "properties": {
+                "harness": { "type": "string", "minLength": 1 },
+                "version": { "type": ["string", "null"] },
+                "executable": { "type": ["string", "null"] },
+                "sessionId": { "type": ["string", "null"] },
+                "requestId": { "type": "string", "minLength": 1 },
+                "requestedSessionId": { "type": "string", "minLength": 1 },
+                "report": {
+                  "anyOf": [{ "$ref": "#/$defs/reviewReport" }, { "type": "null" }]
+                }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["overall", "refusal", "rows"],
+              "additionalProperties": false,
+              "properties": {
+                "overall": { "enum": ["accepted", "rejected", "unknown"] },
+                "refusal": { "enum": ["stale-review", null] },
+                "rows": { "type": "array", "items": { "$ref": "#/$defs/row" } }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "stopReason": { "type": ["string", "null"] },
+        "nextAction": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

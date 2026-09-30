@@ -56,7 +56,23 @@ export type ManagedDocumentKind =
   /**
    * External package recovery receipts under `~/.alpha-aos/receipts/<id>.json` (LIFE-07, D-13).
    */
-  | "recovery-receipt";
+  | "recovery-receipt"
+  /**
+   * A user-authored autopilot task contract (CON-01). Validated through
+   * `schemas/task-contract.schema.json`.
+   */
+  | "task-contract"
+  /**
+   * Task approval and run records under `<state>/tasks/<contractId>/`
+   * (D-01, D-02, D-16). Validated through `schemas/task-receipt.schema.json`.
+   */
+  | "task-receipt"
+  /**
+   * Structured output an agent hands back to a task run, such as a reviewer
+   * report (REV-01). Validated through the schema named by the caller, for
+   * example `schemas/task-review.schema.json`.
+   */
+  | "task-agent-output";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -345,6 +361,9 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "gate-receipt": null,
   "tree-registry": null,
   "recovery-receipt": null,
+  "task-contract": null,
+  "task-receipt": null,
+  "task-agent-output": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -493,6 +512,28 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     createdAt: { type: "string" },
     entries: { type: "array" },
   }),
+  // Task documents are always validated through their closed repository
+  // schema file, which is the single source of truth for the interior. These
+  // envelopes name only the discriminators, stay open, and so cannot drift
+  // from the additive fields later plans give those files.
+  "task-contract": {
+    type: "object",
+    required: ["schemaVersion"],
+    properties: { schemaVersion: { type: "integer" } },
+    additionalProperties: true,
+  },
+  "task-receipt": {
+    type: "object",
+    required: ["schemaVersion", "kind"],
+    properties: { schemaVersion: { type: "integer" }, kind: { type: "string" } },
+    additionalProperties: true,
+  },
+  "task-agent-output": {
+    type: "object",
+    required: ["schemaVersion"],
+    properties: { schemaVersion: { type: "integer" } },
+    additionalProperties: true,
+  },
 };
 
 const ajv = new Ajv2020({

@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-contract.schema.json",
+  "title": "alpha-AOS task contract",
+  "description": "Closed TaskContract v1 (CON-01, D-03). One reviewed autopilot task: goal, scope, the allowed paths and effect kinds (never a per-file list), measurable mandatory criteria and the agent roles. Its digest is computed over a canonical view in src/core/task-contract.ts.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "revision",
+    "mode",
+    "category",
+    "goal",
+    "scope",
+    "allowedRoots",
+    "allowedEffects",
+    "criterion",
+    "agentPolicy",
+    "resourcePolicy"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "harness": { "enum": ["claude", "codex", "antigravity", "pi", "hermes"] },
+    "expectedJson": {
+      "description": "Any JSON value except null. Null is reserved for 'no expectation' in the digestable view, so allowing it here would let two different contracts share one digest.",
+      "not": { "type": "null" }
+    },
+    "criterion": {
+      "type": "object",
+      "required": ["id", "title", "description", "mandatory", "measurement"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,47}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "mandatory": { "const": true },
+        "measurement": {
+          "type": "object",
+          "required": ["kind", "entry", "inputText", "expect"],
+          "additionalProperties": false,
+          "properties": {
+            "kind": { "const": "cli-json" },
+            "entry": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "inputText": { "type": "string", "maxLength": 65536 },
+            "expect": {
+              "type": "object",
+              "required": ["exitCode"],
+              "additionalProperties": false,
+              "properties": {
+                "exitCode": { "type": "integer", "minimum": 0, "maximum": 255 },
+                "stdoutJson": { "$ref": "#/$defs/expectedJson" },
+                "stdoutEmpty": { "const": true },
+                "stderrJson": { "$ref": "#/$defs/expectedJson" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "mode": { "const": "autopilot" },
+    "category": { "const": "development" },
+    "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "scope": {
+      "type": "object",
+      "required": ["projectRoot", "workflow", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "projectRoot": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "workflow": { "const": "gsd-quick" },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 2000 }
+      }
+    },
+    "allowedRoots": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 1024 }
+    },
+    "allowedEffects": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["workspace-write", "local-commit", "dependency-change"] }
+    },
+    "criterion": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/criterion" }
+    },
+    "agentPolicy": {
+      "type": "object",
+      "required": ["controller", "executor", "reviewer", "reviewerSession"],
+      "additionalProperties": false,
+      "properties": {
+        "controller": { "$ref": "#/$defs/harness" },
+        "executor": { "$ref": "#/$defs/harness" },
+        "reviewer": { "$ref": "#/$defs/harness" },
+        "reviewerSession": { "const": "fresh-read-only" }
+      }
+    },
+    "resourcePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "maxWallTimeMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 }
+      }
+    }
+  }
+}

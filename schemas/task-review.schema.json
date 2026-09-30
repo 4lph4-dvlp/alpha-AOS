@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-review.schema.json",
+  "title": "alpha-AOS task review report",
+  "description": "Reviewer report bound to one review request (REV-01). Uses only the structured-output-safe keyword subset because the same file is handed to the reviewer CLI; length bounds are enforced in code.",
+  "type": "object",
+  "required": ["schemaVersion", "requestId", "contractId", "contractDigest", "artifactDigest", "criteria", "suggestions"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "requestId": { "type": "string" },
+    "contractId": { "type": "string" },
+    "contractDigest": { "type": "string" },
+    "artifactDigest": { "type": "string" },
+    "criteria": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterionId", "verdict", "severity", "evidence", "abstainReason", "finding"],
+        "additionalProperties": false,
+        "properties": {
+          "criterionId": { "type": "string" },
+          "verdict": { "type": "string", "enum": ["pass", "fail", "unknown"] },
+          "severity": { "type": "string", "enum": ["blocking", "advisory"] },
+          "evidence": { "type": "string" },
+          "abstainReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+          "finding": {
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["summary", "reproduction"],
+                "additionalProperties": false,
+                "properties": {
+                  "summary": { "type": "string" },
+                  "reproduction": {
+                    "anyOf": [
+                      { "type": "null" },
+                      {
+                        "type": "object",
+                        "required": ["inputText", "observedExitCode", "observedStdout"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "inputText": { "type": "string" },
+                          "observedExitCode": { "type": "integer" },
+                          "observedStdout": { "type": "string" }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    "suggestions": { "type": "array", "items": { "type": "string" } }
+  }
+}

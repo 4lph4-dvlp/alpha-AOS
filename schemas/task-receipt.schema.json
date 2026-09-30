@@ -122,6 +122,10 @@
         "contractDigest": { "$ref": "#/$defs/sha256" },
         "approvedAt": { "type": "string", "minLength": 1 },
         "canonicalProjectRoot": { "type": "string", "minLength": 1 },
+        "gitDirectory": {
+          "description": "The canonical git directory the approved local-commit effect lets the controller write, or null when none is grantable. Absent on approvals recorded before git-directory binding, which the start gate refuses for a grantable project.",
+          "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
         "consent": {
           "type": "object",
           "required": ["mode", "grant", "scope"],

@@ -3,6 +3,7 @@ import { isAbsolute, join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { reviewedDigest } from "./component-session.js";
 import { canonicalizeWithMissingTail } from "./path-boundary.js";
+import { grantedGitDirectory, resolveTaskGitDirectory } from "./task-git.js";
 import { packageRoot } from "./paths.js";
 import { shellQuote } from "./project-plan.js";
 import { applyFileTransaction } from "./transaction.js";
@@ -613,8 +614,30 @@ export async function previewTaskContract(options: { contractPath: string; state
     approved: approvals.some((approval) => approval.contractDigest === loaded.digest),
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: loaded.contract.revision },
     resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
-    gitAuthority: { grant: "none", gitDirectory: null, layout: "unsupported", reason: "not implemented" },
+    gitAuthority: await taskGitAuthority(loaded.contract),
   };
+}
+
+/**
+ * What approving this contract lets the controller write through its
+ * local-commit effect: exactly one git directory, or none with the reason.
+ * Resolved from the project root the same way approval and the start gate
+ * resolve it, so the preview names what consent actually covers (D-03).
+ */
+async function taskGitAuthority(contract: TaskContract): Promise<TaskGitAuthority> {
+  const resolution = await resolveTaskGitDirectory(contract.scope.projectRoot);
+  const granted = grantedGitDirectory(contract, resolution);
+  if (granted !== null) return { grant: "git-directory", gitDirectory: granted, layout: resolution.layout, reason: null };
+  const reason = resolution.status === "grantable" ? "local-commit is not an allowed effect" : resolution.reason;
+  return { grant: "none", gitDirectory: null, layout: resolution.layout, reason };
+}
+
+/** The granted git directory recomputed now, with the reason when there is none. */
+async function currentGitGrant(contract: TaskContract, canonicalRoot: string): Promise<{ gitDirectory: string | null; reason: string }> {
+  const resolution = await resolveTaskGitDirectory(canonicalRoot);
+  const gitDirectory = grantedGitDirectory(contract, resolution);
+  const reason = resolution.status === "grantable" ? "local-commit is not an allowed effect" : resolution.reason;
+  return { gitDirectory, reason };
 }
 
 /**
@@ -731,6 +754,7 @@ export async function approveTaskContract(options: {
     contractDigest: digest,
     approvedAt: (options.now ?? (() => new Date()))().toISOString(),
     canonicalProjectRoot: root.canonical,
+    gitDirectory: grantedGitDirectory(contract, await resolveTaskGitDirectory(root.canonical)),
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run" },
     contract: digestableTaskContract(contract),
   };
@@ -778,6 +802,20 @@ export async function assertTaskStartable(options: {
     throw new TaskContractError(
       "root-changed",
       `task ${loaded.contract.id}: the project root was approved as ${approval.canonicalProjectRoot} and ${now}. Restore the approved directory, or increase revision to ${nextRevision(approvals, loaded.contract.revision)} and approve the contract for the new directory after previewing it: ${taskPreviewCommand({ contractPath: loaded.sourcePath })}`,
+    );
+  }
+  // The git directory the controller may write is part of the consent (T-14-46):
+  // a pointer retargeted after approval, or an approval that never bound one, is stale.
+  // A record without the field binds nothing, so it compares as null.
+  const approvedGit = approval.gitDirectory ?? null;
+  const current = await currentGitGrant(loaded.contract, root.canonical);
+  if (approvedGit !== current.gitDirectory) {
+    const approvedText =
+      approval.gitDirectory === undefined ? "none (approved before git-directory binding)" : approvedGit ?? "none";
+    const nowText = current.gitDirectory ?? `none: ${current.reason}`;
+    throw new TaskContractError(
+      "git-directory-changed",
+      `task ${loaded.contract.id}: local-commit was approved for git directory ${approvedText} and the project's git directory now resolves to ${nowText}. Restore it, or increase revision to ${nextRevision(approvals, loaded.contract.revision)} and approve the contract again after previewing it: ${taskPreviewCommand({ contractPath: loaded.sourcePath })}`,
     );
   }
   return { loaded, approval };

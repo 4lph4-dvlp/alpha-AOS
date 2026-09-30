@@ -1751,7 +1751,14 @@ async function main(): Promise<void> {
 
     const showPreview =(preview: TaskContractPreview, command: string): void => {
       print(
-        { applied: false, digest: preview.digest, approved: preview.approved, command, contract: preview.contract },
+        {
+          applied: false,
+          digest: preview.digest,
+          approved: preview.approved,
+          command,
+          contract: preview.contract,
+          gitAuthority: preview.gitAuthority,
+        },
         json,
         formatTaskContractPreview(preview, command),
         context,

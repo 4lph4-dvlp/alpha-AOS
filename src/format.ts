@@ -1096,6 +1096,9 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
     `Workflow: ${contract.scope.workflow} — ${contract.scope.summary}`,
     `Allowed roots: ${contract.allowedRoots.join(", ")}`,
     `Allowed effect kinds: ${contract.allowedEffects.join(", ")}`,
+    preview.gitAuthority.grant === "git-directory"
+      ? `Git authority (local-commit): the controller may write ${preview.gitAuthority.gitDirectory ?? ""} for this run; its config, hooks and info stay read-only`
+      : `Git authority (local-commit): none — ${preview.gitAuthority.reason ?? "no git directory is granted"}`,
     "Mandatory criteria:",
     ...contract.criterion.map(
       (criterion) =>

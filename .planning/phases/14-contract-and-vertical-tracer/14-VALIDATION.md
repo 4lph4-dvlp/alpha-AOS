@@ -49,8 +49,13 @@ created: "2026-09-29"
 | 14-05-01 | 05 | 3 | RUN-01, CON-02 | T-14-33 | 설치된 GSD quick 경유 prompt, 읽기 전용 GSD evidence 검증 | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-gsd.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
 | 14-05-02 | 05 | 3 | AUTO-02, RUN-01, CON-02 | T-14-31, T-14-32, T-14-35..37 | 새 권한은 blocked, 의존성 변경 시 read-only pack checkpoint (D-07), wall-time stopped | unit + API e2e | `npm run build && node scripts/run-tests.mjs --files dist/test/task-effects.test.js dist/test/task-gsd.test.js dist/test/task-run.test.js dist/test/task-verdict.test.js dist/test/task-check.test.js dist/test/task-cli.test.js dist/test/task-contract.test.js` | ❌ W0 (task가 생성) | ⬜ pending |
 | 14-06-01 | 06 | 4 | AUTO-01, AUTO-03, CON-03, CON-01 | T-14-38..40 | task start만 supervisor 진입, 소비·타 계약 digest 거부, 일반 명령은 run 생성 안 함 | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-run.test.js dist/test/task-effects.test.js` | ✅ (14-01에서 생성) | ✅ green (2026-09-30: task-cli·task-run·task-effects 포함 task 8개 suite 143 pass / 0 fail, 67 s; commits 240629a, a57f08c) |
-| 14-06-02 | 06 | 4 | RUN-01, REV-01 | T-14-41..43 | 실제 Codex GSD quick + 새 Claude 세션이 같은 artifact digest에서 accepted | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js` | ✅ (efbbf86) | ⛔ NOT PROVEN on this host — live invocation 1 (run `munx7h9w-b9ec114f`, 10m47s) `blocked`: Codex `workspace-write` sandbox가 `.git`을 읽기 전용으로 유지해 GSD quick commit 불가. 사용자 결정 D로 이월 (아래 "14-06 Live Tracer Evidence") |
-| 14-06-03 | 06 | 4 | REV-01, RUN-01 | T-14-41, T-14-42 | 성공을 주장한 실제 결함 실행은 rejected, 실제 review의 변경 artifact 대입은 stale 거부 | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="rejected by measurement\|refused as stale" --files dist/test/task-tracer.integration.js` | ❌ 미작성 (Task 3 precondition 미충족) | ⛔ NOT PROVEN on this host — 14-06-02의 accepted run이 전제이므로 실행하지 않음, live turn 0회. 사용자 결정 D로 이월 |
+| 14-06-02 | 06 | 4 | RUN-01, REV-01 | T-14-41..43 | 실제 Codex GSD quick + 새 Claude 세션이 같은 artifact digest에서 accepted | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js` | ✅ (efbbf86) | ✅ green (2026-10-01: live invocation 1 run `muoc4fm2-00d54647`, 15m19s / 925.8s; codex `0.158.0` + claude `2.1.285`, status `accepted`, gsd quick `261001-2gr` docs commit `347e3d20ab4aa0cb1d6c0bcc0d54585e3ad827d7`, granted git directory) |
+| 14-06-03 | 06 | 4 | REV-01, RUN-01 | T-14-41, T-14-42 | 성공을 주장한 실제 결함 실행은 rejected, 실제 review의 변경 artifact 대입은 stale 거부 | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="rejected by measurement\|refused as stale" --files dist/test/task-tracer.integration.js` | ✅ 작성됨 | ⛔ NOT PROVEN on this host (2026-10-01: live invocations 1 & 2 failed D-11 condition with non-zero exit 1; live turn 2회 소진) |
+| 14-07-02 | 07 | 5 | RUN-01, AUTO-02 | T-14-44..49 | 컨트롤러 git 권한 해석, 승인 바인딩, safe.directory 격리 및 거부 처리 | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/task-git.test.js` | ✅ | ✅ green (2026-09-30: task-git suite 25 pass / 0 fail, commits d3f75df, 19c76f7, 689f18a) |
+| 14-07-03 | 07 | 5 | RUN-01 | T-14-41, T-14-44 | 승인된 git 권한 프로필 아래 샌드박스 commit 허용 및 제어 파일 거부 canary | sandbox canary | `npm run build && node scripts/run-tests.mjs --test-name-pattern="sandboxed GSD commit" --files dist/test/task-tracer.integration.js` | ✅ | ✅ green (2026-09-30: no-spend sandbox canary 1 pass / 0 fail, commit d3f75df) |
+| 14-08-01 | 08 | 6 | AUTO-02, RUN-01 | T-14-52, T-14-53 | git 제어 파일 변경 차단, 히스토리 재작성(rev-list) 차단, 부여된 git 디렉터리 기록 | unit + API e2e | `npm run build && node scripts/run-tests.mjs --files dist/test/task-effects.test.js` | ✅ | ✅ green (2026-10-01: task-effects suite 28 pass / 0 fail, commit db90807) |
+| 14-08-02 | 08 | 6 | RUN-01, REV-01 | T-14-41..43 | 승인된 git 권한 아래 실제 Codex GSD quick + Claude review accepted 실행 증명 | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js` | ✅ | ✅ green (2026-10-01: live invocation 1 run `muoc4fm2-00d54647`, 15m19s / 925.8s, status `accepted`) |
+| 14-08-03 | 08 | 6 | REV-01, RUN-01 | T-14-41, T-14-42 | 실제 결함 실행 측정 거부 및 변경 artifact의 stale review 거부 증명 | live integration | `npm run build && node scripts/run-tests.mjs --test-name-pattern="rejected by measurement\|refused as stale" --files dist/test/task-tracer.integration.js` | ✅ | ⛔ NOT PROVEN on this host (2026-10-01: live invocations 1 & 2 failed D-11 condition with non-zero exit 1; live turn 2회 소진) |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky · ⛔ NOT PROVEN (필요한 실제 증거를 이 호스트에서 얻지 못함; 통과로 간주하지 않음). 각 task는 자신의 테스트 파일을 같은 task에서 먼저 작성한다(tdd). live tracer는 필요 조건이 없으면 `NOT PROVEN:`으로 실패하며 skip하지 않는다.*
 
@@ -110,6 +115,42 @@ created: "2026-09-29"
 - **사용자 결정: D.** sandbox 인자, exec policy, supervisor commit 동작, 14-05 GSD evidence 계약은 바꾸지 않는다. 추가 live 실행 없음 (accept 1/3 사용, defect/stale 0/2 사용).
 - **이월 대상:** `.git` 쓰기 권한 문제는 Phase 16/17 (GSD-04 hook-receipt provenance 포함) 또는 sealed/container adapter에서 다룬다. 그때 14-06-02와 14-06-03을 같은 명령으로 다시 실행해 이 표를 갱신한다.
 - **Research assumption A3 증명됨:** `codex exec`가 설치된 `$gsd-quick` (`~/.agents/skills/gsd-quick`)을 실제로 구동해 quick PLAN, decision log, 구현과 테스트를 만들었다 (invocation 1).
+
+---
+
+## 14-08 Live Tracer Evidence
+
+> 2026-10-01, Windows 11 개발 호스트. 14-07 git directory authority (`alpha-aos-task` profile, option `git-dir-profile`)를 사용하여 14-06-02 accept test가 live invocation 1회만에 통과함.
+
+### Live accept invocation (14-06-02)
+
+| Field | Observed |
+|-------|----------|
+| Command | `npm run build && node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js` |
+| Test result | `ok 1` — `# pass 1`, `# fail 0`, `# skipped 0`; duration 925.8s (CLI duration 919.08s) |
+| Run id | `muoc4fm2-00d54647` |
+| Status | `accepted` |
+| Executor | `codex-cli 0.158.0` (`~\\AppData\\Roaming\\npm\\node_modules\\@openai\\codex\\bin\\codex.js`), session `01a0f333-7867-7d21-8580-280de5ce53bd`, exit 0, processCode `ok`, terminal `completed` |
+| Reviewer | `2.1.285 (Claude Code)` (`~\\.local\\bin\\claude.EXE`), session `d86bd6b6-b9cd-43ac-802a-e3b917de573a` (requested `d86bd6b6-b9cd-43ac-802a-e3b917de573a`) |
+| Contract digest | `9b99a6de59328f967fc4f4b595b82a9ef5b903121ff39445c4d322f30ff571fc` (inventory-summary, revision 1) |
+| Artifact digest | `a5b47fda589ec0fc1ff0cb521a98398e9807ed23a58d593400a42efb85bff748` (3 files, 1885 bytes) |
+| Base commit (fixture) | `fc30037eb8baa07e00b0b2e538baa391622e5558` |
+| GSD quick | id `261001-2gr`, status `verified`, commit `347e3d20ab4aa0cb1d6c0bcc0d54585e3ad827d7` (`docs(quick-261001-2gr): Implement inventory-summary Node ESM CLI and tests for valid summaries, invalid quantities, and unreadable input`) |
+| Granted git directory | `C:\Users\alpha\AppData\Local\Temp\alpha-aos-task-fixture-XwlwqG\inventory-summary\.git` |
+| Decisions | 5 recorded (d1: gsd-default, d2: file-layout, d3: implementation, d4: verification, d5: implementation), decision log `valid` |
+| Verdict rows | `invalid-quantity`: pass (measured pass, exit 2; review pass), `valid-summary`: pass (measured pass, exit 0; review pass) |
+| Effects | implementation `bin/inventory-summary.mjs`, `test/inventory-summary.test.mjs`; planning `.gsd/dispatch-isolation-sentinel.json`, `.planning/STATE.md`, `.planning/quick/261001-2gr-implement-inventory-summary-node-esm-cli/261001-2gr-PLAN.md`, `.planning/quick/261001-2gr-implement-inventory-summary-node-esm-cli/261001-2gr-SUMMARY.md`; violations [] |
+
+### Live defect & stale invocations (14-06-03 / 14-08-03)
+
+| Invoc. | Run ID | Duration | Outcome | Executor / Exit | GSD Status | Verdict / Stale |
+|--------|--------|----------|---------|-----------------|------------|-----------------|
+| 1/2 | `muocvg3p-28eb5efd` | 399.78s (CLI 398.95s) | NOT PROVEN: D-11 condition not exercised | `codex 0.158.0` / exit 1 | `missing` (no docs commit) | unknown (entry-missing) / ENOENT |
+| 2/2 | `muodkk0y-cee5a0b7` | 39.58s (CLI 38.60s) | NOT PROVEN: D-11 condition not exercised | `codex 0.158.0` / exit 1 | `missing` (no .planning/quick) | unknown (entry-missing) / NOT PROVEN (claim none) |
+
+> 2026-10-01, Windows 11 개발 호스트. 14-06-03 / 14-08-03 결함 거부 및 stale review 거부 증명은 2회 live invocation 모두 Codex 컨트롤러의 비정상 종료(exitCode 1)로 인해 D-11 조건(실행자가 성공을 주장하는 결함 생성)이 발현되지 않아 **NOT PROVEN**으로 확정됨. 최대 허용 live 회차(2회) 소진으로 중단 게이트 도달.
+
+---
 
 ## Validation Sign-Off
 

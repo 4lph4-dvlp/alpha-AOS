@@ -19,25 +19,10 @@
 // project under the OS temp directory with its own git repository (D-09,
 // T-14-41) — never in this repository and never in the host state root.
 //
-// Status on the Windows 11 development host (2026-09-30, plan 14-06): NOT
-// PROVEN. The accept test below is expected to FAIL there, never to pass
-// silently. Live invocation 1 (run munx7h9w-b9ec114f) reached GSD quick and
-// produced a correct implementation, but ended `blocked` with
-// `new-authority-required: local-commit requiring write access to .git`:
-// Codex's `workspace-write` sandbox keeps the project `.git` read-only by
-// design, so GSD quick cannot make its required commits and the run can never
-// carry verified GSD evidence. The seeded-defect rejection and the
-// stale-review substitution tests (14-06 Task 3) are not written yet, because
-// their precondition is an accepted run from this file. The `.git` write
-// authority is deferred by user decision (14-06 checkpoint, option D) without
-// changing the sandbox, the exec policy or the GSD evidence contract; see
-// 14-06-SUMMARY.md and 14-VALIDATION.md rows 14-06-02 and 14-06-03.
-//
-// Plan 14-07 superseded decision D (option git-dir-profile): an approved
-// local-commit now launches Codex under the alpha-aos-task permission profile
-// that names exactly the project's git directory (config, hooks and info
-// read-only) with `--ignore-rules`. The no-spend canary below proves that
-// profile on the real host sandbox; the live accepted run is plan 14-08.
+// Status on the Windows 11 development host: live runs now use the 14-07 git
+// authority (named permission profile alpha-aos-task, user/project execpolicy
+// rules ignored, run-scoped safe.directory, selected option git-dir-profile).
+// Live tracer execution proves accepted, rejected, and stale review cases.
 
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -54,17 +39,21 @@ import {
 } from "../src/adapters/task-codex.js";
 import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
 import { resolveCommand, runProcess, type ProcessResult } from "../src/core/process.js";
+import { collectTaskArtifact } from "../src/core/task-check.js";
 import { resolveTaskGitDirectory } from "../src/core/task-git.js";
-import { resolveInstalledGsdTools } from "../src/core/task-gsd.js";
+import { buildGsdControllerPrompt, resolveInstalledGsdTools } from "../src/core/task-gsd.js";
 import { readTaskReport, type TaskRunRecord } from "../src/core/task-run.js";
+import { assessTaskReview, reduceTaskVerdict } from "../src/core/task-verdict.js";
 import {
   createTaskFixture,
   inventorySummaryContract,
   liveTaskEnvironment,
+  seededDefectContract,
   writeTaskContract,
   type TaskFixture,
 } from "./helpers/task-fixture.js";
 import { gitCommand } from "./helpers/git-fixture.js";
+import type { TaskContract } from "../src/core/task-contract.js";
 
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
@@ -169,12 +158,24 @@ test("a real Codex GSD quick run and a fresh Claude review accept a correct inve
 
   assert.equal(run.gsd.status, "verified", `GSD evidence missing: ${run.gsd.missing.join("; ")}`);
   assert.ok(run.gsd.quickId !== null);
+  assert.ok(
+    run.gsd.commits.some((c) => c.subject.startsWith(`docs(quick-${run.gsd!.quickId})`)),
+    `expected a docs(quick-${run.gsd.quickId}) commit in ${JSON.stringify(run.gsd.commits)}`,
+  );
+  assert.deepEqual(
+    run.verdict.rows.map((row) => row.criterionId),
+    ["invalid-quantity", "valid-summary"],
+  );
+  const resolution = await resolveTaskGitDirectory(fixture.projectRoot);
+  assert.equal(resolution.status, "grantable");
+  assert.equal(run.gitDirectory, (resolution as { gitDirectory: string }).gitDirectory);
   assert.deepEqual(run.effects.violations, []);
   assert.ok(run.decisions.length >= 1, `no decision was recorded (log ${run.decisionLog?.status ?? "not read"}: ${run.decisionLog?.reason ?? ""})`);
 
   const report = await aos(fixture, ["task", "report", "inventory-summary"]);
   expectOk("task report", report.result);
   assert.match(report.result.stdout.excerpt, /ACCEPTED/u);
+  assert.match(report.result.stdout.excerpt, /Git directory granted to the controller:/u);
 
   context.diagnostic(
     [
@@ -186,6 +187,7 @@ test("a real Codex GSD quick run and a fresh Claude review accept a correct inve
       `artifact ${run.artifact.digest}`,
       `contract ${run.contractDigest}`,
       `gsd quick ${run.gsd.quickId}`,
+      `git directory ${run.gitDirectory ?? "none"}`,
       `cli duration ${ms} ms`,
     ].join(" | "),
   );
@@ -359,4 +361,182 @@ test("the approved git directory profile lets a sandboxed GSD commit land and ke
   } finally {
     context.diagnostic(`canary steps | ${steps.join(" | ")}`);
   }
+});
+
+let defectRunRecord: TaskRunRecord | null = null;
+let defectFixture: TaskFixture | null = null;
+let defectContractHolder: TaskContract | null = null;
+let defectFixtureCleanup: (() => Promise<void>) | null = null;
+
+test("a real run that claims success with wrong JSON is rejected by measurement", async (context) => {
+  await requireLiveHarnesses();
+  let keepFixtureForNextTest = false;
+  const fixture = await createTaskFixture({
+    after(fn: () => Promise<void>) {
+      defectFixtureCleanup = fn;
+      context.after(async () => {
+        if (!keepFixtureForNextTest && defectFixtureCleanup !== null) {
+          await defectFixtureCleanup();
+          defectFixtureCleanup = null;
+        }
+      });
+    },
+  } as unknown as TestContext);
+  const plainContract = inventorySummaryContract(fixture.projectRoot);
+  const defectContract = seededDefectContract(fixture.projectRoot);
+
+  // Before any launch, prove offline that the controller cannot see the planted value.
+  const promptPlain = buildGsdControllerPrompt({
+    contract: plainContract,
+    runId: "run-offline-test",
+    contractDigest: "0".repeat(64),
+    decisionLogPath: ".alpha-aos/task-runs/run-offline-test/decisions.jsonl",
+    outline: { sourceSha256: "0".repeat(64), stepNames: [] },
+  });
+  const promptDefect = buildGsdControllerPrompt({
+    contract: defectContract,
+    runId: "run-offline-test",
+    contractDigest: "0".repeat(64),
+    decisionLogPath: ".alpha-aos/task-runs/run-offline-test/decisions.jsonl",
+    outline: { sourceSha256: "0".repeat(64), stepNames: [] },
+  });
+  assert.equal(promptDefect.replaceAll("inventory-summary-b", "inventory-summary"), promptPlain);
+
+  await writeTaskContract(fixture.contractPath, defectContract);
+  const { start, printed, run, ms } = await previewApproveStart(context, fixture, "inventory-summary-b");
+
+  defectRunRecord = run;
+  defectFixture = fixture;
+  defectContractHolder = defectContract;
+
+  if (run.executor?.claim?.status !== "completed" || run.executor?.exitCode !== 0 || run.gsd?.status !== "verified") {
+    throw new Error(
+      `NOT PROVEN: D-11 condition not exercised (run ${run.runId}, claim ${run.executor?.claim?.status ?? "none"}, exitCode ${String(run.executor?.exitCode)}, gsd ${run.gsd?.status ?? "none"})`,
+    );
+  }
+
+  assert.equal(start.exitCode, 1, `task start exited ${String(start.exitCode)} with status ${run.status}`);
+  assert.equal(run.status, "rejected");
+
+  assert.ok(run.verdict !== null);
+  const validRow = run.verdict.rows.find((r) => r.criterionId === "valid-summary");
+  assert.ok(validRow !== undefined, "valid-summary row missing");
+  assert.equal(validRow.verdict, "fail");
+  assert.equal(validRow.measured.outcome, "fail");
+  assert.match(validRow.measured.detail ?? "", /totalQuantity/u);
+
+  assert.ok(run.executor !== null && run.executor.claim !== null);
+  assert.equal(run.executor.claim.status, "completed");
+  assert.equal(run.executor.exitCode, 0);
+
+  assert.deepEqual(
+    run.verdict.rows.map((row) => row.criterionId),
+    ["invalid-quantity", "valid-summary"],
+  );
+
+  const resolution = await resolveTaskGitDirectory(fixture.projectRoot);
+  assert.equal(resolution.status, "grantable");
+  assert.equal(run.gitDirectory, (resolution as { gitDirectory: string }).gitDirectory);
+
+  keepFixtureForNextTest = true;
+
+  context.diagnostic(
+    [
+      `defect run ${run.runId}`,
+      `status ${run.status}`,
+      `claim ${run.executor.claim.status}`,
+      `exit ${run.executor.exitCode}`,
+      `valid-summary measured ${validRow.measured.detail}`,
+      `cli duration ${ms} ms`,
+    ].join(" | "),
+  );
+});
+
+test("a real review report substituted onto a changed artifact is refused as stale", async (context) => {
+  context.after(async () => {
+    if (defectFixtureCleanup !== null) {
+      await defectFixtureCleanup();
+      defectFixtureCleanup = null;
+    }
+  });
+
+  if (
+    defectRunRecord === null ||
+    defectFixture === null ||
+    defectContractHolder === null ||
+    defectRunRecord.reviewer?.report == null ||
+    defectRunRecord.executor?.claim?.status !== "completed" ||
+    defectRunRecord.executor?.exitCode !== 0 ||
+    defectRunRecord.gsd?.status !== "verified"
+  ) {
+    const issues =
+      defectRunRecord?.reviewer?.report == null
+        ? "report is null"
+        : defectRunRecord.executor?.claim?.status !== "completed"
+          ? `claim status is ${defectRunRecord.executor?.claim?.status ?? "none"}`
+          : "defect run not executed";
+    throw new Error(`NOT PROVEN: no real review report to substitute (${issues})`);
+  }
+
+  const run = defectRunRecord;
+  const fixture = defectFixture;
+  const contract = defectContractHolder;
+  const reviewer = run.reviewer;
+  assert.ok(reviewer !== null);
+  const originalReport = reviewer.report;
+  assert.ok(originalReport !== null);
+
+  // Append one newline to bin/inventory-summary.mjs and re-collect the artifact
+  const scriptPath = join(fixture.projectRoot, "bin", "inventory-summary.mjs");
+  await appendFile(scriptPath, "\n", "utf8");
+
+  const recollected = await collectTaskArtifact({
+    projectRoot: fixture.projectRoot,
+    allowedRoots: contract.allowedRoots,
+  });
+  assert.equal(recollected.status, "ok");
+  assert.notEqual(recollected.digest, originalReport.artifactDigest);
+
+  // Call assessTaskReview with the real report, request with new artifactDigest
+  const changedAssessment = assessTaskReview({
+    report: originalReport,
+    request: {
+      requestId: reviewer.requestId,
+      sessionId: reviewer.requestedSessionId,
+      contractDigest: run.contractDigest,
+      artifactDigest: recollected.digest,
+    },
+    portSessionId: reviewer.sessionId,
+    contract,
+  });
+  assert.equal(changedAssessment.status, "stale");
+
+  // Call reduceTaskVerdict with stored measurements, that assessment, refusal stale-review and stored preconditions
+  assert.ok(run.verdict !== null);
+  const measurements = run.verdict.rows.map((row) => row.measured);
+  const reduced = reduceTaskVerdict({
+    contract,
+    artifactDigest: recollected.digest,
+    measurements,
+    review: changedAssessment,
+    confirmations: new Map(),
+    preconditions: run.verdict.preconditions,
+    refusal: null,
+  });
+  assert.notEqual(reduced.overall, "accepted");
+  assert.equal(reduced.refusal, "stale-review");
+
+  // Also assert that assessTaskReview with the unchanged artifact digest and a different requestId is also stale
+  const differentRequestAssessment = assessTaskReview({
+    report: originalReport,
+    request: {
+      requestId: "00000000-0000-0000-0000-000000000000",
+      sessionId: reviewer.requestedSessionId,
+      contractDigest: run.contractDigest,
+      artifactDigest: originalReport.artifactDigest,
+    },
+    portSessionId: reviewer.sessionId,
+    contract,
+  });
+  assert.equal(differentRequestAssessment.status, "stale");
 });

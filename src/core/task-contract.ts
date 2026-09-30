@@ -265,9 +265,29 @@ function sortedUnique<T extends string>(values: readonly T[]): T[] {
 }
 
 /**
+ * One spelling per JSON value: object keys sorted by code-unit order at every
+ * depth, arrays kept in order because their order is meaning. `fromEntries`
+ * defines own properties, so a `__proto__` key stays data and never a prototype.
+ */
+export function canonicalJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalJsonValue);
+  if (typeof value === "object" && value !== null) {
+    const record = value as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.keys(record)
+        .sort()
+        .map((key) => [key, canonicalJsonValue(record[key])]),
+    );
+  }
+  return value;
+}
+
+/**
  * The reviewable content of a contract, built as a literal with a fixed key
  * order because `reviewedDigest` hashes `JSON.stringify`, which is key-order
- * sensitive. Collections are sorted so authoring order never moves the digest.
+ * sensitive. Collections are sorted, text is NFC and paths have one spelling,
+ * so authoring form never moves the digest. `inputText` is program input and
+ * is never normalized: a byte change there is a real contract change.
  */
 export function digestableTaskContract(contract: TaskContract): DigestableTaskContract {
   return {
@@ -276,11 +296,11 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
     revision: contract.revision,
     mode: contract.mode,
     category: contract.category,
-    goal: contract.goal,
+    goal: contract.goal.normalize("NFC"),
     scope: {
-      projectRoot: contract.scope.projectRoot,
+      projectRoot: resolve(contract.scope.projectRoot).normalize("NFC"),
       workflow: contract.scope.workflow,
-      summary: contract.scope.summary,
+      summary: contract.scope.summary.normalize("NFC"),
     },
     allowedRoots: sortedUnique(contract.allowedRoots.map(normalizeContractPath)),
     allowedEffects: sortedUnique(contract.allowedEffects),
@@ -288,18 +308,18 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0))
       .map((criterion) => ({
         id: criterion.id,
-        title: criterion.title,
-        description: criterion.description,
+        title: criterion.title.normalize("NFC"),
+        description: criterion.description.normalize("NFC"),
         mandatory: criterion.mandatory,
         measurement: {
           kind: criterion.measurement.kind,
-          entry: criterion.measurement.entry,
+          entry: normalizeContractPath(criterion.measurement.entry),
           inputText: criterion.measurement.inputText,
           expect: {
             exitCode: criterion.measurement.expect.exitCode,
-            stdoutJson: criterion.measurement.expect.stdoutJson ?? null,
+            stdoutJson: canonicalJsonValue(criterion.measurement.expect.stdoutJson ?? null),
             stdoutEmpty: criterion.measurement.expect.stdoutEmpty ?? false,
-            stderrJson: criterion.measurement.expect.stderrJson ?? null,
+            stderrJson: canonicalJsonValue(criterion.measurement.expect.stderrJson ?? null),
           },
         },
       })),
@@ -315,6 +335,42 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
 
 export function taskContractDigest(contract: TaskContract): string {
   return reviewedDigest(TASK_CONTRACT_DIGEST_KIND, digestableTaskContract(contract));
+}
+
+/**
+ * The names of every reviewable field that differs between two digestable
+ * views, sorted. The vocabulary is closed: a new contract field must be added
+ * here in the same change that adds it to the schema. Each criterion is named
+ * `criterion[<id>]` when it was added, removed or changed.
+ */
+export function changedContractFields(before: DigestableTaskContract, after: DigestableTaskContract): string[] {
+  const changed: string[] = [];
+  const compare = (name: string, left: unknown, right: unknown) => {
+    if (JSON.stringify(left) !== JSON.stringify(right)) changed.push(name);
+  };
+  compare("id", before.id, after.id);
+  compare("revision", before.revision, after.revision);
+  compare("mode", before.mode, after.mode);
+  compare("category", before.category, after.category);
+  compare("goal", before.goal, after.goal);
+  compare("scope.projectRoot", before.scope.projectRoot, after.scope.projectRoot);
+  compare("scope.workflow", before.scope.workflow, after.scope.workflow);
+  compare("scope.summary", before.scope.summary, after.scope.summary);
+  compare("allowedRoots", before.allowedRoots, after.allowedRoots);
+  compare("allowedEffects", before.allowedEffects, after.allowedEffects);
+  compare("agentPolicy.controller", before.agentPolicy.controller, after.agentPolicy.controller);
+  compare("agentPolicy.executor", before.agentPolicy.executor, after.agentPolicy.executor);
+  compare("agentPolicy.reviewer", before.agentPolicy.reviewer, after.agentPolicy.reviewer);
+  compare("agentPolicy.reviewerSession", before.agentPolicy.reviewerSession, after.agentPolicy.reviewerSession);
+  compare("resourcePolicy.maxWallTimeMinutes", before.resourcePolicy.maxWallTimeMinutes, after.resourcePolicy.maxWallTimeMinutes);
+  const criteria = (view: DigestableTaskContract) =>
+    new Map(view.criterion.map((criterion) => [criterion.id, JSON.stringify(canonicalJsonValue(criterion))]));
+  const left = criteria(before);
+  const right = criteria(after);
+  for (const id of new Set([...left.keys(), ...right.keys()])) {
+    if (left.get(id) !== right.get(id)) changed.push(`criterion[${id}]`);
+  }
+  return changed.sort();
 }
 
 /**
@@ -417,12 +473,54 @@ export function taskApproveCommand(options: { contractPath: string; digest: stri
   return `alpha-aos task approve ${shellQuote(options.contractPath)} --contract-digest ${options.digest} --apply`;
 }
 
-function driftError(loaded: LoadedTaskContract, expectedDigest: string): TaskContractError {
-  const reviewed = SHA256.test(expectedDigest) ? `the reviewed digest was ${expectedDigest}` : "the supplied digest is malformed";
-  return new TaskContractError(
-    "contract-drift",
-    `Task contract ${loaded.contract.id} r${loaded.contract.revision} does not match the reviewed digest: ${reviewed}, the current digest is ${loaded.digest}. Preview it again, then run: ${taskApproveCommand({ contractPath: loaded.sourcePath, digest: loaded.digest })}`,
-  );
+/** The exact runnable line that shows a contract and its current digest. */
+export function taskPreviewCommand(options: { contractPath: string }): string {
+  return `alpha-aos task preview ${shellQuote(options.contractPath)}`;
+}
+
+/** The lowest revision number that no approval for this id has used yet. */
+function nextRevision(approvals: readonly TaskApprovalRecord[], current: number): number {
+  return Math.max(current, ...approvals.map((approval) => approval.revision)) + 1;
+}
+
+function describeChangedFields(fields: readonly string[]): string {
+  return fields.length === 0 ? "no named field (the recorded view no longer re-digests alike)" : fields.join(", ");
+}
+
+/**
+ * Why a supplied digest is not the current one (D-04): when that digest was
+ * approved, the fields that changed since, the new digest, the preview and
+ * approve commands and — when the revision was not raised — the revision the
+ * changed contract needs. Otherwise, that the digest is unknown here.
+ */
+async function driftError(loaded: LoadedTaskContract, expectedDigest: string, stateRoot: string): Promise<TaskContractError> {
+  const { contract, digest, sourcePath } = loaded;
+  const preview = taskPreviewCommand({ contractPath: sourcePath });
+  const approve = taskApproveCommand({ contractPath: sourcePath, digest });
+  if (!SHA256.test(expectedDigest)) {
+    return new TaskContractError(
+      "contract-drift",
+      `task ${contract.id}: the supplied digest is malformed. Current digest ${digest}. Preview it: ${preview} Then approve exactly the current digest: ${approve}`,
+    );
+  }
+  const approvals = await readTaskApprovals({ stateRoot, contractId: contract.id });
+  const prior = approvals.find((approval) => approval.contractDigest === expectedDigest);
+  if (prior === undefined) {
+    return new TaskContractError(
+      "contract-drift",
+      `task ${contract.id}: digest ${expectedDigest.slice(0, 12)} was never approved in this state root. Current digest ${digest}. Preview it: ${preview} Then approve exactly the current digest: ${approve}`,
+    );
+  }
+  const changed = changedContractFields(prior.contract, digestableTaskContract(contract));
+  const lines = [
+    `task ${contract.id}: the approved contract (digest ${expectedDigest.slice(0, 12)}) changed: ${describeChangedFields(changed)}. Current digest ${digest}.`,
+    `Preview it: ${preview}`,
+    `Approve the changed contract: ${approve}`,
+  ];
+  if (contract.revision === prior.revision) {
+    lines.push(`Increase revision to ${nextRevision(approvals, contract.revision)} before approving the changed contract.`);
+  }
+  return new TaskContractError("contract-drift", lines.join(" "));
 }
 
 /**
@@ -436,13 +534,23 @@ export async function approveTaskContract(options: {
   now?: () => Date;
 }): Promise<TaskApprovalResult> {
   const loaded = await loadTaskContract(options.contractPath);
-  if (loaded.digest !== options.expectedDigest) throw driftError(loaded, options.expectedDigest);
+  if (loaded.digest !== options.expectedDigest) throw await driftError(loaded, options.expectedDigest, options.stateRoot);
 
   const { contract, digest } = loaded;
   const recordPath = taskApprovalPath(options.stateRoot, contract.id, contract.revision, digest);
   const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: contract.id });
   if (approvals.some((approval) => approval.contractDigest === digest)) {
     return { status: "already-approved", recordPath, contractDigest: digest, transactionId: null };
+  }
+  // CON-03: one revision number names one approved content. Changed content
+  // under an approved number would make "revision 1" mean two contracts.
+  const reused = approvals.find((approval) => approval.revision === contract.revision);
+  if (reused !== undefined) {
+    const changed = changedContractFields(reused.contract, digestableTaskContract(contract));
+    throw new TaskContractError(
+      "revision-reused",
+      `task ${contract.id}: revision ${contract.revision} is already approved as digest ${reused.contractDigest.slice(0, 12)}, and this content differs: ${describeChangedFields(changed)}. A changed contract is a new revision: set revision ${nextRevision(approvals, contract.revision)}, then preview it: ${taskPreviewCommand({ contractPath: loaded.sourcePath })}`,
+    );
   }
 
   const record: TaskApprovalRecord = {
@@ -485,7 +593,7 @@ export async function assertTaskStartable(options: {
   stateRoot: string;
 }): Promise<{ loaded: LoadedTaskContract; approval: TaskApprovalRecord }> {
   const loaded = await loadTaskContract(options.contractPath);
-  if (loaded.digest !== options.expectedDigest) throw driftError(loaded, options.expectedDigest);
+  if (loaded.digest !== options.expectedDigest) throw await driftError(loaded, options.expectedDigest, options.stateRoot);
   const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: loaded.contract.id });
   const approval = approvals.find((candidate) => candidate.contractDigest === loaded.digest);
   if (approval === undefined) {

@@ -19,6 +19,7 @@ import {
   planProjectCapabilities,
   reconcileProjectState,
   revalidateProjectPlan,
+  shellQuote,
   type RemovalPlan,
 } from "./core/project-plan.js";
 import { applyProjectPackSync, describeProjectProvenance } from "./core/project-pack-sync.js";
@@ -46,12 +47,23 @@ import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment }
 import { getOfflineStatus } from "./core/status.js";
 import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } from "./core/transaction.js";
 import { userStateRoot } from "./core/paths.js";
-import { approveTaskContract, previewTaskContract, taskApproveCommand, type TaskContractPreview } from "./core/task-contract.js";
-import { readTaskReport } from "./core/task-run.js";
+import {
+  approveTaskContract,
+  assertTaskStartable,
+  loadTaskContract,
+  previewTaskContract,
+  taskApproveCommand,
+  type LoadedTaskContract,
+  type TaskContractPreview,
+} from "./core/task-contract.js";
+import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
+import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
+import { readTaskBaseline } from "./core/task-effects.js";
+import { nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   canaryProof,
   canaryRow,
@@ -86,7 +98,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskRunReport, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskRunReport, formatTaskStartReadiness, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
 import {
@@ -151,6 +163,7 @@ Usage:
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
   alpha-aos task preview <contract.json> [--json]
   alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
+  alpha-aos task start <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task report <contract-id> [--run <run-id>] [--json]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
@@ -181,6 +194,11 @@ after the fixture transaction gate passes.
 Autopilot is off by default. "task approve --apply" records consent for exactly one
 reviewed contract digest: it applies only to that approved contract revision and
 authorizes a single run. Approving never starts anything and enables no other task.
+"task start" without --apply is a readiness preview: it shows the controller,
+executor and reviewer with their exact installed versions, GSD quick readiness and
+the baseline, and launches nothing. "task start --apply" launches the approved
+controller and reviewer, which spend model turns under your own accounts. One
+approval authorizes one run; a consumed, changed or foreign digest is refused.
 
 "doctor --discovery" is the free evidence: it runs only the discovery oracles that
 spend no model turn, needs no credential, runs on every platform, and records what
@@ -410,6 +428,69 @@ async function appendCapabilityProofs(
     },
   });
   return { status: write.status, recorded: proofs.length, replaced, path: write.path };
+}
+
+/** The exact runnable line that starts one approved contract digest. */
+function taskStartCommand(contractPath: string, digest: string): string {
+  return `alpha-aos task start ${shellQuote(contractPath)} --contract-digest ${digest} --apply`;
+}
+
+/**
+ * The start readiness preview (D-02, AUTO-02): which agents would run at which
+ * exact versions, whether GSD quick can run, whether the baseline is clean and
+ * whether the approval is still unconsumed. It probes versions only, launches
+ * no agent turn and writes nothing. A supplied digest must pass the start gate
+ * (drift and missing approval are thrown refusals); without one, the current
+ * digest is shown with its approval state.
+ */
+async function readTaskStartReadiness(
+  contractPath: string,
+  supplied: string | null,
+  stateRoot: string,
+): Promise<{ readiness: TaskStartReadiness; command: string }> {
+  let loaded: LoadedTaskContract;
+  let approved: boolean;
+  if (supplied !== null) {
+    loaded = (await assertTaskStartable({ contractPath, expectedDigest: supplied, stateRoot })).loaded;
+    approved = true;
+  } else {
+    const preview = await previewTaskContract({ contractPath, stateRoot });
+    approved = preview.approved;
+    loaded = approved
+      ? (await assertTaskStartable({ contractPath, expectedDigest: preview.digest, stateRoot })).loaded
+      : await loadTaskContract(contractPath);
+  }
+  const { contract, digest } = loaded;
+  const runs = await listTaskRuns({ stateRoot, contractId: contract.id });
+  const consumedBy = runs.find((run) => run.contractDigest === digest)?.runId ?? null;
+  const agents = await probeTaskAgentPair(contract.agentPolicy);
+  const projectRoot = resolve(contract.scope.projectRoot);
+  const gsd = await probeGsdQuickReadiness({ projectRoot, gsdToolsPath: resolveInstalledGsdTools() });
+  let baseline: TaskStartReadiness["baseline"];
+  try {
+    baseline = await readTaskBaseline({ projectRoot });
+  } catch (error) {
+    baseline = { status: "unavailable", reason: error instanceof Error ? error.message : String(error) };
+  }
+  const executor =
+    contract.agentPolicy.executor === agents.controller.harness
+      ? { ...agents.controller }
+      : { harness: contract.agentPolicy.executor, version: null, executable: null };
+  const readiness: TaskStartReadiness = {
+    contractId: contract.id,
+    revision: contract.revision,
+    contractDigest: digest,
+    projectRoot,
+    approval: { approved, consumedBy },
+    controller: agents.controller,
+    executor,
+    reviewer: agents.reviewer,
+    missingProof: agents.missingProof,
+    gsd,
+    baseline,
+    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean",
+  };
+  return { readiness, command: taskStartCommand(loaded.sourcePath, digest) };
 }
 
 async function main(): Promise<void> {
@@ -1610,10 +1691,10 @@ async function main(): Promise<void> {
 
   if (command === "task") {
     const subcommand = args[1] ?? "";
-    // D-02: this surface previews, approves and reads. Starting a run is a
-    // separate verb that arrives with the native ports, so it is not offered.
-    if (!["preview", "approve", "report"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, report.`);
+    // D-02: previewing, approving, starting and reading are separate verbs.
+    // Only `start --apply` with the task's own approved digest launches agents.
+    if (!["preview", "approve", "start", "report"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve alone. Ignoring it elsewhere would let a user believe a preview
@@ -1639,7 +1720,36 @@ async function main(): Promise<void> {
     }
 
     if (operand === undefined) throw new Error(`task ${subcommand} requires a contract file: alpha-aos task ${subcommand} <contract.json>`);
-    const showPreview = (preview: TaskContractPreview, command: string): void => {
+
+    if (subcommand === "start") {
+      const supplied = optionValue(args, "--contract-digest");
+      if (hasFlag(args, "--apply")) {
+        if (supplied === null) {
+          const preview = await previewTaskContract({ contractPath: operand, stateRoot });
+          throw new Error(
+            `task start --apply requires the approved digest. The current contract digest is ${preview.digest}${preview.approved ? "" : ", which is not approved yet"}. Run: ${taskStartCommand(preview.sourcePath, preview.digest)}`,
+          );
+        }
+        // AUTO-01, AUTO-03: the one call site that launches the supervisor, bound
+        // to this task's own approved, unconsumed digest. Every refusal is thrown.
+        const { run } = await startTask({
+          contractPath: operand,
+          expectedDigest: supplied,
+          stateRoot,
+          packageRoot: packageRoot(),
+          ports: nativeTaskPorts(),
+        });
+        print(run, json, formatTaskRunReport(run), context);
+        process.exitCode = run.status === "accepted" ? 0 : 1;
+        return;
+      }
+      const { readiness, command: startCommand } = await readTaskStartReadiness(operand, supplied, stateRoot);
+      print({ applied: false, readiness, command: startCommand }, json, formatTaskStartReadiness(readiness, startCommand), context);
+      if (!readiness.ready) process.exitCode = 2;
+      return;
+    }
+
+    const showPreview =(preview: TaskContractPreview, command: string): void => {
       print(
         { applied: false, digest: preview.digest, approved: preview.approved, command, contract: preview.contract },
         json,
@@ -1659,7 +1769,8 @@ async function main(): Promise<void> {
       throw new Error(`task approve --apply requires the digest that was reviewed. The current contract digest is ${preview.digest}. Run: ${command}`);
     }
     const result = await approveTaskContract({ contractPath: operand, expectedDigest: reviewed, stateRoot });
-    print(result, json, formatTaskApproval(result), context);
+    const start = taskStartCommand(resolve(operand), result.contractDigest);
+    print({ ...result, startCommand: start }, json, formatTaskApproval(result, start), context);
     return;
   }
 

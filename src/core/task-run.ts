@@ -279,6 +279,31 @@ export class TaskRunError extends Error {
   }
 }
 
+/**
+ * What `task start` without --apply reports (D-02, AUTO-02): the roles with the
+ * exact versions the native probe found or the proof they lack, GSD quick
+ * readiness, the baseline and the approval state. Built without writing.
+ */
+export interface TaskStartReadiness {
+  contractId: string;
+  revision: number;
+  contractDigest: string;
+  projectRoot: string;
+  approval: { approved: boolean; consumedBy: string | null };
+  controller: { harness: HarnessId; version: string | null; executable: string | null };
+  executor: { harness: HarnessId; version: string | null; executable: string | null };
+  reviewer: { harness: HarnessId; version: string | null; executable: string | null };
+  missingProof: string[];
+  gsd: { ready: boolean; reason: string; gsdToolsPath: string | null };
+  baseline:
+    | { status: "clean"; baseCommit: string }
+    | { status: "dirty"; paths: string[] }
+    | { status: "not-git"; reason: string }
+    | { status: "unavailable"; reason: string };
+  /** True only when nothing below would refuse the start. */
+  ready: boolean;
+}
+
 export interface StartTaskOptions {
   contractPath: string;
   expectedDigest: string;

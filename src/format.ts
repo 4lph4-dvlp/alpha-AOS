@@ -33,7 +33,7 @@ import {
 import type { PackProvenance, ProjectPackSyncResult } from "./core/project-pack-sync.js";
 import type { SupportMatrixReport, SupportTier } from "./core/support-matrix.js";
 import type { TaskApprovalResult, TaskContractPreview } from "./core/task-contract.js";
-import type { TaskRunRecord } from "./core/task-run.js";
+import type { TaskRunRecord, TaskStartReadiness } from "./core/task-run.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1111,7 +1111,7 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
 }
 
 /** What a task approve did, or did not need to do. */
-export function formatTaskApproval(result: TaskApprovalResult): string {
+export function formatTaskApproval(result: TaskApprovalResult, startCommand?: string): string {
   return [
     `Contract digest: ${result.contractDigest}`,
     `Approval record: ${result.recordPath}`,
@@ -1119,6 +1119,7 @@ export function formatTaskApproval(result: TaskApprovalResult): string {
     result.status === "already-approved"
       ? "Already approved. No bytes were written and no transaction was opened."
       : "Approved for a single run of this exact revision. Starting the run is a separate act.",
+    ...(startCommand === undefined ? [] : [`Preview readiness without --apply, then start it: ${startCommand}`]),
   ].join("\n");
 }
 
@@ -1147,20 +1148,110 @@ export function formatTaskRunReport(run: TaskRunRecord): string {
     rows.length === 0
       ? "No criterion was judged."
       : table(["Criterion", "Verdict", "Measured", "Review", "Artifact", "Reason"], rows),
+    "",
+    `Consent: autopilot, single run of revision ${run.revision}`,
   ];
+
+  // What the controller chose and why (CON-02, D-06).
+  if (run.decisions.length === 0) {
+    lines.push(`Decisions: none recorded (log ${run.decisionLog?.status ?? "not read"}${run.decisionLog?.reason ? `: ${run.decisionLog.reason}` : ""})`);
+  } else {
+    lines.push("Decisions:", ...run.decisions.map((decision) => `  ${decision.category}: ${decision.choice} — ${decision.rationale}`));
+  }
+
+  // GSD quick's own evidence, as alpha-AOS read it (RUN-01).
+  const gsd = run.gsd;
+  if (gsd === null) {
+    lines.push("GSD: not read");
+  } else if (gsd.status === "verified") {
+    lines.push(`GSD: verified (quick ${gsd.quickId ?? "unknown"})`);
+    if (gsd.commits.length > 0) lines.push(`  commits: ${gsd.commits.map((commit) => commit.subject).join("; ")}`);
+  } else {
+    lines.push(`GSD: ${gsd.status}${gsd.missing.length > 0 ? ` — missing: ${gsd.missing.join("; ")}` : ""}`);
+  }
+
+  const effects = run.effects;
+  if (effects === null) {
+    lines.push("Changed paths: not read");
+  } else {
+    const list = (paths: readonly string[]) => (paths.length === 0 ? "none" : paths.join(", "));
+    lines.push(
+      "Changed paths:",
+      `  implementation: ${list(effects.implementationPaths)}`,
+      `  planning: ${list(effects.planningPaths)}`,
+    );
+    if (effects.violations.length > 0) {
+      lines.push(
+        "  violations:",
+        ...effects.violations.map((violation) => `    ${violation.effect}: ${violation.path === "" ? "(no path)" : violation.path} — ${violation.detail}`),
+      );
+    }
+    if (effects.packCheckpoint !== null) lines.push(`  pack checkpoint: ${effects.packCheckpoint.approveCommand}`);
+  }
+
+  // The claim is shown and labelled, never used: it is not evidence (D-11).
+  const executor = run.executor;
+  lines.push(
+    executor === null
+      ? "Executor claim (not evidence): none"
+      : `Executor claim (not evidence): ${executor.claim?.status ?? "none"}, exit ${executor.exitCode ?? "none"}, terminal ${executor.terminal}, ${executor.harness} ${executor.version ?? "version unknown"}`,
+  );
+  const reviewer = run.reviewer;
+  lines.push(
+    reviewer === null
+      ? "Reviewer: none"
+      : `Reviewer: ${reviewer.harness} ${reviewer.version ?? "version unknown"}, requested session ${reviewer.requestedSessionId}, observed session ${reviewer.sessionId ?? "none"}`,
+  );
+  const suggestions = reviewer?.report?.suggestions ?? [];
+  lines.push(suggestions.length === 0 ? "Out-of-scope suggestions: none" : "Out-of-scope suggestions:", ...suggestions.map((entry) => `  - ${entry}`));
+
   if (run.stopReason !== null) lines.push("", `Stop reason: ${run.stopReason}`);
   const actions = [
     ...(run.verdict?.rows ?? []).flatMap((row) => (row.nextAction === null ? [] : [`${row.criterionId}: ${row.nextAction}`])),
     ...(run.nextAction === null ? [] : [run.nextAction]),
   ];
   if (actions.length > 0) lines.push("", `Next action: ${Array.from(new Set(actions)).join("; ")}`);
-  const claim = run.executor?.claim;
-  lines.push(
-    "",
-    `Executor claim (not evidence): ${claim?.status ?? "none"}, exit ${run.executor?.exitCode ?? "none"}`,
-    `Reviewer session: ${run.reviewer?.sessionId ?? "none"}`,
-  );
   return lines.join("\n");
+}
+
+/**
+ * What `task start` would launch, before anything is launched (D-02, AUTO-02):
+ * each role with its exact installed version or the proof it lacks, GSD quick
+ * readiness, the baseline, the approval state, the spend warning and the one
+ * command that starts this approved digest.
+ */
+export function formatTaskStartReadiness(readiness: TaskStartReadiness, command: string): string {
+  const role = (label: string, entry: TaskStartReadiness["controller"]) =>
+    `${label}: ${entry.harness} ${entry.version === null ? "(not proven)" : `${entry.version} at ${entry.executable ?? "unknown executable"}`}`;
+  const baseline = readiness.baseline;
+  const baselineText =
+    baseline.status === "clean"
+      ? `clean at ${baseline.baseCommit.slice(0, 12)}`
+      : baseline.status === "dirty"
+        ? `dirty (${baseline.paths.length} uncommitted or untracked path${baseline.paths.length === 1 ? "" : "s"}: ${baseline.paths.slice(0, 10).join(", ")}${baseline.paths.length > 10 ? ", ..." : ""})`
+        : `${baseline.status} (${baseline.reason})`;
+  const approval = readiness.approval.consumedBy !== null
+    ? `consumed by run ${readiness.approval.consumedBy}; approve a new contract revision to run again`
+    : readiness.approval.approved
+      ? "approved for a single run of this revision"
+      : "not approved; the contract must still be approved before it can start";
+  return [
+    `Task: ${readiness.contractId} (revision ${readiness.revision})`,
+    `Contract digest: ${readiness.contractDigest}`,
+    `Project root: ${readiness.projectRoot}`,
+    role("Controller", readiness.controller),
+    role("Executor", readiness.executor),
+    role("Reviewer", readiness.reviewer),
+    ...(readiness.missingProof.length === 0 ? [] : ["Missing proof:", ...readiness.missingProof.map((entry) => `  ${entry}`)]),
+    `GSD quick: ${readiness.gsd.ready ? "ready" : "not ready"} — ${readiness.gsd.reason}`,
+    `Baseline: ${baselineText}`,
+    `Approval: ${approval}`,
+    "",
+    `Readiness: ${readiness.ready ? "ready to start" : "not ready; start would be refused"}`,
+    "Readiness preview only. Nothing was launched and nothing was written.",
+    "Warning: --apply launches the controller and the reviewer, which spend model turns under your own harness accounts.",
+    `Start exactly this approved digest: ${command}`,
+  ].join("\n");
 }
 
 

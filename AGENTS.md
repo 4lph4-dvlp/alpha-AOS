@@ -19,7 +19,7 @@ The system manages capability scope as well as installation: broadly useful, low
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion
 - **Secrets**: Credential values cannot enter manifests, locks, plans, journals, diagnostics, command arguments, or repository files — project-only launch environments must default to a reviewed allowlist
-- **Supply chain**: End users receive only the reviewed stable lock — candidate dependencies and mutable external automation are not trusted without fixture and review gates
+- **Supply chain**: End users receive only the verified stable lock — candidate dependencies reach it solely through the automated weekly promotion gates (registry integrity, full 3-OS CI, real component fixtures, and a registry re-check after a two-day cooldown), and mutable external automation is not trusted without them
 - **Validation**: Native discovery plus a meaningful read-only invocation is required — configuration-file presence alone is insufficient
 
 <!-- GSD:project-end -->

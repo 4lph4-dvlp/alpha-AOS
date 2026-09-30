@@ -437,7 +437,7 @@ export function fixturePorts(options: { controller: ControllerPort; reviewer: Re
 /** The one route every suite uses to start a run against a fixture. */
 export async function startFixtureTask(
   fixture: TaskFixture,
-  options: { ports: TaskPorts; expectedDigest: string; now?: () => Date },
+  options: { ports: TaskPorts; expectedDigest: string; now?: () => Date; gsdConfigRoot?: string },
 ): Promise<{ run: TaskRunRecord; recordPath: string }> {
   return startTask({
     contractPath: fixture.contractPath,
@@ -445,6 +445,7 @@ export async function startFixtureTask(
     stateRoot: fixture.stateRoot,
     packageRoot: packageRoot(),
     ports: options.ports,
+    gsd: { configRoot: options.gsdConfigRoot ?? fixture.gsdConfigRoot },
     ...(options.now === undefined ? {} : { now: options.now }),
   });
 }

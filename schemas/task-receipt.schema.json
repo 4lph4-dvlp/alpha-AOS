@@ -157,7 +157,11 @@
         "stopReason",
         "nextAction",
         "decisions",
-        "decisionLog"
+        "decisionLog",
+        "baseCommit",
+        "deadlineAt",
+        "gsd",
+        "effects"
       ],
       "additionalProperties": false,
       "properties": {
@@ -274,7 +278,90 @@
             },
             { "type": "null" }
           ]
+        },
+        "baseCommit": {
+          "description": "The clean commit the run started from; every changed path is measured against it.",
+          "type": ["string", "null"],
+          "pattern": "^[0-9a-f]{40,64}$"
+        },
+        "deadlineAt": {
+          "description": "When the approved maxWallTimeMinutes elapses, or null when the contract sets no limit.",
+          "type": ["string", "null"]
+        },
+        "gsd": {
+          "description": "GSD quick's own evidence as read by alpha-AOS (RUN-01). alpha-AOS never writes it; not-run means the run ended before it was read.",
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["status", "quickId", "planPath", "summaryPath", "stateRow", "commits", "missing", "workflowSha256"],
+              "additionalProperties": false,
+              "properties": {
+                "status": { "enum": ["verified", "missing", "not-run"] },
+                "quickId": { "type": ["string", "null"], "maxLength": 200 },
+                "planPath": { "type": ["string", "null"] },
+                "summaryPath": { "type": ["string", "null"] },
+                "stateRow": { "type": "boolean" },
+                "commits": { "type": "array", "items": { "$ref": "#/$defs/commit" } },
+                "missing": { "type": "array", "items": { "type": "string" } },
+                "workflowSha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+              }
+            },
+            { "type": "null" }
+          ]
+        },
+        "effects": {
+          "description": "Every path changed after the base commit, split into implementation, GSD .planning/ and violation paths (D-03, AUTO-02), plus the read-only dependency checkpoint (D-07).",
+          "anyOf": [
+            {
+              "type": "object",
+              "required": ["implementationPaths", "planningPaths", "violations", "dependencyChanged", "dependencyPaths", "packCheckpoint"],
+              "additionalProperties": false,
+              "properties": {
+                "implementationPaths": { "type": "array", "items": { "type": "string" } },
+                "planningPaths": { "type": "array", "items": { "type": "string" } },
+                "violations": { "type": "array", "items": { "$ref": "#/$defs/violation" } },
+                "dependencyChanged": { "type": "boolean" },
+                "dependencyPaths": { "type": "array", "items": { "type": "string" } },
+                "packCheckpoint": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "required": ["planDigest", "selected", "applicable", "approveCommand"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "planDigest": { "$ref": "#/$defs/sha256" },
+                        "selected": { "type": "array", "items": { "type": "string" } },
+                        "applicable": { "type": "array", "items": { "type": "string" } },
+                        "approveCommand": { "type": "string", "minLength": 1 }
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              }
+            },
+            { "type": "null" }
+          ]
         }
+      }
+    },
+    "commit": {
+      "type": "object",
+      "required": ["sha", "subject"],
+      "additionalProperties": false,
+      "properties": {
+        "sha": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+        "subject": { "type": "string" }
+      }
+    },
+    "violation": {
+      "type": "object",
+      "required": ["effect", "path", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "effect": { "enum": ["workspace-write", "local-commit", "dependency-change"] },
+        "path": { "type": "string" },
+        "detail": { "type": "string", "minLength": 1, "maxLength": 1000 }
       }
     }
   }

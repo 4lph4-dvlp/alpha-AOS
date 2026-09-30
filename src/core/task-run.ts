@@ -28,6 +28,7 @@ import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
 import { assessTaskReview, reduceTaskVerdict, type TaskVerdict } from "./task-verdict.js";
+import type { TaskCommit, TaskEffectViolation, TaskPackCheckpoint } from "./task-effects.js";
 
 export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
 export type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
@@ -193,6 +194,28 @@ export interface TaskDecisionLogStatus {
   reason: string | null;
 }
 
+/** GSD quick's own evidence for the run, as read by alpha-AOS (RUN-01). */
+export interface TaskRunGsd {
+  status: "verified" | "missing" | "not-run";
+  quickId: string | null;
+  planPath: string | null;
+  summaryPath: string | null;
+  stateRow: boolean;
+  commits: TaskCommit[];
+  missing: string[];
+  workflowSha256: string | null;
+}
+
+/** Every path changed after the base commit, split by authority (D-03, AUTO-02, D-07). */
+export interface TaskRunEffects {
+  implementationPaths: string[];
+  planningPaths: string[];
+  violations: TaskEffectViolation[];
+  dependencyChanged: boolean;
+  dependencyPaths: string[];
+  packCheckpoint: TaskPackCheckpoint | null;
+}
+
 export interface TaskRunRecord {
   schemaVersion: 1;
   kind: "task-run";
@@ -213,9 +236,20 @@ export interface TaskRunRecord {
   decisions: TaskDecision[];
   /** Null until the decision log has been read for this run. */
   decisionLog: TaskDecisionLogStatus | null;
+  /** The clean commit every changed path is measured against. */
+  baseCommit: string | null;
+  /** When the approved maxWallTimeMinutes elapses, or null without a limit. */
+  deadlineAt: string | null;
+  gsd: TaskRunGsd | null;
+  effects: TaskRunEffects | null;
 }
 
-export type TaskRunErrorCode = "approval-consumed" | "unsupported-agent-pair" | "run-record-invalid";
+export type TaskRunErrorCode =
+  | "approval-consumed"
+  | "unsupported-agent-pair"
+  | "run-record-invalid"
+  | "dirty-baseline"
+  | "gsd-not-ready";
 
 export class TaskRunError extends Error {
   readonly code: TaskRunErrorCode;
@@ -233,6 +267,8 @@ export interface StartTaskOptions {
   packageRoot: string;
   ports: TaskPorts;
   now?: () => Date;
+  /** Where the controller harness's GSD Core is installed; defaults to the Codex config root. */
+  gsd?: { configRoot?: string };
 }
 
 const REPORT_TEXT_LIMIT = 4096;
@@ -640,6 +676,10 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     nextAction: null,
     decisions: [],
     decisionLog: null,
+    baseCommit: null,
+    deadlineAt: null,
+    gsd: null,
+    effects: null,
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
 

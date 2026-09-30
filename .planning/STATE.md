@@ -5,16 +5,16 @@ milestone_name: Universal Autonomous Work
 current_phase: 14
 current_phase_name: Contract and Vertical Tracer
 status: executing
-stopped_at: Completed 14-03-PLAN.md
-last_updated: "2026-09-30T05:03:07.017Z"
+stopped_at: Completed 14-04-PLAN.md
+last_updated: "2026-09-30T05:29:09.464Z"
 last_activity: 2026-09-30
 last_activity_desc: Phase 14 execution started
-state_head: 49a98ac9bd729fa625ed5b4ee9f4f2f12081c6c5
+state_head: 698815128c686af15aa453c49a48de5f1b70bf1b
 progress:
   total_phases: 9
   completed_phases: 0
   total_plans: 6
-  completed_plans: 3
+  completed_plans: 4
   percent: 0
 ---
 
@@ -30,7 +30,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 ## Current Position
 
 Phase: 14 (Contract and Vertical Tracer) — EXECUTING
-Plan: 4 of 6
+Plan: 5 of 6
 Status: Ready to execute
 Last activity: 2026-09-30 — Phase 14 execution started
 
@@ -125,6 +125,7 @@ Last activity: 2026-09-30 — Phase 14 execution started
 | Phase 14 P01 | 26 min | 2 tasks | 11 files |
 | Phase 14 P02 | 27min | 2 tasks | 2 files |
 | Phase 14 P03 | 25min | 2 tasks | 7 files |
+| Phase 14 P04 | 23min | 2 tasks | 7 files |
 
 ## Accumulated Context
 
@@ -276,6 +277,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 14]: 14-03: Artifact digest kind lives in task-check.ts and is re-exported from task-run.ts to avoid a runtime circular import
 - [Phase 14]: 14-03: Only a confirmed blocking reproduction overturns a measured pass; advisory, reproduction-less or unconfirmed reviewer fails reduce to unknown
 - [Phase 14]: 14-03: Verdict rows follow sorted criterion ids; stale-artifact makes measured-pass rows unknown; decisionLog is null until read
+- [Phase 14]: 14-04: Shared task-agent launch helpers live in src/adapters/task-agent-launch.ts and are re-exported from task-agents.ts, so the registry and the codex/claude adapters form no circular import
+- [Phase 14]: 14-04: Bootstrap pair proven by host probe on 2026-09-30: codex-cli 0.158.0 (npm shim as node plus codex.js) controller/executor and 2.1.285 (Claude Code) fresh read-only reviewer; every other role assignment names its missing proof before launch
+- [Phase 14]: 14-04: Adapter output is untrusted: a capped codex stream is not-retained, the claim comes only from the schema-validated -o file, and a claude report is accepted only from a clean exit whose session id equals the alpha-AOS UUID
 
 ### Pending Todos
 
@@ -359,8 +363,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-09-30T05:03:06.933Z
-Stopped at: Completed 14-03-PLAN.md
+Last session: 2026-09-30T05:28:44.627Z
+Stopped at: Completed 14-04-PLAN.md
 Resume file: None
 
 ## Operator Next Steps

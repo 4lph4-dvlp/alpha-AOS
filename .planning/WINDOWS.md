@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 31
+open_count: 33
 waived_count: 2
 fixed_count: 19
-total_count: 52
-last_updated: 2026-09-23T12:10:37.005Z
+total_count: 54
+last_updated: 2026-09-30T10:20:55.336Z
 ---
 
 # Broken Windows Ledger
@@ -67,6 +67,8 @@ last_updated: 2026-09-23T12:10:37.005Z
 | 50 | 07 | deviation | test/tarball-fixture.test.ts |  | 07-01 used uninstall --purge in the disposable fixture to align with preserved-journal semantics | fixed |  | 2026-09-19T13:44:36.781Z | 2026-09-19T13:45:04.617Z |
 | 51 | 07 | unrun-verify | scripts/smoke-test.mjs |  | Stage 2 public-registry smoke test was not run because publication was explicitly prohibited during plan execution. | open |  | 2026-09-20T04:44:15.026Z |  |
 | 52 | 11 | stub | .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md |  | 06-VERIFICATION.md skeleton: every section except the LIFE-01 Codex rows reads TO-BE-COMPILED until plan 11-07 compiles it | open |  | 2026-09-23T12:10:37.005Z |  |
+| 53 | 14 | unrun-verify | test/task-tracer.integration.ts |  | 14-06-02 live accept tracer NOT PROVEN on this host: run munx7h9w-b9ec114f blocked (Codex workspace-write keeps .git read-only, GSD quick cannot commit); deferred by user decision D to Phase 16/17 or a sealed adapter | open |  | 2026-09-30T10:20:53.913Z |  |
+| 54 | 14 | unrun-verify | test/task-tracer.integration.ts |  | 14-06-03 seeded-defect rejection and stale-review substitution live tests not written or run (Task 3 precondition unmet); seededDefectContract in test/helpers/task-fixture.ts is ready but unused | open |  | 2026-09-30T10:20:55.336Z |  |
 
 ````json
 [
@@ -693,6 +695,32 @@ last_updated: 2026-09-23T12:10:37.005Z
     "reason": "",
     "recorded_at": "2026-09-23T12:10:37.005Z",
     "resolved_at": null
+  },
+  {
+    "id": 53,
+    "kind": "unrun-verify",
+    "phase": "14",
+    "file": "test/task-tracer.integration.ts",
+    "line": null,
+    "description": "14-06-02 live accept tracer NOT PROVEN on this host: run munx7h9w-b9ec114f blocked (Codex workspace-write keeps .git read-only, GSD quick cannot commit); deferred by user decision D to Phase 16/17 or a sealed adapter",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-30T10:20:53.913Z",
+    "resolved_at": null,
+    "milestone": "v0.2.0"
+  },
+  {
+    "id": 54,
+    "kind": "unrun-verify",
+    "phase": "14",
+    "file": "test/task-tracer.integration.ts",
+    "line": null,
+    "description": "14-06-03 seeded-defect rejection and stale-review substitution live tests not written or run (Task 3 precondition unmet); seededDefectContract in test/helpers/task-fixture.ts is ready but unused",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-09-30T10:20:55.336Z",
+    "resolved_at": null,
+    "milestone": "v0.2.0"
   }
 ]
 ````

@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "generatedAt": "2026-09-25T04:16:58.077Z",
+  "generatedAt": "2026-09-30T05:00:40.041Z",
   "components": {
     "gsd": {
       "package": "@opengsd/gsd-core",
-      "version": "1.14.0",
-      "integrity": "sha512-e05sV2c8KlcQ2hoJ4U3U1OBjqswQOon4C29Cs75fEAr+tq7qJ/XyFYrN/nwblREWUkPUUoxmVzLVj4Im2KjQxQ==",
+      "version": "1.15.0",
+      "integrity": "sha512-GwdlJeupozyM22g2INdxiNfkpDm5hFS7G42leRqQwHb/0BclBG3TpgyGtWIkf47shjkfGRtrK5iK+pPZ61DvMA==",
       "profile": "standard"
     },
     "ecc": {
@@ -98,15 +98,15 @@
       },
       "firecrawl": {
         "package": "firecrawl-mcp",
-        "version": "3.25.2",
-        "integrity": "sha512-Z0PWA9UD757p8w1ahAh6Fyqm28uDc8ng7OkTE3NE0x1F85vAeU4/MMmx1l+xtmDm8OSpybriMjNJZavca4ijfA=="
+        "version": "3.26.0",
+        "integrity": "sha512-aJPkPDSeQAIvA1RthFsLStXf5GHWE6hZa8MC36fk3JXC9etj0kUwBF1CFl3th0DmaFTZ0gZ9+eSvauyEDdPDwA=="
       }
     },
     "mcpBridges": {
       "pi": {
         "package": "pi-mcp-adapter",
-        "version": "2.36.0",
-        "integrity": "sha512-aX7Hf1FMGoHFjjx2Y4t12Hkue83CiBQmZaeQQ0mg+2wxOzbIOYdWzEkh1bmKlLHKiH6zRWlxWitsr+RaiXvoRQ=="
+        "version": "3.3.0",
+        "integrity": "sha512-CNwp4/uTsfRM+y6tzCGDaZfzExPRbE9c+Vc2iTHgNGGp0Ey7EzdY745pQJx4utGjTmgCFCXY95fu8iwfX1Lnrg=="
       }
     },
     "ownedSkills": {

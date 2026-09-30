@@ -1,17 +1,29 @@
 import assert from "node:assert/strict";
+import { mkdir, realpath, symlink, unlink } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
+import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
 import {
   approveTaskContract,
   assertTaskStartable,
   loadTaskContract,
+  previewTaskContract,
   readTaskApprovals,
   TaskContractError,
   taskContractDigest,
   type TaskContract,
+  type TaskContractPreview,
 } from "../src/core/task-contract.js";
 import { createTaskFixture, inventorySummaryContract, writeTaskContract, type TaskFixture } from "./helpers/task-fixture.js";
 
 const HEX64 = /[0-9a-f]{64}/u;
+
+const loadWithSource = loadTaskContract as (
+  path: string,
+  options?: { source?: NodeJS.ProcessEnv },
+) => ReturnType<typeof loadTaskContract>;
+
+type BoundPreview = TaskContractPreview & { consent?: unknown; resourceLimit?: unknown };
 
 function isCode(code: string, check?: (message: string) => void): (error: unknown) => boolean {
   return (error: unknown) => {
@@ -214,6 +226,190 @@ test("a digest that was never approved is reported as unknown to this state root
       assert.ok(message.includes(current));
       assert.ok(message.includes("alpha-aos task preview"));
       assert.match(message, HEX64);
+    }),
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Task 2: bounded authority, credential-free text, bound project root (AUTO-02)
+// ---------------------------------------------------------------------------
+
+async function loadVariant(fixture: TaskFixture, contract: unknown, source: NodeJS.ProcessEnv = {}): Promise<void> {
+  await writeTaskContract(fixture.contractPath, contract);
+  await loadWithSource(fixture.contractPath, { source });
+}
+
+test("the wall-time limit loads at 1 and 1440 minutes and is refused outside them", async (context) => {
+  const fixture = await createTaskFixture(context);
+  for (const minutes of [1, 1440]) {
+    await loadVariant(fixture, inventorySummaryContract(fixture.projectRoot, { resourcePolicy: { maxWallTimeMinutes: minutes } }));
+  }
+  for (const minutes of [0, 1441, "60"]) {
+    const contract = { ...inventorySummaryContract(fixture.projectRoot), resourcePolicy: { maxWallTimeMinutes: minutes } };
+    await assert.rejects(
+      loadVariant(fixture, contract),
+      isCode("contract-invalid", (message) => assert.ok(message.includes("/resourcePolicy/maxWallTimeMinutes"), message)),
+    );
+  }
+});
+
+test("an absent wall-time limit loads and the preview binds consent and reports no overall limit", async (context) => {
+  const fixture = await createTaskFixture(context);
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot, { resourcePolicy: {} }));
+  const preview = (await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot })) as BoundPreview;
+  assert.equal(preview.contract.resourcePolicy.maxWallTimeMinutes, null);
+  assert.equal(preview.resourceLimit, null);
+  assert.deepEqual(preview.consent, { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: 1 });
+});
+
+test("a fractional wall-time limit is refused rather than rounded", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = { ...inventorySummaryContract(fixture.projectRoot), resourcePolicy: { maxWallTimeMinutes: 1.5 } };
+  await assert.rejects(
+    loadVariant(fixture, contract),
+    isCode("contract-invalid", (message) => assert.ok(message.includes("/resourcePolicy/maxWallTimeMinutes"), message)),
+  );
+});
+
+test("an allowed root outside the project or inside reserved state is refused by index", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const refused = ["/abs", "C:/x", "//server/share", "../up", "bin/../..", ".git", "src/.git/hooks", ".planning", ".planning/x", ".alpha-aos", "./", "."];
+  for (const entry of refused) {
+    const contract = inventorySummaryContract(fixture.projectRoot, { allowedRoots: ["bin", "src", "test", "package.json", "README.md", entry] });
+    await assert.rejects(
+      loadVariant(fixture, contract),
+      isCode("contract-invalid", (message) => {
+        assert.ok(message.includes("/allowedRoots/5"), `${entry}: ${message}`);
+      }),
+      `allowed root ${JSON.stringify(entry)} is refused`,
+    );
+  }
+});
+
+test("a measurement entry outside every allowed root is refused by criterion index", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  const second = contract.criterion[1];
+  assert.ok(second !== undefined);
+  second.measurement.entry = "lib/tool.mjs";
+  await assert.rejects(
+    loadVariant(fixture, contract),
+    isCode("contract-invalid", (message) => assert.ok(message.includes("/criterion/1/measurement/entry"), message)),
+  );
+
+  const binary = inventorySummaryContract(fixture.projectRoot);
+  const first = binary.criterion[0];
+  assert.ok(first !== undefined);
+  first.measurement.entry = "binary/tool.mjs";
+  await assert.rejects(
+    loadVariant(fixture, binary),
+    isCode("contract-invalid", (message) => assert.ok(message.includes("/criterion/0/measurement/entry"), message)),
+    "a sibling that only shares the prefix of an allowed root is outside it",
+  );
+});
+
+test("a relative project root is refused", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.scope.projectRoot = "inventory-summary";
+  await assert.rejects(
+    loadVariant(fixture, contract),
+    isCode("contract-invalid", (message) => assert.ok(message.includes("/scope/projectRoot"), message)),
+  );
+});
+
+test("a gsd-quick contract without the local-commit effect is refused", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = inventorySummaryContract(fixture.projectRoot, { allowedEffects: ["workspace-write"] });
+  await assert.rejects(
+    loadVariant(fixture, contract),
+    isCode("contract-invalid", (message) => {
+      assert.ok(message.includes("local-commit"), message);
+      assert.ok(message.includes("/allowedEffects"), message);
+    }),
+  );
+});
+
+test("a hermes controller is refused and every other controller loads", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const withController = (controller: TaskContract["agentPolicy"]["controller"]) =>
+    inventorySummaryContract(fixture.projectRoot, {
+      agentPolicy: { controller, executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" },
+    });
+  await assert.rejects(
+    loadVariant(fixture, withController("hermes")),
+    isCode("unsupported-controller", (message) => assert.match(message, /worker-only/u)),
+  );
+  for (const controller of ["codex", "claude", "pi", "antigravity"] as const) {
+    await loadVariant(fixture, withController(controller));
+  }
+});
+
+test("a contract carrying a credential environment value is refused by path and variable name only", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const value = "Zq8vLm3Rt7Wx2Kp9Nd4F";
+  assert.equal(value.length, 20);
+  const contract = inventorySummaryContract(fixture.projectRoot, { goal: `Call the service with ${value} and summarize the inventory.` });
+
+  await loadVariant(fixture, contract, { UNRELATED_SETTING: value });
+  await assert.rejects(
+    loadVariant(fixture, contract, { SERVICE_API_KEY: value }),
+    isCode("secret-in-contract", (message) => {
+      assert.ok(message.includes("/goal"), message);
+      assert.ok(message.includes("SERVICE_API_KEY"), message);
+      assert.equal(message.includes(value), false);
+    }),
+  );
+});
+
+test("approval records the canonical project root and refuses a project root that does not exist", async (context) => {
+  const fixture = await createTaskFixture(context);
+  await approveOriginal(fixture);
+  const [approval] = await readTaskApprovals({ stateRoot: fixture.stateRoot, contractId: "inventory-summary" });
+  assert.ok(approval !== undefined);
+  const expected = await canonicalizeWithMissingTail(fixture.projectRoot);
+  assert.equal(expected.reason, null);
+  assert.equal(approval.canonicalProjectRoot, expected.canonical);
+
+  const missing = inventorySummaryContract(join(fixture.scratch, "not-created"), { id: "missing-root" });
+  await writeTaskContract(fixture.contractPath, missing);
+  await assert.rejects(
+    approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: taskContractDigest(missing), stateRoot: fixture.stateRoot }),
+    isCode("contract-invalid", (message) => assert.ok(message.includes("/scope/projectRoot"), message)),
+  );
+  assert.deepEqual(await readTaskApprovals({ stateRoot: fixture.stateRoot, contractId: "missing-root" }), []);
+});
+
+test("a project root retargeted after approval is refused as root-changed", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const linkType = process.platform === "win32" ? "junction" : "dir";
+  const link = join(fixture.scratch, "linked-root");
+  const other = join(fixture.scratch, "other-root");
+  await mkdir(other, { recursive: true });
+  try {
+    await symlink(fixture.projectRoot, link, linkType);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+    if (code === "EPERM" || code === "EACCES") {
+      context.skip(`directory links unavailable: ${code}`);
+      return;
+    }
+    throw error;
+  }
+
+  const digest = await approveOriginal(fixture, inventorySummaryContract(link));
+  const [approval] = await readTaskApprovals({ stateRoot: fixture.stateRoot, contractId: "inventory-summary" });
+  assert.equal(approval?.canonicalProjectRoot, await realpath(fixture.projectRoot));
+  await assertTaskStartable({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+
+  await unlink(link);
+  await symlink(other, link, linkType);
+  const retargeted = await realpath(other);
+  await assert.rejects(
+    assertTaskStartable({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot }),
+    isCode("root-changed", (message) => {
+      assert.ok(message.includes(approval?.canonicalProjectRoot ?? "<none>"), message);
+      assert.ok(message.includes(retargeted), message);
     }),
   );
 });

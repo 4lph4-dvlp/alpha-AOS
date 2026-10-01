@@ -60,6 +60,8 @@ import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
 import { nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
+import { checkCostMeterReadiness } from "./core/task-telemetry.js";
+import { buildTaskDoctorReport, formatDoctorTable } from "./core/task-doctor.js";
 import {
   inspectTaskResumeReadiness,
   readEffectLedger,
@@ -180,6 +182,7 @@ Usage:
   alpha-aos task resume <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task status <contract-id> [--run <run-id>] [--json]
   alpha-aos task stop <contract-id> [--reason <reason>] [--json]
+  alpha-aos task doctor [--json]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
   alpha-aos doctor --matrix [--json]
@@ -491,6 +494,11 @@ async function readTaskStartReadiness(
     contract.agentPolicy.executor === agents.controller.harness
       ? { ...agents.controller }
       : { harness: contract.agentPolicy.executor, version: null, executable: null };
+  const meterCheck = checkCostMeterReadiness(contract.agentPolicy, contract.resourcePolicy);
+  const missingProof = [...agents.missingProof];
+  if (!meterCheck.ready) {
+    missingProof.push(...meterCheck.missingMeters);
+  }
   const readiness: TaskStartReadiness = {
     contractId: contract.id,
     revision: contract.revision,
@@ -500,10 +508,10 @@ async function readTaskStartReadiness(
     controller: agents.controller,
     executor,
     reviewer: agents.reviewer,
-    missingProof: agents.missingProof,
+    missingProof,
     gsd,
     baseline,
-    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean",
+    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean" && meterCheck.ready,
   };
   return { readiness, command: taskStartCommand(loaded.sourcePath, digest) };
 }
@@ -1770,8 +1778,8 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["preview", "approve", "start", "report", "resume", "status", "stop"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report, resume, status, stop.`);
+    if (!["preview", "approve", "start", "report", "resume", "status", "stop", "doctor"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report, resume, status, stop, doctor.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve, start, and resume alone.
@@ -1784,10 +1792,19 @@ async function main(): Promise<void> {
     if (subcommand === "status" && hasFlag(args, "--apply")) {
       throw new Error("`task status` has no --apply: it reads and persists nothing.");
     }
+    if (subcommand === "doctor" && hasFlag(args, "--apply")) {
+      throw new Error("`task doctor` has no --apply: it reads and diagnoses harnesses without mutations.");
+    }
     const context = observableContext();
     const stateRoot = userStateRoot();
     const parts = positional(args.slice(2), ["--contract-digest", "--run", "--reason"]);
     const operand = parts[0];
+
+    if (subcommand === "doctor") {
+      const report = await buildTaskDoctorReport();
+      print({ status: "ok", harnesses: report }, json, formatDoctorTable(report), context);
+      return;
+    }
 
     if (subcommand === "report") {
       if (operand === undefined) throw new Error("task report requires a contract id: alpha-aos task report <contract-id> [--run <run-id>]");
@@ -1888,6 +1905,11 @@ async function main(): Promise<void> {
             `task start --apply requires the approved digest. The current contract digest is ${preview.digest}${preview.approved ? "" : ", which is not approved yet"}. Run: ${taskStartCommand(preview.sourcePath, preview.digest)}`,
           );
         }
+        const loaded = await loadTaskContract(operand);
+        const meterCheck = checkCostMeterReadiness(loaded.contract.agentPolicy, loaded.contract.resourcePolicy);
+        if (!meterCheck.ready) {
+          throw new Error(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
+        }
         // AUTO-01, AUTO-03: the one call site that launches the supervisor, bound
         // to this task's own approved, unconsumed digest. Every refusal is thrown.
         const { run } = await startTask({
@@ -1928,10 +1950,19 @@ async function main(): Promise<void> {
       const preview = await previewTaskContract({ contractPath: operand, stateRoot });
       const command = taskApproveCommand({ contractPath: preview.sourcePath, digest: preview.digest });
       if (subcommand === "preview" || !apply) {
+        const meterCheck = checkCostMeterReadiness(preview.contract.agentPolicy, preview.contract.resourcePolicy);
+        if (!meterCheck.ready) {
+          throw new Error(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
+        }
         showPreview(preview, command);
         return;
       }
       throw new Error(`task approve --apply requires the digest that was reviewed. The current contract digest is ${preview.digest}. Run: ${command}`);
+    }
+    const loaded = await loadTaskContract(operand);
+    const meterCheck = checkCostMeterReadiness(loaded.contract.agentPolicy, loaded.contract.resourcePolicy);
+    if (!meterCheck.ready) {
+      throw new Error(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
     }
     const result = await approveTaskContract({ contractPath: operand, expectedDigest: reviewed, stateRoot });
     const start = taskStartCommand(resolve(operand), result.contractDigest);

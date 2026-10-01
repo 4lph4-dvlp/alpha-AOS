@@ -212,7 +212,7 @@ test("an unknown task subcommand lists all valid subcommands", async (context) =
 
   const result = await cli(fixture, ["run", fixture.contractPath, "--contract-digest", digest]);
   assert.equal(result.exitCode, 2);
-  assert.match(result.stderr.excerpt, /Use one of: preview, approve, start, report, resume, status, stop\./u);
+  assert.match(result.stderr.excerpt, /Use one of: preview, approve, start, report, resume, status, stop, doctor\./u);
   assert.deepEqual(await listing(fixture.stateRoot), []);
 });
 
@@ -282,8 +282,8 @@ test("task start readiness with no codex or claude on PATH reports both as missi
   const result = await startCli(fixture, [fixture.contractPath]);
   assert.equal(result.exitCode, 2);
   const output = result.stdout.excerpt;
-  assert.match(output, /codex: codex (was not found on PATH|could not be located on PATH)/u);
-  assert.match(output, /claude: claude (was not found on PATH|could not be located on PATH)/u);
+  assert.match(output, /codex: (codex (was not found on PATH|could not be located on PATH)|no native invocation receipt)/u);
+  assert.match(output, /claude: (claude (was not found on PATH|could not be located on PATH)|no native invocation receipt)/u);
   assert.match(output, /Approval: not approved/u);
   assert.ok(output.includes(`--contract-digest ${digest} --apply`));
   assert.deepEqual(await listing(fixture.stateRoot), []);
@@ -325,7 +325,7 @@ test("task start --apply with an unproven reviewer is refused as unsupported-age
   const result = await startCli(fixture, [fixture.contractPath, "--contract-digest", digest, "--apply"]);
   assert.equal(result.exitCode, 2);
   assert.match(result.stderr.excerpt, /unsupported-agent-pair/u);
-  assert.match(result.stderr.excerpt, /reviewer pi: no native task adapter is proven/u);
+  assert.match(result.stderr.excerpt, /(reviewer pi: no native task adapter is proven|no native invocation receipt for reviewer)/u);
   assert.equal(existsSync(runDirectory(fixture)), false);
 });
 

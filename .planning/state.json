@@ -11,7 +11,7 @@
     {
       "number": "15",
       "name": "Durable Supervisor and Effect Ledger",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "16",
@@ -52,7 +52,7 @@
   "next": {
     "command": "/gsd-progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 15 of 9 · 0% · executing"
+    "reason": "Phase 15 complete · 22%"
   },
-  "updated_at": "2026-10-01T05:38:30.356Z"
+  "updated_at": "2026-10-01T10:27:00.000Z"
 }

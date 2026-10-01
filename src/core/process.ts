@@ -17,6 +17,7 @@ export type ProcessCode =
   | "timeout"
   | "output-cap"
   | "spawn-failed"
+  | "cancelled"
   | "unsupported-executable"
   | "environment-conflict"
   | "missing-required-environment";
@@ -64,6 +65,8 @@ export interface ProcessSpec {
    * how much is ever held.
    */
   excerptBytes?: number;
+  /** Optional cancellation signal to terminate the process tree. */
+  signal?: AbortSignal;
 }
 
 export interface ProcessResult {
@@ -228,6 +231,9 @@ export function scrubEnvironmentForOffTree(
   };
 }
 
+export const ATTEMPT_PROCESS_TIMEOUT_MS = 15 * 60 * 1000;
+export const ATTEMPT_MAX_OUTPUT_BYTES = 10 * 1024 * 1024;
+
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 256 * 1024;
 
@@ -390,7 +396,7 @@ class BoundedStream {
  */
 export type KillDelivery = "group" | "direct" | "windows-tree" | "already-gone" | "not-required";
 
-function killTree(pid: number, signal: NodeJS.Signals): KillDelivery {
+export function terminateProcessTree(pid: number, signal: NodeJS.Signals = "SIGKILL"): KillDelivery {
   if (process.platform === "win32") {
     // taskkill is an executable, not a shell, and /T reaches descendants that
     // a direct kill on the parent would leave running.
@@ -411,6 +417,24 @@ function killTree(pid: number, signal: NodeJS.Signals): KillDelivery {
       return "already-gone";
     }
   }
+}
+
+export async function terminateProcessTreeGraceful(
+  pid: number,
+  graceMs: number = 500,
+): Promise<KillDelivery> {
+  if (process.platform === "win32") {
+    return terminateProcessTree(pid, "SIGKILL");
+  }
+  const termDelivery = terminateProcessTree(pid, "SIGTERM");
+  if (termDelivery === "already-gone") {
+    return "already-gone";
+  }
+  await new Promise<void>((resolveTimer) => {
+    const timer = setTimeout(resolveTimer, graceMs);
+    timer.unref();
+  });
+  return terminateProcessTree(pid, "SIGKILL");
 }
 
 /**
@@ -455,12 +479,21 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
     let settled = false;
     let timedOut = false;
     let cappedKill = false;
+    let cancelled = false;
     let treeDelivery: KillDelivery = "not-required";
+
+    let deadline: NodeJS.Timeout | undefined;
+    let cancelFallbackTimer: NodeJS.Timeout | undefined;
+    let abortListener: (() => void) | undefined;
 
     const finish = (code: ProcessCode, exitCode: number | null, signal: NodeJS.Signals | null): void => {
       if (settled) return;
       settled = true;
-      clearTimeout(deadline);
+      if (deadline !== undefined) clearTimeout(deadline);
+      if (cancelFallbackTimer !== undefined) clearTimeout(cancelFallbackTimer);
+      if (abortListener && spec.signal) {
+        spec.signal.removeEventListener("abort", abortListener);
+      }
       resolveResult({
         code,
         exitCode,
@@ -474,9 +507,33 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       });
     };
 
-    const deadline = setTimeout(() => {
+    const triggerCancellation = (): void => {
+      cancelled = true;
+      if (child.pid !== undefined) {
+        treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
+        cancelFallbackTimer = setTimeout(() => {
+          finish("cancelled", null, null);
+        }, 5000);
+        cancelFallbackTimer.unref();
+      } else {
+        finish("cancelled", null, null);
+      }
+    };
+
+    if (spec.signal) {
+      if (spec.signal.aborted) {
+        triggerCancellation();
+      } else {
+        abortListener = () => {
+          triggerCancellation();
+        };
+        spec.signal.addEventListener("abort", abortListener, { once: true });
+      }
+    }
+
+    deadline = setTimeout(() => {
       timedOut = true;
-      if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
+      if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
     }, timeoutMs);
     deadline.unref();
 
@@ -487,7 +544,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
         // allowed to exhaust memory.
         if (sink.totalBytes > limit * 8 && !cappedKill) {
           cappedKill = true;
-          if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
+          if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
         }
       });
     };
@@ -498,6 +555,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       finish("spawn-failed", null, null);
     });
     child.once("close", (exitCode, signal) => {
+      if (cancelled) return finish("cancelled", exitCode, signal);
       if (timedOut) return finish("timeout", exitCode, signal);
       if (cappedKill) return finish("output-cap", exitCode, signal);
       if (exitCode === 0) return finish("ok", exitCode, signal);
@@ -657,7 +715,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
       ? undefined
       : setTimeout(() => {
           timedOut = true;
-          if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
+          if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
         }, timeoutMs);
   deadline?.unref();
 
@@ -719,7 +777,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
     if (pending.byteLength > frameLimit) {
       pending = Buffer.alloc(0);
       frameCapped = true;
-      if (child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
+      if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
     }
   });
 
@@ -829,7 +887,7 @@ export async function openProtocolProcess(spec: ProtocolProcessSpec): Promise<Pr
         ]);
         // A child that declined to leave on its own is terminated, and so are
         // its descendants.
-        if (!settled && child.pid !== undefined) treeDelivery = killTree(child.pid, "SIGKILL");
+        if (!settled && child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
       }
       return closed;
     })();

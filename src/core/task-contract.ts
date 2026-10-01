@@ -52,7 +52,10 @@ export interface TaskAgentPolicy {
 }
 
 export interface TaskResourcePolicy {
+  maxCycles?: number;
   maxWallTimeMinutes?: number;
+  maxCostUsd?: number;
+  maxTokens?: number;
 }
 
 export interface TaskContract {
@@ -96,7 +99,12 @@ export interface DigestableTaskContract {
   allowedEffects: TaskEffect[];
   criterion: DigestableTaskCriterion[];
   agentPolicy: TaskAgentPolicy;
-  resourcePolicy: { maxWallTimeMinutes: number | null };
+  resourcePolicy: {
+    maxCostUsd: number | null;
+    maxCycles: number | null;
+    maxTokens: number | null;
+    maxWallTimeMinutes: number | null;
+  };
 }
 
 export interface LoadedTaskContract {
@@ -131,7 +139,8 @@ export type TaskContractErrorCode =
   | "revision-reused"
   | "root-changed"
   | "secret-in-contract"
-  | "unsupported-controller";
+  | "unsupported-controller"
+  | "cost-meter-unavailable";
 
 export class TaskContractError extends Error {
   readonly code: TaskContractErrorCode;
@@ -476,7 +485,12 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       reviewer: contract.agentPolicy.reviewer,
       reviewerSession: contract.agentPolicy.reviewerSession,
     },
-    resourcePolicy: { maxWallTimeMinutes: contract.resourcePolicy.maxWallTimeMinutes ?? null },
+    resourcePolicy: {
+      maxCostUsd: contract.resourcePolicy.maxCostUsd ?? null,
+      maxCycles: contract.resourcePolicy.maxCycles ?? null,
+      maxTokens: contract.resourcePolicy.maxTokens ?? null,
+      maxWallTimeMinutes: contract.resourcePolicy.maxWallTimeMinutes ?? null,
+    },
   };
 }
 
@@ -509,6 +523,9 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("agentPolicy.executor", before.agentPolicy.executor, after.agentPolicy.executor);
   compare("agentPolicy.reviewer", before.agentPolicy.reviewer, after.agentPolicy.reviewer);
   compare("agentPolicy.reviewerSession", before.agentPolicy.reviewerSession, after.agentPolicy.reviewerSession);
+  compare("resourcePolicy.maxCostUsd", before.resourcePolicy.maxCostUsd, after.resourcePolicy.maxCostUsd);
+  compare("resourcePolicy.maxCycles", before.resourcePolicy.maxCycles, after.resourcePolicy.maxCycles);
+  compare("resourcePolicy.maxTokens", before.resourcePolicy.maxTokens, after.resourcePolicy.maxTokens);
   compare("resourcePolicy.maxWallTimeMinutes", before.resourcePolicy.maxWallTimeMinutes, after.resourcePolicy.maxWallTimeMinutes);
   const criteria = (view: DigestableTaskContract) =>
     new Map(view.criterion.map((criterion) => [criterion.id, JSON.stringify(canonicalJsonValue(criterion))]));
@@ -537,8 +554,11 @@ function contractFromView(view: unknown): unknown {
     if (expect.stderrJson === null) delete expect.stderrJson;
   }
   const resources = copy.resourcePolicy as Record<string, unknown> | undefined;
-  if (typeof resources === "object" && resources !== null && resources.maxWallTimeMinutes === null) {
-    delete resources.maxWallTimeMinutes;
+  if (typeof resources === "object" && resources !== null) {
+    if (resources.maxCostUsd === null) delete resources.maxCostUsd;
+    if (resources.maxCycles === null) delete resources.maxCycles;
+    if (resources.maxTokens === null) delete resources.maxTokens;
+    if (resources.maxWallTimeMinutes === null) delete resources.maxWallTimeMinutes;
   }
   return copy;
 }
@@ -818,5 +838,123 @@ export async function assertTaskStartable(options: {
       `task ${loaded.contract.id}: local-commit was approved for git directory ${approvedText} and the project's git directory now resolves to ${nowText}. Restore it, or increase revision to ${nextRevision(approvals, loaded.contract.revision)} and approve the contract again after previewing it: ${taskPreviewCommand({ contractPath: loaded.sourcePath })}`,
     );
   }
+  if (loaded.contract.resourcePolicy.maxCostUsd !== undefined) {
+    const costMeter = await checkCostMeterReadiness(loaded.contract.agentPolicy);
+    if (!costMeter.supported) {
+      throw new TaskContractError(
+        "cost-meter-unavailable",
+        `task ${loaded.contract.id}: maxCostUsd is specified ($${loaded.contract.resourcePolicy.maxCostUsd}) but cost metering is unavailable: ${costMeter.reason}`,
+      );
+    }
+  }
   return { loaded, approval };
+}
+
+// ---------------------------------------------------------------------------
+// Resource limits, fail-closed telemetry, and standard stop codes
+// ---------------------------------------------------------------------------
+
+export type StandardStopCode =
+  | "cycle_limit_exceeded"
+  | "wall_time_exceeded"
+  | "cost_limit_exceeded"
+  | "no_progress_exhausted"
+  | "quota_exhausted";
+
+export interface TaskUsageBreakdown {
+  cycles: number;
+  wallTimeMs: number;
+  tokens: number | null;
+  costUsd: number | null;
+  unmeteredFields: string[];
+  nextAction: string | null;
+}
+
+export function evaluateResourceLimits(
+  policy: TaskResourcePolicy,
+  usage: { cycles: number; wallTimeMs: number; tokens: number | null; costUsd: number | null },
+): { exceeded: boolean; stopCode: StandardStopCode | null; usageBreakdown: TaskUsageBreakdown } {
+  const unmeteredFields: string[] = [];
+  if (usage.tokens === null) unmeteredFields.push("tokens");
+  if (usage.costUsd === null) unmeteredFields.push("costUsd");
+
+  let exceeded = false;
+  let stopCode: StandardStopCode | null = null;
+  let nextAction: string | null = null;
+
+  if (policy.maxCycles !== undefined && usage.cycles >= policy.maxCycles) {
+    exceeded = true;
+    stopCode = "cycle_limit_exceeded";
+    nextAction = "Inspect task execution journal or raise maxCycles in contract resourcePolicy";
+  } else if (
+    policy.maxWallTimeMinutes !== undefined &&
+    usage.wallTimeMs >= policy.maxWallTimeMinutes * 60 * 1000
+  ) {
+    exceeded = true;
+    stopCode = "wall_time_exceeded";
+    nextAction = "Review process bottlenecks or raise maxWallTimeMinutes in contract resourcePolicy";
+  } else if (
+    policy.maxCostUsd !== undefined &&
+    usage.costUsd !== null &&
+    Math.round(usage.costUsd * 100) / 100 >= policy.maxCostUsd
+  ) {
+    exceeded = true;
+    stopCode = "cost_limit_exceeded";
+    nextAction = "Review model telemetry expenditure or raise maxCostUsd in contract resourcePolicy";
+  } else if (
+    policy.maxTokens !== undefined &&
+    usage.tokens !== null &&
+    usage.tokens >= policy.maxTokens
+  ) {
+    exceeded = true;
+    stopCode = "cost_limit_exceeded";
+    nextAction = "Review model token consumption or raise maxTokens in contract resourcePolicy";
+  }
+
+  const usageBreakdown: TaskUsageBreakdown = {
+    cycles: usage.cycles,
+    wallTimeMs: usage.wallTimeMs,
+    tokens: usage.tokens,
+    costUsd: usage.costUsd !== null ? Math.round(usage.costUsd * 100) / 100 : null,
+    unmeteredFields,
+    nextAction,
+  };
+
+  return { exceeded, stopCode, usageBreakdown };
+}
+
+export async function checkCostMeterReadiness(
+  policy: TaskAgentPolicy,
+  ports?: unknown,
+): Promise<{ supported: boolean; reason?: string }> {
+  // If external test double ports provide explicit metering flag:
+  if (ports && typeof (ports as any).metered === "boolean") {
+    if ((ports as any).metered) return { supported: true };
+    return { supported: false, reason: "Task ports double explicitly declares cost metering unavailable" };
+  }
+
+  // Codex provides structured event-based token and cost telemetry
+  if (policy.controller === "codex") {
+    return { supported: true };
+  }
+
+  // Claude CLI in autonomous mode currently lacks discrete cost telemetry
+  if (policy.controller === "claude") {
+    return {
+      supported: false,
+      reason: "Claude Code CLI does not provide reliable structured cost telemetry in autonomous mode",
+    };
+  }
+
+  return {
+    supported: false,
+    reason: `Controller harness "${policy.controller}" does not provide verified cost telemetry`,
+  };
+}
+
+export function detectQuotaExhaustion(output: string, exitCode?: number | null): boolean {
+  if (exitCode === 429) return true;
+  const pattern =
+    /(?:429|rate_limit_exceeded|insufficient_quota|usage limit exceeded|quota[_\s-]?exhausted|credit balance is too low|exceeded your current quota)/iu;
+  return pattern.test(output);
 }

@@ -109,7 +109,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "maxWallTimeMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 }
+        "maxCycles": { "type": "integer", "minimum": 1 },
+        "maxWallTimeMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 },
+        "maxCostUsd": { "type": "number", "minimum": 0.01 },
+        "maxTokens": { "type": "integer", "minimum": 1 }
       }
     }
   }

@@ -10,7 +10,7 @@
 
 ## Phases
 
-- [ ] **Phase 14: Contract and Vertical Tracer** - Explicit opt-in, approved contract and real implementation-to-review path
+- [x] **Phase 14: Contract and Vertical Tracer** - Explicit opt-in, approved contract and real implementation-to-review path (completed 2026-10-01)
 - [ ] **Phase 15: Durable Supervisor and Effect Ledger** - Recovery, limits, no-progress strategy and effect reconciliation
 - [ ] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller
 - [ ] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD
@@ -58,7 +58,7 @@ Every requirement maps to exactly one phase. Subsequent phases can reuse a previ
 
 **Verification:** Targeted TypeScript tests for contract canonicalization and a fixture/real CLI tracer, followed by `npm run check` and the phase's GSD verification. Phase plan names the exact installed bootstrap pair after a native probe.
 
-**Plans:** 9/9 plans executed (14-07, 14-08 and 14-09 close the 14-VERIFICATION / 14-UAT gaps)
+**Plans:** 9/9 plans complete
 
 Plans:
 **Wave 1**

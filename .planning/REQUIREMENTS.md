@@ -10,19 +10,19 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 ### Goal contracts
 
-- [ ] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
-- [ ] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
-- [ ] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
+- [x] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
+- [x] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
+- [x] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
 
 ### Explicit autopilot mode
 
-- [ ] **AUTO-01**: A user enters autopilot only by explicitly requesting it or approving a clearly presented in-agent offer; the mode is off by default for every new task.
-- [ ] **AUTO-02**: A user can see autopilot consent, scope, authority and duration bound to the approved task contract; routine GSD questions may be answered automatically only within that authority, and new authority or effects pause for approval.
-- [ ] **AUTO-03**: A user can continue ordinary conversational GSD work without invoking the autonomous supervisor; ending or stopping one autopilot run does not silently enable it for another task.
+- [x] **AUTO-01**: A user enters autopilot only by explicitly requesting it or approving a clearly presented in-agent offer; the mode is off by default for every new task.
+- [x] **AUTO-02**: A user can see autopilot consent, scope, authority and duration bound to the approved task contract; routine GSD questions may be answered automatically only within that authority, and new authority or effects pause for approval.
+- [x] **AUTO-03**: A user can continue ordinary conversational GSD work without invoking the autonomous supervisor; ending or stopping one autopilot run does not silently enable it for another task.
 
 ### Execution and recovery
 
-- [ ] **RUN-01**: A user can start an approved development task and observe one production-quality path from GSD-governed implementation through measured checks, independent review and accepted or rejected result.
+- [x] **RUN-01**: A user can start an approved development task and observe one production-quality path from GSD-governed implementation through measured checks, independent review and accepted or rejected result.
 - [ ] **RUN-02**: A user can inspect a durable, redacted attempt journal that distinguishes alpha-AOS process state from GSD project lifecycle state.
 - [ ] **RUN-03**: A user can resume after process interruption without replaying completed attempts or uncertain external actions as though they were undone.
 - [ ] **RUN-04**: A user can choose unlimited cycles or set time, cycle, usage or measured cost limits, and sees the precise limit/telemetry reason when the run stops.

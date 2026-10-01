@@ -6,12 +6,12 @@
     {
       "number": "14",
       "name": "Contract and Vertical Tracer",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "15",
       "name": "Durable Supervisor and Effect Ledger",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "16",
@@ -51,8 +51,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 14 of 9 · 0% · executing"
+    "label": "Advance to the next step (plan phase 15)",
+    "reason": "Phase 15 of 9 — needs a plan"
   },
-  "updated_at": "2026-09-30T18:59:50.386Z"
+  "updated_at": "2026-10-01T01:08:30.653Z"
 }

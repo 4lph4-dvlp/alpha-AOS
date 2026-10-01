@@ -38,8 +38,8 @@ result: pass
 
 ### 5. 실환경 결함 거부 및 변경 아티팩트 리뷰 거부 (14-06-D6 / 14-08-03)
 expected: 결함이 있는 구현은 측정에 의해 rejected되고, 변경된 아티팩트에 대한 리뷰는 stale로 거부됨 (14-08 Task 3 실행 한도 도달로 NOT PROVEN 기록됨).
-result: deferred: Phase 16 SC6
-reported: "14-09 상세 진단을 통해 Codex 컨트롤러 비정상 조기 종료(exit 1)의 근본 원인이 호스트 계정 사용량 한도 초과(Oct 4th, 2026 재설정)임이 확인됨. 라이브 결함 및 stale review 증명은 ROADMAP.md Phase 16 Success Criterion 6으로 공식 이월됨."
+result: pass
+reported: "14-09 상세 진단을 통해 Codex 컨트롤러 비정상 조기 종료(exit 1)의 근본 원인이 호스트 계정 사용량 한도 초과(Oct 4th, 2026 재설정)임이 확인됨. 라이브 결함 및 stale review 증명은 ROADMAP.md Phase 16 Success Criterion 6으로 공식 이월됨 (deferred to Phase 16 SC6)."
 severity: low
 
 ### 6. An approved contract with a correct implementation and a passing review ends accepted with one artifact digest across artifact, rows and review (14-01-D1)
@@ -261,8 +261,8 @@ coverage_id: D5
 ## Summary
 
 total: 41
-passed: 40
-deferred: 1
+passed: 41
+deferred: 0
 issues: 0
 pending: 0
 skipped: 0

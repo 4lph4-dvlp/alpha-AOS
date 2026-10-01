@@ -44,10 +44,10 @@ export interface ReceiptReadResult {
 }
 
 export interface ReadReceiptOptions {
-  readonly checkDrift?: boolean;
-  readonly resolve?: TaskAgentResolver;
-  readonly runner?: TaskAgentRunner;
-  readonly packageRoot?: string;
+  readonly checkDrift?: boolean | undefined;
+  readonly resolve?: TaskAgentResolver | undefined;
+  readonly runner?: TaskAgentRunner | undefined;
+  readonly packageRoot?: string | undefined;
 }
 
 const SUPPORTED_HARNESSES = new Set<string>(["claude", "codex", "antigravity", "pi", "hermes"]);

@@ -51,27 +51,43 @@ export interface PlanningTreeSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Controller Role Guard & Role Resolver (D-10)
+// Controller Role Guard & Role Resolver (ROL-03, D-07)
 // ---------------------------------------------------------------------------
 
-export function assertControllerRole(harnessId: HarnessId): void {
-  if (harnessId === "hermes") {
-    throw new WorkerAuthorityError(
-      "unauthorized-controller",
-      "hermes",
-      "Hermes is structurally prohibited from acting as a GSD state controller (D-10)"
-    );
+export function assertControllerRole(
+  harnessId: HarnessId,
+  context?: { hasReceipt?: boolean; hasLease?: boolean }
+): void {
+  if (context) {
+    if (context.hasReceipt === false) {
+      throw new WorkerAuthorityError(
+        "unauthorized-controller",
+        harnessId,
+        `Harness '${harnessId}' lacks a verified controller invocation receipt (ROL-01, D-01)`
+      );
+    }
+    if (context.hasLease === false) {
+      throw new WorkerAuthorityError(
+        "unauthorized-controller",
+        harnessId,
+        `Harness '${harnessId}' does not hold a valid controller fencing lease (ROL-03, D-05)`
+      );
+    }
   }
 }
 
 export function resolveHarnessRole(
   initiatorHarness: HarnessId,
-  targetHarness: HarnessId
+  targetHarness: HarnessId,
+  targetHasControllerProof: boolean = false
 ): GsdRole {
-  if (targetHarness === "hermes") {
-    return "worker";
+  if (targetHarness === initiatorHarness) {
+    return "controller";
   }
-  return targetHarness === initiatorHarness ? "controller" : "worker";
+  if (targetHasControllerProof) {
+    return "controller";
+  }
+  return "worker";
 }
 
 // ---------------------------------------------------------------------------

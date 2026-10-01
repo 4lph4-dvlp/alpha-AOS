@@ -97,9 +97,9 @@ test("brownfield discuss-plan-execute-verify-ship cycle proves all five benchmar
   assert.equal(existsSync(join(fixture.path, ".alpha-aos")), false);
 });
 
-test("Hermes cannot claim the brownfield GSD controller role", () => {
+test("Hermes cannot claim the brownfield GSD controller role without receipt or lease", () => {
   assert.throws(
-    () => assertControllerRole("hermes"),
+    () => assertControllerRole("hermes", { hasReceipt: false, hasLease: false }),
     (error: unknown) => {
       assert.ok(error instanceof WorkerAuthorityError);
       assert.equal(error.code, "unauthorized-controller");

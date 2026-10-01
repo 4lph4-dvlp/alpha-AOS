@@ -22,35 +22,52 @@ async function scratchRoot(context: TestContext, label: string): Promise<string>
   return root;
 }
 
-test("Role resolution assigns controller to initiator and worker to external harnesses (GATE-05, D-10)", () => {
+test("Role resolution assigns controller to initiator and worker to external harnesses (ROL-03, D-07)", () => {
   // Same harness is controller
   assert.equal(resolveHarnessRole("codex", "codex"), "controller");
   assert.equal(resolveHarnessRole("antigravity", "antigravity"), "controller");
+  assert.equal(resolveHarnessRole("hermes", "hermes"), "controller");
 
-  // Delegated harnesses are workers
+  // Delegated harnesses are workers unless target has controller proof
   assert.equal(resolveHarnessRole("codex", "pi"), "worker");
   assert.equal(resolveHarnessRole("antigravity", "hermes"), "worker");
-
-  // Hermes is always worker regardless of initiator
-  assert.equal(resolveHarnessRole("hermes", "hermes"), "worker");
+  assert.equal(resolveHarnessRole("codex", "hermes", true), "controller");
 });
 
-test("assertControllerRole strictly prohibits Hermes from being a GSD state controller (GATE-05, D-10)", () => {
+test("assertControllerRole validates receipt and lease proof rather than hardcoded harness checks (ROL-03, D-07)", () => {
+  // Passes without context (legacy or unconstrained callers)
+  assert.doesNotThrow(() => assertControllerRole("hermes"));
+  assert.doesNotThrow(() => assertControllerRole("codex"));
+  assert.doesNotThrow(() => assertControllerRole("antigravity"));
+  assert.doesNotThrow(() => assertControllerRole("pi"));
+
+  // Passes with valid receipt and lease proof
+  assert.doesNotThrow(() => assertControllerRole("hermes", { hasReceipt: true, hasLease: true }));
+  assert.doesNotThrow(() => assertControllerRole("codex", { hasReceipt: true, hasLease: true }));
+
+  // Throws unauthorized-controller if receipt is missing/unverified
   assert.throws(
-    () => assertControllerRole("hermes"),
+    () => assertControllerRole("hermes", { hasReceipt: false, hasLease: true }),
     (err: unknown) => {
       assert.ok(err instanceof WorkerAuthorityError);
       assert.equal(err.code, "unauthorized-controller");
       assert.equal(err.harnessId, "hermes");
-      assert.match(err.message, /Hermes is structurally prohibited/);
+      assert.match(err.message, /lacks a verified controller invocation receipt/);
       return true;
     }
   );
 
-  // Other harnesses pass
-  assert.doesNotThrow(() => assertControllerRole("codex"));
-  assert.doesNotThrow(() => assertControllerRole("antigravity"));
-  assert.doesNotThrow(() => assertControllerRole("pi"));
+  // Throws unauthorized-controller if lease is missing/unheld
+  assert.throws(
+    () => assertControllerRole("hermes", { hasReceipt: true, hasLease: false }),
+    (err: unknown) => {
+      assert.ok(err instanceof WorkerAuthorityError);
+      assert.equal(err.code, "unauthorized-controller");
+      assert.equal(err.harnessId, "hermes");
+      assert.match(err.message, /does not hold a valid controller fencing lease/);
+      return true;
+    }
+  );
 });
 
 test("sanitizeWorkerLaunchSpec strips controller instructions and injects worker role and notice (D-11)", () => {

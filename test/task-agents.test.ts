@@ -11,6 +11,7 @@ import { createRedactedExcerpt, createRedactionContext } from "../src/core/redac
 import type { ControllerDispatchRequest, ReviewRequest, TaskMeasurement, TaskReviewReport } from "../src/core/task-run.js";
 import {
   agentFacingSchema,
+  createDynamicTaskPorts,
   nativeTaskPorts,
   parseHarnessVersion,
   probeTaskAgentPair,
@@ -19,6 +20,8 @@ import {
   TASK_BOOTSTRAP_PAIR,
   type HarnessVersionProbe,
 } from "../src/adapters/task-agents.js";
+import { writeHarnessRoleReceipt } from "../src/adapters/task-receipts.js";
+import type { HarnessId } from "../src/types.js";
 import {
   buildReviewPrompt,
   CLAUDE_REVIEW_OUTPUT_BYTES,
@@ -936,29 +939,85 @@ test("the bootstrap pair codex/codex/claude is supported with both exact version
   assert.deepEqual(assessment.reviewer, { harness: "claude", version: "9.9.8", executable: "~/claude.exe" });
 });
 
-test("every other role assignment is unsupported with the missing proof named, and an absent codex names the command", async () => {
-  const base: TaskAgentPolicy = { controller: "codex", executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" };
-  const probes = { probeCodex: okProbe("9.9.9", "~/codex.js"), probeClaude: okProbe("9.9.8", "~/claude.exe") };
-  const cases: Array<{ policy: TaskAgentPolicy; role: string; harness: string }> = [
-    { policy: { ...base, reviewer: "pi" }, role: "reviewer", harness: "pi" },
-    { policy: { ...base, executor: "claude" }, role: "executor", harness: "claude" },
-    { policy: { ...base, controller: "claude" }, role: "controller", harness: "claude" },
-  ];
-  for (const { policy, role, harness } of cases) {
-    const assessment = await probeTaskAgentPair(policy, probes);
-    assert.equal(assessment.supported, false, `${role} ${harness} is unsupported`);
-    assert.equal(assessment.missingProof.length, 1);
-    assert.match(assessment.missingProof[0] ?? "", new RegExp(`^${role} ${harness}: no native task adapter is proven`, "u"));
-    assert.match(assessment.missingProof[0] ?? "", /ROL-01/u);
-  }
-
-  const noCodex = await probeTaskAgentPair(base, {
-    probeCodex: async () => ({ status: "unsupported", reason: "codex was not found on PATH" }),
-    probeClaude: probes.probeClaude,
+test("arbitrary role assignments are supported with verified receipts, and missing receipts fail closed (ROL-01)", async (context) => {
+  const receiptsRoot = await scratch(context, "role-pair-tests");
+  const makeReceipt = (harness: HarnessId, role: "controller" | "executor" | "reviewer") => ({
+    schemaVersion: 1 as const,
+    harness,
+    role,
+    version: "1.0.0",
+    binarySha256: "0".repeat(64),
+    executable: `/bin/${harness}`,
+    probedAt: new Date().toISOString(),
+    capabilities: { invoked: true, cancelled: true, outputParsed: true },
+    sampleDigest: "digest",
   });
+
+  // When receipts exist for hermes, pi, and antigravity:
+  await writeHarnessRoleReceipt(makeReceipt("hermes", "controller"), receiptsRoot);
+  await writeHarnessRoleReceipt(makeReceipt("pi", "executor"), receiptsRoot);
+  await writeHarnessRoleReceipt(makeReceipt("antigravity", "reviewer"), receiptsRoot);
+
+  const policy: TaskAgentPolicy = {
+    controller: "hermes",
+    executor: "pi",
+    reviewer: "antigravity",
+    reviewerSession: "fresh-read-only",
+  };
+
+  const assessment = await probeTaskAgentPair(policy, { receiptsRoot, probeVersion: false });
+  assert.equal(assessment.supported, true);
+  assert.deepEqual(assessment.missingProof, []);
+  assert.equal(assessment.controller.harness, "hermes");
+  assert.equal(assessment.reviewer.harness, "antigravity");
+
+  // When a receipt is missing, fails closed with explicit missing proof (D-01)
+  const missingPolicy: TaskAgentPolicy = {
+    controller: "codex",
+    executor: "codex",
+    reviewer: "claude",
+    reviewerSession: "fresh-read-only",
+  };
+  const missingAssessment = await probeTaskAgentPair(missingPolicy, { receiptsRoot, probeVersion: false });
+  assert.equal(missingAssessment.supported, false);
+  assert.ok(missingAssessment.missingProof.some((p) => p.includes("controller codex")));
+  assert.ok(missingAssessment.missingProof.some((p) => p.includes("executor codex")));
+  assert.ok(missingAssessment.missingProof.some((p) => p.includes("reviewer claude")));
+
+  // Missing codex when using legacy mock probe
+  const noCodex = await probeTaskAgentPair(
+    { controller: "codex", executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" },
+    {
+      probeCodex: async () => ({ status: "unsupported", reason: "codex was not found on PATH" }),
+      probeClaude: okProbe("9.9.8", "~/claude.exe"),
+    },
+  );
   assert.equal(noCodex.supported, false);
   assert.equal(noCodex.controller.version, null);
   assert.ok(noCodex.missingProof.some((proof) => proof.includes("codex was not found")));
+});
+
+test("createDynamicTaskPorts binds controller and reviewer ports matching requested policy (ROL-01)", async () => {
+  const policy: TaskAgentPolicy = {
+    controller: "codex",
+    executor: "codex",
+    reviewer: "claude",
+    reviewerSession: "fresh-read-only",
+  };
+  const ports = createDynamicTaskPorts(policy);
+  assert.ok(typeof ports.controller.dispatch === "function");
+  assert.ok(typeof ports.reviewer.review === "function");
+  assert.ok(typeof ports.assess === "function");
+
+  const nonCodexPolicy: TaskAgentPolicy = {
+    controller: "hermes",
+    executor: "pi",
+    reviewer: "antigravity",
+    reviewerSession: "fresh-read-only",
+  };
+  const dynamicPorts = createDynamicTaskPorts(nonCodexPolicy);
+  assert.ok(typeof dynamicPorts.controller.dispatch === "function");
+  assert.ok(typeof dynamicPorts.reviewer.review === "function");
 });
 
 test("nativeTaskPorts delegates assess, dispatch and review to the native adapters", async (context) => {

@@ -23,10 +23,10 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 ### Execution and recovery
 
 - [x] **RUN-01**: A user can start an approved development task and observe one production-quality path from GSD-governed implementation through measured checks, independent review and accepted or rejected result.
-- [ ] **RUN-02**: A user can inspect a durable, redacted attempt journal that distinguishes alpha-AOS process state from GSD project lifecycle state.
-- [ ] **RUN-03**: A user can resume after process interruption without replaying completed attempts or uncertain external actions as though they were undone.
-- [ ] **RUN-04**: A user can choose unlimited cycles or set time, cycle, usage or measured cost limits, and sees the precise limit/telemetry reason when the run stops.
-- [ ] **RUN-05**: A user sees a changed repair strategy when the same evidenced failure repeats, and receives a named blocked result if no viable next action remains.
+- [x] **RUN-02**: A user can inspect a durable, redacted attempt journal that distinguishes alpha-AOS process state from GSD project lifecycle state.
+- [x] **RUN-03**: A user can resume after process interruption without replaying completed attempts or uncertain external actions as though they were undone.
+- [x] **RUN-04**: A user can choose unlimited cycles or set time, cycle, usage or measured cost limits, and sees the precise limit/telemetry reason when the run stops.
+- [x] **RUN-05**: A user sees a changed repair strategy when the same evidenced failure repeats, and receives a named blocked result if no viable next action remains.
 
 ### Agent roles
 
@@ -63,7 +63,7 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 - [ ] **TOOL-01**: A user can run a non-code task through a versioned connector that previews a bounded item/effect manifest and verifies each required outcome independently.
 - [ ] **TOOL-02**: A user can request all in-scope CoursePilot teaching-material downloads and see actual saved files reconciled against a fresh item manifest; `planned`, LMS completion and `viewed_only` never count as downloads.
-- [ ] **TOOL-03**: A user sees external actions assigned stable operation keys and an uncertain effect reconciled before retry, preventing duplicate actions after a crash when source evidence is available.
+- [x] **TOOL-03**: A user sees external actions assigned stable operation keys and an uncertain effect reconciled before retry, preventing duplicate actions after a crash when source evidence is available.
 - [ ] **TOOL-04**: A user sees partial, fatal and schema-version errors from a connector reported per item, with untrusted source content handled as data.
 
 ### Entry and release proof
@@ -97,8 +97,8 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 | Requirement IDs | Phase | Status |
 |---|---:|---|
-| CON-01..03, AUTO-01..03, RUN-01, REV-01 | 14 | Planned |
-| RUN-02..05, TOOL-03 | 15 | Planned |
+| CON-01..03, AUTO-01..03, RUN-01, REV-01 | 14 | Complete |
+| RUN-02..05, TOOL-03 | 15 | Complete |
 | ROL-01..05 | 16 | Planned |
 | GSD-01..04 | 17 | Planned |
 | CAP-01..05 | 18 | Planned |

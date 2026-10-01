@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/harness-role-receipt.schema.json",
+  "title": "alpha-AOS individual harness role receipt",
+  "description": "Atomic invocation receipt backing an advertised harness and role combination (ROL-02, D-04).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "harness",
+    "role",
+    "version",
+    "binarySha256",
+    "executable",
+    "probedAt",
+    "capabilities",
+    "sampleDigest"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "harness": {
+      "type": "string",
+      "enum": ["claude", "codex", "antigravity", "pi", "hermes"]
+    },
+    "role": {
+      "type": "string",
+      "enum": ["controller", "executor", "reviewer"]
+    },
+    "version": { "type": "string", "minLength": 1 },
+    "binarySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "executable": { "type": "string", "minLength": 1 },
+    "probedAt": { "type": "string" },
+    "capabilities": {
+      "type": "object",
+      "required": ["invoked", "cancelled", "outputParsed"],
+      "additionalProperties": false,
+      "properties": {
+        "invoked": { "type": "boolean" },
+        "cancelled": { "type": "boolean" },
+        "outputParsed": { "type": "boolean" },
+        "readOnlyGuaranteed": { "type": "boolean" }
+      }
+    },
+    "sampleDigest": { "type": "string", "minLength": 1 }
+  }
+}

@@ -110,6 +110,24 @@ Plans:
 
 **Verification:** Fault injection at each journal/effect boundary, idempotent resume tests, and platform process-tree tests.
 
+**Plans:** 0/6 plans complete
+
+Plans:
+**Wave 1**
+
+- [ ] 15-01-PLAN.md — Run Journal and Atomic Checkpoint Storage: append-only fsync journal.jsonl, atomic checkpoint.json, secret redaction, and 64KB process output caps (RUN-02)
+- [ ] 15-02-PLAN.md — Process Cancellation and Cross-Platform Tree Cleanup: whole-tree termination across Windows and POSIX, AbortSignal cancellation, and mandatory attempt safety bounds (RUN-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 15-03-PLAN.md — Effect Ledger and Source Evidence Reconciliation: deterministic operation keys, state machine, and source evidence reconciliation (TOOL-03)
+- [ ] 15-04-PLAN.md — Resource Policy and Quota Classifier: resource limits schema, cent-safe precision, fail-closed cost metering, and standard stop codes (RUN-04)
+- [ ] 15-05-PLAN.md — Failure Fingerprint and Adaptive Strategy Policy: normalized failure fingerprints, 2-consecutive loop detector, 3-stage repair strategy, and blocked reporting (RUN-05)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 15-06-PLAN.md — Durable Supervisor Loop, GSD Observation, and CLI Resume: durable supervisor loop, GSD/Git state observation consistency, fault-injection crash recovery, and CLI commands (RUN-02, RUN-03, TOOL-03)
+
 ### Phase 16: Composable Harness Roles
 
 **Goal:** Claude Code, Codex, Antigravity, Pi and Hermes can perform every advertised operational role through native, version-proven adapters while exactly one controller writes GSD state.

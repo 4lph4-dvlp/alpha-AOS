@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { lstat, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
 import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
+import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guard.js";
 import {
   collectTaskArtifact,
   confirmReviewerReproduction,
@@ -137,6 +138,8 @@ export interface ReviewRequest {
   reviewRoot: string;
   measurements: TaskMeasurement[];
   deadlineAt: string | null;
+  ephemeralConfigRoot?: string | undefined;
+  isolatedEnvironment?: Readonly<Record<string, string>> | undefined;
 }
 
 export interface ReviewDispatchResult {
@@ -998,6 +1001,24 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
 
     if (wallTimeElapsed()) return await stopForWallTime();
 
+    const isSameHarnessReviewer =
+      contract.agentPolicy.reviewer === contract.agentPolicy.controller ||
+      contract.agentPolicy.reviewer === contract.agentPolicy.executor;
+
+    let ephemeralConfigRoot: string | undefined;
+    let isolatedEnvironment: Record<string, string> | undefined;
+    if (isSameHarnessReviewer && scratchRoot !== null) {
+      ephemeralConfigRoot = join(scratchRoot, `reviewer-env-${randomUUID().slice(0, 8)}`);
+      await mkdir(ephemeralConfigRoot, { recursive: true });
+      isolatedEnvironment = {
+        CLAUDE_CONFIG_DIR: join(ephemeralConfigRoot, "claude"),
+        HERMES_HOME: join(ephemeralConfigRoot, "hermes"),
+        PI_CODING_AGENT_DIR: join(ephemeralConfigRoot, "pi"),
+        CODEX_HOME: join(ephemeralConfigRoot, "codex"),
+        ANTIGRAVITY_CONFIG_DIR: join(ephemeralConfigRoot, "antigravity"),
+      };
+    }
+
     const request: ReviewRequest = {
       runId,
       requestId: randomUUID(),
@@ -1008,8 +1029,30 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       reviewRoot: snapshot,
       measurements,
       deadlineAt,
+      ...(ephemeralConfigRoot !== undefined ? { ephemeralConfigRoot, isolatedEnvironment } : {}),
     };
+
+    // Capture pre-review tree snapshot for TreeMutationGuard (ROL-04, D-11)
+    const preReviewTree = await captureTreeSnapshot(projectRoot, contract.allowedRoots);
+
     const reviewed = await options.ports.reviewer.review(request);
+
+    // Capture post-review tree snapshot and evaluate mutations (ROL-04, D-11)
+    const postReviewTree = await captureTreeSnapshot(projectRoot, contract.allowedRoots);
+    const mutation = evaluateTreeMutations(preReviewTree, postReviewTree);
+    const mutatingIssue = mutation.mutated
+      ? `INVALID_MUTATING_REVIEW: reviewer violated read-only invariant and modified project tree: ${mutation.violations.join(", ")}`
+      : null;
+
+    if (mutation.mutated) {
+      preconditions.push({
+        id: "reviewer-tree-integrity",
+        satisfied: false,
+        reason: mutatingIssue!,
+        nextAction: "the reviewer harness violated read-only constraints and modified project files; re-run with read-only reviewer isolation",
+      });
+    }
+
     const checked = await validateReport(reviewed.report, options.packageRoot);
     record = {
       ...record,
@@ -1031,7 +1074,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       portSessionId: reviewed.sessionId,
       contract,
       issues: reviewed.issues.map((issue) => bounded(issue, 300)),
-      rejected: received ? checked.issue : null,
+      rejected: mutatingIssue ?? (received ? checked.issue : null),
     });
 
     // A reviewer failure against a measured pass counts only when alpha-AOS

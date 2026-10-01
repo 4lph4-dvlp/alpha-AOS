@@ -337,19 +337,78 @@ test("a gsd-quick contract without the local-commit effect is refused", async (c
   );
 });
 
-test("a hermes controller is refused and every other controller loads", async (context) => {
+test("every supported harness loads cleanly as controller (ROL-01, ROL-03)", async (context) => {
   const fixture = await createTaskFixture(context);
   const withController = (controller: TaskContract["agentPolicy"]["controller"]) =>
     inventorySummaryContract(fixture.projectRoot, {
       agentPolicy: { controller, executor: "codex", reviewer: "claude", reviewerSession: "fresh-read-only" },
     });
-  await assert.rejects(
-    loadVariant(fixture, withController("hermes")),
-    isCode("unsupported-controller", (message) => assert.match(message, /worker-only/u)),
-  );
-  for (const controller of ["codex", "claude", "pi", "antigravity"] as const) {
+  for (const controller of ["codex", "claude", "pi", "antigravity", "hermes"] as const) {
     await loadVariant(fixture, withController(controller));
   }
+});
+
+test("differentReviewerPolicy require-different-harness rejects matching reviewer and accepts distinct harnesses (ROL-04, D-10)", async (context) => {
+  const fixture = await createTaskFixture(context);
+
+  // Reviewer matches controller: rejected
+  const matchesController = inventorySummaryContract(fixture.projectRoot, {
+    agentPolicy: {
+      controller: "claude",
+      executor: "codex",
+      reviewer: "claude",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "require-different-harness",
+    },
+  });
+  await assert.rejects(
+    loadVariant(fixture, matchesController),
+    isCode("contract-invalid", (message) => {
+      assert.ok(message.includes("differentReviewerPolicy 'require-different-harness' is violated"), message);
+      assert.ok(message.includes("/agentPolicy/differentReviewerPolicy"), message);
+    }),
+  );
+
+  // Reviewer matches executor: rejected
+  const matchesExecutor = inventorySummaryContract(fixture.projectRoot, {
+    agentPolicy: {
+      controller: "claude",
+      executor: "codex",
+      reviewer: "codex",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "require-different-harness",
+    },
+  });
+  await assert.rejects(
+    loadVariant(fixture, matchesExecutor),
+    isCode("contract-invalid", (message) => {
+      assert.ok(message.includes("differentReviewerPolicy 'require-different-harness' is violated"), message);
+    }),
+  );
+
+  // Distinct harnesses: accepted
+  const distinctHarnesses = inventorySummaryContract(fixture.projectRoot, {
+    agentPolicy: {
+      controller: "codex",
+      executor: "codex",
+      reviewer: "claude",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "require-different-harness",
+    },
+  });
+  await loadVariant(fixture, distinctHarnesses);
+
+  // allow-same accepts same harness
+  const allowSame = inventorySummaryContract(fixture.projectRoot, {
+    agentPolicy: {
+      controller: "codex",
+      executor: "codex",
+      reviewer: "codex",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "allow-same",
+    },
+  });
+  await loadVariant(fixture, allowSame);
 });
 
 test("a contract carrying a credential environment value is refused by path and variable name only", async (context) => {

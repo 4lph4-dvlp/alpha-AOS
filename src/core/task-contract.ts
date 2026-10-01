@@ -44,11 +44,14 @@ export interface TaskScope {
   summary: string;
 }
 
+export type DifferentReviewerPolicy = "require-different-harness" | "require-different-model" | "allow-same";
+
 export interface TaskAgentPolicy {
   controller: HarnessId;
   executor: HarnessId;
   reviewer: HarnessId;
   reviewerSession: "fresh-read-only";
+  differentReviewerPolicy?: DifferentReviewerPolicy | undefined;
 }
 
 export interface TaskResourcePolicy {
@@ -383,13 +386,22 @@ function assertContractAuthority(contract: TaskContract, label: string): void {
   if (minutes !== undefined && !Number.isInteger(minutes)) {
     throw refuse("the wall-time limit must be a whole number of minutes; a fractional limit is refused, never rounded", "/resourcePolicy/maxWallTimeMinutes");
   }
+  const diffPolicy = contract.agentPolicy.differentReviewerPolicy ?? "allow-same";
+  if (diffPolicy === "require-different-harness") {
+    if (contract.agentPolicy.reviewer === contract.agentPolicy.controller || contract.agentPolicy.reviewer === contract.agentPolicy.executor) {
+      throw refuse(
+        `differentReviewerPolicy 'require-different-harness' is violated: reviewer '${contract.agentPolicy.reviewer}' matches controller or executor`,
+        "/agentPolicy/differentReviewerPolicy",
+      );
+    }
+  }
   try {
     assertControllerRole(contract.agentPolicy.controller);
   } catch (error) {
     if (!(error instanceof WorkerAuthorityError)) throw error;
     throw new TaskContractError(
       "unsupported-controller",
-      `Task contract ${label} names ${contract.agentPolicy.controller} as controller at /agentPolicy/controller: hermes is worker-only under the current stack policy, and controller migration belongs to the role-proof phase.`,
+      `Task contract ${label} names ${contract.agentPolicy.controller} as controller at /agentPolicy/controller: ${error.message}`,
     );
   }
 }

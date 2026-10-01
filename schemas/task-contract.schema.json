@@ -102,7 +102,12 @@
         "controller": { "$ref": "#/$defs/harness" },
         "executor": { "$ref": "#/$defs/harness" },
         "reviewer": { "$ref": "#/$defs/harness" },
-        "reviewerSession": { "const": "fresh-read-only" }
+        "reviewerSession": { "const": "fresh-read-only" },
+        "differentReviewerPolicy": {
+          "type": "string",
+          "enum": ["require-different-harness", "require-different-model", "allow-same"],
+          "default": "allow-same"
+        }
       }
     },
     "resourcePolicy": {

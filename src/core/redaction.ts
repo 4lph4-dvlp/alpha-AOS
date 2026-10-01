@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ObservableEnvelope, PathAliases, RedactedExcerpt, RedactionContext } from "../types.js";
+export type { RedactionContext, RedactedExcerpt };
 import { aliasPath, createPathAliases } from "./paths.js";
 
 /**
@@ -126,7 +127,7 @@ function redactUrls(value: string): { text: string; matched: boolean } {
  * Ordering matters — aliasing first would corrupt a URL, and structural rules
  * would otherwise consume an exact value before it is matched.
  */
-function redactCore(value: string, context: RedactionContext): string {
+export function redactCore(value: string, context: RedactionContext): string {
   let result = value;
 
   for (const secret of context.exact) {

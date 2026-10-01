@@ -58,10 +58,22 @@ import {
 } from "./core/task-contract.js";
 import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
-import { readTaskBaseline } from "./core/task-effects.js";
+import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
 import { nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
+import {
+  inspectTaskResumeReadiness,
+  readEffectLedger,
+  resumeTask,
+} from "./core/task-supervisor.js";
+import {
+  appendJournalEvent,
+  readCheckpoint,
+  readJournalEvents,
+  writeCheckpoint,
+  type TaskCheckpoint,
+} from "./core/task-journal.js";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
@@ -98,7 +110,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskRunReport, formatTaskStartReadiness, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
 import {
@@ -165,6 +177,9 @@ Usage:
   alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task start <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task report <contract-id> [--run <run-id>] [--json]
+  alpha-aos task resume <contract.json> [--contract-digest <digest>] [--apply] [--json]
+  alpha-aos task status <contract-id> [--run <run-id>] [--json]
+  alpha-aos task stop <contract-id> [--reason <reason>] [--json]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
   alpha-aos doctor --matrix [--json]
@@ -491,6 +506,68 @@ async function readTaskStartReadiness(
     ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean",
   };
   return { readiness, command: taskStartCommand(loaded.sourcePath, digest) };
+}
+
+/** The exact runnable line that resumes one interrupted task. */
+function taskResumeCommand(contractPath: string, digest: string): string {
+  return `alpha-aos task resume ${shellQuote(contractPath)} --contract-digest ${digest} --apply`;
+}
+
+async function findLatestTaskCheckpoint(
+  stateRoot: string,
+  identifier: string,
+  runId?: string | null,
+): Promise<{ checkpoint: TaskCheckpoint; contractDigest: string } | null> {
+  let targetId = identifier;
+  let targetDigest: string | null = null;
+  if (identifier.endsWith(".json")) {
+    try {
+      const loaded = await loadTaskContract(identifier);
+      targetId = loaded.contract.id;
+      targetDigest = loaded.digest;
+    } catch {
+      // not a contract file or unreadable, fall through
+    }
+  }
+
+  const runsDir = join(stateRoot, "runs");
+  let entries: string[];
+  try {
+    entries = await readdir(runsDir);
+  } catch {
+    return null;
+  }
+
+  const matches: Array<{ checkpoint: TaskCheckpoint; contractDigest: string }> = [];
+  for (const entry of entries) {
+    const cp = await readCheckpoint(stateRoot, entry);
+    if (cp !== null) {
+      if (
+        entry === identifier ||
+        entry === targetDigest ||
+        cp.contractId === targetId ||
+        cp.contractDigest === identifier ||
+        cp.contractDigest === targetDigest
+      ) {
+        if (runId) {
+          if (cp.contractDigest === runId) {
+            matches.push({ checkpoint: cp, contractDigest: entry });
+          } else {
+            const events = await readJournalEvents(stateRoot, entry);
+            if (events.some((e) => (e.payload as any)?.runId === runId)) {
+              matches.push({ checkpoint: cp, contractDigest: entry });
+            }
+          }
+        } else {
+          matches.push({ checkpoint: cp, contractDigest: entry });
+        }
+      }
+    }
+  }
+
+  if (matches.length === 0) return null;
+  matches.sort((a, b) => b.checkpoint.updatedAt.localeCompare(a.checkpoint.updatedAt));
+  return matches[0]!;
 }
 
 async function main(): Promise<void> {
@@ -1691,23 +1768,25 @@ async function main(): Promise<void> {
 
   if (command === "task") {
     const subcommand = args[1] ?? "";
-    // D-02: previewing, approving, starting and reading are separate verbs.
-    // Only `start --apply` with the task's own approved digest launches agents.
-    if (!["preview", "approve", "start", "report"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report.`);
+    // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
+    // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
+    if (!["preview", "approve", "start", "report", "resume", "status", "stop"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report, resume, status, stop.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
-    // approve alone. Ignoring it elsewhere would let a user believe a preview
-    // or a report had persisted something.
+    // approve, start, and resume alone.
     if (subcommand === "preview" && hasFlag(args, "--apply")) {
       throw new Error("`task preview` has no --apply: it previews and persists nothing. Approve a reviewed contract with `alpha-aos task approve <contract.json> --contract-digest <digest> --apply`.");
     }
     if (subcommand === "report" && hasFlag(args, "--apply")) {
       throw new Error("`task report` has no --apply: it reads and persists nothing. Approve a reviewed contract with `alpha-aos task approve <contract.json> --contract-digest <digest> --apply`.");
     }
+    if (subcommand === "status" && hasFlag(args, "--apply")) {
+      throw new Error("`task status` has no --apply: it reads and persists nothing.");
+    }
     const context = observableContext();
     const stateRoot = userStateRoot();
-    const parts = positional(args.slice(2), ["--contract-digest", "--run"]);
+    const parts = positional(args.slice(2), ["--contract-digest", "--run", "--reason"]);
     const operand = parts[0];
 
     if (subcommand === "report") {
@@ -1719,7 +1798,86 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (subcommand === "status") {
+      if (operand === undefined) throw new Error("task status requires a contract id: alpha-aos task status <contract-id> [--run <run-id>]");
+      const runId = optionValue(args, "--run");
+      const found = await findLatestTaskCheckpoint(stateRoot, operand, runId);
+      if (found === null) throw new Error(`no checkpoint recorded for task ${operand}`);
+      const ledger = await readEffectLedger(stateRoot, found.contractDigest);
+      const events = await readJournalEvents(stateRoot, found.contractDigest);
+      const statusData = {
+        checkpoint: found.checkpoint,
+        ledger,
+        eventsCount: events.length,
+      };
+      print(statusData, json, formatTaskStatus(statusData), context);
+      return;
+    }
+
+    if (subcommand === "stop") {
+      if (operand === undefined) throw new Error("task stop requires a contract id: alpha-aos task stop <contract-id> [--reason <reason>]");
+      const runId = optionValue(args, "--run");
+      const found = await findLatestTaskCheckpoint(stateRoot, operand, runId);
+      if (found === null) throw new Error(`no checkpoint recorded for task ${operand}`);
+      const reason = optionValue(args, "--reason") ?? "user_requested_stop";
+      const updatedCheckpoint: TaskCheckpoint = {
+        ...found.checkpoint,
+        status: "stopped",
+        stopReason: reason,
+        updatedAt: new Date().toISOString(),
+      };
+      await writeCheckpoint(stateRoot, updatedCheckpoint);
+      await appendJournalEvent(stateRoot, found.contractDigest, {
+        kind: "limit_exceeded",
+        contractDigest: found.contractDigest,
+        attemptIndex: updatedCheckpoint.attemptIndex,
+        payload: {
+          stopCode: "user_requested_stop",
+          reason,
+        },
+      });
+      const result = {
+        stopped: true,
+        contractDigest: found.contractDigest,
+        checkpoint: updatedCheckpoint,
+      };
+      print(
+        result,
+        json,
+        `Task ${updatedCheckpoint.contractId} (${found.contractDigest.slice(0, 12)}) stopped: ${reason}`,
+        context,
+      );
+      return;
+    }
+
     if (operand === undefined) throw new Error(`task ${subcommand} requires a contract file: alpha-aos task ${subcommand} <contract.json>`);
+
+    if (subcommand === "resume") {
+      const supplied = optionValue(args, "--contract-digest");
+      if (hasFlag(args, "--apply")) {
+        if (supplied === null) {
+          const loaded = await loadTaskContract(operand);
+          throw new Error(
+            `task resume --apply requires the contract digest. The current contract digest is ${loaded.digest}. Run: ${taskResumeCommand(loaded.sourcePath, loaded.digest)}`,
+          );
+        }
+        const result = await resumeTask({
+          contractPath: operand,
+          expectedDigest: supplied,
+          stateRoot,
+          packageRoot: packageRoot(),
+          ports: nativeTaskPorts(),
+        });
+        print(result, json, formatSupervisorReport(result), context);
+        process.exitCode = result.status === "accepted" ? 0 : 1;
+        return;
+      }
+      const readiness = await inspectTaskResumeReadiness(operand, supplied ?? undefined, stateRoot);
+      const resumeCommand = taskResumeCommand(resolve(operand), readiness.contractDigest);
+      print({ applied: false, readiness, command: resumeCommand }, json, formatTaskResumeReadiness(readiness, resumeCommand), context);
+      if (!readiness.ready) process.exitCode = 2;
+      return;
+    }
 
     if (subcommand === "start") {
       const supplied = optionValue(args, "--contract-digest");

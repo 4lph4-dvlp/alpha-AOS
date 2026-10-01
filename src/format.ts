@@ -34,6 +34,10 @@ import type { PackProvenance, ProjectPackSyncResult } from "./core/project-pack-
 import type { SupportMatrixReport, SupportTier } from "./core/support-matrix.js";
 import type { TaskApprovalResult, TaskContractPreview } from "./core/task-contract.js";
 import type { TaskRunRecord, TaskStartReadiness } from "./core/task-run.js";
+import type { SupervisorResult, TaskResumeReadiness } from "./core/task-supervisor.js";
+import type { TaskCheckpoint } from "./core/task-journal.js";
+import type { TaskEffectLedger } from "./core/task-effects.js";
+import { formatBlockedReport } from "./core/task-strategy.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1259,5 +1263,97 @@ export function formatTaskStartReadiness(readiness: TaskStartReadiness, command:
     `Start exactly this approved digest: ${command}`,
   ].join("\n");
 }
+
+/**
+ * Formats a supervisor run report into a human-readable summary.
+ */
+export function formatSupervisorReport(result: SupervisorResult): string {
+  const { checkpoint, usage, ledger, blockedReport } = result;
+  const lines: string[] = [
+    `Task: ${checkpoint.contractId} (revision ${checkpoint.revision})`,
+    `Contract digest: ${result.contractDigest}`,
+    `Status: ${result.status}`,
+    ...(result.stopCode !== null ? [`Stop code: ${result.stopCode}`] : []),
+    "",
+    "Usage Breakdown:",
+    `  Cycles:      ${usage.cycles}`,
+    `  Wall time:   ${Math.round(usage.wallTimeMs / 1000)}s`,
+    `  Tokens:      ${usage.tokens !== null ? usage.tokens : "(unmetered)"}`,
+    `  Cost (USD):  ${usage.costUsd !== null ? `$${usage.costUsd.toFixed(2)}` : "(unmetered)"}`,
+    ...(usage.unmeteredFields.length > 0 ? [`  Unmetered:   ${usage.unmeteredFields.join(", ")}`] : []),
+  ];
+
+  const entries = Object.values(ledger.entries);
+  if (entries.length > 0) {
+    lines.push(
+      "",
+      "Effect Ledger:",
+      ...entries.map(
+        (e) => `  [${e.status}] ${e.effectType} (key: ${e.effectKey.slice(0, 12)}...)`,
+      ),
+    );
+  }
+
+  if (blockedReport !== null) {
+    lines.push("", formatBlockedReport(blockedReport));
+  } else if (usage.nextAction !== null) {
+    lines.push("", `Next action: ${usage.nextAction}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats a resume readiness preview.
+ */
+export function formatTaskResumeReadiness(readiness: TaskResumeReadiness, command?: string): string {
+  const lines: string[] = [
+    `Contract digest: ${readiness.contractDigest}`,
+    `Checkpoint: ${readiness.checkpoint !== null ? `${readiness.checkpoint.status} (attempt ${readiness.checkpoint.attemptIndex})` : "none"}`,
+    `GSD consistent: ${readiness.gsdConsistent ? "yes" : "no"}`,
+    `Unapplied effects: ${readiness.unappliedEffectsCount}`,
+    ...(readiness.reason !== undefined ? [`Notice: ${readiness.reason}`] : []),
+    "",
+    `Readiness: ${readiness.ready ? "ready to resume" : "not ready to resume"}`,
+    "Readiness preview only. Nothing was launched and nothing was written.",
+  ];
+
+  if (command !== undefined && readiness.ready) {
+    lines.push(`Resume task command: ${command}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats a task status summary into human-readable text.
+ */
+export function formatTaskStatus(status: {
+  checkpoint: TaskCheckpoint;
+  ledger: TaskEffectLedger | null;
+  eventsCount: number;
+}): string {
+  const { checkpoint, ledger, eventsCount } = status;
+  const entries = ledger !== null ? Object.values(ledger.entries) : [];
+  const appliedCount = entries.filter((e) => e.status === "applied").length;
+  const pendingCount = entries.filter((e) => e.status !== "applied").length;
+
+  const lines: string[] = [
+    `Task: ${checkpoint.contractId} (revision ${checkpoint.revision})`,
+    `Contract digest: ${checkpoint.contractDigest}`,
+    `Status: ${checkpoint.status}`,
+    `Cycle: ${checkpoint.usage.cycles}`,
+    `Attempt: ${checkpoint.attemptIndex}`,
+    `Wall time: ${Math.round(checkpoint.usage.wallTimeMs / 1000)}s`,
+    `Last verified HEAD: ${checkpoint.lastVerifiedHead ?? "none"}`,
+    `Stop reason: ${checkpoint.stopReason ?? "none"}`,
+    `Effect summary: ${appliedCount} applied, ${pendingCount} pending`,
+    `Journal events: ${eventsCount}`,
+    `Last updated: ${checkpoint.updatedAt}`,
+  ];
+
+  return lines.join("\n");
+}
+
 
 

@@ -190,10 +190,12 @@ export function buildGsdControllerPrompt(options: {
   runId: string;
   decisionLogPath: string;
   outline: GsdQuickOutline;
+  promptInjection?: string;
 }): string {
-  const { contract, contractDigest, runId, decisionLogPath, outline } = options;
+  const { contract, contractDigest, runId, decisionLogPath, outline, promptInjection } = options;
   const dependencies = contract.allowedEffects.includes("dependency-change");
   const sections: string[][] = [
+    ...(promptInjection ? [["# Repair Directive", promptInjection]] : []),
     [
       "# Identity",
       `alpha-AOS autopilot task ${contract.id}, revision ${contract.revision}, contract digest ${contractDigest}, run ${runId}.`,

@@ -319,6 +319,8 @@ export interface StartTaskOptions {
   now?: () => Date;
   /** Where the controller harness's GSD Core is installed; defaults to the Codex config root. */
   gsd?: { configRoot?: string };
+  promptInjection?: string;
+  allowPriorRun?: boolean;
 }
 
 const REPORT_TEXT_LIMIT = 4096;
@@ -739,7 +741,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
 
   const prior = await listTaskRuns({ stateRoot: options.stateRoot, contractId: contract.id, packageRoot: options.packageRoot });
   const consumed = prior.find((run) => run.contractDigest === digest);
-  if (consumed !== undefined) {
+  if (consumed !== undefined && !options.allowPriorRun) {
     throw new TaskRunError(
       "approval-consumed",
       `The approval for task ${contract.id} r${contract.revision} digest ${digest} was consumed by run ${consumed.runId}; approve a new contract revision to run again.`,
@@ -852,7 +854,14 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       projectRoot,
       scratchRoot,
       decisionLogPath,
-      prompt: buildGsdControllerPrompt({ contract, contractDigest: digest, runId, decisionLogPath, outline }),
+      prompt: buildGsdControllerPrompt({
+        contract,
+        contractDigest: digest,
+        runId,
+        decisionLogPath,
+        outline,
+        ...(options.promptInjection ? { promptInjection: options.promptInjection } : {}),
+      }),
       deadlineAt,
       gitDirectory,
     });

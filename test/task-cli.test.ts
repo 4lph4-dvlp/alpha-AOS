@@ -8,6 +8,7 @@ import { commandProbeEnvironment, runProcess, type EnvironmentPolicy, type Proce
 import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
 import { aliasPath, createPathAliases } from "../src/core/paths.js";
 import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src/core/task-contract.js";
+import { readCheckpoint, writeCheckpoint, type TaskCheckpoint } from "../src/core/task-journal.js";
 import type { ControllerPort } from "../src/core/task-run.js";
 import {
   createTaskFixture,
@@ -206,12 +207,12 @@ test("task preview --apply and task report --apply are refused because they pers
   assert.deepEqual(await listing(fixture.stateRoot), []);
 });
 
-test("an unknown task subcommand lists exactly preview, approve, start and report", async (context) => {
+test("an unknown task subcommand lists all valid subcommands", async (context) => {
   const { fixture, digest } = await contractFixture(context);
 
   const result = await cli(fixture, ["run", fixture.contractPath, "--contract-digest", digest]);
   assert.equal(result.exitCode, 2);
-  assert.match(result.stderr.excerpt, /Use one of: preview, approve, start, report\./u);
+  assert.match(result.stderr.excerpt, /Use one of: preview, approve, start, report, resume, status, stop\./u);
   assert.deepEqual(await listing(fixture.stateRoot), []);
 });
 
@@ -397,7 +398,7 @@ test("startTask is called only by the task start branch and no shipped skill sta
   for (const file of await filesUnder(join(repositoryRoot, "src"), (path) => path.endsWith(".ts"))) {
     if ((await readFile(join(repositoryRoot, "src", file), "utf8")).includes("startTask(")) callers.push(`src/${file}`);
   }
-  assert.deepEqual(callers, ["src/cli.ts", "src/core/task-run.ts"]);
+  assert.deepEqual(callers, ["src/cli.ts", "src/core/task-run.ts", "src/core/task-supervisor.ts"]);
 
   const skills = await filesUnder(join(repositoryRoot, "skills"), (path) => path.endsWith("SKILL.md"));
   assert.ok(skills.length > 0);
@@ -509,4 +510,98 @@ test("task preview of a project without .git names no git authority and the reas
     layout: "missing",
     reason: "the project root holds no .git, so there is no git directory to grant",
   });
+});
+
+// ---------------------------------------------------------------------------
+// Plan 15-06: Task resume, status, and stop CLI subcommands
+// ---------------------------------------------------------------------------
+
+test("task resume preview shows readiness and returns exit code 2 when no checkpoint exists", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+  const result = await cli(fixture, ["resume", fixture.contractPath]);
+  assert.equal(result.exitCode, 2);
+  assert.ok(result.stdout.excerpt.includes(`Contract digest: ${digest}`));
+  assert.ok(result.stdout.excerpt.includes("Readiness: not ready to resume"));
+  assert.ok(result.stdout.excerpt.includes("No checkpoint found"));
+});
+
+test("task resume preview shows ready to resume when checkpoint and state are consistent", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+  const cp: TaskCheckpoint = {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: "inventory-summary",
+    revision: 1,
+    status: "running",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: null,
+    usage: { cycles: 1, wallTimeMs: 1000, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeCheckpoint(fixture.stateRoot, cp);
+
+  const result = await cli(fixture, ["resume", fixture.contractPath]);
+  assert.equal(result.exitCode, 0, result.stderr.excerpt);
+  assert.ok(result.stdout.excerpt.includes("Readiness: ready to resume"));
+  assert.ok(result.stdout.excerpt.includes("alpha-aos task resume"));
+});
+
+test("task status prints checkpoint and effect summary", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+  const cp: TaskCheckpoint = {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: "inventory-summary",
+    revision: 1,
+    status: "running",
+    attemptIndex: 2,
+    lastSequence: 3,
+    lastVerifiedHead: "abc1234",
+    usage: { cycles: 2, wallTimeMs: 5000, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeCheckpoint(fixture.stateRoot, cp);
+
+  const human = await cli(fixture, ["status", "inventory-summary"]);
+  assert.equal(human.exitCode, 0, human.stderr.excerpt);
+  assert.ok(human.stdout.excerpt.includes("Task: inventory-summary"));
+  assert.ok(human.stdout.excerpt.includes("Status: running"));
+  assert.ok(human.stdout.excerpt.includes("Cycle: 2"));
+  assert.ok(human.stdout.excerpt.includes("Attempt: 2"));
+
+  const machine = await cli(fixture, ["status", "inventory-summary", "--json"]);
+  assert.equal(machine.exitCode, 0, machine.stderr.excerpt);
+  const data = JSON.parse(machine.stdout.excerpt) as { checkpoint: TaskCheckpoint };
+  assert.equal(data.checkpoint.contractId, "inventory-summary");
+  assert.equal(data.checkpoint.attemptIndex, 2);
+});
+
+test("task stop sets stopped status on checkpoint and records limit_exceeded event", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+  const cp: TaskCheckpoint = {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: "inventory-summary",
+    revision: 1,
+    status: "running",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: null,
+    usage: { cycles: 1, wallTimeMs: 1000, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeCheckpoint(fixture.stateRoot, cp);
+
+  const stopResult = await cli(fixture, ["stop", "inventory-summary", "--reason", "operator_halt"]);
+  assert.equal(stopResult.exitCode, 0, stopResult.stderr.excerpt);
+  assert.ok(stopResult.stdout.excerpt.includes("stopped: operator_halt"));
+
+  const updated = await readCheckpoint(fixture.stateRoot, digest);
+  assert.ok(updated !== null);
+  assert.equal(updated.status, "stopped");
+  assert.equal(updated.stopReason, "operator_halt");
 });

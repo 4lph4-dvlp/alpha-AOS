@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { capabilityLedgerPath, readCapabilityLedger } from "./capability-ledger.js";
@@ -282,5 +283,180 @@ export async function runPackCheckpoint(options: {
     selected: [...plan.selected],
     applicable: [...plan.applicable],
     approveCommand: approvalCommand({ path: planOptions.path, planDigest: plan.planDigest }),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Effect ledger, deterministic operation keys, and crash reconciliation
+// ---------------------------------------------------------------------------
+
+export type EffectStatus = "planned" | "performing" | "applied" | "failed" | "uncertain" | "unknown";
+
+export interface EffectLedgerEntry {
+  effectKey: string;
+  contractDigest: string;
+  attemptIndex: number;
+  effectType: TaskEffect;
+  targetPayload: Record<string, unknown>;
+  status: EffectStatus;
+  startedAt: string;
+  completedAt: string | null;
+  error?: string | null;
+  evidence?: string | null;
+}
+
+export interface TaskEffectLedger {
+  schemaVersion: 1;
+  contractDigest: string;
+  entries: Record<string, EffectLedgerEntry>;
+}
+
+export function generateEffectKey(
+  contractDigest: string,
+  attemptIndex: number,
+  effectType: TaskEffect,
+  targetPayload: unknown,
+): string {
+  const canonicalPayload = canonical(targetPayload);
+  const raw = `${contractDigest}:${attemptIndex}:${effectType}:${canonicalPayload}`;
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+export function createEffectLedger(contractDigest: string): TaskEffectLedger {
+  return {
+    schemaVersion: 1,
+    contractDigest,
+    entries: {},
+  };
+}
+
+export function recordEffectState(ledger: TaskEffectLedger, entry: EffectLedgerEntry): void {
+  const existing = ledger.entries[entry.effectKey];
+  if (existing !== undefined) {
+    const current = existing.status;
+    const next = entry.status;
+    const valid =
+      current === next ||
+      (current === "planned" && next === "performing") ||
+      (current === "performing" && (next === "applied" || next === "failed" || next === "uncertain")) ||
+      (current === "uncertain" && (next === "applied" || next === "unknown" || next === "planned"));
+
+    if (!valid) {
+      throw new Error(
+        `Invalid effect state transition from "${current}" to "${next}" for effectKey ${entry.effectKey}`,
+      );
+    }
+  } else {
+    if (entry.status !== "planned" && entry.status !== "performing") {
+      throw new Error(
+        `Initial effect state must be "planned" or "performing", received "${entry.status}" for effectKey ${entry.effectKey}`,
+      );
+    }
+  }
+  ledger.entries[entry.effectKey] = { ...entry };
+}
+
+export async function reconcileEffectEvidence(
+  projectRoot: string,
+  baseCommit: string,
+  entry: EffectLedgerEntry,
+): Promise<{ status: "applied" | "not-applied" | "unknown"; reason?: string }> {
+  const resolvedRoot = resolve(projectRoot);
+  try {
+    switch (entry.effectType) {
+      case "workspace-write": {
+        const relPath = String(entry.targetPayload.relPath ?? "");
+        if (!relPath) return { status: "unknown", reason: "relPath missing from workspace-write payload" };
+        const filePath = join(resolvedRoot, ...relPath.split("/"));
+        let content: Buffer;
+        try {
+          content = await readFile(filePath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            if (entry.targetPayload.beforeSha256 === null) {
+              return { status: "not-applied" };
+            }
+            return { status: "unknown", reason: `File ${relPath} does not exist but beforeSha256 was expected` };
+          }
+          return { status: "unknown", reason: `Failed to read ${relPath}: ${(error as Error).message}` };
+        }
+        const fileHash = createHash("sha256").update(content).digest("hex");
+        if (entry.targetPayload.afterSha256 && fileHash === entry.targetPayload.afterSha256) {
+          return { status: "applied" };
+        }
+        if (entry.targetPayload.beforeSha256 && fileHash === entry.targetPayload.beforeSha256) {
+          return { status: "not-applied" };
+        }
+        return {
+          status: "unknown",
+          reason: `File ${relPath} sha256 ${fileHash} matches neither expected afterSha256 nor beforeSha256`,
+        };
+      }
+      case "local-commit": {
+        const changes = await readTaskChanges({ projectRoot: resolvedRoot, baseCommit });
+        const expectedSubject = entry.targetPayload.expectedSubject ? String(entry.targetPayload.expectedSubject) : null;
+        const commitSha = entry.targetPayload.commitSha ? String(entry.targetPayload.commitSha) : null;
+
+        if (commitSha) {
+          const match = changes.commits.some((c) => c.sha === commitSha);
+          if (match) return { status: "applied" };
+        }
+        if (expectedSubject) {
+          const match = changes.commits.some((c) => c.subject === expectedSubject);
+          if (match) return { status: "applied" };
+        }
+
+        if (changes.commits.length === 0) {
+          return { status: "not-applied" };
+        }
+        return {
+          status: "unknown",
+          reason: `Commits exist after baseCommit but none match expected subject or sha`,
+        };
+      }
+      case "dependency-change": {
+        const manifestPath = String(entry.targetPayload.manifestPath ?? "package.json");
+        const changed = await dependencyFieldsChanged(resolvedRoot, baseCommit, manifestPath);
+        return { status: changed ? "applied" : "not-applied" };
+      }
+      default:
+        return { status: "unknown", reason: `Unsupported effect type: ${entry.effectType}` };
+    }
+  } catch (err) {
+    return { status: "unknown", reason: `Reconciliation error: ${(err as Error).message}` };
+  }
+}
+
+export async function reconcileLedgerOnRecovery(
+  projectRoot: string,
+  baseCommit: string,
+  ledger: TaskEffectLedger,
+): Promise<{ ledger: TaskEffectLedger; hasUnknown: boolean; unknownEffects: EffectLedgerEntry[] }> {
+  const unknownEffects: EffectLedgerEntry[] = [];
+
+  for (const key of Object.keys(ledger.entries)) {
+    const entry = ledger.entries[key]!;
+    if (entry.status === "performing" || entry.status === "uncertain") {
+      const result = await reconcileEffectEvidence(projectRoot, baseCommit, entry);
+      if (result.status === "applied") {
+        entry.status = "applied";
+        entry.completedAt = new Date().toISOString();
+        entry.evidence = "source-evidence-reconciled";
+      } else if (result.status === "not-applied") {
+        entry.status = "planned";
+        entry.completedAt = null;
+        entry.evidence = null;
+      } else {
+        entry.status = "unknown";
+        entry.error = result.reason ?? "Ambiguous source evidence";
+        unknownEffects.push(entry);
+      }
+    }
+  }
+
+  return {
+    ledger,
+    hasUnknown: unknownEffects.length > 0,
+    unknownEffects,
   };
 }

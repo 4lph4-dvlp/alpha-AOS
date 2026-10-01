@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
+import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
 import {
   collectTaskArtifact,
   confirmReviewerReproduction,
@@ -793,6 +794,12 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   const resolvedGit = await resolveTaskGitDirectory(projectRoot);
   const gitDirectoryForSnapshot = resolvedGit.status === "grantable" ? resolvedGit.gitDirectory : null;
 
+  const lease = await acquireControllerLease({
+    projectRoot,
+    harness: contract.agentPolicy.controller,
+    contractDigest: digest,
+  });
+
   const started = clock();
   const runId = `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
   const minutes = contract.resourcePolicy.maxWallTimeMinutes;
@@ -1090,6 +1097,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     }
     return { run: failed, recordPath };
   } finally {
+    await lease.release().catch(() => undefined);
     if (scratchRoot !== null) await rm(scratchRoot, { recursive: true, force: true }).catch(() => undefined);
   }
 }

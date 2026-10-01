@@ -201,6 +201,15 @@ function underRoot(path: string, root: string): boolean {
 export const GSD_RUNTIME_STATE_PATHS: readonly string[] = [".gsd/dispatch-isolation-sentinel.json"];
 
 /**
+ * alpha-AOS's own project-local control plane runtime state (e.g. controller lock
+ * and reclaim log). Exact paths only, so any other write still fails closed.
+ */
+export const ALPHA_AOS_RUNTIME_STATE_PATHS: readonly string[] = [
+  ".alpha-aos/controller.lock",
+  ".alpha-aos/controller-reclaim.log",
+];
+
+/**
  * Classifies every changed path against the approved authority. `.planning/`
  * and GSD's run state belong to the gsd-quick workflow, the run's own decision log is allowed,
  * and a path equal to or under an allowed root is implementation; anything else
@@ -224,7 +233,7 @@ export async function auditTaskEffects(options: {
   for (const path of sortedUnique(changes.paths)) {
     if (contract.scope.workflow === "gsd-quick" && (underRoot(path, ".planning") || GSD_RUNTIME_STATE_PATHS.includes(path))) {
       planningPaths.push(path);
-    } else if (path === decisionLog) {
+    } else if (path === decisionLog || ALPHA_AOS_RUNTIME_STATE_PATHS.includes(path)) {
       continue;
     } else if (contract.allowedRoots.some((root) => underRoot(path, root))) {
       implementationPaths.push(path);

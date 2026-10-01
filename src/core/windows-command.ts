@@ -10,10 +10,8 @@ export interface WindowsCommandSearch {
 function isFile(path: string): boolean {
   try {
     return statSync(path).isFile();
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT" || code === "ENOTDIR") return false;
-    throw error;
+  } catch {
+    return false;
   }
 }
 

@@ -21,7 +21,7 @@ export interface PhaseProgressionState {
   readonly immutableContext: string | null;
 }
 
-async function resolvePhaseDirectory(projectRoot: string, phaseId: string): Promise<string | null> {
+export async function resolvePhaseDirectory(projectRoot: string, phaseId: string): Promise<string | null> {
   const phasesRoot = join(projectRoot, ".planning", "phases");
   if (!existsSync(phasesRoot)) {
     return null;

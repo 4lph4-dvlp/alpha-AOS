@@ -7,6 +7,11 @@ import { packageRoot as defaultPackageRoot } from "./paths.js";
 import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
 import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guard.js";
 import {
+  verifyReviewWitness,
+  readReviewWitnessReceipt,
+  type ReviewWitnessReceipt,
+} from "./task-review-witness.js";
+import {
   collectTaskArtifact,
   confirmReviewerReproduction,
   materializeTaskSnapshot,
@@ -325,6 +330,9 @@ export interface StartTaskOptions {
   gsd?: { configRoot?: string };
   promptInjection?: string;
   allowPriorRun?: boolean;
+  receiptsRoot?: string;
+  witnessReceipt?: ReviewWitnessReceipt;
+  requireReviewWitness?: boolean;
 }
 
 const REPORT_TEXT_LIMIT = 4096;
@@ -1102,6 +1110,38 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       after.digest !== artifact.digest ||
       afterSnapshot.status !== "ok" ||
       afterSnapshot.digest !== artifact.digest;
+
+    // Independent review witness verification (D-14, SC 3)
+    const witnessReceipt = options.witnessReceipt !== undefined
+      ? options.witnessReceipt
+      : await readReviewWitnessReceipt({
+          requestId: request.requestId,
+          receiptsRoot: options.receiptsRoot,
+          packageRoot: options.packageRoot,
+        });
+
+    if (options.requireReviewWitness || witnessReceipt !== null) {
+      let currentHead = baseline.baseCommit;
+      try {
+        currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+      } catch {}
+
+      const witnessResult = verifyReviewWitness({
+        receipt: witnessReceipt,
+        currentHeadSha: currentHead,
+        currentArtifactDigest: artifact.digest,
+      });
+
+      if (!witnessResult.valid) {
+        preconditions.push({
+          id: "review-witness-integrity",
+          satisfied: false,
+          reason: `${witnessResult.refusalCode}: ${witnessResult.reason}`,
+          nextAction: "ensure an independent review witness receipt is recorded for the exact git commit and artifact digest",
+        });
+      }
+    }
+
     const verdict = reduceTaskVerdict({
       contract,
       artifactDigest: artifact.digest,

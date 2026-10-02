@@ -61,7 +61,13 @@ import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gs
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
 import { nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
 import { checkCostMeterReadiness } from "./core/task-telemetry.js";
-import { buildTaskDoctorReport, formatDoctorTable } from "./core/task-doctor.js";
+import {
+  buildTaskDoctorReport,
+  formatDoctorTable,
+  diagnoseGsdLifecycleStatus,
+  formatGsdDoctorReport,
+  type GsdLifecycleDiagnostics,
+} from "./core/task-doctor.js";
 import {
   inspectTaskResumeReadiness,
   readEffectLedger,
@@ -1805,8 +1811,25 @@ async function main(): Promise<void> {
     const operand = parts[0];
 
     if (subcommand === "doctor") {
-      const report = await buildTaskDoctorReport();
-      print({ status: "ok", harnesses: report }, json, formatDoctorTable(report), context);
+      const report = await buildTaskDoctorReport(join(stateRoot, "receipts"));
+      let gsdDiagnostics: GsdLifecycleDiagnostics | null = null;
+      try {
+        const projectRoot = process.cwd();
+        gsdDiagnostics = await diagnoseGsdLifecycleStatus({
+          projectRoot,
+          receiptsRoot: join(stateRoot, "receipts"),
+        });
+      } catch {}
+
+      const doctorData = {
+        status: "ok",
+        harnesses: report,
+        ...(gsdDiagnostics ? { gsd: gsdDiagnostics } : {}),
+      };
+      const textOutput =
+        formatDoctorTable(report) +
+        (gsdDiagnostics ? `\n\n${formatGsdDoctorReport(gsdDiagnostics)}` : "");
+      print(doctorData, json, textOutput, context);
       return;
     }
 
@@ -1826,10 +1849,20 @@ async function main(): Promise<void> {
       if (found === null) throw new Error(`no checkpoint recorded for task ${operand}`);
       const ledger = await readEffectLedger(stateRoot, found.contractDigest);
       const events = await readJournalEvents(stateRoot, found.contractDigest);
+      let gsdDiagnostics: GsdLifecycleDiagnostics | null = null;
+      try {
+        const projectRoot = process.cwd();
+        gsdDiagnostics = await diagnoseGsdLifecycleStatus({
+          projectRoot,
+          receiptsRoot: join(stateRoot, "receipts"),
+        });
+      } catch {}
+
       const statusData = {
         checkpoint: found.checkpoint,
         ledger,
         eventsCount: events.length,
+        ...(gsdDiagnostics ? { gsdDiagnostics } : {}),
       };
       print(statusData, json, formatTaskStatus(statusData), context);
       return;

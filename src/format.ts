@@ -38,6 +38,7 @@ import type { SupervisorResult, TaskResumeReadiness } from "./core/task-supervis
 import type { TaskCheckpoint } from "./core/task-journal.js";
 import type { TaskEffectLedger } from "./core/task-effects.js";
 import { formatBlockedReport } from "./core/task-strategy.js";
+import type { GsdLifecycleDiagnostics } from "./core/task-doctor.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1332,8 +1333,9 @@ export function formatTaskStatus(status: {
   checkpoint: TaskCheckpoint;
   ledger: TaskEffectLedger | null;
   eventsCount: number;
+  gsdDiagnostics?: GsdLifecycleDiagnostics | null | undefined;
 }): string {
-  const { checkpoint, ledger, eventsCount } = status;
+  const { checkpoint, ledger, eventsCount, gsdDiagnostics } = status;
   const entries = ledger !== null ? Object.values(ledger.entries) : [];
   const appliedCount = entries.filter((e) => e.status === "applied").length;
   const pendingCount = entries.filter((e) => e.status !== "applied").length;
@@ -1351,6 +1353,16 @@ export function formatTaskStatus(status: {
     `Journal events: ${eventsCount}`,
     `Last updated: ${checkpoint.updatedAt}`,
   ];
+
+  if (gsdDiagnostics) {
+    lines.push(
+      "",
+      `GSD Phase: ${gsdDiagnostics.currentPhase ?? "none"} (${gsdDiagnostics.phaseStatus ?? "unknown"})`,
+      `GSD Plans: ${gsdDiagnostics.completedPlansCount} completed, ${gsdDiagnostics.pendingPlansCount} pending (phase complete: ${gsdDiagnostics.isPhaseComplete ? "yes" : "no"})`,
+      `Hook Receipts: ${gsdDiagnostics.hooks.passedCount} passed, ${gsdDiagnostics.hooks.failedCount} failed (${gsdDiagnostics.hooks.executedCount} total)`,
+      `Review Witness: ${gsdDiagnostics.reviewWitness.recorded ? (gsdDiagnostics.reviewWitness.matchesHead ? "valid (matches HEAD)" : "stale (revision mismatch)") : "none recorded"}`,
+    );
+  }
 
   return lines.join("\n");
 }

@@ -1,6 +1,12 @@
+import { existsSync } from "node:fs";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ALL_HARNESSES } from "../adapters/task-agents.js";
 import { readHarnessRoleReceipt } from "../adapters/task-receipts.js";
 import { HARNESS_TELEMETRY_CAPABILITIES } from "./task-telemetry.js";
+import { userStateRoot } from "./paths.js";
+import { discoverPhaseProgression } from "./task-gsd-discovery.js";
+import { runGitRead } from "./task-gsd.js";
 
 export interface HarnessDoctorEntry {
   harness: string;
@@ -83,3 +89,183 @@ export function formatDoctorTable(entries: HarnessDoctorEntry[]): string {
 
   return [render(headers), render(widths.map((width) => "-".repeat(width))), ...rows.map(render)].join("\n");
 }
+
+export interface GsdLifecycleDiagnostics {
+  readonly currentPhase: string | null;
+  readonly phaseStatus: string | null;
+  readonly completedPlansCount: number;
+  readonly pendingPlansCount: number;
+  readonly isPhaseComplete: boolean;
+  readonly hooks: {
+    readonly executedCount: number;
+    readonly passedCount: number;
+    readonly failedCount: number;
+    readonly details: readonly {
+      readonly hookPoint: string;
+      readonly status: "passed" | "failed";
+      readonly durationMs: number;
+      readonly executedAt: string;
+    }[];
+  };
+  readonly reviewWitness: {
+    readonly recorded: boolean;
+    readonly headSha: string | null;
+    readonly witnessRevisionSha: string | null;
+    readonly matchesHead: boolean;
+    readonly verdict: string | null;
+  };
+}
+
+export async function diagnoseGsdLifecycleStatus(options: {
+  projectRoot: string;
+  phaseId?: string | undefined;
+  receiptsRoot?: string | undefined;
+  baseCommit?: string | undefined;
+}): Promise<GsdLifecycleDiagnostics> {
+  const { projectRoot } = options;
+  let phaseId = options.phaseId ?? null;
+  let phaseStatus: string | null = null;
+
+  // 1. Read STATE.md if present
+  const statePath = join(projectRoot, ".planning", "STATE.md");
+  if (existsSync(statePath)) {
+    try {
+      const stateContent = await readFile(statePath, "utf8");
+      if (!phaseId) {
+        const phaseMatch =
+          stateContent.match(/current_phase:\s*([^\r\n]+)/i) ||
+          stateContent.match(/Phase:\s*([0-9]+[a-zA-Z0-9_-]*)/i);
+        if (phaseMatch?.[1]) {
+          phaseId = phaseMatch[1].trim();
+        }
+      }
+      const statusMatch = stateContent.match(/status:\s*([^\r\n]+)/i);
+      if (statusMatch?.[1]) {
+        phaseStatus = statusMatch[1].trim();
+      }
+    } catch {}
+  }
+
+  // 2. Discover progression
+  let completedPlansCount = 0;
+  let pendingPlansCount = 0;
+  let isPhaseComplete = false;
+  if (phaseId) {
+    try {
+      const progression = await discoverPhaseProgression({
+        projectRoot,
+        phaseId,
+        baseCommit: options.baseCommit,
+      });
+      completedPlansCount = progression.completedPlans.length;
+      pendingPlansCount = progression.pendingPlans.length;
+      isPhaseComplete = progression.isPhaseComplete;
+    } catch {}
+  }
+
+  // 3. Inspect Hook Receipts
+  const hooksRoot = options.receiptsRoot
+    ? join(options.receiptsRoot, "hooks")
+    : join(userStateRoot(), "receipts", "hooks");
+
+  const hookDetails: {
+    hookPoint: string;
+    status: "passed" | "failed";
+    durationMs: number;
+    executedAt: string;
+  }[] = [];
+
+  if (existsSync(hooksRoot)) {
+    try {
+      const files = await readdir(hooksRoot);
+      for (const file of files) {
+        if (file.endsWith(".json")) {
+          try {
+            const raw = await readFile(join(hooksRoot, file), "utf8");
+            const parsed = JSON.parse(raw);
+            if (parsed.kind === "hook-execution-receipt") {
+              if (!phaseId || parsed.phaseId === phaseId || parsed.phaseId?.startsWith(phaseId)) {
+                hookDetails.push({
+                  hookPoint: parsed.hookPoint,
+                  status: parsed.status,
+                  durationMs: parsed.durationMs,
+                  executedAt: parsed.executedAt,
+                });
+              }
+            }
+          } catch {}
+        }
+      }
+    } catch {}
+  }
+
+  const passedHooks = hookDetails.filter((h) => h.status === "passed").length;
+  const failedHooks = hookDetails.filter((h) => h.status === "failed").length;
+
+  // 4. Inspect Review Witness
+  let headSha: string | null = null;
+  try {
+    headSha = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+  } catch {}
+
+  const witnessesRoot = options.receiptsRoot
+    ? join(options.receiptsRoot, "witnesses")
+    : join(userStateRoot(), "receipts", "witnesses");
+
+  let recordedWitness = false;
+  let witnessRevisionSha: string | null = null;
+  let witnessVerdict: string | null = null;
+
+  if (existsSync(witnessesRoot)) {
+    try {
+      const files = await readdir(witnessesRoot);
+      const jsonFiles = files.filter((f) => f.endsWith(".json"));
+      if (jsonFiles.length > 0) {
+        const latestFile = jsonFiles[jsonFiles.length - 1]!;
+        const raw = await readFile(join(witnessesRoot, latestFile), "utf8");
+        const parsed = JSON.parse(raw);
+        if (parsed.kind === "review-witness-receipt") {
+          recordedWitness = true;
+          witnessRevisionSha = parsed.targetRevisionSha ?? null;
+          witnessVerdict = parsed.witnessVerdict ?? null;
+        }
+      }
+    } catch {}
+  }
+
+  const matchesHead = recordedWitness && headSha !== null && witnessRevisionSha === headSha;
+
+  return {
+    currentPhase: phaseId,
+    phaseStatus,
+    completedPlansCount,
+    pendingPlansCount,
+    isPhaseComplete,
+    hooks: {
+      executedCount: hookDetails.length,
+      passedCount: passedHooks,
+      failedCount: failedHooks,
+      details: hookDetails,
+    },
+    reviewWitness: {
+      recorded: recordedWitness,
+      headSha,
+      witnessRevisionSha,
+      matchesHead,
+      verdict: witnessVerdict,
+    },
+  };
+}
+
+export function formatGsdDoctorReport(diagnostics: GsdLifecycleDiagnostics): string {
+  const lines: string[] = [
+    "GSD Lifecycle Status",
+    "====================",
+    `Current Phase:    ${diagnostics.currentPhase ?? "none"} (${diagnostics.phaseStatus ?? "unknown"})`,
+    `Phase Progress:   ${diagnostics.completedPlansCount} completed, ${diagnostics.pendingPlansCount} pending (complete: ${diagnostics.isPhaseComplete ? "yes" : "no"})`,
+    `Hook Receipts:    ${diagnostics.hooks.executedCount} executed (${diagnostics.hooks.passedCount} passed, ${diagnostics.hooks.failedCount} failed)`,
+    `Review Witness:   ${diagnostics.reviewWitness.recorded ? (diagnostics.reviewWitness.matchesHead ? `valid (matches HEAD: ${diagnostics.reviewWitness.headSha?.slice(0, 12)})` : `stale (HEAD: ${diagnostics.reviewWitness.headSha?.slice(0, 12)}, witness: ${diagnostics.reviewWitness.witnessRevisionSha?.slice(0, 12)})`) : "none recorded"}`,
+  ];
+  return lines.join("\n");
+}
+

@@ -406,3 +406,12 @@ export async function verifyGsdEvidence(options: {
     missing,
   };
 }
+
+// Phase 17 GSD Lifecycle Bridge facade re-exports
+export * from "./task-hook-receipt.js";
+export * from "./task-review-witness.js";
+export * from "./task-gsd-discovery.js";
+export * from "./task-gsd-prompt.js";
+export * from "./task-gap-router.js";
+export * from "./task-gsd-lifecycle.js";
+

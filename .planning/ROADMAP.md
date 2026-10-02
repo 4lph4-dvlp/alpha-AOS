@@ -192,6 +192,24 @@ Plans:
 
 **Verification:** Synthetic GSD fixture with failed hook, missing artifact, interrupted phase and real installed-GSD smoke test. Run `alpha-aos gsd-context execute-phase` and its step slices while executing this phase.
 
+**Plans:** 0/6 plans complete
+
+Plans:
+**Wave 1**
+
+- [ ] 17-01-PLAN.md — Mandatory Hook Execution Receipts and Same-Revision Review Witness Verification (GSD-04)
+- [ ] 17-02-PLAN.md — GSD State Discovery, Triple-Correlation Idempotency, and Scope Immutability (GSD-03)
+- [ ] 17-03-PLAN.md — Interactive Prompt Auto-Answer Policy, Safe Input Pause, and CLI Resume (GSD-01, GSD-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 17-04-PLAN.md — Verification Gap Routing, Native Gap Plans, and Anti-Loop Recovery (GSD-02, GSD-03)
+- [ ] 17-05-PLAN.md — GSD Lifecycle Orchestrator and Multi-Phase Progression Adapter (GSD-01, GSD-03, GSD-04)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 17-06-PLAN.md — Supervisor Integration, 4-Adversarial Fixture Suite, and Doctor Diagnostics (GSD-01, GSD-02, GSD-03, GSD-04)
+
 ### Phase 18: Capability Fabric and Automatic Invocation
 
 **Goal:** Every alpha-AOS capability that applies to a task is discoverable, safely activated and actually used at its natural GSD step, with missing required invocations preventing false completion.

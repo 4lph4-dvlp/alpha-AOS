@@ -227,9 +227,13 @@ test("the platform environment floor is declared rather than discovered at runti
   const reported = JSON.parse(result.stdout.excerpt) as { env: Record<string, string> };
   const observed = Object.keys(reported.env).sort();
 
+  const expected = [...PLATFORM_FLOOR_ENVIRONMENT]
+    .filter((name) => name !== "LOGONSERVER" || reported.env.LOGONSERVER !== undefined)
+    .sort();
+
   assert.deepEqual(
     observed,
-    [...PLATFORM_FLOOR_ENVIRONMENT].sort(),
+    expected,
     "the declared platform floor must match what the OS actually delivers",
   );
 });

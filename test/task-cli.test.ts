@@ -282,8 +282,8 @@ test("task start readiness with no codex or claude on PATH reports both as missi
   const result = await startCli(fixture, [fixture.contractPath]);
   assert.equal(result.exitCode, 2);
   const output = result.stdout.excerpt;
-  assert.match(output, /codex: (codex (was not found on PATH|could not be located on PATH)|no native invocation receipt)/u);
-  assert.match(output, /claude: (claude (was not found on PATH|could not be located on PATH)|no native invocation receipt)/u);
+  assert.match(output, /(?:controller |executor )?codex: (?:.*(was not found on PATH|could not be located on PATH)|no native invocation receipt)/u);
+  assert.match(output, /(?:reviewer )?claude: (?:.*(was not found on PATH|could not be located on PATH)|no native invocation receipt)/u);
   assert.match(output, /Approval: not approved/u);
   assert.ok(output.includes(`--contract-digest ${digest} --apply`));
   assert.deepEqual(await listing(fixture.stateRoot), []);

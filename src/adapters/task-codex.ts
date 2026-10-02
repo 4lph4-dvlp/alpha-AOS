@@ -4,9 +4,17 @@ import { isAbsolute, join } from "node:path";
 import { canonicalizeWithMissingTail } from "../core/path-boundary.js";
 import { packageRoot as defaultPackageRoot } from "../core/paths.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
-import type { ControllerDispatchRequest, ControllerDispatchResult, ExecutorClaim } from "../core/task-run.js";
+import type {
+  ControllerDispatchRequest,
+  ControllerDispatchResult,
+  ExecutorClaim,
+  ReviewDispatchResult,
+  ReviewRequest,
+  TaskReviewReport,
+} from "../core/task-run.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import type { RedactedExcerpt } from "../types.js";
+import { buildReviewPrompt } from "./task-claude.js";
 import {
   agentFacingSchema,
   boundedSentence,
@@ -199,6 +207,28 @@ export function codexControllerArgs(paths: {
     ...(paths.gitDirectory === null ? ["--sandbox", "workspace-write"] : codexGitAuthorityOverrides(paths.gitDirectory)),
     "-C",
     paths.projectRoot,
+    "--output-schema",
+    paths.outputSchemaPath,
+    "-o",
+    paths.lastMessagePath,
+    "-",
+  ];
+}
+
+export function codexReviewerArgs(paths: {
+  reviewRoot: string;
+  outputSchemaPath: string;
+  lastMessagePath: string;
+}): string[] {
+  return [
+    "exec",
+    "--json",
+    "--ephemeral",
+    "--ignore-rules",
+    "--sandbox",
+    "read-only",
+    "-C",
+    paths.reviewRoot,
     "--output-schema",
     paths.outputSchemaPath,
     "-o",
@@ -481,6 +511,23 @@ export async function runCodexController(
 
   const events = parseCodexEvents(result.stdout, result.outputCapped);
   const read = await readCodexClaim(lastMessagePath, schema);
+  const hasValidClaim = read.claim !== null;
+  // Standard exit status interpretation (D-12, SC6):
+  // If Codex produced a valid, schema-conforming claim in lastMessagePath, accept the claim
+  // even if exitCode was non-zero, logging detail advisory rather than treating as fatal failure.
+  if (result.code !== "ok" && hasValidClaim) {
+    return {
+      harness: "codex",
+      version,
+      executable,
+      sessionId: events.sessionId,
+      exitCode: result.exitCode,
+      processCode: result.code,
+      terminal: "completed",
+      claim: read.claim,
+      detail: `codex exited with status ${String(result.exitCode)} but successfully wrote a valid claim`,
+    };
+  }
   const detail = failureDetail(result, events, read.issue);
   return {
     harness: "codex",
@@ -492,5 +539,157 @@ export async function runCodexController(
     terminal: events.terminal,
     claim: read.claim,
     detail: detail === null ? null : boundedSentence(detail, DETAIL_LIMIT),
+  };
+}
+
+export async function readCodexReviewReport(
+  path: string,
+  schema: Record<string, unknown>,
+): Promise<{ report: TaskReviewReport | null; issue: string | null }> {
+  const read = await readBoundedText(path, CLAIM_MAX_BYTES);
+  if ("issue" in read) return { report: null, issue: read.issue };
+  const validation = validateManagedDocument<TaskReviewReport>({
+    text: read.text,
+    format: "json",
+    kind: "task-agent-output",
+    schema,
+    domain: rejectRawCredentials,
+  });
+  if (!validation.ok || validation.value === null) {
+    const first = validation.issues[0];
+    const where = first === undefined ? validation.status : `${first.code} at ${first.documentPath}`;
+    return { report: null, issue: `the review report is invalid: ${where}` };
+  }
+  return { report: validation.value, issue: null };
+}
+
+export async function runCodexReviewer(
+  request: ReviewRequest,
+  options: CodexAdapterOptions = {},
+): Promise<ReviewDispatchResult> {
+  const clock = options.now ?? (() => new Date());
+  const runner = options.runner ?? runProcess;
+  const source = options.source ?? process.env;
+  const environment = codexTaskEnvironment(source);
+
+  const launch = resolveTaskAgentLaunch("codex", options.resolve === undefined ? {} : { resolve: options.resolve });
+  if (launch.status !== "ok") {
+    return {
+      harness: "codex",
+      version: null,
+      executable: null,
+      sessionId: null,
+      exitCode: null,
+      processCode: "unsupported-executable",
+      report: null,
+      issues: [boundedSentence(launch.reason, DETAIL_LIMIT)],
+    };
+  }
+
+  const executable = reportedExecutable(launch);
+  const before = remainingMilliseconds(request.deadlineAt, clock());
+  if (before !== null && before <= 0) {
+    return {
+      harness: "codex",
+      version: null,
+      executable,
+      sessionId: null,
+      exitCode: null,
+      processCode: "deadline",
+      report: null,
+      issues: ["the contract deadline passed before codex reviewer was launched"],
+    };
+  }
+
+  const prompt = buildReviewPrompt(request);
+  if (prompt.status !== "ok") {
+    return {
+      harness: "codex",
+      version: null,
+      executable,
+      sessionId: null,
+      exitCode: null,
+      processCode: "prompt-too-large",
+      report: null,
+      issues: [boundedSentence(prompt.issue, DETAIL_LIMIT)],
+    };
+  }
+
+  const probe = await probeLaunchVersion("codex", launch, environment, runner);
+  const version = probe.status === "ok" ? probe.version : null;
+
+  const remaining = remainingMilliseconds(request.deadlineAt, clock());
+  if (remaining !== null && remaining <= 0) {
+    return {
+      harness: "codex",
+      version,
+      executable,
+      sessionId: null,
+      exitCode: null,
+      processCode: "deadline",
+      report: null,
+      issues: ["the contract deadline passed before codex reviewer was launched"],
+    };
+  }
+
+  const workDirectory = join(request.reviewRoot, ".alpha-aos-review");
+  await mkdir(workDirectory, { recursive: true });
+  const outputSchemaPath = join(workDirectory, "review-result.schema.json");
+  const lastMessagePath = join(workDirectory, "last-message.json");
+  const schema = await loadAgentSchema("task-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  await writeFile(outputSchemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
+  await rm(lastMessagePath, { force: true });
+
+  const args = [
+    ...launch.argsPrefix,
+    ...codexReviewerArgs({ reviewRoot: request.reviewRoot, outputSchemaPath, lastMessagePath }),
+  ];
+
+  let result: ProcessResult;
+  try {
+    result = await runner({
+      executable: launch.executable,
+      args,
+      cwd: request.reviewRoot,
+      stdin: prompt.prompt,
+      environment,
+      timeoutMs: remaining === null ? CODEX_TASK_TIMEOUT_MS : Math.min(CODEX_TASK_TIMEOUT_MS, remaining),
+      maxOutputBytes: CODEX_TASK_OUTPUT_BYTES,
+      excerptBytes: CODEX_TASK_OUTPUT_BYTES,
+    });
+  } catch (error) {
+    const code = error instanceof ProcessPolicyError ? error.code : "spawn-failed";
+    return {
+      harness: "codex",
+      version,
+      executable,
+      sessionId: null,
+      exitCode: null,
+      processCode: code,
+      report: null,
+      issues: [`codex review could not be launched (${code})`],
+    };
+  }
+
+  const events = parseCodexEvents(result.stdout, result.outputCapped);
+  const read = await readCodexReviewReport(lastMessagePath, schema);
+  const hasValidReport = read.report !== null;
+  const clean = (result.code === "ok" && result.exitCode === 0) || (hasValidReport && (result.exitCode === 0 || result.exitCode === 1));
+
+  const issues: string[] = [];
+  if (read.issue !== null) issues.push(read.issue);
+  if (!clean) {
+    issues.push(`codex ended with ${result.code} (exit ${String(result.exitCode)}), so no report is accepted`);
+  }
+
+  return {
+    harness: "codex",
+    version,
+    executable,
+    sessionId: events.sessionId ?? request.sessionId,
+    exitCode: result.exitCode,
+    processCode: result.code,
+    report: clean ? read.report : null,
+    issues: issues.map((i) => boundedSentence(i, DETAIL_LIMIT)),
   };
 }

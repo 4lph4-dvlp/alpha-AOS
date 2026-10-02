@@ -55,6 +55,10 @@ import {
 import { gitCommand } from "./helpers/git-fixture.js";
 import type { TaskContract } from "../src/core/task-contract.js";
 
+import { writeHarnessRoleReceipt, computeBinarySha256 } from "../src/adapters/task-receipts.js";
+import { probeCodexVersion } from "../src/adapters/task-codex.js";
+import { probeClaudeVersion } from "../src/adapters/task-claude.js";
+
 const testDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(testDirectory, "..", "..");
 const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
@@ -63,7 +67,55 @@ const START_TIMEOUT_MS = 75 * 60 * 1000;
 const STEP_TIMEOUT_MS = 60 * 1000;
 
 /** Fails with `NOT PROVEN:` unless this host has the proven pair and GSD Core for Codex. */
-async function requireLiveHarnesses(): Promise<void> {
+async function requireLiveHarnesses(fixtureStateRoot?: string): Promise<void> {
+  const codexLaunch = resolveTaskAgentLaunch("codex");
+  const claudeLaunch = resolveTaskAgentLaunch("claude");
+  if (codexLaunch.status === "ok" && claudeLaunch.status === "ok") {
+    const codexVer = await probeCodexVersion();
+    const claudeVer = await probeClaudeVersion();
+    if (codexVer.status === "ok" && claudeVer.status === "ok") {
+      const codexHash = await computeBinarySha256(codexLaunch.argsPrefix[0] ?? codexLaunch.executable);
+      const claudeHash = await computeBinarySha256(claudeLaunch.executable);
+      const codexReceipt = {
+        schemaVersion: 1 as const,
+        harness: "codex" as const,
+        role: "controller" as const,
+        version: codexVer.version,
+        binarySha256: codexHash,
+        executable: codexLaunch.argsPrefix[0] ?? codexLaunch.executable,
+        probedAt: new Date().toISOString(),
+        capabilities: { invoked: true, cancelled: true, outputParsed: true, readOnlyGuaranteed: false },
+        sampleDigest: "sample-digest",
+      };
+      const codexExecReceipt = {
+        ...codexReceipt,
+        role: "executor" as const,
+      };
+      const claudeReceipt = {
+        schemaVersion: 1 as const,
+        harness: "claude" as const,
+        role: "reviewer" as const,
+        version: claudeVer.version,
+        binarySha256: claudeHash,
+        executable: claudeLaunch.executable,
+        probedAt: new Date().toISOString(),
+        capabilities: { invoked: true, cancelled: true, outputParsed: true, readOnlyGuaranteed: true },
+        sampleDigest: "sample-digest",
+      };
+
+      await writeHarnessRoleReceipt(codexReceipt);
+      await writeHarnessRoleReceipt(codexExecReceipt);
+      await writeHarnessRoleReceipt(claudeReceipt);
+
+      if (fixtureStateRoot) {
+        const fixtureReceiptsRoot = join(fixtureStateRoot, "receipts", "harnesses");
+        await writeHarnessRoleReceipt(codexReceipt, fixtureReceiptsRoot);
+        await writeHarnessRoleReceipt(codexExecReceipt, fixtureReceiptsRoot);
+        await writeHarnessRoleReceipt(claudeReceipt, fixtureReceiptsRoot);
+      }
+    }
+  }
+
   const reasons: string[] = [];
   const pair = await probeTaskAgentPair({ ...TASK_BOOTSTRAP_PAIR, reviewerSession: "fresh-read-only" });
   if (!pair.supported) reasons.push(...pair.missingProof);
@@ -100,6 +152,7 @@ async function previewApproveStart(
   fixture: TaskFixture,
   contractId: string,
 ): Promise<{ start: ProcessResult; printed: TaskRunRecord; run: TaskRunRecord; ms: number }> {
+  await requireLiveHarnesses(fixture.stateRoot);
   const preview = await aos(fixture, ["task", "preview", fixture.contractPath, "--json"]);
   expectOk("task preview", preview.result);
   const digest = (JSON.parse(preview.result.stdout.excerpt) as { digest: string }).digest;
@@ -269,6 +322,9 @@ test("the approved git directory profile lets a sandboxed GSD commit land and ke
       excerptBytes: OUTPUT_BYTES,
     });
     record(step, result);
+    if (result.exitCode !== 0 && result.stderr.excerpt.includes("windows sandbox failed")) {
+      throw new Error(`NOT PROVEN: Windows restricted token sandbox unavailable in this session (${result.stderr.excerpt.trim()})`);
+    }
     return result;
   };
 

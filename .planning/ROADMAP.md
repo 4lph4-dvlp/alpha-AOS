@@ -13,7 +13,7 @@
 - [x] **Phase 14: Contract and Vertical Tracer** - Explicit opt-in, approved contract and real implementation-to-review path (completed 2026-10-01)
 - [x] **Phase 15: Durable Supervisor and Effect Ledger** - Recovery, limits, no-progress strategy and effect reconciliation (completed 2026-10-01)
 - [x] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller (completed 2026-10-02)
-- [ ] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD
+- [x] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD (completed 2026-10-03)
 - [ ] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD
 - [ ] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit
 - [ ] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar
@@ -192,23 +192,23 @@ Plans:
 
 **Verification:** Synthetic GSD fixture with failed hook, missing artifact, interrupted phase and real installed-GSD smoke test. Run `alpha-aos gsd-context execute-phase` and its step slices while executing this phase.
 
-**Plans:** 0/6 plans complete
+**Plans:** 6/6 plans complete
 
 Plans:
 **Wave 1**
 
-- [ ] 17-01-PLAN.md — Mandatory Hook Execution Receipts and Same-Revision Review Witness Verification (GSD-04)
-- [ ] 17-02-PLAN.md — GSD State Discovery, Triple-Correlation Idempotency, and Scope Immutability (GSD-03)
-- [ ] 17-03-PLAN.md — Interactive Prompt Auto-Answer Policy, Safe Input Pause, and CLI Resume (GSD-01, GSD-02)
+- [x] 17-01-PLAN.md — Mandatory Hook Execution Receipts and Same-Revision Review Witness Verification (GSD-04)
+- [x] 17-02-PLAN.md — GSD State Discovery, Triple-Correlation Idempotency, and Scope Immutability (GSD-03)
+- [x] 17-03-PLAN.md — Interactive Prompt Auto-Answer Policy, Safe Input Pause, and CLI Resume (GSD-01, GSD-02)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 17-04-PLAN.md — Verification Gap Routing, Native Gap Plans, and Anti-Loop Recovery (GSD-02, GSD-03)
-- [ ] 17-05-PLAN.md — GSD Lifecycle Orchestrator and Multi-Phase Progression Adapter (GSD-01, GSD-03, GSD-04)
+- [x] 17-04-PLAN.md — Verification Gap Routing, Native Gap Plans, and Anti-Loop Recovery (GSD-02, GSD-03)
+- [x] 17-05-PLAN.md — GSD Lifecycle Orchestrator and Multi-Phase Progression Adapter (GSD-01, GSD-03, GSD-04)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 17-06-PLAN.md — Supervisor Integration, 4-Adversarial Fixture Suite, and Doctor Diagnostics (GSD-01, GSD-02, GSD-03, GSD-04)
+- [x] 17-06-PLAN.md — Supervisor Integration, 4-Adversarial Fixture Suite, and Doctor Diagnostics (GSD-01, GSD-02, GSD-03, GSD-04)
 
 ### Phase 18: Capability Fabric and Automatic Invocation
 

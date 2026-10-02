@@ -21,7 +21,7 @@
     {
       "number": "17",
       "name": "GSD Lifecycle Bridge",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "18",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 17 of 9 · 0% · executing"
+    "command": "/gsd-discuss-phase 18",
+    "label": "Discuss Phase 18: Capability Fabric and Automatic Invocation",
+    "reason": "Phase 17 complete · 44% milestone progress"
   },
-  "updated_at": "2026-10-02T09:50:14.988Z"
+  "updated_at": "2026-10-02T16:21:00.000Z"
 }

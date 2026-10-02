@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/review-witness-receipt.schema.json",
+  "title": "alpha-AOS independent review witness receipt",
+  "description": "Closed contract for independent review witness receipts binding git commit and artifact digest (GSD-04, D-14, SC 3).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "requestId",
+    "sessionId",
+    "reviewerHarness",
+    "reviewerVersion",
+    "targetRevisionSha",
+    "artifactDigest",
+    "witnessVerdict",
+    "examinedAt",
+    "criteriaWitnessed",
+    "reportDigest",
+    "receiptDigest"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "criterionWitness": {
+      "type": "object",
+      "required": ["criterionId", "verdict"],
+      "additionalProperties": false,
+      "properties": {
+        "criterionId": { "type": "string", "minLength": 1 },
+        "verdict": { "enum": ["pass", "fail", "unknown"] },
+        "findingSummary": { "type": "string" }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "review-witness-receipt" },
+    "requestId": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "reviewerHarness": { "type": "string", "minLength": 1 },
+    "reviewerVersion": { "type": "string", "minLength": 1 },
+    "targetRevisionSha": { "$ref": "#/$defs/gitSha" },
+    "artifactDigest": { "$ref": "#/$defs/sha256" },
+    "witnessVerdict": {
+      "enum": ["accepted", "rejected", "unknown"]
+    },
+    "examinedAt": { "type": "string", "minLength": 1 },
+    "criteriaWitnessed": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/criterionWitness" }
+    },
+    "reportDigest": { "$ref": "#/$defs/sha256" },
+    "receiptDigest": { "$ref": "#/$defs/sha256" }
+  }
+}

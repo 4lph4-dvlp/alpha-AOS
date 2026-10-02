@@ -11,7 +11,10 @@ import type {
   TaskPorts,
 } from "../core/task-run.js";
 import { probeClaudeVersion, runClaudeReviewer, type ClaudeAdapterOptions } from "./task-claude.js";
-import { probeCodexVersion, runCodexController, type CodexAdapterOptions } from "./task-codex.js";
+import { probeCodexVersion, runCodexController, runCodexReviewer, type CodexAdapterOptions } from "./task-codex.js";
+import { runAntigravityController, runAntigravityReviewer, probeAntigravityVersion } from "./task-antigravity.js";
+import { runPiController, runPiReviewer, probePiVersion } from "./task-pi.js";
+import { runHermesController, runHermesReviewer, probeHermesVersion } from "./task-hermes.js";
 import {
   readHarnessRoleReceipt,
   type ReadReceiptOptions,
@@ -170,6 +173,9 @@ export function createDynamicTaskPorts(
 ): TaskPorts {
   const controllerMap: Record<HarnessId, ControllerPort> = {
     codex: { dispatch: (request: ControllerDispatchRequest) => runCodexController(request, options) },
+    antigravity: { dispatch: (request: ControllerDispatchRequest) => runAntigravityController(request, options) },
+    pi: { dispatch: (request: ControllerDispatchRequest) => runPiController(request, options) },
+    hermes: { dispatch: (request: ControllerDispatchRequest) => runHermesController(request, options) },
     claude: {
       dispatch: async (): Promise<ControllerDispatchResult> => ({
         harness: "claude",
@@ -180,114 +186,41 @@ export function createDynamicTaskPorts(
         processCode: "spawn-failed",
         terminal: "failed",
         claim: null,
-        detail: "Claude controller adapter will be implemented in Wave 5 (Plan 16-06)",
-      }),
-    },
-    antigravity: {
-      dispatch: async (): Promise<ControllerDispatchResult> => ({
-        harness: "antigravity",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        terminal: "failed",
-        claim: null,
-        detail: "Antigravity controller adapter will be implemented in Wave 5 (Plan 16-06)",
-      }),
-    },
-    pi: {
-      dispatch: async (): Promise<ControllerDispatchResult> => ({
-        harness: "pi",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        terminal: "failed",
-        claim: null,
-        detail: "Pi controller adapter will be implemented in Wave 5 (Plan 16-06)",
-      }),
-    },
-    hermes: {
-      dispatch: async (): Promise<ControllerDispatchResult> => ({
-        harness: "hermes",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        terminal: "failed",
-        claim: null,
-        detail: "Hermes controller adapter will be implemented in Wave 5 (Plan 16-06)",
+        detail: "Claude controller native adapter is not supported in autonomous mode",
       }),
     },
   };
 
   const reviewerMap: Record<HarnessId, ReviewerPort> = {
     claude: { review: (request: ReviewRequest) => runClaudeReviewer(request, options) },
-    codex: {
-      review: async (): Promise<ReviewDispatchResult> => ({
-        harness: "codex",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        report: null,
-        issues: ["Codex reviewer adapter will be implemented in Wave 5 (Plan 16-06)"],
-      }),
-    },
-    antigravity: {
-      review: async (): Promise<ReviewDispatchResult> => ({
-        harness: "antigravity",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        report: null,
-        issues: ["Antigravity reviewer adapter will be implemented in Wave 5 (Plan 16-06)"],
-      }),
-    },
-    pi: {
-      review: async (): Promise<ReviewDispatchResult> => ({
-        harness: "pi",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        report: null,
-        issues: ["Pi reviewer adapter will be implemented in Wave 5 (Plan 16-06)"],
-      }),
-    },
-    hermes: {
-      review: async (): Promise<ReviewDispatchResult> => ({
-        harness: "hermes",
-        version: null,
-        executable: null,
-        sessionId: null,
-        exitCode: null,
-        processCode: "spawn-failed",
-        report: null,
-        issues: ["Hermes reviewer adapter will be implemented in Wave 5 (Plan 16-06)"],
-      }),
-    },
+    codex: { review: (request: ReviewRequest) => runCodexReviewer(request, options) },
+    antigravity: { review: (request: ReviewRequest) => runAntigravityReviewer(request, options) },
+    pi: { review: (request: ReviewRequest) => runPiReviewer(request, options) },
+    hermes: { review: (request: ReviewRequest) => runHermesReviewer(request, options) },
   };
 
   return {
     controller: controllerMap[policy.controller],
     reviewer: reviewerMap[policy.reviewer],
-    assess: (p) => verifyRoleCapabilities(p, options),
+    assess: (p) => probeTaskAgentPair(p, options),
   };
 }
 
-/** The default task ports using dynamic port dispatch. */
+/** The default task ports using dynamic port dispatch based on contract policy. */
 export function nativeTaskPorts(options: NativeTaskPortOptions = {}): TaskPorts {
   return {
-    controller: { dispatch: (request) => runCodexController(request, options) },
-    reviewer: { review: (request) => runClaudeReviewer(request, options) },
+    controller: {
+      dispatch: (request) => {
+        const ports = createDynamicTaskPorts(request.contract.agentPolicy, options);
+        return ports.controller.dispatch(request);
+      },
+    },
+    reviewer: {
+      review: (request) => {
+        const ports = createDynamicTaskPorts(request.contract.agentPolicy, options);
+        return ports.reviewer.review(request);
+      },
+    },
     assess: (policy) => probeTaskAgentPair(policy, options),
   };
 }

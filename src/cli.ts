@@ -182,6 +182,7 @@ Usage:
   alpha-aos task resume <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task status <contract-id> [--run <run-id>] [--json]
   alpha-aos task stop <contract-id> [--reason <reason>] [--json]
+  alpha-aos task answer <answer> [--run <digest>] [--json]
   alpha-aos task doctor [--json]
   alpha-aos status [--json]
   alpha-aos doctor [--json]
@@ -1778,8 +1779,8 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["preview", "approve", "start", "report", "resume", "status", "stop", "doctor"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report, resume, status, stop, doctor.`);
+    if (!["preview", "approve", "start", "report", "resume", "status", "stop", "doctor", "answer"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report, resume, status, stop, doctor, answer.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve, start, and resume alone.
@@ -1795,9 +1796,12 @@ async function main(): Promise<void> {
     if (subcommand === "doctor" && hasFlag(args, "--apply")) {
       throw new Error("`task doctor` has no --apply: it reads and diagnoses harnesses without mutations.");
     }
+    if (subcommand === "answer" && hasFlag(args, "--apply")) {
+      throw new Error("`task answer` has no --apply: it records user response directly.");
+    }
     const context = observableContext();
     const stateRoot = userStateRoot();
-    const parts = positional(args.slice(2), ["--contract-digest", "--run", "--reason"]);
+    const parts = positional(args.slice(2), ["--contract-digest", "--run", "--reason", "--project", "--contract"]);
     const operand = parts[0];
 
     if (subcommand === "doctor") {
@@ -1862,6 +1866,78 @@ async function main(): Promise<void> {
         result,
         json,
         `Task ${updatedCheckpoint.contractId} (${found.contractDigest.slice(0, 12)}) stopped: ${reason}`,
+        context,
+      );
+      return;
+    }
+
+    if (subcommand === "answer") {
+      if (operand === undefined || operand.trim() === "") {
+        throw new Error("task answer requires an answer string: alpha-aos task answer <answer> [--run <digest>]");
+      }
+      const answer = operand;
+      const runId = optionValue(args, "--run");
+      const contractOpt = optionValue(args, "--contract");
+      let found: { checkpoint: TaskCheckpoint; contractDigest: string } | null = null;
+      if (runId || contractOpt) {
+        found = await findLatestTaskCheckpoint(stateRoot, (runId ?? contractOpt)!, runId);
+      } else {
+        const runsDir = join(stateRoot, "runs");
+        let entries: string[] = [];
+        try {
+          entries = await readdir(runsDir);
+        } catch {
+          entries = [];
+        }
+        const candidates: Array<{ checkpoint: TaskCheckpoint; contractDigest: string }> = [];
+        for (const entry of entries) {
+          const cp = await readCheckpoint(stateRoot, entry);
+          if (cp !== null) {
+            candidates.push({ checkpoint: cp, contractDigest: entry });
+          }
+        }
+        candidates.sort((a, b) => b.checkpoint.updatedAt.localeCompare(a.checkpoint.updatedAt));
+        const waiting = candidates.find((c) => c.checkpoint.status === "needs-input");
+        found = waiting ?? candidates[0] ?? null;
+      }
+
+      if (found === null) {
+        throw new Error("no checkpoint recorded for any task run");
+      }
+
+      if (found.checkpoint.status !== "needs-input") {
+        throw new Error(
+          `Cannot answer prompt: task ${found.checkpoint.contractId} (${found.contractDigest.slice(0, 12)}) is not waiting for input (status: ${found.checkpoint.status})`,
+        );
+      }
+
+      const answeredAt = new Date().toISOString();
+      await appendJournalEvent(stateRoot, found.contractDigest, {
+        kind: "prompt_answered",
+        contractDigest: found.contractDigest,
+        attemptIndex: found.checkpoint.attemptIndex,
+        payload: {
+          answer,
+          answeredAt,
+        },
+      });
+
+      const updatedCheckpoint: TaskCheckpoint = {
+        ...found.checkpoint,
+        status: "running",
+        updatedAt: answeredAt,
+      };
+      await writeCheckpoint(stateRoot, updatedCheckpoint);
+
+      const result = {
+        answered: true,
+        contractDigest: found.contractDigest,
+        checkpoint: updatedCheckpoint,
+      };
+      print(
+        result,
+        json,
+        `Answer recorded for task ${updatedCheckpoint.contractId} (${found.contractDigest.slice(0, 12)}). Run 'alpha-aos task resume' to continue.`,
         context,
       );
       return;

@@ -11,17 +11,17 @@
     {
       "number": "15",
       "name": "Durable Supervisor and Effect Ledger",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "16",
       "name": "Composable Harness Roles",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "17",
       "name": "GSD Lifecycle Bridge",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "18",
@@ -51,8 +51,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 16 of 9 · 22% · ready to verify"
+    "label": "Advance to the next step",
+    "reason": "Phase 17 of 9 · 0% · executing"
   },
-  "updated_at": "2026-10-02T00:33:38.629Z"
+  "updated_at": "2026-10-02T09:50:14.988Z"
 }

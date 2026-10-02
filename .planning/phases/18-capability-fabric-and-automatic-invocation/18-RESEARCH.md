@@ -218,9 +218,9 @@ const verdict = reduceTaskVerdict({
 
 ## Open Questions
 
-1. **실제 다섯 하네스 호스트 영수증 범위:** Phase 18 환경에서 어떤 하네스/모델/자격증명이 실행 가능한지 확인되지 않았다. 광고할 셀마다 정확한 실행 파일·버전·OS·세션·스킬·MCP 결과를 수집하고 미실행 셀은 `unverified`로 남긴다. [VERIFIED: docs/design/autonomous-work/VALIDATION.md:26-32]
-2. **MCP 오류 결과 표면:** 현재 관측 `"ok" | "denied"`는 실제 도구 호출 성공·MCP 오류·전송 실패를 충분히 분리하지 못한다. 구현 전에 proxy와 schema의 호환 마이그레이션을 설계한다. 정의 값은 그대로 인용했다. [VERIFIED: src/core/mcp-proxy.ts:420-427] [VERIFIED: src/core/mcp-proxy.ts:691-701]
-3. **설정 완료의 관찰 경계:** 한 실행이 scaffolding과 애플리케이션 편집을 섞을 수 있다. controller dispatch와 효과 원장에서 부분 결과를 관측할 수 있는 시점·재개 처리를 테스트로 먼저 고정한다. [VERIFIED: src/core/task-run.ts:864-972] [VERIFIED: .planning/phases/18-capability-fabric-and-automatic-invocation/18-CONTEXT.md:1-114]
+1. **RESOLVED — 실제 다섯 하네스 호스트 영수증 범위:** 구현 전에 호스트/모델/자격증명의 사용 가능성을 가정하지 않는다. `18-07`은 다섯 하네스의 정확한 executable/version/OS/session별 발견과 의미 있는 읽기 전용 호출·결과를 시도하고, 실측 성공한 셀만 광고한다. 미실행/접근 불가 셀은 이유를 붙인 `unverified`, 네이티브 경로가 없음이 입증된 셀은 `unsupported`로 둔다. 합성 fixture는 실제 호스트 지원을 승격하지 않는다. 실호스트 호출 여부 자체는 실행 시 확인하므로 이 연구가 실측했다고 주장하지 않는다. [VERIFIED: docs/design/autonomous-work/VALIDATION.md:26-32]
+2. **RESOLVED — MCP 오류 결과 계약:** 관측 결과는 `"ok" | "denied" | "tool-error" | "transport-error"`로 구분한다. `client.callTool`의 `isError: true`는 `tool-error`, throw는 `transport-error`, 정책 거부는 `denied`이며 호출 시도 ID와 결과를 분리한다. 새 성공 증명에는 원본 결과 digest와 의무·세션 연결이 필수다. 기존 `ok|denied` 레코드는 읽기/감사 호환성을 유지하되 결과 digest가 없으면 새 필수 의무의 엄격한 성공으로 승격하지 않는다. `18-04`의 proxy 두 호출 경로와 영수증 schema가 이 계약을 구현한다. [VERIFIED: src/core/mcp-proxy.ts:420-427] [VERIFIED: src/core/mcp-proxy.ts:691-701]
+3. **RESOLVED — 설정 완료 관찰 경계:** controller의 설정 작업(scaffolding, manifest 또는 dependency 변경)은 하나의 구간으로 분리해 시작 전 입력 스냅샷과 종료 시 effect-audit 변경 집합을 비교한다. controller dispatch가 정상 종료하거나 일부 상태를 바꾼 채 실패하면 해당 구간은 종료되며 읽기 전용 pack plan/status를 정확히 한 번 수행한다. 같은 dispatch에서 앱 작업까지 이어질 수 없도록 다음 애플리케이션 dispatch 전에 장벽을 검사하고, 혼합 작업은 설정 경계에서 분할하거나 중단한다. 부분 실패는 점검 후에도 앱 작업을 멈춘다. 재개 시 저장된 구간 ID와 effect 집합으로 점검 중복을 피하되 새로운 변경은 새 구간으로 분류한다. `18-03`의 순서·부분 실패 fixture가 관찰 가능성을 검증한다. [VERIFIED: src/core/task-run.ts:864-972] [VERIFIED: .planning/phases/18-capability-fabric-and-automatic-invocation/18-CONTEXT.md:1-114]
 
 ## Environment Availability
 

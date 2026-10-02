@@ -26,7 +26,7 @@
     {
       "number": "18",
       "name": "Capability Fabric and Automatic Invocation",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "19",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-discuss-phase 18",
-    "label": "Discuss Phase 18: Capability Fabric and Automatic Invocation",
-    "reason": "Phase 17 complete · 44% milestone progress"
+    "command": "/gsd:progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 18 of 9 · 0% · executing"
   },
-  "updated_at": "2026-10-02T16:21:00.000Z"
+  "updated_at": "2026-10-02T20:46:37.260Z"
 }

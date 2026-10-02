@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v0.2.0
 milestone_name: Universal Autonomous Work
-current_phase: 17
-current_phase_name: GSD Lifecycle Bridge
-status: complete
-stopped_at: Phase 18 context gathered
-last_updated: "2026-10-02T17:23:34.694Z"
+current_phase: 18
+current_phase_name: Capability Fabric and Automatic Invocation
+status: executing
+stopped_at: Phase 18 planned; ready to execute
+last_updated: "2026-10-02T20:50:07.142Z"
 last_activity: 2026-10-03
-last_activity_desc: "Phase 17 complete: all 6 plans executed and verified"
-state_head: 904b0ce3fb606aa56dad88727faa04bf8debbb57
+last_activity_desc: "Phase 18 planned: 8 plans verified across 5 waves"
+state_head: 445b0a1d18dcc4f9172b135a20ca89ffe85cfe4f
 progress:
   total_phases: 9
   completed_phases: 4
-  total_plans: 27
+  total_plans: 35
   completed_plans: 33
-  percent: 44
+  percent: 0
 ---
 
 # Project State
@@ -25,14 +25,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 17 — GSD Lifecycle Bridge (Complete)
+**Current focus:** Phase 18 — Capability Fabric and Automatic Invocation (Ready to execute)
 
 ## Current Position
 
-Phase: 17 (GSD Lifecycle Bridge) — COMPLETE
-Plan: 6 of 6 complete
-Status: Phase 17 complete
-Last activity: 2026-10-03 — Phase 17 complete: all 6 plans executed and verified
+Phase: 18 (Capability Fabric and Automatic Invocation) — READY TO EXECUTE
+Plan: 0 of 8 complete
+Status: Ready to execute
+Last activity: 2026-10-03 — Phase 18 planned: 8 plans verified across 5 waves
 
 ## Performance Metrics
 
@@ -416,10 +416,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 ## Session Continuity
 
 Last session: 2026-10-02T17:23:34.425Z
-Stopped at: Phase 18 context gathered
-Resume file: .planning/phases/18-capability-fabric-and-automatic-invocation/18-CONTEXT.md
+Stopped at: Phase 18 planned; ready to execute
+Resume file: .planning/phases/18-capability-fabric-and-automatic-invocation/18-01-PLAN.md
 
 ## Operator Next Steps
 
-- Phase 17 (GSD Lifecycle Bridge) complete (6/6 plans, 46/46 tests green, 4 adversarial scenarios verified).
-- Run `$gsd-discuss-phase 18` followed by `$gsd-plan-phase 18` for Phase 18: Capability Fabric and Automatic Invocation.
+- Phase 18 planning complete: 8 plans across 5 waves; independent plan checker passed and CAP-01..05/D-01..17 are covered.
+- Run `$gsd-execute-phase 18` to implement Phase 18. Begin with the Wave 1 invocation tracer in `18-01-PLAN.md`.

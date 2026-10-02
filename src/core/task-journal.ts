@@ -23,7 +23,9 @@ export type TaskJournalEventKind =
   | "blocked"
   | "accepted"
   | "rejected"
-  | "process_cancelled";
+  | "process_cancelled"
+  | "prompt_answered"
+  | "needs_input";
 
 export type TaskJournalEventPayload = Record<string, unknown>;
 
@@ -42,7 +44,8 @@ export type TaskCheckpointState =
   | "accepted"
   | "rejected"
   | "blocked"
-  | "stopped";
+  | "stopped"
+  | "needs-input";
 
 export interface TaskCheckpointUsage {
   cycles: number;

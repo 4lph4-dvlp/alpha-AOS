@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/hook-execution-receipt.schema.json",
+  "title": "alpha-AOS GSD hook execution receipt",
+  "description": "Closed contract for mandatory GSD lifecycle hook execution receipts (GSD-04, D-13).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "receiptId",
+    "hookPoint",
+    "phaseId",
+    "planId",
+    "targetRevisionSha",
+    "workingTreeDigest",
+    "command",
+    "args",
+    "exitCode",
+    "stdoutSha256",
+    "stderrSha256",
+    "durationMs",
+    "executedAt",
+    "status",
+    "receiptDigest"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "hook-execution-receipt" },
+    "receiptId": { "type": "string", "minLength": 1 },
+    "hookPoint": {
+      "enum": [
+        "discuss:pre",
+        "discuss:post",
+        "plan:pre",
+        "plan:post",
+        "execute:pre",
+        "execute:post",
+        "verify:pre",
+        "verify:post"
+      ]
+    },
+    "phaseId": { "type": "string", "minLength": 1 },
+    "planId": {
+      "type": ["string", "null"]
+    },
+    "targetRevisionSha": { "$ref": "#/$defs/gitSha" },
+    "workingTreeDigest": { "$ref": "#/$defs/sha256" },
+    "command": { "type": "string", "minLength": 1 },
+    "args": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "exitCode": { "type": "integer" },
+    "stdoutSha256": { "$ref": "#/$defs/sha256" },
+    "stderrSha256": { "$ref": "#/$defs/sha256" },
+    "durationMs": { "type": "number", "minimum": 0 },
+    "executedAt": { "type": "string", "minLength": 1 },
+    "status": {
+      "enum": ["passed", "failed"]
+    },
+    "receiptDigest": { "$ref": "#/$defs/sha256" }
+  }
+}

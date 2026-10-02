@@ -199,11 +199,31 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
 
   if (options.stepCommand) {
     executable = options.stepCommand.executable;
-    args = options.stepCommand.args ? [...options.stepCommand.args] : args;
+    if (options.stepCommand.args && options.stepCommand.args.length > 0) {
+      if (options.stepCommand.args.some((a) => a === options.phaseId || a.includes(options.phaseId))) {
+        args = [...options.stepCommand.args];
+      } else {
+        args = [
+          ...options.stepCommand.args,
+          options.phaseId,
+          ...(options.step === "verify" ? [] : ["--auto"]),
+        ];
+      }
+    }
   } else if (options.commandMap?.[options.step]) {
     const mapped = options.commandMap[options.step]!;
     executable = mapped.executable;
-    args = mapped.args ? [...mapped.args] : args;
+    if (mapped.args && mapped.args.length > 0) {
+      if (mapped.args.some((a) => a === options.phaseId || a.includes(options.phaseId))) {
+        args = [...mapped.args];
+      } else {
+        args = [
+          ...mapped.args,
+          options.phaseId,
+          ...(options.step === "verify" ? [] : ["--auto"]),
+        ];
+      }
+    }
   }
 
   // Resolve executable if not absolute
@@ -358,17 +378,21 @@ function parsePhasesFromRoadmap(roadmapContent: string): string[] {
   const lines = roadmapContent.split(/\r?\n/);
 
   for (const line of lines) {
-    // Matches: - [ ] **Phase 01: ...** or - [x] **Phase 01: ...**
-    const match = line.match(/^-\s*\[[ xX]\]\s*\*\*Phase\s+([0-9]+[a-zA-Z0-9_-]*)/i);
+    // Matches: - [ ] **Phase 01: ...** or - [x] **Phase 01: ...** or - [ ] Phase 01: ...
+    const match = line.match(/^-\s*\[[ xX]\]\s*(?:\*\*)?Phase\s+([0-9]+[a-zA-Z0-9_-]*)/i);
     if (match?.[1]) {
-      phases.push(match[1]);
+      const pid = match[1];
+      if (!phases.includes(pid)) {
+        phases.push(pid);
+      }
       continue;
     }
     // Matches: ### Phase 01: ...
-    const headerMatch = line.match(/^###\s+Phase\s+([0-9]+[a-zA-Z0-9_-]*)/i);
+    const headerMatch = line.match(/^###?\s+(?:\*\*)?Phase\s+([0-9]+[a-zA-Z0-9_-]*)/i);
     if (headerMatch?.[1]) {
-      if (!phases.includes(headerMatch[1])) {
-        phases.push(headerMatch[1]);
+      const pid = headerMatch[1];
+      if (!phases.includes(pid)) {
+        phases.push(pid);
       }
     }
   }
@@ -438,6 +462,16 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
     }
 
     completedPhases.push(phaseId);
+
+    // 3. Observe updated STATE.md and ROADMAP.md natively without writing any supervisor shadow state (D-09, D-12)
+    const statePath = join(options.projectRoot, ".planning", "STATE.md");
+    if (existsSync(statePath)) {
+      await readBounded(statePath);
+    }
+    const roadmapPath = join(options.projectRoot, ".planning", "ROADMAP.md");
+    if (existsSync(roadmapPath)) {
+      await readBounded(roadmapPath);
+    }
     // Loop advances to next phase without user prompt or manual commands (SC 1)
   }
 

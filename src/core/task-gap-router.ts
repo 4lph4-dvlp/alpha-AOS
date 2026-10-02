@@ -1,7 +1,9 @@
 import {
+  computeFailureFingerprint,
   selectRepairStrategy,
   type FailureHistoryEntry,
   type StrategySelectionResult,
+  type RepairStage,
 } from "./task-strategy.js";
 import type { TaskContract } from "./task-contract.js";
 
@@ -23,6 +25,17 @@ export interface RouteGapOptions {
   readonly history: FailureHistoryEntry[];
 }
 
+export interface GapProgressionResult {
+  readonly shouldBlock: boolean;
+  readonly stage: RepairStage;
+  readonly failureCount: number;
+}
+
+export interface FullContractReverificationResult {
+  readonly requiredCriteria: readonly string[];
+  readonly regressionCheckMandatory: true;
+}
+
 /**
  * Routes a verification defect based on scope and failure history.
  *
@@ -34,8 +47,17 @@ export interface RouteGapOptions {
 export function routeVerificationGap(options: RouteGapOptions): GapRoutingDecision {
   const { currentPhaseId, defectSummary, isScopeExpansion, history } = options;
 
-  const strategy = selectRepairStrategy(history);
-  if (strategy.stage === "stage-3-blocked") {
+  const progression = evaluateGapProgression(history);
+  const normalizedHistory = history.map((entry, idx) => ({
+    ...entry,
+    attemptIndex: entry.attemptIndex ?? idx,
+    fingerprint:
+      entry.fingerprint ||
+      computeFailureFingerprint(entry.criterionId, entry.cause, entry.rawError),
+  }));
+  const strategy = selectRepairStrategy(normalizedHistory);
+
+  if (progression.shouldBlock || strategy.stage === "stage-3-blocked") {
     return {
       destination: "blocked",
       reason: "Anti-loop triggered: 2+ identical failures exhausted alternatives.",
@@ -77,3 +99,67 @@ export function createGsdGapPlanArgs(phaseId: string, gapSummary: string): reado
 export function createNewPhaseRoadmapArgs(phaseName: string, reason: string): readonly string[] {
   return ["phase", "add", phaseName, "--description", reason];
 }
+
+/**
+ * Evaluates failure history against the 3-stage anti-loop progression.
+ * Implements GSD-02 and decision D-08.
+ *
+ * Normalizes and fingerprints failure history entries via computeFailureFingerprint.
+ * Counts consecutive occurrences of the identical fingerprint.
+ * When consecutive identical failures occur (>= 2), activates the 3-stage progression
+ * (stage-1-reproduction-injection -> stage-2-single-criterion-focus -> stage-3-blocked).
+ * When stage reaches stage-3-blocked, returns shouldBlock: true.
+ */
+export function evaluateGapProgression(
+  history: FailureHistoryEntry[],
+): GapProgressionResult {
+  if (history.length === 0) {
+    return {
+      shouldBlock: false,
+      stage: "stage-0-default",
+      failureCount: 0,
+    };
+  }
+
+  const normalizedHistory: FailureHistoryEntry[] = history.map((entry, idx) => ({
+    ...entry,
+    attemptIndex: entry.attemptIndex ?? idx,
+    fingerprint:
+      entry.fingerprint ||
+      computeFailureFingerprint(entry.criterionId, entry.cause, entry.rawError),
+  }));
+
+  const latest = normalizedHistory[normalizedHistory.length - 1]!;
+  let count = 0;
+  for (let i = normalizedHistory.length - 1; i >= 0; i--) {
+    if (normalizedHistory[i]?.fingerprint === latest.fingerprint) {
+      count++;
+    } else {
+      break;
+    }
+  }
+
+  const strategy = selectRepairStrategy(normalizedHistory);
+
+  return {
+    shouldBlock: strategy.stage === "stage-3-blocked",
+    stage: strategy.stage,
+    failureCount: count,
+  };
+}
+
+/**
+ * Enforces whole-contract re-verification after gap execution to prevent regressions (D-07).
+ * Returns all contract criterion IDs (not just resolved gap criteria).
+ */
+export function requireFullContractReverification(
+  contract: TaskContract,
+  _resolvedGapIds: readonly string[],
+): FullContractReverificationResult {
+  const criteriaIds = contract.criterion.map((c) => c.id);
+  return {
+    requiredCriteria: criteriaIds,
+    regressionCheckMandatory: true,
+  };
+}
+

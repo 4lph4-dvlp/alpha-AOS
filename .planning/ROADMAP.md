@@ -11,8 +11,8 @@
 ## Phases
 
 - [x] **Phase 14: Contract and Vertical Tracer** - Explicit opt-in, approved contract and real implementation-to-review path (completed 2026-10-01)
-- [ ] **Phase 15: Durable Supervisor and Effect Ledger** - Recovery, limits, no-progress strategy and effect reconciliation
-- [ ] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller
+- [x] **Phase 15: Durable Supervisor and Effect Ledger** - Recovery, limits, no-progress strategy and effect reconciliation (completed 2026-10-01)
+- [x] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller (completed 2026-10-02)
 - [ ] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD
 - [ ] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD
 - [ ] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit
@@ -148,6 +148,30 @@ Plans:
 6. The Codex controller reliably executes GSD quick defect implementation under its native/isolated environment without premature non-zero exits, and the Phase 14 live defect tracer (14-06-03/14-08-03 seeded defect rejection and stale review substitution) reaches verified accepted/rejected verdicts.
 
 **Verification:** Adapter contract suite, adversarial lease fixtures, exact-version canaries, support-matrix checks and representative live handoffs. Unsupported native surfaces remain visible rather than simulated.
+
+**Plans:** 6/6 plans complete
+
+Plans:
+**Wave 1**
+
+- [x] 16-02-PLAN.md — Atomic Role Capability Receipts and Schema Validation (ROL-02)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [x] 16-01-PLAN.md — Deterministic 5x5x5 Capability Matrix and Support Checker (ROL-01)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [x] 16-03-PLAN.md — Project-Local Controller Lease and Worker Authority (ROL-03)
+- [x] 16-04-PLAN.md — Ephemeral Session Reviewer Isolation and Tree Mutation Guard (ROL-04)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [x] 16-05-PLAN.md — Telemetry Normalization, Missing Meter Gate, and 3D Task Doctor (ROL-05)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [x] 16-06-PLAN.md — Native Adapters for Antigravity, Pi, Hermes, and Codex Hardening (ROL-01, ROL-02, SC6)
 
 ### Phase 17: GSD Lifecycle Bridge
 

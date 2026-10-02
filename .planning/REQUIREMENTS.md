@@ -30,11 +30,11 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 ### Agent roles
 
-- [ ] **ROL-01**: A user can assign controller, executor and independent reviewer roles using any supported combination of Claude Code, Codex, Antigravity, Pi and Hermes; unsupported role/version combinations fail in preview with the missing proof named.
-- [ ] **ROL-02**: A user can see each of the five harnesses launched, cancelled and judged by its native machine interface with exact-version invocation receipts before its role is advertised.
-- [ ] **ROL-03**: A user can select any harness with proven controller capability, including Hermes, while concurrent runs are prevented from producing two GSD writers for the same project.
-- [ ] **ROL-04**: A user can require a different reviewer harness/model where available; even a same-harness review runs in a fresh, separately identified read-only session.
-- [ ] **ROL-05**: A user can inspect role support, native skill/MCP availability and model/provider usage evidence separately for each harness, without treating a harness name as a price or quota guarantee.
+- [x] **ROL-01**: A user can assign controller, executor and independent reviewer roles using any supported combination of Claude Code, Codex, Antigravity, Pi and Hermes; unsupported role/version combinations fail in preview with the missing proof named.
+- [x] **ROL-02**: A user can see each of the five harnesses launched, cancelled and judged by its native machine interface with exact-version invocation receipts before its role is advertised.
+- [x] **ROL-03**: A user can select any harness with proven controller capability, including Hermes, while concurrent runs are prevented from producing two GSD writers for the same project.
+- [x] **ROL-04**: A user can require a different reviewer harness/model where available; even a same-harness review runs in a fresh, separately identified read-only session.
+- [x] **ROL-05**: A user can inspect role support, native skill/MCP availability and model/provider usage evidence separately for each harness, without treating a harness name as a price or quota guarantee.
 
 ### GSD lifecycle
 
@@ -99,7 +99,7 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 |---|---:|---|
 | CON-01..03, AUTO-01..03, RUN-01, REV-01 | 14 | Complete |
 | RUN-02..05, TOOL-03 | 15 | Complete |
-| ROL-01..05 | 16 | Planned |
+| ROL-01..05 | 16 | Complete |
 | GSD-01..04 | 17 | Planned |
 | CAP-01..05 | 18 | Planned |
 | REV-02..05 | 19 | Planned |

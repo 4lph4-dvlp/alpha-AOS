@@ -230,12 +230,12 @@ Plans:
 
 **Verification:** Scenario-driven positive/negative selection tests, pack approval and fresh-session fixtures, skill/MCP invocation canaries and a real GSD multi-step trace with observation receipts.
 
-**Plans:** 8 plans across 5 waves
+**Plans:** 1/8 plans executed across 5 waves
 
 Plans:
 **Wave 1**
 
-- [ ] 18-01-PLAN.md — End-to-End Capability Invocation Tracer (CAP-03, CAP-05)
+- [x] 18-01-PLAN.md — End-to-End Capability Invocation Tracer (CAP-03, CAP-05)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

@@ -57,9 +57,21 @@ import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
 import { assessTaskReview, reduceTaskVerdict, type TaskPrecondition, type TaskVerdict } from "./task-verdict.js";
+import {
+  selectStepObligations,
+  type TaskCapabilityObligation,
+} from "./task-capability-obligations.js";
+import {
+  readCapabilityReceipts,
+  verifyRequiredCapabilityReceipts,
+  writeCapabilityReceipt,
+  type TaskCapabilityPort,
+  type TaskCapabilityReceipt,
+} from "./task-capability-receipts.js";
 
 export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
-export type { TaskPrecondition, TaskVerdict } from "./task-verdict.js";
+export type { TaskCapabilityObligation } from "./task-capability-obligations.js";
+export type { TaskCapabilityPort, TaskCapabilityReceipt } from "./task-capability-receipts.js";
 
 export interface ExecutorClaim {
   status: "completed" | "needs-authority" | "failed";
@@ -177,6 +189,7 @@ export interface TaskPorts {
   controller: ControllerPort;
   reviewer: ReviewerPort;
   assess(policy: TaskAgentPolicy): Promise<TaskPortAssessment>;
+  capability?: TaskCapabilityPort | undefined;
 }
 
 export interface TaskVerdictRow {
@@ -970,6 +983,56 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       gsdPrecondition(evidence, JSON.stringify(planningBefore) !== JSON.stringify(planningAfter)),
       { id: "effect-audit", satisfied: true, reason: "all changed paths within the approved authority", nextAction: "none" },
     ];
+
+    const obligations = selectStepObligations({
+      contract,
+      step: "execute",
+      projectRoot,
+    });
+
+    if (obligations.some((ob) => ob.required)) {
+      const capabilityReceipts: TaskCapabilityReceipt[] = [];
+      if (!options.ports.capability) {
+        preconditions.push({
+          id: "capability-obligations",
+          satisfied: false,
+          reason: "Required capability obligations selected but no capability port was provided.",
+          nextAction: "Provide a capability port to observe and invoke required capabilities.",
+        });
+      } else {
+        for (const obligation of obligations) {
+          try {
+            const invocation = await options.ports.capability.invoke({
+              runId,
+              step: "execute",
+              obligation,
+              projectRoot,
+              sessionId: dispatched.sessionId,
+              harness: contract.agentPolicy.controller,
+              harnessVersion: dispatched.version,
+              harnessExecutable: dispatched.executable,
+            });
+            capabilityReceipts.push(invocation.receipt);
+            await writeCapabilityReceipt(invocation.receipt, options.stateRoot);
+          } catch {
+            // invocation error or thrown exception handled by verification
+          }
+        }
+        const persisted = await readCapabilityReceipts(options.stateRoot, runId);
+        const allReceipts = [
+          ...capabilityReceipts,
+          ...persisted.filter((p) => !capabilityReceipts.some((c) => c.receiptId === p.receiptId)),
+        ];
+        const capabilityVerification = verifyRequiredCapabilityReceipts({
+          obligations,
+          receipts: allReceipts,
+          currentRunId: runId,
+          currentStep: "execute",
+          currentSessionId: dispatched.sessionId,
+        });
+        preconditions.push(capabilityVerification.precondition);
+      }
+    }
 
     if (wallTimeElapsed()) return await stopForWallTime();
 

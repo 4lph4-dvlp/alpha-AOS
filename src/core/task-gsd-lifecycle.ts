@@ -17,6 +17,16 @@ import {
   resolvePhaseDirectory,
 } from "./task-gsd-discovery.js";
 import type { TaskContract } from "./task-contract.js";
+import {
+  selectStepObligations,
+  type TaskCapabilityObligation,
+} from "./task-capability-obligations.js";
+import {
+  createCapabilityReceipt,
+  writeCapabilityReceipt,
+  type TaskCapabilityPort,
+  type TaskCapabilityReceipt,
+} from "./task-capability-receipts.js";
 
 const ONE_MIB = 1024 * 1024;
 
@@ -32,6 +42,8 @@ export interface GsdStepResult {
   readonly artifactsProduced: readonly string[];
   readonly nextStep: GsdStepKind | "complete" | "needs-input" | "failed";
   readonly receipts: readonly HookExecutionReceipt[];
+  readonly obligations?: readonly TaskCapabilityObligation[] | undefined;
+  readonly capabilityReceipts?: readonly TaskCapabilityReceipt[] | undefined;
 }
 
 export interface ExecuteStepOptions {
@@ -46,6 +58,10 @@ export interface ExecuteStepOptions {
   readonly packageRoot?: string | undefined;
   readonly hookCommand?: string | undefined;
   readonly hookArgs?: readonly string[] | undefined;
+  readonly capabilityPort?: TaskCapabilityPort | undefined;
+  readonly runId?: string | undefined;
+  readonly sessionId?: string | undefined;
+  readonly stateRoot?: string | undefined;
   readonly stepCommand?: {
     executable: string;
     args?: readonly string[] | undefined;
@@ -66,6 +82,10 @@ export interface RunPhaseOptions {
   readonly hookCommand?: string | undefined;
   readonly hookArgs?: readonly string[] | undefined;
   readonly commandMap?: Partial<Record<GsdStepKind, { executable: string; args?: readonly string[] }>> | undefined;
+  readonly capabilityPort?: TaskCapabilityPort | undefined;
+  readonly runId?: string | undefined;
+  readonly sessionId?: string | undefined;
+  readonly stateRoot?: string | undefined;
 }
 
 export interface MultiPhaseOptions {
@@ -175,6 +195,62 @@ async function readBounded(filePath: string): Promise<string> {
 export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdStepResult> {
   const receipts: HookExecutionReceipt[] = [];
 
+  // Select step obligations (CAP-03)
+  const obligations = selectStepObligations({
+    contract: options.contract,
+    step: options.step,
+    projectRoot: options.projectRoot,
+    phaseId: options.phaseId,
+  });
+  const capabilityReceipts: TaskCapabilityReceipt[] = [];
+
+  if (options.capabilityPort && obligations.length > 0) {
+    for (const obligation of obligations) {
+      try {
+        const invocation = await options.capabilityPort.invoke({
+          runId: options.runId ?? `step-${options.phaseId}-${options.step}`,
+          step: options.step,
+          obligation,
+          projectRoot: options.projectRoot,
+          sessionId: options.sessionId,
+        });
+        capabilityReceipts.push(invocation.receipt);
+        if (options.stateRoot) {
+          await writeCapabilityReceipt(invocation.receipt, options.stateRoot);
+        }
+      } catch (error) {
+        const failedReceipt = createCapabilityReceipt({
+          runId: options.runId ?? `step-${options.phaseId}-${options.step}`,
+          step: options.step,
+          capabilityId: obligation.capabilityId,
+          obligationId: obligation.id,
+          question: obligation.question,
+          selected: true,
+          invoked: true,
+          outcome: "failed",
+          invokedAt: new Date().toISOString(),
+          toolName: obligation.capabilityId,
+          harness: "gsd",
+          harnessVersion: null,
+          harnessExecutable: null,
+          sessionId: options.sessionId ?? null,
+          source: obligation.source,
+          sourceVersion: obligation.version,
+          observationId: `err-${Date.now()}`,
+          rawResultSha256: "0".repeat(64),
+          isReused: false,
+          originalReceiptId: null,
+          isError: true,
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+        capabilityReceipts.push(failedReceipt);
+        if (options.stateRoot) {
+          await writeCapabilityReceipt(failedReceipt, options.stateRoot);
+        }
+      }
+    }
+  }
+
   // 1. Mandatory Pre-step hook execution (D-13)
   const preHookPoint: GsdHookPoint = `${options.step}:pre`;
   const preReceipt = await executeHookWithReceipt({
@@ -262,6 +338,8 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
         artifactsProduced: [],
         nextStep: "needs-input",
         receipts,
+        obligations,
+        capabilityReceipts,
       };
     }
   }
@@ -279,6 +357,8 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
       artifactsProduced: [],
       nextStep: "failed",
       receipts,
+      obligations,
+      capabilityReceipts,
     };
   }
 
@@ -322,6 +402,8 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     artifactsProduced,
     nextStep: stepSequence[options.step],
     receipts,
+    obligations,
+    capabilityReceipts,
   };
 }
 

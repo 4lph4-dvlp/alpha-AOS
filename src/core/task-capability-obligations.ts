@@ -148,7 +148,15 @@ export function evaluateStepObligations(
   // Check if any project skill covers the documentation question
   let projectSkillCoveringDoc: string | null = null;
   for (const projSkill of approvedProjectSkills) {
-    if (DOC_LOOKUP_PATTERN.test(projSkill.name) || projSkill.id.includes("doc")) {
+    const skillName = projSkill.name.toLowerCase();
+    const skillShort = projSkill.id.split(":").pop()?.toLowerCase() ?? "";
+    if (
+      DOC_LOOKUP_PATTERN.test(projSkill.name) ||
+      projSkill.id.includes("doc") ||
+      (docQuestion !== null &&
+        (docQuestion.toLowerCase().includes(skillName) ||
+          (skillShort.length > 0 && docQuestion.toLowerCase().includes(skillShort))))
+    ) {
       projectSkillCoveringDoc = projSkill.id;
       break;
     }

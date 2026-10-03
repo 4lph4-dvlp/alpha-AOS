@@ -138,7 +138,7 @@ export function assessCapabilityDrift(options: AssessCapabilityDriftOptions): Ca
   // Assess each obligation
   for (const obligation of obligations) {
     const matchingReceipts = receipts.filter(
-      (r) => r.obligationId === obligation.id || (r.capabilityId === obligation.capabilityId && r.step === obligation.step),
+      (r) => r.obligationId === obligation.id || r.capabilityId === obligation.capabilityId,
     );
 
     const changedFields = [...globalChangedFields];
@@ -148,7 +148,10 @@ export function assessCapabilityDrift(options: AssessCapabilityDriftOptions): Ca
 
     // Phase check (D-09: phase mismatch invalidates cross-phase reuse unless step matches)
     const currentPhase = current.phase ?? obligation.step;
-    if (baseline.phase !== undefined && currentPhase !== undefined && baseline.phase !== currentPhase) {
+    const hasPhaseMismatch =
+      (baseline.phase !== undefined && currentPhase !== undefined && baseline.phase !== currentPhase) ||
+      matchingReceipts.some((r) => r.step !== undefined && r.step !== currentPhase);
+    if (hasPhaseMismatch) {
       if (!changedFields.includes("phase")) changedFields.push("phase");
       if (!driftReasons.includes("phase-mismatch")) driftReasons.push("phase-mismatch");
     }

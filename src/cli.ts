@@ -52,7 +52,9 @@ import {
   assertTaskStartable,
   loadTaskContract,
   previewTaskContract,
+  readTaskApprovals,
   taskApproveCommand,
+  type DigestableTaskContract,
   type LoadedTaskContract,
   type TaskContractPreview,
 } from "./core/task-contract.js";
@@ -118,7 +120,8 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { buildTaskCapabilityReport } from "./core/task-capability-inventory.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
 import {
@@ -181,12 +184,13 @@ Usage:
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
+  alpha-aos task plan <contract.json> [--detail] [--json]
   alpha-aos task preview <contract.json> [--json]
   alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task start <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task report <contract-id> [--run <run-id>] [--json]
   alpha-aos task resume <contract.json> [--contract-digest <digest>] [--apply] [--json]
-  alpha-aos task status <contract-id> [--run <run-id>] [--json]
+  alpha-aos task status <contract-id> [--run <run-id>] [--detail] [--json]
   alpha-aos task stop <contract-id> [--reason <reason>] [--json]
   alpha-aos task answer <answer> [--run <digest>] [--json]
   alpha-aos task doctor [--json]
@@ -1785,11 +1789,14 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["preview", "approve", "start", "report", "resume", "status", "stop", "doctor", "answer"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: preview, approve, start, report, resume, status, stop, doctor, answer.`);
+    if (!["plan", "preview", "approve", "start", "report", "resume", "status", "stop", "doctor", "answer"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve, start, and resume alone.
+    if (subcommand === "plan" && hasFlag(args, "--apply")) {
+      throw new Error("`task plan` has no --apply: it reads and plans capabilities without mutations.");
+    }
     if (subcommand === "preview" && hasFlag(args, "--apply")) {
       throw new Error("`task preview` has no --apply: it previews and persists nothing. Approve a reviewed contract with `alpha-aos task approve <contract.json> --contract-digest <digest> --apply`.");
     }
@@ -1833,6 +1840,26 @@ async function main(): Promise<void> {
       return;
     }
 
+    if (subcommand === "plan") {
+      if (operand === undefined) throw new Error("task plan requires a contract file: alpha-aos task plan <contract.json>");
+      const detail = hasFlag(args, "--detail");
+      const loaded = await loadTaskContract(operand);
+      const contract = loaded.contract;
+      const projectRoot = contract.scope.projectRoot ? resolve(contract.scope.projectRoot) : process.cwd();
+      const report = await buildTaskCapabilityReport({
+        contract,
+        contractId: contract.id,
+        contractRevision: contract.revision,
+        contractDigest: loaded.digest,
+        projectRoot,
+        stateRoot,
+        harness: contract.agentPolicy.executor,
+      });
+
+      print(report, json, formatTaskPlan(report, { detail }), context);
+      return;
+    }
+
     if (subcommand === "report") {
       if (operand === undefined) throw new Error("task report requires a contract id: alpha-aos task report <contract-id> [--run <run-id>]");
       const runId = optionValue(args, "--run");
@@ -1845,6 +1872,7 @@ async function main(): Promise<void> {
     if (subcommand === "status") {
       if (operand === undefined) throw new Error("task status requires a contract id: alpha-aos task status <contract-id> [--run <run-id>]");
       const runId = optionValue(args, "--run");
+      const detail = hasFlag(args, "--detail");
       const found = await findLatestTaskCheckpoint(stateRoot, operand, runId);
       if (found === null) throw new Error(`no checkpoint recorded for task ${operand}`);
       const ledger = await readEffectLedger(stateRoot, found.contractDigest);
@@ -1858,13 +1886,35 @@ async function main(): Promise<void> {
         });
       } catch {}
 
+      let contractSnapshot: DigestableTaskContract | undefined;
+      try {
+        const approvals = await readTaskApprovals({ stateRoot, contractId: operand });
+        const matched = approvals.find((a) => a.contractDigest === found.contractDigest);
+        if (matched) {
+          contractSnapshot = matched.contract;
+        }
+      } catch {}
+
+      const capabilityReport = await buildTaskCapabilityReport({
+        contract: contractSnapshot,
+        contractId: operand,
+        contractRevision: found.checkpoint.revision,
+        contractDigest: found.contractDigest,
+        projectRoot: contractSnapshot?.scope.projectRoot ? resolve(contractSnapshot.scope.projectRoot) : process.cwd(),
+        stateRoot,
+        stopReason: found.checkpoint.stopReason,
+        checkpointStatus: found.checkpoint.status,
+      });
+
       const statusData = {
         checkpoint: found.checkpoint,
         ledger,
         eventsCount: events.length,
         ...(gsdDiagnostics ? { gsdDiagnostics } : {}),
+        capabilities: capabilityReport.summary,
+        capabilityReport,
       };
-      print(statusData, json, formatTaskStatus(statusData), context);
+      print(statusData, json, formatTaskStatus({ ...statusData, detail }), context);
       return;
     }
 

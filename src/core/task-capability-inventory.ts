@@ -1,8 +1,27 @@
 import { createHash } from "node:crypto";
+import { resolve, join } from "node:path";
 import { packageRoot, userStateRoot } from "./paths.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import { loadPackCatalogStrict } from "./pack-catalog.js";
 import { readCapabilityLedger, capabilityLedgerPath } from "./capability-ledger.js";
+import { readApprovedProjectPlan, PROJECT_PLAN_ARTIFACT } from "./project-plan.js";
+import {
+  evaluateStepObligations,
+  type StepObligationsDecision,
+  type TaskCapabilityObligation,
+  type OmittedCapabilityObligation,
+} from "./task-capability-obligations.js";
+import {
+  assessCapabilityDrift,
+  type CapabilityDriftAssessment,
+  type CapabilityFingerprint,
+} from "./task-capability-drift.js";
+import {
+  readCapabilityReceipts,
+  type TaskCapabilityReceipt,
+} from "./task-capability-receipts.js";
+import type { DigestableTaskContract, TaskContract } from "./task-contract.js";
+import type { GsdStepKind } from "./task-gsd-lifecycle.js";
 import type {
   CapabilityKind,
   CapabilityLedger,
@@ -210,6 +229,19 @@ export async function buildTaskCapabilityInventory(
     }
   }
 
+  let projectPlan = options.projectPlan;
+  if (projectPlan === undefined) {
+    try {
+      const planPath = join(projectRoot, ...PROJECT_PLAN_ARTIFACT.split("/"));
+      const read = await readApprovedProjectPlan(planPath, root);
+      if (read.state === "present") {
+        projectPlan = read.artifact.plan;
+      }
+    } catch {
+      projectPlan = null;
+    }
+  }
+
   const items: TaskCapabilityInventoryItem[] = [];
 
   // 1. GSD Workflows
@@ -272,8 +304,8 @@ export async function buildTaskCapabilityInventory(
 
   // 3. Project ECC Skills & 7. Capability Packs
   const packs = packCatalog.packs ?? [];
-  const selectedPacks = new Set(options.projectPlan?.selected ?? []);
-  const applicablePacks = new Set(options.projectPlan?.applicable ?? []);
+  const selectedPacks = new Set(projectPlan?.selected ?? []);
+  const applicablePacks = new Set(projectPlan?.applicable ?? []);
 
   for (const pack of packs) {
     const packApplicable = applicablePacks.has(pack.id);
@@ -334,8 +366,8 @@ export async function buildTaskCapabilityInventory(
 
       // Target pre-state check if plan targets exist
       let skillDeployment: PackState = packSelected ? "CURRENT" : "STALE";
-      if (options.projectPlan?.targetPreState) {
-        const target = options.projectPlan.targetPreState.find((t) => t.packId === pack.id && t.skill === skill);
+      if (projectPlan?.targetPreState) {
+        const target = projectPlan.targetPreState.find((t) => t.packId === pack.id && t.skill === skill);
         if (target) {
           skillDeployment = target.action === "current" ? "CURRENT" : target.action === "create" ? "STALE" : "DRIFTED";
         }
@@ -593,7 +625,7 @@ export async function buildTaskCapabilityInventory(
     return left.id.localeCompare(right.id);
   });
 
-  const inputFingerprint = computeInputFingerprint(catalog, lock, packs, options.projectPlan);
+  const inputFingerprint = computeInputFingerprint(catalog, lock, packs, projectPlan);
 
   return {
     schemaVersion: 1,
@@ -604,3 +636,239 @@ export async function buildTaskCapabilityInventory(
     inputFingerprint,
   };
 }
+
+export interface TaskCapabilitySummaryItem {
+  readonly capabilityId: string;
+  readonly name?: string | undefined;
+  readonly source?: string | undefined;
+  readonly version?: string | undefined;
+  readonly reason?: string | undefined;
+  readonly reusedFromReceiptId?: string | null | undefined;
+}
+
+export interface TaskCapabilityFailedItem {
+  readonly capabilityId: string;
+  readonly receiptId?: string | undefined;
+  readonly outcome: string;
+  readonly error: string;
+}
+
+export interface TaskCapabilityBlockedItem {
+  readonly capabilityId: string;
+  readonly reason: string;
+  readonly nextAction?: string | undefined;
+}
+
+export interface TaskCapabilityOmittedItem {
+  readonly capabilityId: string;
+  readonly supersededBy?: string | undefined;
+  readonly reason: string;
+}
+
+export interface TaskCapabilitySummary {
+  readonly selectedCount: number;
+  readonly failedCount: number;
+  readonly blockedCount: number;
+  readonly omittedCount: number;
+  readonly selected: readonly TaskCapabilitySummaryItem[];
+  readonly failed: readonly TaskCapabilityFailedItem[];
+  readonly blocked: readonly TaskCapabilityBlockedItem[];
+  readonly omitted: readonly TaskCapabilityOmittedItem[];
+}
+
+export interface TaskCapabilityReceiptSummary {
+  readonly receiptId: string;
+  readonly obligationId: string;
+  readonly capabilityId: string;
+  readonly step: GsdStepKind;
+  readonly harness: string;
+  readonly toolName?: string | undefined;
+  readonly outcome: string;
+  readonly verified: boolean;
+  readonly timestamp: string;
+  readonly invocationEvidenceHash: string;
+  readonly status: "valid" | "invalidated" | "unverified";
+}
+
+export interface TaskCapabilityReport {
+  readonly contractId?: string | undefined;
+  readonly contractRevision?: number | undefined;
+  readonly contractDigest?: string | undefined;
+  readonly step: GsdStepKind;
+  readonly summary: TaskCapabilitySummary;
+  readonly obligations: readonly TaskCapabilityObligation[];
+  readonly omittedObligations: readonly OmittedCapabilityObligation[];
+  readonly inventory: TaskCapabilityInventory;
+  readonly drift: CapabilityDriftAssessment;
+  readonly receipts: readonly TaskCapabilityReceiptSummary[];
+}
+
+export interface BuildTaskCapabilityReportOptions {
+  readonly contract?: DigestableTaskContract | TaskContract | undefined;
+  readonly contractId?: string | undefined;
+  readonly contractRevision?: number | undefined;
+  readonly contractDigest?: string | undefined;
+  readonly projectRoot?: string | undefined;
+  readonly stateRoot?: string | undefined;
+  readonly harness?: HarnessId | undefined;
+  readonly step?: GsdStepKind | undefined;
+  readonly receipts?: readonly TaskCapabilityReceipt[] | undefined;
+  readonly inventory?: TaskCapabilityInventory | undefined;
+  readonly stopReason?: string | null | undefined;
+  readonly checkpointStatus?: string | undefined;
+}
+
+/**
+ * Builds a comprehensive, read-only task capability report (D-16, D-17).
+ * Integrates inventory, step obligations, failure/blocking records, receipts, and drift assessment.
+ */
+export async function buildTaskCapabilityReport(
+  options: BuildTaskCapabilityReportOptions = {},
+): Promise<TaskCapabilityReport> {
+  const projectRoot = options.projectRoot ?? options.contract?.scope.projectRoot ?? process.cwd();
+  const harness = options.harness ?? options.contract?.agentPolicy?.executor ?? "codex";
+
+  let step: GsdStepKind = "execute";
+  if (options.step) {
+    step = options.step;
+  } else if (
+    options.contract?.scope.workflow &&
+    ["discuss", "plan", "execute", "verify", "review"].includes(options.contract.scope.workflow)
+  ) {
+    step = options.contract.scope.workflow as GsdStepKind;
+  }
+
+  const inventory = options.inventory ?? (await buildTaskCapabilityInventory({ projectRoot, harness }));
+  const receipts = options.receipts ?? (options.stateRoot ? await readCapabilityReceipts(options.stateRoot) : []);
+
+  let decision: StepObligationsDecision;
+  if (options.contract) {
+    decision = evaluateStepObligations({
+      contract: options.contract as TaskContract,
+      step,
+      projectRoot,
+      inventory,
+      priorReceipts: receipts,
+    });
+  } else {
+    decision = { status: "ready", obligations: [], omitted: [] };
+  }
+
+  const baselinePhase = receipts[0]?.step ?? step;
+  const baselineFingerprint: CapabilityFingerprint = {
+    phase: baselinePhase,
+    scope: projectRoot,
+    harness,
+  };
+  const currentFingerprint: CapabilityFingerprint = {
+    phase: step,
+    scope: projectRoot,
+    harness,
+  };
+
+  const drift = assessCapabilityDrift({
+    obligations: decision.obligations,
+    receipts,
+    baseline: baselineFingerprint,
+    current: currentFingerprint,
+    contract: options.contract as TaskContract | undefined,
+    projectRoot,
+  });
+
+  const selectedItems: TaskCapabilitySummaryItem[] = decision.obligations.map((ob) => ({
+    capabilityId: ob.capabilityId,
+    name: ob.capabilityId,
+    source: ob.source,
+    version: ob.version,
+    reason: ob.selectionReason,
+    reusedFromReceiptId: ob.reusedFromReceiptId ?? null,
+  }));
+
+  const failedItems: TaskCapabilityFailedItem[] = receipts
+    .filter((r) => r.outcome !== "ok" || r.isError)
+    .map((r) => ({
+      capabilityId: r.capabilityId,
+      receiptId: r.receiptId,
+      outcome: r.outcome,
+      error: r.errorMessage ?? "failed invocation",
+    }));
+
+  const blockedItems: TaskCapabilityBlockedItem[] = [];
+  if (decision.status === "needs-input" && decision.needsInputReason) {
+    blockedItems.push({
+      capabilityId: "step-obligations",
+      reason: decision.needsInputReason,
+    });
+  }
+  if (options.stopReason) {
+    blockedItems.push({
+      capabilityId: "task-execution",
+      reason: options.stopReason,
+    });
+  }
+  if (drift.hasDrift) {
+    for (const entry of drift.entries) {
+      if (entry.drifted && entry.nextActionKind !== "none") {
+        blockedItems.push({
+          capabilityId: entry.capabilityId,
+          reason: `${entry.driftReasons.join(", ")}: ${entry.nextAction}`,
+          nextAction: entry.nextAction,
+        });
+      }
+    }
+  }
+
+  const omittedItems: TaskCapabilityOmittedItem[] = decision.omitted.map((om) => ({
+    capabilityId: om.capabilityId,
+    supersededBy: om.supersededByCapabilityId,
+    reason: om.reason,
+  }));
+
+  const summary: TaskCapabilitySummary = {
+    selectedCount: selectedItems.length,
+    failedCount: failedItems.length,
+    blockedCount: blockedItems.length,
+    omittedCount: omittedItems.length,
+    selected: selectedItems,
+    failed: failedItems,
+    blocked: blockedItems,
+    omitted: omittedItems,
+  };
+
+  const receiptSummaries: TaskCapabilityReceiptSummary[] = receipts.map((r) => {
+    const isInvalidated = drift.invalidatedReceiptIds.includes(r.receiptId);
+    const verified = !r.isError && r.outcome === "ok";
+    const status: "valid" | "invalidated" | "unverified" = isInvalidated
+      ? "invalidated"
+      : verified
+        ? "valid"
+        : "unverified";
+    return {
+      receiptId: r.receiptId,
+      obligationId: r.obligationId,
+      capabilityId: r.capabilityId,
+      step: r.step,
+      harness: r.harness,
+      toolName: r.toolName,
+      outcome: r.outcome,
+      verified,
+      timestamp: r.invokedAt,
+      invocationEvidenceHash: r.rawResultSha256,
+      status,
+    };
+  });
+
+  return {
+    contractId: options.contractId ?? options.contract?.id,
+    contractRevision: options.contractRevision ?? options.contract?.revision,
+    contractDigest: options.contractDigest,
+    step,
+    summary,
+    obligations: decision.obligations,
+    omittedObligations: decision.omitted,
+    inventory,
+    drift,
+    receipts: receiptSummaries,
+  };
+}
+

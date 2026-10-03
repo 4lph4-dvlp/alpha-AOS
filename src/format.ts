@@ -39,6 +39,7 @@ import type { TaskCheckpoint } from "./core/task-journal.js";
 import type { TaskEffectLedger } from "./core/task-effects.js";
 import { formatBlockedReport } from "./core/task-strategy.js";
 import type { GsdLifecycleDiagnostics } from "./core/task-doctor.js";
+import type { TaskCapabilityReport, TaskCapabilitySummary } from "./core/task-capability-inventory.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1334,8 +1335,11 @@ export function formatTaskStatus(status: {
   ledger: TaskEffectLedger | null;
   eventsCount: number;
   gsdDiagnostics?: GsdLifecycleDiagnostics | null | undefined;
+  capabilities?: TaskCapabilitySummary | undefined;
+  capabilityReport?: TaskCapabilityReport | undefined;
+  detail?: boolean | undefined;
 }): string {
-  const { checkpoint, ledger, eventsCount, gsdDiagnostics } = status;
+  const { checkpoint, ledger, eventsCount, gsdDiagnostics, capabilities, capabilityReport, detail } = status;
   const entries = ledger !== null ? Object.values(ledger.entries) : [];
   const appliedCount = entries.filter((e) => e.status === "applied").length;
   const pendingCount = entries.filter((e) => e.status !== "applied").length;
@@ -1364,8 +1368,149 @@ export function formatTaskStatus(status: {
     );
   }
 
+  if (capabilities) {
+    lines.push("", formatTaskCapabilitySummary(capabilities));
+  }
+
+  if (detail && capabilityReport) {
+    lines.push(formatTaskCapabilityDetail(capabilityReport));
+  }
+
   return lines.join("\n");
 }
+
+/**
+ * Formats task capability summary into human-readable text (D-16).
+ * Highlights selected, failed, blocked capabilities and primary omitted reasons.
+ */
+export function formatTaskCapabilitySummary(summary: TaskCapabilitySummary): string {
+  const lines: string[] = ["Capabilities:"];
+
+  if (summary.selected.length === 0) {
+    lines.push("  Selected: none");
+  } else {
+    lines.push("  Selected:");
+    for (const item of summary.selected) {
+      const sourceVer = item.source && item.version ? ` (${item.source} v${item.version})` : "";
+      lines.push(`    - ${item.capabilityId}${sourceVer}: ${item.reason ?? "selected"}`);
+    }
+  }
+
+  if (summary.failed.length === 0) {
+    lines.push("  Failed: none");
+  } else {
+    lines.push("  Failed:");
+    for (const item of summary.failed) {
+      const receipt = item.receiptId ? ` [${item.receiptId}]` : "";
+      lines.push(`    - ${item.capabilityId}${receipt}: ${item.outcome} (${item.error})`);
+    }
+  }
+
+  if (summary.blocked.length === 0) {
+    lines.push("  Blocked: none");
+  } else {
+    lines.push("  Blocked:");
+    for (const item of summary.blocked) {
+      const action = item.nextAction ? ` — next action: ${item.nextAction}` : "";
+      lines.push(`    - ${item.capabilityId}: ${item.reason}${action}`);
+    }
+  }
+
+  if (summary.omitted.length === 0) {
+    lines.push("  Omitted: none");
+  } else {
+    lines.push("  Omitted:");
+    for (const item of summary.omitted) {
+      const superseded = item.supersededBy ? ` (superseded by ${item.supersededBy})` : "";
+      lines.push(`    - ${item.capabilityId}${superseded}: ${item.reason}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats full capability detail tables including inventory, drift guidance, and receipts (D-16, D-17).
+ */
+export function formatTaskCapabilityDetail(report: TaskCapabilityReport): string {
+  const lines: string[] = [];
+
+  if (report.obligations.length > 0) {
+    lines.push("", `Step Obligations (${report.obligations.length} obligations for step ${report.step}):`);
+    const obRows = report.obligations.map((o) => [
+      o.id,
+      o.capabilityId,
+      o.required ? "required" : "optional",
+      `${o.source} v${o.version}`,
+      o.reusedFromReceiptId ? `reused (${o.reusedFromReceiptId})` : "fresh",
+      o.question ? (o.question.length > 40 ? o.question.slice(0, 37) + "..." : o.question) : "-",
+    ]);
+    lines.push(table(["OBLIGATION ID", "CAPABILITY", "KIND", "SOURCE/VERSION", "RECEIPT", "QUESTION"], obRows));
+  }
+
+  lines.push("", `Capability Inventory (${report.inventory.items.length} items):`);
+  const invRows = report.inventory.items.map((item) => [
+    item.id,
+    item.kind,
+    item.version,
+    item.scope,
+    item.deployment,
+    item.support,
+    item.nativeUse,
+    item.exclusionReason ?? item.unavailableReason ?? item.applicabilityReason ?? "-",
+  ]);
+  lines.push(table(["CAPABILITY ID", "KIND", "VERSION", "SCOPE", "DEPLOY", "SUPPORT", "NATIVE-USE", "REASON"], invRows));
+
+  if (report.drift.hasDrift) {
+    lines.push("", `Capability Drift Guidance (${report.drift.summary}):`);
+    const driftRows = report.drift.entries.filter((e) => e.drifted).map((entry) => [
+      entry.capabilityId,
+      entry.changedFields.join(", ") || "-",
+      entry.driftReasons.join(", ") || "-",
+      entry.invalidatedReceiptIds.join(", ") || "none",
+      entry.nextAction,
+    ]);
+    if (driftRows.length > 0) {
+      lines.push(table(["CAPABILITY", "CHANGED FIELDS", "DRIFT REASONS", "INVALIDATED RECEIPTS", "NEXT ACTION"], driftRows));
+    }
+  }
+
+  if (report.receipts.length > 0) {
+    lines.push("", `Capability Receipts (${report.receipts.length} receipts):`);
+    const rcRows = report.receipts.map((r) => [
+      r.receiptId,
+      r.capabilityId,
+      r.step,
+      r.harness,
+      r.outcome,
+      r.status,
+      r.invocationEvidenceHash.slice(0, 12),
+    ]);
+    lines.push(table(["RECEIPT ID", "CAPABILITY", "STEP", "HARNESS", "OUTCOME", "PROOF STATUS", "EVIDENCE HASH"], rcRows));
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats a read-only task capability plan (D-16).
+ */
+export function formatTaskPlan(report: TaskCapabilityReport, options: { readonly detail?: boolean } = {}): string {
+  const lines: string[] = [
+    `Task Plan: ${report.contractId ?? "unknown"}${report.contractRevision !== undefined ? ` (revision ${report.contractRevision})` : ""}`,
+    `Contract digest: ${report.contractDigest ?? "none"}`,
+    `Step: ${report.step}`,
+    "",
+    formatTaskCapabilitySummary(report.summary),
+  ];
+
+  if (options.detail) {
+    lines.push(formatTaskCapabilityDetail(report));
+  }
+
+  return lines.join("\n");
+}
+
 
 
 

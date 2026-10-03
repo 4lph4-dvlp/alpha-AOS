@@ -290,13 +290,13 @@ export interface CapabilityAlternateCandidate {
 export interface EvaluateRecoveryOptions {
   readonly failedObligation: TaskCapabilityObligation;
   readonly failedReceipt: TaskCapabilityReceipt;
-  readonly retrySuccessful?: boolean;
-  readonly availableAlternates?: readonly CapabilityAlternateCandidate[];
-  readonly currentContract?: TaskContract;
-  readonly approvedContractDigest?: string;
-  readonly userActionAvailable?: boolean;
-  readonly userActionDescription?: string;
-  readonly blockingReason?: string;
+  readonly retrySuccessful?: boolean | undefined;
+  readonly availableAlternates?: readonly CapabilityAlternateCandidate[] | undefined;
+  readonly currentContract?: TaskContract | undefined;
+  readonly approvedContractDigest?: string | undefined;
+  readonly userActionAvailable?: boolean | undefined;
+  readonly userActionDescription?: string | undefined;
+  readonly blockingReason?: string | undefined;
 }
 
 export interface CapabilityRecoveryResult {

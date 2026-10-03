@@ -68,10 +68,15 @@ import {
   type TaskCapabilityPort,
   type TaskCapabilityReceipt,
 } from "./task-capability-receipts.js";
+import {
+  evaluateCapabilityRecovery,
+  type CapabilityAlternateCandidate,
+} from "./task-capability-drift.js";
 
 export { TASK_ARTIFACT_DIGEST_KIND, type TaskDecision, type TaskDecisionCategory } from "./task-check.js";
 export type { TaskCapabilityObligation } from "./task-capability-obligations.js";
 export type { TaskCapabilityPort, TaskCapabilityReceipt } from "./task-capability-receipts.js";
+export type { CapabilityAlternateCandidate } from "./task-capability-drift.js";
 
 export interface ExecutorClaim {
   status: "completed" | "needs-authority" | "failed";
@@ -190,6 +195,9 @@ export interface TaskPorts {
   reviewer: ReviewerPort;
   assess(policy: TaskAgentPolicy): Promise<TaskPortAssessment>;
   capability?: TaskCapabilityPort | undefined;
+  capabilityAlternates?: readonly CapabilityAlternateCandidate[] | undefined;
+  userActionAvailable?: boolean | undefined;
+  userActionDescription?: string | undefined;
 }
 
 export interface TaskVerdictRow {
@@ -1030,7 +1038,47 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
           currentStep: "execute",
           currentSessionId: dispatched.sessionId,
         });
-        preconditions.push(capabilityVerification.precondition);
+
+        if (!capabilityVerification.satisfied) {
+          const failedObligation = capabilityVerification.missingObligations[0] ?? obligations.find((o) => o.required);
+          const failedReceipt = capabilityVerification.failedReceipts[0] ?? allReceipts[0];
+
+          if (failedObligation && failedReceipt) {
+            const recovery = evaluateCapabilityRecovery({
+              failedObligation,
+              failedReceipt,
+              availableAlternates: options.ports.capabilityAlternates,
+              currentContract: contract,
+              approvedContractDigest: digest,
+              userActionAvailable: options.ports.userActionAvailable,
+              userActionDescription: options.ports.userActionDescription,
+            });
+
+            if (recovery.status === "alternate-ready" && recovery.selectedAlternate) {
+              preconditions.push({
+                id: "capability-obligations",
+                satisfied: true,
+                reason: `Capability obligation ${failedObligation.id} satisfied via verified alternate ${recovery.selectedAlternate.capabilityId}.`,
+                nextAction: "none",
+              });
+            } else if (recovery.status === "needs-input" || recovery.status === "blocked") {
+              return await finish({
+                ...record,
+                status: recovery.status === "needs-input" ? "unknown" : "blocked",
+                finishedAt: clock().toISOString(),
+                gsd: gsdBlock(evidence, outline.sourceSha256),
+                stopReason: `capability-failure: ${recovery.reason}`,
+                nextAction: recovery.nextAction,
+              });
+            } else {
+              preconditions.push(capabilityVerification.precondition);
+            }
+          } else {
+            preconditions.push(capabilityVerification.precondition);
+          }
+        } else {
+          preconditions.push(capabilityVerification.precondition);
+        }
       }
     }
 

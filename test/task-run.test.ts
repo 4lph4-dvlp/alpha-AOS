@@ -12,6 +12,11 @@ import {
 } from "../src/core/task-contract.js";
 import { listTaskRuns, TaskRunError, type ReviewRequest } from "../src/core/task-run.js";
 import {
+  createCapabilityReceipt,
+  type TaskCapabilityPort,
+} from "../src/core/task-capability-receipts.js";
+import type { CapabilityAlternateCandidate } from "../src/core/task-capability-drift.js";
+import {
   createTaskFixture,
   fixturePorts,
   inventorySummaryContract,
@@ -226,4 +231,129 @@ test("a missing, empty or criterion-less contract is refused", async (context) =
     );
   }
   assert.deepEqual(await listing(fixture.stateRoot), []);
+});
+
+async function approveCapabilityContract(fixture: TaskFixture, goal: string): Promise<string> {
+  const contract = inventorySummaryContract(fixture.projectRoot, { goal });
+  await writeTaskContract(fixture.contractPath, contract);
+  const preview = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  const approval = await approveTaskContract({
+    contractPath: fixture.contractPath,
+    expectedDigest: preview.digest,
+    stateRoot: fixture.stateRoot,
+  });
+  assert.equal(approval.status, "approved");
+  return preview.digest;
+}
+
+function failingCapabilityPort(errorMessage = "503 service unavailable"): TaskCapabilityPort {
+  return {
+    async invoke(request) {
+      const receipt = createCapabilityReceipt({
+        runId: request.runId,
+        step: request.step,
+        capabilityId: request.obligation.capabilityId,
+        obligationId: request.obligation.id,
+        question: request.obligation.question,
+        selected: true,
+        invoked: true,
+        outcome: "tool-error",
+        toolName: "context7",
+        harness: "codex",
+        harnessVersion: "1.0.0",
+        harnessExecutable: "codex",
+        sessionId: request.sessionId ?? `session-${request.runId}`,
+        source: request.obligation.source,
+        sourceVersion: request.obligation.version,
+        rawResultSha256: "b".repeat(64),
+        isReused: false,
+        originalReceiptId: null,
+        isError: true,
+        errorMessage,
+      });
+      return { receipt };
+    },
+  };
+}
+
+test("D-10..D-13: task execution with failed capability halts with blocked when no alternate exists", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const goal = "Consult documentation-lookup for API v2. Summarize inventory CSV as JSON.";
+  const digest = await approveCapabilityContract(fixture, goal);
+
+  const ports = {
+    ...fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    capability: failingCapabilityPort(),
+  };
+
+  const { run } = await startFixtureTask(fixture, { ports, expectedDigest: digest });
+  assert.equal(run.status, "blocked");
+  assert.ok(run.stopReason?.includes("capability-failure"));
+});
+
+test("D-10..D-13: task execution with failed capability halts with needs-input when user action is available", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const goal = "Consult documentation-lookup for API v2. Summarize inventory CSV as JSON.";
+  const digest = await approveCapabilityContract(fixture, goal);
+
+  const ports = {
+    ...fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    capability: failingCapabilityPort(),
+    userActionAvailable: true,
+    userActionDescription: "Configure CONTEXT7_API_KEY environment variable",
+  };
+
+  const { run } = await startFixtureTask(fixture, { ports, expectedDigest: digest });
+  assert.equal(run.status, "unknown");
+  assert.ok(run.stopReason?.includes("capability-failure"));
+  assert.ok(run.nextAction?.includes("Configure CONTEXT7_API_KEY"));
+});
+
+test("D-11: task execution with alternate requiring harness change pauses for new contract approval", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const goal = "Consult documentation-lookup for API v2. Summarize inventory CSV as JSON.";
+  const digest = await approveCapabilityContract(fixture, goal);
+
+  const alternate: CapabilityAlternateCandidate = {
+    capabilityId: "claude-docs",
+    harness: "claude",
+    roleChange: false,
+    harnessChange: true,
+    answersSameQuestion: true,
+    provenResult: true,
+  };
+
+  const ports = {
+    ...fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    capability: failingCapabilityPort(),
+    capabilityAlternates: [alternate],
+  };
+
+  const { run } = await startFixtureTask(fixture, { ports, expectedDigest: digest });
+  assert.equal(run.status, "unknown");
+  assert.ok(run.nextAction?.includes("approve contract with digest"));
+});
+
+test("D-10, D-12: task execution with verified equivalent alternate on current harness recovers and succeeds", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const goal = "Consult documentation-lookup for API v2. Summarize inventory CSV as JSON.";
+  const digest = await approveCapabilityContract(fixture, goal);
+
+  const alternate: CapabilityAlternateCandidate = {
+    capabilityId: "local-docs",
+    harness: "codex",
+    roleChange: false,
+    harnessChange: false,
+    answersSameQuestion: true,
+    provenResult: true,
+  };
+
+  const ports = {
+    ...fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    capability: failingCapabilityPort(),
+    capabilityAlternates: [alternate],
+  };
+
+  const { run } = await startFixtureTask(fixture, { ports, expectedDigest: digest });
+  assert.equal(run.status, "accepted");
 });

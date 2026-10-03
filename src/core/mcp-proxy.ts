@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "node:crypto";
 import { appendFileSync } from "node:fs";
 import { join } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
@@ -417,6 +418,14 @@ export type McpProxyMode = "filter" | "observe";
  * evidence CAPA-01 and CAPA-02 need is that a named tool was called and how
  * it ended, not what was passed to it.
  */
+export type McpObservationOutcome = "ok" | "denied" | "tool-error" | "transport-error";
+export const MCP_OBSERVATION_OUTCOMES: readonly McpObservationOutcome[] = [
+  "ok",
+  "denied",
+  "tool-error",
+  "transport-error",
+];
+
 export interface McpObservation {
   readonly server: McpServerId;
   readonly tool: string;
@@ -424,7 +433,11 @@ export interface McpObservation {
   readonly at: string;
   /** The locked upstream version this call was answered by. */
   readonly upstreamVersion: string;
-  readonly outcome: "ok" | "denied";
+  readonly outcome: McpObservationOutcome;
+  readonly attemptId?: string;
+  readonly rawResultSha256?: string;
+  readonly isError?: boolean;
+  readonly errorMessage?: string | null;
   /**
    * The SHAPE of the declared identifier this call carried, or absent when the
    * call carried none that alpha-AOS classifies.
@@ -531,6 +544,10 @@ export function observationLine(observation: McpObservation): string {
     at: observation.at,
     upstreamVersion: observation.upstreamVersion,
     outcome: observation.outcome,
+    ...(observation.attemptId === undefined ? {} : { attemptId: observation.attemptId }),
+    ...(observation.rawResultSha256 === undefined ? {} : { rawResultSha256: observation.rawResultSha256 }),
+    ...(observation.isError === undefined ? {} : { isError: observation.isError }),
+    ...(observation.errorMessage === undefined ? {} : { errorMessage: observation.errorMessage }),
     // Omitted entirely when the call carried no classified identifier, so a
     // record for a tool alpha-AOS classifies nothing on stays byte-identical
     // to what it was before this field existed.
@@ -570,20 +587,29 @@ export function readObservationRecords(text: string): readonly McpObservation[] 
     const outcome = record.outcome;
     if (typeof server !== "string" || !MCP_SERVER_IDS.includes(server as McpServerId)) continue;
     if (typeof tool !== "string" || typeof at !== "string" || typeof upstreamVersion !== "string") continue;
-    if (outcome !== "ok" && outcome !== "denied") continue;
-    // Field-selective for the sixth field exactly as for the first five, and
-    // closed against its two declared members: a line that grew an
-    // `identifierShape` holding anything else — an identifier VALUE, say — is
-    // skipped rather than guessed at, so a forged record cannot smuggle a value
-    // through the one field that was opened.
+    if (typeof outcome !== "string" || !MCP_OBSERVATION_OUTCOMES.includes(outcome as McpObservationOutcome)) continue;
+
     const identifierShape = record.identifierShape;
     if (identifierShape !== undefined && !IDENTIFIER_SHAPES.includes(identifierShape as IdentifierShape)) continue;
+
+    const attemptId = typeof record.attemptId === "string" && record.attemptId.length > 0 ? record.attemptId : undefined;
+    const rawResultSha256 =
+      typeof record.rawResultSha256 === "string" && /^[0-9a-f]{64}$/i.test(record.rawResultSha256)
+        ? record.rawResultSha256
+        : undefined;
+    const isError = typeof record.isError === "boolean" ? record.isError : undefined;
+    const errorMessage = typeof record.errorMessage === "string" ? record.errorMessage : undefined;
+
     records.push({
       server: server as McpServerId,
       tool,
       at,
       upstreamVersion,
-      outcome,
+      outcome: outcome as McpObservationOutcome,
+      ...(attemptId ? { attemptId } : {}),
+      ...(rawResultSha256 ? { rawResultSha256 } : {}),
+      ...(isError !== undefined ? { isError } : {}),
+      ...(errorMessage ? { errorMessage } : {}),
       ...(identifierShape === undefined ? {} : { identifierShape: identifierShape as IdentifierShape }),
     });
   }
@@ -636,8 +662,14 @@ function observe(
   serverId: McpServerId,
   locked: LockedPackage,
   tool: string,
-  outcome: McpObservation["outcome"],
+  outcome: McpObservationOutcome,
   args?: unknown,
+  details?: {
+    attemptId?: string;
+    rawResultSha256?: string;
+    isError?: boolean;
+    errorMessage?: string | null;
+  },
 ): void {
   if (options.mode !== "observe") return;
   // Classified HERE and discarded immediately. The arguments object exists in
@@ -651,6 +683,10 @@ function observe(
     at: new Date().toISOString(),
     upstreamVersion: locked.version,
     outcome,
+    ...(details?.attemptId ? { attemptId: details.attemptId } : {}),
+    ...(details?.rawResultSha256 ? { rawResultSha256: details.rawResultSha256 } : {}),
+    ...(details?.isError !== undefined ? { isError: details.isError } : {}),
+    ...(details?.errorMessage ? { errorMessage: details.errorMessage } : {}),
     ...(identifierShape === null ? {} : { identifierShape }),
   });
 }
@@ -690,15 +726,35 @@ export async function runMcpProxy(
   });
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const tool = request.params.name;
+    const attemptId = `att-${randomUUID()}`;
     if (allow && !allow.has(tool)) {
       // Recorded BEFORE the throw: a policy refusal is evidence that the model
       // reached for a tool, which is exactly what a capability canary needs.
-      observe(options, serverId, locked, tool, "denied", request.params.arguments);
+      observe(options, serverId, locked, tool, "denied", request.params.arguments, { attemptId });
       throw new Error(mcpPolicyRefusal(tool));
     }
-    const result = await client.callTool(request.params);
-    observe(options, serverId, locked, tool, "ok", request.params.arguments);
-    return result;
+    let result: unknown;
+    try {
+      result = await client.callTool(request.params);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      observe(options, serverId, locked, tool, "transport-error", request.params.arguments, {
+        attemptId,
+        isError: true,
+        errorMessage: msg,
+      });
+      throw error;
+    }
+    const isError = Boolean((result as { isError?: boolean } | null | undefined)?.isError);
+    const outcome: McpObservationOutcome = isError ? "tool-error" : "ok";
+    const rawResultSha256 = createHash("sha256").update(JSON.stringify(result ?? null), "utf8").digest("hex");
+    observe(options, serverId, locked, tool, outcome, request.params.arguments, {
+      attemptId,
+      rawResultSha256,
+      isError,
+      errorMessage: isError ? "MCP tool execution returned isError: true" : null,
+    });
+    return result as any;
   });
 
   // Downstream is the harness alpha-AOS itself is inside — the trusted side of
@@ -820,13 +876,33 @@ export async function openObservedUpstream(
       return { ...result, tools: result.tools.filter((tool) => allow.has(tool.name)) };
     },
     callTool: async (params) => {
+      const attemptId = `att-${randomUUID()}`;
       if (allow && !allow.has(params.name)) {
-        observe(options, serverId, locked, params.name, "denied", params.arguments);
+        observe(options, serverId, locked, params.name, "denied", params.arguments, { attemptId });
         throw new Error(mcpPolicyRefusal(params.name));
       }
-      const result = await client.callTool(params);
-      observe(options, serverId, locked, params.name, "ok", params.arguments);
-      return result;
+      let result: unknown;
+      try {
+        result = await client.callTool(params);
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        observe(options, serverId, locked, params.name, "transport-error", params.arguments, {
+          attemptId,
+          isError: true,
+          errorMessage: msg,
+        });
+        throw error;
+      }
+      const isError = Boolean((result as { isError?: boolean } | null | undefined)?.isError);
+      const outcome: McpObservationOutcome = isError ? "tool-error" : "ok";
+      const rawResultSha256 = createHash("sha256").update(JSON.stringify(result ?? null), "utf8").digest("hex");
+      observe(options, serverId, locked, params.name, outcome, params.arguments, {
+        attemptId,
+        rawResultSha256,
+        isError,
+        errorMessage: isError ? "MCP tool execution returned isError: true" : null,
+      });
+      return result as any;
     },
     /**
      * Ends the session through the Phase 1 bounded close and reports what it

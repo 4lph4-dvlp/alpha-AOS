@@ -158,14 +158,34 @@ export interface ClaimNote {
   readonly basis: string;
 }
 
+export type McpObservationOutcome = "ok" | "denied" | "tool-error" | "transport-error";
+
 /** One redacted MCP-side observation retained for an invocation audit. */
 export interface InvocationObservationEvidence {
   readonly server: McpServerId;
   readonly tool: string;
   readonly at: string;
   readonly upstreamVersion: string;
-  readonly outcome: "ok" | "denied";
+  readonly outcome: McpObservationOutcome;
   readonly identifierShape?: IdentifierShape;
+  readonly attemptId?: string;
+  readonly rawResultSha256?: string;
+  readonly isError?: boolean;
+  readonly errorMessage?: string | null;
+}
+
+/**
+ * CAP-03 / D-15 strict completion checker:
+ * A legacy record with only outcome: "ok" but no rawResultSha256 is kept readable for audit
+ * but cannot be interpreted as strict CAP-03 success.
+ */
+export function isStrictObservationSuccess(obs: InvocationObservationEvidence): boolean {
+  return (
+    obs.outcome === "ok" &&
+    obs.isError !== true &&
+    typeof obs.rawResultSha256 === "string" &&
+    obs.rawResultSha256.length === 64
+  );
 }
 
 /** The complete final verdict retained beside the observations that produced it. */

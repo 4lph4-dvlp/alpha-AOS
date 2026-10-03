@@ -20,6 +20,7 @@ import {
   capabilityLedgerRoot,
   capabilityStatusJson,
   harnessMinorKey,
+  isStrictObservationSuccess,
   pairEvidence,
   readCapabilityLedger,
   resolveCapabilityStatus,
@@ -28,6 +29,7 @@ import {
   type CapabilityLedger,
   type CapabilityProof,
   type CurrentInputs,
+  type InvocationObservationEvidence,
 } from "../src/core/capability-ledger.js";
 import { userStateRoot } from "../src/core/paths.js";
 
@@ -811,5 +813,143 @@ test("multiple active non-Claude proofs stored in the ledger round-trip and reta
     const harnesses = read.ledger.proofs.map((p) => p.harness);
     assert.deepEqual(harnesses, ["codex", "pi", "hermes"]);
   }
+});
+
+test("D-15: ledger stores and round-trips tool-error and transport-error observations with attemptId", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  const proofWithErrors: CapabilityProof = {
+    ...VALID_POSITIVE,
+    invocationEvidence: {
+      canary: "RESEARCH_MULTI_SOURCE",
+      observations: [
+        {
+          server: "firecrawl",
+          tool: "firecrawl_scrape",
+          at: "2026-10-03T10:00:00.000Z",
+          upstreamVersion: "3.25.2",
+          outcome: "ok",
+          attemptId: "att-ok-1",
+          rawResultSha256: "e".repeat(64),
+          isError: false,
+        },
+        {
+          server: "firecrawl",
+          tool: "firecrawl_map",
+          at: "2026-10-03T10:00:01.000Z",
+          upstreamVersion: "3.25.2",
+          outcome: "tool-error",
+          attemptId: "att-err-2",
+          rawResultSha256: "f".repeat(64),
+          isError: true,
+          errorMessage: "MCP tool execution returned isError: true",
+        },
+        {
+          server: "firecrawl",
+          tool: "firecrawl_crawl",
+          at: "2026-10-03T10:00:02.000Z",
+          upstreamVersion: "3.25.2",
+          outcome: "transport-error",
+          attemptId: "att-trans-3",
+          isError: true,
+          errorMessage: "Upstream transport disconnected abruptly",
+        },
+      ],
+      verdict: {
+        ...VALID_INVOCATION_EVIDENCE.verdict,
+        expectationsHeld: false,
+        held: false,
+        reasons: ["firecrawl_map returned tool-error", "firecrawl_crawl returned transport-error"],
+      },
+    },
+  };
+
+  const written = await writeCapabilityLedger({
+    stateRoot,
+    ledger: {
+      ...VALID_LEDGER,
+      proofs: [proofWithErrors],
+    },
+  });
+  assert.equal(written.status, "written");
+
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(read.state, "present");
+  if (read.state === "present") {
+    const readObservations = read.ledger.proofs[0]?.invocationEvidence?.observations;
+    assert.ok(readObservations);
+    assert.equal(readObservations.length, 3);
+    assert.equal(readObservations[0]?.outcome, "ok");
+    assert.equal(readObservations[0]?.attemptId, "att-ok-1");
+    assert.equal(readObservations[1]?.outcome, "tool-error");
+    assert.equal(readObservations[1]?.isError, true);
+    assert.equal(readObservations[2]?.outcome, "transport-error");
+    assert.equal(readObservations[2]?.errorMessage, "Upstream transport disconnected abruptly");
+  }
+});
+
+test("CAP-05 / D-15: legacy ledger observation records validate and parse, but are not strict CAP-03 success", async (context) => {
+  const root = await ledgerFixture(context);
+  const stateRoot = join(root, "state");
+
+  // Legacy proof format: only outcome: "ok" or "denied", no attemptId or rawResultSha256
+  const legacyProof: CapabilityProof = {
+    ...VALID_POSITIVE,
+    invocationEvidence: {
+      canary: "DOCUMENTATION_VERSION_SCOPED",
+      observations: [
+        {
+          server: "context7",
+          tool: "resolve-library-id",
+          at: "2026-09-10T12:00:00.000Z",
+          upstreamVersion: "4.0.4",
+          outcome: "ok",
+        },
+        {
+          server: "context7",
+          tool: "forbidden_tool",
+          at: "2026-09-10T12:00:01.000Z",
+          upstreamVersion: "4.0.4",
+          outcome: "denied",
+        },
+      ],
+      verdict: VALID_INVOCATION_EVIDENCE.verdict,
+    },
+  };
+
+  const written = await writeCapabilityLedger({
+    stateRoot,
+    ledger: {
+      ...VALID_LEDGER,
+      proofs: [legacyProof],
+    },
+  });
+  assert.equal(written.status, "written");
+
+  const read = await readCapabilityLedger(written.path);
+  assert.equal(read.state, "present");
+  if (read.state === "present") {
+    const obs = read.ledger.proofs[0]?.invocationEvidence?.observations ?? [];
+    assert.equal(obs.length, 2);
+
+    // Legacy "ok" record without rawResultSha256 is NOT strict CAP-03 success
+    assert.equal(isStrictObservationSuccess(obs[0]!), false);
+    // Legacy "denied" record is NOT strict CAP-03 success
+    assert.equal(isStrictObservationSuccess(obs[1]!), false);
+  }
+
+  // Modern record with full result proof IS strict success
+  const modernObs: InvocationObservationEvidence = {
+    server: "context7",
+    tool: "resolve-library-id",
+    at: "2026-10-03T12:00:00.000Z",
+    upstreamVersion: "4.1.1",
+    outcome: "ok",
+    attemptId: "att-mod-1",
+    rawResultSha256: "a".repeat(64),
+    isError: false,
+  };
+  assert.equal(isStrictObservationSuccess(modernObs), true);
 });
 

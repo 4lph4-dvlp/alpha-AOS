@@ -28,6 +28,7 @@ import {
   MCP_SERVER_IDS,
   mcpPolicyRefusal,
   MEASURED_UPSTREAM_TOOLS,
+  type McpObservation,
   OBSERVED_UPSTREAM_LATE_EXIT,
   openObservedUpstream,
   upstreamEnvironment,
@@ -1170,7 +1171,7 @@ test("an observed tool call records names and outcomes but never values", async 
 
   assert.deepEqual(
     Object.keys(record).sort(),
-    ["at", "outcome", "server", "tool", "upstreamVersion"],
+    ["at", "attemptId", "isError", "outcome", "rawResultSha256", "server", "tool", "upstreamVersion"],
     "an observation is a closed record: no argument field, no response field",
   );
   assert.equal(record.server, "firecrawl");
@@ -1579,7 +1580,7 @@ test("an observed call records the identifier's SHAPE and never the identifier i
   assert.ok(queried, "the observed query-docs call produced no record");
   assert.deepEqual(
     Object.keys(queried).sort(),
-    ["at", "identifierShape", "outcome", "server", "tool", "upstreamVersion"],
+    ["at", "attemptId", "identifierShape", "isError", "outcome", "rawResultSha256", "server", "tool", "upstreamVersion"],
     "the record is still closed: the five original fields plus exactly one classification, and no argument field",
   );
   assert.equal(queried.identifierShape, "version-scoped");
@@ -1618,4 +1619,113 @@ test("an unscoped identifier is classified as unscoped rather than left unrecord
   const queried = records.find((record) => record.tool === "query-docs");
   assert.ok(queried);
   assert.equal(queried.identifierShape, "unscoped");
+});
+
+test("D-15: four MCP observation outcomes (ok, tool-error, transport-error, denied) are faithfully recorded with attemptId", async (context) => {
+  const fixture = await createProxyFixture(context);
+  const multiOutcomeScript = join(fixture.root, "multi-outcome.mjs");
+
+  await writeFile(
+    multiOutcomeScript,
+    [
+      "import { createInterface } from 'node:readline';",
+      "const lines = createInterface({ input: process.stdin });",
+      "lines.on('line', (line) => {",
+      "  if (!line.trim().startsWith('{')) return;",
+      "  let message;",
+      "  try { message = JSON.parse(line); } catch { return; }",
+      "  if (typeof message.id !== 'number') return;",
+      "  if (message.method === 'initialize') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'fixture-multi', version: '0.0.0' } } }));",
+      "    return;",
+      "  }",
+      "  if (message.method === 'tools/list') {",
+      "    console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { tools: [",
+      "      { name: 'firecrawl_scrape', description: 'scrape tool', inputSchema: { type: 'object' } },",
+      "      { name: 'firecrawl_map', description: 'map tool', inputSchema: { type: 'object' } },",
+      "      { name: 'firecrawl_crawl', description: 'crawl tool', inputSchema: { type: 'object' } },",
+      "    ] } }));",
+      "    return;",
+      "  }",
+      "  if (message.method === 'tools/call') {",
+      "    const name = message.params?.name;",
+      "    if (name === 'firecrawl_scrape') {",
+      "      console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { content: [{ type: 'text', text: 'scrape success' }] } }));",
+      "      return;",
+      "    }",
+      "    if (name === 'firecrawl_map') {",
+      "      console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { isError: true, content: [{ type: 'text', text: 'map execution error' }] } }));",
+      "      return;",
+      "    }",
+      "    if (name === 'firecrawl_crawl') {",
+      "      // Send invalid JSON-RPC error frame to trigger transport error in client",
+      "      process.exit(1);",
+      "    }",
+      "  }",
+      "  console.log(JSON.stringify({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: 'method not found' } }));",
+      "});",
+    ].join("\n"),
+    "utf8",
+  );
+
+  const sunk: McpObservation[] = [];
+  const upstream = await openObservedUpstream(
+    "firecrawl",
+    { package: "fixture-firecrawl", version: FIXTURE_VERSION, integrity: "sha512-fixture" },
+    { record: (observation) => void sunk.push({ ...observation }) },
+    {
+      executable: process.execPath,
+      args: [multiOutcomeScript],
+      cwd: fixture.root,
+      environment: { source: {} },
+      timeoutMs: 60_000,
+      maxOutputBytes: STDERR_CAP,
+    },
+  );
+
+  // 1. ok: successful invocation
+  const okResult = await upstream.callTool({ name: "firecrawl_scrape", arguments: {} });
+  assert.ok(okResult);
+  assert.equal(sunk.length, 1);
+  const okObs = sunk[0]!;
+  assert.equal(okObs.tool, "firecrawl_scrape");
+  assert.equal(okObs.outcome, "ok");
+  assert.equal(okObs.isError, false);
+  assert.ok(typeof okObs.attemptId === "string" && okObs.attemptId.startsWith("att-"));
+  assert.ok(typeof okObs.rawResultSha256 === "string" && okObs.rawResultSha256.length === 64);
+
+  // 2. tool-error: tool returns isError: true
+  const errorResult = await upstream.callTool({ name: "firecrawl_map", arguments: {} });
+  assert.ok(errorResult.isError);
+  assert.equal(sunk.length, 2);
+  const toolErrorObs = sunk[1]!;
+  assert.equal(toolErrorObs.tool, "firecrawl_map");
+  assert.equal(toolErrorObs.outcome, "tool-error");
+  assert.equal(toolErrorObs.isError, true);
+  assert.ok(typeof toolErrorObs.attemptId === "string" && toolErrorObs.attemptId.startsWith("att-"));
+  assert.ok(typeof toolErrorObs.rawResultSha256 === "string" && toolErrorObs.rawResultSha256.length === 64);
+  assert.notEqual(toolErrorObs.attemptId, okObs.attemptId);
+
+  // 3. denied: disallowed tool by policy
+  await assert.rejects(
+    async () => upstream.callTool({ name: DISALLOWED_TOOL, arguments: {} }),
+    /MCP tool is not allowed by alpha-aos policy: firecrawl_extract/,
+  );
+  assert.equal(sunk.length, 3);
+  const deniedObs = sunk[2]!;
+  assert.equal(deniedObs.tool, DISALLOWED_TOOL);
+  assert.equal(deniedObs.outcome, "denied");
+  assert.ok(typeof deniedObs.attemptId === "string" && deniedObs.attemptId.startsWith("att-"));
+
+  // 4. transport-error: child exits/disconnects mid-call
+  await assert.rejects(
+    async () => upstream.callTool({ name: "firecrawl_crawl", arguments: {} }),
+  );
+  assert.equal(sunk.length, 4);
+  const transportErrorObs = sunk[3]!;
+  assert.equal(transportErrorObs.tool, "firecrawl_crawl");
+  assert.equal(transportErrorObs.outcome, "transport-error");
+  assert.equal(transportErrorObs.isError, true);
+  assert.ok(typeof transportErrorObs.attemptId === "string" && transportErrorObs.attemptId.startsWith("att-"));
+  assert.ok(typeof transportErrorObs.errorMessage === "string" && transportErrorObs.errorMessage.length > 0);
 });

@@ -57,9 +57,9 @@ export interface StepObligationsDecision {
   readonly missingEvidence?: readonly string[] | undefined;
 }
 
-const DOC_LOOKUP_PATTERN = /(?:documentation-lookup|context7|api\s+docs?|documentation|library\s+version|version-specific)/iu;
-const DEEP_RESEARCH_PATTERN = /(?:deep-research|exa|firecrawl|external\s+examples?|recent\s+cases?|web\s+research|industry\s+patterns?)/iu;
-const AMBIGUOUS_PATTERN = /(?:if\s+needed|optional|consider\s+looking|unclear\s+whether\s+required)/iu;
+const DOC_LOOKUP_PATTERN = /\b(?:documentation-lookup|context7|api\s+docs?|documentation|library\s+version|version-specific)\b/iu;
+const DEEP_RESEARCH_PATTERN = /\b(?:deep-research|exa|firecrawl|external\s+examples?|recent\s+cases?|web\s+research|industry\s+patterns?)\b/iu;
+const AMBIGUOUS_PATTERN = /\b(?:if\s+needed|optional|consider\s+looking|unclear\s+whether\s+required)\b/iu;
 
 function extractQuestionFromContract(contract: TaskContract, pattern: RegExp): string | null {
   if (pattern.test(contract.goal)) {

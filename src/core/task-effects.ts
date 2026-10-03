@@ -295,6 +295,161 @@ export async function runPackCheckpoint(options: {
   };
 }
 
+export interface SetupBarrierResult {
+  readonly status: "cleared" | "halted" | "no-change";
+  readonly checkpoint: TaskPackCheckpoint | null;
+  readonly changedPaths: readonly string[];
+  readonly checkpointCount: number;
+  readonly partialFailure: boolean;
+  readonly failureReason?: string | null | undefined;
+  readonly stopAction?: string | undefined;
+}
+
+/**
+ * Manages the setup operation barrier ensuring setup operations complete
+ * and checkpoint once before any application work begins (D-01, D-02, D-04).
+ */
+export class SetupBarrierTracker {
+  private _stageId: string;
+  private _projectRoot: string;
+  private _packageRoot: string;
+  private _stateRoot: string;
+  private _checkpointCount = 0;
+  private _lastCheckpoint: TaskPackCheckpoint | null = null;
+  private _halted = false;
+  private _haltReason: string | null = null;
+  private _changedPaths = new Set<string>();
+
+  constructor(options: { projectRoot: string; packageRoot: string; stateRoot: string; stageId?: string }) {
+    this._projectRoot = options.projectRoot;
+    this._packageRoot = options.packageRoot;
+    this._stateRoot = options.stateRoot;
+    this._stageId = options.stageId ?? "setup-1";
+  }
+
+  get stageId(): string {
+    return this._stageId;
+  }
+
+  get checkpointCount(): number {
+    return this._checkpointCount;
+  }
+
+  get isHalted(): boolean {
+    return this._halted;
+  }
+
+  get haltReason(): string | null {
+    return this._haltReason;
+  }
+
+  get lastCheckpoint(): TaskPackCheckpoint | null {
+    return this._lastCheckpoint;
+  }
+
+  recordOperation(operation: { name: string; changedPaths?: readonly string[]; error?: unknown }): void {
+    if (operation.changedPaths) {
+      for (const p of operation.changedPaths) {
+        this._changedPaths.add(p);
+      }
+    }
+    if (operation.error) {
+      this._halted = true;
+      this._haltReason = operation.error instanceof Error ? operation.error.message : String(operation.error);
+    }
+  }
+
+  async finalizeSetup(): Promise<SetupBarrierResult> {
+    const paths = [...this._changedPaths].sort();
+    if (this._halted) {
+      // Partial failure with changes (D-02): run read-only checkpoint on current state, halt app work
+      let checkpoint: TaskPackCheckpoint | null = null;
+      if (paths.length > 0) {
+        checkpoint = await runPackCheckpoint({
+          projectRoot: this._projectRoot,
+          packageRoot: this._packageRoot,
+          stateRoot: this._stateRoot,
+        });
+        this._checkpointCount += 1;
+        this._lastCheckpoint = checkpoint;
+      }
+      return {
+        status: "halted",
+        checkpoint,
+        changedPaths: paths,
+        checkpointCount: this._checkpointCount,
+        partialFailure: paths.length > 0,
+        failureReason: this._haltReason,
+        stopAction: "Resolve setup failure before beginning application work (D-02).",
+      };
+    }
+
+    if (paths.length > 0) {
+      // Completed setup operations (D-01, D-04): run pack checkpoint ONCE
+      const checkpoint = await runPackCheckpoint({
+        projectRoot: this._projectRoot,
+        packageRoot: this._packageRoot,
+        stateRoot: this._stateRoot,
+      });
+      this._checkpointCount += 1;
+      this._lastCheckpoint = checkpoint;
+      return {
+        status: "cleared",
+        checkpoint,
+        changedPaths: paths,
+        checkpointCount: this._checkpointCount,
+        partialFailure: false,
+      };
+    }
+
+    // No changes made
+    return {
+      status: "no-change",
+      checkpoint: null,
+      changedPaths: [],
+      checkpointCount: 0,
+      partialFailure: false,
+    };
+  }
+
+  assertCanBeginApplicationWork(): void {
+    if (this._halted) {
+      throw new Error(`Cannot begin application work: setup barrier halted due to failure: ${this._haltReason} (D-02)`);
+    }
+  }
+}
+
+export async function runSetupBarrier(
+  options: {
+    projectRoot: string;
+    packageRoot: string;
+    stateRoot: string;
+    stageId?: string;
+    operations: readonly {
+      name: string;
+      execute: () => Promise<readonly string[] | void> | readonly string[] | void;
+    }[];
+  },
+): Promise<SetupBarrierResult> {
+  const tracker = new SetupBarrierTracker(options);
+  for (const op of options.operations) {
+    try {
+      const changed = await op.execute();
+      tracker.recordOperation({
+        name: op.name,
+        ...(Array.isArray(changed) ? { changedPaths: changed } : {}),
+      });
+    } catch (err) {
+      tracker.recordOperation({
+        name: op.name,
+        error: err,
+      });
+      break;
+    }
+  }
+  return await tracker.finalizeSetup();
+}
+
 // ---------------------------------------------------------------------------
 // Effect ledger, deterministic operation keys, and crash reconciliation
 // ---------------------------------------------------------------------------

@@ -13,6 +13,8 @@ import {
   DEPENDENCY_LOCKFILES,
   readTaskBaseline,
   readTaskChanges,
+  runSetupBarrier,
+  SetupBarrierTracker,
 } from "../src/core/task-effects.js";
 import { snapshotGitControl, TASK_GIT_CONTROL_MAX_FILES } from "../src/core/task-git.js";
 import { runGitRead, snapshotPlanningState } from "../src/core/task-gsd.js";
@@ -610,5 +612,122 @@ test("a run record without gitDirectory validates against the task-receipt schem
 
   const nullField = validateManagedDocument({ text: JSON.stringify({ ...legacyRun, gitDirectory: null }), format: "json", kind: "task-receipt", schema });
   assert.equal(nullField.ok, true, JSON.stringify(nullField.issues));
+});
+
+test("setup barrier: consecutive scaffolding and install run pack checkpoint once at completion (D-01)", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const pkgRoot = packageRoot();
+
+  const barrierResult = await runSetupBarrier({
+    projectRoot: fixture.projectRoot,
+    packageRoot: pkgRoot,
+    stateRoot: fixture.stateRoot,
+    operations: [
+      {
+        name: "scaffolding",
+        execute: async () => {
+          await writeFile(join(fixture.projectRoot, "package.json"), JSON.stringify({ name: "scaffolded", version: "1.0.0" }), "utf8");
+          return ["package.json"];
+        },
+      },
+      {
+        name: "dependency-installation",
+        execute: async () => {
+          await writeFile(join(fixture.projectRoot, "package-lock.json"), JSON.stringify({ name: "scaffolded", lockfileVersion: 3 }), "utf8");
+          return ["package-lock.json"];
+        },
+      },
+    ],
+  });
+
+  assert.equal(barrierResult.status, "cleared");
+  assert.equal(barrierResult.checkpointCount, 1);
+  assert.ok(barrierResult.checkpoint);
+  assert.deepEqual(barrierResult.changedPaths, ["package-lock.json", "package.json"]);
+  assert.equal(barrierResult.partialFailure, false);
+});
+
+test("setup barrier: partial setup failure with changes runs read-only checkpoint and halts (D-02)", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const pkgRoot = packageRoot();
+
+  const tracker = new SetupBarrierTracker({
+    projectRoot: fixture.projectRoot,
+    packageRoot: pkgRoot,
+    stateRoot: fixture.stateRoot,
+  });
+
+  // Step 1: writes package.json
+  await writeFile(join(fixture.projectRoot, "package.json"), JSON.stringify({ name: "partial", version: "1.0.0" }), "utf8");
+  tracker.recordOperation({ name: "scaffolding", changedPaths: ["package.json"] });
+
+  // Step 2: installation fails
+  tracker.recordOperation({ name: "install", error: new Error("npm install network error") });
+
+  const result = await tracker.finalizeSetup();
+  assert.equal(result.status, "halted");
+  assert.equal(result.partialFailure, true);
+  assert.ok(result.checkpoint); // Read-only checkpoint taken of current state
+  assert.equal(result.checkpointCount, 1);
+  assert.ok(result.failureReason?.includes("npm install network error"));
+
+  // Application work must not begin
+  assert.throws(
+    () => tracker.assertCanBeginApplicationWork(),
+    /Cannot begin application work: setup barrier halted due to failure/,
+  );
+});
+
+test("setup barrier: subsequent manifest change rechecks before application work (D-04)", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const pkgRoot = packageRoot();
+
+  // Subsequent manifest edit during development
+  const result = await runSetupBarrier({
+    projectRoot: fixture.projectRoot,
+    packageRoot: pkgRoot,
+    stateRoot: fixture.stateRoot,
+    stageId: "manifest-update-2",
+    operations: [
+      {
+        name: "add-manifest-dep",
+        execute: async () => {
+          await writeFile(join(fixture.projectRoot, "package.json"), JSON.stringify({ name: "updated", dependencies: { express: "4.18.2" } }), "utf8");
+          return ["package.json"];
+        },
+      },
+    ],
+  });
+
+  assert.equal(barrierResultStatus(result), "cleared");
+  assert.equal(result.checkpointCount, 1);
+  assert.ok(result.checkpoint);
+  assert.deepEqual(result.changedPaths, ["package.json"]);
+
+  function barrierResultStatus(r: { status: string }) {
+    return r.status;
+  }
+});
+
+test("setup barrier: no setup changes causes no unnecessary pack checkpoint", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const pkgRoot = packageRoot();
+
+  const result = await runSetupBarrier({
+    projectRoot: fixture.projectRoot,
+    packageRoot: pkgRoot,
+    stateRoot: fixture.stateRoot,
+    operations: [
+      {
+        name: "no-op",
+        execute: () => [],
+      },
+    ],
+  });
+
+  assert.equal(result.status, "no-change");
+  assert.equal(result.checkpointCount, 0);
+  assert.equal(result.checkpoint, null);
+  assert.equal(result.changedPaths.length, 0);
 });
 

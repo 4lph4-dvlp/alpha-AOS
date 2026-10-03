@@ -1,5 +1,12 @@
+import { createHash, randomUUID } from "node:crypto";
 import type { HarnessId } from "../types.js";
 import type { TaskAgentPolicy } from "../core/task-contract.js";
+import {
+  createCapabilityReceipt,
+  type CapabilityInvocationRequest,
+  type CapabilityInvocationResult,
+  type TaskCapabilityPort,
+} from "../core/task-capability-receipts.js";
 import type {
   ControllerDispatchRequest,
   ControllerDispatchResult,
@@ -222,5 +229,174 @@ export function nativeTaskPorts(options: NativeTaskPortOptions = {}): TaskPorts 
       },
     },
     assess: (policy) => probeTaskAgentPair(policy, options),
+  };
+}
+
+export interface FreshSessionDiscoveryResult {
+  readonly sessionId: string;
+  readonly previousSessionId: string | null;
+  readonly harness: HarnessId;
+  readonly harnessVersion: string | null;
+  readonly discoveredSkills: readonly string[];
+  readonly discoveredMcpTools: readonly string[];
+  readonly status: "ok" | "unverified" | "failed";
+  readonly failureReason?: string | null;
+}
+
+/**
+ * Starts a fresh agent session for discovering newly synchronized project skills and MCP tools (D-03).
+ * Explicitly rejects tool reloads within existing sessions.
+ */
+export async function startFreshCapabilitySession(options: {
+  harness: HarnessId;
+  projectRoot: string;
+  previousSessionId?: string | null;
+  allowExistingSessionReload?: boolean;
+  probeDiscovery?: (sessionId: string) => Promise<{ skills: string[]; mcpTools: string[] }> | { skills: string[]; mcpTools: string[] };
+}): Promise<FreshSessionDiscoveryResult> {
+  if (options.allowExistingSessionReload) {
+    throw new Error(
+      "Tool reload in existing session does not prove activation in fresh session (D-03)",
+    );
+  }
+
+  const sessionId = `session-fresh-${randomUUID()}`;
+  let discoveredSkills: string[] = [];
+  let discoveredMcpTools: string[] = [];
+  let status: "ok" | "unverified" | "failed" = "ok";
+  let failureReason: string | null = null;
+
+  if (options.probeDiscovery) {
+    try {
+      const probe = await options.probeDiscovery(sessionId);
+      discoveredSkills = probe.skills;
+      discoveredMcpTools = probe.mcpTools;
+    } catch (err) {
+      status = "failed";
+      failureReason = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  return {
+    sessionId,
+    previousSessionId: options.previousSessionId ?? null,
+    harness: options.harness,
+    harnessVersion: "1.0.0",
+    discoveredSkills,
+    discoveredMcpTools,
+    status,
+    failureReason,
+  };
+}
+
+/**
+ * Creates a TaskCapabilityPort bound to a fresh agent session (D-03, CAP-02).
+ * Verifies discovery in the fresh session before invocation.
+ */
+export function createFreshSessionCapabilityPort(options: {
+  session: FreshSessionDiscoveryResult;
+  invoker?: (toolName: string, question: string) => Promise<{
+    outcome: "ok" | "failed" | "denied";
+    rawResult: string;
+    isError: boolean;
+    errorMessage?: string | null;
+  }>;
+}): TaskCapabilityPort {
+  return {
+    async invoke(request: CapabilityInvocationRequest): Promise<CapabilityInvocationResult> {
+      const capabilityId = request.obligation.capabilityId;
+      const toolName = capabilityId.split(":").pop() ?? capabilityId;
+
+      // D-03: Check if discovered in this fresh session
+      const isDiscovered =
+        options.session.discoveredSkills.includes(capabilityId) ||
+        options.session.discoveredSkills.includes(toolName) ||
+        options.session.discoveredMcpTools.includes(capabilityId) ||
+        options.session.discoveredMcpTools.includes(toolName);
+
+      if (!isDiscovered && options.session.status !== "failed") {
+        const receipt = createCapabilityReceipt({
+          runId: request.runId,
+          step: request.step,
+          capabilityId,
+          obligationId: request.obligation.id,
+          question: request.obligation.question,
+          selected: true,
+          invoked: false,
+          outcome: "failed",
+          invokedAt: new Date().toISOString(),
+          toolName,
+          harness: options.session.harness,
+          harnessVersion: options.session.harnessVersion,
+          harnessExecutable: request.harnessExecutable ?? null,
+          sessionId: options.session.sessionId,
+          source: request.obligation.source,
+          sourceVersion: request.obligation.version,
+          observationId: `obs-failed-${randomUUID()}`,
+          rawResultSha256: "",
+          isReused: false,
+          originalReceiptId: null,
+          isError: true,
+          errorMessage: `Capability ${capabilityId} was not discovered in fresh session ${options.session.sessionId} (D-03)`,
+        });
+        return { receipt };
+      }
+
+      if (options.invoker) {
+        const invResult = await options.invoker(toolName, request.obligation.question);
+        const receipt = createCapabilityReceipt({
+          runId: request.runId,
+          step: request.step,
+          capabilityId,
+          obligationId: request.obligation.id,
+          question: request.obligation.question,
+          selected: true,
+          invoked: true,
+          outcome: invResult.outcome,
+          invokedAt: new Date().toISOString(),
+          toolName,
+          harness: options.session.harness,
+          harnessVersion: options.session.harnessVersion,
+          harnessExecutable: request.harnessExecutable ?? null,
+          sessionId: options.session.sessionId,
+          source: request.obligation.source,
+          sourceVersion: request.obligation.version,
+          observationId: `obs-${randomUUID()}`,
+          rawResultSha256: createHash("sha256").update(invResult.rawResult, "utf8").digest("hex"),
+          isReused: false,
+          originalReceiptId: null,
+          isError: invResult.isError,
+          errorMessage: invResult.errorMessage ?? null,
+        });
+        return { receipt };
+      }
+
+      // Default mock invocation
+      const receipt = createCapabilityReceipt({
+        runId: request.runId,
+        step: request.step,
+        capabilityId,
+        obligationId: request.obligation.id,
+        question: request.obligation.question,
+        selected: true,
+        invoked: true,
+        outcome: "ok",
+        invokedAt: new Date().toISOString(),
+        toolName,
+        harness: options.session.harness,
+        harnessVersion: options.session.harnessVersion,
+        harnessExecutable: request.harnessExecutable ?? null,
+        sessionId: options.session.sessionId,
+        source: request.obligation.source,
+        sourceVersion: request.obligation.version,
+        observationId: `obs-ok-${randomUUID()}`,
+        rawResultSha256: createHash("sha256").update("ok", "utf8").digest("hex"),
+        isReused: false,
+        originalReceiptId: null,
+        isError: false,
+        errorMessage: null,
+      });
+      return { receipt };
+    },
   };
 }

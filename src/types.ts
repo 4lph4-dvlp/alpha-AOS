@@ -8,9 +8,11 @@ import type { DroppedMember, ExcludedBoundary, RootReason, ScanBound } from "./c
 // PRODUCES each of them, for the same reason `RootReason` is: the composite
 // carries the producing module's own vocabulary rather than a restatement of
 // it that could drift. Both imports are type-only and erased at runtime.
-import type { NativeUseState } from "./core/capability-ledger.js";
+import type { CapabilityLedger, NativeUseState } from "./core/capability-ledger.js";
 import type { PackState } from "./core/project-plan.js";
 import type { WriterStatus } from "./core/writer-lock.js";
+
+export type { CapabilityLedger, NativeUseState, PackState };
 
 export type HarnessId = "claude" | "codex" | "antigravity" | "pi" | "hermes";
 export type McpServerId = "context7" | "exa" | "firecrawl";
@@ -958,5 +960,62 @@ export interface TreeSurfaceInspection {
     readonly description: string;
     readonly sealedModeSupported: false;
   };
+}
+
+/**
+ * All declaration categories for alpha-AOS capabilities (CAP-01, CAP-05).
+ */
+export type CapabilityKind =
+  | "gsd-workflow"
+  | "ecc-global-skill"
+  | "ecc-project-skill"
+  | "owned-skill"
+  | "mcp-server"
+  | "mcp-tool"
+  | "capability-pack"
+  | "control-command"
+  | "native-tool"
+  | "mandatory-hook";
+
+export type CapabilityScope = "global" | "project";
+
+/**
+ * One item in the project-scoped capability inventory (CAP-01).
+ *
+ * Each row maintains independent orthogonal axes for deployment, nativeUse,
+ * and support (D-11, CAPA-07), along with source provenance and reasons.
+ * Pack applicability and selection remain distinct.
+ */
+export interface TaskCapabilityInventoryItem {
+  readonly id: string;
+  readonly name: string;
+  readonly kind: CapabilityKind;
+  readonly scope: CapabilityScope;
+  readonly version: string;
+  readonly source: string;
+  readonly sourceHash: string | null;
+  readonly targetHarnesses: readonly HarnessId[];
+  readonly applicable: boolean;
+  readonly selected: boolean;
+  readonly applicabilityReason: string;
+  readonly exclusionReason: string | null;
+  readonly unavailableReason: string | null;
+  readonly deployment: PackState;
+  readonly nativeUse: NativeUseState;
+  readonly support: SurfaceSupport;
+  readonly nativeUseReason: string;
+  readonly supportReason: string;
+}
+
+/**
+ * Full versioned, project-scoped capability inventory (CAP-01).
+ */
+export interface TaskCapabilityInventory {
+  readonly schemaVersion: 1;
+  readonly projectRoot: string;
+  readonly harness?: HarnessId | undefined;
+  readonly items: readonly TaskCapabilityInventoryItem[];
+  readonly generatedAt: string;
+  readonly inputFingerprint: string;
 }
 

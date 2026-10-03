@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-capability-receipt.schema.json",
+  "title": "alpha-AOS task capability receipt",
+  "description": "Closed contract for task capability execution receipts linking skill activation and MCP observation (CAP-03, D-14, D-15).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "receiptId",
+    "obligationId",
+    "runId",
+    "step",
+    "capabilityId",
+    "question",
+    "sessionId",
+    "skillActivationReceiptId",
+    "mcpObservationId",
+    "source",
+    "sourceVersion",
+    "attempted",
+    "outcome",
+    "resultDigest",
+    "receiptDigest"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "task-capability-receipt" },
+    "receiptId": { "type": "string", "minLength": 1 },
+    "obligationId": { "type": "string", "minLength": 1 },
+    "runId": { "type": "string", "minLength": 1 },
+    "step": {
+      "enum": ["discuss", "plan", "execute", "review", "verify"]
+    },
+    "capabilityId": { "type": "string", "minLength": 1 },
+    "question": { "type": "string" },
+    "sessionId": {
+      "type": ["string", "null"]
+    },
+    "skillActivationReceiptId": {
+      "type": ["string", "null"]
+    },
+    "mcpObservationId": {
+      "type": ["string", "null"]
+    },
+    "source": { "type": "string", "minLength": 1 },
+    "sourceVersion": { "type": "string", "minLength": 1 },
+    "attempted": { "type": "boolean" },
+    "outcome": {
+      "enum": ["ok", "failed", "denied", "tool-error", "transport-error"]
+    },
+    "resultDigest": {
+      "type": "string"
+    },
+    "receiptDigest": { "$ref": "#/$defs/sha256" },
+    "selected": { "type": "boolean" },
+    "invoked": { "type": "boolean" },
+    "invokedAt": { "type": "string" },
+    "skillActivatedAt": {
+      "type": ["string", "null"]
+    },
+    "mcpObservedAt": {
+      "type": ["string", "null"]
+    },
+    "toolName": { "type": "string" },
+    "harness": { "type": "string" },
+    "harnessVersion": {
+      "type": ["string", "null"]
+    },
+    "harnessExecutable": {
+      "type": ["string", "null"]
+    },
+    "observationId": {
+      "type": ["string", "null"]
+    },
+    "rawResultSha256": {
+      "type": "string"
+    },
+    "isReused": { "type": "boolean" },
+    "originalReceiptId": {
+      "type": ["string", "null"]
+    },
+    "isError": { "type": "boolean" },
+    "errorMessage": {
+      "type": ["string", "null"]
+    }
+  }
+}

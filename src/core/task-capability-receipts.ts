@@ -3,12 +3,14 @@ import { existsSync } from "node:fs";
 import { mkdir, open, readdir, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import type { HarnessId } from "../types.js";
-import { userStateRoot } from "./paths.js";
+import { packageRoot, userStateRoot } from "./paths.js";
 import type { TaskCapabilityObligation } from "./task-capability-obligations.js";
 import type { GsdStepKind } from "./task-gsd-lifecycle.js";
 import type { TaskPrecondition } from "./task-verdict.js";
-import { rejectRawCredentials } from "./validation.js";
+import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
 import { syncDirectory } from "./writer-lock.js";
+
+export type TaskCapabilityOutcome = "ok" | "failed" | "denied" | "tool-error" | "transport-error";
 
 export interface TaskCapabilityReceipt {
   readonly schemaVersion: 1;
@@ -22,17 +24,23 @@ export interface TaskCapabilityReceipt {
   readonly question: string;
   readonly selected: boolean;
   readonly invoked: boolean;
-  readonly outcome: "ok" | "failed" | "denied";
+  readonly attempted?: boolean;
+  readonly outcome: TaskCapabilityOutcome;
   readonly invokedAt: string;
+  readonly skillActivatedAt?: string | null;
+  readonly mcpObservedAt?: string | null;
   readonly toolName: string;
   readonly harness: HarnessId | string;
   readonly harnessVersion: string | null;
   readonly harnessExecutable: string | null;
   readonly sessionId: string | null;
+  readonly skillActivationReceiptId?: string | null;
+  readonly mcpObservationId?: string | null;
   readonly source: string;
   readonly sourceVersion: string;
-  readonly observationId: string;
+  readonly observationId: string | null;
   readonly rawResultSha256: string;
+  readonly resultDigest?: string;
   readonly isReused: boolean;
   readonly originalReceiptId: string | null;
   readonly isError: boolean;
@@ -64,12 +72,84 @@ export function computeCapabilityReceiptDigest(payload: Omit<TaskCapabilityRecei
   return createHash("sha256").update(canonical, "utf8").digest("hex");
 }
 
+let cachedCapabilityReceiptSchema: Record<string, unknown> | null = null;
+
+export async function getCapabilityReceiptSchema(pkgRoot?: string): Promise<Record<string, unknown>> {
+  if (cachedCapabilityReceiptSchema !== null && !pkgRoot) {
+    return cachedCapabilityReceiptSchema;
+  }
+  const root = pkgRoot ?? packageRoot();
+  const schemaPath = join(root, "schemas", "task-capability-receipt.schema.json");
+  const raw = await readFile(schemaPath, "utf8");
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  if (!pkgRoot) {
+    cachedCapabilityReceiptSchema = parsed;
+  }
+  return parsed;
+}
+
 export function createCapabilityReceipt(
-  params: Omit<TaskCapabilityReceipt, "schemaVersion" | "kind" | "receiptId" | "receiptDigest"> & {
+  params: Omit<
+    TaskCapabilityReceipt,
+    | "schemaVersion"
+    | "kind"
+    | "receiptId"
+    | "receiptDigest"
+    | "attempted"
+    | "resultDigest"
+    | "skillActivationReceiptId"
+    | "mcpObservationId"
+    | "outcome"
+    | "invokedAt"
+    | "observationId"
+  > & {
     receiptId?: string;
+    attempted?: boolean;
+    outcome?: TaskCapabilityOutcome;
+    resultDigest?: string;
+    skillActivationReceiptId?: string | null;
+    mcpObservationId?: string | null;
+    skillActivatedAt?: string | null;
+    mcpObservedAt?: string | null;
+    observationId?: string | null;
+    rawResultSha256?: string;
+    invokedAt?: string;
+    invoked?: boolean;
+    selected?: boolean;
   },
 ): TaskCapabilityReceipt {
   const receiptId = params.receiptId ?? `rec-cap-${randomUUID()}`;
+  const sessionId = params.sessionId ?? null;
+  const mcpObservationId = params.mcpObservationId !== undefined
+    ? params.mcpObservationId
+    : (params.observationId ?? null);
+  const observationId = params.observationId !== undefined
+    ? params.observationId
+    : mcpObservationId;
+  const skillActivationReceiptId = params.skillActivationReceiptId !== undefined
+    ? params.skillActivationReceiptId
+    : (sessionId ? `act-${params.capabilityId}-${sessionId}` : null);
+  const resultDigest = params.resultDigest !== undefined
+    ? params.resultDigest
+    : (params.rawResultSha256 ?? "");
+  const rawResultSha256 = params.rawResultSha256 !== undefined
+    ? params.rawResultSha256
+    : resultDigest;
+  const attempted = params.attempted !== undefined
+    ? params.attempted
+    : (params.invoked ?? true);
+  const invoked = params.invoked !== undefined
+    ? params.invoked
+    : attempted;
+  const outcome: TaskCapabilityOutcome = params.outcome ?? "ok";
+  const invokedAt = params.invokedAt ?? new Date().toISOString();
+  const skillActivatedAt = params.skillActivatedAt !== undefined
+    ? params.skillActivatedAt
+    : (sessionId ? invokedAt : null);
+  const mcpObservedAt = params.mcpObservedAt !== undefined
+    ? params.mcpObservedAt
+    : (mcpObservationId ? invokedAt : null);
+
   const unhashed: Omit<TaskCapabilityReceipt, "receiptDigest"> = {
     schemaVersion: 1,
     kind: "task-capability-receipt",
@@ -79,29 +159,96 @@ export function createCapabilityReceipt(
     capabilityId: params.capabilityId,
     obligationId: params.obligationId,
     question: params.question,
-    selected: params.selected,
-    invoked: params.invoked,
-    outcome: params.outcome,
-    invokedAt: params.invokedAt,
+    selected: params.selected ?? true,
+    invoked,
+    attempted,
+    outcome,
+    invokedAt,
+    skillActivatedAt,
+    mcpObservedAt,
     toolName: params.toolName,
     harness: params.harness,
-    harnessVersion: params.harnessVersion,
-    harnessExecutable: params.harnessExecutable,
-    sessionId: params.sessionId,
+    harnessVersion: params.harnessVersion ?? null,
+    harnessExecutable: params.harnessExecutable ?? null,
+    sessionId,
+    skillActivationReceiptId,
+    mcpObservationId,
     source: params.source,
     sourceVersion: params.sourceVersion,
-    observationId: params.observationId,
-    rawResultSha256: params.rawResultSha256,
-    isReused: params.isReused,
-    originalReceiptId: params.originalReceiptId,
-    isError: params.isError,
-    errorMessage: params.errorMessage,
+    observationId,
+    rawResultSha256,
+    resultDigest,
+    isReused: params.isReused ?? false,
+    originalReceiptId: params.originalReceiptId ?? null,
+    isError: params.isError ?? false,
+    errorMessage: params.errorMessage ?? null,
   };
+
   const receiptDigest = computeCapabilityReceiptDigest(unhashed);
   return {
     ...unhashed,
     receiptDigest,
   };
+}
+
+export interface CreateLinkedCapabilityReceiptOptions {
+  readonly obligation: TaskCapabilityObligation;
+  readonly runId: string;
+  readonly step: GsdStepKind;
+  readonly sessionId: string;
+  readonly skillActivation: {
+    readonly receiptId: string;
+    readonly activatedAt?: string;
+  };
+  readonly mcpObservation: {
+    readonly observationId: string;
+    readonly outcome: TaskCapabilityOutcome;
+    readonly rawResultSha256: string;
+    readonly isError?: boolean;
+    readonly errorMessage?: string | null;
+    readonly observedAt?: string;
+  };
+  readonly harness: HarnessId | string;
+  readonly harnessVersion?: string | null;
+  readonly harnessExecutable?: string | null;
+  readonly toolName?: string;
+}
+
+export function createLinkedCapabilityReceipt(
+  options: CreateLinkedCapabilityReceiptOptions,
+): TaskCapabilityReceipt {
+  const toolName = options.toolName ?? options.obligation.capabilityId.split(":").pop() ?? options.obligation.capabilityId;
+  const isError = options.mcpObservation.isError ?? (options.mcpObservation.outcome !== "ok");
+  return createCapabilityReceipt({
+    runId: options.runId,
+    step: options.step,
+    capabilityId: options.obligation.capabilityId,
+    obligationId: options.obligation.id,
+    question: options.obligation.question,
+    selected: true,
+    attempted: true,
+    invoked: true,
+    outcome: options.mcpObservation.outcome,
+    invokedAt: options.mcpObservation.observedAt ?? new Date().toISOString(),
+    skillActivatedAt: options.skillActivation.activatedAt ?? new Date().toISOString(),
+    mcpObservedAt: options.mcpObservation.observedAt ?? new Date().toISOString(),
+    toolName,
+    harness: options.harness,
+    harnessVersion: options.harnessVersion ?? null,
+    harnessExecutable: options.harnessExecutable ?? null,
+    sessionId: options.sessionId,
+    skillActivationReceiptId: options.skillActivation.receiptId,
+    mcpObservationId: options.mcpObservation.observationId,
+    source: options.obligation.source,
+    sourceVersion: options.obligation.version,
+    observationId: options.mcpObservation.observationId,
+    rawResultSha256: options.mcpObservation.rawResultSha256,
+    resultDigest: options.mcpObservation.rawResultSha256,
+    isReused: false,
+    originalReceiptId: null,
+    isError,
+    errorMessage: options.mcpObservation.errorMessage ?? null,
+  });
 }
 
 export function resolveCapabilityReceiptsDir(receiptsRoot?: string): string {
@@ -117,13 +264,31 @@ export function resolveCapabilityReceiptsDir(receiptsRoot?: string): string {
 export async function writeCapabilityReceipt(
   receipt: TaskCapabilityReceipt,
   receiptsRoot?: string,
+  pkgRoot?: string,
 ): Promise<string> {
   const credentialIssues = rejectRawCredentials(receipt);
   if (credentialIssues.length > 0) {
     throw new Error(`Receipt contains raw credentials: ${credentialIssues.map((i) => i.actualShape).join(", ")}`);
   }
 
+  const expectedDigest = computeCapabilityReceiptDigest(receipt);
+  if (receipt.receiptDigest !== expectedDigest) {
+    throw new Error(`Receipt digest mismatch: expected ${expectedDigest}, got ${receipt.receiptDigest}`);
+  }
+
+  const schema = await getCapabilityReceiptSchema(pkgRoot);
   const text = JSON.stringify(receipt, null, 2) + "\n";
+  const validation = validateManagedDocument<TaskCapabilityReceipt>({
+    text,
+    format: "json",
+    kind: "task-receipt",
+    schema,
+  });
+
+  if (!validation.ok || validation.value === null) {
+    throw new Error(`Capability receipt validation failed: ${JSON.stringify(validation.issues)}`);
+  }
+
   const targetDir = resolveCapabilityReceiptsDir(receiptsRoot);
   const fileName = `${receipt.runId}-${receipt.step}-${receipt.obligationId}.json`;
   const targetPath = join(targetDir, fileName);
@@ -145,10 +310,12 @@ export async function writeCapabilityReceipt(
 export async function readCapabilityReceipts(
   stateRoot?: string,
   runId?: string,
+  pkgRoot?: string,
 ): Promise<TaskCapabilityReceipt[]> {
   const targetDir = resolveCapabilityReceiptsDir(stateRoot);
   if (!existsSync(targetDir)) return [];
 
+  const schema = await getCapabilityReceiptSchema(pkgRoot);
   const entries = await readdir(targetDir);
   const receipts: TaskCapabilityReceipt[] = [];
 
@@ -158,9 +325,14 @@ export async function readCapabilityReceipts(
 
     try {
       const content = await readFile(join(targetDir, entry), "utf8");
-      const parsed = JSON.parse(content) as TaskCapabilityReceipt;
-      if (parsed.kind === "task-capability-receipt" && parsed.schemaVersion === 1) {
-        receipts.push(parsed);
+      const validation = validateManagedDocument<TaskCapabilityReceipt>({
+        text: content,
+        format: "json",
+        kind: "task-receipt",
+        schema,
+      });
+      if (validation.ok && validation.value !== null) {
+        receipts.push(validation.value);
       }
     } catch {
       // Ignore unreadable or invalid receipt files
@@ -190,7 +362,7 @@ export interface VerifyCapabilityReceiptsResult {
 
 /**
  * Validates that all required capability obligations have verified, successful receipts
- * matching the current runId, GSD step, and session (CAP-03, CAP-05).
+ * matching the current runId, GSD step, and session, with dual linked evidence (CAP-03, CAP-05, D-14, D-15).
  */
 export function verifyRequiredCapabilityReceipts(
   options: VerifyCapabilityReceiptsOptions,
@@ -263,24 +435,59 @@ export function verifyRequiredCapabilityReceipts(
         continue;
       }
 
-      // Must be invoked and successful
-      if (!receipt.invoked || receipt.outcome !== "ok" || receipt.isError) {
+      // Session ID checks
+      if (!receipt.sessionId || receipt.sessionId.trim().length === 0) {
+        failedReceipts.push(receipt);
+        continue;
+      }
+      if (options.currentSessionId && receipt.sessionId !== options.currentSessionId) {
+        failedReceipts.push(receipt);
+        continue;
+      }
+
+      // D-14: Dual linked evidence required (Skill activation + MCP observation)
+      // 한쪽 누락 (missing either side) is rejected
+      if (!receipt.skillActivationReceiptId || receipt.skillActivationReceiptId.trim().length === 0) {
+        failedReceipts.push(receipt);
+        continue;
+      }
+      if (!receipt.mcpObservationId || receipt.mcpObservationId.trim().length === 0) {
+        failedReceipts.push(receipt);
+        continue;
+      }
+
+      // ID 교차 check (Crossed IDs / mismatched session in activation/observation references)
+      if (receipt.skillActivationReceiptId.includes("session-") && !receipt.skillActivationReceiptId.includes(receipt.sessionId)) {
+        failedReceipts.push(receipt);
+        continue;
+      }
+
+      // Sequence check (순서 반전: skill activation must precede or coincide with MCP observation)
+      if (receipt.skillActivatedAt && receipt.mcpObservedAt) {
+        const skillTime = new Date(receipt.skillActivatedAt).getTime();
+        const mcpTime = new Date(receipt.mcpObservedAt).getTime();
+        if (!isNaN(skillTime) && !isNaN(mcpTime) && skillTime > mcpTime) {
+          failedReceipts.push(receipt);
+          continue;
+        }
+      }
+
+      // Empty response check (빈 응답: resultDigest or rawResultSha256 cannot be empty)
+      const resDigest = receipt.resultDigest || receipt.rawResultSha256;
+      if (!resDigest || resDigest.trim().length === 0) {
+        failedReceipts.push(receipt);
+        continue;
+      }
+
+      // D-15: Attempted, Outcome and Error check
+      const attempted = receipt.attempted ?? receipt.invoked;
+      if (!attempted || receipt.outcome !== "ok" || receipt.isError) {
         failedReceipts.push(receipt);
         continue;
       }
 
       // If reused, originalReceiptId must be non-empty
       if (receipt.isReused && (!receipt.originalReceiptId || receipt.originalReceiptId.trim().length === 0)) {
-        failedReceipts.push(receipt);
-        continue;
-      }
-
-      // If session specified and receipt has session, must match
-      if (
-        options.currentSessionId &&
-        receipt.sessionId &&
-        receipt.sessionId !== options.currentSessionId
-      ) {
         failedReceipts.push(receipt);
         continue;
       }

@@ -188,13 +188,13 @@ test("CAP-05 tracer: capability invocation failure blocks acceptance despite nor
     expectedDigest: digest,
   });
 
+  // D-13 (18-05): a failed required capability with no alternate and no user
+  // action available halts as blocked before any verdict is issued, so the
+  // run can never be judged accepted.
   assert.notEqual(run.status, "accepted");
-  assert.equal(run.status, "unknown");
-  assert.equal(run.verdict?.overall, "unknown");
-
-  const capPrecondition = run.verdict?.preconditions.find((p) => p.id === "capability-obligations");
-  assert.ok(capPrecondition !== undefined);
-  assert.equal(capPrecondition.satisfied, false);
+  assert.equal(run.status, "blocked");
+  assert.ok(run.stopReason?.includes("capability-failure"));
+  assert.equal(run.verdict ?? null, null);
 });
 
 test("executeGsdStep attaches selected obligations and invokes capability port at boundary", async (context) => {

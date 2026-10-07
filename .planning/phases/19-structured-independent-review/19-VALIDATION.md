@@ -40,8 +40,10 @@ created: "2026-10-08"
 | 19-03-02 | 03 | 3 | REV-04 | T-19-06 | New revision/session rechecks all criteria; recurrence needs new failure | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-repair.test.js dist/test/task-supervisor-recovery.test.js && npm run check` | ❌ W0 + ✅ | ⬜ pending |
 | 19-04-01 | 04 | 4 | REV-03 | T-19-07 | Separate final review gates milestone acceptance | milestone tracer | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review.test.js && npm run check` | ❌ W0 | ⬜ pending |
 | 19-04-02 | 04 | 4 | REV-03, REV-05 | T-19-08 | Missing feature and architecture violation route; suggestion stays deferred | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review.test.js dist/test/task-review-repair.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-05-01 | 05 | 5 | REV-02..05 | T-19-09 | Terminal report shows criteria, checks, reviewer, evidence and unknown | CLI | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli-review.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-05-02 | 05 | 5 | REV-02..05 | T-19-10 | Cross-path false acceptance and no-progress blocked | end-to-end | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-adversarial.test.js && npm run check` | ❌ W0 | ⬜ pending |
+| 19-05-01 | 05 | 5 | REV-03, REV-04 | T-19-11 | Five native reviewers return bounded structured reports | adapter matrix | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review-adapters.test.js && npm run check` | ❌ W0 | ⬜ pending |
+| 19-05-02 | 05 | 5 | REV-03, REV-04 | T-19-11 | Truncated/wrong-session/unsupported results fail | adversarial adapter | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review-adapters.test.js dist/test/task-agents.test.js && npm run check` | ❌ W0 + ✅ | ⬜ pending |
+| 19-06-01 | 06 | 6 | REV-02..05 | T-19-09 | Terminal report shows criteria, checks, reviewer, evidence and unknown | CLI | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli-review.test.js && npm run check` | ❌ W0 | ⬜ pending |
+| 19-06-02 | 06 | 6 | REV-02..05 | T-19-10 | Cross-path false acceptance and no-progress blocked | end-to-end | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-adversarial.test.js && npm run check` | ❌ W0 | ⬜ pending |
 
 New test files are created by their owning tasks before the command runs. All task commands use the existing compiled test runner.
 
@@ -50,6 +52,7 @@ New test files are created by their owning tasks before the command runs. All ta
 - [ ] Create the shared exact-revision reviewer/evidence fixture for the first tracer in `test/task-review-evidence.test.ts`.
 - [ ] Add a bounded fixture with an intentionally missing feature, an approved architecture rule violation, two criteria sharing one cause, and an unrelated suggestion.
 - [ ] Ensure simulated reviewer ports expose requested and observed session IDs separately; no fixture may equate a prompt with an independent receipt.
+- [ ] Add `test/task-final-review-adapters.test.ts` with five native adapter success/failure cells before Plan 05 verification.
 
 ## Manual-Only Verifications
 

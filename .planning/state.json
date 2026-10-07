@@ -26,12 +26,12 @@
     {
       "number": "18",
       "name": "Capability Fabric and Automatic Invocation",
-      "status": "in_progress"
+      "status": "pending"
     },
     {
       "number": "19",
       "name": "Structured Independent Review",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "20",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
+    "command": "/gsd:progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 18 of 9 · 44% · executing"
+    "reason": "Phase 19 of 9 · 44% · planned; Phase 18 dependency remains"
   },
-  "updated_at": "2026-10-03T03:11:37.384Z"
+  "updated_at": "2026-10-07T18:29:03.898Z"
 }

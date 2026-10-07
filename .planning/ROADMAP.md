@@ -275,6 +275,33 @@ Plans:
 
 **Verification:** Adversarial report fixtures, deliberately broken implementation trial, reviewer independence receipt and code-review/UAT gate.
 
+**Plans:** 0/6 plans complete
+
+Plans:
+**Wave 1**
+
+- [ ] 19-01-PLAN.md — Exact-Revision Report and Evidence Tracer (REV-02, REV-04)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 19-02-PLAN.md — Objective Classification and Deferred Suggestions (REV-02, REV-05)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 19-03-PLAN.md — Deduplicated GSD Repair and Fresh Re-review (REV-04)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 19-04-PLAN.md — Milestone Final Review Contract and Acceptance Gate (REV-03, REV-04, REV-05)
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 19-05-PLAN.md — Five-Harness Final Reviewer Adapters (REV-03, REV-04)
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 19-06-PLAN.md — Terminal Review Report and Adversarial Integration (REV-02..05)
+
 ### Phase 20: General Tool Connectors
 
 **Goal:** The same contract/run/review engine can execute non-code work and prove per-item outcomes with CoursePilot as the first real connector.

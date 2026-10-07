@@ -26,7 +26,7 @@
     {
       "number": "18",
       "name": "Capability Fabric and Automatic Invocation",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "19",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd:progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 19 of 9 · 44% · planned; Phase 18 execution evidence confirmed"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 19)",
+    "reason": "Phase 19 of 9 — needs a plan"
   },
-  "updated_at": "2026-10-07T18:29:03.898Z"
+  "updated_at": "2026-10-07T19:11:44.230Z"
 }

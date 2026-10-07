@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,11 @@ import {
   executeGsdStep,
   runPhaseLifecycle,
 } from "../src/core/task-gsd-lifecycle.js";
+import {
+  createCapabilityReceipt,
+  verifyRequiredCapabilityReceipts,
+  writeCapabilityReceipt,
+} from "../src/core/task-capability-receipts.js";
 import {
   readHookReceipt,
 } from "../src/core/task-hook-receipt.js";
@@ -331,3 +337,161 @@ test("FIX-04: Stale revision or 1-byte artifact divergence triggers STALE_REVIEW
   assert.equal(missingCheck.valid, false);
   assert.equal(missingCheck.refusalCode, "MISSING_REVIEW_WITNESS");
 });
+
+// -----------------------------------------------------------------------------
+// Scenario 5 (ADV-05: Step order tampering and cross-step receipt injection)
+// -----------------------------------------------------------------------------
+test("ADV-05: Cross-step receipt injection or tampered step identity fails verification closed (CAP-03, CAP-05, D-09)", async () => {
+  const runId = "00000001-00000001";
+  const question = "Consult documentation-lookup for API v2.";
+
+  const obligation = {
+    id: "ob-execute-1",
+    capabilityId: "documentation-lookup",
+    step: "execute" as const,
+    question,
+    required: true,
+    scope: "/project",
+    source: "context7",
+    version: "stable",
+  };
+
+  // Tampered receipt: marked with step "verify" instead of "execute"
+  const tamperedReceipt = createCapabilityReceipt({
+    runId,
+    step: "verify", // wrong step
+    capabilityId: "documentation-lookup",
+    obligationId: obligation.id,
+    question,
+    selected: true,
+    invoked: true,
+    outcome: "ok",
+    invokedAt: new Date().toISOString(),
+    toolName: "context7",
+    harness: "codex",
+    harnessVersion: "1.0.0",
+    harnessExecutable: "codex.exe",
+    sessionId: "sess-1",
+    skillActivationReceiptId: "act-1",
+    mcpObservationId: "mcp-1",
+    source: "context7",
+    sourceVersion: "stable",
+    observationId: "obs-1",
+    rawResultSha256: createHash("sha256").update("doc", "utf8").digest("hex"),
+    isReused: false,
+    originalReceiptId: null,
+    isError: false,
+    errorMessage: null,
+  });
+
+  const verification = verifyRequiredCapabilityReceipts({
+    obligations: [obligation],
+    receipts: [tamperedReceipt],
+    currentRunId: runId,
+    currentStep: "execute",
+    currentSessionId: "sess-1",
+  });
+
+  assert.equal(verification.satisfied, false, "Cross-step receipt must fail verification");
+  assert.equal(verification.failedReceipts.length, 1);
+  assert.equal(verification.missingObligations.length, 1);
+  assert.equal(verification.precondition.satisfied, false);
+});
+
+// -----------------------------------------------------------------------------
+// Scenario 6 (ADV-06: Empty obligation question fails verification closed)
+// -----------------------------------------------------------------------------
+test("ADV-06: Empty obligation question or blank capability fails verification closed (CAP-03, CAP-05)", async () => {
+  const runId = "00000001-00000001";
+
+  // Injected obligation with empty question
+  const blankQuestionObligation = {
+    id: "ob-blank-q",
+    capabilityId: "documentation-lookup",
+    step: "execute" as const,
+    question: "   ", // blank/whitespace
+    required: true,
+    scope: "/project",
+    source: "context7",
+    version: "stable",
+  };
+
+  const receipt = createCapabilityReceipt({
+    runId,
+    step: "execute",
+    capabilityId: "documentation-lookup",
+    obligationId: blankQuestionObligation.id,
+    question: "   ",
+    selected: true,
+    invoked: true,
+    outcome: "ok",
+    invokedAt: new Date().toISOString(),
+    toolName: "context7",
+    harness: "codex",
+    harnessVersion: "1.0.0",
+    harnessExecutable: "codex.exe",
+    sessionId: "sess-1",
+    skillActivationReceiptId: "act-1",
+    mcpObservationId: "mcp-1",
+    source: "context7",
+    sourceVersion: "stable",
+    observationId: "obs-1",
+    rawResultSha256: createHash("sha256").update("doc", "utf8").digest("hex"),
+    isReused: false,
+    originalReceiptId: null,
+    isError: false,
+    errorMessage: null,
+  });
+
+  const verification = verifyRequiredCapabilityReceipts({
+    obligations: [blankQuestionObligation],
+    receipts: [receipt],
+    currentRunId: runId,
+    currentStep: "execute",
+    currentSessionId: "sess-1",
+  });
+
+  assert.equal(verification.satisfied, false, "Blank obligation question must never be satisfied");
+  assert.equal(verification.missingObligations.length, 1);
+  assert.equal(verification.precondition.satisfied, false);
+});
+
+// -----------------------------------------------------------------------------
+// Scenario 7 (ADV-07: Process exit 0 without capability call fails closed)
+// -----------------------------------------------------------------------------
+test("ADV-07: Process exit code 0 without required capability invocation cannot forge accepted verdict (CAP-03, CAP-05)", async (context) => {
+  const parent = await scratch(context, "adv07-fake-success");
+  const repoRes = await createOrdinaryRepository(parent, "repo");
+  assert.equal(repoRes.ok, true);
+  if (!repoRes.ok) return;
+  const projectRoot = repoRes.fixture.path;
+  const receiptsRoot = join(projectRoot, "receipts");
+  const headSha = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+
+  const contract = createMockContract(projectRoot, {
+    goal: "Consult documentation-lookup for API v2.",
+  });
+
+  // Step script exits 0 claiming complete success, but capabilityPort is omitted
+  const stepScriptPath = join(projectRoot, "step-exit-0.cjs");
+  await writeFile(stepScriptPath, "process.exit(0);\n", "utf8");
+
+  const result = await executeGsdStep({
+    projectRoot,
+    phaseId: "18-capability-fabric-and-automatic-invocation",
+    step: "execute",
+    contract,
+    targetRevisionSha: headSha,
+    workingTreeDigest: "0".repeat(64),
+    receiptsRoot,
+    stepCommand: {
+      executable: process.execPath,
+      args: [stepScriptPath],
+    },
+    // No capabilityPort provided!
+  });
+
+  assert.equal(result.nextStep, "failed", "Execution must fail closed when required capability is missing");
+  assert.ok(result.obligations?.some((o) => o.required));
+});
+

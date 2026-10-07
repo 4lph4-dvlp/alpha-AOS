@@ -873,3 +873,147 @@ export async function buildTaskCapabilityReport(
   };
 }
 
+export type CapabilitySupportStatus = "supported" | "unsupported" | "unverified";
+export type CapabilityCellOutcome = "ok" | "failed" | "denied" | "unavailable" | "none";
+
+export interface HostCapabilitySupportCell {
+  readonly harness: HarnessId;
+  readonly capabilityId: string;
+  readonly capabilityName: string;
+  readonly kind: CapabilityKind;
+  readonly executable: string | null;
+  readonly version: string | null;
+  readonly os: string;
+  readonly sessionId: string | null;
+  readonly installed: boolean;
+  readonly discovered: boolean;
+  readonly invoked: boolean;
+  readonly resultId: string | null;
+  readonly outcome: CapabilityCellOutcome;
+  readonly support: CapabilitySupportStatus;
+  readonly reason: string;
+  readonly isSynthetic?: boolean;
+}
+
+export interface HarnessHostMatrixReport {
+  readonly generatedAt: string;
+  readonly os: string;
+  readonly harnesses: Record<
+    HarnessId,
+    {
+      readonly executable: string | null;
+      readonly version: string | null;
+      readonly status: "ok" | "not-found" | "failed";
+      readonly cells: readonly HostCapabilitySupportCell[];
+    }
+  >;
+  readonly cells: readonly HostCapabilitySupportCell[];
+  readonly summary: {
+    readonly totalCapabilities: number;
+    readonly totalCells: number;
+    readonly supportedCount: number;
+    readonly unsupportedCount: number;
+    readonly unverifiedCount: number;
+  };
+}
+
+export interface ProjectLiveSupportCellOptions {
+  readonly harness: HarnessId;
+  readonly capabilityId: string;
+  readonly capabilityName: string;
+  readonly kind: CapabilityKind;
+  readonly executable?: string | null;
+  readonly version?: string | null;
+  readonly os?: string;
+  readonly sessionId?: string | null;
+  readonly installed?: boolean;
+  readonly discovered?: boolean;
+  readonly invoked?: boolean;
+  readonly resultId?: string | null;
+  readonly outcome?: CapabilityCellOutcome;
+  readonly failureReason?: string | null;
+  readonly isSynthetic?: boolean;
+  readonly harnessSupported?: boolean;
+}
+
+/**
+ * Projects a live host capability support cell enforcing CAP-05 invariants.
+ *
+ * Rules:
+ * 1. Synthetic fixture success must NEVER be recorded or promoted as live host support.
+ * 2. Meaningful read-only invocation success actually observed with a valid result ID
+ *    is strictly required for 'supported'.
+ * 3. Installed-only and discovered-only states remain 'unverified'.
+ * 4. Missing executables, unresolvable versions, unsupported harnesses, or failed/denied/unavailable
+ *    outcomes yield 'unsupported' (or 'unverified' when missing invocation).
+ */
+export function projectLiveSupportCell(options: ProjectLiveSupportCellOptions): HostCapabilitySupportCell {
+  const harness = options.harness;
+  const executable = options.executable ?? null;
+  const version = options.version ?? null;
+  const os = options.os ?? process.platform;
+  const sessionId = options.sessionId ?? null;
+  const installed = options.installed ?? false;
+  const discovered = options.discovered ?? false;
+  const invoked = options.invoked ?? false;
+  const resultId = options.resultId ?? null;
+  const outcome = options.outcome ?? "none";
+  const isSynthetic = options.isSynthetic ?? false;
+  const harnessSupported = options.harnessSupported ?? true;
+
+  let support: CapabilitySupportStatus = "unverified";
+  let reason = options.failureReason ?? "";
+
+  // CAP-05 Prohibition: synthetic fixture success must NEVER be recorded or promoted as live host support
+  if (isSynthetic) {
+    support = "unverified";
+    reason = "Synthetic fixture evidence cannot prove live host support";
+  } else if (!harnessSupported) {
+    support = "unsupported";
+    reason = options.failureReason ?? `Harness '${harness}' does not support '${options.kind}' capability '${options.capabilityId}'`;
+  } else if (executable === null) {
+    support = "unsupported";
+    reason = options.failureReason ?? `Harness '${harness}' executable not found on PATH`;
+  } else if (version === null) {
+    support = "unsupported";
+    reason = options.failureReason ?? `Harness '${harness}' version probe failed or unavailable`;
+  } else if (outcome === "failed" || outcome === "denied" || outcome === "unavailable") {
+    support = "unsupported";
+    reason = options.failureReason ?? `Invocation outcome was '${outcome}'`;
+  } else if (!installed) {
+    support = "unverified";
+    reason = options.failureReason ?? "Capability not installed on host";
+  } else if (!discovered) {
+    support = "unverified";
+    reason = options.failureReason ?? "Installed on host, but not discovered in session";
+  } else if (!invoked) {
+    support = "unverified";
+    reason = options.failureReason ?? "Discovered in session, but not invoked with meaningful read-only call";
+  } else if (outcome === "ok" && resultId !== null) {
+    support = "supported";
+    reason = options.failureReason ?? `Meaningful read-only invocation verified with result ID ${resultId}`;
+  } else {
+    support = "unverified";
+    reason = options.failureReason ?? "Invoked but no meaningful result ID recorded";
+  }
+
+  return {
+    harness,
+    capabilityId: options.capabilityId,
+    capabilityName: options.capabilityName,
+    kind: options.kind,
+    executable,
+    version,
+    os,
+    sessionId,
+    installed,
+    discovered,
+    invoked,
+    resultId,
+    outcome,
+    support,
+    reason,
+    ...(isSynthetic ? { isSynthetic: true } : {}),
+  };
+}
+

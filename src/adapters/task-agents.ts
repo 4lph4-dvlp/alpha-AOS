@@ -39,6 +39,36 @@ export {
   type TaskAgentRunner,
 } from "./task-agent-launch.js";
 
+export {
+  probeClaudeVersion,
+  probeCodexVersion,
+  probeAntigravityVersion,
+  probePiVersion,
+  probeHermesVersion,
+};
+
+export async function probeHarnessVersion(
+  harness: HarnessId,
+  options: {
+    resolve?: TaskAgentResolver;
+    runner?: TaskAgentRunner;
+    source?: NodeJS.ProcessEnv;
+  } = {},
+): Promise<HarnessVersionProbe> {
+  switch (harness) {
+    case "claude":
+      return probeClaudeVersion(options);
+    case "codex":
+      return probeCodexVersion(options);
+    case "antigravity":
+      return probeAntigravityVersion(options);
+    case "pi":
+      return probePiVersion(options);
+    case "hermes":
+      return probeHermesVersion(options);
+  }
+}
+
 export const ALL_HARNESSES: readonly HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"] as const;
 export const ALL_ROLES = ["controller", "executor", "reviewer"] as const;
 export type Role = (typeof ALL_ROLES)[number];

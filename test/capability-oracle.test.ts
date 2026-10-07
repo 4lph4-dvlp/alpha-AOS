@@ -26,7 +26,8 @@ import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/p
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { projectLiveSupportCell } from "../src/core/task-capability-inventory.js";
 import {
   assertControlAncestorFreedom,
   DISCOVERED_PROJECT_SKILL_ROOTS,
@@ -1086,4 +1087,215 @@ test("Codex representative pack exercise: materializes into .agents/skills with 
   } else {
     assert.ok(discovery?.unsupportedReason || codexEntry.skippedReason);
   }
+});
+
+test("projectLiveSupportCell enforces CAP-05 status projection and forbids synthetic promotion (Plan 18-07 Task 2)", () => {
+  // 1. Installed-only remains unverified
+  const installedOnly = projectLiveSupportCell({
+    harness: "claude",
+    capabilityId: "deep-research",
+    capabilityName: "deep-research",
+    kind: "ecc-global-skill",
+    executable: "claude",
+    version: "2.1.291",
+    installed: true,
+    discovered: false,
+    invoked: false,
+  });
+  assert.equal(installedOnly.support, "unverified");
+  assert.equal(installedOnly.invoked, false);
+  assert.match(installedOnly.reason, /not discovered/i);
+
+  // 2. Discovered-only remains unverified
+  const discoveredOnly = projectLiveSupportCell({
+    harness: "codex",
+    capabilityId: "documentation-lookup",
+    capabilityName: "documentation-lookup",
+    kind: "ecc-global-skill",
+    executable: "codex",
+    version: "0.160.1",
+    installed: true,
+    discovered: true,
+    invoked: false,
+  });
+  assert.equal(discoveredOnly.support, "unverified");
+  assert.equal(discoveredOnly.invoked, false);
+  assert.match(discoveredOnly.reason, /not invoked/i);
+
+  // 3. Meaningful live read-only invocation promotes to supported
+  const liveSupported = projectLiveSupportCell({
+    harness: "codex",
+    capabilityId: "documentation-lookup",
+    capabilityName: "documentation-lookup",
+    kind: "ecc-global-skill",
+    executable: "codex",
+    version: "0.160.1",
+    installed: true,
+    discovered: true,
+    invoked: true,
+    outcome: "ok",
+    resultId: "live-res-1234",
+  });
+  assert.equal(liveSupported.support, "supported");
+  assert.equal(liveSupported.invoked, true);
+  assert.equal(liveSupported.resultId, "live-res-1234");
+  assert.match(liveSupported.reason, /verified with result ID/i);
+
+  // 4. Invocation failure yields unsupported
+  const failedCell = projectLiveSupportCell({
+    harness: "codex",
+    capabilityId: "native:tool:broken",
+    capabilityName: "broken-tool",
+    kind: "native-tool",
+    executable: "codex",
+    version: "0.160.1",
+    installed: true,
+    discovered: true,
+    invoked: true,
+    outcome: "failed",
+    failureReason: "Tool invocation crashed with exit 1",
+  });
+  assert.equal(failedCell.support, "unsupported");
+  assert.equal(failedCell.outcome, "failed");
+
+  // 5. Denied outcome yields unsupported
+  const deniedCell = projectLiveSupportCell({
+    harness: "pi",
+    capabilityId: "native:tool:restricted",
+    capabilityName: "restricted-tool",
+    kind: "native-tool",
+    executable: "pi",
+    version: "1.0.4",
+    installed: true,
+    discovered: true,
+    outcome: "denied",
+    failureReason: "Policy denied tool execution",
+  });
+  assert.equal(deniedCell.support, "unsupported");
+  assert.equal(deniedCell.outcome, "denied");
+
+  // 6. Unavailable outcome yields unsupported
+  const unavailableCell = projectLiveSupportCell({
+    harness: "hermes",
+    capabilityId: "native:tool:gui",
+    capabilityName: "gui",
+    kind: "native-tool",
+    outcome: "unavailable",
+    failureReason: "GUI tool unavailable on headless harness",
+  });
+  assert.equal(unavailableCell.support, "unsupported");
+  assert.equal(unavailableCell.outcome, "unavailable");
+
+  // 7. Missing executable yields unsupported
+  const noExecCell = projectLiveSupportCell({
+    harness: "claude",
+    capabilityId: "deep-research",
+    capabilityName: "deep-research",
+    kind: "ecc-global-skill",
+    executable: null,
+    version: null,
+  });
+  assert.equal(noExecCell.support, "unsupported");
+  assert.match(noExecCell.reason, /executable not found/i);
+
+  // 8. Harness inherently unsupported yields unsupported
+  const unsuppKindCell = projectLiveSupportCell({
+    harness: "hermes",
+    capabilityId: "workflow:gsd-plan",
+    capabilityName: "gsd-plan",
+    kind: "gsd-workflow",
+    harnessSupported: false,
+    failureReason: "Hermes is a worker-only harness; GSD controller workflows are not supported",
+  });
+  assert.equal(unsuppKindCell.support, "unsupported");
+  assert.match(unsuppKindCell.reason, /worker-only/i);
+
+  // 9. PROHIBITION T-18-13: Synthetic fixture success must NEVER be recorded or promoted as live host support
+  const syntheticCell = projectLiveSupportCell({
+    harness: "codex",
+    capabilityId: "documentation-lookup",
+    capabilityName: "documentation-lookup",
+    kind: "ecc-global-skill",
+    executable: "codex",
+    version: "0.160.1",
+    installed: true,
+    discovered: true,
+    invoked: true,
+    outcome: "ok",
+    resultId: "synth-result-999",
+    isSynthetic: true,
+  });
+  assert.equal(syntheticCell.support, "unverified");
+  assert.notEqual(syntheticCell.support, "supported");
+  assert.equal(syntheticCell.isSynthetic, true);
+  assert.match(syntheticCell.reason, /synthetic fixture evidence cannot prove live host support/i);
+});
+
+test("Five-harness matrix collector generates complete structured report for all 5 harnesses and all 77 capabilities (Plan 18-07 Task 2)", async () => {
+  const scriptPath = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "scripts", "capability-host-matrix.mjs");
+  const { collectHostMatrix } = (await import(pathToFileURL(scriptPath).href)) as {
+    collectHostMatrix: () => Promise<{
+      generatedAt: string;
+      os: string;
+      harnesses: Record<string, { executable: string | null; version: string | null; status: string; cells: unknown[] }>;
+      cells: Array<{
+        harness: string;
+        capabilityId: string;
+        capabilityName: string;
+        kind: string;
+        os: string;
+        sessionId: string;
+        installed: boolean;
+        discovered: boolean;
+        invoked: boolean;
+        resultId: string | null;
+        outcome: string;
+        support: "supported" | "unsupported" | "unverified";
+        reason: string;
+      }>;
+      summary: {
+        totalCapabilities: number;
+        totalCells: number;
+        supportedCount: number;
+        unsupportedCount: number;
+        unverifiedCount: number;
+      };
+    }>;
+  };
+
+  const report = await collectHostMatrix();
+
+  // All 5 harnesses represented in report
+  for (const h of ALL_HARNESSES) {
+    assert.ok(h in report.harnesses, `${h} must be present in report.harnesses`);
+  }
+
+  // Exactly 77 declared capabilities and 385 cells (77 x 5)
+  assert.equal(report.summary.totalCapabilities, 77);
+  assert.equal(report.summary.totalCells, 385);
+  assert.equal(report.cells.length, 385);
+
+  // Check every cell contract
+  for (const cell of report.cells) {
+    assert.ok(ALL_HARNESSES.includes(cell.harness as any), `invalid harness ${cell.harness}`);
+    assert.ok(typeof cell.capabilityId === "string" && cell.capabilityId.length > 0);
+    assert.ok(typeof cell.capabilityName === "string" && cell.capabilityName.length > 0);
+    assert.ok(typeof cell.kind === "string" && cell.kind.length > 0);
+    assert.equal(cell.os, process.platform);
+    assert.ok(typeof cell.sessionId === "string" && cell.sessionId.length > 0);
+    assert.ok(["supported", "unsupported", "unverified"].includes(cell.support));
+    assert.ok(["ok", "failed", "denied", "unavailable", "none"].includes(cell.outcome));
+    assert.ok(typeof cell.reason === "string" && cell.reason.length > 0);
+
+    // Strict CAP-05 invariant: uninvoked or missing-result cell can NEVER be supported
+    if (!cell.invoked || cell.resultId === null) {
+      assert.notEqual(cell.support, "supported", `cell ${cell.harness}:${cell.capabilityId} cannot be supported without invocation receipt`);
+    }
+  }
+
+  // Summary counts match sum of cells
+  assert.equal(
+    report.summary.supportedCount + report.summary.unsupportedCount + report.summary.unverifiedCount,
+    report.summary.totalCells,
+  );
 });

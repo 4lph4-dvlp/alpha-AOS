@@ -230,7 +230,7 @@ Plans:
 
 **Verification:** Scenario-driven positive/negative selection tests, pack approval and fresh-session fixtures, skill/MCP invocation canaries and a real GSD multi-step trace with observation receipts.
 
-**Plans:** 1/8 plans executed across 5 waves
+**Plans:** 8/8 plans complete
 
 Plans:
 **Wave 1**
@@ -239,22 +239,22 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 18-02-PLAN.md — Versioned Inventory and Deterministic Selection (CAP-01, CAP-03, CAP-04)
-- [ ] 18-03-PLAN.md — Setup Barrier, Pack Approval, and Fresh Session (CAP-02)
-- [ ] 18-04-PLAN.md — MCP Outcome and Linked Skill Receipts (CAP-03, CAP-05)
+- [x] 18-02-PLAN.md — Versioned Inventory and Deterministic Selection (CAP-01, CAP-03, CAP-04)
+- [x] 18-03-PLAN.md — Setup Barrier, Pack Approval, and Fresh Session (CAP-02)
+- [x] 18-04-PLAN.md — MCP Outcome and Linked Skill Receipts (CAP-03, CAP-05)
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 18-05-PLAN.md — Drift Invalidation, Repair, and Proven Alternatives (CAP-04)
+- [x] 18-05-PLAN.md — Drift Invalidation, Repair, and Proven Alternatives (CAP-04)
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 18-06-PLAN.md — Task Capability Summary, Detail, and JSON (CAP-01, CAP-04)
-- [ ] 18-08-PLAN.md — Operational GSD and Review Boundary Invocation (CAP-03)
+- [x] 18-06-PLAN.md — Task Capability Summary, Detail, and JSON (CAP-01, CAP-04)
+- [x] 18-08-PLAN.md — Operational GSD and Review Boundary Invocation (CAP-03)
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 18-07-PLAN.md — Complete Fixtures and Five-Harness Support Matrix (CAP-05)
+- [x] 18-07-PLAN.md — Complete Fixtures and Five-Harness Support Matrix (CAP-05)
 
 ### Phase 19: Structured Independent Review
 

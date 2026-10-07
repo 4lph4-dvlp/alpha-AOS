@@ -45,11 +45,11 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 ### Full alpha-AOS capability use
 
-- [ ] **CAP-01**: A user can inspect a versioned, project-scoped inventory of all applicable alpha-AOS capabilities: GSD workflows, global and project ECC skills, owned skills, MCP tools, capability packs, alpha-AOS control commands, native harness tools and mandatory hooks, including installed, active, unavailable and excluded states.
-- [ ] **CAP-02**: After scaffolding, manifest changes or dependency installation, autopilot automatically runs the alpha-aos-control capability-pack plan/status checkpoint and materializes matching project packs only with an exact approved plan digest; it verifies CURRENT status and starts a fresh tool-aware agent session before using newly delivered project skills or changed tool configuration.
-- [ ] **CAP-03**: At GSD discuss, plan, execute, review and verify boundaries, autopilot matches task needs and mandatory policy to the current capability inventory, automatically invokes every applicable required skill/MCP/tool at the appropriate step, and records actual invocation and outcome rather than treating installation or discovery as use.
-- [ ] **CAP-04**: A user sees capability selection recomputed when phase, task scope, dependencies, pack state, harness version or tool availability changes; an applicable unavailable capability triggers a repair, alternate proven path or explicit blocked result instead of silent omission.
-- [ ] **CAP-05**: A user can verify positive and negative selection fixtures for every declared alpha-AOS capability and per-harness native discovery and meaningful invocation receipts for advertised global/project skills, MCPs, project packs, control commands and gate hooks; a missing call required by the task or policy prevents a success verdict.
+- [x] **CAP-01**: A user can inspect a versioned, project-scoped inventory of all applicable alpha-AOS capabilities: GSD workflows, global and project ECC skills, owned skills, MCP tools, capability packs, alpha-AOS control commands, native harness tools and mandatory hooks, including installed, active, unavailable and excluded states.
+- [x] **CAP-02**: After scaffolding, manifest changes or dependency installation, autopilot automatically runs the alpha-aos-control capability-pack plan/status checkpoint and materializes matching project packs only with an exact approved plan digest; it verifies CURRENT status and starts a fresh tool-aware agent session before using newly delivered project skills or changed tool configuration.
+- [x] **CAP-03**: At GSD discuss, plan, execute, review and verify boundaries, autopilot matches task needs and mandatory policy to the current capability inventory, automatically invokes every applicable required skill/MCP/tool at the appropriate step, and records actual invocation and outcome rather than treating installation or discovery as use.
+- [x] **CAP-04**: A user sees capability selection recomputed when phase, task scope, dependencies, pack state, harness version or tool availability changes; an applicable unavailable capability triggers a repair, alternate proven path or explicit blocked result instead of silent omission.
+- [x] **CAP-05**: A user can verify positive and negative selection fixtures for every declared alpha-AOS capability and per-harness native discovery and meaningful invocation receipts for advertised global/project skills, MCPs, project packs, control commands and gate hooks; a missing call required by the task or policy prevents a success verdict.
 
 ### Independent acceptance
 
@@ -100,8 +100,8 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 | CON-01..03, AUTO-01..03, RUN-01, REV-01 | 14 | Complete |
 | RUN-02..05, TOOL-03 | 15 | Complete |
 | ROL-01..05 | 16 | Complete |
-| GSD-01..04 | 17 | Planned |
-| CAP-01..05 | 18 | Planned |
+| GSD-01..04 | 17 | Complete |
+| CAP-01..05 | 18 | Complete |
 | REV-02..05 | 19 | Planned |
 | TOOL-01..02, TOOL-04 | 20 | Planned |
 | UX-01..03 | 21 | Planned |

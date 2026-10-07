@@ -14,7 +14,7 @@
 - [x] **Phase 15: Durable Supervisor and Effect Ledger** - Recovery, limits, no-progress strategy and effect reconciliation (completed 2026-10-01)
 - [x] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller (completed 2026-10-02)
 - [x] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD (completed 2026-10-03)
-- [ ] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD
+- [x] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD (completed 2026-10-08)
 - [ ] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit
 - [ ] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar
 - [ ] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX
@@ -214,7 +214,7 @@ Plans:
 
 **Goal:** Every alpha-AOS capability that applies to a task is discoverable, safely activated and actually used at its natural GSD step, with missing required invocations preventing false completion.
 
-**Requirements**: CAP-01..05.
+**Requirements**: CAP-01, CAP-02, CAP-03, CAP-04, CAP-05.
 
 **Depends on:** Phases 16–17.
 

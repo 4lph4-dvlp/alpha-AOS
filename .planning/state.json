@@ -52,7 +52,7 @@
   "next": {
     "command": "/gsd:progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 19 of 9 · 44% · planned; Phase 18 dependency remains"
+    "reason": "Phase 19 of 9 · 44% · planned; Phase 18 execution evidence confirmed"
   },
   "updated_at": "2026-10-07T18:29:03.898Z"
 }

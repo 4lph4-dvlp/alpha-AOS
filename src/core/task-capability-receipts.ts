@@ -4,8 +4,7 @@ import { mkdir, open, readdir, readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import type { HarnessId } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
-import type { TaskCapabilityObligation } from "./task-capability-obligations.js";
-import type { GsdStepKind } from "./task-gsd-lifecycle.js";
+import type { CapabilityBoundary, TaskCapabilityObligation } from "./task-capability-obligations.js";
 import type { TaskPrecondition } from "./task-verdict.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
 import { syncDirectory } from "./writer-lock.js";
@@ -18,7 +17,7 @@ export interface TaskCapabilityReceipt {
   readonly receiptId: string;
   readonly receiptDigest: string;
   readonly runId: string;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly capabilityId: string;
   readonly obligationId: string;
   readonly question: string;
@@ -49,13 +48,15 @@ export interface TaskCapabilityReceipt {
 
 export interface CapabilityInvocationRequest {
   readonly runId: string;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly obligation: TaskCapabilityObligation;
   readonly projectRoot: string;
   readonly sessionId?: string | null | undefined;
   readonly harness?: HarnessId | string | undefined;
   readonly harnessVersion?: string | null | undefined;
   readonly harnessExecutable?: string | null | undefined;
+  /** Review boundary: the artifact digest the reviewer is judging (CAP-03). */
+  readonly artifactDigest?: string | undefined;
 }
 
 export interface CapabilityInvocationResult {
@@ -194,7 +195,7 @@ export function createCapabilityReceipt(
 export interface CreateLinkedCapabilityReceiptOptions {
   readonly obligation: TaskCapabilityObligation;
   readonly runId: string;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly sessionId: string;
   readonly skillActivation: {
     readonly receiptId: string;
@@ -346,7 +347,7 @@ export interface VerifyCapabilityReceiptsOptions {
   readonly obligations: readonly TaskCapabilityObligation[];
   readonly receipts: readonly TaskCapabilityReceipt[];
   readonly currentRunId: string;
-  readonly currentStep: GsdStepKind;
+  readonly currentStep: CapabilityBoundary;
   readonly currentSessionId?: string | null | undefined;
 }
 
@@ -527,4 +528,190 @@ export function verifyRequiredCapabilityReceipts(
       nextAction,
     },
   };
+}
+
+export interface CreateReusedCapabilityReceiptOptions {
+  readonly original: TaskCapabilityReceipt;
+  readonly obligation: TaskCapabilityObligation;
+  readonly runId: string;
+  readonly sessionId?: string | null | undefined;
+}
+
+/**
+ * D-09: records that a boundary is satisfied by an earlier verified result
+ * rather than a new call. The new receipt is bound to the current run and
+ * boundary, names the original receipt, and reports `invoked: false` so a
+ * reuse can never be read as a fresh invocation. Anything that would make the
+ * original an unsound proof is refused instead of copied.
+ */
+export function createReusedCapabilityReceipt(options: CreateReusedCapabilityReceiptOptions): TaskCapabilityReceipt {
+  const { original, obligation } = options;
+  if (obligation.reusedFromReceiptId !== original.receiptId) {
+    throw new Error(`Obligation ${obligation.id} does not name receipt ${original.receiptId} as its reuse source.`);
+  }
+  if (original.outcome !== "ok" || original.isError) {
+    throw new Error(`Receipt ${original.receiptId} records outcome ${original.outcome} and cannot be reused as proof.`);
+  }
+  if (computeCapabilityReceiptDigest(original) !== original.receiptDigest) {
+    throw new Error(`Receipt ${original.receiptId} fails its integrity digest and cannot be reused as proof.`);
+  }
+  if (
+    original.capabilityId !== obligation.capabilityId ||
+    original.question !== obligation.question ||
+    original.source !== obligation.source ||
+    original.sourceVersion !== obligation.version
+  ) {
+    throw new Error(`Receipt ${original.receiptId} answers a different capability, question, source or version than obligation ${obligation.id}.`);
+  }
+  return createCapabilityReceipt({
+    runId: options.runId,
+    step: obligation.step,
+    capabilityId: obligation.capabilityId,
+    obligationId: obligation.id,
+    question: obligation.question,
+    selected: true,
+    attempted: true,
+    invoked: false,
+    outcome: "ok",
+    skillActivatedAt: original.skillActivatedAt ?? null,
+    mcpObservedAt: original.mcpObservedAt ?? null,
+    toolName: original.toolName,
+    harness: original.harness,
+    harnessVersion: original.harnessVersion,
+    harnessExecutable: original.harnessExecutable,
+    sessionId: options.sessionId ?? original.sessionId,
+    skillActivationReceiptId: original.skillActivationReceiptId ?? null,
+    mcpObservationId: original.mcpObservationId ?? null,
+    source: original.source,
+    sourceVersion: original.sourceVersion,
+    observationId: original.observationId,
+    rawResultSha256: original.rawResultSha256,
+    resultDigest: original.resultDigest ?? original.rawResultSha256,
+    isReused: true,
+    originalReceiptId: original.receiptId,
+    isError: false,
+    errorMessage: null,
+  });
+}
+
+/**
+ * What one capability boundary proved. `not-exercised` means the workflow
+ * never reached that boundary; it is reported, never counted as satisfied.
+ */
+export type CapabilityBoundaryStatus = "verified" | "unsatisfied" | "no-obligations" | "not-exercised";
+
+export interface CapabilityBoundaryOutcome {
+  readonly boundary: CapabilityBoundary;
+  readonly status: CapabilityBoundaryStatus;
+  readonly reason: string;
+  readonly nextAction: string;
+  readonly obligationIds: readonly string[];
+  readonly verifiedReceiptIds: readonly string[];
+  readonly failedReceiptIds: readonly string[];
+  readonly missingObligationIds: readonly string[];
+}
+
+const PRECONDITION_TEXT_LIMIT = 1000;
+
+function boundText(text: string): string {
+  return text.length <= PRECONDITION_TEXT_LIMIT ? text : `${text.slice(0, PRECONDITION_TEXT_LIMIT - 3)}...`;
+}
+
+/** The outcome of checking one boundary's required obligations against its receipts. */
+export function capabilityBoundaryOutcome(
+  boundary: CapabilityBoundary,
+  obligations: readonly TaskCapabilityObligation[],
+  verification: VerifyCapabilityReceiptsResult,
+): CapabilityBoundaryOutcome {
+  const required = obligations.filter((ob) => ob.required);
+  if (required.length === 0) {
+    return {
+      boundary,
+      status: "no-obligations",
+      reason: `No required capability obligations at the ${boundary} boundary.`,
+      nextAction: "none",
+      obligationIds: [],
+      verifiedReceiptIds: [],
+      failedReceiptIds: [],
+      missingObligationIds: [],
+    };
+  }
+  return {
+    boundary,
+    status: verification.satisfied ? "verified" : "unsatisfied",
+    reason: verification.reason,
+    nextAction: verification.nextAction,
+    obligationIds: required.map((ob) => ob.id),
+    verifiedReceiptIds: verification.verifiedReceipts.map((r) => r.receiptId),
+    failedReceiptIds: verification.failedReceipts.map((r) => r.receiptId),
+    missingObligationIds: verification.missingObligations.map((ob) => ob.id),
+  };
+}
+
+/** A boundary whose required obligations could not be attempted at all (for example, no capability port). */
+export function unsatisfiedCapabilityBoundary(
+  boundary: CapabilityBoundary,
+  obligations: readonly TaskCapabilityObligation[],
+  reason: string,
+  nextAction: string,
+): CapabilityBoundaryOutcome {
+  const required = obligations.filter((ob) => ob.required);
+  return {
+    boundary,
+    status: "unsatisfied",
+    reason,
+    nextAction,
+    obligationIds: required.map((ob) => ob.id),
+    verifiedReceiptIds: [],
+    failedReceiptIds: [],
+    missingObligationIds: required.map((ob) => ob.id),
+  };
+}
+
+/** A boundary the running workflow never reaches. Reported for honesty; contributes no precondition. */
+export function notExercisedCapabilityBoundary(boundary: CapabilityBoundary, reason: string): CapabilityBoundaryOutcome {
+  return {
+    boundary,
+    status: "not-exercised",
+    reason,
+    nextAction: "none",
+    obligationIds: [],
+    verifiedReceiptIds: [],
+    failedReceiptIds: [],
+    missingObligationIds: [],
+  };
+}
+
+/** One boundary's verdict precondition, with a stable per-boundary id. */
+export function capabilityBoundaryPrecondition(
+  boundary: CapabilityBoundary,
+  satisfied: boolean,
+  reason: string,
+  nextAction: string,
+): TaskPrecondition {
+  return {
+    id: `capability-obligations:${boundary}`,
+    satisfied,
+    reason: boundText(reason),
+    nextAction: boundText(nextAction),
+  };
+}
+
+/**
+ * Folds every boundary outcome into the preconditions the single
+ * `reduceTaskVerdict` decides on (CAP-03, CAP-05). Only boundaries that had
+ * required obligations contribute; an unsatisfied one is a false precondition,
+ * so no boundary's missing or failed result can coexist with `accepted`.
+ * Boundaries without obligations and boundaries never exercised add nothing,
+ * so neither can be read as proof.
+ */
+export function capabilityBoundaryPreconditions(outcomes: readonly CapabilityBoundaryOutcome[]): TaskPrecondition[] {
+  const preconditions: TaskPrecondition[] = [];
+  for (const outcome of outcomes) {
+    if (outcome.status !== "verified" && outcome.status !== "unsatisfied") continue;
+    preconditions.push(
+      capabilityBoundaryPrecondition(outcome.boundary, outcome.status === "verified", outcome.reason, outcome.nextAction),
+    );
+  }
+  return preconditions;
 }

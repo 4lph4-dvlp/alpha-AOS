@@ -23,6 +23,9 @@ import {
 } from "./task-capability-obligations.js";
 import {
   createCapabilityReceipt,
+  createReusedCapabilityReceipt,
+  readCapabilityReceipts,
+  verifyRequiredCapabilityReceipts,
   writeCapabilityReceipt,
   type TaskCapabilityPort,
   type TaskCapabilityReceipt,
@@ -68,6 +71,7 @@ export interface ExecuteStepOptions {
   } | undefined;
   readonly commandMap?: Partial<Record<GsdStepKind, { executable: string; args?: readonly string[] }>> | undefined;
   readonly stdin?: string | undefined;
+  readonly priorReceipts?: readonly TaskCapabilityReceipt[] | undefined;
 }
 
 export interface RunPhaseOptions {
@@ -86,6 +90,7 @@ export interface RunPhaseOptions {
   readonly runId?: string | undefined;
   readonly sessionId?: string | undefined;
   readonly stateRoot?: string | undefined;
+  readonly priorReceipts?: readonly TaskCapabilityReceipt[] | undefined;
 }
 
 export interface MultiPhaseOptions {
@@ -101,6 +106,10 @@ export interface MultiPhaseOptions {
   readonly hookArgs?: readonly string[] | undefined;
   readonly commandMap?: Partial<Record<GsdStepKind, { executable: string; args?: readonly string[] }>> | undefined;
   readonly phases?: readonly string[] | undefined;
+  readonly capabilityPort?: TaskCapabilityPort | undefined;
+  readonly runId?: string | undefined;
+  readonly sessionId?: string | undefined;
+  readonly stateRoot?: string | undefined;
 }
 
 /**
@@ -195,20 +204,82 @@ async function readBounded(filePath: string): Promise<string> {
 export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdStepResult> {
   const receipts: HookExecutionReceipt[] = [];
 
+  const runId = options.runId ?? `step-${options.phaseId}-${options.step}`;
+  let priorReceipts: readonly TaskCapabilityReceipt[] = options.priorReceipts ?? [];
+  if (priorReceipts.length === 0 && options.stateRoot && options.runId) {
+    try {
+      priorReceipts = await readCapabilityReceipts(options.stateRoot, options.runId);
+    } catch {
+      priorReceipts = [];
+    }
+  }
+
   // Select step obligations (CAP-03)
   const obligations = selectStepObligations({
     contract: options.contract,
     step: options.step,
     projectRoot: options.projectRoot,
     phaseId: options.phaseId,
+    priorReceipts,
   });
   const capabilityReceipts: TaskCapabilityReceipt[] = [];
 
-  if (options.capabilityPort && obligations.length > 0) {
-    for (const obligation of obligations) {
+  for (const obligation of obligations) {
+    // If obligation is marked for reuse (D-09):
+    if (obligation.reusedFromReceiptId) {
+      const prior = priorReceipts.find((r) => r.receiptId === obligation.reusedFromReceiptId);
+      if (prior) {
+        try {
+          const reused = createReusedCapabilityReceipt({
+            runId,
+            obligation,
+            original: prior,
+            sessionId: options.sessionId,
+          });
+          capabilityReceipts.push(reused);
+          if (options.stateRoot) {
+            await writeCapabilityReceipt(reused, options.stateRoot);
+          }
+          continue;
+        } catch (err) {
+          const failedReceipt = createCapabilityReceipt({
+            runId,
+            step: options.step,
+            capabilityId: obligation.capabilityId,
+            obligationId: obligation.id,
+            question: obligation.question,
+            selected: true,
+            attempted: true,
+            invoked: false,
+            outcome: "failed",
+            invokedAt: new Date().toISOString(),
+            toolName: obligation.capabilityId,
+            harness: "gsd",
+            harnessVersion: null,
+            harnessExecutable: null,
+            sessionId: options.sessionId ?? null,
+            source: obligation.source,
+            sourceVersion: obligation.version,
+            observationId: `err-${Date.now()}`,
+            rawResultSha256: "0".repeat(64),
+            isReused: true,
+            originalReceiptId: obligation.reusedFromReceiptId,
+            isError: true,
+            errorMessage: err instanceof Error ? err.message : String(err),
+          });
+          capabilityReceipts.push(failedReceipt);
+          if (options.stateRoot) {
+            await writeCapabilityReceipt(failedReceipt, options.stateRoot);
+          }
+          continue;
+        }
+      }
+    }
+
+    if (options.capabilityPort) {
       try {
         const invocation = await options.capabilityPort.invoke({
-          runId: options.runId ?? `step-${options.phaseId}-${options.step}`,
+          runId,
           step: options.step,
           obligation,
           projectRoot: options.projectRoot,
@@ -220,12 +291,13 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
         }
       } catch (error) {
         const failedReceipt = createCapabilityReceipt({
-          runId: options.runId ?? `step-${options.phaseId}-${options.step}`,
+          runId,
           step: options.step,
           capabilityId: obligation.capabilityId,
           obligationId: obligation.id,
           question: obligation.question,
           selected: true,
+          attempted: true,
           invoked: true,
           outcome: "failed",
           invokedAt: new Date().toISOString(),
@@ -248,6 +320,33 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
           await writeCapabilityReceipt(failedReceipt, options.stateRoot);
         }
       }
+    }
+  }
+
+  // Fail-closed verification check (CAP-03, D-04, D-13):
+  // If obligations contain any required obligation, verify them against receipts
+  if (obligations.some((ob) => ob.required)) {
+    const capabilityVerification = verifyRequiredCapabilityReceipts({
+      obligations,
+      receipts: capabilityReceipts,
+      currentRunId: runId,
+      currentStep: options.step,
+      currentSessionId: options.sessionId,
+    });
+    if (!capabilityVerification.satisfied) {
+      return {
+        step: options.step,
+        phaseId: options.phaseId,
+        exitCode: 1,
+        stdoutSha256: "0".repeat(64),
+        stderrSha256: "0".repeat(64),
+        durationMs: 0,
+        artifactsProduced: [],
+        nextStep: "failed",
+        receipts,
+        obligations,
+        capabilityReceipts,
+      };
     }
   }
 
@@ -417,15 +516,30 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
 }> {
   const steps: readonly GsdStepKind[] = ["discuss", "plan", "execute", "verify"];
   const receipts: string[] = [];
+  const accumulatedCapabilityReceipts: TaskCapabilityReceipt[] = [
+    ...(options.priorReceipts ?? []),
+  ];
+  if (accumulatedCapabilityReceipts.length === 0 && options.stateRoot && options.runId) {
+    try {
+      const fromDisk = await readCapabilityReceipts(options.stateRoot, options.runId);
+      accumulatedCapabilityReceipts.push(...fromDisk);
+    } catch {
+      // ignore
+    }
+  }
 
   for (const step of steps) {
     const result = await executeGsdStep({
       ...options,
       step,
+      priorReceipts: accumulatedCapabilityReceipts,
     });
 
     for (const r of result.receipts) {
       receipts.push(r.receiptDigest);
+    }
+    if (result.capabilityReceipts) {
+      accumulatedCapabilityReceipts.push(...result.capabilityReceipts);
     }
 
     if (result.nextStep === "needs-input") {
@@ -534,6 +648,10 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       hookCommand: options.hookCommand,
       hookArgs: options.hookArgs,
       commandMap: options.commandMap,
+      capabilityPort: options.capabilityPort,
+      runId: options.runId,
+      sessionId: options.sessionId,
+      stateRoot: options.stateRoot,
     });
 
     if (!lifecycleResult.success) {

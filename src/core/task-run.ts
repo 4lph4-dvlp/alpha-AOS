@@ -58,13 +58,20 @@ import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
 import { assessTaskReview, reduceTaskVerdict, type TaskPrecondition, type TaskVerdict } from "./task-verdict.js";
 import {
+  CAPABILITY_BOUNDARIES,
   selectStepObligations,
+  type CapabilityBoundary,
   type TaskCapabilityObligation,
 } from "./task-capability-obligations.js";
 import {
+  capabilityBoundaryOutcome,
+  capabilityBoundaryPreconditions,
+  notExercisedCapabilityBoundary,
   readCapabilityReceipts,
+  unsatisfiedCapabilityBoundary,
   verifyRequiredCapabilityReceipts,
   writeCapabilityReceipt,
+  type CapabilityBoundaryOutcome,
   type TaskCapabilityPort,
   type TaskCapabilityReceipt,
 } from "./task-capability-receipts.js";
@@ -354,6 +361,8 @@ export interface StartTaskOptions {
   receiptsRoot?: string;
   witnessReceipt?: ReviewWitnessReceipt;
   requireReviewWitness?: boolean;
+  requiredBoundaries?: readonly CapabilityBoundary[];
+  runId?: string;
 }
 
 const REPORT_TEXT_LIMIT = 4096;
@@ -833,7 +842,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   });
 
   const started = clock();
-  const runId = `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  const runId = options.runId ?? `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
   const minutes = contract.resourcePolicy.maxWallTimeMinutes;
   const deadlineAt = minutes === undefined ? null : new Date(started.getTime() + minutes * 60_000).toISOString();
   const executing: TaskRunRecord = {
@@ -998,6 +1007,8 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       projectRoot,
     });
 
+    let executeBoundaryOutcome: CapabilityBoundaryOutcome;
+
     if (obligations.some((ob) => ob.required)) {
       const capabilityReceipts: TaskCapabilityReceipt[] = [];
       if (!options.ports.capability) {
@@ -1007,6 +1018,12 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
           reason: "Required capability obligations selected but no capability port was provided.",
           nextAction: "Provide a capability port to observe and invoke required capabilities.",
         });
+        executeBoundaryOutcome = unsatisfiedCapabilityBoundary(
+          "execute",
+          obligations,
+          "Required capability obligations selected but no capability port was provided.",
+          "Provide a capability port to observe and invoke required capabilities.",
+        );
       } else {
         for (const obligation of obligations) {
           try {
@@ -1061,6 +1078,16 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
                 reason: `Capability obligation ${failedObligation.id} satisfied via verified alternate ${recovery.selectedAlternate.capabilityId}.`,
                 nextAction: "none",
               });
+              executeBoundaryOutcome = {
+                boundary: "execute",
+                status: "verified",
+                reason: `Capability obligation ${failedObligation.id} satisfied via verified alternate ${recovery.selectedAlternate.capabilityId}.`,
+                nextAction: "none",
+                obligationIds: obligations.filter((o) => o.required).map((o) => o.id),
+                verifiedReceiptIds: [failedReceipt.receiptId],
+                failedReceiptIds: [],
+                missingObligationIds: [],
+              };
             } else if (recovery.status === "needs-input" || recovery.status === "blocked") {
               return await finish({
                 ...record,
@@ -1072,14 +1099,28 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
               });
             } else {
               preconditions.push(capabilityVerification.precondition);
+              executeBoundaryOutcome = capabilityBoundaryOutcome("execute", obligations, capabilityVerification);
             }
           } else {
             preconditions.push(capabilityVerification.precondition);
+            executeBoundaryOutcome = capabilityBoundaryOutcome("execute", obligations, capabilityVerification);
           }
         } else {
           preconditions.push(capabilityVerification.precondition);
+          executeBoundaryOutcome = capabilityBoundaryOutcome("execute", obligations, capabilityVerification);
         }
       }
+    } else {
+      executeBoundaryOutcome = {
+        boundary: "execute",
+        status: "no-obligations",
+        reason: "No required capability obligations at the execute boundary.",
+        nextAction: "none",
+        obligationIds: [],
+        verifiedReceiptIds: [],
+        failedReceiptIds: [],
+        missingObligationIds: [],
+      };
     }
 
     if (wallTimeElapsed()) return await stopForWallTime();
@@ -1252,6 +1293,129 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
         });
       }
     }
+
+    const reviewObligations = selectStepObligations({
+      contract,
+      step: "review",
+      projectRoot,
+    });
+
+    let reviewBoundaryOutcome: CapabilityBoundaryOutcome;
+    if (reviewObligations.some((ob) => ob.required)) {
+      const reviewCapabilityReceipts: TaskCapabilityReceipt[] = [];
+      if (!options.ports.capability) {
+        reviewBoundaryOutcome = unsatisfiedCapabilityBoundary(
+          "review",
+          reviewObligations,
+          "Required capability obligations selected for review boundary but no capability port was provided.",
+          "Provide a capability port to observe and invoke required capabilities for review.",
+        );
+      } else {
+        for (const obligation of reviewObligations) {
+          try {
+            const invocation = await options.ports.capability.invoke({
+              runId,
+              step: "review",
+              obligation,
+              projectRoot,
+              sessionId: request.sessionId,
+              artifactDigest: artifact.digest,
+              harness: contract.agentPolicy.reviewer,
+              harnessVersion: reviewed.version,
+              harnessExecutable: reviewed.executable,
+            });
+            reviewCapabilityReceipts.push(invocation.receipt);
+            await writeCapabilityReceipt(invocation.receipt, options.stateRoot);
+          } catch {
+            // invocation error or thrown exception handled by verification
+          }
+        }
+        const persistedReview = await readCapabilityReceipts(options.stateRoot, runId);
+        const allReviewReceipts = [
+          ...reviewCapabilityReceipts,
+          ...persistedReview.filter((p) => !reviewCapabilityReceipts.some((c) => c.receiptId === p.receiptId)),
+        ];
+        const reviewCapabilityVerification = verifyRequiredCapabilityReceipts({
+          obligations: reviewObligations,
+          receipts: allReviewReceipts,
+          currentRunId: runId,
+          currentStep: "review",
+          currentSessionId: request.sessionId,
+        });
+        reviewBoundaryOutcome = capabilityBoundaryOutcome("review", reviewObligations, reviewCapabilityVerification);
+      }
+    } else {
+      reviewBoundaryOutcome = {
+        boundary: "review",
+        status: "no-obligations",
+        reason: "No required capability obligations at the review boundary.",
+        nextAction: "none",
+        obligationIds: [],
+        verifiedReceiptIds: [],
+        failedReceiptIds: [],
+        missingObligationIds: [],
+      };
+    }
+
+    // Fold five boundary outcomes into reduceTaskVerdict preconditions (CAP-03, CAP-05, D-14..D-17)
+    const activeBoundaries = new Set<CapabilityBoundary>(
+      options.requiredBoundaries ?? (contract.scope.workflow === "gsd-quick" ? ["execute", "review"] : CAPABILITY_BOUNDARIES),
+    );
+
+    const allPersistedReceipts = await readCapabilityReceipts(options.stateRoot, runId);
+
+    const boundaryOutcomes: CapabilityBoundaryOutcome[] = [];
+
+    for (const boundary of CAPABILITY_BOUNDARIES) {
+      if (!activeBoundaries.has(boundary)) {
+        boundaryOutcomes.push(
+          notExercisedCapabilityBoundary(boundary, `Workflow ${contract.scope.workflow} does not exercise the ${boundary} boundary.`),
+        );
+        continue;
+      }
+
+      if (boundary === "execute") {
+        boundaryOutcomes.push(executeBoundaryOutcome);
+        continue;
+      }
+
+      if (boundary === "review") {
+        boundaryOutcomes.push(reviewBoundaryOutcome);
+        continue;
+      }
+
+      // For discuss, plan, verify:
+      const stepObligations = selectStepObligations({
+        contract,
+        step: boundary,
+        projectRoot,
+      });
+
+      if (stepObligations.length === 0 || !stepObligations.some((ob) => ob.required)) {
+        boundaryOutcomes.push({
+          boundary,
+          status: "no-obligations",
+          reason: `No required capability obligations at the ${boundary} boundary.`,
+          nextAction: "none",
+          obligationIds: [],
+          verifiedReceiptIds: [],
+          failedReceiptIds: [],
+          missingObligationIds: [],
+        });
+        continue;
+      }
+
+      const verification = verifyRequiredCapabilityReceipts({
+        obligations: stepObligations,
+        receipts: allPersistedReceipts,
+        currentRunId: runId,
+        currentStep: boundary,
+      });
+
+      boundaryOutcomes.push(capabilityBoundaryOutcome(boundary, stepObligations, verification));
+    }
+
+    preconditions.push(...capabilityBoundaryPreconditions(boundaryOutcomes));
 
     const verdict = reduceTaskVerdict({
       contract,

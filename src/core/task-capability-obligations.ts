@@ -5,12 +5,28 @@ import type { TaskCapabilityReceipt } from "./task-capability-receipts.js";
 import type { TaskCapabilityInventory } from "../types.js";
 
 /**
+ * Where a capability obligation is selected, invoked and checked (CAP-03).
+ * `review` is a separate dispatch boundary, not a GSD step, so `GsdStepKind`
+ * stays exactly the four GSD lifecycle steps.
+ */
+export type CapabilityBoundary = GsdStepKind | "review";
+
+export const CAPABILITY_BOUNDARIES: readonly CapabilityBoundary[] = ["discuss", "plan", "execute", "review", "verify"];
+
+/**
+ * Boundaries that exist to check work independently. A result proven at an
+ * earlier boundary must never stand in for them (18-08 prohibition), so they
+ * always require a fresh invocation instead of D-09 reuse.
+ */
+const INDEPENDENT_CHECK_BOUNDARIES: ReadonlySet<CapabilityBoundary> = new Set<CapabilityBoundary>(["review", "verify"]);
+
+/**
  * A deterministic obligation to invoke and observe a capability at a specific GSD boundary (CAP-03).
  */
 export interface TaskCapabilityObligation {
   readonly id: string;
   readonly capabilityId: string;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly question: string;
   readonly required: boolean;
   readonly scope: string;
@@ -37,7 +53,7 @@ export interface OmittedCapabilityObligation {
 
 export interface SelectStepObligationsOptions {
   readonly contract?: TaskContract | undefined;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly projectRoot: string;
   readonly phaseId?: string | undefined;
   readonly planId?: string | undefined;
@@ -61,7 +77,24 @@ const DOC_LOOKUP_PATTERN = /\b(?:documentation-lookup|context7|api\s+docs?|docum
 const DEEP_RESEARCH_PATTERN = /\b(?:deep-research|exa|firecrawl|external\s+examples?|recent\s+cases?|web\s+research|industry\s+patterns?)\b/iu;
 const AMBIGUOUS_PATTERN = /\b(?:if\s+needed|optional|consider\s+looking|unclear\s+whether\s+required)\b/iu;
 
-function extractQuestionFromContract(contract: TaskContract, pattern: RegExp): string | null {
+function extractQuestionFromContract(contract: TaskContract, pattern: RegExp, step?: CapabilityBoundary): string | null {
+  if (step === "review") {
+    // For review boundary, question must be review-scoped (in goal with 'review' or in a review criterion)
+    if (pattern.test(contract.goal) && /\breview\b/iu.test(contract.goal)) {
+      return contract.goal;
+    }
+    for (const criterion of contract.criterion) {
+      const isReviewCriterion =
+        criterion.id.includes("review") ||
+        /\breview\b/iu.test(criterion.title) ||
+        /\breview\b/iu.test(criterion.description);
+      if (isReviewCriterion && (pattern.test(criterion.id) || pattern.test(criterion.description) || pattern.test(criterion.title))) {
+        return criterion.description;
+      }
+    }
+    return null;
+  }
+
   if (pattern.test(contract.goal)) {
     return contract.goal;
   }
@@ -136,8 +169,8 @@ export function evaluateStepObligations(
       docQuestion = options.question;
     }
   } else if (options.contract) {
-    docQuestion = extractQuestionFromContract(options.contract, DOC_LOOKUP_PATTERN);
-    researchQuestion = extractQuestionFromContract(options.contract, DEEP_RESEARCH_PATTERN);
+    docQuestion = extractQuestionFromContract(options.contract, DOC_LOOKUP_PATTERN, options.step);
+    researchQuestion = extractQuestionFromContract(options.contract, DEEP_RESEARCH_PATTERN, options.step);
   }
 
   // Check inventory for approved project skills that might supersede global skills (D-07)
@@ -162,8 +195,11 @@ export function evaluateStepObligations(
     }
   }
 
-  // Only evaluate obligations during execute (or when questions are explicitly set)
-  if (options.step === "execute" || options.question !== undefined) {
+  // CAP-03: every boundary evaluates the task's questions, not only execute.
+  // Independent check boundaries never reuse an earlier result (D-09 limit).
+  const reusableFrom = INDEPENDENT_CHECK_BOUNDARIES.has(options.step) ? undefined : options.priorReceipts;
+
+  if (docQuestion !== null || researchQuestion !== null) {
     // Documentation-lookup evaluation
     if (docQuestion !== null) {
       if (projectSkillCoveringDoc !== null) {
@@ -183,7 +219,7 @@ export function evaluateStepObligations(
           scope: options.projectRoot,
           question: docQuestion,
         };
-        const reusable = findReusableReceipt(candidate, options.priorReceipts);
+        const reusable = findReusableReceipt(candidate, reusableFrom);
         const duplicateKey = `${options.step}:${candidate.capabilityId}:${candidate.source}:${candidate.version}:${questionDigest.slice(0, 8)}`;
 
         obligations.push({
@@ -212,7 +248,7 @@ export function evaluateStepObligations(
           scope: options.projectRoot,
           question: docQuestion,
         };
-        const reusable = findReusableReceipt(candidate, options.priorReceipts);
+        const reusable = findReusableReceipt(candidate, reusableFrom);
         const duplicateKey = `${options.step}:${candidate.capabilityId}:${candidate.source}:${candidate.version}:${questionDigest.slice(0, 8)}`;
 
         obligations.push({
@@ -244,7 +280,7 @@ export function evaluateStepObligations(
         scope: options.projectRoot,
         question: researchQuestion,
       };
-      const reusable = findReusableReceipt(candidate, options.priorReceipts);
+      const reusable = findReusableReceipt(candidate, reusableFrom);
       const duplicateKey = `${options.step}:${candidate.capabilityId}:${candidate.source}:${candidate.version}:${questionDigest.slice(0, 8)}`;
 
       obligations.push({

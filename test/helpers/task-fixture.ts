@@ -30,6 +30,7 @@ import { CODEX_TASK_ENVIRONMENT_NAMES } from "../../src/adapters/task-codex.js";
 import { NODE_RUNTIME_ENVIRONMENT_NAMES } from "../../src/core/install.js";
 import { packageRoot } from "../../src/core/paths.js";
 import type { EnvironmentPolicy } from "../../src/core/process.js";
+import type { CapabilityBoundary } from "../../src/core/task-capability-obligations.js";
 import type { TaskContract } from "../../src/core/task-contract.js";
 import {
   startTask,
@@ -489,7 +490,14 @@ export function fixturePorts(options: { controller: ControllerPort; reviewer: Re
 /** The one route every suite uses to start a run against a fixture. */
 export async function startFixtureTask(
   fixture: TaskFixture,
-  options: { ports: TaskPorts; expectedDigest: string; now?: () => Date; gsdConfigRoot?: string },
+  options: {
+    ports: TaskPorts;
+    expectedDigest: string;
+    now?: () => Date;
+    gsdConfigRoot?: string;
+    requiredBoundaries?: readonly CapabilityBoundary[];
+    runId?: string;
+  },
 ): Promise<{ run: TaskRunRecord; recordPath: string }> {
   return startTask({
     contractPath: fixture.contractPath,
@@ -499,5 +507,7 @@ export async function startFixtureTask(
     ports: options.ports,
     gsd: { configRoot: options.gsdConfigRoot ?? fixture.gsdConfigRoot },
     ...(options.now === undefined ? {} : { now: options.now }),
+    ...(options.requiredBoundaries === undefined ? {} : { requiredBoundaries: options.requiredBoundaries }),
+    ...(options.runId === undefined ? {} : { runId: options.runId }),
   });
 }

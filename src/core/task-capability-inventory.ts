@@ -7,6 +7,7 @@ import { readCapabilityLedger, capabilityLedgerPath } from "./capability-ledger.
 import { readApprovedProjectPlan, PROJECT_PLAN_ARTIFACT } from "./project-plan.js";
 import {
   evaluateStepObligations,
+  type CapabilityBoundary,
   type StepObligationsDecision,
   type TaskCapabilityObligation,
   type OmittedCapabilityObligation,
@@ -680,7 +681,7 @@ export interface TaskCapabilityReceiptSummary {
   readonly receiptId: string;
   readonly obligationId: string;
   readonly capabilityId: string;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly harness: string;
   readonly toolName?: string | undefined;
   readonly outcome: string;
@@ -694,7 +695,7 @@ export interface TaskCapabilityReport {
   readonly contractId?: string | undefined;
   readonly contractRevision?: number | undefined;
   readonly contractDigest?: string | undefined;
-  readonly step: GsdStepKind;
+  readonly step: CapabilityBoundary;
   readonly summary: TaskCapabilitySummary;
   readonly obligations: readonly TaskCapabilityObligation[];
   readonly omittedObligations: readonly OmittedCapabilityObligation[];
@@ -711,7 +712,7 @@ export interface BuildTaskCapabilityReportOptions {
   readonly projectRoot?: string | undefined;
   readonly stateRoot?: string | undefined;
   readonly harness?: HarnessId | undefined;
-  readonly step?: GsdStepKind | undefined;
+  readonly step?: CapabilityBoundary | undefined;
   readonly receipts?: readonly TaskCapabilityReceipt[] | undefined;
   readonly inventory?: TaskCapabilityInventory | undefined;
   readonly stopReason?: string | null | undefined;
@@ -728,14 +729,14 @@ export async function buildTaskCapabilityReport(
   const projectRoot = options.projectRoot ?? options.contract?.scope.projectRoot ?? process.cwd();
   const harness = options.harness ?? options.contract?.agentPolicy?.executor ?? "codex";
 
-  let step: GsdStepKind = "execute";
+  let step: CapabilityBoundary = "execute";
   if (options.step) {
     step = options.step;
   } else if (
     options.contract?.scope.workflow &&
     ["discuss", "plan", "execute", "verify", "review"].includes(options.contract.scope.workflow)
   ) {
-    step = options.contract.scope.workflow as GsdStepKind;
+    step = options.contract.scope.workflow as CapabilityBoundary;
   }
 
   const inventory = options.inventory ?? (await buildTaskCapabilityInventory({ projectRoot, harness }));

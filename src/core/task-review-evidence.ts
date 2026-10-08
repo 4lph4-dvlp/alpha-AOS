@@ -19,17 +19,26 @@ export interface TaskReviewReproduction {
   observedStdout: string;
 }
 
+export interface TaskRuleCheckDescriptor {
+  readonly kind: "pattern-present" | "pattern-absent" | "custom-inspection";
+  readonly pattern?: string | null | undefined;
+}
+
 export interface TaskReviewRuleConfirmation {
   ruleId: string;
   ruleSource?: string | null | undefined;
   inspectedPath: string;
   observedViolation: string;
+  impact?: string | null | undefined;
+  checkDescriptor?: TaskRuleCheckDescriptor | null | undefined;
 }
 
 export interface TaskReviewFinding {
   summary: string;
   reproduction: TaskReviewReproduction | null;
   ruleConfirmation?: TaskReviewRuleConfirmation | null | undefined;
+  impact?: string | null | undefined;
+  scope?: "in-scope" | "out-of-scope" | null | undefined;
 }
 
 export interface TaskReviewCriterion {

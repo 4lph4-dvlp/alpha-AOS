@@ -37,6 +37,11 @@ import {
   type TaskReviewEvidenceResult,
 } from "./task-review-evidence.js";
 import {
+  classifyReviewReport,
+  type TaskReviewClassificationResult,
+} from "./task-review-classification.js";
+import { recordReviewSuggestions } from "./task-review-suggestions.js";
+import {
   assertTaskStartable,
   describeIssue,
   isTaskContractId,
@@ -307,6 +312,7 @@ export interface TaskRunRecord {
   gsd: TaskRunGsd | null;
   effects: TaskRunEffects | null;
   gitDirectory: string | null;
+  reviewClassification?: TaskReviewClassificationResult | null | undefined;
 }
 
 export type TaskRunErrorCode =
@@ -1313,6 +1319,43 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       }
     }
 
+    let reviewClassification: TaskReviewClassificationResult | null = null;
+    if (checked.report !== null && checked.report.schemaVersion === 2) {
+      reviewClassification = classifyReviewReport({
+        report: checked.report as TaskReviewReportV2,
+        contract,
+        confirmations,
+      });
+
+      // Filter confirmations: only corroborated blocking findings remain confirmed candidates (D-02, D-05..D-07, key_links)
+      for (const classification of reviewClassification.classifications) {
+        if (!classification.isBlocking && confirmations.has(classification.criterionId)) {
+          const prev = confirmations.get(classification.criterionId)!;
+          confirmations.set(classification.criterionId, {
+            confirmed: false,
+            detail: `${prev.detail} [non-blocking: ${classification.reason}]`,
+          });
+        }
+      }
+
+      // Persist deferred out-of-scope suggestions to external state (D-08, REV-05)
+      if (reviewClassification.suggestionsToDefer.length > 0) {
+        try {
+          await recordReviewSuggestions({
+            stateRoot: options.stateRoot,
+            contractId: contract.id,
+            requestId: request.requestId,
+            targetRevisionSha,
+            artifactDigest: artifact.digest,
+            suggestions: reviewClassification.suggestionsToDefer,
+            now: clock,
+          });
+        } catch {
+          // Failure to write deferred suggestions should not crash the task run
+        }
+      }
+    }
+
     // Re-hash before judging: a verdict is only about the bytes that were
     // measured and reviewed, never about whatever is on disk afterwards.
     const after = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
@@ -1483,6 +1526,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     });
     return await finish({
       ...record,
+      reviewClassification,
       status: verdict.overall,
       finishedAt: clock().toISOString(),
       verdict,

@@ -7,6 +7,7 @@ import { HARNESS_TELEMETRY_CAPABILITIES } from "./task-telemetry.js";
 import { userStateRoot } from "./paths.js";
 import { discoverPhaseProgression } from "./task-gsd-discovery.js";
 import { runGitRead } from "./task-gsd.js";
+import { readTaskReviewSuggestions } from "./task-review-suggestions.js";
 
 export interface HarnessDoctorEntry {
   harness: string;
@@ -114,6 +115,11 @@ export interface GsdLifecycleDiagnostics {
     readonly matchesHead: boolean;
     readonly verdict: string | null;
   };
+  readonly pendingSuggestions?: {
+    readonly count: number;
+    readonly status: "ok" | "error";
+    readonly error?: string | undefined;
+  } | undefined;
 }
 
 export async function diagnoseGsdLifecycleStatus(options: {
@@ -121,6 +127,8 @@ export async function diagnoseGsdLifecycleStatus(options: {
   phaseId?: string | undefined;
   receiptsRoot?: string | undefined;
   baseCommit?: string | undefined;
+  stateRoot?: string | undefined;
+  contractId?: string | undefined;
 }): Promise<GsdLifecycleDiagnostics> {
   const { projectRoot } = options;
   let phaseId = options.phaseId ?? null;
@@ -235,6 +243,42 @@ export async function diagnoseGsdLifecycleStatus(options: {
 
   const matchesHead = recordedWitness && headSha !== null && witnessRevisionSha === headSha;
 
+  // 5. Inspect Pending Suggestions (D-08, REV-05)
+  let pendingSuggestions: GsdLifecycleDiagnostics["pendingSuggestions"] = undefined;
+  const stateRoot = options.stateRoot ?? userStateRoot();
+  if (options.contractId) {
+    const sugResult = await readTaskReviewSuggestions({ stateRoot, contractId: options.contractId });
+    if (sugResult.status === "ok") {
+      pendingSuggestions = { count: sugResult.pendingCount, status: "ok" };
+    } else {
+      pendingSuggestions = { count: 0, status: "error", error: sugResult.error };
+    }
+  } else {
+    const tasksDir = join(stateRoot, "tasks");
+    if (existsSync(tasksDir)) {
+      try {
+        const contracts = await readdir(tasksDir);
+        let totalPending = 0;
+        let anyError: string | null = null;
+        let foundAny = false;
+        for (const cid of contracts) {
+          const sugResult = await readTaskReviewSuggestions({ stateRoot, contractId: cid });
+          if (sugResult.status === "ok") {
+            foundAny = true;
+            totalPending += sugResult.pendingCount;
+          } else {
+            anyError = sugResult.error;
+          }
+        }
+        if (anyError !== null) {
+          pendingSuggestions = { count: 0, status: "error", error: anyError };
+        } else if (foundAny) {
+          pendingSuggestions = { count: totalPending, status: "ok" };
+        }
+      } catch {}
+    }
+  }
+
   return {
     currentPhase: phaseId,
     phaseStatus,
@@ -254,6 +298,7 @@ export async function diagnoseGsdLifecycleStatus(options: {
       matchesHead,
       verdict: witnessVerdict,
     },
+    pendingSuggestions,
   };
 }
 
@@ -266,6 +311,15 @@ export function formatGsdDoctorReport(diagnostics: GsdLifecycleDiagnostics): str
     `Hook Receipts:    ${diagnostics.hooks.executedCount} executed (${diagnostics.hooks.passedCount} passed, ${diagnostics.hooks.failedCount} failed)`,
     `Review Witness:   ${diagnostics.reviewWitness.recorded ? (diagnostics.reviewWitness.matchesHead ? `valid (matches HEAD: ${diagnostics.reviewWitness.headSha?.slice(0, 12)})` : `stale (HEAD: ${diagnostics.reviewWitness.headSha?.slice(0, 12)}, witness: ${diagnostics.reviewWitness.witnessRevisionSha?.slice(0, 12)})`) : "none recorded"}`,
   ];
+  if (diagnostics.pendingSuggestions) {
+    if (diagnostics.pendingSuggestions.status === "error") {
+      lines.push(`Pending Suggestions: unknown (read error: ${diagnostics.pendingSuggestions.error})`);
+    } else if (diagnostics.pendingSuggestions.count > 0) {
+      lines.push(`Pending Suggestions: ${diagnostics.pendingSuggestions.count} pending review (out-of-scope recommendations)`);
+    } else {
+      lines.push("Pending Suggestions: none");
+    }
+  }
   return lines.join("\n");
 }
 

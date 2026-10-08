@@ -366,6 +366,9 @@
         },
         "gitDirectory": {
           "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "reviewClassification": {
+          "anyOf": [{ "type": "object" }, { "type": "null" }]
         }
       }
     },

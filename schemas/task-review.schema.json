@@ -93,11 +93,28 @@
                           "ruleId": { "type": "string" },
                           "ruleSource": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
                           "inspectedPath": { "type": "string" },
-                          "observedViolation": { "type": "string" }
+                          "observedViolation": { "type": "string" },
+                          "impact": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                          "checkDescriptor": {
+                            "anyOf": [
+                              { "type": "null" },
+                              {
+                                "type": "object",
+                                "required": ["kind"],
+                                "additionalProperties": false,
+                                "properties": {
+                                  "kind": { "type": "string", "enum": ["pattern-present", "pattern-absent", "custom-inspection"] },
+                                  "pattern": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                                }
+                              }
+                            ]
+                          }
                         }
                       }
                     ]
-                  }
+                  },
+                  "impact": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "scope": { "anyOf": [{ "type": "string", "enum": ["in-scope", "out-of-scope"] }, { "type": "null" }] }
                 }
               }
             ]

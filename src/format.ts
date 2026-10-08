@@ -1217,6 +1217,11 @@ export function formatTaskRunReport(run: TaskRunRecord): string {
   const suggestions = reviewer?.report?.suggestions ?? [];
   lines.push(suggestions.length === 0 ? "Out-of-scope suggestions: none" : "Out-of-scope suggestions:", ...suggestions.map((entry) => `  - ${entry}`));
 
+  const deferred = run.reviewClassification?.suggestionsToDefer ?? [];
+  if (deferred.length > 0) {
+    lines.push(`Pending deferred proposals: ${deferred.length} held in external state`);
+  }
+
   if (run.stopReason !== null) lines.push("", `Stop reason: ${run.stopReason}`);
   const actions = [
     ...(run.verdict?.rows ?? []).flatMap((row) => (row.nextAction === null ? [] : [`${row.criterionId}: ${row.nextAction}`])),

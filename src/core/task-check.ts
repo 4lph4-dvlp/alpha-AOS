@@ -582,6 +582,21 @@ export async function confirmReviewerReproduction(options: {
 }
 
 /**
+ * Verifies whether a rule identifier corresponds to an approved architectural,
+ * safety, design, or project rule (D-02, D-07).
+ */
+export function isApprovedArchitectureRule(ruleId: string, customRules?: readonly string[]): boolean {
+  if (typeof ruleId !== "string" || ruleId.trim().length === 0) return false;
+  const trimmed = ruleId.trim();
+  if (customRules?.includes(trimmed)) return true;
+  // Known architectural and safety rule prefixes
+  // e.g. SAFE-01..06, ROL-01..06, DETC-01..06, RUN-01..06, REV-01..05, SEC-01..06, ARCH-01..99, REQ-01..99, D-01..99, RULE[...]
+  if (/^(SAFE|ROL|DETC|RUN|REV|SEC|ARCH|REQ|D)-\d+$/i.test(trimmed)) return true;
+  if (/^RULE\[.+\]$/i.test(trimmed)) return true;
+  return false;
+}
+
+/**
  * Confirms an architecture / rule-level violation on the reviewed snapshot (D-02).
  * Verifies that the inspected path exists inside the snapshot and that the
  * observed violation is corroborated by inspecting the file, never running commands.
@@ -590,9 +605,18 @@ export async function confirmReviewerRuleConfirmation(options: {
   criterion: TaskCriterion;
   ruleConfirmation: TaskReviewRuleConfirmation;
   root: string;
+  knownApprovedRules?: readonly string[];
 }): Promise<TaskReproductionConfirmation> {
   const root = resolve(options.root);
   const { ruleConfirmation } = options;
+
+  if (!isApprovedArchitectureRule(ruleConfirmation.ruleId, options.knownApprovedRules)) {
+    return {
+      confirmed: false,
+      detail: bounded(`The rule ${ruleConfirmation.ruleId} is not an approved architectural, safety, or design rule.`),
+    };
+  }
+
   const entry = normalizeContractPath(ruleConfirmation.inspectedPath);
   const entryPath = resolvedInside(root, entry);
   if (entryPath === null || !(await isRegularFile(entryPath))) {
@@ -616,6 +640,29 @@ export async function confirmReviewerRuleConfirmation(options: {
       detail: "The observed rule violation description is empty.",
     };
   }
+
+  // Check descriptor verification if provided
+  if (ruleConfirmation.checkDescriptor) {
+    const desc = ruleConfirmation.checkDescriptor;
+    if (desc.kind === "pattern-present") {
+      const pattern = desc.pattern ?? "";
+      if (!content.includes(pattern)) {
+        return {
+          confirmed: false,
+          detail: bounded(`Expected pattern was not found in ${ruleConfirmation.inspectedPath}.`),
+        };
+      }
+    } else if (desc.kind === "pattern-absent") {
+      const pattern = desc.pattern ?? "";
+      if (content.includes(pattern)) {
+        return {
+          confirmed: false,
+          detail: bounded(`Forbidden pattern was found in ${ruleConfirmation.inspectedPath}.`),
+        };
+      }
+    }
+  }
+
   return {
     confirmed: true,
     detail: bounded(

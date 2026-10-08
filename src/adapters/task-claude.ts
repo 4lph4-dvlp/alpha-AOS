@@ -1,6 +1,12 @@
 import { packageRoot as defaultPackageRoot, redactHome } from "../core/paths.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
 import type { ReviewDispatchResult, ReviewRequest, TaskReviewReport } from "../core/task-run.js";
+import {
+  buildFinalReviewPrompt,
+  validateFinalReviewReport,
+  type FinalReviewRequest,
+  type TaskFinalReviewReport,
+} from "../core/task-final-review.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import type { RedactedExcerpt } from "../types.js";
 import {
@@ -310,4 +316,103 @@ export async function runClaudeReviewer(request: ReviewRequest, options: ClaudeA
     report: clean ? parsed.report : null,
     issues: issues.map((issue) => boundedSentence(issue, ISSUE_LIMIT)),
   };
+}
+
+export async function runClaudeFinalReviewer(
+  request: FinalReviewRequest,
+  options: ClaudeAdapterOptions = {},
+): Promise<TaskFinalReviewReport> {
+  const clock = options.now ?? (() => new Date());
+  const runner = options.runner ?? runProcess;
+  const environment = claudeReviewEnvironment(options.source ?? process.env);
+
+  if (!SESSION_UUID.test(request.sessionId)) {
+    throw new Error("the review session id is not a UUID, so no reviewer was launched");
+  }
+  const launch = resolveTaskAgentLaunch("claude", options.resolve === undefined ? {} : { resolve: options.resolve });
+  if (launch.status !== "ok") {
+    throw new Error(`claude launch failed: ${launch.reason}`);
+  }
+
+  const prompt = buildFinalReviewPrompt(request);
+  if (prompt.status !== "ok") {
+    throw new Error(prompt.issue);
+  }
+
+  const remaining = remainingMilliseconds(request.deadlineAt ? request.deadlineAt.toISOString() : null, clock());
+  if (remaining !== null && remaining <= 0) {
+    throw new Error("the contract deadline passed before the reviewer was launched");
+  }
+
+  const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  const result = await runner({
+    executable: launch.executable,
+    args: [
+      ...launch.argsPrefix,
+      ...claudeReviewerArgs({ sessionId: request.sessionId, reviewSchemaJson: JSON.stringify(agentFacingSchema(schema)) }),
+    ],
+    cwd: request.reviewRoot,
+    stdin: prompt.prompt,
+    environment,
+    timeoutMs: remaining === null ? CLAUDE_REVIEW_TIMEOUT_MS : Math.min(CLAUDE_REVIEW_TIMEOUT_MS, remaining),
+    maxOutputBytes: CLAUDE_REVIEW_OUTPUT_BYTES,
+    excerptBytes: CLAUDE_REVIEW_OUTPUT_BYTES,
+  });
+
+  if (result.code !== "ok") {
+    throw new Error(`claude final review process failed with ${result.code} (exit ${String(result.exitCode)})`);
+  }
+
+  const parsed = parseFinalReviewJson(result.stdout.excerpt, request.sessionId);
+  const validated = await validateFinalReviewReport(parsed, {
+    contractId: request.contract.id,
+    contractDigest: request.contractDigest,
+    targetRevisionSha: request.targetRevisionSha,
+    artifactDigest: request.artifactDigest,
+    sessionId: request.sessionId,
+    pkgRoot: options.packageRoot ?? defaultPackageRoot(),
+  });
+
+  if (!validated.valid || !validated.report) {
+    throw new Error(`claude final review report validation failed: ${validated.issues.join("; ")}`);
+  }
+
+  return validated.report;
+}
+
+export function parseFinalReviewJson(raw: string, expectedSessionId: string): unknown {
+  const trimmed = raw.trim();
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (err) {
+    throw new Error(`failed to parse JSON from reviewer stdout: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  if (parsed && typeof parsed === "object") {
+    const obj = parsed as Record<string, unknown>;
+    if ("result" in obj) {
+      if (typeof obj.session_id === "string" && obj.session_id !== expectedSessionId) {
+        throw new Error(`session ID mismatch: expected ${expectedSessionId}, got ${obj.session_id}`);
+      }
+      if (typeof obj.result === "string") {
+        try {
+          parsed = JSON.parse(obj.result);
+        } catch (err) {
+          throw new Error(`failed to parse embedded result JSON: ${err instanceof Error ? err.message : String(err)}`);
+        }
+      } else {
+        parsed = obj.result;
+      }
+    }
+  }
+  if (parsed && typeof parsed === "object") {
+    const reportObj = parsed as Record<string, unknown>;
+    if (typeof reportObj.sessionId === "string" && reportObj.sessionId !== expectedSessionId) {
+      throw new Error(`session ID mismatch: expected ${expectedSessionId}, got ${reportObj.sessionId}`);
+    }
+    if (typeof reportObj.session_id === "string" && reportObj.session_id !== expectedSessionId) {
+      throw new Error(`session ID mismatch: expected ${expectedSessionId}, got ${reportObj.session_id}`);
+    }
+  }
+  return parsed;
 }

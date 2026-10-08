@@ -10,6 +10,13 @@ import type {
   ReviewRequest,
   TaskReviewReport,
 } from "../core/task-run.js";
+import {
+  buildFinalReviewPrompt,
+  validateFinalReviewReport,
+  type FinalReviewRequest,
+  type TaskFinalReviewReport,
+} from "../core/task-final-review.js";
+import { parseFinalReviewJson } from "./task-claude.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import {
   agentFacingSchema,
@@ -381,4 +388,71 @@ export async function runAntigravityReviewer(
     report: result.code === "ok" && result.exitCode === 0 ? report : null,
     issues: issues.map((i) => boundedSentence(i, ISSUE_LIMIT)),
   };
+}
+
+export async function runAntigravityFinalReviewer(
+  request: FinalReviewRequest,
+  options: AntigravityAdapterOptions = {},
+): Promise<TaskFinalReviewReport> {
+  const clock = options.now ?? (() => new Date());
+  const runner = options.runner ?? runProcess;
+  const source = options.source ?? process.env;
+  const environment = antigravityEnvironment(source);
+
+  const launch = resolveTaskAgentLaunch("antigravity", options.resolve === undefined ? {} : { resolve: options.resolve });
+  if (launch.status !== "ok") {
+    throw new Error(`antigravity launch failed: ${launch.reason}`);
+  }
+
+  const prompt = buildFinalReviewPrompt(request);
+  if (prompt.status !== "ok") {
+    throw new Error(prompt.issue);
+  }
+
+  const remaining = remainingMilliseconds(request.deadlineAt ? request.deadlineAt.toISOString() : null, clock());
+  if (remaining !== null && remaining <= 0) {
+    throw new Error("the contract deadline passed before antigravity reviewer was launched");
+  }
+
+  const workDirectory = join(request.reviewRoot, ".alpha-aos-review");
+  await mkdir(workDirectory, { recursive: true });
+  const schemaPath = join(workDirectory, "final-review.schema.json");
+  const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
+
+  const args = [
+    ...launch.argsPrefix,
+    ...antigravityReviewerArgs({ schemaPath }),
+  ];
+
+  const result = await runner({
+    executable: launch.executable,
+    args,
+    cwd: request.reviewRoot,
+    stdin: prompt.prompt,
+    environment,
+    timeoutMs: remaining === null ? ANTIGRAVITY_TASK_TIMEOUT_MS : Math.min(ANTIGRAVITY_TASK_TIMEOUT_MS, remaining),
+    maxOutputBytes: ANTIGRAVITY_TASK_OUTPUT_BYTES,
+    excerptBytes: ANTIGRAVITY_TASK_OUTPUT_BYTES,
+  });
+
+  if (result.code !== "ok" || result.exitCode !== 0) {
+    throw new Error(`antigravity final review process failed with ${result.code} (exit ${String(result.exitCode)})`);
+  }
+
+  const parsed = parseFinalReviewJson(result.stdout.excerpt, request.sessionId);
+  const validated = await validateFinalReviewReport(parsed, {
+    contractId: request.contract.id,
+    contractDigest: request.contractDigest,
+    targetRevisionSha: request.targetRevisionSha,
+    artifactDigest: request.artifactDigest,
+    sessionId: request.sessionId,
+    pkgRoot: options.packageRoot ?? defaultPackageRoot(),
+  });
+
+  if (!validated.valid || !validated.report) {
+    throw new Error(`antigravity final review report validation failed: ${validated.issues.join("; ")}`);
+  }
+
+  return validated.report;
 }

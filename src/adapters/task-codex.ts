@@ -1,4 +1,4 @@
-import { lstat, mkdir, open, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
 import { canonicalizeWithMissingTail } from "../core/path-boundary.js";
@@ -12,9 +12,15 @@ import type {
   ReviewRequest,
   TaskReviewReport,
 } from "../core/task-run.js";
+import {
+  buildFinalReviewPrompt,
+  validateFinalReviewReport,
+  type FinalReviewRequest,
+  type TaskFinalReviewReport,
+} from "../core/task-final-review.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import type { RedactedExcerpt } from "../types.js";
-import { buildReviewPrompt } from "./task-claude.js";
+import { buildReviewPrompt, parseFinalReviewJson } from "./task-claude.js";
 import {
   agentFacingSchema,
   boundedSentence,
@@ -692,4 +698,82 @@ export async function runCodexReviewer(
     report: clean ? read.report : null,
     issues: issues.map((i) => boundedSentence(i, DETAIL_LIMIT)),
   };
+}
+
+export async function runCodexFinalReviewer(
+  request: FinalReviewRequest,
+  options: CodexAdapterOptions = {},
+): Promise<TaskFinalReviewReport> {
+  const clock = options.now ?? (() => new Date());
+  const runner = options.runner ?? runProcess;
+  const source = options.source ?? process.env;
+  const environment = codexTaskEnvironment(source);
+
+  const launch = resolveTaskAgentLaunch("codex", options.resolve === undefined ? {} : { resolve: options.resolve });
+  if (launch.status !== "ok") {
+    throw new Error(`codex launch failed: ${launch.reason}`);
+  }
+
+  const prompt = buildFinalReviewPrompt(request);
+  if (prompt.status !== "ok") {
+    throw new Error(prompt.issue);
+  }
+
+  const remaining = remainingMilliseconds(request.deadlineAt ? request.deadlineAt.toISOString() : null, clock());
+  if (remaining !== null && remaining <= 0) {
+    throw new Error("the contract deadline passed before codex reviewer was launched");
+  }
+
+  const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  const workDirectory = join(request.reviewRoot, ".alpha-aos-review");
+  await mkdir(workDirectory, { recursive: true });
+  const outputSchemaPath = join(workDirectory, "final-review.schema.json");
+  const lastMessagePath = join(workDirectory, "final-last-message.json");
+  await writeFile(outputSchemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
+  await rm(lastMessagePath, { force: true });
+
+  const result = await runner({
+    executable: launch.executable,
+    args: [
+      ...launch.argsPrefix,
+      ...codexReviewerArgs({
+        reviewRoot: request.reviewRoot,
+        outputSchemaPath,
+        lastMessagePath,
+      }),
+    ],
+    cwd: request.reviewRoot,
+    stdin: prompt.prompt,
+    environment,
+    timeoutMs: remaining === null ? CODEX_TASK_TIMEOUT_MS : Math.min(CODEX_TASK_TIMEOUT_MS, remaining),
+    maxOutputBytes: CODEX_TASK_OUTPUT_BYTES,
+    excerptBytes: CODEX_TASK_OUTPUT_BYTES,
+  });
+
+  if (result.code !== "ok" || (result.exitCode !== 0 && result.exitCode !== 1)) {
+    throw new Error(`codex final review process failed with ${result.code} (exit ${String(result.exitCode)})`);
+  }
+
+  let rawContent: string | null = null;
+  try {
+    rawContent = await readFile(lastMessagePath, "utf8");
+  } catch {
+    rawContent = result.stdout.excerpt;
+  }
+
+  const parsed = parseFinalReviewJson(rawContent ?? "", request.sessionId);
+  const validated = await validateFinalReviewReport(parsed, {
+    contractId: request.contract.id,
+    contractDigest: request.contractDigest,
+    targetRevisionSha: request.targetRevisionSha,
+    artifactDigest: request.artifactDigest,
+    sessionId: request.sessionId,
+    pkgRoot: options.packageRoot ?? defaultPackageRoot(),
+  });
+
+  if (!validated.valid || !validated.report) {
+    throw new Error(`codex final review report validation failed: ${validated.issues.join("; ")}`);
+  }
+
+  return validated.report;
 }

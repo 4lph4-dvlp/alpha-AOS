@@ -17,11 +17,13 @@ import type {
   TaskPortAssessment,
   TaskPorts,
 } from "../core/task-run.js";
-import { probeClaudeVersion, runClaudeReviewer, type ClaudeAdapterOptions } from "./task-claude.js";
-import { probeCodexVersion, runCodexController, runCodexReviewer, type CodexAdapterOptions } from "./task-codex.js";
-import { runAntigravityController, runAntigravityReviewer, probeAntigravityVersion } from "./task-antigravity.js";
-import { runPiController, runPiReviewer, probePiVersion } from "./task-pi.js";
-import { runHermesController, runHermesReviewer, probeHermesVersion } from "./task-hermes.js";
+import { probeClaudeVersion, runClaudeReviewer, runClaudeFinalReviewer, type ClaudeAdapterOptions } from "./task-claude.js";
+import { probeCodexVersion, runCodexController, runCodexReviewer, runCodexFinalReviewer, type CodexAdapterOptions } from "./task-codex.js";
+import { runAntigravityController, runAntigravityReviewer, runAntigravityFinalReviewer, probeAntigravityVersion } from "./task-antigravity.js";
+import { runPiController, runPiReviewer, runPiFinalReviewer, probePiVersion } from "./task-pi.js";
+import { runHermesController, runHermesReviewer, runHermesFinalReviewer, probeHermesVersion } from "./task-hermes.js";
+import type { FinalReviewPort, FinalReviewRequest } from "../core/task-final-review.js";
+import { taskContractDigest } from "../core/task-contract.js";
 import {
   readHarnessRoleReceipt,
   type ReadReceiptOptions,
@@ -260,6 +262,60 @@ export function nativeTaskPorts(options: NativeTaskPortOptions = {}): TaskPorts 
     },
     assess: (policy) => probeTaskAgentPair(policy, options),
   };
+}
+
+/**
+ * Creates a native final review port for the specified harness (REV-03, REV-04).
+ */
+export function createNativeFinalReviewPort(
+  harness: HarnessId,
+  options: DynamicTaskPortOptions = {},
+): FinalReviewPort {
+  return {
+    async evaluateMilestoneFinal(evalOptions) {
+      const requestId = randomUUID();
+      const sessionId = randomUUID();
+      const contractDigest = taskContractDigest(evalOptions.contract);
+      const reviewRoot = evalOptions.reviewRoot ?? evalOptions.contract.scope.projectRoot;
+
+      const request: FinalReviewRequest = {
+        requestId,
+        sessionId,
+        contract: evalOptions.contract,
+        contractDigest,
+        targetRevisionSha: evalOptions.targetRevisionSha,
+        artifactDigest: evalOptions.artifactDigest,
+        requirements: evalOptions.requirements,
+        reviewRoot,
+        deadlineAt: evalOptions.deadlineAt,
+      };
+
+      switch (harness) {
+        case "claude":
+          return runClaudeFinalReviewer(request, options);
+        case "codex":
+          return runCodexFinalReviewer(request, options);
+        case "antigravity":
+          return runAntigravityFinalReviewer(request, options);
+        case "pi":
+          return runPiFinalReviewer(request, options);
+        case "hermes":
+          return runHermesFinalReviewer(request, options);
+        default:
+          throw new Error(`Unsupported final reviewer harness: ${String(harness)}`);
+      }
+    },
+  };
+}
+
+/**
+ * Creates a dynamic final review port using the reviewer harness specified in the task contract policy.
+ */
+export function createDynamicFinalReviewPort(
+  policy: TaskAgentPolicy,
+  options: DynamicTaskPortOptions = {},
+): FinalReviewPort {
+  return createNativeFinalReviewPort(policy.reviewer, options);
 }
 
 export interface FreshSessionDiscoveryResult {

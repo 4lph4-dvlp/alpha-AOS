@@ -10,6 +10,13 @@ import type {
   ReviewRequest,
   TaskReviewReport,
 } from "../core/task-run.js";
+import {
+  buildFinalReviewPrompt,
+  validateFinalReviewReport,
+  type FinalReviewRequest,
+  type TaskFinalReviewReport,
+} from "../core/task-final-review.js";
+import { parseFinalReviewJson } from "./task-claude.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import {
   agentFacingSchema,
@@ -399,4 +406,85 @@ export async function runPiReviewer(
     report: exitInterpretation.status === "ok" ? report : null,
     issues: issues.map((i) => boundedSentence(i, ISSUE_LIMIT)),
   };
+}
+
+export async function runPiFinalReviewer(
+  request: FinalReviewRequest,
+  options: PiAdapterOptions = {},
+): Promise<TaskFinalReviewReport> {
+  const clock = options.now ?? (() => new Date());
+  const runner = options.runner ?? runProcess;
+  const source = options.source ?? process.env;
+  const environment = piEnvironment(source);
+
+  const launch = resolveTaskAgentLaunch("pi", options.resolve === undefined ? {} : { resolve: options.resolve });
+  if (launch.status !== "ok") {
+    throw new Error(`pi launch failed: ${launch.reason}`);
+  }
+
+  const prompt = buildFinalReviewPrompt(request);
+  if (prompt.status !== "ok") {
+    throw new Error(prompt.issue);
+  }
+
+  const remaining = remainingMilliseconds(request.deadlineAt ? request.deadlineAt.toISOString() : null, clock());
+  if (remaining !== null && remaining <= 0) {
+    throw new Error("the contract deadline passed before pi reviewer was launched");
+  }
+
+  const workDirectory = join(request.reviewRoot, ".alpha-aos-review");
+  await mkdir(workDirectory, { recursive: true });
+  const schemaPath = join(workDirectory, "final-review.schema.json");
+  const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
+
+  const args = [
+    ...launch.argsPrefix,
+    ...piReviewerArgs({ schemaPath }),
+  ];
+
+  const result = await runner({
+    executable: launch.executable,
+    args,
+    cwd: request.reviewRoot,
+    stdin: prompt.prompt,
+    environment,
+    timeoutMs: remaining === null ? PI_TASK_TIMEOUT_MS : Math.min(PI_TASK_TIMEOUT_MS, remaining),
+    maxOutputBytes: PI_TASK_OUTPUT_BYTES,
+    excerptBytes: PI_TASK_OUTPUT_BYTES,
+  });
+
+  if (result.code !== "ok") {
+    throw new Error(`pi final review process failed with ${result.code} (exit ${String(result.exitCode)})`);
+  }
+
+  let parsed: unknown = null;
+  try {
+    parsed = parseFinalReviewJson(result.stdout.excerpt, request.sessionId);
+  } catch (err) {
+    if (result.exitCode !== 0) {
+      throw new Error(`pi final review process failed with exit ${String(result.exitCode)}`);
+    }
+    throw err;
+  }
+
+  const exitInterpretation = interpretPiExitResult(result, parsed);
+  if (exitInterpretation.status !== "ok") {
+    throw new Error(exitInterpretation.detail ?? `pi final review process failed with exit ${String(result.exitCode)}`);
+  }
+
+  const validated = await validateFinalReviewReport(parsed, {
+    contractId: request.contract.id,
+    contractDigest: request.contractDigest,
+    targetRevisionSha: request.targetRevisionSha,
+    artifactDigest: request.artifactDigest,
+    sessionId: request.sessionId,
+    pkgRoot: options.packageRoot ?? defaultPackageRoot(),
+  });
+
+  if (!validated.valid || !validated.report) {
+    throw new Error(`pi final review report validation failed: ${validated.issues.join("; ")}`);
+  }
+
+  return validated.report;
 }

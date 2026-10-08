@@ -10,6 +10,13 @@ import type {
   ReviewRequest,
   TaskReviewReport,
 } from "../core/task-run.js";
+import {
+  buildFinalReviewPrompt,
+  validateFinalReviewReport,
+  type FinalReviewRequest,
+  type TaskFinalReviewReport,
+} from "../core/task-final-review.js";
+import { parseFinalReviewJson } from "./task-claude.js";
 import { normalizeHarnessTelemetry, type NormalizedTelemetry } from "../core/task-telemetry.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import {
@@ -393,4 +400,73 @@ export async function runHermesReviewer(
     report: result.code === "ok" && result.exitCode === 0 ? report : null,
     issues: issues.map((i) => boundedSentence(i, ISSUE_LIMIT)),
   };
+}
+
+export async function runHermesFinalReviewer(
+  request: FinalReviewRequest,
+  options: HermesAdapterOptions = {},
+): Promise<TaskFinalReviewReport> {
+  const clock = options.now ?? (() => new Date());
+  const runner = options.runner ?? runProcess;
+  const source = options.source ?? process.env;
+  const environment = hermesEnvironment(source);
+
+  const launch = resolveTaskAgentLaunch("hermes", options.resolve === undefined ? {} : { resolve: options.resolve });
+  if (launch.status !== "ok") {
+    throw new Error(`hermes launch failed: ${launch.reason}`);
+  }
+
+  const prompt = buildFinalReviewPrompt(request);
+  if (prompt.status !== "ok") {
+    throw new Error(prompt.issue);
+  }
+
+  const remaining = remainingMilliseconds(request.deadlineAt ? request.deadlineAt.toISOString() : null, clock());
+  if (remaining !== null && remaining <= 0) {
+    throw new Error("the contract deadline passed before hermes reviewer was launched");
+  }
+
+  const workDirectory = join(request.reviewRoot, ".alpha-aos-review");
+  await mkdir(workDirectory, { recursive: true });
+  const usageFile = join(workDirectory, "final-usage.json");
+
+  const args = [
+    ...launch.argsPrefix,
+    ...hermesReviewerArgs({
+      prompt: prompt.prompt,
+      usageFile,
+      reviewRoot: request.reviewRoot,
+    }),
+  ];
+
+  const result = await runner({
+    executable: launch.executable,
+    args,
+    cwd: request.reviewRoot,
+    stdin: prompt.prompt,
+    environment,
+    timeoutMs: remaining === null ? HERMES_TASK_TIMEOUT_MS : Math.min(HERMES_TASK_TIMEOUT_MS, remaining),
+    maxOutputBytes: HERMES_TASK_OUTPUT_BYTES,
+    excerptBytes: HERMES_TASK_OUTPUT_BYTES,
+  });
+
+  if (result.code !== "ok" || result.exitCode !== 0) {
+    throw new Error(`hermes final review process failed with ${result.code} (exit ${String(result.exitCode)})`);
+  }
+
+  const parsed = parseFinalReviewJson(result.stdout.excerpt, request.sessionId);
+  const validated = await validateFinalReviewReport(parsed, {
+    contractId: request.contract.id,
+    contractDigest: request.contractDigest,
+    targetRevisionSha: request.targetRevisionSha,
+    artifactDigest: request.artifactDigest,
+    sessionId: request.sessionId,
+    pkgRoot: options.packageRoot ?? defaultPackageRoot(),
+  });
+
+  if (!validated.valid || !validated.report) {
+    throw new Error(`hermes final review report validation failed: ${validated.issues.join("; ")}`);
+  }
+
+  return validated.report;
 }

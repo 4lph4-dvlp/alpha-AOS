@@ -16,7 +16,13 @@ import {
   discoverPhaseProgression,
   resolvePhaseDirectory,
 } from "./task-gsd-discovery.js";
-import type { TaskContract } from "./task-contract.js";
+import { taskContractDigest, type TaskContract } from "./task-contract.js";
+import { userStateRoot } from "./paths.js";
+import {
+  gateMilestoneFinalReview,
+  type FinalReviewPort,
+  type GateMilestoneFinalReviewResult,
+} from "./task-final-review.js";
 import {
   selectStepObligations,
   type TaskCapabilityObligation,
@@ -110,6 +116,7 @@ export interface MultiPhaseOptions {
   readonly runId?: string | undefined;
   readonly sessionId?: string | undefined;
   readonly stateRoot?: string | undefined;
+  readonly finalReviewPort?: FinalReviewPort | undefined;
 }
 
 /**
@@ -605,6 +612,7 @@ function parsePhasesFromRoadmap(roadmapContent: string): string[] {
 export async function orchestrateMultiPhaseProgression(options: MultiPhaseOptions): Promise<{
   completedPhases: readonly string[];
   finalStatus: "completed" | "needs-input" | "failed";
+  finalReviewGate?: GateMilestoneFinalReviewResult | undefined;
 }> {
   const completedPhases: string[] = [];
   let candidatePhases: string[] = [];
@@ -675,8 +683,33 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
     // Loop advances to next phase without user prompt or manual commands (SC 1)
   }
 
+  // 4. Milestone Final Review Gate (REV-03, D-13, D-14, D-15)
+  // Milestone acceptance requires an independent review of all mandatory requirements and core constraints.
+  const stateRoot = options.stateRoot ?? userStateRoot();
+  const cDigest = taskContractDigest(options.contract);
+
+  const finalReviewGate = await gateMilestoneFinalReview({
+    projectRoot: options.projectRoot,
+    stateRoot,
+    contract: options.contract,
+    contractDigest: cDigest,
+    targetRevisionSha: targetSha,
+    workingTreeDigest: treeDigest,
+    finalReviewPort: options.finalReviewPort,
+    packageRoot: options.packageRoot,
+  });
+
+  if (finalReviewGate.status !== "accepted") {
+    return {
+      completedPhases,
+      finalStatus: finalReviewGate.status === "blocked" ? "failed" : "needs-input",
+      finalReviewGate,
+    };
+  }
+
   return {
     completedPhases,
     finalStatus: "completed",
+    finalReviewGate,
   };
 }

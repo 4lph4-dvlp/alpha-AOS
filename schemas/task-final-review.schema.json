@@ -1,0 +1,352 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.dev/schemas/task-final-review.schema.json",
+  "title": "TaskFinalReviewReport",
+  "description": "Structured independent final review report covering all mandatory requirements, cross-phase flows, architecture constraints, and test evidence for milestone acceptance (REV-03, REV-04, REV-05).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "contractId",
+    "contractDigest",
+    "targetRevisionSha",
+    "artifactDigest",
+    "sessionId",
+    "reviewerHarness",
+    "reviewerVersion",
+    "evaluatedAt",
+    "overallVerdict",
+    "requirements",
+    "crossPhaseAssessment",
+    "findings",
+    "summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "contractId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "contractDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "targetRevisionSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sessionId": {
+      "type": "string"
+    },
+    "reviewerHarness": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "reviewerVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "evaluatedAt": {
+      "type": "string"
+    },
+    "overallVerdict": {
+      "type": "string",
+      "enum": ["accepted", "rejected", "unknown"]
+    },
+    "requirements": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "requirementId",
+          "description",
+          "status",
+          "implementationLocation",
+          "checkReceiptRef",
+          "reviewEvidenceRef"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "requirementId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "status": {
+            "type": "string",
+            "enum": ["verified", "missing", "unverified"]
+          },
+          "implementationLocation": {
+            "type": "object",
+            "required": ["path", "digest"],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "lineRange": {
+                "type": "string"
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "checkReceiptRef": {
+            "type": "object",
+            "required": ["receiptId", "digest", "status"],
+            "additionalProperties": false,
+            "properties": {
+              "receiptId": {
+                "type": "string",
+                "minLength": 1
+              },
+              "digest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": ["pass", "fail", "unknown"]
+              }
+            }
+          },
+          "reviewEvidenceRef": {
+            "type": "object",
+            "required": ["reportDigest"],
+            "additionalProperties": false,
+            "properties": {
+              "reportDigest": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "criterionId": {
+                "type": "string"
+              }
+            }
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        }
+      }
+    },
+    "crossPhaseAssessment": {
+      "type": "object",
+      "required": [
+        "userFlow",
+        "approvalBoundaries",
+        "gsdStateOwnership",
+        "reviewerIndependence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "userFlow": {
+          "type": "object",
+          "required": ["status", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        },
+        "approvalBoundaries": {
+          "type": "object",
+          "required": ["status", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        },
+        "gsdStateOwnership": {
+          "type": "object",
+          "required": ["status", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        },
+        "reviewerIndependence": {
+          "type": "object",
+          "required": ["status", "summary"],
+          "additionalProperties": false,
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["pass", "fail", "unknown"]
+            },
+            "summary": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          }
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["findingId", "category", "impact", "scope", "summary"],
+        "additionalProperties": false,
+        "properties": {
+          "findingId": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "missing-requirement",
+              "integration-failure",
+              "architecture-violation",
+              "test-evidence-deficit",
+              "style-preference",
+              "unrelated-proposal"
+            ]
+          },
+          "impact": {
+            "type": "string",
+            "enum": ["blocking", "advisory"]
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["in-scope", "out-of-scope"]
+          },
+          "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "location": {
+            "type": "object",
+            "required": ["path"],
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "lineRange": {
+                "type": "string"
+              }
+            }
+          },
+          "ruleConfirmation": {
+            "type": "object",
+            "required": [
+              "ruleId",
+              "ruleSource",
+              "inspectedPath",
+              "observedViolation"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "ruleId": {
+                "type": "string"
+              },
+              "ruleSource": {
+                "type": "string"
+              },
+              "inspectedPath": {
+                "type": "string"
+              },
+              "observedViolation": {
+                "type": "string"
+              },
+              "impact": {
+                "type": "string"
+              },
+              "checkDescriptor": {
+                "type": "object",
+                "required": ["kind", "pattern"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["pattern-present", "pattern-absent", "custom-inspection"]
+                  },
+                  "pattern": {
+                    "type": "string"
+                  },
+                  "caseSensitive": {
+                    "type": "boolean"
+                  },
+                  "inverted": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          },
+          "reproduction": {
+            "type": "object",
+            "required": ["summary"],
+            "additionalProperties": false,
+            "properties": {
+              "inputText": {
+                "type": "string"
+              },
+              "observedExitCode": {
+                "type": "integer"
+              },
+              "observedStdout": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    }
+  }
+}

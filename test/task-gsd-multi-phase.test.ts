@@ -61,6 +61,8 @@ function createMockContract(projectRoot: string): TaskContract {
 
 test("orchestrateMultiPhaseProgression advances across 2+ phases without manual commands (SC 1, D-09, D-12)", async (context) => {
   const parent = await scratch(context, "two-phases");
+  const stateRoot = join(parent, "state");
+  await mkdir(stateRoot, { recursive: true });
   const repoRes = await createOrdinaryRepository(parent, "repo");
   assert.equal(repoRes.ok, true);
   if (!repoRes.ok) return;
@@ -208,6 +210,7 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
   // 3. Execute multi-phase progression orchestrator
   const result = await orchestrateMultiPhaseProgression({
     projectRoot,
+    stateRoot,
     contract,
     baseCommit,
     receiptsRoot,
@@ -248,6 +251,7 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
   // Assertion 5: Re-running on already-completed repo finishes without re-executing
   const rerunResult = await orchestrateMultiPhaseProgression({
     projectRoot,
+    stateRoot,
     contract,
     baseCommit,
     receiptsRoot,

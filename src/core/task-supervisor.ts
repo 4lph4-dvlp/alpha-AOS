@@ -48,6 +48,12 @@ import {
   type FailureHistoryEntry,
   type FailureReproduction,
 } from "./task-strategy.js";
+import { routeVerificationGap } from "./task-gap-router.js";
+import {
+  recordOrReconcileFindings,
+  attachFindingGsdRouting,
+  extractCandidateFindings,
+} from "./task-review-findings.js";
 
 export interface SuperviseTaskOptions {
   contractPath: string;
@@ -57,7 +63,7 @@ export interface SuperviseTaskOptions {
   ports: TaskPorts;
   signal?: AbortSignal;
   now?: () => Date;
-  gsd?: { configRoot?: string };
+  gsd?: { configRoot?: string; phaseId?: string };
 }
 
 export interface SupervisorResult {
@@ -597,6 +603,45 @@ async function runSupervisorLoop(
         reproduction: historyEntry.reproduction,
       },
     });
+
+    // Reconcile findings and route verification gaps for confirmed defects (D-09, D-12)
+    if (attemptResult?.run.reviewClassification && attemptResult.run.reviewer?.report) {
+      try {
+        const candidateFindings = extractCandidateFindings(
+          attemptResult.run.reviewer.report,
+          attemptResult.run.reviewClassification,
+        );
+        const reconcileRes = await recordOrReconcileFindings({
+          stateRoot: options.stateRoot,
+          contractId: contract.id,
+          targetRevisionSha: checkpoint.lastVerifiedHead ?? "unknown",
+          classifiedFindings: candidateFindings,
+          ...(options.now ? { nowIso: options.now().toISOString() } : {}),
+        });
+
+        // Route gap for any new or reopened blocking finding that doesn't yet have GSD routing
+        for (const finding of reconcileRes.findings) {
+          if ((finding.status === "open" || finding.status === "reopened") && !finding.gsdRouting) {
+            const decision = routeVerificationGap({
+              contract,
+              currentPhaseId: options.gsd?.phaseId ?? "current",
+              defectSummary: finding.summary,
+              isScopeExpansion: finding.scope === "out-of-scope",
+              history: failureHistory,
+            });
+            await attachFindingGsdRouting({
+              stateRoot: options.stateRoot,
+              contractId: contract.id,
+              findingId: finding.findingId,
+              routingDecision: decision,
+              ...(options.now ? { nowIso: options.now().toISOString() } : {}),
+            });
+          }
+        }
+      } catch {
+        // Non-fatal if findings recording encounters transient issue; supervisor loop continues
+      }
+    }
 
     await logEvent(options.stateRoot, digest, {
       kind: "attempt_finished",

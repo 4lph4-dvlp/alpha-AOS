@@ -1,9 +1,9 @@
 ---
 phase: "19"
 slug: "structured-independent-review"
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: complete
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-10-08"
 ---
 
@@ -32,27 +32,27 @@ created: "2026-10-08"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure behavior | Test type | Automated command | File exists | Status |
 |---|---|---:|---|---|---|---|---|---|---|
-| 19-01-01 | 01 | 1 | REV-02 | T-19-01 | Complete, resolvable report only | tracer | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-evidence.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-01-02 | 01 | 1 | REV-02, REV-04 | T-19-02 | Malformed or stale whole report refused | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-evidence.test.js dist/test/task-verdict.test.js && npm run check` | ❌ W0 + ✅ | ⬜ pending |
-| 19-02-01 | 02 | 2 | REV-02, REV-05 | T-19-03 | Objective architecture and scope classification | contract | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-classification.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-02-02 | 02 | 2 | REV-05 | T-19-04 | Suggestions persist without contract expansion | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-suggestions.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-03-01 | 03 | 3 | REV-04 | T-19-05 | One confirmed cause, one GSD item | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-repair.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-03-02 | 03 | 3 | REV-04 | T-19-06 | New revision/session rechecks all criteria; recurrence needs new failure | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-repair.test.js dist/test/task-supervisor-recovery.test.js && npm run check` | ❌ W0 + ✅ | ⬜ pending |
-| 19-04-01 | 04 | 4 | REV-03 | T-19-07 | Separate final review gates milestone acceptance | milestone tracer | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-04-02 | 04 | 4 | REV-03, REV-05 | T-19-08 | Missing feature and architecture violation route; suggestion stays deferred | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review.test.js dist/test/task-review-repair.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-05-01 | 05 | 5 | REV-03, REV-04 | T-19-11 | Five native reviewers return bounded structured reports | adapter matrix | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review-adapters.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-05-02 | 05 | 5 | REV-03, REV-04 | T-19-11 | Truncated/wrong-session/unsupported results fail | adversarial adapter | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review-adapters.test.js dist/test/task-agents.test.js && npm run check` | ❌ W0 + ✅ | ⬜ pending |
-| 19-06-01 | 06 | 6 | REV-02..05 | T-19-09 | Terminal report shows criteria, checks, reviewer, evidence and unknown | CLI | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli-review.test.js && npm run check` | ❌ W0 | ⬜ pending |
-| 19-06-02 | 06 | 6 | REV-02..05 | T-19-10 | Cross-path false acceptance and no-progress blocked | end-to-end | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-adversarial.test.js && npm run check` | ❌ W0 | ⬜ pending |
+| 19-01-01 | 01 | 1 | REV-02 | T-19-01 | Complete, resolvable report only | tracer | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-evidence.test.js && npm run check` | ✅ | ✅ passed |
+| 19-01-02 | 01 | 1 | REV-02, REV-04 | T-19-02 | Malformed or stale whole report refused | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-evidence.test.js dist/test/task-verdict.test.js && npm run check` | ✅ | ✅ passed |
+| 19-02-01 | 02 | 2 | REV-02, REV-05 | T-19-03 | Objective architecture and scope classification | contract | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-classification.test.js && npm run check` | ✅ | ✅ passed |
+| 19-02-02 | 02 | 2 | REV-05 | T-19-04 | Suggestions persist without contract expansion | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-suggestions.test.js && npm run check` | ✅ | ✅ passed |
+| 19-03-01 | 03 | 3 | REV-04 | T-19-05 | One confirmed cause, one GSD item | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-repair.test.js && npm run check` | ✅ | ✅ passed |
+| 19-03-02 | 03 | 3 | REV-04 | T-19-06 | New revision/session rechecks all criteria; recurrence needs new failure | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-repair.test.js dist/test/task-supervisor-recovery.test.js && npm run check` | ✅ | ✅ passed |
+| 19-04-01 | 04 | 4 | REV-03 | T-19-07 | Separate final review gates milestone acceptance | milestone tracer | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review.test.js && npm run check` | ✅ | ✅ passed |
+| 19-04-02 | 04 | 4 | REV-03, REV-05 | T-19-08 | Missing feature and architecture violation route; suggestion stays deferred | adversarial | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review.test.js dist/test/task-review-repair.test.js && npm run check` | ✅ | ✅ passed |
+| 19-05-01 | 05 | 5 | REV-03, REV-04 | T-19-11 | Five native reviewers return bounded structured reports | adapter matrix | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review-adapters.test.js && npm run check` | ✅ | ✅ passed |
+| 19-05-02 | 05 | 5 | REV-03, REV-04 | T-19-11 | Truncated/wrong-session/unsupported results fail | adversarial adapter | `npm run build && node scripts/run-tests.mjs --files dist/test/task-final-review-adapters.test.js dist/test/task-agents.test.js && npm run check` | ✅ | ✅ passed |
+| 19-06-01 | 06 | 6 | REV-02..05 | T-19-09 | Terminal report shows criteria, checks, reviewer, evidence and unknown | CLI | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli-review.test.js && npm run check` | ✅ | ✅ passed |
+| 19-06-02 | 06 | 6 | REV-02..05 | T-19-10 | Cross-path false acceptance and no-progress blocked | end-to-end | `npm run build && node scripts/run-tests.mjs --files dist/test/task-review-adversarial.test.js && npm run check` | ✅ | ✅ passed |
 
 New test files are created by their owning tasks before the command runs. All task commands use the existing compiled test runner.
 
 ## Wave 0 Requirements
 
-- [ ] Create the shared exact-revision reviewer/evidence fixture for the first tracer in `test/task-review-evidence.test.ts`.
-- [ ] Add a bounded fixture with an intentionally missing feature, an approved architecture rule violation, two criteria sharing one cause, and an unrelated suggestion.
-- [ ] Ensure simulated reviewer ports expose requested and observed session IDs separately; no fixture may equate a prompt with an independent receipt.
-- [ ] Add `test/task-final-review-adapters.test.ts` with five native adapter success/failure cells before Plan 05 verification.
+- [x] Create the shared exact-revision reviewer/evidence fixture for the first tracer in `test/task-review-evidence.test.ts`.
+- [x] Add a bounded fixture with an intentionally missing feature, an approved architecture rule violation, two criteria sharing one cause, and an unrelated suggestion.
+- [x] Ensure simulated reviewer ports expose requested and observed session IDs separately; no fixture may equate a prompt with an independent receipt.
+- [x] Add `test/task-final-review-adapters.test.ts` with five native adapter success/failure cells before Plan 05 verification.
 
 ## Manual-Only Verifications
 
@@ -62,11 +62,11 @@ New test files are created by their owning tasks before the command runs. All ta
 
 ## Validation Sign-Off
 
-- [ ] Every task has a runnable `<automated>` command and an observable `<fails_when>`.
-- [ ] Wave 0 creates every new fixture before its command runs.
-- [ ] No watch-mode flags appear in verification commands.
-- [ ] Focused feedback latency is measured and bounded.
-- [ ] Exact-revision, malformed-report, suggestion and milestone negative controls are green.
-- [ ] Set `nyquist_compliant: true` only after the validation proof succeeds.
+- [x] Every task has a runnable `<automated>` command and an observable `<fails_when>`.
+- [x] Wave 0 creates every new fixture before its command runs.
+- [x] No watch-mode flags appear in verification commands.
+- [x] Focused feedback latency is measured and bounded.
+- [x] Exact-revision, malformed-report, suggestion and milestone negative controls are green.
+- [x] Set `nyquist_compliant: true` only after the validation proof succeeds.
 
-**Approval:** pending
+**Approval:** approved

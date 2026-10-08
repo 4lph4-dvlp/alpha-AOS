@@ -432,16 +432,23 @@ export function referenceControllerPort(variant: InventorySummaryVariant): Contr
 /** A schema-valid report that passes every contract criterion, bound to the request it answers. */
 export function passingReview(request: ReviewRequest): TaskReviewReport {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     requestId: request.requestId,
     contractId: request.contract.id,
     contractDigest: request.contractDigest,
     artifactDigest: request.artifactDigest,
+    targetRevisionSha: request.targetRevisionSha,
     criteria: request.contract.criterion.map((criterion) => ({
       criterionId: criterion.id,
       verdict: "pass" as const,
       severity: "blocking" as const,
       evidence: `Re-ran ${criterion.measurement.entry} for ${criterion.id}; the output matched the contract.`,
+      locator: {
+        kind: "check-receipt" as const,
+        identifier: criterion.measurement.entry,
+        inspectedRange: null,
+        digest: null,
+      },
       abstainReason: null,
       finding: null,
     })),

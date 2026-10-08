@@ -14,6 +14,7 @@ import {
   type TaskDecision,
   type TaskMeasurement,
   type TaskReviewReport,
+  type TaskReviewReportV2,
   type TaskRunRecord,
 } from "../src/core/task-run.js";
 import {
@@ -44,7 +45,14 @@ import {
 
 const ARTIFACT = "a".repeat(64);
 const CONTRACT_DIGEST = "c".repeat(64);
-const REQUEST = { requestId: "request-1", sessionId: "session-1", contractDigest: CONTRACT_DIGEST, artifactDigest: ARTIFACT };
+const TARGET_SHA = "0".repeat(40);
+const REQUEST = {
+  requestId: "request-1",
+  sessionId: "session-1",
+  contractDigest: CONTRACT_DIGEST,
+  artifactDigest: ARTIFACT,
+  targetRevisionSha: TARGET_SHA,
+};
 const THREE_ROWS = "sku,qty\nC-1,1\nC-2,2\nC-3,3\n";
 const OVERFIT_STDOUT = "{\"rows\":0,\"totalQuantity\":0,\"skus\":{}}";
 
@@ -69,7 +77,7 @@ function bothPass(): TaskMeasurement[] {
   return [measured("valid-summary", "pass"), measured("invalid-quantity", "pass")];
 }
 
-type ReportRow = TaskReviewReport["criteria"][number];
+type ReportRow = TaskReviewReportV2["criteria"][number];
 
 function reviewRow(criterionId: string, overrides: Partial<ReportRow> = {}): ReportRow {
   return {
@@ -77,19 +85,26 @@ function reviewRow(criterionId: string, overrides: Partial<ReportRow> = {}): Rep
     verdict: "pass",
     severity: "blocking",
     evidence: `Re-ran the entry for ${criterionId}.`,
+    locator: {
+      kind: "check-receipt",
+      identifier: "bin/inventory-summary.mjs",
+      inspectedRange: null,
+      digest: null,
+    },
     abstainReason: null,
     finding: null,
     ...overrides,
   };
 }
 
-function report(criteria: ReportRow[], overrides: Partial<TaskReviewReport> = {}): TaskReviewReport {
+function report(criteria: ReportRow[], overrides: Partial<TaskReviewReportV2> = {}): TaskReviewReportV2 {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     requestId: REQUEST.requestId,
     contractId: "inventory-summary",
     contractDigest: CONTRACT_DIGEST,
     artifactDigest: ARTIFACT,
+    targetRevisionSha: TARGET_SHA,
     criteria,
     suggestions: [],
     ...overrides,
@@ -106,6 +121,7 @@ const REPRODUCED_FAIL = reviewRow("valid-summary", {
   finding: {
     summary: "The program only answers the contract's own input.",
     reproduction: { inputText: THREE_ROWS, observedExitCode: 0, observedStdout: OVERFIT_STDOUT },
+    ruleConfirmation: null,
   },
 });
 
@@ -218,6 +234,7 @@ function overfitReview(observedStdout: string) {
               finding: {
                 summary: "The program answers only the contract's own input.",
                 reproduction: { inputText: THREE_ROWS, observedExitCode: 0, observedStdout },
+                ruleConfirmation: null,
               },
             }
           : row,
@@ -348,12 +365,14 @@ test("an unsatisfied precondition or a refusal keeps an all-pass run from being 
   assert.notEqual(stale.overall, "accepted");
 });
 
-test("a review bound to another request, contract, artifact or session is stale and refused", () => {
+test("a review bound to another request, contract, artifact, revision or session is stale and refused", () => {
   const good = [reviewRow("valid-summary"), reviewRow("invalid-quantity")];
   const staleReviews = [
     assess(report(good, { requestId: "request-2" })),
     assess(report(good, { contractDigest: "d".repeat(64) })),
     assess(report(good, { artifactDigest: "e".repeat(64) })),
+    assess(report(good, { targetRevisionSha: "1".repeat(40) })),
+    assess({ ...report(good), schemaVersion: 1 } as unknown as TaskReviewReport),
     assess(report(good), "session-2"),
     assess(report(good), null),
   ];
@@ -431,7 +450,7 @@ test("a report with no rows, or one omitting a criterion, leaves each missing cr
     assert.match(row.nextAction ?? "", /re-run the review/iu);
   }
   const partial = reduce({ review: assess(report([reviewRow("valid-summary")])) });
-  assert.equal(rowOf(partial, "valid-summary").verdict, "pass");
+  assert.equal(rowOf(partial, "valid-summary").verdict, "unknown");
   assert.equal(rowOf(partial, "invalid-quantity").verdict, "unknown");
   assert.equal(partial.overall, "unknown");
 });

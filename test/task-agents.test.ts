@@ -677,6 +677,7 @@ async function reviewRequest(context: TestContext, sessionId: string = randomUUI
     contract: inventorySummaryContract(await scratch(context, "review-project")),
     contractDigest: "d".repeat(64),
     artifactDigest: "e".repeat(64),
+    targetRevisionSha: "0".repeat(40),
     reviewRoot,
     measurements: measurements(),
     deadlineAt: null,
@@ -685,16 +686,23 @@ async function reviewRequest(context: TestContext, sessionId: string = randomUUI
 
 function reportFor(request: ReviewRequest): TaskReviewReport {
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     requestId: request.requestId,
     contractId: request.contract.id,
     contractDigest: request.contractDigest,
     artifactDigest: request.artifactDigest,
+    targetRevisionSha: request.targetRevisionSha,
     criteria: request.contract.criterion.map((criterion) => ({
       criterionId: criterion.id,
       verdict: "pass",
       severity: "blocking",
       evidence: `bin/inventory-summary.mjs satisfies ${criterion.id}`,
+      locator: {
+        kind: "check-receipt",
+        identifier: criterion.measurement.entry,
+        inspectedRange: null,
+        digest: null,
+      },
       abstainReason: null,
       finding: null,
     })),

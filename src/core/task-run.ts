@@ -14,6 +14,7 @@ import {
 import {
   collectTaskArtifact,
   confirmReviewerReproduction,
+  confirmReviewerRuleConfirmation,
   materializeTaskSnapshot,
   measureTaskCriterion,
   selectMeasurementSubstitutes,
@@ -22,6 +23,19 @@ import {
   type TaskDecisionCategory,
   type TaskReproductionConfirmation,
 } from "./task-check.js";
+import {
+  TASK_REVIEW_V1_SCHEMA,
+  validateTaskReviewEvidence,
+  type TaskReviewLocator,
+  type TaskReviewRuleConfirmation,
+  type TaskReviewFinding,
+  type TaskReviewCriterion,
+  type TaskReviewReportV1,
+  type TaskReviewReportV2,
+  type TaskReviewReport,
+  type TaskReviewReproduction,
+  type TaskReviewEvidenceResult,
+} from "./task-review-evidence.js";
 import {
   assertTaskStartable,
   describeIssue,
@@ -132,30 +146,17 @@ export interface TaskMeasurement {
   substituteDecisionId: string | null;
 }
 
-export interface TaskReviewReproduction {
-  inputText: string;
-  observedExitCode: number;
-  observedStdout: string;
-}
-
-export interface TaskReviewCriterion {
-  criterionId: string;
-  verdict: "pass" | "fail" | "unknown";
-  severity: "blocking" | "advisory";
-  evidence: string;
-  abstainReason: string | null;
-  finding: { summary: string; reproduction: TaskReviewReproduction | null } | null;
-}
-
-export interface TaskReviewReport {
-  schemaVersion: 1;
-  requestId: string;
-  contractId: string;
-  contractDigest: string;
-  artifactDigest: string;
-  criteria: TaskReviewCriterion[];
-  suggestions: string[];
-}
+export type {
+  TaskReviewLocator,
+  TaskReviewRuleConfirmation,
+  TaskReviewFinding,
+  TaskReviewCriterion,
+  TaskReviewReportV1,
+  TaskReviewReportV2,
+  TaskReviewReport,
+  TaskReviewReproduction,
+  TaskReviewEvidenceResult,
+} from "./task-review-evidence.js";
 
 export interface ReviewRequest {
   runId: string;
@@ -164,6 +165,7 @@ export interface ReviewRequest {
   contract: TaskContract;
   contractDigest: string;
   artifactDigest: string;
+  targetRevisionSha: string;
   reviewRoot: string;
   measurements: TaskMeasurement[];
   deadlineAt: string | null;
@@ -215,6 +217,7 @@ export interface TaskVerdictRow {
     verdict: "pass" | "fail" | "unknown";
     severity: "blocking" | "advisory";
     evidence: string;
+    locator?: TaskReviewLocator | null | undefined;
     /** Whether alpha-AOS reproduced the reviewer's finding itself; null when none was attempted (D-14). */
     confirmed: boolean | null;
     confirmationDetail: string | null;
@@ -401,22 +404,37 @@ async function validateReport(
   } catch {
     return { report: null, issue: "the review report is not serializable JSON" };
   }
-  const validation = validateManagedDocument<TaskReviewReport>({
+  const v2Schema = await taskSchema("task-review", root);
+  let validation = validateManagedDocument<TaskReviewReport>({
     text,
     format: "json",
     kind: "task-agent-output",
-    schema: await taskSchema("task-review", root),
+    schema: v2Schema,
     domain: rejectRawCredentials,
   });
+  let report: TaskReviewReport;
   if (!validation.ok || validation.value === null) {
-    return { report: null, issue: `the review report is invalid: ${describeIssue(validation.issues[0], validation.status)}` };
+    const v1Validation = validateManagedDocument<TaskReviewReport>({
+      text,
+      format: "json",
+      kind: "task-agent-output",
+      schema: TASK_REVIEW_V1_SCHEMA,
+      domain: rejectRawCredentials,
+    });
+    if (v1Validation.ok && (v1Validation.value !== null || v1Validation.readOnlyValue !== null)) {
+      report = (v1Validation.value ?? v1Validation.readOnlyValue) as TaskReviewReport;
+    } else {
+      return { report: null, issue: `the review report is invalid: ${describeIssue(validation.issues[0], validation.status)}` };
+    }
+  } else {
+    report = validation.value;
   }
-  const report = validation.value;
   const texts = [
     report.requestId,
     report.contractId,
     report.contractDigest,
     report.artifactDigest,
+    ...(report.targetRevisionSha !== undefined ? [report.targetRevisionSha] : []),
     ...report.suggestions,
     ...report.criteria.flatMap((criterion) => [
       criterion.criterionId,
@@ -425,6 +443,9 @@ async function validateReport(
       criterion.finding?.summary ?? "",
       criterion.finding?.reproduction?.inputText ?? "",
       criterion.finding?.reproduction?.observedStdout ?? "",
+      criterion.finding?.ruleConfirmation?.ruleId ?? "",
+      criterion.finding?.ruleConfirmation?.inspectedPath ?? "",
+      criterion.finding?.ruleConfirmation?.observedViolation ?? "",
     ]),
   ];
   if (
@@ -1179,6 +1200,11 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       };
     }
 
+    let targetRevisionSha = baseline.baseCommit;
+    try {
+      targetRevisionSha = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+    } catch {}
+
     const request: ReviewRequest = {
       runId,
       requestId: randomUUID(),
@@ -1186,6 +1212,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       contract,
       contractDigest: digest,
       artifactDigest: artifact.digest,
+      targetRevisionSha,
       reviewRoot: snapshot,
       measurements,
       deadlineAt,
@@ -1227,6 +1254,29 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       },
     };
 
+    let currentHeadAfterReview = targetRevisionSha;
+    try {
+      currentHeadAfterReview = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+    } catch {}
+
+    let evidenceResult: TaskReviewEvidenceResult | undefined;
+    if (checked.report !== null) {
+      evidenceResult = await validateTaskReviewEvidence({
+        report: checked.report,
+        request: {
+          requestId: request.requestId,
+          contractDigest: request.contractDigest,
+          artifactDigest: request.artifactDigest,
+          targetRevisionSha: request.targetRevisionSha,
+          measurements: request.measurements,
+        },
+        contract,
+        snapshotRoot: snapshot,
+        receiptsRoot: options.receiptsRoot,
+        currentHeadSha: currentHeadAfterReview,
+      });
+    }
+
     const received = reviewed.report !== null && reviewed.report !== undefined;
     const review = assessTaskReview({
       report: checked.report,
@@ -1235,21 +1285,31 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       contract,
       issues: reviewed.issues.map((issue) => bounded(issue, 300)),
       rejected: mutatingIssue ?? (received ? checked.issue : null),
+      evidenceResult,
     });
 
     // A reviewer failure against a measured pass counts only when alpha-AOS
-    // reproduces it by running the contract entry on the reviewer's input (D-14).
+    // reproduces it by running the contract entry on the reviewer's input (D-14),
+    // or confirms the rule violation on the reviewed snapshot (D-02).
     const confirmations = new Map<string, TaskReproductionConfirmation>();
     if (review.status === "ok") {
       for (const criterion of contract.criterion) {
         const measured = measurements.find((entry) => entry.criterionId === criterion.id);
         const row = review.rows.get(criterion.id);
         const reproduction = row?.finding?.reproduction ?? null;
-        if (measured?.outcome !== "pass" || row?.verdict !== "fail" || row.severity !== "blocking" || reproduction === null) continue;
-        confirmations.set(
-          criterion.id,
-          await confirmReviewerReproduction({ criterion, reproduction, root: snapshot, scratchRoot }),
-        );
+        const ruleConfirmation = row?.finding?.ruleConfirmation ?? null;
+        if (measured?.outcome !== "pass" || row?.verdict !== "fail" || row.severity !== "blocking") continue;
+        if (reproduction !== null) {
+          confirmations.set(
+            criterion.id,
+            await confirmReviewerReproduction({ criterion, reproduction, root: snapshot, scratchRoot }),
+          );
+        } else if (ruleConfirmation !== null) {
+          confirmations.set(
+            criterion.id,
+            await confirmReviewerRuleConfirmation({ criterion, ruleConfirmation, root: snapshot }),
+          );
+        }
       }
     }
 
@@ -1273,14 +1333,9 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
         });
 
     if (options.requireReviewWitness || witnessReceipt !== null) {
-      let currentHead = baseline.baseCommit;
-      try {
-        currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
-      } catch {}
-
       const witnessResult = verifyReviewWitness({
         receipt: witnessReceipt,
-        currentHeadSha: currentHead,
+        currentHeadSha: currentHeadAfterReview,
         currentArtifactDigest: artifact.digest,
       });
 

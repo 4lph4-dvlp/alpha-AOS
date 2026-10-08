@@ -43,6 +43,22 @@
                 "verdict": { "enum": ["pass", "fail", "unknown"] },
                 "severity": { "enum": ["blocking", "advisory"] },
                 "evidence": { "type": "string" },
+                "locator": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "required": ["kind", "identifier"],
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": { "type": "string", "enum": ["snapshot-file", "check-receipt"] },
+                        "identifier": { "type": "string" },
+                        "inspectedRange": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                        "digest": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
                 "confirmed": { "type": ["boolean", "null"] },
                 "confirmationDetail": { "type": ["string", "null"], "maxLength": 1000 }
               }

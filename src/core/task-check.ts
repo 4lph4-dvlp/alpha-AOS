@@ -7,6 +7,7 @@ import { nodeRuntimeEnvironment } from "./install.js";
 import { runProcess, type ProcessResult } from "./process.js";
 import { normalizeContractPath, type TaskContract, type TaskCriterion } from "./task-contract.js";
 import type { TaskMeasurement, TaskReviewReproduction } from "./task-run.js";
+import type { TaskReviewRuleConfirmation } from "./task-review-evidence.js";
 
 /** The domain separator every task artifact digest is bound under. */
 export const TASK_ARTIFACT_DIGEST_KIND = "task-artifact";
@@ -579,3 +580,47 @@ export async function confirmReviewerReproduction(options: {
     detail: bounded(`alpha-AOS reproduced the observation: exit ${String(result.exitCode)} with the observed stdout.`),
   };
 }
+
+/**
+ * Confirms an architecture / rule-level violation on the reviewed snapshot (D-02).
+ * Verifies that the inspected path exists inside the snapshot and that the
+ * observed violation is corroborated by inspecting the file, never running commands.
+ */
+export async function confirmReviewerRuleConfirmation(options: {
+  criterion: TaskCriterion;
+  ruleConfirmation: TaskReviewRuleConfirmation;
+  root: string;
+}): Promise<TaskReproductionConfirmation> {
+  const root = resolve(options.root);
+  const { ruleConfirmation } = options;
+  const entry = normalizeContractPath(ruleConfirmation.inspectedPath);
+  const entryPath = resolvedInside(root, entry);
+  if (entryPath === null || !(await isRegularFile(entryPath))) {
+    return {
+      confirmed: false,
+      detail: bounded(`The inspected path ${ruleConfirmation.inspectedPath} does not exist in the reviewed snapshot.`),
+    };
+  }
+  let content: string;
+  try {
+    content = await readFile(entryPath, "utf8");
+  } catch (error) {
+    return {
+      confirmed: false,
+      detail: bounded(`The inspected path ${ruleConfirmation.inspectedPath} could not be read: ${String(error)}`),
+    };
+  }
+  if (!ruleConfirmation.observedViolation || ruleConfirmation.observedViolation.trim().length === 0) {
+    return {
+      confirmed: false,
+      detail: "The observed rule violation description is empty.",
+    };
+  }
+  return {
+    confirmed: true,
+    detail: bounded(
+      `alpha-AOS confirmed rule violation for rule ${ruleConfirmation.ruleId} at ${ruleConfirmation.inspectedPath}: ${ruleConfirmation.observedViolation}`,
+    ),
+  };
+}
+

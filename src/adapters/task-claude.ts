@@ -118,8 +118,8 @@ export function buildReviewPrompt(request: ReviewRequest): ReviewPrompt {
       "Any claim the executor made about its own work is not evidence; judge only the source in the working directory and the measured evidence below.",
     "",
     "BINDING",
-    `Echo these values exactly in your report: requestId ${request.requestId}, contractId ${request.contract.id}, ` +
-      `contractDigest ${request.contractDigest}, artifactDigest ${request.artifactDigest}.`,
+    `Echo these values exactly in your report: schemaVersion 2, requestId ${request.requestId}, contractId ${request.contract.id}, ` +
+      `contractDigest ${request.contractDigest}, artifactDigest ${request.artifactDigest}, targetRevisionSha ${request.targetRevisionSha}.`,
     `The working directory is an exact snapshot of the artifact with digest ${request.artifactDigest}.`,
     "",
     "CONTRACT (the approved task, as JSON; every criterion carries its input text and expected outcome)",
@@ -129,11 +129,9 @@ export function buildReviewPrompt(request: ReviewRequest): ReviewPrompt {
     ...request.measurements.map(measurementLine),
     "",
     "VERDICT RULES",
-    "- Report exactly one entry per contract criterion id.",
-    "- pass: only when both the source and the measured evidence support the criterion.",
-    "- fail: only as severity blocking, with a finding whose reproduction gives an inputText of at most 4096 characters " +
-      "and the exact exit code and stdout the CURRENT program produces for that input. alpha-AOS will run the contract entry " +
-      "with that input to confirm the reproduction; a failure it cannot reproduce is not accepted.",
+    "- Report exactly one entry per contract criterion id with schemaVersion 2.",
+    "- pass: only when both the source and the measured evidence support the criterion. Provide an evidence locator (kind 'check-receipt' with measurement entry or 'snapshot-file' with relative path).",
+    "- fail: only as severity blocking (or advisory), with a locator to the affected file/receipt and a finding whose reproduction gives an inputText of at most 4096 characters and the exact exit code and stdout, OR a ruleConfirmation identifying the approved rule and violation. alpha-AOS will run your reproduction or verify your rule confirmation to confirm it; unconfirmed failures are not accepted.",
     "- unknown: whenever you cannot establish pass or a reproducible fail; give an abstainReason.",
     "- Improvement ideas outside the contract's criteria go only to suggestions.",
     "",

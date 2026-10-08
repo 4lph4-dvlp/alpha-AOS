@@ -2,34 +2,68 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://alpha-aos.local/schemas/task-review.schema.json",
   "title": "alpha-AOS task review report",
-  "description": "Reviewer report bound to one review request (REV-01). Uses only the structured-output-safe keyword subset because the same file is handed to the reviewer CLI; length bounds are enforced in code.",
+  "description": "Reviewer report bound to one review request (REV-01, REV-02). Uses only the structured-output-safe keyword subset because the same file is handed to the reviewer CLI; length bounds are enforced in code.",
   "type": "object",
-  "required": ["schemaVersion", "requestId", "contractId", "contractDigest", "artifactDigest", "criteria", "suggestions"],
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "contractId",
+    "contractDigest",
+    "artifactDigest",
+    "targetRevisionSha",
+    "criteria",
+    "suggestions"
+  ],
   "additionalProperties": false,
   "properties": {
-    "schemaVersion": { "type": "integer", "enum": [1] },
+    "schemaVersion": { "type": "integer", "enum": [2] },
     "requestId": { "type": "string" },
     "contractId": { "type": "string" },
     "contractDigest": { "type": "string" },
     "artifactDigest": { "type": "string" },
+    "targetRevisionSha": { "type": "string" },
     "criteria": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["criterionId", "verdict", "severity", "evidence", "abstainReason", "finding"],
+        "required": [
+          "criterionId",
+          "verdict",
+          "severity",
+          "evidence",
+          "locator",
+          "abstainReason",
+          "finding"
+        ],
         "additionalProperties": false,
         "properties": {
           "criterionId": { "type": "string" },
           "verdict": { "type": "string", "enum": ["pass", "fail", "unknown"] },
           "severity": { "type": "string", "enum": ["blocking", "advisory"] },
           "evidence": { "type": "string" },
+          "locator": {
+            "anyOf": [
+              { "type": "null" },
+              {
+                "type": "object",
+                "required": ["kind", "identifier", "inspectedRange", "digest"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "type": "string", "enum": ["snapshot-file", "check-receipt"] },
+                  "identifier": { "type": "string" },
+                  "inspectedRange": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                  "digest": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                }
+              }
+            ]
+          },
           "abstainReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
           "finding": {
             "anyOf": [
               { "type": "null" },
               {
                 "type": "object",
-                "required": ["summary", "reproduction"],
+                "required": ["summary", "reproduction", "ruleConfirmation"],
                 "additionalProperties": false,
                 "properties": {
                   "summary": { "type": "string" },
@@ -44,6 +78,22 @@
                           "inputText": { "type": "string" },
                           "observedExitCode": { "type": "integer" },
                           "observedStdout": { "type": "string" }
+                        }
+                      }
+                    ]
+                  },
+                  "ruleConfirmation": {
+                    "anyOf": [
+                      { "type": "null" },
+                      {
+                        "type": "object",
+                        "required": ["ruleId", "ruleSource", "inspectedPath", "observedViolation"],
+                        "additionalProperties": false,
+                        "properties": {
+                          "ruleId": { "type": "string" },
+                          "ruleSource": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                          "inspectedPath": { "type": "string" },
+                          "observedViolation": { "type": "string" }
                         }
                       }
                     ]

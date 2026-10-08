@@ -579,6 +579,12 @@ function validatorFor(kind: ManagedDocumentKind, schema?: Record<string, unknown
 }
 
 export function schemaRoutesFor(kind: ManagedDocumentKind): readonly ManagedSchemaRoute[] {
+  if (kind === "task-agent-output") {
+    return [
+      { kind, version: 1, status: "current", schema: CORE_SCHEMAS[kind] },
+      { kind, version: 2, status: "current", schema: CORE_SCHEMAS[kind] },
+    ];
+  }
   return [
     { kind, version: MIGRATABLE_VERSION, status: "migratable", schema: CORE_SCHEMAS[kind] },
     { kind, version: CURRENT_VERSION, status: "current", schema: CORE_SCHEMAS[kind] },
@@ -751,9 +757,12 @@ export function validateManagedDocument<T = unknown>(options: {
     };
   }
 
-  const route = schemaRoutesFor(options.kind).find((candidate) => candidate.version === rawVersion);
+  const routes = schemaRoutesFor(options.kind);
+  const route = routes.find((candidate) => candidate.version === rawVersion);
   if (route === undefined) {
-    const newer = rawVersion > CURRENT_VERSION;
+    const minRegistered = Math.min(...routes.map((r) => r.version));
+    const maxRegistered = Math.max(...routes.map((r) => r.version));
+    const newer = rawVersion > maxRegistered;
     return {
       ...base,
       ok: false,
@@ -764,7 +773,7 @@ export function validateManagedDocument<T = unknown>(options: {
         issue(
           newer ? "version.unknown-newer" : "version.unsupported-old",
           "/schemaVersion",
-          `a registered schema version (${MIGRATABLE_VERSION}..${CURRENT_VERSION})`,
+          `a registered schema version (${minRegistered}..${maxRegistered})`,
           `integer(value=${rawVersion})`,
         ),
       ],

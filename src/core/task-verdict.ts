@@ -7,6 +7,11 @@ import type {
   TaskReviewReproduction,
   TaskVerdictRow,
 } from "./task-run.js";
+import type {
+  TaskReviewEvidenceResult,
+  TaskReviewLocator,
+  TaskReviewRuleConfirmation,
+} from "./task-review-evidence.js";
 
 // Pure reduction from evidence to a verdict: no filesystem, no process. The
 // executor's claim and exit code are deliberately not inputs (D-11).
@@ -30,8 +35,13 @@ export interface TaskReviewRowAssessment {
   verdict: "pass" | "fail" | "unknown";
   severity: "blocking" | "advisory";
   evidence: string;
+  locator?: TaskReviewLocator | null | undefined;
   abstainReason: string | null;
-  finding: { summary: string; reproduction: TaskReviewReproduction | null } | null;
+  finding: {
+    summary: string;
+    reproduction: TaskReviewReproduction | null;
+    ruleConfirmation?: TaskReviewRuleConfirmation | null | undefined;
+  } | null;
 }
 
 export interface TaskReviewAssessment {
@@ -90,13 +100,17 @@ function emptyAssessment(status: TaskReviewAssessment["status"], issues: readonl
  */
 export function assessTaskReview(input: {
   report: TaskReviewReport | null;
-  request: Pick<ReviewRequest, "requestId" | "sessionId" | "contractDigest" | "artifactDigest">;
+  request: Pick<ReviewRequest, "requestId" | "sessionId" | "contractDigest" | "artifactDigest"> & {
+    targetRevisionSha?: string | undefined;
+  };
   portSessionId: string | null;
   contract: TaskContract;
   /** Issues the reviewer port reported. */
   issues?: readonly string[];
   /** Why a received report failed schema validation, when it did. */
   rejected?: string | null;
+  /** Evidence resolution result, if run. */
+  evidenceResult?: TaskReviewEvidenceResult | undefined;
 }): TaskReviewAssessment {
   const portIssues = input.issues ?? [];
   if (input.rejected !== undefined && input.rejected !== null) {
@@ -108,12 +122,24 @@ export function assessTaskReview(input: {
   }
 
   const stale: string[] = [];
+  if (report.schemaVersion === 1) stale.push("the report uses legacy schemaVersion 1; v2 with verifiable evidence locators is required");
   if (report.requestId !== input.request.requestId) stale.push("the report answers a different review request");
   if (report.contractId !== input.contract.id) stale.push("the report names a different contract");
   if (report.contractDigest !== input.request.contractDigest) stale.push("the report is bound to a different contract digest");
   if (report.artifactDigest !== input.request.artifactDigest) stale.push("the report is bound to a different artifact digest");
+  if (
+    report.schemaVersion === 2 &&
+    input.request.targetRevisionSha !== undefined &&
+    report.targetRevisionSha !== input.request.targetRevisionSha
+  ) {
+    stale.push("the report is bound to a different target revision SHA");
+  }
   if (input.portSessionId !== input.request.sessionId) stale.push("the report came from a reviewer session other than the requested one");
   if (stale.length > 0) return emptyAssessment("stale", stale);
+
+  if (input.evidenceResult !== undefined && !input.evidenceResult.valid) {
+    return emptyAssessment("malformed", input.evidenceResult.issues.map((issue) => issue.message));
+  }
 
   const known = new Set(input.contract.criterion.map((criterion) => criterion.id));
   const malformed: string[] = [];
@@ -142,6 +168,7 @@ export function assessTaskReview(input: {
         verdict: row.verdict,
         severity: row.severity,
         evidence: row.evidence,
+        locator: row.locator ?? null,
         abstainReason: row.abstainReason,
         finding:
           finding === null
@@ -156,8 +183,22 @@ export function assessTaskReview(input: {
                         observedExitCode: finding.reproduction.observedExitCode,
                         observedStdout: finding.reproduction.observedStdout,
                       },
+                ruleConfirmation:
+                  finding.ruleConfirmation === null || finding.ruleConfirmation === undefined
+                    ? null
+                    : {
+                        ruleId: finding.ruleConfirmation.ruleId,
+                        ruleSource: finding.ruleConfirmation.ruleSource ?? null,
+                        inspectedPath: finding.ruleConfirmation.inspectedPath,
+                        observedViolation: finding.ruleConfirmation.observedViolation,
+                      },
               },
       });
+    }
+  }
+  for (const criterion of input.contract.criterion) {
+    if (!rows.has(criterion.id)) {
+      malformed.push(`the report is missing a verdict for contract criterion ${criterion.id}`);
     }
   }
   if (report.suggestions.length > REVIEW_BOUNDS.suggestions) {
@@ -232,6 +273,7 @@ export function reduceTaskVerdict(input: {
             verdict: reviewed.verdict,
             severity: reviewed.severity,
             evidence: reviewed.evidence,
+            locator: reviewed.locator ?? null,
             confirmed: confirmation === undefined ? null : confirmation.confirmed,
             confirmationDetail: confirmation === undefined ? null : confirmation.detail,
           };
@@ -272,7 +314,11 @@ export function reduceTaskVerdict(input: {
         taskNextAction("abstain", { ...context, abstainReason }),
       );
     }
-    const reproducible = reviewed.severity === "blocking" && reviewed.finding !== null && reviewed.finding.reproduction !== null;
+    const reproducible =
+      reviewed.severity === "blocking" &&
+      reviewed.finding !== null &&
+      (reviewed.finding.reproduction !== null ||
+        (reviewed.finding.ruleConfirmation !== null && reviewed.finding.ruleConfirmation !== undefined));
     if (reproducible && confirmation?.confirmed === true) {
       return row(
         "fail",
@@ -283,8 +329,10 @@ export function reduceTaskVerdict(input: {
     const unconfirmed =
       reviewed.severity === "advisory"
         ? "the failure is advisory"
-        : reviewed.finding === null || reviewed.finding.reproduction === null
-          ? "the failure carries no reproduction"
+        : reviewed.finding === null ||
+            (reviewed.finding.reproduction === null &&
+              (reviewed.finding.ruleConfirmation === null || reviewed.finding.ruleConfirmation === undefined))
+          ? "the failure carries no reproduction or rule confirmation"
           : `alpha-AOS could not reproduce it (${confirmation?.detail ?? "not attempted"})`;
     return row("unknown", `Measured pass; review fail, but ${unconfirmed}.`, taskNextAction("unconfirmed-fail", context));
   });

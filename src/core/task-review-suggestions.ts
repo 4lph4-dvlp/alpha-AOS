@@ -106,8 +106,27 @@ function assertNoRawCredentials(value: unknown, context: string): void {
   }
 }
 
-function suggestionsFilePath(stateRoot: string, contractId: string): string {
+export function suggestionsFilePath(stateRoot: string, contractId: string): string {
   return join(stateRoot, "tasks", contractId, "suggestions.json");
+}
+
+/**
+ * Loads the structured suggestions document from external state, or null if missing/failed.
+ */
+export async function loadTaskReviewSuggestions(
+  stateRoot: string,
+  contractId: string,
+): Promise<TaskReviewSuggestionsDocument | null> {
+  const result = await readTaskReviewSuggestions({ stateRoot, contractId });
+  if (result.status === "ok") {
+    return {
+      schemaVersion: 1,
+      contractId,
+      suggestions: result.suggestions,
+      updatedAt: new Date().toISOString(),
+    };
+  }
+  return null;
 }
 
 function computeSuggestionId(contractId: string, targetRevisionSha: string, summary: string): string {

@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { packageRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
-import type { TaskContract } from "./task-contract.js";
+import type { TaskApprovalRecord, TaskContract } from "./task-contract.js";
+import { loadTaskContract, readTaskApprovals } from "./task-contract.js";
 import type { TaskReviewRuleConfirmation } from "./task-review-evidence.js";
 import type { FailureReproduction } from "./task-strategy.js";
 import type { GapRoutingDecision } from "./task-gap-router.js";
@@ -15,6 +16,10 @@ import {
   recordOrReconcileFindings,
   type ReconcileCandidateFinding,
 } from "./task-review-findings.js";
+import { readTaskBaseline } from "./task-effects.js";
+import { collectTaskArtifact } from "./task-check.js";
+import { loadTaskReviewSuggestions, recordReviewSuggestions, suggestionsFilePath } from "./task-review-suggestions.js";
+import type { HarnessId } from "../types.js";
 
 export type FinalReviewVerdict = "accepted" | "rejected" | "unknown";
 
@@ -295,8 +300,8 @@ export async function parseRequirementsFromMarkdown(
   const lines = text.split("\n");
 
   for (const line of lines) {
-    // Matches bullet item like: - **REV-01**: Description text...
-    const match = line.match(/^[-*]\s+\*\*([A-Z0-9]+-[0-9]+)\*\*:\s*(.+)$/);
+    // Matches bullet item like: - **REV-01**: Description text... or - [ ] **REQ-01**: Description...
+    const match = line.match(/^[-*]\s+(?:\[[ xX]\]\s+)?\*\*([A-Z0-9]+-[0-9]+)\*\*:\s*(.+)$/);
     if (match?.[1] && match[2]) {
       list.push({
         id: match[1].trim(),
@@ -425,7 +430,27 @@ export async function gateMilestoneFinalReview(
 
   const report = validation.report;
 
-  // 5. Check for blocking findings (missing requirements, architecture violations, integration failures)
+  // 5. Persist advisory/out-of-scope suggestions to external state (D-08, REV-03)
+  const advisoryFindings = report.findings.filter((f) => f.impact === "advisory" || f.scope === "out-of-scope");
+  if (advisoryFindings.length > 0) {
+    try {
+      await recordReviewSuggestions({
+        stateRoot,
+        contractId: contract.id,
+        requestId: report.requestId,
+        targetRevisionSha,
+        artifactDigest: workingTreeDigest,
+        suggestions: advisoryFindings.map((f) => ({
+          summary: f.summary,
+          reason: `${f.category} classified as advisory/out-of-scope recommendation`,
+        })),
+      });
+    } catch {
+      // Non-fatal if recording suggestions fails
+    }
+  }
+
+  // 6. Check for blocking findings (missing requirements, architecture violations, integration failures)
   const blockingFindings = report.findings.filter((f) => f.impact === "blocking");
   if (blockingFindings.length > 0 || report.overallVerdict === "rejected") {
     // Route confirmed blocking findings to GSD repair (REV-03, REV-04)
@@ -557,5 +582,93 @@ export async function gateMilestoneFinalReview(
     reason: "Milestone final review successfully verified all requirements, cross-phase constraints, and absence of defects.",
     report,
     witnessReceipt,
+  };
+}
+
+export interface FinalReviewReadiness {
+  readonly ready: boolean;
+  readonly contractId: string;
+  readonly revision: number;
+  readonly contractDigest: string;
+  readonly approved: boolean;
+  readonly reviewerHarness: HarnessId;
+  readonly requirementsCount: number;
+  readonly targetRevisionSha: string | null;
+  readonly workingTreeDigest: string | null;
+  readonly pendingSuggestionsCount: number;
+  readonly suggestionsPath: string;
+  readonly reasons: readonly string[];
+}
+
+export function taskFinalReviewCommand(contractPath: string, contractDigest: string): string {
+  return `alpha-aos task final-review ${contractPath} --contract-digest ${contractDigest} --apply`;
+}
+
+export async function inspectFinalReviewReadiness(options: {
+  projectRoot: string;
+  stateRoot: string;
+  contractPath: string;
+  expectedDigest?: string | undefined;
+}): Promise<FinalReviewReadiness> {
+  const reasons: string[] = [];
+  const loaded = await loadTaskContract(options.contractPath);
+  const contract = loaded.contract;
+  const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: contract.id });
+  const approved = approvals.some((a: TaskApprovalRecord) => a.contractDigest === loaded.digest);
+
+  if (!approved) {
+    reasons.push("Contract is not approved yet (run task approve first).");
+  }
+
+  if (options.expectedDigest !== undefined && options.expectedDigest !== loaded.digest) {
+    reasons.push(`Contract digest mismatch: expected ${options.expectedDigest}, found ${loaded.digest}`);
+  }
+
+  const requirements = await parseRequirementsFromMarkdown(options.projectRoot);
+  if (requirements.length === 0) {
+    reasons.push("No mandatory requirements found in .planning/REQUIREMENTS.md.");
+  }
+
+  const baseline = await readTaskBaseline({ projectRoot: options.projectRoot });
+  const targetRevisionSha = baseline.status === "clean" ? baseline.baseCommit : null;
+  if (baseline.status === "dirty") {
+    reasons.push("Working tree has uncommitted modifications.");
+  } else if (baseline.status === "not-git") {
+    reasons.push(`Project is not a git repository: ${baseline.reason}`);
+  }
+
+  const artifact = await collectTaskArtifact({
+    projectRoot: options.projectRoot,
+    allowedRoots: contract.allowedRoots,
+  });
+  const workingTreeDigest = artifact.status === "ok" ? artifact.digest : null;
+  if (artifact.status !== "ok") {
+    reasons.push(`Artifact unavailable: ${artifact.cause} - ${artifact.detail}`);
+  }
+
+  const suggestionsPath = suggestionsFilePath(options.stateRoot, contract.id);
+  let pendingSuggestionsCount = 0;
+  try {
+    const suggestionsRecord = await loadTaskReviewSuggestions(options.stateRoot, contract.id);
+    if (suggestionsRecord) {
+      pendingSuggestionsCount = suggestionsRecord.suggestions.filter((s) => s.status === "pending").length;
+    }
+  } catch {
+    // Non-fatal if loading suggestions fails
+  }
+
+  return {
+    ready: reasons.length === 0,
+    contractId: contract.id,
+    revision: contract.revision,
+    contractDigest: loaded.digest,
+    approved,
+    reviewerHarness: contract.agentPolicy.reviewer,
+    requirementsCount: requirements.length,
+    targetRevisionSha,
+    workingTreeDigest,
+    pendingSuggestionsCount,
+    suggestionsPath,
+    reasons,
   };
 }

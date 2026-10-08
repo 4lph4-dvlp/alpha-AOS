@@ -249,6 +249,18 @@ alpha-aos project status .
   ```
   불필요한 유틸리티 낭비 없이 GSD 정식 Ship 워크플로우(클린 트리 검증, 브랜치 검사, 푸시, PR 생성)를 바로 호출합니다.
 
+### 시나리오 I: 구조화된 독립 마일스톤 최종 리뷰 (Final Review)
+- **질문**: *"마일스톤이나 Phase를 완료 선언하기 전에 모든 필수 기준과 아키텍처 제약이 충족되었는지 어떻게 보증합니까?"*
+- **해결책**: 독립 최종 리뷰어 게이트를 실행합니다:
+  ```sh
+  # 1. 최종 리뷰 준비 상태 미리보기 (모델 턴/비용 발생 없음, Dry-run)
+  alpha-aos task final-review <contract.json>
+
+  # 2. 신선한 읽기 전용 격리 세션에서 독립 최종 리뷰 실행
+  alpha-aos task final-review <contract.json> --contract-digest <digest> --apply
+  ```
+  리뷰어는 5대 네이티브 하네스(Claude, Codex, Antigravity, Pi, Hermes) 중 하나를 사용해 신선한 읽기 전용 격리 세션에서 구동됩니다. 모든 필수 요구사항, 자동 검사 영수증, 그리고 4대 핵심 제약(userFlow, approvalBoundaries, gsdStateOwnership, reviewerIndependence)을 빈칸이나 암묵적 통과 없이 전수 검증합니다. 블로킹 결함은 GSD 수리 작업으로 라우팅되며, 무관한 권고사항은 마일스톤 완료를 차단하지 않고 `suggestions.json`으로 격리 보관됩니다.
+
 ---
 
 ## 설치 구성 요소 목록 (전역 매트릭스)

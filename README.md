@@ -251,6 +251,18 @@ alpha-aos project status .
   ```
   This cleanly triggers the GSD ship workflow (clean tree check, branch verification, push, PR creation) without enabling GSD's broader utility clutter.
 
+### Scenario I: Structured Independent Milestone Final Review
+- **Question**: *"How do I ensure a milestone or phase meets all mandatory criteria before declaring it complete?"*
+- **Solution**: Run the independent final reviewer gate:
+  ```sh
+  # 1. Preview final review readiness (zero model turns, dry-run only)
+  alpha-aos task final-review <contract.json>
+
+  # 2. Execute independent review in a fresh, read-only session
+  alpha-aos task final-review <contract.json> --contract-digest <digest> --apply
+  ```
+  The reviewer runs in a fresh, isolated session using one of the 5 native harnesses (Claude, Codex, Antigravity, Pi, Hermes). All mandatory criteria, automated test receipts, and cross-phase constraints (userFlow, approvalBoundaries, gsdStateOwnership, reviewerIndependence) are verified without implicit passes. Blocking defects route to GSD repair, while unrelated advisory proposals are deferred to `suggestions.json` without blocking the milestone.
+
 ---
 
 ## What is Installed (Global Stack Matrix)

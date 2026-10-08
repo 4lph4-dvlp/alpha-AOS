@@ -40,6 +40,10 @@ import type { TaskEffectLedger } from "./core/task-effects.js";
 import { formatBlockedReport } from "./core/task-strategy.js";
 import type { GsdLifecycleDiagnostics } from "./core/task-doctor.js";
 import type { TaskCapabilityReport, TaskCapabilitySummary } from "./core/task-capability-inventory.js";
+import type {
+  FinalReviewReadiness,
+  GateMilestoneFinalReviewResult,
+} from "./core/task-final-review.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1343,8 +1347,10 @@ export function formatTaskStatus(status: {
   capabilities?: TaskCapabilitySummary | undefined;
   capabilityReport?: TaskCapabilityReport | undefined;
   detail?: boolean | undefined;
+  pendingSuggestionsCount?: number | undefined;
+  suggestionsPath?: string | undefined;
 }): string {
-  const { checkpoint, ledger, eventsCount, gsdDiagnostics, capabilities, capabilityReport, detail } = status;
+  const { checkpoint, ledger, eventsCount, gsdDiagnostics, capabilities, capabilityReport, detail, pendingSuggestionsCount, suggestionsPath } = status;
   const entries = ledger !== null ? Object.values(ledger.entries) : [];
   const appliedCount = entries.filter((e) => e.status === "applied").length;
   const pendingCount = entries.filter((e) => e.status !== "applied").length;
@@ -1362,6 +1368,10 @@ export function formatTaskStatus(status: {
     `Journal events: ${eventsCount}`,
     `Last updated: ${checkpoint.updatedAt}`,
   ];
+
+  if (pendingSuggestionsCount !== undefined && pendingSuggestionsCount > 0) {
+    lines.push(`Pending deferred proposals: ${pendingSuggestionsCount} held in external state file: ${suggestionsPath ?? "external state"}`);
+  }
 
   if (gsdDiagnostics) {
     lines.push(
@@ -1511,6 +1521,141 @@ export function formatTaskPlan(report: TaskCapabilityReport, options: { readonly
 
   if (options.detail) {
     lines.push(formatTaskCapabilityDetail(report));
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats a final review readiness preview (D-16, T-19-09).
+ */
+export function formatFinalReviewPreview(readiness: FinalReviewReadiness, command: string): string {
+  const lines: string[] = [
+    `Task: ${readiness.contractId} (revision ${readiness.revision})`,
+    `Contract digest: ${readiness.contractDigest}`,
+    `Final Review Readiness: ${readiness.ready ? "READY" : "NOT READY"}`,
+    `Approved: ${readiness.approved ? "yes" : "no"}`,
+    `Reviewer: ${readiness.reviewerHarness} (fresh-read-only session)`,
+    `Mandatory requirements: ${readiness.requirementsCount} to verify`,
+    `Target revision SHA: ${readiness.targetRevisionSha ?? "none (working tree not clean)"}`,
+    `Artifact digest: ${readiness.workingTreeDigest ?? "unavailable"}`,
+    `Pending suggestions: ${readiness.pendingSuggestionsCount} held in external state`,
+    "",
+    "Readiness preview only. Nothing was launched and no review was executed.",
+    "Warning: --apply launches an independent final review session under your approved reviewer policy.",
+  ];
+
+  if (!readiness.ready && readiness.reasons.length > 0) {
+    lines.push("", "Blockers:");
+    for (const reason of readiness.reasons) {
+      lines.push(`  - ${reason}`);
+    }
+  }
+
+  if (readiness.ready) {
+    lines.push("", `Run final review: ${command}`);
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats an executed final review result with full criterion evidence, automated checks,
+ * reviewer identity, cross-phase assessments, and next action (D-16, REV-03..05).
+ */
+export function formatFinalReviewReport(options: {
+  readonly result: GateMilestoneFinalReviewResult;
+  readonly contractId: string;
+  readonly contractDigest: string;
+  readonly pendingSuggestionsCount?: number | undefined;
+  readonly suggestionsPath?: string | undefined;
+}): string {
+  const { result, contractId, contractDigest, pendingSuggestionsCount, suggestionsPath } = options;
+  const report = result.report;
+
+  const lines: string[] = [
+    `Task: ${contractId}`,
+    `Contract digest: ${contractDigest}`,
+    `Milestone Final Review Status: ${result.status.toUpperCase()}`,
+    `Reason: ${result.reason}`,
+  ];
+
+  if (report) {
+    lines.push(
+      `Reviewer: ${report.reviewerHarness} ${report.reviewerVersion}`,
+      `Session ID: ${report.sessionId}`,
+      `Evaluated at: ${report.evaluatedAt}`,
+      `Target revision: ${report.targetRevisionSha}`,
+      `Artifact digest: ${report.artifactDigest}`,
+      "",
+    );
+
+    // D-16, Prohibitions: No missing evidence or implicit pass
+    const reqRows = report.requirements.map((r) => {
+      const loc = r.implementationLocation?.path
+        ? `${r.implementationLocation.path}${r.implementationLocation.lineRange ? `:${r.implementationLocation.lineRange}` : ""}`
+        : "none (missing)";
+      const chk = r.checkReceiptRef?.status
+        ? `${r.checkReceiptRef.status} (${r.checkReceiptRef.receiptId || "receipt"})`
+        : "none (unverified)";
+      const rev = r.reviewEvidenceRef?.reportDigest
+        ? `${r.reviewEvidenceRef.reportDigest.slice(0, 8)}${r.reviewEvidenceRef.criterionId ? `:${r.reviewEvidenceRef.criterionId}` : ""}`
+        : "none (unverified)";
+      const next = r.status === "verified"
+        ? "none"
+        : r.notes || (r.status === "missing" ? "implement missing requirement" : "re-verify requirement evidence");
+
+      return [
+        r.requirementId,
+        r.status,
+        loc,
+        chk,
+        rev,
+        next,
+      ];
+    });
+
+    lines.push(
+      "Mandatory Requirements Evaluation:",
+      table(["Requirement", "Status", "Implementation", "Automated Check", "Review Evidence", "Next Action"], reqRows),
+      "",
+    );
+
+    // Cross-Phase Assessment
+    const cross = report.crossPhaseAssessment;
+    const crossRows = [
+      ["userFlow", cross.userFlow.status.toUpperCase(), cross.userFlow.summary],
+      ["approvalBoundaries", cross.approvalBoundaries.status.toUpperCase(), cross.approvalBoundaries.summary],
+      ["gsdStateOwnership", cross.gsdStateOwnership.status.toUpperCase(), cross.gsdStateOwnership.summary],
+      ["reviewerIndependence", cross.reviewerIndependence.status.toUpperCase(), cross.reviewerIndependence.summary],
+    ];
+    lines.push(
+      "Cross-Phase & Architectural Assessment:",
+      table(["Assessment Item", "Status", "Summary"], crossRows),
+      "",
+    );
+
+    // Findings (if any)
+    if (report.findings.length > 0) {
+      lines.push("Findings:");
+      for (const finding of report.findings) {
+        lines.push(`  [${finding.impact.toUpperCase()}] ${finding.category} (${finding.scope}): ${finding.summary}`);
+      }
+      lines.push("");
+    }
+  }
+
+  // D-08: Pending suggestions
+  if (pendingSuggestionsCount !== undefined && pendingSuggestionsCount > 0) {
+    lines.push(`Pending deferred proposals: ${pendingSuggestionsCount} held in external state file: ${suggestionsPath ?? "external state"}`);
+  }
+
+  if (result.witnessReceipt) {
+    lines.push(`Witness receipt: ${result.witnessReceipt.receiptDigest} (persisted)`);
+  }
+
+  if (result.status !== "accepted") {
+    lines.push("", "Next action: Resolve blocking findings or unverified requirements and re-run final review with --apply.");
   }
 
   return lines.join("\n");

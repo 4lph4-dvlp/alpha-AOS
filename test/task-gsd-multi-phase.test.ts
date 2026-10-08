@@ -9,7 +9,8 @@ import {
 } from "../src/core/task-gsd-lifecycle.js";
 import { discoverPhaseProgression } from "../src/core/task-gsd-discovery.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
-import type { TaskContract } from "../src/core/task-contract.js";
+import { taskContractDigest, type TaskContract } from "../src/core/task-contract.js";
+import type { FinalReviewPort } from "../src/core/task-final-review.js";
 
 async function scratch(context: TestContext, name: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `alpha-aos-gsd-multiphase-${name}-`));
@@ -157,6 +158,53 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
 
   const contract = createMockContract(projectRoot);
 
+  const mockFinalReviewPort: FinalReviewPort = {
+    evaluateMilestoneFinal: async (req) => {
+      const cDigest = taskContractDigest(req.contract);
+      const items = req.requirements.length > 0
+        ? req.requirements
+        : [{ id: "REQ-01", description: "Default requirement" }];
+      return {
+        schemaVersion: 1,
+        requestId: "req-final-01",
+        contractId: req.contract.id,
+        contractDigest: cDigest,
+        targetRevisionSha: req.targetRevisionSha,
+        artifactDigest: req.artifactDigest,
+        sessionId: "sess-final-01",
+        reviewerHarness: "claude",
+        reviewerVersion: "1.0.0",
+        evaluatedAt: new Date().toISOString(),
+        overallVerdict: "accepted",
+        requirements: items.map((r) => ({
+          requirementId: r.id,
+          description: r.description,
+          status: "verified" as const,
+          implementationLocation: {
+            path: "package.json",
+            digest: "a".repeat(64),
+          },
+          checkReceiptRef: {
+            receiptId: "chk-01",
+            digest: "b".repeat(64),
+            status: "pass" as const,
+          },
+          reviewEvidenceRef: {
+            reportDigest: "c".repeat(64),
+          },
+        })),
+        crossPhaseAssessment: {
+          userFlow: { status: "pass" as const, summary: "Flows valid." },
+          approvalBoundaries: { status: "pass" as const, summary: "Approvals respected." },
+          gsdStateOwnership: { status: "pass" as const, summary: "GSD authority respected." },
+          reviewerIndependence: { status: "pass" as const, summary: "Independent session." },
+        },
+        findings: [],
+        summary: "Multi-phase final review passed.",
+      };
+    },
+  };
+
   // 3. Execute multi-phase progression orchestrator
   const result = await orchestrateMultiPhaseProgression({
     projectRoot,
@@ -164,10 +212,15 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
     baseCommit,
     receiptsRoot,
     commandMap,
+    finalReviewPort: mockFinalReviewPort,
   });
 
   // Assertion 1: Both phases were completed hands-free without manual commands
-  assert.equal(result.finalStatus, "completed");
+  assert.equal(
+    result.finalStatus,
+    "completed",
+    `Final review gate status: ${result.finalReviewGate?.status}, reason: ${result.finalReviewGate?.reason}`,
+  );
   assert.deepEqual(result.completedPhases, ["01", "02"]);
 
   // Assertion 2: Phase 01 triple correlation verified complete
@@ -199,6 +252,7 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
     baseCommit,
     receiptsRoot,
     commandMap,
+    finalReviewPort: mockFinalReviewPort,
   });
   assert.equal(rerunResult.finalStatus, "completed");
   assert.deepEqual(rerunResult.completedPhases, ["01", "02"]);

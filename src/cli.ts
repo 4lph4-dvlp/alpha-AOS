@@ -61,7 +61,14 @@ import {
 import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
-import { nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
+import { createNativeFinalReviewPort, nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
+import {
+  gateMilestoneFinalReview,
+  inspectFinalReviewReadiness,
+  taskFinalReviewCommand,
+} from "./core/task-final-review.js";
+import { loadTaskReviewSuggestions, suggestionsFilePath } from "./core/task-review-suggestions.js";
+import { collectTaskArtifact } from "./core/task-check.js";
 import { checkCostMeterReadiness } from "./core/task-telemetry.js";
 import {
   buildTaskDoctorReport,
@@ -120,7 +127,7 @@ import {
   type HarnessVersion,
   type LedgerHarness,
 } from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
+import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
 import { buildTaskCapabilityReport } from "./core/task-capability-inventory.js";
 import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
 import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
@@ -190,6 +197,7 @@ Usage:
   alpha-aos task start <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task report <contract-id> [--run <run-id>] [--json]
   alpha-aos task resume <contract.json> [--contract-digest <digest>] [--apply] [--json]
+  alpha-aos task final-review <contract.json> [--contract-digest <digest>] [--artifact-digest <digest>] [--milestone <id>] [--reviewer <claude|codex|antigravity|pi|hermes>] [--apply] [--json]
   alpha-aos task status <contract-id> [--run <run-id>] [--detail] [--json]
   alpha-aos task stop <contract-id> [--reason <reason>] [--json]
   alpha-aos task answer <answer> [--run <digest>] [--json]
@@ -228,6 +236,8 @@ executor and reviewer with their exact installed versions, GSD quick readiness a
 the baseline, and launches nothing. "task start --apply" launches the approved
 controller and reviewer, which spend model turns under your own accounts. One
 approval authorizes one run; a consumed, changed or foreign digest is refused.
+"task final-review" without --apply previews reviewer readiness and cost bounds with zero model turns.
+"task final-review --apply" invokes an independent reviewer in a fresh read-only session to gate milestone acceptance.
 
 "doctor --discovery" is the free evidence: it runs only the discovery oracles that
 spend no model turn, needs no credential, runs on every platform, and records what
@@ -1789,11 +1799,11 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "report", "resume", "status", "stop", "doctor", "answer"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer.`);
+    if (!["plan", "preview", "approve", "start", "report", "resume", "status", "stop", "doctor", "answer", "final-review"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
-    // approve, start, and resume alone.
+    // approve, start, resume, and final-review alone.
     if (subcommand === "plan" && hasFlag(args, "--apply")) {
       throw new Error("`task plan` has no --apply: it reads and plans capabilities without mutations.");
     }
@@ -1814,7 +1824,7 @@ async function main(): Promise<void> {
     }
     const context = observableContext();
     const stateRoot = userStateRoot();
-    const parts = positional(args.slice(2), ["--contract-digest", "--run", "--reason", "--project", "--contract"]);
+    const parts = positional(args.slice(2), ["--contract-digest", "--run", "--reason", "--project", "--contract", "--artifact-digest", "--milestone", "--reviewer"]);
     const operand = parts[0];
 
     if (subcommand === "doctor") {
@@ -1906,6 +1916,16 @@ async function main(): Promise<void> {
         checkpointStatus: found.checkpoint.status,
       });
 
+      let pendingSuggestionsCount = 0;
+      let suggestionsPath: string | undefined = undefined;
+      try {
+        const suggestionsDoc = await loadTaskReviewSuggestions(stateRoot, operand);
+        if (suggestionsDoc) {
+          pendingSuggestionsCount = suggestionsDoc.suggestions.filter((s) => s.status === "pending").length;
+          suggestionsPath = suggestionsFilePath(stateRoot, operand);
+        }
+      } catch {}
+
       const statusData = {
         checkpoint: found.checkpoint,
         ledger,
@@ -1913,6 +1933,8 @@ async function main(): Promise<void> {
         ...(gsdDiagnostics ? { gsdDiagnostics } : {}),
         capabilities: capabilityReport.summary,
         capabilityReport,
+        pendingSuggestionsCount,
+        ...(pendingSuggestionsCount > 0 && suggestionsPath ? { suggestionsPath } : {}),
       };
       print(statusData, json, formatTaskStatus({ ...statusData, detail }), context);
       return;
@@ -2027,6 +2049,88 @@ async function main(): Promise<void> {
     }
 
     if (operand === undefined) throw new Error(`task ${subcommand} requires a contract file: alpha-aos task ${subcommand} <contract.json>`);
+
+    if (subcommand === "final-review") {
+      const contractDigestOpt = optionValue(args, "--contract-digest");
+      const reviewerOpt = optionValue(args, "--reviewer") as HarnessId | null;
+      const apply = hasFlag(args, "--apply");
+
+      const loaded = await loadTaskContract(operand);
+      const projectRoot = loaded.contract.scope.projectRoot ? resolve(loaded.contract.scope.projectRoot) : process.cwd();
+
+      if (!apply) {
+        const readiness = await inspectFinalReviewReadiness({
+          projectRoot,
+          stateRoot,
+          contractPath: operand,
+          expectedDigest: contractDigestOpt ?? undefined,
+        });
+        const cmd = taskFinalReviewCommand(resolve(operand), readiness.contractDigest);
+        print(
+          { applied: false, readiness, command: cmd },
+          json,
+          formatFinalReviewPreview(readiness, cmd),
+          context,
+        );
+        if (!readiness.ready) {
+          process.exitCode = 2;
+        }
+        return;
+      }
+
+      if (contractDigestOpt === null) {
+        throw new Error(
+          `task final-review --apply requires the contract digest. The current contract digest is ${loaded.digest}. Run: ${taskFinalReviewCommand(resolve(operand), loaded.digest)}`,
+        );
+      }
+
+      const readiness = await inspectFinalReviewReadiness({
+        projectRoot,
+        stateRoot,
+        contractPath: operand,
+        expectedDigest: contractDigestOpt,
+      });
+
+      if (!readiness.ready) {
+        const reasons = readiness.reasons.join("; ");
+        throw new Error(`FINAL_REVIEW_BLOCKED: ${reasons}`);
+      }
+
+      const targetRevisionSha = readiness.targetRevisionSha;
+      const workingTreeDigest = readiness.workingTreeDigest;
+      if (!targetRevisionSha || !workingTreeDigest) {
+        throw new Error("FINAL_REVIEW_BLOCKED: Working tree revision or artifact digest is missing.");
+      }
+
+      const reviewerHarness = reviewerOpt ?? readiness.reviewerHarness;
+      const reviewerPort = createNativeFinalReviewPort(reviewerHarness);
+
+      const result = await gateMilestoneFinalReview({
+        projectRoot,
+        stateRoot,
+        contract: loaded.contract,
+        contractDigest: readiness.contractDigest,
+        targetRevisionSha,
+        workingTreeDigest,
+        finalReviewPort: reviewerPort,
+        packageRoot: packageRoot(),
+      });
+
+      print(
+        result,
+        json,
+        formatFinalReviewReport({
+          result,
+          contractId: loaded.contract.id,
+          contractDigest: readiness.contractDigest,
+          pendingSuggestionsCount: readiness.pendingSuggestionsCount,
+          suggestionsPath: readiness.suggestionsPath,
+        }),
+        context,
+      );
+      process.exitCode = result.status === "accepted" ? 0 : 1;
+      return;
+    }
 
     if (subcommand === "resume") {
       const supplied = optionValue(args, "--contract-digest");

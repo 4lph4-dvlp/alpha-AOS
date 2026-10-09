@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   COURSEPILOT_CONNECTOR_ID,
+  COURSEPILOT_UNMET_GATE_ACTION,
   CoursePilotTaskAdapter,
   classifyCoursePilotPerformResult,
   parseCoursePilotPerformJson,
@@ -759,6 +760,132 @@ test("verified sibling is skipped on retry with zero external calls (D-10, D-17)
 
     assert.equal(performRes.status, "completed");
     assert.deepEqual(invokedFiles, ["f2"], "Verified sibling f1 must have 0 external calls!");
+  } finally {
+    await rm(testRoot, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("CoursePilotTaskAdapter fails closed on unmet runtime without falling back to course/week legacy CLI (D-17)", async () => {
+  const testRoot = await setupTestDir("cp-unmet-gate-");
+  try {
+    let externalCallsCount = 0;
+    const mockRunner: CoursePilotProcessRunner = async () => {
+      externalCallsCount += 1;
+      return makeMockProcessResult({ exitCode: 0, stdoutText: "{}" });
+    };
+
+    const unmetRuntime: CoursePilotRuntimeResolution = {
+      status: "available",
+      repoRoot: testRoot,
+      skillPath: join(testRoot, "SKILL.md"),
+      contractDocPath: join(testRoot, "JSON_CONTRACT.md"),
+      skillFingerprint: "fp",
+      contractFingerprint: "cp",
+      sourceCommit: "commit",
+      uvExecutable: "uv",
+      contractVersion: null,
+      supported: false, // Unmet D-17 gate!
+      missingProof: ["D-17 contract flags missing"],
+      nextAction: COURSEPILOT_UNMET_GATE_ACTION,
+    };
+
+    const adapter = new CoursePilotTaskAdapter({
+      runtime: unmetRuntime,
+      runner: mockRunner,
+      projectRoot: testRoot,
+    });
+
+    const manifest: ConnectorManifestV1 = {
+      protocolVersion: 1,
+      schemaVersion: 1,
+      connectorId: COURSEPILOT_CONNECTOR_ID,
+      adapterContractDigest: "contract-digest",
+      observedAt: new Date().toISOString(),
+      items: [
+        {
+          itemId: "mod-01",
+          sourceIdentity: "cs101:1:mod-01",
+          title: "Module 1",
+          intendedDestination: testRoot,
+          effectKinds: ["external-download"],
+          requiredFiles: [{ fileId: "f1", filename: "f1.pdf", destination: join(testRoot, "f1.pdf") }],
+        },
+      ],
+    };
+
+    // Both preview and perform must fail closed with COURSEPILOT_UNMET_GATE_ACTION
+    await assert.rejects(
+      async () => await adapter.preview({ projectRoot: testRoot }),
+      (err: Error) => err.message.includes(COURSEPILOT_UNMET_GATE_ACTION),
+      "Preview must fail closed on unmet D-17 gate",
+    );
+
+    await assert.rejects(
+      async () =>
+        await adapter.perform({
+          manifest,
+          itemId: "mod-01",
+          expectedDigest: connectorManifestDigest(manifest),
+        }),
+      (err: Error) => err.message.includes(COURSEPILOT_UNMET_GATE_ACTION),
+      "Perform must fail closed on unmet D-17 gate",
+    );
+
+    assert.equal(externalCallsCount, 0, "No external downloader calls must occur on unmet gate");
+  } finally {
+    await rm(testRoot, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("perform rejects stale digest when manifest has mutated since approval (D-01..D-04)", async () => {
+  const testRoot = await setupTestDir("cp-stale-digest-");
+  try {
+    const manifest: ConnectorManifestV1 = {
+      protocolVersion: 1,
+      schemaVersion: 1,
+      connectorId: COURSEPILOT_CONNECTOR_ID,
+      adapterContractDigest: "contract-digest",
+      observedAt: new Date().toISOString(),
+      items: [
+        {
+          itemId: "mod-01",
+          sourceIdentity: "cs101:1:mod-01",
+          title: "Module 1",
+          intendedDestination: testRoot,
+          effectKinds: ["external-download"],
+          requiredFiles: [{ fileId: "f1", filename: "f1.pdf", destination: join(testRoot, "f1.pdf") }],
+        },
+      ],
+    };
+
+    const adapter = new CoursePilotTaskAdapter({
+      runtime: {
+        status: "available",
+        repoRoot: testRoot,
+        skillPath: join(testRoot, "SKILL.md"),
+        contractDocPath: join(testRoot, "JSON_CONTRACT.md"),
+        skillFingerprint: "fp",
+        contractFingerprint: "cp",
+        sourceCommit: "commit",
+        uvExecutable: "uv",
+        contractVersion: 1,
+        supported: true,
+        missingProof: [],
+        nextAction: null,
+      },
+      projectRoot: testRoot,
+    });
+
+    // Provide a stale / mismatched digest
+    await assert.rejects(
+      async () =>
+        await adapter.perform({
+          manifest,
+          itemId: "mod-01",
+          expectedDigest: "completely-different-stale-digest",
+        }),
+      /expected manifest digest completely-different-stale-digest != current digest/u,
+    );
   } finally {
     await rm(testRoot, { recursive: true, force: true }).catch(() => undefined);
   }

@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 import { capabilityLedgerPath, readCapabilityLedger } from "./capability-ledger.js";
 import { approvalCommand, ledgerHostEvidence, planProjectCapabilities, reconcileProjectState } from "./project-plan.js";
+import type { ConnectorItemV1, ConnectorManifestV1, ConnectorPort } from "./task-connector.js";
 import type { TaskContract, TaskEffect } from "./task-contract.js";
 import { runGitRead } from "./task-gsd.js";
 
@@ -486,6 +487,134 @@ export function generateEffectKey(
   return createHash("sha256").update(raw, "utf8").digest("hex");
 }
 
+export interface ConnectorEffectKeyInput {
+  contractDigest: string;
+  connectorId: string;
+  itemId: string;
+  fileId: string;
+  destination: string;
+}
+
+/**
+ * Derives a deterministic effect key for connector file effects.
+ * An attempt index does not alter the key: retrying an approved item/file
+ * targets the exact same effect identity (TOOL-01, D-10).
+ */
+export function generateConnectorEffectKey(input: ConnectorEffectKeyInput): string {
+  const normalizedDest = input.destination.replace(/\\/g, "/");
+  const raw = `${input.contractDigest}:${input.connectorId}:${input.itemId}:${input.fileId}:${normalizedDest}`;
+  return createHash("sha256").update(raw, "utf8").digest("hex");
+}
+
+export function checkConnectorEffectConflict(
+  ledger: TaskEffectLedger,
+  candidate: EffectLedgerEntry,
+): { hasConflict: boolean; conflictingKey?: string; reason?: string } {
+  const candDest = candidate.targetPayload["destination"] ?? candidate.targetPayload["relPath"];
+  if (!candDest) return { hasConflict: false };
+  const candDestStr = String(candDest).replace(/\\/g, "/");
+
+  for (const [key, entry] of Object.entries(ledger.entries)) {
+    if (key === candidate.effectKey) continue;
+    const entryDest = entry.targetPayload["destination"] ?? entry.targetPayload["relPath"];
+    if (!entryDest) continue;
+    const entryDestStr = String(entryDest).replace(/\\/g, "/");
+
+    if (entryDestStr === candDestStr) {
+      if (entry.status === "performing" || entry.status === "applied") {
+        return {
+          hasConflict: true,
+          conflictingKey: key,
+          reason: `Destination "${candDestStr}" is already occupied by effect ${key} with status "${entry.status}"`,
+        };
+      }
+    }
+  }
+  return { hasConflict: false };
+}
+
+export function assertNoConnectorEffectConflict(
+  ledger: TaskEffectLedger,
+  candidate: EffectLedgerEntry,
+): void {
+  const check = checkConnectorEffectConflict(ledger, candidate);
+  if (check.hasConflict) {
+    throw new Error(`Connector effect conflict: ${check.reason}`);
+  }
+}
+
+export interface PlanConnectorFileEffectsOptions {
+  contractDigest: string;
+  connectorId: string;
+  items: readonly ConnectorItemV1[];
+  ledger: TaskEffectLedger;
+  attemptIndex?: number;
+}
+
+export function planConnectorFileEffects(options: PlanConnectorFileEffectsOptions): {
+  plannedEntries: EffectLedgerEntry[];
+  skippedKeys: string[];
+} {
+  const { contractDigest, connectorId, items, ledger, attemptIndex = 0 } = options;
+  const plannedEntries: EffectLedgerEntry[] = [];
+  const skippedKeys: string[] = [];
+
+  for (const item of items) {
+    for (const reqFile of item.requiredFiles) {
+      const effectKey = generateConnectorEffectKey({
+        contractDigest,
+        connectorId,
+        itemId: item.itemId,
+        fileId: reqFile.fileId,
+        destination: reqFile.destination,
+      });
+
+      const existing = ledger.entries[effectKey];
+      if (existing) {
+        if (existing.status === "applied") {
+          // Verified sibling: already applied and confirmed
+          skippedKeys.push(effectKey);
+          continue;
+        }
+        if (existing.status === "unknown") {
+          throw new Error(
+            `Cannot plan connector file effect for ${reqFile.destination}: existing effect is in unknown status (${existing.error ?? "no reason"})`,
+          );
+        }
+        if (existing.status === "performing") {
+          throw new Error(
+            `Cannot plan connector file effect for ${reqFile.destination}: existing effect is currently performing`,
+          );
+        }
+      }
+
+      const entry: EffectLedgerEntry = {
+        effectKey,
+        contractDigest,
+        attemptIndex,
+        effectType: "external-download",
+        targetPayload: {
+          connectorId,
+          itemId: item.itemId,
+          fileId: reqFile.fileId,
+          sourceIdentity: item.sourceIdentity,
+          destination: reqFile.destination,
+          ...(reqFile.expectedBytes !== undefined ? { expectedBytes: reqFile.expectedBytes } : {}),
+          ...(reqFile.expectedSha256 !== undefined ? { expectedSha256: reqFile.expectedSha256 } : {}),
+        },
+        status: "planned",
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+      };
+
+      assertNoConnectorEffectConflict(ledger, entry);
+      plannedEntries.push(entry);
+    }
+  }
+
+  return { plannedEntries, skippedKeys };
+}
+
 export function createEffectLedger(contractDigest: string): TaskEffectLedger {
   return {
     schemaVersion: 1,
@@ -494,7 +623,11 @@ export function createEffectLedger(contractDigest: string): TaskEffectLedger {
   };
 }
 
-export function recordEffectState(ledger: TaskEffectLedger, entry: EffectLedgerEntry): void {
+export function recordEffectState(
+  ledger: TaskEffectLedger,
+  entry: EffectLedgerEntry,
+  options?: { allowRecoveryDemotion?: boolean },
+): void {
   const existing = ledger.entries[entry.effectKey];
   if (existing !== undefined) {
     const current = existing.status;
@@ -503,7 +636,10 @@ export function recordEffectState(ledger: TaskEffectLedger, entry: EffectLedgerE
       current === next ||
       (current === "planned" && next === "performing") ||
       (current === "performing" && (next === "applied" || next === "failed" || next === "uncertain")) ||
-      (current === "uncertain" && (next === "applied" || next === "unknown" || next === "planned"));
+      (current === "uncertain" && (next === "applied" || next === "unknown" || next === "planned")) ||
+      (options?.allowRecoveryDemotion === true &&
+        ((current === "applied" && (next === "planned" || next === "unknown")) ||
+          (current === "performing" && next === "planned")));
 
     if (!valid) {
       throw new Error(
@@ -520,10 +656,16 @@ export function recordEffectState(ledger: TaskEffectLedger, entry: EffectLedgerE
   ledger.entries[entry.effectKey] = { ...entry };
 }
 
+export interface ReconcileEvidenceOptions {
+  connectorPort?: ConnectorPort;
+  manifest?: ConnectorManifestV1;
+}
+
 export async function reconcileEffectEvidence(
   projectRoot: string,
-  baseCommit: string,
+  baseCommit: string | null,
   entry: EffectLedgerEntry,
+  options?: ReconcileEvidenceOptions,
 ): Promise<{ status: "applied" | "not-applied" | "unknown"; reason?: string }> {
   const resolvedRoot = resolve(projectRoot);
   try {
@@ -557,6 +699,9 @@ export async function reconcileEffectEvidence(
         };
       }
       case "local-commit": {
+        if (!baseCommit) {
+          return { status: "unknown", reason: "baseCommit is required for local-commit reconciliation" };
+        }
         const changes = await readTaskChanges({ projectRoot: resolvedRoot, baseCommit });
         const expectedSubject = entry.targetPayload.expectedSubject ? String(entry.targetPayload.expectedSubject) : null;
         const commitSha = entry.targetPayload.commitSha ? String(entry.targetPayload.commitSha) : null;
@@ -579,9 +724,76 @@ export async function reconcileEffectEvidence(
         };
       }
       case "dependency-change": {
+        if (!baseCommit) {
+          return { status: "unknown", reason: "baseCommit is required for dependency-change reconciliation" };
+        }
         const manifestPath = String(entry.targetPayload.manifestPath ?? "package.json");
         const changed = await dependencyFieldsChanged(resolvedRoot, baseCommit, manifestPath);
         return { status: changed ? "applied" : "not-applied" };
+      }
+      case "external-download": {
+        const dest = String(entry.targetPayload.destination ?? entry.targetPayload.relPath ?? "");
+        if (!dest) {
+          return { status: "unknown", reason: "destination missing from external-download payload" };
+        }
+        const absPath = isAbsolute(dest) ? dest : resolve(resolvedRoot, dest);
+
+        // If connector port and manifest are supplied, consult connector reconcile first
+        if (options?.connectorPort && options.manifest) {
+          const itemId = String(entry.targetPayload.itemId ?? "");
+          if (itemId) {
+            try {
+              const rec = await options.connectorPort.reconcile({
+                manifest: options.manifest,
+                itemId,
+              });
+              if (rec.status === "unknown") {
+                return { status: "unknown", reason: rec.detail ?? `Connector reported unknown for item ${itemId}` };
+              }
+              if (rec.status === "absent") {
+                return { status: "not-applied", reason: rec.detail ?? `Connector reported absent for item ${itemId}` };
+              }
+            } catch (err) {
+              return { status: "unknown", reason: `Connector reconcile failed: ${(err as Error).message}` };
+            }
+          }
+        }
+
+        // Local filesystem verification
+        let content: Buffer;
+        try {
+          content = await readFile(absPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            return { status: "not-applied" };
+          }
+          return { status: "unknown", reason: `Failed to read ${dest}: ${(error as Error).message}` };
+        }
+
+        const fileBytes = content.length;
+        const fileSha = createHash("sha256").update(content).digest("hex");
+
+        if (entry.targetPayload.expectedSha256 !== undefined && entry.targetPayload.expectedSha256 !== null) {
+          const expectedSha = String(entry.targetPayload.expectedSha256);
+          if (fileSha !== expectedSha) {
+            return {
+              status: "unknown",
+              reason: `File ${dest} sha256 mismatch: expected ${expectedSha}, got ${fileSha}`,
+            };
+          }
+        }
+
+        if (entry.targetPayload.expectedBytes !== undefined && entry.targetPayload.expectedBytes !== null) {
+          const expectedBytes = Number(entry.targetPayload.expectedBytes);
+          if (fileBytes !== expectedBytes) {
+            return {
+              status: "unknown",
+              reason: `File ${dest} size mismatch: expected ${expectedBytes}, got ${fileBytes}`,
+            };
+          }
+        }
+
+        return { status: "applied" };
       }
       default:
         return { status: "unknown", reason: `Unsupported effect type: ${entry.effectType}` };
@@ -591,17 +803,28 @@ export async function reconcileEffectEvidence(
   }
 }
 
+export interface ReconcileRecoveryOptions extends ReconcileEvidenceOptions {
+  reverifyAppliedFiles?: boolean;
+}
+
 export async function reconcileLedgerOnRecovery(
   projectRoot: string,
-  baseCommit: string,
+  baseCommit: string | null,
   ledger: TaskEffectLedger,
-): Promise<{ ledger: TaskEffectLedger; hasUnknown: boolean; unknownEffects: EffectLedgerEntry[] }> {
+  options?: ReconcileRecoveryOptions,
+): Promise<{
+  ledger: TaskEffectLedger;
+  hasUnknown: boolean;
+  unknownEffects: EffectLedgerEntry[];
+  demotedEffects: EffectLedgerEntry[];
+}> {
   const unknownEffects: EffectLedgerEntry[] = [];
+  const demotedEffects: EffectLedgerEntry[] = [];
 
   for (const key of Object.keys(ledger.entries)) {
     const entry = ledger.entries[key]!;
     if (entry.status === "performing" || entry.status === "uncertain") {
-      const result = await reconcileEffectEvidence(projectRoot, baseCommit, entry);
+      const result = await reconcileEffectEvidence(projectRoot, baseCommit, entry, options);
       if (result.status === "applied") {
         entry.status = "applied";
         entry.completedAt = new Date().toISOString();
@@ -615,6 +838,24 @@ export async function reconcileLedgerOnRecovery(
         entry.error = result.reason ?? "Ambiguous source evidence";
         unknownEffects.push(entry);
       }
+    } else if (
+      (options?.reverifyAppliedFiles ||
+        entry.effectType === "external-download" ||
+        entry.targetPayload.connectorId !== undefined) &&
+      entry.status === "applied"
+    ) {
+      // D-08 / D-10: Reverify previously applied connector effects
+      const result = await reconcileEffectEvidence(projectRoot, baseCommit, entry, options);
+      if (result.status === "not-applied") {
+        entry.status = "planned";
+        entry.completedAt = null;
+        entry.evidence = null;
+        demotedEffects.push(entry);
+      } else if (result.status === "unknown") {
+        entry.status = "unknown";
+        entry.error = result.reason ?? "Previously applied file verification failed on recovery";
+        unknownEffects.push(entry);
+      }
     }
   }
 
@@ -622,5 +863,6 @@ export async function reconcileLedgerOnRecovery(
     ledger,
     hasUnknown: unknownEffects.length > 0,
     unknownEffects,
+    demotedEffects,
   };
 }

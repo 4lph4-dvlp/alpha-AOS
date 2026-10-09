@@ -108,16 +108,19 @@ export interface ConnectorV1 extends ConnectorPort {
   readonly protocolVersion: 1;
 }
 
+import { packageRoot } from "./paths.js";
+
 let cachedSchema: Record<string, unknown> | null = null;
 
 async function getConnectorSchema(): Promise<Record<string, unknown>> {
   if (cachedSchema !== null) return cachedSchema;
-  const currentFile = fileURLToPath(import.meta.url);
-  const schemaPath = resolve(dirname(currentFile), "../../schemas/task-connector.schema.json");
+  const schemaPath = join(packageRoot(), "schemas", "task-connector.schema.json");
   const raw = await readFile(schemaPath, "utf8");
   cachedSchema = JSON.parse(raw) as Record<string, unknown>;
   return cachedSchema;
 }
+
+export const CONNECTOR_MANIFEST_MAX_BYTES = 256 * 1024;
 
 export async function validateConnectorManifest(input: unknown): Promise<{
   ok: boolean;
@@ -127,9 +130,17 @@ export async function validateConnectorManifest(input: unknown): Promise<{
   if (typeof input !== "object" || input === null) {
     return { ok: false, issues: ["manifest must be an object"] };
   }
+  const serialized = JSON.stringify(input);
+  if (Buffer.byteLength(serialized, "utf8") > CONNECTOR_MANIFEST_MAX_BYTES) {
+    return { ok: false, issues: [`manifest exceeds maximum byte limit of ${CONNECTOR_MANIFEST_MAX_BYTES} bytes`] };
+  }
+
   const raw = input as Record<string, unknown>;
   if (raw["protocolVersion"] !== 1) {
     return { ok: false, issues: [`unsupported protocolVersion: expected 1, got ${String(raw["protocolVersion"])}`] };
+  }
+  if (raw["schemaVersion"] !== undefined && raw["schemaVersion"] !== 1) {
+    return { ok: false, issues: [`unsupported schemaVersion: expected 1, got ${String(raw["schemaVersion"])}`] };
   }
 
   const schema = await getConnectorSchema();
@@ -151,12 +162,20 @@ export async function validateConnectorManifest(input: unknown): Promise<{
     }
     itemIds.add(item.itemId);
 
+    if (item.intendedDestination.includes("..") || /^[a-zA-Z]:/.test(item.intendedDestination)) {
+      issues.push(`/items/${itemIndex}/intendedDestination: destination must be project-relative without '..'`);
+    }
+
     const fileIds = new Set<string>();
     for (const [fileIndex, file] of item.requiredFiles.entries()) {
       if (fileIds.has(file.fileId)) {
         issues.push(`/items/${itemIndex}/requiredFiles/${fileIndex}: duplicate fileId '${file.fileId}'`);
       }
       fileIds.add(file.fileId);
+
+      if (file.destination.includes("..") || /^[a-zA-Z]:/.test(file.destination)) {
+        issues.push(`/items/${itemIndex}/requiredFiles/${fileIndex}/destination: destination must be project-relative without '..'`);
+      }
     }
   }
 

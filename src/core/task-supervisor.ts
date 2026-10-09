@@ -131,9 +131,12 @@ export async function verifyGsdStateConsistency(
   projectRoot: string,
   checkpoint: TaskCheckpoint,
 ): Promise<{ consistent: boolean; reason?: string }> {
+  if (checkpoint.lastVerifiedHead === null) {
+    return { consistent: true };
+  }
   try {
     const head = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
-    if (checkpoint.lastVerifiedHead !== null && head !== checkpoint.lastVerifiedHead) {
+    if (head !== checkpoint.lastVerifiedHead) {
       return {
         consistent: false,
         reason: `Git HEAD moved unexpectedly: expected ${checkpoint.lastVerifiedHead}, found ${head}.`,
@@ -312,20 +315,44 @@ export async function resumeTask(options: SuperviseTaskOptions): Promise<Supervi
     throw new Error(`Cannot resume task: task r${contract.revision} is already accepted.`);
   }
 
+  const isGeneral = contract.category === "general";
+
   // Verify GSD / Git state consistency
-  const consistency = await verifyGsdStateConsistency(projectRoot, checkpoint);
-  if (!consistency.consistent) {
-    throw new Error(`Cannot resume task: GSD state is inconsistent: ${consistency.reason}`);
+  if (!isGeneral && checkpoint.lastVerifiedHead !== null) {
+    const consistency = await verifyGsdStateConsistency(projectRoot, checkpoint);
+    if (!consistency.consistent) {
+      throw new Error(`Cannot resume task: GSD state is inconsistent: ${consistency.reason}`);
+    }
   }
 
   // Reconcile performing / uncertain effects on recovery
   let ledger = (await readEffectLedger(options.stateRoot, digest)) ?? createEffectLedger(digest);
-  const currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
-  const baseCommit = checkpoint.lastVerifiedHead ?? currentHead;
+  let baseCommit: string | null = null;
+  if (!isGeneral) {
+    const currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+    baseCommit = checkpoint.lastVerifiedHead ?? currentHead;
+  }
 
-  const reconciliation = await reconcileLedgerOnRecovery(projectRoot, baseCommit, ledger);
+  const reconciliation = await reconcileLedgerOnRecovery(projectRoot, baseCommit, ledger, {
+    connectorPort: options.ports?.connector,
+    reverifyAppliedFiles: isGeneral,
+  });
   ledger = reconciliation.ledger;
   await saveEffectLedger(options.stateRoot, digest, ledger);
+
+  if (reconciliation.demotedEffects && reconciliation.demotedEffects.length > 0) {
+    await logEvent(options.stateRoot, digest, {
+      kind: "effect_reconciled",
+      attemptIndex: checkpoint.attemptIndex,
+      payload: {
+        action: "demoted_missing_applied_files",
+        effects: reconciliation.demotedEffects.map((e) => ({
+          effectKey: e.effectKey,
+          destination: e.targetPayload["destination"] ?? e.targetPayload["relPath"],
+        })),
+      },
+    });
+  }
 
   if (reconciliation.hasUnknown) {
     checkpoint.status = "blocked";
@@ -340,7 +367,9 @@ export async function resumeTask(options: SuperviseTaskOptions): Promise<Supervi
         unknownEffects: reconciliation.unknownEffects.map((e) => ({
           effectKey: e.effectKey,
           effectType: e.effectType,
+          error: e.error,
         })),
+        nextAction: "reconcile_or_repair_source_evidence",
       },
     });
 
@@ -512,9 +541,11 @@ async function runSupervisorLoop(
     const duration = Date.now() - attemptStart;
     checkpoint.usage.cycles += 1;
     checkpoint.usage.wallTimeMs += duration;
-    checkpoint.lastVerifiedHead =
-      (await runGitRead(projectRoot, ["rev-parse", "HEAD"]).catch(() => null))?.trim() ??
-      checkpoint.lastVerifiedHead;
+    if (contract.category !== "general") {
+      checkpoint.lastVerifiedHead =
+        (await runGitRead(projectRoot, ["rev-parse", "HEAD"]).catch(() => null))?.trim() ??
+        checkpoint.lastVerifiedHead;
+    }
 
     const errorMsg = attemptError instanceof Error ? attemptError.message : String(attemptError ?? "");
 

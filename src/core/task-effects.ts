@@ -657,8 +657,8 @@ export function recordEffectState(
 }
 
 export interface ReconcileEvidenceOptions {
-  connectorPort?: ConnectorPort;
-  manifest?: ConnectorManifestV1;
+  connectorPort?: ConnectorPort | undefined;
+  manifest?: ConnectorManifestV1 | undefined;
 }
 
 export async function reconcileEffectEvidence(
@@ -804,7 +804,7 @@ export async function reconcileEffectEvidence(
 }
 
 export interface ReconcileRecoveryOptions extends ReconcileEvidenceOptions {
-  reverifyAppliedFiles?: boolean;
+  reverifyAppliedFiles?: boolean | undefined;
 }
 
 export async function reconcileLedgerOnRecovery(

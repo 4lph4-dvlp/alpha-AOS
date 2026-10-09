@@ -4,7 +4,17 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { ConnectorItemV1, ConnectorManifestV1, ConnectorPort } from "../src/core/task-connector.js";
+import {
+  createGenericFixtureConnector,
+  type ConnectorItemV1,
+  type ConnectorManifestV1,
+  type ConnectorPort,
+} from "../src/core/task-connector.js";
+import {
+  approveTaskContract,
+  taskContractDigest,
+  type GeneralTaskContract,
+} from "../src/core/task-contract.js";
 import {
   assertNoConnectorEffectConflict,
   createEffectLedger,
@@ -15,6 +25,18 @@ import {
   recordEffectState,
   type EffectLedgerEntry,
 } from "../src/core/task-effects.js";
+import {
+  readCheckpoint,
+  readJournalEvents,
+  writeCheckpoint,
+  type TaskCheckpoint,
+} from "../src/core/task-journal.js";
+import type { TaskPorts } from "../src/core/task-run.js";
+import {
+  readEffectLedger,
+  resumeTask,
+  saveEffectLedger,
+} from "../src/core/task-supervisor.js";
 
 test("generateConnectorEffectKey is stable across retry attempts and normalizes paths", () => {
   const baseInput = {
@@ -426,3 +448,404 @@ test("recordEffectState allows recovery demotion only when explicit option is pa
   recordEffectState(ledger, entry, { allowRecoveryDemotion: true });
   assert.equal(ledger.entries[effectKey]?.status, "planned");
 });
+
+test("resumeTask on general contract demotes missing applied files to planned and audits in journal", async (context) => {
+  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-sup-gen-"));
+  context.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const contractPath = join(dir, "task-contract.json");
+  const stateRoot = join(dir, "state");
+  const projectRoot = join(dir, "project");
+  await mkdir(projectRoot, { recursive: true });
+
+  const items: ConnectorItemV1[] = [
+    {
+      itemId: "item-alpha",
+      sourceIdentity: "source-alpha",
+      intendedDestination: "downloads",
+      effectKinds: ["workspace-write", "external-download"],
+      requiredFiles: [
+        {
+          fileId: "file-keep",
+          filename: "keep.txt",
+          destination: "keep.txt",
+        },
+        {
+          fileId: "file-remove",
+          filename: "remove.txt",
+          destination: "remove.txt",
+        },
+      ],
+    },
+  ];
+
+  const connector = createGenericFixtureConnector({
+    projectRoot,
+    items,
+  });
+
+  const preview = await connector.preview({ projectRoot });
+
+  const rawContract: GeneralTaskContract = {
+    schemaVersion: 1,
+    id: "general-task-01",
+    revision: 1,
+    mode: "autopilot",
+    category: "general",
+    connectorId: "generic-fixture",
+    protocolVersion: 1,
+    manifestDigest: preview.manifestDigest,
+    goal: "Test recovery",
+    scope: {
+      projectRoot,
+      summary: "General test task",
+    },
+    allowedRoots: ["keep.txt", "remove.txt"],
+    allowedEffects: ["workspace-write", "external-download"],
+    agentPolicy: {
+      controller: "codex",
+      executor: "codex",
+      reviewer: "codex",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "allow-same",
+    },
+    resourcePolicy: {
+      maxCycles: 5,
+      maxWallTimeMinutes: 60,
+      maxTokens: 100000,
+      maxCostUsd: 10,
+    },
+    criterion: [
+      {
+        id: "crit-1",
+        title: "verify item-alpha",
+        description: "Outcome verification",
+        mandatory: true,
+        measurement: {
+          kind: "outcome",
+          itemId: "item-alpha",
+          expect: { status: "verified" },
+        },
+      },
+    ],
+  };
+
+  const digest = taskContractDigest(rawContract);
+  await writeFile(contractPath, JSON.stringify(rawContract, null, 2), "utf8");
+  await approveTaskContract({
+    contractPath,
+    expectedDigest: digest,
+    stateRoot,
+  });
+
+  // Keep file-keep on disk
+  await writeFile(join(projectRoot, "keep.txt"), "staying here", "utf8");
+  const keepSha = createHash("sha256").update("staying here").digest("hex");
+  // Do NOT write remove.txt on disk (simulating file disappeared!)
+
+  const keyKeep = generateConnectorEffectKey({
+    contractDigest: digest,
+    connectorId: "generic-fixture",
+    itemId: "item-alpha",
+    fileId: "file-keep",
+    destination: "keep.txt",
+  });
+  const keyRemove = generateConnectorEffectKey({
+    contractDigest: digest,
+    connectorId: "generic-fixture",
+    itemId: "item-alpha",
+    fileId: "file-remove",
+    destination: "remove.txt",
+  });
+
+  const ledger = createEffectLedger(digest);
+  ledger.entries[keyKeep] = {
+    effectKey: keyKeep,
+    contractDigest: digest,
+    attemptIndex: 1,
+    effectType: "external-download",
+    targetPayload: {
+      connectorId: "generic-fixture",
+      itemId: "item-alpha",
+      fileId: "file-keep",
+      destination: "keep.txt",
+      expectedSha256: keepSha,
+    },
+    status: "applied",
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    evidence: "pre-verified",
+  };
+  ledger.entries[keyRemove] = {
+    effectKey: keyRemove,
+    contractDigest: digest,
+    attemptIndex: 1,
+    effectType: "external-download",
+    targetPayload: {
+      connectorId: "generic-fixture",
+      itemId: "item-alpha",
+      fileId: "file-remove",
+      destination: "remove.txt",
+      expectedSha256: "some-hash",
+    },
+    status: "applied",
+    startedAt: new Date().toISOString(),
+    completedAt: new Date().toISOString(),
+    evidence: "pre-verified",
+  };
+  await saveEffectLedger(stateRoot, digest, ledger);
+
+  const checkpoint: TaskCheckpoint = {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: "general-task-01",
+    revision: 1,
+    status: "running",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: null,
+    usage: { cycles: 1, wallTimeMs: 1000, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeCheckpoint(stateRoot, checkpoint);
+
+  const ports: TaskPorts = {
+    controller: {
+      dispatch: async () => ({
+        harness: "codex",
+        version: "1.0.0",
+        executable: "/bin/codex",
+        sessionId: "sess-1",
+        exitCode: 0,
+        processCode: "completed",
+        terminal: "completed",
+        claim: { status: "completed", summary: "ok", authorityRequest: null, gsdQuickId: "quick-1" },
+        detail: null,
+      }),
+    },
+    reviewer: {
+      review: async (req) => ({
+        harness: "codex",
+        version: "1.0.0",
+        executable: "/bin/codex",
+        sessionId: "sess-rev-1",
+        exitCode: 0,
+        processCode: "completed",
+        issues: [],
+        report: {
+          schemaVersion: 2,
+          requestId: req.requestId,
+          contractId: req.contract.id,
+          contractDigest: req.contractDigest,
+          artifactDigest: req.artifactDigest,
+          targetRevisionSha: req.targetRevisionSha ?? "target",
+          suggestions: [],
+          criteria: req.contract.criterion.map((c) => ({
+            criterionId: c.id,
+            verdict: "pass",
+            severity: "blocking",
+            evidence: "Verified",
+            abstainReason: null,
+            finding: null,
+            locator: {
+              kind: "connector-item",
+              identifier: "item-alpha",
+              digest: req.artifactDigest,
+              inspectedRange: null,
+            },
+          })),
+        },
+      }),
+    },
+    assess: async () => ({
+      supported: true,
+      controller: { harness: "codex", version: "1.0.0", executable: "/bin/codex" },
+      reviewer: { harness: "codex", version: "1.0.0", executable: "/bin/codex" },
+      missingProof: [],
+    }),
+    connector,
+  };
+
+  await resumeTask({
+    contractPath,
+    stateRoot,
+    packageRoot: dir,
+    ports,
+  });
+
+  const reloadedLedger = await readEffectLedger(stateRoot, digest);
+  assert.ok(reloadedLedger);
+  assert.equal(reloadedLedger.entries[keyKeep]?.status, "applied");
+  const events = await readJournalEvents(stateRoot, digest);
+  const demoteEvent = events.find((e) => e.kind === "effect_reconciled");
+  assert.ok(demoteEvent, "Must record demoted event in journal on recovery");
+  assert.equal((demoteEvent.payload as any).action, "demoted_missing_applied_files");
+});
+
+test("resumeTask halts and records blocked checkpoint when unknown connector effect exists", async (context) => {
+  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-sup-gen-unk-"));
+  context.after(async () => rm(dir, { recursive: true, force: true }));
+
+  const contractPath = join(dir, "task-contract.json");
+  const stateRoot = join(dir, "state");
+  const projectRoot = join(dir, "project");
+  await mkdir(projectRoot, { recursive: true });
+
+  const items: ConnectorItemV1[] = [
+    {
+      itemId: "item-alpha",
+      sourceIdentity: "source-alpha",
+      intendedDestination: "downloads",
+      effectKinds: ["workspace-write", "external-download"],
+      requiredFiles: [
+        {
+          fileId: "file-corrupt",
+          filename: "corrupt.txt",
+          destination: "corrupt.txt",
+        },
+      ],
+    },
+  ];
+
+  const connector = createGenericFixtureConnector({
+    projectRoot,
+    items,
+  });
+
+  const preview = await connector.preview({ projectRoot });
+
+  const rawContract: GeneralTaskContract = {
+    schemaVersion: 1,
+    id: "general-task-unk",
+    revision: 1,
+    mode: "autopilot",
+    category: "general",
+    connectorId: "generic-fixture",
+    protocolVersion: 1,
+    manifestDigest: preview.manifestDigest,
+    goal: "Test recovery blocked",
+    scope: {
+      projectRoot,
+      summary: "General test task with unknown effect",
+    },
+    allowedRoots: ["corrupt.txt"],
+    allowedEffects: ["workspace-write", "external-download"],
+    agentPolicy: {
+      controller: "codex",
+      executor: "codex",
+      reviewer: "codex",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "allow-same",
+    },
+    resourcePolicy: {
+      maxCycles: 5,
+      maxWallTimeMinutes: 60,
+      maxTokens: 100000,
+      maxCostUsd: 10,
+    },
+    criterion: [
+      {
+        id: "crit-1",
+        title: "verify item-alpha",
+        description: "Outcome verification",
+        mandatory: true,
+        measurement: {
+          kind: "outcome",
+          itemId: "item-alpha",
+          expect: { status: "verified" },
+        },
+      },
+    ],
+  };
+
+  const digest = taskContractDigest(rawContract);
+  await writeFile(contractPath, JSON.stringify(rawContract, null, 2), "utf8");
+  await approveTaskContract({
+    contractPath,
+    expectedDigest: digest,
+    stateRoot,
+  });
+
+  // Write corrupt content on disk
+  await writeFile(join(projectRoot, "corrupt.txt"), "unexpected corrupted bytes", "utf8");
+
+  const keyCorrupt = generateConnectorEffectKey({
+    contractDigest: digest,
+    connectorId: "generic-fixture",
+    itemId: "item-alpha",
+    fileId: "file-corrupt",
+    destination: "corrupt.txt",
+  });
+
+  const ledger = createEffectLedger(digest);
+  ledger.entries[keyCorrupt] = {
+    effectKey: keyCorrupt,
+    contractDigest: digest,
+    attemptIndex: 1,
+    effectType: "external-download",
+    targetPayload: {
+      connectorId: "generic-fixture",
+      itemId: "item-alpha",
+      fileId: "file-corrupt",
+      destination: "corrupt.txt",
+      expectedSha256: createHash("sha256").update("expected content").digest("hex"),
+    },
+    status: "performing",
+    startedAt: new Date().toISOString(),
+    completedAt: null,
+  };
+  await saveEffectLedger(stateRoot, digest, ledger);
+
+  const checkpoint: TaskCheckpoint = {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: "general-task-unk",
+    revision: 1,
+    status: "running",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: null,
+    usage: { cycles: 1, wallTimeMs: 1000, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeCheckpoint(stateRoot, checkpoint);
+
+  const ports: TaskPorts = {
+    controller: {
+      dispatch: async () => {
+        throw new Error("Controller should not be called when blocked");
+      },
+    },
+    reviewer: {
+      review: async () => {
+        throw new Error("Reviewer should not be called when blocked");
+      },
+    },
+    assess: async () => ({
+      supported: true,
+      controller: { harness: "codex", version: "1.0.0", executable: "/bin/codex" },
+      reviewer: { harness: "codex", version: "1.0.0", executable: "/bin/codex" },
+      missingProof: [],
+    }),
+    connector,
+  };
+
+  const result = await resumeTask({
+    contractPath,
+    stateRoot,
+    packageRoot: dir,
+    ports,
+  });
+
+  assert.equal(result.status, "blocked");
+  assert.ok(result.checkpoint.stopReason?.includes("ambiguous_effect_recovery"));
+  assert.ok(result.checkpoint.stopReason?.includes(keyCorrupt));
+
+  const events = await readJournalEvents(stateRoot, digest);
+  const blockedEvent = events.find((e) => e.kind === "blocked");
+  assert.ok(blockedEvent);
+  assert.equal((blockedEvent.payload as any).nextAction, "reconcile_or_repair_source_evidence");
+});
+

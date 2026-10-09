@@ -30,14 +30,17 @@ created: "2026-10-10"
 
 ## Per-Task Verification Map
 
-| Area | Requirement | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|------|-------------|-----------------|-----------|-------------------|-------------|--------|
-| Native skill and opt-in entry | UX-01 | Five native skill fixtures discover the task skill; ordinary GSD remains the default; explicit autopilot reaches a read-only preview without approving or starting. | fixture and native canary | `npm run build && node scripts/run-tests.mjs --files dist/test/owned-skills.test.js dist/test/task-skill.test.js` | `task-skill` ❌ W0 | ⬜ pending |
-| Contract preview and approval | UX-01, UX-02 | A changed contract gets a new revision and digest; stale or edited preview cannot approve or start; approval and start remain distinct. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-contract.test.js` | ✅ | ⬜ pending |
-| Durable cross-process control | UX-02 | Separate processes select the exact run, request stop, confirm process termination before `stopped`, and reconcile before resume. | process and recovery fixture | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-supervisor-recovery.test.js dist/test/task-controller-lease.test.js` | ✅ | ⬜ pending |
-| Status, doctor, report and JSON | UX-02, UX-03 | Human and JSON outputs share current run/GSD evidence, reason codes, exact IDs, nullable usage, criteria evidence and next action; blocked commands emit structured JSON. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-cli-capabilities.test.js dist/test/task-cli-review.test.js` | ✅ | ⬜ pending |
+| Task IDs | Plan | Wave | Requirement | Secure Behavior | Test Type | Automated Command | File Exists | Status |
+|----------|------|------|-------------|-----------------|-----------|-------------------|-------------|--------|
+| 21-01-01/02 | 01 | 1 | UX-01, UX-02 | Ordinary GSD stays the default; explicit autopilot reaches read-only preview; each of five native harnesses also yields a real discovery and invocation receipt. | fixture and native canary | `npm run build && node scripts/run-tests.mjs --files dist/test/task-skill.test.js dist/test/owned-skills.test.js && npm run check` | `task-skill` ❌ W0 | ⬜ pending |
+| 21-02-01/02 | 02 | 2 | UX-01, UX-02, UX-03 | Full contract and change diff precede approval; stale digest, missing support and unmeasured required limits block start. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-cli-capabilities.test.js && npm run check` | ✅ base | ⬜ pending |
+| 21-03-01/02 | 03 | 3 | UX-02, UX-03 | Approval reserves an ID without inventing a run; start binds the same ID and emits recoverable commands. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-contract.test.js dist/test/task-cli.test.js && npm run check` | ✅ base | ⬜ pending |
+| 21-04-01/02 | 04 | 4 | UX-02, UX-03 | A separate process requests stop; only observed child exit becomes `stopped`; resume checks GSD, Git and effects. | process and recovery fixture | `npm run build && node scripts/run-tests.mjs --files dist/test/task-supervisor-recovery.test.js dist/test/task-controller-lease.test.js dist/test/task-cli.test.js && npm run check` | ✅ base | ⬜ pending |
+| 21-05-01/02 | 05 | 5 | UX-02, UX-03 | Status and report select the same exact run and present verdict, reason, next action and nullable measurements. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-cli-capabilities.test.js && npm run check` | ✅ base | ⬜ pending |
+| 21-06-01/02 | 06 | 6 | UX-02, UX-03 | Development and general-task reports retain every criterion, item, source and unresolved result. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli-capabilities.test.js dist/test/task-cli-review.test.js && npm run check` | ✅ base | ⬜ pending |
+| 21-07-01/02 | 07 | 7 | UX-01, UX-02, UX-03 | Doctor separates environment and task diagnosis; blocked/failed JSON keeps reason codes and IDs without secrets or false success. | CLI integration | `npm run build && node scripts/run-tests.mjs --files dist/test/task-cli.test.js dist/test/task-cli-capabilities.test.js dist/test/task-cli-review.test.js dist/test/task-skill.test.js && npm run check` | `task-skill` ❌ W0 | ⬜ pending |
 
-*Map exact task IDs and waves to these areas after PLAN.md is finalized. Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky.*
+*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky. Live native receipts are a separate Phase 21 completion gate.*
 
 ## Wave 0 Requirements
 
@@ -50,7 +53,7 @@ created: "2026-10-10"
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Meaningful native skill invocation in each installed, authenticated harness | UX-01 | Fixture rendering cannot prove a real harness loads and invokes the skill. | Invoke the task skill in Claude, Codex, Antigravity, Pi and Hermes where available; record exact version and command receipt. Mark unavailable targets unverified for Phase 22. |
+| Meaningful native skill invocation in every supported harness | UX-01 | Fixture rendering cannot prove a real harness loads and invokes the skill. | Invoke the task skill in Claude, Codex, Antigravity, Pi and Hermes; record exact version, discovery, skill activation, and read-only preview receipt. An unavailable target leaves Phase 21 `human_needed/unverified` and blocks completion; carry the gap into Phase 22's release matrix. |
 
 ## Validation Sign-Off
 

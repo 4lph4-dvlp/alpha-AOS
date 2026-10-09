@@ -310,7 +310,7 @@ Plans:
 
 **Depends on:** Phases 15 and 19.
 
-**Implementation slices:** Connector manifest/preview/perform/reconcile/verify API; versioned schema and bounded source data; CoursePilot skill/runtime resolver and materials CLI parser; per-file verifier; partial/fatal result handling. Do not change CoursePilot's own implementation or credentials.
+**Implementation slices:** First extend CoursePilot's supported materials CLI/JSON contract in its own repository to expose versioned complete-or-unknown attachment manifests and exact module/file selection with stale-source rejection. Then build the connector manifest/preview/perform/reconcile/verify API, bounded runtime resolver and parser, per-file verifier, and partial/fatal handling in alpha-AOS. Preserve CoursePilot credentials, unrelated LMS behavior, VOD, and Notion behavior. The upstream contract must be tested and available before dependent connector execution.
 
 **Success Criteria** (what must be TRUE):
 
@@ -319,7 +319,7 @@ Plans:
 3. A partial exit keeps successful item evidence and queues only failed items; fatal/config/schema errors stop with a named next action.
 4. A repeated run reconciles existing verified files and uncertain effects without duplicate downloads; malicious LMS text is treated as data.
 
-**Verification:** Versioned JSON contract fixtures and bounded local CoursePilot dry-run/live test only where the user's account and approved task scope permit it.
+**Verification:** CoursePilot's published selector/attachment contract and offline fixtures, alpha-AOS versioned JSON contract fixtures, and bounded local CoursePilot dry-run/live test only where the user's account and approved task scope permit it.
 
 ### Phase 21: Natural Entry and Operator CLI
 

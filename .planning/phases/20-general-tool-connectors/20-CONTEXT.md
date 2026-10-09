@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Phase 20 adds a versioned connector protocol so the existing approved task contract, durable run, effect ledger, and independent review can handle itemized non-code work. A generic fixture proves the protocol without Git or code-test assumptions. CoursePilot is the first real connector: it previews a fresh bounded materials manifest, performs only approved downloads, reconciles interrupted effects, and verifies saved files per item. It does not change CoursePilot, its credentials, LMS support, VOD viewing, or Notion behavior. GSD remains the sole project lifecycle authority.
+Phase 20 adds a versioned connector protocol so the existing approved task contract, durable run, effect ledger, and independent review can handle itemized non-code work. A generic fixture proves the protocol without Git or code-test assumptions. CoursePilot is the first real connector: it previews a fresh bounded materials manifest, performs only approved downloads, reconciles interrupted effects, and verifies saved files per item. The user authorized a supported CoursePilot materials contract extension as an upstream prerequisite on 2026-10-09; credentials, LMS-family support, VOD viewing, and Notion behavior remain outside scope. GSD remains the sole project lifecycle authority.
 
 </domain>
 
@@ -37,6 +37,9 @@ Phase 20 adds a versioned connector protocol so the existing approved task contr
 - **D-15:** `저장 확인 / 대상` 진행률의 분모는 승인된 자료 목록이다. 이후 발견된 미승인 자료는 분모에 섞지 않고 `승인 대기`로 별도 표시한다.
 - **D-16:** 보고서 마지막에는 미해결 자료별 다음 조치를 나열하고 자동 재시도 예정, 수동 확인 필요, 재승인 필요, 실행 차단을 구분한다. 전체 결과가 부분 완료 또는 차단 상태인지도 명확하게 표시한다.
 
+### CoursePilot 공개 계약 선행 변경
+- **D-17:** Phase 20은 CoursePilot 저장소의 공개 materials 계약을 선행 확장할 수 있다. 자료·파일별 선택 실행과 첨부 목록·완전성·버전 증거를 지원한 뒤 alpha-AOS 커넥터를 연결한다. 설치된 스킬의 공개 계약과 CLI 결과에 없는 내부 Python 함수만 직접 호출하는 경로는 승인된 통합 계약으로 보지 않는다. 이는 2026-10-09의 사용자 선택으로 기존 CoursePilot 구현 변경 금지 범위를 대체한다.
+
 ### the agent's Discretion
 - 내부 manifest, 파일 정체성 증거, 상태 코드의 구체적인 자료 구조와 표시 순서. 위 항목별 판단, 승인 경계, 현재 파일 검증, 정확한 집계는 유지한다.
 - 승인된 한도와 기존 비진행 규칙 안에서 일시적 오류의 재시도 간격과 횟수. 성공 항목의 중복 실행과 불확실한 효과의 맹목적 재시도는 허용하지 않는다.
@@ -57,6 +60,7 @@ Phase 20 adds a versioned connector protocol so the existing approved task contr
 - `docs/design/autonomous-work/README.md` — 일반 작업 커넥터, 효과 조정, CoursePilot 미리보기·실행·검증과 종료 코드 의미.
 - `docs/design/autonomous-work/WORKFLOW.md` — GSD 단계별 기능 호출 증거와 일반 작업 연결.
 - `docs/design/autonomous-work/VALIDATION.md` — 부분 성공, 알 수 없는 스키마, 악성 LMS 텍스트, 저장 파일 소실 검증 사례.
+- `20-UPSTREAM-CONTRACT.md` — 승인된 CoursePilot 공개 계약 확장의 실행 전 검증 기준.
 - `.planning/phases/14-contract-and-vertical-tracer/14-CONTEXT.md` — 계약 승인과 기준별 수락의 출발점.
 - `.planning/phases/15-durable-supervisor-and-effect-ledger/15-CONTEXT.md` — 안정적 효과 키, 복구 시 출처 조정, `unknown` 정지, 비진행·한도 정책.
 - `.planning/phases/17-gsd-lifecycle-bridge/17-CONTEXT.md` — GSD 상태 소유권과 계약 범위 밖 결정 시 대기.

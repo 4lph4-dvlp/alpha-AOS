@@ -321,6 +321,35 @@ Plans:
 
 **Verification:** CoursePilot's published selector/attachment contract and offline fixtures, alpha-AOS versioned JSON contract fixtures, and bounded local CoursePilot dry-run/live test only where the user's account and approved task scope permit it.
 
+**Plans:** 0/6 plans executed
+
+Plans:
+
+- [ ] 20-01-PLAN.md
+- [ ] 20-02-PLAN.md
+- [ ] 20-03-PLAN.md
+- [ ] 20-04-PLAN.md
+- [ ] 20-05-PLAN.md
+- [ ] 20-06-PLAN.md
+
+**Wave 1**
+
+- [ ] 20-01 — General connector contract and first non-code tracer
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 20-02 — Effect ledger and reconciliation
+- [ ] 20-03 — CoursePilot installed-contract adapter and fresh preview; requires CoursePilot Phase 18
+- [ ] 20-04 — Independent file verification
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 20-05 — Exact selected-file performance and per-file recovery
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 20-06 — Current evidence verdict, full reapproval preview, and report
+
 ### Phase 21: Natural Entry and Operator CLI
 
 **Goal:** A user can start and control the same durable run from any supported harness or CLI after the initial chat closes.

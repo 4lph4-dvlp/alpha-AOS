@@ -27,7 +27,7 @@ The planner may refine flag names before publishing, but the three operations an
 | Attachment inspection | `materials --contract-version 1 --inspect --course ID --module-id ID --json` | May mark LMS viewed; requires approval |
 | Selected download | `materials --contract-version 1 --perform --course ID --module-id ID --file-id ID --expect-digest SHA256 --json` | One approved file download |
 
-Each JSON result must carry `contract_version`, `operation`, item/source identity, attachment-set completeness, and typed errors. A complete inspected manifest must include the whole observed file set in its digest, so an added sibling prevents stale approval from authorizing a download.
+The current CoursePilot Phase 18 proposal names the explicit integer version field `schema_version: 1`; each versioned JSON result must also carry `operation`, `status`, item/source identity, attachment-set completeness, and typed errors. The proposal maps a structurally valid `status: stale` result to exit 2, alongside invalid/fatal errors. Alpha-AOS must bind its parser to the final human-approved and published field and status/exit mapping after the upstream decision gate, and reject missing or unknown versions; this proposal is not publication proof. A complete inspected manifest must include the whole observed file set in its digest, so an added sibling prevents stale approval from authorizing a download.
 
 ## Offline proof before alpha-AOS integration
 
@@ -35,6 +35,7 @@ Each JSON result must carry `contract_version`, `operation`, item/source identit
 - Fixture with two files in one module: retry the failed file alone without touching a verified sibling; changed filename or added attachment rejects the stale digest before effects.
 - Fixture with incomplete/ambiguous attachment enumeration: reports `unknown`, never claims full item satisfaction, and never silently selects one file as the complete set.
 - Fixture with partial file failure, fatal result, malformed/unknown version, hostile LMS title, missing local file, and interrupted selected effect. Every success must remain source-bound and re-verifiable.
+- Fixture with two independent approved modules: the first returns valid exit 2 JSON with `status: stale`; only that selection awaits reapproval, its prior receipts remain, and the unchanged second module continues. Empty/malformed/unrecognized exit 2 or a valid fatal result stops later effects.
 - No live LMS operation is required for planning. A real account run belongs to an explicitly approved task scope during execution.
 
 ## Alpha-AOS dependency gate

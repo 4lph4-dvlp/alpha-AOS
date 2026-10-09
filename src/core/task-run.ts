@@ -869,26 +869,56 @@ async function startGeneralTask(params: {
     }
 
     const allReceipts: ConnectorFileReceiptV1[] = [];
+    const staleItems: string[] = [];
+    const failedItems: string[] = [];
+    let fatalError: { detail: string; nextAction?: string | null | undefined } | null = null;
+
     for (const item of preview.manifest.items) {
+      if (fatalError !== null) break;
+
       const performRes = await connector.perform({
         manifest: preview.manifest,
         itemId: item.itemId,
         expectedDigest: contract.manifestDigest,
       });
-      if (performRes.status !== "completed") {
-        return await finish({
-          ...record,
-          status: "rejected",
-          finishedAt: clock().toISOString(),
-          stopReason: `Connector item ${item.itemId} failed to perform: ${performRes.detail ?? "unknown error"}`,
-          nextAction: "Inspect connector error or re-attempt execution",
-        });
+
+      if (performRes.fatal) {
+        fatalError = {
+          detail: performRes.detail ?? `Connector item ${item.itemId} encountered fatal error`,
+          nextAction: performRes.nextAction ?? "Inspect connector error or re-attempt execution",
+        };
+        break;
       }
-      const verifyRes = await connector.verify({
-        manifest: preview.manifest,
-        itemId: item.itemId,
+
+      if (performRes.status === "stale") {
+        staleItems.push(item.itemId);
+        // D-01/D-03/D-09: Preserve existing receipts and continue independent unchanged selections
+        continue;
+      }
+
+      if (performRes.receipts && performRes.receipts.length > 0) {
+        allReceipts.push(...performRes.receipts);
+      }
+
+      if (performRes.status === "failed") {
+        failedItems.push(item.itemId);
+      } else if (!performRes.receipts || performRes.receipts.length === 0) {
+        const verifyRes = await connector.verify({
+          manifest: preview.manifest,
+          itemId: item.itemId,
+        });
+        allReceipts.push(...verifyRes.receipts);
+      }
+    }
+
+    if (fatalError !== null) {
+      return await finish({
+        ...record,
+        status: "rejected",
+        finishedAt: clock().toISOString(),
+        stopReason: fatalError.detail,
+        nextAction: fatalError.nextAction ?? "Inspect connector error or re-attempt execution",
       });
-      allReceipts.push(...verifyRes.receipts);
     }
 
     const artifactDigest = connectorArtifactDigest({

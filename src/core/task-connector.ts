@@ -65,12 +65,26 @@ export interface ConnectorPerformRequest {
   manifest: ConnectorManifestV1;
   itemId: string;
   expectedDigest: string;
+  fileId?: string | undefined;
 }
+
+export type ConnectorPerformStatus = "completed" | "partial" | "failed" | "stale" | "fatal";
 
 export interface ConnectorPerformResult {
   itemId: string;
-  status: "completed" | "failed";
+  fileId?: string | undefined;
+  status: ConnectorPerformStatus;
   detail?: string | undefined;
+  exitCode?: number | undefined;
+  receipts?: readonly ConnectorFileReceiptV1[] | undefined;
+  staleItemIds?: readonly string[] | undefined;
+  fatal?: boolean | undefined;
+  nextAction?: string | null | undefined;
+  unverifiedFiles?: readonly {
+    fileId: string;
+    reason: string;
+    status: "failed" | "viewed_only" | "missing-file";
+  }[] | undefined;
 }
 
 export interface ConnectorReconcileRequest {

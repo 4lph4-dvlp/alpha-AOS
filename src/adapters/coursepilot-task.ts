@@ -492,6 +492,149 @@ export function computeCoursePilotManifestDiff(
   };
 }
 
+export interface TaskReapprovalItemPreview {
+  moduleId: string;
+  courseId: string;
+  weekNumber: number;
+  title: string;
+  status: "unchanged" | "added" | "removed" | "changed";
+  changeReason?: string | undefined;
+  files: readonly { fileId: string; filename: string }[];
+}
+
+export interface TaskReapprovalPreview {
+  kind: "task-reapproval-preview";
+  contractId: string;
+  approvedDigest: string;
+  currentDigest: string;
+  isStale: boolean;
+  approvedScope: readonly TaskReapprovalItemPreview[];
+  added: readonly TaskReapprovalItemPreview[];
+  removed: readonly TaskReapprovalItemPreview[];
+  changed: readonly TaskReapprovalItemPreview[];
+  unchanged: readonly TaskReapprovalItemPreview[];
+}
+
+/**
+ * Builds a typed reapproval preview preserving the full approved scope (with unchanged items)
+ * alongside added, removed, and changed items with change markers (D-04).
+ */
+export function buildCoursePilotReapprovalPreview(options: {
+  contractId: string;
+  approvedManifest: ConnectorManifestV1;
+  currentCoarse: CoursePilotCoarseManifestV1;
+  adapterContractDigest: string;
+  targetDir?: string;
+}): TaskReapprovalPreview {
+  const currentManifest = coursePilotToConnectorManifest(options.currentCoarse, {
+    adapterContractDigest: options.adapterContractDigest,
+    ...(options.targetDir ? { targetDir: options.targetDir } : {}),
+  });
+
+  const approvedDigest = connectorManifestDigest(options.approvedManifest);
+  const currentDigest = connectorManifestDigest(currentManifest);
+  const isStale = approvedDigest !== currentDigest;
+
+  const approvedMap = new Map(options.approvedManifest.items.map((i) => [i.itemId, i]));
+  const currentMap = new Map(options.currentCoarse.materials.map((m) => [m.moduleId, m]));
+
+  const added: TaskReapprovalItemPreview[] = [];
+  const removed: TaskReapprovalItemPreview[] = [];
+  const changed: TaskReapprovalItemPreview[] = [];
+  const unchanged: TaskReapprovalItemPreview[] = [];
+  const approvedScope: TaskReapprovalItemPreview[] = [];
+
+  // Examine all approved items first
+  for (const appItem of options.approvedManifest.items) {
+    const curMat = currentMap.get(appItem.itemId);
+    const idParts = appItem.sourceIdentity.split(":");
+    const courseId = idParts[0] ?? "unknown";
+    const weekNumber = Number(idParts[1] ?? 0);
+
+    if (!curMat) {
+      const removedItem: TaskReapprovalItemPreview = {
+        moduleId: appItem.itemId,
+        courseId,
+        weekNumber,
+        title: appItem.title ?? "Untitled",
+        status: "removed",
+        changeReason: "Material no longer present in source LMS",
+        files: appItem.requiredFiles.map((f) => ({ fileId: f.fileId, filename: f.filename })),
+      };
+      removed.push(removedItem);
+      approvedScope.push(removedItem);
+    } else {
+      const reasons: string[] = [];
+      if (curMat.title !== appItem.title) reasons.push(`title: "${appItem.title}" -> "${curMat.title}"`);
+      if (curMat.files.length !== appItem.requiredFiles.length) {
+        reasons.push(`files count: ${appItem.requiredFiles.length} -> ${curMat.files.length}`);
+      } else {
+        for (let i = 0; i < curMat.files.length; i++) {
+          const cf = curMat.files[i]!;
+          const af = appItem.requiredFiles[i]!;
+          if (cf.fileId !== af.fileId) reasons.push(`fileId changed at [${i}]`);
+          if (cf.filename !== af.filename) reasons.push(`filename: "${af.filename}" -> "${cf.filename}"`);
+          if (cf.expectedSha256 !== af.expectedSha256) reasons.push(`expectedSha256 changed at [${i}]`);
+        }
+      }
+
+      if (reasons.length > 0) {
+        const changedItem: TaskReapprovalItemPreview = {
+          moduleId: appItem.itemId,
+          courseId: curMat.courseId,
+          weekNumber: curMat.weekNumber,
+          title: curMat.title,
+          status: "changed",
+          changeReason: reasons.join("; "),
+          files: curMat.files.map((f) => ({ fileId: f.fileId, filename: f.filename })),
+        };
+        changed.push(changedItem);
+        approvedScope.push(changedItem);
+      } else {
+        const unchangedItem: TaskReapprovalItemPreview = {
+          moduleId: appItem.itemId,
+          courseId: curMat.courseId,
+          weekNumber: curMat.weekNumber,
+          title: curMat.title,
+          status: "unchanged",
+          files: curMat.files.map((f) => ({ fileId: f.fileId, filename: f.filename })),
+        };
+        unchanged.push(unchangedItem);
+        approvedScope.push(unchangedItem);
+      }
+    }
+  }
+
+  // Examine newly added items (not in approved manifest)
+  for (const curMat of options.currentCoarse.materials) {
+    if (!approvedMap.has(curMat.moduleId)) {
+      const addedItem: TaskReapprovalItemPreview = {
+        moduleId: curMat.moduleId,
+        courseId: curMat.courseId,
+        weekNumber: curMat.weekNumber,
+        title: curMat.title,
+        status: "added",
+        changeReason: "New material discovered in source LMS",
+        files: curMat.files.map((f) => ({ fileId: f.fileId, filename: f.filename })),
+      };
+      added.push(addedItem);
+    }
+  }
+
+  return {
+    kind: "task-reapproval-preview",
+    contractId: options.contractId,
+    approvedDigest,
+    currentDigest,
+    isStale,
+    approvedScope,
+    added,
+    removed,
+    changed,
+    unchanged,
+  };
+}
+
 export interface CoursePilotPerformFileResultV1 {
   fileId: string;
   status: "downloaded" | "failed" | "viewed_only" | "skipped";

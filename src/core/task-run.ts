@@ -9,8 +9,16 @@ import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guar
 import {
   connectorArtifactDigest,
   type ConnectorFileReceiptV1,
+  type ConnectorManifestV1,
   type ConnectorPort,
+  type GeneralTaskReportData,
+  type GeneralTaskItemDetail,
+  type GeneralTaskNextActionItem,
 } from "./task-connector.js";
+import {
+  reverifyConnectorReceipts,
+  summarizeConnectorFiles,
+} from "./task-connector-files.js";
 import {
   verifyReviewWitness,
   readReviewWitnessReceipt,
@@ -321,6 +329,7 @@ export interface TaskRunRecord {
   effects: TaskRunEffects | null;
   gitDirectory: string | null;
   reviewClassification?: TaskReviewClassificationResult | null | undefined;
+  generalReport?: GeneralTaskReportData | null | undefined;
 }
 
 export type TaskRunErrorCode =
@@ -807,6 +816,201 @@ function diffGitControl(before: Array<[string, string]>, after: Array<[string, s
   return [...changed].sort();
 }
 
+export function buildGeneralTaskReportData(options: {
+  contractId: string;
+  runId: string;
+  manifest: ConnectorManifestV1;
+  validReceipts: readonly ConnectorFileReceiptV1[];
+  invalidReceipts: readonly { receipt: ConnectorFileReceiptV1; reason: string }[];
+  staleItems: readonly string[];
+  failedItems: readonly string[];
+  unverifiedFilesByItem?: ReadonlyMap<string, readonly { fileId: string; reason: string; status: "failed" | "viewed_only" | "missing-file" }[]> | undefined;
+  pendingUnapprovedCount?: number | undefined;
+}): GeneralTaskReportData {
+  const { contractId, runId, manifest, validReceipts, invalidReceipts, staleItems, failedItems, unverifiedFilesByItem, pendingUnapprovedCount } = options;
+
+  const validReceiptsByItem = new Map<string, ConnectorFileReceiptV1[]>();
+  for (const r of validReceipts) {
+    const list = validReceiptsByItem.get(r.itemId) ?? [];
+    list.push(r);
+    validReceiptsByItem.set(r.itemId, list);
+  }
+
+  const invalidReceiptsByItem = new Map<string, { receipt: ConnectorFileReceiptV1; reason: string }[]>();
+  for (const inv of invalidReceipts) {
+    const list = invalidReceiptsByItem.get(inv.receipt.itemId) ?? [];
+    list.push(inv);
+    invalidReceiptsByItem.set(inv.receipt.itemId, list);
+  }
+
+  const itemSummariesInput = manifest.items.map((item) => {
+    const receipts = validReceiptsByItem.get(item.itemId) ?? [];
+    const invReceipts = invalidReceiptsByItem.get(item.itemId) ?? [];
+    const unverified = unverifiedFilesByItem?.get(item.itemId) ?? [];
+    const failures = [
+      ...invReceipts.map((i) => ({ fileId: i.receipt.fileId, reason: i.reason })),
+      ...unverified.map((u) => ({ fileId: u.fileId, reason: u.reason })),
+    ];
+    return {
+      item,
+      attachmentsComplete: true,
+      receipts,
+      failures,
+    };
+  });
+
+  const aggregate = summarizeConnectorFiles(itemSummariesInput);
+
+  let viewedOnlyItemCount = 0;
+  const details: GeneralTaskItemDetail[] = [];
+  const nextActions: GeneralTaskNextActionItem[] = [];
+
+  for (const input of itemSummariesInput) {
+    const { item, receipts } = input;
+    const invList = invalidReceiptsByItem.get(item.itemId) ?? [];
+    const unvList = unverifiedFilesByItem?.get(item.itemId) ?? [];
+    const idParts = item.sourceIdentity.split(":");
+    const courseId = idParts[0] ?? "unknown";
+    const weekNumber = Number(idParts[1] ?? 0);
+    const itemTitle = item.title ?? "Untitled";
+
+    const isStale = staleItems.includes(item.itemId);
+    const hasViewedOnly = unvList.some((u) => u.status === "viewed_only");
+    if (hasViewedOnly) viewedOnlyItemCount += 1;
+
+    let itemStatus: GeneralTaskItemDetail["status"];
+    if (isStale) {
+      itemStatus = "pending_approval";
+    } else if (hasViewedOnly && receipts.length === 0) {
+      itemStatus = "viewed_only";
+    } else if (receipts.length === item.requiredFiles.length && item.requiredFiles.length > 0) {
+      itemStatus = "verified";
+    } else if (receipts.length > 0) {
+      itemStatus = "partial";
+    } else {
+      itemStatus = "failed";
+    }
+
+    const filesDetail: GeneralTaskItemDetail["files"][number][] = [];
+    for (const reqFile of item.requiredFiles) {
+      const validR = receipts.find((r) => r.fileId === reqFile.fileId);
+      const invR = invList.find((i) => i.receipt.fileId === reqFile.fileId);
+      const unvF = unvList.find((u) => u.fileId === reqFile.fileId);
+
+      if (validR) {
+        filesDetail.push({
+          fileId: reqFile.fileId,
+          filename: reqFile.filename,
+          status: "verified",
+          bytes: validR.bytes,
+          sha256: validR.sha256,
+        });
+      } else if (invR) {
+        filesDetail.push({
+          fileId: reqFile.fileId,
+          filename: reqFile.filename,
+          status: "missing-file",
+          error: invR.reason,
+        });
+      } else if (unvF) {
+        filesDetail.push({
+          fileId: reqFile.fileId,
+          filename: reqFile.filename,
+          status: unvF.status,
+          error: unvF.reason,
+        });
+      } else {
+        filesDetail.push({
+          fileId: reqFile.fileId,
+          filename: reqFile.filename,
+          status: "failed",
+          error: "Not downloaded",
+        });
+      }
+    }
+
+    details.push({
+      itemId: item.itemId,
+      courseId,
+      weekNumber,
+      title: itemTitle,
+      status: itemStatus,
+      verifiedFilesCount: receipts.length,
+      totalRequiredFilesCount: item.requiredFiles.length,
+      files: filesDetail,
+    });
+
+    if (isStale) {
+      nextActions.push({
+        itemId: item.itemId,
+        title: itemTitle,
+        reason: "stale_or_changed",
+        actionType: "reapproval_required",
+        description: "Materials modified in source LMS; reapproval required",
+      });
+    } else if (invList.length > 0) {
+      nextActions.push({
+        itemId: item.itemId,
+        title: itemTitle,
+        reason: "missing_file",
+        actionType: "auto_retry",
+        description: `Verified file disappeared on disk (${invList.map((i) => i.reason).join("; ")}); auto-retry scheduled`,
+      });
+    } else if (hasViewedOnly) {
+      nextActions.push({
+        itemId: item.itemId,
+        title: itemTitle,
+        reason: "viewed_only",
+        actionType: "manual_check",
+        description: "Material viewed only without downloadable file; manual inspection required",
+      });
+    } else if (receipts.length < item.requiredFiles.length) {
+      nextActions.push({
+        itemId: item.itemId,
+        title: itemTitle,
+        reason: "download_error",
+        actionType: "auto_retry",
+        description: "Download or verification incomplete; auto-retry scheduled for failed files",
+      });
+    }
+  }
+
+  let overallStatus: "completed" | "partial" | "blocked" | "failed";
+  if (aggregate.items.verified === manifest.items.length && manifest.items.length > 0) {
+    overallStatus = "completed";
+  } else if (aggregate.items.verified > 0 || aggregate.items.partial > 0) {
+    overallStatus = "partial";
+  } else if (staleItems.length > 0) {
+    overallStatus = "blocked";
+  } else {
+    overallStatus = "failed";
+  }
+
+  return {
+    kind: "general-task-report",
+    contractId,
+    runId,
+    overallStatus,
+    summary: {
+      physicalFiles: {
+        totalDistinctSaved: aggregate.physicalFiles.totalDistinct,
+        newlyDownloaded: aggregate.physicalFiles.newlyDownloaded,
+        previouslyConfirmed: aggregate.physicalFiles.previouslyVerified,
+      },
+      materials: {
+        approvedTotal: manifest.items.length,
+        verifiedComplete: aggregate.items.verified,
+        partialComplete: aggregate.items.partial,
+        failedOrUnsaved: aggregate.items.failed + aggregate.items.unknown,
+        viewedOnly: viewedOnlyItemCount,
+        pendingUnapproved: pendingUnapprovedCount ?? 0,
+      },
+    },
+    details,
+    nextActions,
+  };
+}
+
 async function startGeneralTask(params: {
   contract: GeneralTaskContract;
   digest: string;
@@ -871,6 +1075,7 @@ async function startGeneralTask(params: {
     const allReceipts: ConnectorFileReceiptV1[] = [];
     const staleItems: string[] = [];
     const failedItems: string[] = [];
+    const unverifiedFilesByItem = new Map<string, readonly { fileId: string; reason: string; status: "failed" | "viewed_only" | "missing-file" }[]>();
     let fatalError: { detail: string; nextAction?: string | null | undefined } | null = null;
 
     for (const item of preview.manifest.items) {
@@ -881,6 +1086,10 @@ async function startGeneralTask(params: {
         itemId: item.itemId,
         expectedDigest: contract.manifestDigest,
       });
+
+      if (performRes.unverifiedFiles && performRes.unverifiedFiles.length > 0) {
+        unverifiedFilesByItem.set(item.itemId, performRes.unverifiedFiles);
+      }
 
       if (performRes.fatal) {
         fatalError = {
@@ -921,12 +1130,17 @@ async function startGeneralTask(params: {
       });
     }
 
+    // D-08: Re-verify all receipts on disk right before reporting and measurement
+    const reverification = await reverifyConnectorReceipts(allReceipts);
+    const validReceipts = reverification.validReceipts;
+    const invalidReceipts = reverification.invalidReceipts;
+
     const artifactDigest = connectorArtifactDigest({
       manifestDigest: contract.manifestDigest,
-      receipts: allReceipts,
+      receipts: validReceipts,
     });
-    const totalBytes = allReceipts.reduce((sum, r) => sum + r.bytes, 0);
-    const artifact = { digest: artifactDigest, fileCount: allReceipts.length, totalBytes };
+    const totalBytes = validReceipts.reduce((sum, r) => sum + r.bytes, 0);
+    const artifact = { digest: artifactDigest, fileCount: validReceipts.length, totalBytes };
     record = { ...record, artifact };
 
     const measurements: TaskMeasurement[] = [];
@@ -934,7 +1148,7 @@ async function startGeneralTask(params: {
       const m = criterion.measurement;
       if (m.kind === "outcome") {
         const itemId = m.itemId;
-        const itemReceipts = allReceipts.filter((r) => r.itemId === itemId);
+        const itemReceipts = validReceipts.filter((r) => r.itemId === itemId);
         const itemPass = itemReceipts.length > 0;
         measurements.push({
           criterionId: criterion.id,
@@ -1002,8 +1216,9 @@ async function startGeneralTask(params: {
       snapshotRoot: projectRoot,
     });
 
+    const isStaleReview = reviewValidation.issues.some((i) => i.code === "artifact-digest-mismatch");
     const reviewAssessment: TaskReviewAssessment = {
-      status: reviewValidation.valid ? "ok" : "malformed",
+      status: reviewValidation.valid ? "ok" : isStaleReview ? "stale" : "malformed",
       issues: reviewValidation.issues.map((i) => `${i.code}: ${i.message}`),
       rows: new Map(),
       suggestions: reviewDispatch.report?.suggestions ?? [],
@@ -1033,13 +1248,25 @@ async function startGeneralTask(params: {
       review: reviewAssessment,
       confirmations: new Map(),
       preconditions: [],
-      refusal: null,
+      refusal: isStaleReview ? "stale-artifact" : null,
+    });
+
+    const generalReport = buildGeneralTaskReportData({
+      contractId: contract.id,
+      runId,
+      manifest: preview.manifest,
+      validReceipts,
+      invalidReceipts,
+      staleItems,
+      failedItems,
+      unverifiedFilesByItem,
     });
 
     return await finish({
       ...record,
       status: verdict.overall,
       verdict,
+      generalReport,
       finishedAt: clock().toISOString(),
       nextAction: runNextAction(verdict),
     });

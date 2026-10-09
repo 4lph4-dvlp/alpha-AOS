@@ -110,6 +110,60 @@ export interface ConnectorVerifyResult {
   evidence: string;
 }
 
+export interface GeneralTaskNextActionItem {
+  itemId: string;
+  title: string;
+  reason: "viewed_only" | "download_error" | "verification_failed" | "stale_or_changed" | "missing_file" | "unknown";
+  actionType: "auto_retry" | "manual_check" | "reapproval_required" | "blocked";
+  description: string;
+}
+
+export interface GeneralTaskFileDetail {
+  fileId: string;
+  filename: string;
+  status: "verified" | "failed" | "viewed_only" | "missing-file";
+  bytes?: number | undefined;
+  sha256?: string | undefined;
+  error?: string | undefined;
+}
+
+export interface GeneralTaskItemDetail {
+  itemId: string;
+  courseId: string;
+  weekNumber: number;
+  title: string;
+  status: "verified" | "partial" | "failed" | "viewed_only" | "pending_approval";
+  verifiedFilesCount: number;
+  totalRequiredFilesCount: number;
+  files: readonly GeneralTaskFileDetail[];
+}
+
+export interface GeneralTaskSummary {
+  physicalFiles: {
+    totalDistinctSaved: number;
+    newlyDownloaded: number;
+    previouslyConfirmed: number;
+  };
+  materials: {
+    approvedTotal: number;
+    verifiedComplete: number;
+    partialComplete: number;
+    failedOrUnsaved: number;
+    viewedOnly: number;
+    pendingUnapproved: number;
+  };
+}
+
+export interface GeneralTaskReportData {
+  kind: "general-task-report";
+  contractId: string;
+  runId: string;
+  overallStatus: "completed" | "partial" | "blocked" | "failed";
+  summary: GeneralTaskSummary;
+  details: readonly GeneralTaskItemDetail[];
+  nextActions: readonly GeneralTaskNextActionItem[];
+}
+
 export interface ConnectorPort {
   preview(options: { projectRoot: string }): Promise<ConnectorPreviewResult>;
   perform(request: ConnectorPerformRequest, signal?: AbortSignal): Promise<ConnectorPerformResult>;

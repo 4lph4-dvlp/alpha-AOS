@@ -372,6 +372,9 @@
         },
         "reviewClassification": {
           "anyOf": [{ "type": "object" }, { "type": "null" }]
+        },
+        "generalReport": {
+          "anyOf": [{ "type": "object" }, { "type": "null" }]
         }
       }
     },

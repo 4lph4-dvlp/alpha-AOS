@@ -9,6 +9,7 @@ import { shellQuote } from "./project-plan.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
 import { assertControllerRole, WorkerAuthorityError } from "./worker-authority.js";
+import type { TaskReapprovalPreview } from "../adapters/coursepilot-task.js";
 
 /** The domain separator every task contract digest is bound under. */
 export const TASK_CONTRACT_DIGEST_KIND = "task-contract";
@@ -216,6 +217,7 @@ export interface TaskContractPreview {
   resourceLimit: number | null;
   /** The git directory approving this digest lets the controller write (AUTO-02, D-03). */
   gitAuthority: TaskGitAuthority;
+  reapprovalPreview?: TaskReapprovalPreview | undefined;
 }
 
 export type TaskApprovalResult =
@@ -713,7 +715,11 @@ export async function readTaskApprovals(options: { stateRoot: string; contractId
 }
 
 /** Read-only: loads, digests and reports approval state. Creates nothing. */
-export async function previewTaskContract(options: { contractPath: string; stateRoot: string }): Promise<TaskContractPreview> {
+export async function previewTaskContract(options: {
+  contractPath: string;
+  stateRoot: string;
+  reapprovalPreview?: TaskReapprovalPreview | undefined;
+}): Promise<TaskContractPreview> {
   const loaded = await loadTaskContract(options.contractPath);
   const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: loaded.contract.id });
   return {
@@ -725,6 +731,7 @@ export async function previewTaskContract(options: { contractPath: string; state
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: loaded.contract.revision },
     resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
     gitAuthority: await taskGitAuthority(loaded.contract),
+    ...(options.reapprovalPreview !== undefined ? { reapprovalPreview: options.reapprovalPreview } : {}),
   };
 }
 

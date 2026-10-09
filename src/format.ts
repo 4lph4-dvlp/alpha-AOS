@@ -44,6 +44,8 @@ import type {
   FinalReviewReadiness,
   GateMilestoneFinalReviewResult,
 } from "./core/task-final-review.js";
+import type { GeneralTaskReportData } from "./core/task-connector.js";
+import type { TaskReapprovalPreview } from "./adapters/coursepilot-task.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -1097,7 +1099,7 @@ export function formatUninstallResult(result: UninstallResult): string {
 export function formatTaskContractPreview(preview: TaskContractPreview, command: string): string {
   const contract = preview.contract;
   const minutes = contract.resourcePolicy.maxWallTimeMinutes;
-  return [
+  const lines: string[] = [
     `Task: ${contract.id} (revision ${contract.revision})`,
     `Contract digest: ${preview.digest}`,
     `Mode: ${contract.mode} — approving authorizes one single run of this revision only; autopilot stays off for every other task.`,
@@ -1123,7 +1125,13 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
     "",
     "Preview only. Nothing was written: approving is a separate act from looking (D-01).",
     `Approve exactly this digest: ${command}`,
-  ].join("\n");
+  ];
+
+  if (preview.reapprovalPreview) {
+    lines.push("", formatTaskReapprovalPreview(preview.reapprovalPreview));
+  }
+
+  return lines.join("\n");
 }
 
 /** What a task approve did, or did not need to do. */
@@ -1145,6 +1153,9 @@ export function formatTaskApproval(result: TaskApprovalResult, startCommand?: st
  * executor claim is shown last and labelled, because it is never evidence.
  */
 export function formatTaskRunReport(run: TaskRunRecord): string {
+  if (run.generalReport) {
+    return formatGeneralTaskReport(run.generalReport);
+  }
   const artifact = run.artifact === null ? "none" : run.artifact.digest.slice(0, 12);
   const rows = (run.verdict?.rows ?? []).map((row) => [
     row.criterionId,
@@ -1659,6 +1670,121 @@ export function formatFinalReviewReport(options: {
 
   if (result.status !== "accepted") {
     lines.push("", "Next action: Resolve blocking findings or unverified requirements and re-run final review with --apply.");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats a CoursePilot / General Task reapproval preview (D-04).
+ * Shows the full approved scope (with unchanged items) alongside added/removed/changed items,
+ * and highlights changes clearly.
+ */
+export function formatTaskReapprovalPreview(preview: TaskReapprovalPreview): string {
+  const lines: string[] = [
+    `Reapproval Preview for Task: ${preview.contractId}`,
+    `Approved Manifest Digest: ${preview.approvedDigest.slice(0, 16)}`,
+    `Current Manifest Digest:  ${preview.currentDigest.slice(0, 16)}`,
+    `Status: ${preview.isStale ? "STALE (Reapproval Required)" : "CURRENT (Approved)"}`,
+    "",
+    "--- Approved Scope & Changes ---",
+  ];
+
+  for (const item of preview.approvedScope) {
+    let marker: string;
+    if (item.status === "changed") {
+      marker = "[* CHANGED] ";
+    } else if (item.status === "removed") {
+      marker = "[- REMOVED] ";
+    } else {
+      marker = "[UNCHANGED] ";
+    }
+
+    lines.push(`  ${marker}${item.courseId} / Week ${item.weekNumber} / ${item.title} (${item.moduleId})`);
+    if (item.changeReason) {
+      lines.push(`    Reason: ${item.changeReason}`);
+    }
+    for (const f of item.files) {
+      lines.push(`      - file: ${f.filename} (${f.fileId})`);
+    }
+  }
+
+  if (preview.added.length > 0) {
+    lines.push("");
+    lines.push("--- New Unapproved Materials (Pending Approval) ---");
+    for (const item of preview.added) {
+      lines.push(`  [+ ADDED]   ${item.courseId} / Week ${item.weekNumber} / ${item.title} (${item.moduleId})`);
+      for (const f of item.files) {
+        lines.push(`      - file: ${f.filename} (${f.fileId})`);
+      }
+    }
+  }
+
+  lines.push("");
+  lines.push(
+    `Summary: ${preview.unchanged.length} unchanged, ${preview.changed.length} changed, ${preview.removed.length} removed, ${preview.added.length} newly added`,
+  );
+  if (preview.isStale) {
+    lines.push("Action Required: Reapproval needed before proceeding with modified items.");
+  }
+
+  return lines.join("\n");
+}
+
+/**
+ * Formats a General Task / CoursePilot execution report (D-13, D-14, D-15, D-16).
+ * Follows aggregate-first principle, followed by course/week/material details, and finally next actions.
+ */
+export function formatGeneralTaskReport(report: GeneralTaskReportData): string {
+  const lines: string[] = [
+    `General Task Report: ${report.contractId}`,
+    `Run: ${report.runId}`,
+    `Overall Status: ${report.overallStatus.toUpperCase()}`,
+    "",
+    "=== 1. Summary (Aggregate) ===",
+    "Physical Files (Deduplicated):",
+    `  Total Distinct Saved: ${report.summary.physicalFiles.totalDistinctSaved}`,
+    `  Newly Downloaded:     ${report.summary.physicalFiles.newlyDownloaded}`,
+    `  Previously Confirmed: ${report.summary.physicalFiles.previouslyConfirmed}`,
+    "Materials Completion (Denominator: Approved Materials):",
+    `  Approved Target Total:  ${report.summary.materials.approvedTotal}`,
+    `  Verified Complete:      ${report.summary.materials.verifiedComplete}`,
+    `  Partial Complete:       ${report.summary.materials.partialComplete}`,
+    `  Failed / Unsaved:       ${report.summary.materials.failedOrUnsaved}`,
+    `  Viewed Only (Unsaved):  ${report.summary.materials.viewedOnly}`,
+    `  Pending Unapproved:     ${report.summary.materials.pendingUnapproved} (not counted in denominator)`,
+    "",
+    "=== 2. Materials & Files Details ===",
+  ];
+
+  const sanitize = (raw: string, maxLen = 120): string => {
+    const cleaned = raw.replace(/[\x00-\x1F\x7F]/gu, "").replace(/\s+/gu, " ").trim();
+    return cleaned.length <= maxLen ? cleaned : `${cleaned.slice(0, maxLen - 3)}...`;
+  };
+
+  for (const item of report.details) {
+    const title = sanitize(item.title);
+    lines.push(`- [${item.status.toUpperCase()}] ${item.courseId} Week ${item.weekNumber}: ${title} (${item.itemId})`);
+    lines.push(`  Files: ${item.verifiedFilesCount}/${item.totalRequiredFilesCount} verified`);
+    for (const f of item.files) {
+      const filename = sanitize(f.filename);
+      const bytesStr = f.bytes !== undefined ? `, ${f.bytes} bytes` : "";
+      const shaStr = f.sha256 ? `, sha256: ${f.sha256.slice(0, 8)}...` : "";
+      const errStr = f.error ? ` - error: ${sanitize(f.error, 150)}` : "";
+      lines.push(`    * [${f.status}] ${filename} (${f.fileId}${bytesStr}${shaStr})${errStr}`);
+    }
+  }
+
+  lines.push("");
+  lines.push("=== 3. Next Actions for Unresolved Materials ===");
+  if (report.nextActions.length === 0) {
+    lines.push("  None: all approved materials are verified complete.");
+  } else {
+    for (const action of report.nextActions) {
+      lines.push(`- [${action.actionType.toUpperCase()}] ${sanitize(action.title)} (${action.itemId})`);
+      lines.push(`  Reason: ${action.reason}`);
+      lines.push(`  Action: ${sanitize(action.description, 200)}`);
+    }
   }
 
   return lines.join("\n");

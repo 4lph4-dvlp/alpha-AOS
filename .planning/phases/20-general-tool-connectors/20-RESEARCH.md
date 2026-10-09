@@ -201,9 +201,9 @@ The current task engine is a development tracer with Git baseline/artifact assum
 
 ## Open Questions and Execution Limits
 
-1. **Per-module/per-file execution:** The current CoursePilot CLI cannot target a material ID or attachment. [VERIFIED: D:/dev/coursePilot/src/coursepilot/cli.py:694-758] The planner should design a blocked/reapproval outcome for unsafe groups and explicitly avoid promising automatic retry of only one failed file in those groups. Supporting that case fully would require a proven upstream selector, which is outside this phase's authority. [ASSUMED — design consequence]
-2. **Attachment completeness:** The inspected `MaterialDownloadResult` exposes only one `saved_path`. [VERIFIED: D:/dev/coursePilot/src/coursepilot/materials/models.py:37-46] The planner should prove single-file cases and retain unknown/partial status where the required attachment set is not observable. [ASSUMED — design consequence]
-3. **Live LMS access:** No credential contents or live LMS calls were read or made in this research. Bounded local dry-run/live validation is allowed only under the user's approved task scope. [CITED: .planning/ROADMAP.md]
+1. **BLOCKED — per-material/per-file execution:** The supported CoursePilot CLI cannot target a material ID or attachment. [VERIFIED: D:/dev/coursePilot/src/coursepilot/cli.py:694-758] The internal `process_course_materials(course, materials, ...)` accepts a selected list, but it is not exposed by the installed skill, JSON contract, package exports, or CLI as a supported external API. [VERIFIED: D:/dev/coursePilot/src/coursepilot/materials/runner.py:70-167; D:/dev/coursePilot/src/coursepilot/materials/__init__.py; C:/Users/alpha/.codex/skills/coursepilot/JSON_CONTRACT.md] Blocking an unsafe course/week batch protects approval but does not satisfy D-01/D-03 (unchanged approved items continue) or D-10 (retry only failed files). Planning needs an explicit decision on a supported upstream selector or a change to those locked decisions; this conflict is not resolved by the current plans.
+2. **BLOCKED — attachment completeness:** `MaterialItem` has no attachment collection and the parser maps a module to one material; `MaterialDownloadResult` exposes one `saved_path`. [VERIFIED: D:/dev/coursePilot/src/coursepilot/materials/models.py:18-46; D:/dev/coursePilot/src/coursepilot/scraper/material_parser.py:10-29] The current public result cannot establish attachment-list changes under D-03 or prove all required files under D-06 for a multi-attachment module. Single-file receipts can be verified; arbitrary module completion needs an upstream source manifest or an explicitly revised decision. This conflict is not resolved by the current plans.
+3. **RESOLVED for planning — live LMS access:** No credential contents or live LMS calls were read or made in this research. Offline fixtures cover planning; bounded local dry-run/live validation remains an execution-time check only under the user's approved task scope. [CITED: .planning/ROADMAP.md]
 
 ## Environment Availability
 
@@ -224,7 +224,7 @@ The current task engine is a development tracer with Git baseline/artifact assum
 |---|---|
 | Framework | Node built-in `node:test` after TypeScript build. [VERIFIED: package.json:37-43] |
 | Config file | `tsconfig.json` and `scripts/run-tests.mjs`. [VERIFIED: package.json:37-43] |
-| Quick run | `npm run build` then `node --test dist/test/task-connector.test.js dist/test/task-coursepilot.test.js` (proposed filenames). [ASSUMED] |
+| Quick run | Use each plan task's focused `npm run build && node scripts/run-tests.mjs --files dist/test/<suite>.test.js && npm run check` command. [VERIFIED: 20-01..06-PLAN.md] |
 | Full suite | `npm run check`; `npm test`. [VERIFIED: package.json:37-43] |
 
 ### Phase Requirements → Test Map
@@ -232,8 +232,8 @@ The current task engine is a development tracer with Git baseline/artifact assum
 | Req ID | Behavior and falsification | Test type | Proposed file |
 |---|---|---|---|
 | TOOL-01 | Generic fixture runs preview/perform/reconcile/verify without Git artifact or code-test path; stale manifest digest refuses perform. | unit/integration | `test/task-connector.test.ts` [ASSUMED] |
-| TOOL-02 | Mixed downloaded/planned/viewed/skipped/error, duplicate physical path, missing file, removed file on resume/report, changed filename, and unknown attachment set yield exact separate file/item counts. | fixture/integration | `test/task-coursepilot.test.ts` [ASSUMED] |
-| TOOL-04 | Valid exit-1 partial retains prior successes; exit-2 empty stdout stops; unknown adapter version, malformed result, duplicate IDs, hostile title, output cap and wrong source ID block without command execution. | adversarial fixture | `test/task-coursepilot.test.ts` [ASSUMED] |
+| TOOL-02 | Mixed downloaded/planned/viewed/skipped/error, duplicate physical path, missing file, removed file on resume/report, changed filename, and unknown attachment set yield exact separate file/item counts. | fixture/integration | `test/task-coursepilot-preview.test.ts`, `test/task-coursepilot-files.test.ts`, `test/task-coursepilot-report.test.ts` [PLANNED: 20-03/04/06-PLAN.md] |
+| TOOL-04 | Valid exit-1 partial retains prior successes; exit-2 empty stdout stops; unknown adapter version, malformed result, duplicate IDs, hostile title, output cap and wrong source ID block without command execution. | adversarial fixture | `test/task-coursepilot-run.test.ts`, `test/task-coursepilot-report.test.ts` [PLANNED: 20-05/06-PLAN.md] |
 
 ### Sampling Rate
 
@@ -244,7 +244,7 @@ The current task engine is a development tracer with Git baseline/artifact assum
 ### Wave 0 Gaps
 
 - Add closed connector protocol schema and fixture test helper before orchestrator integration. [ASSUMED]
-- Add fake CoursePilot executable/output fixtures for exit 0/1/2, schema drift, hostile text, interrupted action, and file disappearance. [ASSUMED]
+- Add fake CoursePilot executable/output fixtures in the planned preview, files, run, and report suites for exit 0/1/2, schema drift, hostile text, interrupted action, and file disappearance. [PLANNED: 20-03..06-PLAN.md]
 - Include a fixture that fails if the adapter invokes a course/week containing any unapproved or already verified actionable material. [ASSUMED]
 
 ## Security Domain

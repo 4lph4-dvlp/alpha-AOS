@@ -31,12 +31,12 @@
     {
       "number": "19",
       "name": "Structured Independent Review",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "20",
       "name": "General Tool Connectors",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "21",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
+    "command": "/gsd:progress --next",
     "label": "Advance to the next step",
-    "reason": "Phase 19 of 9 · 44% · executing plan 6 of 6"
+    "reason": "Phase 20 of 9 · 11% · executing"
   },
-  "updated_at": "2026-10-08T06:50:00.000Z"
+  "updated_at": "2026-10-09T08:26:54.114Z"
 }

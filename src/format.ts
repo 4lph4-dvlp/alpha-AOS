@@ -1110,10 +1110,13 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
       ? `Git authority (local-commit): the controller may write ${preview.gitAuthority.gitDirectory ?? ""} for this run; its config, hooks and info stay read-only`
       : `Git authority (local-commit): none — ${preview.gitAuthority.reason ?? "no git directory is granted"}`,
     "Mandatory criteria:",
-    ...contract.criterion.map(
-      (criterion) =>
-        `  ${criterion.id}: ${criterion.title} — measured by ${criterion.measurement.entry}, expected exit ${criterion.measurement.expect.exitCode}`,
-    ),
+    ...contract.criterion.map((criterion) => {
+      const measuredDesc =
+        criterion.measurement.kind === "cli-json"
+          ? `measured by ${criterion.measurement.entry}, expected exit ${criterion.measurement.expect.exitCode}`
+          : `measured by item ${criterion.measurement.itemId}, expected status ${criterion.measurement.expect.status}`;
+      return `  ${criterion.id}: ${criterion.title} — ${measuredDesc}`;
+    }),
     `Agents: controller ${contract.agentPolicy.controller}, executor ${contract.agentPolicy.executor}, reviewer ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession})`,
     `Wall-time limit: ${minutes === null ? "no overall limit" : `${minutes} minutes`}`,
     `Approval: ${preview.approved ? "this digest is approved" : "not approved"}`,

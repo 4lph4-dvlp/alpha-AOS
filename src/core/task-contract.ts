@@ -16,7 +16,7 @@ export const TASK_CONTRACT_DIGEST_KIND = "task-contract";
 /** A contract larger than this is refused before it is parsed. */
 export const TASK_CONTRACT_MAX_BYTES = 256 * 1024;
 
-export type TaskEffect = "workspace-write" | "local-commit" | "dependency-change";
+export type TaskEffect = "workspace-write" | "local-commit" | "dependency-change" | "external-download";
 
 export interface TaskCliJsonMeasurement {
   kind: "cli-json";
@@ -30,17 +30,27 @@ export interface TaskCliJsonMeasurement {
   };
 }
 
+export interface TaskOutcomeMeasurement {
+  kind: "outcome";
+  itemId: string;
+  expect: {
+    status: "verified" | "completed";
+  };
+}
+
+export type TaskMeasurementConfig = TaskCliJsonMeasurement | TaskOutcomeMeasurement;
+
 export interface TaskCriterion {
   id: string;
   title: string;
   description: string;
   mandatory: true;
-  measurement: TaskCliJsonMeasurement;
+  measurement: TaskMeasurementConfig;
 }
 
 export interface TaskScope {
   projectRoot: string;
-  workflow: "gsd-quick";
+  workflow?: "gsd-quick" | "generic-connector" | string | undefined;
   summary: string;
 }
 
@@ -66,7 +76,7 @@ export interface TaskContract {
   id: string;
   revision: number;
   mode: "autopilot";
-  category: "development";
+  category: "development" | "general";
   goal: string;
   scope: TaskScope;
   allowedRoots: string[];
@@ -74,19 +84,44 @@ export interface TaskContract {
   criterion: TaskCriterion[];
   agentPolicy: TaskAgentPolicy;
   resourcePolicy: TaskResourcePolicy;
+  connectorId?: string | undefined;
+  protocolVersion?: 1 | undefined;
+  manifestDigest?: string | undefined;
 }
+
+export interface DevelopmentTaskContract extends TaskContract {
+  category: "development";
+  scope: TaskScope & { workflow: "gsd-quick" };
+}
+
+export interface GeneralTaskContract extends TaskContract {
+  category: "general";
+  connectorId: string;
+  protocolVersion: 1;
+  manifestDigest: string;
+}
+
+export interface DigestableTaskCliJsonMeasurement {
+  kind: "cli-json";
+  entry: string;
+  inputText: string;
+  expect: { exitCode: number; stdoutJson: unknown; stdoutEmpty: boolean; stderrJson: unknown };
+}
+
+export interface DigestableTaskOutcomeMeasurement {
+  kind: "outcome";
+  itemId: string;
+  expect: { status: string };
+}
+
+export type DigestableTaskMeasurement = DigestableTaskCliJsonMeasurement | DigestableTaskOutcomeMeasurement;
 
 export interface DigestableTaskCriterion {
   id: string;
   title: string;
   description: string;
   mandatory: true;
-  measurement: {
-    kind: "cli-json";
-    entry: string;
-    inputText: string;
-    expect: { exitCode: number; stdoutJson: unknown; stdoutEmpty: boolean; stderrJson: unknown };
-  };
+  measurement: DigestableTaskMeasurement;
 }
 
 /** Everything a reviewer approves, in one fixed key order. */
@@ -95,9 +130,13 @@ export interface DigestableTaskContract {
   id: string;
   revision: number;
   mode: "autopilot";
-  category: "development";
+  category: "development" | "general";
   goal: string;
-  scope: TaskScope;
+  scope: {
+    projectRoot: string;
+    workflow: string;
+    summary: string;
+  };
   allowedRoots: string[];
   allowedEffects: TaskEffect[];
   criterion: DigestableTaskCriterion[];
@@ -108,6 +147,9 @@ export interface DigestableTaskContract {
     maxTokens: number | null;
     maxWallTimeMinutes: number | null;
   };
+  connectorId?: string | undefined;
+  protocolVersion?: number | undefined;
+  manifestDigest?: string | undefined;
 }
 
 export interface LoadedTaskContract {
@@ -371,16 +413,34 @@ function assertContractAuthority(contract: TaskContract, label: string): void {
     roots.push(normalized);
   }
   for (const [index, criterion] of contract.criterion.entries()) {
-    const path = `/criterion/${index}/measurement/entry`;
-    const normalized = normalizeContractPath(criterion.measurement.entry);
-    const problem = projectPathProblem(normalized);
-    if (problem !== null) throw refuse(`the measurement entry ${problem}`, path);
-    if (!roots.some((root) => normalized === root || normalized.startsWith(`${root}/`))) {
-      throw refuse("the measurement entry is outside every allowed root", path);
+    if (criterion.measurement.kind === "cli-json") {
+      const path = `/criterion/${index}/measurement/entry`;
+      const normalized = normalizeContractPath(criterion.measurement.entry);
+      const problem = projectPathProblem(normalized);
+      if (problem !== null) throw refuse(`the measurement entry ${problem}`, path);
+      if (!roots.some((root) => normalized === root || normalized.startsWith(`${root}/`))) {
+        throw refuse("the measurement entry is outside every allowed root", path);
+      }
+    } else if (criterion.measurement.kind === "outcome") {
+      if (!criterion.measurement.itemId || criterion.measurement.itemId.trim().length === 0) {
+        throw refuse("the measurement item ID must not be empty", `/criterion/${index}/measurement/itemId`);
+      }
     }
   }
-  if (contract.scope.workflow === "gsd-quick" && !contract.allowedEffects.includes("local-commit")) {
-    throw refuse("GSD quick records its work as local commits, so add local-commit to allowedEffects", "/allowedEffects");
+  if (contract.category === "development") {
+    if (contract.scope.workflow === "gsd-quick" && !contract.allowedEffects.includes("local-commit")) {
+      throw refuse("GSD quick records its work as local commits, so add local-commit to allowedEffects", "/allowedEffects");
+    }
+  } else if (contract.category === "general") {
+    if (!contract.connectorId || contract.connectorId.trim().length === 0) {
+      throw refuse("the connector ID must not be empty", "/connectorId");
+    }
+    if (contract.protocolVersion !== 1) {
+      throw refuse("unsupported protocolVersion for general task", "/protocolVersion");
+    }
+    if (!contract.manifestDigest || !/^[0-9a-f]{64}$/i.test(contract.manifestDigest)) {
+      throw refuse("the manifest digest must be a 64-character hex sha256", "/manifestDigest");
+    }
   }
   const minutes = contract.resourcePolicy.maxWallTimeMinutes;
   if (minutes !== undefined && !Number.isInteger(minutes)) {
@@ -467,7 +527,7 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
     goal: contract.goal.normalize("NFC"),
     scope: {
       projectRoot: resolve(contract.scope.projectRoot).normalize("NFC"),
-      workflow: contract.scope.workflow,
+      workflow: contract.scope.workflow ?? (contract.category === "development" ? "gsd-quick" : "generic-connector"),
       summary: contract.scope.summary.normalize("NFC"),
     },
     allowedRoots: sortedUnique(contract.allowedRoots.map(normalizeContractPath)),
@@ -479,17 +539,25 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
         title: criterion.title.normalize("NFC"),
         description: criterion.description.normalize("NFC"),
         mandatory: criterion.mandatory,
-        measurement: {
-          kind: criterion.measurement.kind,
-          entry: normalizeContractPath(criterion.measurement.entry),
-          inputText: criterion.measurement.inputText,
-          expect: {
-            exitCode: criterion.measurement.expect.exitCode,
-            stdoutJson: canonicalJsonValue(criterion.measurement.expect.stdoutJson ?? null),
-            stdoutEmpty: criterion.measurement.expect.stdoutEmpty ?? false,
-            stderrJson: canonicalJsonValue(criterion.measurement.expect.stderrJson ?? null),
-          },
-        },
+        measurement: criterion.measurement.kind === "cli-json"
+          ? {
+              kind: "cli-json" as const,
+              entry: normalizeContractPath(criterion.measurement.entry),
+              inputText: criterion.measurement.inputText,
+              expect: {
+                exitCode: criterion.measurement.expect.exitCode,
+                stdoutJson: canonicalJsonValue(criterion.measurement.expect.stdoutJson ?? null),
+                stdoutEmpty: criterion.measurement.expect.stdoutEmpty ?? false,
+                stderrJson: canonicalJsonValue(criterion.measurement.expect.stderrJson ?? null),
+              },
+            }
+          : {
+              kind: "outcome" as const,
+              itemId: criterion.measurement.itemId,
+              expect: {
+                status: criterion.measurement.expect.status,
+              },
+            },
       })),
     agentPolicy: {
       controller: contract.agentPolicy.controller,
@@ -503,6 +571,13 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       maxTokens: contract.resourcePolicy.maxTokens ?? null,
       maxWallTimeMinutes: contract.resourcePolicy.maxWallTimeMinutes ?? null,
     },
+    ...(contract.category === "general"
+      ? {
+          connectorId: contract.connectorId,
+          protocolVersion: contract.protocolVersion,
+          manifestDigest: contract.manifestDigest,
+        }
+      : {}),
   };
 }
 
@@ -539,6 +614,9 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("resourcePolicy.maxCycles", before.resourcePolicy.maxCycles, after.resourcePolicy.maxCycles);
   compare("resourcePolicy.maxTokens", before.resourcePolicy.maxTokens, after.resourcePolicy.maxTokens);
   compare("resourcePolicy.maxWallTimeMinutes", before.resourcePolicy.maxWallTimeMinutes, after.resourcePolicy.maxWallTimeMinutes);
+  compare("connectorId", before.connectorId ?? null, after.connectorId ?? null);
+  compare("protocolVersion", before.protocolVersion ?? null, after.protocolVersion ?? null);
+  compare("manifestDigest", before.manifestDigest ?? null, after.manifestDigest ?? null);
   const criteria = (view: DigestableTaskContract) =>
     new Map(view.criterion.map((criterion) => [criterion.id, JSON.stringify(canonicalJsonValue(criterion))]));
   const left = criteria(before);

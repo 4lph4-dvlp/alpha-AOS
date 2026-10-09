@@ -92,7 +92,9 @@ test("equivalent spellings of an allowed root and a measurement entry keep the d
   const slashed = clone(base);
   slashed.allowedRoots = ["bin/", "src", "test", "package.json", "README.md"];
   const backslashed = clone(base);
-  for (const criterion of backslashed.criterion) criterion.measurement.entry = "bin\\inventory-summary.mjs";
+  for (const criterion of backslashed.criterion) {
+    if (criterion.measurement.kind === "cli-json") criterion.measurement.entry = "bin\\inventory-summary.mjs";
+  }
 
   const digest = taskContractDigest(base);
   assert.equal(taskContractDigest(dotted), digest);
@@ -117,13 +119,13 @@ test("expected JSON is compared by meaning while inputText is compared byte for 
   const base = inventorySummaryContract(fixture.projectRoot);
   const reordered = clone(base);
   const criterion = reordered.criterion[0];
-  assert.ok(criterion !== undefined);
+  assert.ok(criterion !== undefined && criterion.measurement.kind === "cli-json");
   criterion.measurement.expect.stdoutJson = { skus: { "B-200": 5, "A-100": 5 }, totalQuantity: 10, rows: 3 };
   assert.equal(taskContractDigest(reordered), taskContractDigest(base));
 
   const crlf = clone(base);
   const crlfCriterion = crlf.criterion[0];
-  assert.ok(crlfCriterion !== undefined);
+  assert.ok(crlfCriterion !== undefined && crlfCriterion.measurement.kind === "cli-json");
   crlfCriterion.measurement.inputText = crlfCriterion.measurement.inputText.replaceAll("\n", "\r\n");
   assert.notEqual(taskContractDigest(crlf), taskContractDigest(base));
 });
@@ -159,7 +161,7 @@ test("each changed authority field is named in the drift refusal", async (contex
   reviewer.agentPolicy.reviewer = "pi";
   const criterion = clone(base);
   const valid = criterion.criterion.find((entry) => entry.id === "valid-summary");
-  assert.ok(valid !== undefined);
+  assert.ok(valid !== undefined && valid.measurement.kind === "cli-json");
   valid.measurement.expect.stdoutJson = { rows: 3, totalQuantity: 11, skus: { "A-100": 5, "B-200": 5 } };
   const limit = clone(base);
   limit.resourcePolicy = { maxWallTimeMinutes: 90 };
@@ -297,7 +299,7 @@ test("a measurement entry outside every allowed root is refused by criterion ind
   const fixture = await createTaskFixture(context);
   const contract = inventorySummaryContract(fixture.projectRoot);
   const second = contract.criterion[1];
-  assert.ok(second !== undefined);
+  assert.ok(second !== undefined && second.measurement.kind === "cli-json");
   second.measurement.entry = "lib/tool.mjs";
   await assert.rejects(
     loadVariant(fixture, contract),
@@ -306,7 +308,7 @@ test("a measurement entry outside every allowed root is refused by criterion ind
 
   const binary = inventorySummaryContract(fixture.projectRoot);
   const first = binary.criterion[0];
-  assert.ok(first !== undefined);
+  assert.ok(first !== undefined && first.measurement.kind === "cli-json");
   first.measurement.entry = "binary/tool.mjs";
   await assert.rejects(
     loadVariant(fixture, binary),

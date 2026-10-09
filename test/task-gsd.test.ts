@@ -108,11 +108,13 @@ test("the controller prompt holds out every measured input and expected output",
   const prompt = await promptFor(fixture);
 
   for (const criterion of contract.criterion) {
-    assert.equal(prompt.includes(criterion.measurement.inputText), false, `${criterion.id} input is held out`);
-    const expect = criterion.measurement.expect;
-    for (const expected of [expect.stdoutJson, expect.stderrJson]) {
-      if (expected === undefined) continue;
-      assert.equal(prompt.includes(JSON.stringify(expected)), false, `${criterion.id} expected output is held out`);
+    if (criterion.measurement.kind === "cli-json") {
+      assert.equal(prompt.includes(criterion.measurement.inputText), false, `${criterion.id} input is held out`);
+      const expect = criterion.measurement.expect;
+      for (const expected of [expect.stdoutJson, expect.stderrJson]) {
+        if (expected === undefined) continue;
+        assert.equal(prompt.includes(JSON.stringify(expected)), false, `${criterion.id} expected output is held out`);
+      }
     }
   }
   assert.ok(Buffer.byteLength(prompt, "utf8") <= GSD_CONTROLLER_PROMPT_MAX_BYTES);

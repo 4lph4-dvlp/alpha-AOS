@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { lstat, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -6,6 +6,11 @@ import type { HarnessId } from "../types.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
 import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
 import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guard.js";
+import {
+  connectorArtifactDigest,
+  type ConnectorFileReceiptV1,
+  type ConnectorPort,
+} from "./task-connector.js";
 import {
   verifyReviewWitness,
   readReviewWitnessReceipt,
@@ -49,6 +54,8 @@ import {
   taskSchema,
   type TaskAgentPolicy,
   type TaskContract,
+  type GeneralTaskContract,
+  type TaskApprovalRecord,
 } from "./task-contract.js";
 import { codexConfigRoot } from "./gsd-compat.js";
 import {
@@ -75,7 +82,7 @@ import { grantedGitDirectory, resolveTaskGitDirectory, snapshotGitControl } from
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
-import { assessTaskReview, reduceTaskVerdict, type TaskPrecondition, type TaskVerdict } from "./task-verdict.js";
+import { assessTaskReview, reduceTaskVerdict, type TaskPrecondition, type TaskVerdict, type TaskReviewAssessment } from "./task-verdict.js";
 import {
   CAPABILITY_BOUNDARIES,
   selectStepObligations,
@@ -212,6 +219,7 @@ export interface TaskPorts {
   capabilityAlternates?: readonly CapabilityAlternateCandidate[] | undefined;
   userActionAvailable?: boolean | undefined;
   userActionDescription?: string | undefined;
+  connector?: ConnectorPort | undefined;
 }
 
 export interface TaskVerdictRow {
@@ -320,7 +328,9 @@ export type TaskRunErrorCode =
   | "unsupported-agent-pair"
   | "run-record-invalid"
   | "dirty-baseline"
-  | "gsd-not-ready";
+  | "gsd-not-ready"
+  | "missing-connector"
+  | "stale-manifest";
 
 export class TaskRunError extends Error {
   readonly code: TaskRunErrorCode;
@@ -797,6 +807,225 @@ function diffGitControl(before: Array<[string, string]>, after: Array<[string, s
   return [...changed].sort();
 }
 
+async function startGeneralTask(params: {
+  contract: GeneralTaskContract;
+  digest: string;
+  approval: TaskApprovalRecord;
+  options: StartTaskOptions;
+  clock: () => Date;
+}): Promise<{ run: TaskRunRecord; recordPath: string }> {
+  const { contract, digest, options, clock } = params;
+  const connector = options.ports.connector;
+  if (!connector) {
+    throw new TaskRunError("missing-connector", `Task ${contract.id} requires a connector port`);
+  }
+
+  const projectRoot = resolve(contract.scope.projectRoot);
+  const started = clock();
+  const runId = options.runId ?? `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  const minutes = contract.resourcePolicy.maxWallTimeMinutes;
+  const deadlineAt = minutes === undefined ? null : new Date(started.getTime() + minutes * 60_000).toISOString();
+
+  const executing: TaskRunRecord = {
+    schemaVersion: 1,
+    kind: "task-run",
+    runId,
+    contractId: contract.id,
+    revision: contract.revision,
+    contractDigest: digest,
+    status: "executing",
+    startedAt: started.toISOString(),
+    finishedAt: null,
+    artifact: null,
+    executor: null,
+    reviewer: null,
+    verdict: null,
+    stopReason: null,
+    nextAction: null,
+    decisions: [],
+    decisionLog: null,
+    baseCommit: null,
+    deadlineAt,
+    gsd: null,
+    effects: null,
+    gitDirectory: null,
+  };
+  const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
+  let record = executing;
+
+  const finish = async (next: TaskRunRecord): Promise<{ run: TaskRunRecord; recordPath: string }> => {
+    record = next;
+    await writeRunRecord(options.stateRoot, options.packageRoot, record);
+    return { run: record, recordPath };
+  };
+
+  try {
+    const preview = await connector.preview({ projectRoot });
+    if (preview.manifestDigest !== contract.manifestDigest) {
+      throw new TaskRunError(
+        "stale-manifest",
+        `Task ${contract.id} approved manifest digest ${contract.manifestDigest} does not match current connector preview digest ${preview.manifestDigest}.`,
+      );
+    }
+
+    const allReceipts: ConnectorFileReceiptV1[] = [];
+    for (const item of preview.manifest.items) {
+      const performRes = await connector.perform({
+        manifest: preview.manifest,
+        itemId: item.itemId,
+        expectedDigest: contract.manifestDigest,
+      });
+      if (performRes.status !== "completed") {
+        return await finish({
+          ...record,
+          status: "rejected",
+          finishedAt: clock().toISOString(),
+          stopReason: `Connector item ${item.itemId} failed to perform: ${performRes.detail ?? "unknown error"}`,
+          nextAction: "Inspect connector error or re-attempt execution",
+        });
+      }
+      const verifyRes = await connector.verify({
+        manifest: preview.manifest,
+        itemId: item.itemId,
+      });
+      allReceipts.push(...verifyRes.receipts);
+    }
+
+    const artifactDigest = connectorArtifactDigest({
+      manifestDigest: contract.manifestDigest,
+      receipts: allReceipts,
+    });
+    const totalBytes = allReceipts.reduce((sum, r) => sum + r.bytes, 0);
+    const artifact = { digest: artifactDigest, fileCount: allReceipts.length, totalBytes };
+    record = { ...record, artifact };
+
+    const measurements: TaskMeasurement[] = [];
+    for (const criterion of contract.criterion) {
+      const m = criterion.measurement;
+      if (m.kind === "outcome") {
+        const itemId = m.itemId;
+        const itemReceipts = allReceipts.filter((r) => r.itemId === itemId);
+        const itemPass = itemReceipts.length > 0;
+        measurements.push({
+          criterionId: criterion.id,
+          outcome: itemPass ? "pass" : "fail",
+          exitCode: itemPass ? 0 : 1,
+          stdoutSha256: null,
+          detail: itemPass
+            ? `Connector item ${itemId} verified with ${itemReceipts.length} receipt(s)`
+            : `Connector item ${itemId} has no verified receipts`,
+          cause: "none",
+          measuredBy: "contract",
+          substituteDecisionId: null,
+        });
+      } else {
+        measurements.push({
+          criterionId: criterion.id,
+          outcome: "fail",
+          exitCode: 1,
+          stdoutSha256: null,
+          detail: "cli-json measurement not supported for general non-code tasks",
+          cause: "none",
+          measuredBy: "contract",
+          substituteDecisionId: null,
+        });
+      }
+    }
+
+    const requestId = createHash("sha256").update(`${runId}-req`).digest("hex").slice(0, 16);
+    const sessionId = `session-${runId}`;
+    const reviewRequest: ReviewRequest = {
+      runId,
+      requestId,
+      sessionId,
+      contract,
+      contractDigest: digest,
+      artifactDigest: artifact.digest,
+      targetRevisionSha: `general-manifest:${contract.manifestDigest}`,
+      reviewRoot: projectRoot,
+      measurements,
+      deadlineAt,
+    };
+
+    const reviewDispatch = await options.ports.reviewer.review(reviewRequest);
+    const reviewRecord: TaskRunReviewer = {
+      harness: reviewDispatch.harness,
+      version: reviewDispatch.version,
+      executable: reviewDispatch.executable,
+      sessionId: reviewDispatch.sessionId,
+      requestId,
+      requestedSessionId: sessionId,
+      report: reviewDispatch.report,
+    };
+    record = { ...record, reviewer: reviewRecord };
+
+    const reviewValidation = await validateTaskReviewEvidence({
+      report: reviewDispatch.report!,
+      request: {
+        requestId,
+        contractDigest: digest,
+        artifactDigest: artifact.digest,
+        targetRevisionSha: reviewRequest.targetRevisionSha,
+        measurements,
+      },
+      contract,
+      snapshotRoot: projectRoot,
+    });
+
+    const reviewAssessment: TaskReviewAssessment = {
+      status: reviewValidation.valid ? "ok" : "malformed",
+      issues: reviewValidation.issues.map((i) => `${i.code}: ${i.message}`),
+      rows: new Map(),
+      suggestions: reviewDispatch.report?.suggestions ?? [],
+    };
+    if (reviewValidation.valid && reviewDispatch.report) {
+      for (const row of reviewDispatch.report.criteria) {
+        reviewAssessment.rows.set(row.criterionId, {
+          verdict: row.verdict,
+          severity: row.severity,
+          evidence: row.evidence,
+          locator: row.locator ?? null,
+          abstainReason: row.abstainReason ?? null,
+          finding: row.finding
+            ? {
+                summary: row.finding.summary,
+                reproduction: row.finding.reproduction ?? null,
+              }
+            : null,
+        });
+      }
+    }
+
+    const verdict = reduceTaskVerdict({
+      contract,
+      artifactDigest: artifact.digest,
+      measurements,
+      review: reviewAssessment,
+      confirmations: new Map(),
+      preconditions: [],
+      refusal: null,
+    });
+
+    return await finish({
+      ...record,
+      status: verdict.overall,
+      verdict,
+      finishedAt: clock().toISOString(),
+      nextAction: runNextAction(verdict),
+    });
+  } catch (error) {
+    if (error instanceof TaskRunError) throw error;
+    const message = bounded(error instanceof Error ? error.message : String(error), 300);
+    return await finish({
+      ...record,
+      status: "unknown",
+      finishedAt: clock().toISOString(),
+      stopReason: message,
+      nextAction: "Inspect connector error",
+    });
+  }
+}
+
 /**
  * Starts one run of an approved contract. The first record written consumes
  * the approval, so one approval authorizes exactly one run (D-02, AUTO-03).
@@ -822,6 +1051,16 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       "unsupported-agent-pair",
       `No proven adapter pair for controller ${contract.agentPolicy.controller}, executor ${contract.agentPolicy.executor} and reviewer ${contract.agentPolicy.reviewer}: ${assessment.missingProof.join("; ") || "no proof recorded"}.`,
     );
+  }
+
+  if (contract.category === "general") {
+    return await startGeneralTask({
+      contract: contract as GeneralTaskContract,
+      digest,
+      approval,
+      options,
+      clock,
+    });
   }
 
   // Every changed path is judged against one recorded clean commit (T-14-37).

@@ -50,10 +50,13 @@
                       "required": ["kind", "identifier"],
                       "additionalProperties": false,
                       "properties": {
-                        "kind": { "type": "string", "enum": ["snapshot-file", "check-receipt"] },
+                        "kind": { "type": "string", "enum": ["snapshot-file", "check-receipt", "connector-item", "connector-file"] },
                         "identifier": { "type": "string" },
                         "inspectedRange": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
-                        "digest": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
+                        "digest": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                        "itemId": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                        "sourceIdentity": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+                        "fileReceiptId": { "anyOf": [{ "type": "string" }, { "type": "null" }] }
                       }
                     },
                     { "type": "null" }

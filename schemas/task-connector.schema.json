@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-connector.schema.json",
+  "title": "alpha-AOS connector manifest",
+  "description": "Closed v1 bounded connector manifest (TOOL-01, TOOL-04).",
+  "type": "object",
+  "required": [
+    "protocolVersion",
+    "connectorId",
+    "adapterContractDigest",
+    "observedAt",
+    "items"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "protocolVersion": { "type": "integer", "enum": [1] },
+    "connectorId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "maxLength": 64 },
+    "adapterContractDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "observedAt": { "type": "string", "maxLength": 64 },
+    "canonicalApprovalDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "items": {
+      "type": "array",
+      "maxItems": 256,
+      "items": {
+        "type": "object",
+        "required": [
+          "itemId",
+          "sourceIdentity",
+          "requiredFiles",
+          "intendedDestination",
+          "effectKinds"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "itemId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "maxLength": 64 },
+          "sourceIdentity": { "type": "string", "minLength": 1, "maxLength": 256 },
+          "title": { "type": "string", "maxLength": 256 },
+          "intendedDestination": { "type": "string", "minLength": 1, "maxLength": 1024 },
+          "effectKinds": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "workspace-write",
+                "external-download",
+                "local-commit",
+                "dependency-change"
+              ]
+            }
+          },
+          "requiredFiles": {
+            "type": "array",
+            "maxItems": 64,
+            "items": {
+              "type": "object",
+              "required": ["fileId", "filename", "destination"],
+              "additionalProperties": false,
+              "properties": {
+                "fileId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$", "maxLength": 64 },
+                "filename": { "type": "string", "minLength": 1, "maxLength": 256 },
+                "destination": { "type": "string", "minLength": 1, "maxLength": 1024 },
+                "expectedBytes": { "type": "integer", "minimum": 0 },
+                "expectedSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

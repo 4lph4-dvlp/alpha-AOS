@@ -35,25 +35,46 @@
         "description": { "type": "string", "minLength": 1, "maxLength": 2000 },
         "mandatory": { "const": true },
         "measurement": {
-          "type": "object",
-          "required": ["kind", "entry", "inputText", "expect"],
-          "additionalProperties": false,
-          "properties": {
-            "kind": { "const": "cli-json" },
-            "entry": { "type": "string", "minLength": 1, "maxLength": 512 },
-            "inputText": { "type": "string", "maxLength": 65536 },
-            "expect": {
+          "oneOf": [
+            {
               "type": "object",
-              "required": ["exitCode"],
+              "required": ["kind", "entry", "inputText", "expect"],
               "additionalProperties": false,
               "properties": {
-                "exitCode": { "type": "integer", "minimum": 0, "maximum": 255 },
-                "stdoutJson": { "$ref": "#/$defs/expectedJson" },
-                "stdoutEmpty": { "const": true },
-                "stderrJson": { "$ref": "#/$defs/expectedJson" }
+                "kind": { "const": "cli-json" },
+                "entry": { "type": "string", "minLength": 1, "maxLength": 512 },
+                "inputText": { "type": "string", "maxLength": 65536 },
+                "expect": {
+                  "type": "object",
+                  "required": ["exitCode"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "exitCode": { "type": "integer", "minimum": 0, "maximum": 255 },
+                    "stdoutJson": { "$ref": "#/$defs/expectedJson" },
+                    "stdoutEmpty": { "const": true },
+                    "stderrJson": { "$ref": "#/$defs/expectedJson" }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "required": ["kind", "itemId", "expect"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "const": "outcome" },
+                "itemId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+                "expect": {
+                  "type": "object",
+                  "required": ["status"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "status": { "type": "string", "enum": ["verified", "completed"] }
+                  }
+                }
               }
             }
-          }
+          ]
         }
       }
     }
@@ -63,15 +84,18 @@
     "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
     "revision": { "type": "integer", "minimum": 1 },
     "mode": { "const": "autopilot" },
-    "category": { "const": "development" },
+    "category": { "enum": ["development", "general"] },
+    "connectorId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+    "protocolVersion": { "const": 1 },
+    "manifestDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
     "scope": {
       "type": "object",
-      "required": ["projectRoot", "workflow", "summary"],
+      "required": ["projectRoot", "summary"],
       "additionalProperties": false,
       "properties": {
         "projectRoot": { "type": "string", "minLength": 1, "maxLength": 1024 },
-        "workflow": { "const": "gsd-quick" },
+        "workflow": { "type": "string", "enum": ["gsd-quick", "generic-connector"] },
         "summary": { "type": "string", "minLength": 1, "maxLength": 2000 }
       }
     },
@@ -86,7 +110,7 @@
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
-      "items": { "enum": ["workspace-write", "local-commit", "dependency-change"] }
+      "items": { "enum": ["workspace-write", "local-commit", "dependency-change", "external-download"] }
     },
     "criterion": {
       "type": "array",

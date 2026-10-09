@@ -4,13 +4,16 @@ import { lstat, readFile } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
 import { normalizeContractPath, type TaskContract } from "./task-contract.js";
 
-export type TaskReviewLocatorKind = "snapshot-file" | "check-receipt";
+export type TaskReviewLocatorKind = "snapshot-file" | "check-receipt" | "connector-item" | "connector-file";
 
 export interface TaskReviewLocator {
   kind: TaskReviewLocatorKind;
   identifier: string;
   inspectedRange?: string | null | undefined;
   digest?: string | null | undefined;
+  itemId?: string | null | undefined;
+  sourceIdentity?: string | null | undefined;
+  fileReceiptId?: string | null | undefined;
 }
 
 export interface TaskReviewReproduction {
@@ -223,11 +226,20 @@ export async function validateTaskReviewEvidence(
   if (report.artifactDigest !== request.artifactDigest) {
     issues.push({ code: "artifact-digest-mismatch", message: "the report is bound to a different artifact digest" });
   }
-  if (request.targetRevisionSha !== undefined && report.targetRevisionSha !== request.targetRevisionSha) {
-    issues.push({ code: "revision-sha-mismatch", message: "the report is bound to a different target revision SHA" });
-  }
-  if (currentHeadSha !== undefined && report.targetRevisionSha !== currentHeadSha) {
-    issues.push({ code: "revision-drift", message: "the report targetRevisionSha does not match current git HEAD" });
+  if (contract.category === "development") {
+    if (!report.targetRevisionSha) {
+      issues.push({ code: "missing-target-revision-sha", message: "development review requires targetRevisionSha" });
+    }
+    if (request.targetRevisionSha !== undefined && report.targetRevisionSha !== request.targetRevisionSha) {
+      issues.push({ code: "revision-sha-mismatch", message: "the report is bound to a different target revision SHA" });
+    }
+    if (currentHeadSha !== undefined && report.targetRevisionSha !== currentHeadSha) {
+      issues.push({ code: "revision-drift", message: "the report targetRevisionSha does not match current git HEAD" });
+    }
+  } else if (contract.category === "general") {
+    if (request.targetRevisionSha !== undefined && report.targetRevisionSha !== undefined && report.targetRevisionSha !== request.targetRevisionSha) {
+      issues.push({ code: "revision-sha-mismatch", message: "the report is bound to a different target revision SHA" });
+    }
   }
 
   // 3. Complete and exact criteria set check (D-03)
@@ -351,7 +363,7 @@ export async function validateTaskReviewEvidence(
         const measurement = request.measurements.find(
           (m) => m.criterionId === row.criterionId || (criterion && m.criterionId === criterion.id),
         );
-        const matchesEntry = criterion && normalizeContractPath(criterion.measurement.entry) === normalizeContractPath(row.locator.identifier);
+        const matchesEntry = criterion && criterion.measurement.kind === "cli-json" && normalizeContractPath(criterion.measurement.entry) === normalizeContractPath(row.locator.identifier);
         const matchesCriterionId = criterion && criterion.id === row.locator.identifier;
         if (!matchesEntry && !matchesCriterionId) {
           issues.push({ criterionId: row.criterionId, code: "unresolvable-check-receipt", message: `${at} evidence locator check receipt ${row.locator.identifier} cannot be resolved` });
@@ -367,6 +379,39 @@ export async function validateTaskReviewEvidence(
           kind: "check-receipt",
           resolvedPathOrId: row.locator.identifier,
           digest: row.locator.digest ?? measurement?.stdoutSha256 ?? null,
+          inspectedRange: row.locator.inspectedRange ?? null,
+        });
+      } else if (row.locator.kind === "connector-item") {
+        const criterion = contract.criterion.find((c) => c.id === row.criterionId);
+        const itemId = row.locator.itemId ?? row.locator.identifier;
+        const matchesItem = criterion && criterion.measurement.kind === "outcome" && criterion.measurement.itemId === itemId;
+        const matchesCriterionId = criterion && criterion.id === row.locator.identifier;
+        if (!matchesItem && !matchesCriterionId) {
+          issues.push({ criterionId: row.criterionId, code: "unresolvable-connector-item", message: `${at} evidence locator connector item ${row.locator.identifier} cannot be resolved` });
+          continue;
+        }
+        if (row.locator.digest && row.locator.digest !== request.artifactDigest) {
+          issues.push({ criterionId: row.criterionId, code: "connector-item-digest-mismatch", message: `${at} evidence locator connector item ${row.locator.identifier} digest mismatch: expected ${row.locator.digest}, got ${request.artifactDigest}` });
+          continue;
+        }
+
+        resolvedLocations.set(row.criterionId, {
+          criterionId: row.criterionId,
+          kind: "connector-item",
+          resolvedPathOrId: itemId,
+          digest: row.locator.digest ?? request.artifactDigest,
+          inspectedRange: row.locator.inspectedRange ?? null,
+        });
+      } else if (row.locator.kind === "connector-file") {
+        if (!row.locator.identifier || row.locator.identifier.trim().length === 0) {
+          issues.push({ criterionId: row.criterionId, code: "unresolvable-connector-file", message: `${at} evidence locator connector file identifier is empty` });
+          continue;
+        }
+        resolvedLocations.set(row.criterionId, {
+          criterionId: row.criterionId,
+          kind: "connector-file",
+          resolvedPathOrId: row.locator.identifier,
+          digest: row.locator.digest ?? null,
           inspectedRange: row.locator.inspectedRange ?? null,
         });
       }

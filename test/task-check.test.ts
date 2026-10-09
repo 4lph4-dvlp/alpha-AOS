@@ -33,6 +33,7 @@ function criterionOf(contract: TaskContract, id: string): TaskCriterion {
 }
 
 function withEntry(criterion: TaskCriterion, entry: string): TaskCriterion {
+  if (criterion.measurement.kind !== "cli-json") throw new Error("expected cli-json");
   return { ...criterion, measurement: { ...criterion.measurement, entry } };
 }
 
@@ -228,7 +229,9 @@ test("the correct implementation passes both criteria when measured on the snaps
     assert.equal(measured.cause, "none");
     assert.equal(measured.measuredBy, "contract");
     assert.equal(measured.substituteDecisionId, null);
-    assert.equal(measured.exitCode, criterion.measurement.expect.exitCode);
+    if (criterion.measurement.kind === "cli-json") {
+      assert.equal(measured.exitCode, criterion.measurement.expect.exitCode);
+    }
     assert.match(measured.stdoutSha256 ?? "", /^[0-9a-f]{64}$/u);
   }
 });

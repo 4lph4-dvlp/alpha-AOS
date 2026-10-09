@@ -259,7 +259,7 @@ export function seededDefectContract(projectRoot: string): TaskContract {
   return {
     ...base,
     criterion: base.criterion.map((criterion) =>
-      criterion.id !== "valid-summary"
+      criterion.id !== "valid-summary" || criterion.measurement.kind !== "cli-json"
         ? criterion
         : {
             ...criterion,
@@ -438,20 +438,23 @@ export function passingReview(request: ReviewRequest): TaskReviewReport {
     contractDigest: request.contractDigest,
     artifactDigest: request.artifactDigest,
     targetRevisionSha: request.targetRevisionSha,
-    criteria: request.contract.criterion.map((criterion) => ({
-      criterionId: criterion.id,
-      verdict: "pass" as const,
-      severity: "blocking" as const,
-      evidence: `Re-ran ${criterion.measurement.entry} for ${criterion.id}; the output matched the contract.`,
-      locator: {
-        kind: "check-receipt" as const,
-        identifier: criterion.measurement.entry,
-        inspectedRange: null,
-        digest: null,
-      },
-      abstainReason: null,
-      finding: null,
-    })),
+    criteria: request.contract.criterion.map((criterion) => {
+      const entry = criterion.measurement.kind === "cli-json" ? criterion.measurement.entry : criterion.measurement.itemId;
+      return {
+        criterionId: criterion.id,
+        verdict: "pass" as const,
+        severity: "blocking" as const,
+        evidence: `Re-ran ${entry} for ${criterion.id}; the output matched the contract.`,
+        locator: {
+          kind: criterion.measurement.kind === "cli-json" ? ("check-receipt" as const) : ("connector-item" as const),
+          identifier: entry,
+          inspectedRange: null,
+          digest: null,
+        },
+        abstainReason: null,
+        finding: null,
+      };
+    }),
     suggestions: [],
   };
 }

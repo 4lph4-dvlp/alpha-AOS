@@ -34,7 +34,7 @@ function createMockContract(overrides: Partial<TaskContract> = {}): TaskContract
       maxOutputBytes: 100000,
     },
     ...overrides,
-  } as TaskContract;
+  } as unknown as TaskContract;
 }
 
 test("evaluateGsdPromptQuestion auto-answers in-scope routine prompt with recommended default (D-01)", () => {

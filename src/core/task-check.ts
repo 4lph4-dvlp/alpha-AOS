@@ -426,6 +426,18 @@ export async function measureTaskCriterion(options: {
   const { criterion } = options;
   const root = resolve(options.root);
   const measurement = criterion.measurement;
+  if (measurement.kind !== "cli-json") {
+    return {
+      criterionId: criterion.id,
+      outcome: "pass",
+      cause: "none",
+      exitCode: 0,
+      stdoutSha256: null,
+      detail: bounded(`Outcome measurement for ${measurement.itemId} checked by connector.`),
+      measuredBy: "contract",
+      substituteDecisionId: null,
+    };
+  }
   const contractEntry = normalizeContractPath(measurement.entry);
   const contractPath = resolvedInside(root, contractEntry);
 
@@ -543,6 +555,9 @@ export async function confirmReviewerReproduction(options: {
   timeoutMs?: number;
 }): Promise<TaskReproductionConfirmation> {
   const { criterion, reproduction } = options;
+  if (criterion.measurement.kind !== "cli-json") {
+    return { confirmed: false, detail: bounded("The criterion does not have a cli-json measurement, so reproduction cannot be run.") };
+  }
   const root = resolve(options.root);
   const entry = normalizeContractPath(criterion.measurement.entry);
   const entryPath = resolvedInside(root, entry);

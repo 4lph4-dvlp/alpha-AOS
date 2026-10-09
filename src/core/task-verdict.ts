@@ -286,7 +286,8 @@ export function reduceTaskVerdict(input: {
       reason: bounded(reason, 1000),
       nextAction,
     });
-    const context = { artifactDigest, entry: criterion.measurement.entry };
+    const entry = criterion.measurement.kind === "cli-json" ? criterion.measurement.entry : criterion.measurement.itemId;
+    const context = { artifactDigest, entry };
 
     if (measured.outcome === "fail") {
       return row("fail", `Measured fail: ${measured.detail}${reviewRecord === null ? "" : ` Review: ${reviewRecord.verdict}.`}`, null);

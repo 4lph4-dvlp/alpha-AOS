@@ -699,7 +699,7 @@ function reportFor(request: ReviewRequest): TaskReviewReport {
       evidence: `bin/inventory-summary.mjs satisfies ${criterion.id}`,
       locator: {
         kind: "check-receipt",
-        identifier: criterion.measurement.entry,
+        identifier: criterion.measurement.kind === "cli-json" ? criterion.measurement.entry : criterion.id,
         inspectedRange: null,
         digest: null,
       },
@@ -822,8 +822,10 @@ test("the review prompt carries the binding, every criterion input and expectati
   }
   for (const criterion of request.contract.criterion) {
     assert.ok(prompt.includes(criterion.id));
-    assert.ok(prompt.includes(JSON.stringify(criterion.measurement.inputText)), `the prompt carries the ${criterion.id} input`);
-    assert.ok(prompt.includes(`"exitCode": ${criterion.measurement.expect.exitCode}`), `the prompt carries the ${criterion.id} exit code`);
+    if (criterion.measurement.kind === "cli-json") {
+      assert.ok(prompt.includes(JSON.stringify(criterion.measurement.inputText)), `the prompt carries the ${criterion.id} input`);
+      assert.ok(prompt.includes(`"exitCode": ${criterion.measurement.expect.exitCode}`), `the prompt carries the ${criterion.id} exit code`);
+    }
   }
   for (const measurement of request.measurements) {
     assert.ok(prompt.includes(`${measurement.criterionId}: outcome ${measurement.outcome}`));

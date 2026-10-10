@@ -33,6 +33,7 @@ import {
   type TaskCheckpointUsage,
   type TaskJournalEvent,
 } from "./task-journal.js";
+import { readTaskStopState, recordTaskStopConfirmation } from "./task-control.js";
 import {
   startTask,
   type StartTaskOptions,
@@ -208,6 +209,32 @@ export async function inspectTaskResumeReadiness(
     };
   }
 
+  const stopState = await readTaskStopState({
+    stateRoot,
+    contractId: contract.id,
+    contractDigest: digest,
+  });
+  if (stopState.status === "pending") {
+    return {
+      ready: false,
+      contractDigest: digest,
+      checkpoint,
+      gsdConsistent: false,
+      unappliedEffectsCount: 0,
+      reason: "A stop request is pending and process termination has not been confirmed yet.",
+    };
+  }
+  if (stopState.status === "unknown") {
+    return {
+      ready: false,
+      contractDigest: digest,
+      checkpoint,
+      gsdConsistent: false,
+      unappliedEffectsCount: 0,
+      reason: "Process termination status is unknown after previous stop request. Re-inspect or reconcile before resume.",
+    };
+  }
+
   const projectRoot = resolve(contract.scope.projectRoot);
   const consistency = await verifyGsdStateConsistency(projectRoot, checkpoint);
   const ledger = (await readEffectLedger(stateRoot, digest)) ?? createEffectLedger(digest);
@@ -313,6 +340,18 @@ export async function resumeTask(options: SuperviseTaskOptions): Promise<Supervi
   }
   if (checkpoint.status === "accepted") {
     throw new Error(`Cannot resume task: task r${contract.revision} is already accepted.`);
+  }
+
+  const stopState = await readTaskStopState({
+    stateRoot: options.stateRoot,
+    contractId: contract.id,
+    contractDigest: digest,
+  });
+  if (stopState.status === "pending") {
+    throw new Error(`Cannot resume task: stop request is still pending for ${contract.id} (${digest.slice(0, 12)}).`);
+  }
+  if (stopState.status === "unknown") {
+    throw new Error(`Cannot resume task: termination is unconfirmed after previous stop request for ${contract.id} (${digest.slice(0, 12)}).`);
   }
 
   const isGeneral = contract.category === "general";
@@ -422,6 +461,42 @@ async function runSupervisorLoop(
   }
 
   while (true) {
+    // 0. Check durable stop request (D-12)
+    const stopState = await readTaskStopState({
+      stateRoot: options.stateRoot,
+      contractId: contract.id,
+      contractDigest: digest,
+    });
+    if (stopState.status === "pending") {
+      await recordTaskStopConfirmation({
+        stateRoot: options.stateRoot,
+        contractId: contract.id,
+        runId: checkpoint.contractDigest,
+        contractDigest: digest,
+        terminationEvidence: "supervisor-observed-loop-termination",
+        stopReason: stopState.reason,
+      });
+      checkpoint.status = "stopped";
+      checkpoint.stopReason = stopState.reason ?? "operator_halt";
+      checkpoint.updatedAt = (options.now ?? (() => new Date()))().toISOString();
+      await writeCheckpoint(options.stateRoot, checkpoint);
+      await logEvent(options.stateRoot, digest, {
+        kind: "process_cancelled",
+        attemptIndex: checkpoint.attemptIndex,
+        payload: { reason: checkpoint.stopReason },
+      });
+      const usage = evaluateResourceLimits(contract.resourcePolicy, checkpoint.usage).usageBreakdown;
+      return {
+        status: "stopped",
+        contractDigest: digest,
+        checkpoint,
+        stopCode: null,
+        usage,
+        ledger,
+        blockedReport: null,
+      };
+    }
+
     // 1. Check signal
     if (options.signal?.aborted) {
       checkpoint.status = "stopped";

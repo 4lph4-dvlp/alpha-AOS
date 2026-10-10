@@ -24,6 +24,11 @@ import {
   writeCheckpoint,
   type TaskCheckpoint,
 } from "../src/core/task-journal.js";
+import {
+  requestTaskStop,
+  recordTaskStopConfirmation,
+  readTaskStopState,
+} from "../src/core/task-control.js";
 import { approveTaskContract, loadTaskContract, taskContractDigest } from "../src/core/task-contract.js";
 import {
   createTaskFixture,
@@ -303,4 +308,98 @@ test("adaptive repair escalation halts in stage-3-blocked with BlockedReport", a
     "stage-1-reproduction-injection",
     "stage-2-single-criterion-focus",
   ]);
+});
+
+test("inspectTaskResumeReadiness and resumeTask block when stop request is pending or unknown (D-12, D-13)", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest } = await loadTaskContract(fixture.contractPath);
+  await approveTaskContract({
+    contractPath: fixture.contractPath,
+    expectedDigest: digest,
+    stateRoot: fixture.stateRoot,
+  });
+
+  // Set up running checkpoint
+  const head = gitCommand(fixture.projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+  const cp: TaskCheckpoint = {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: "inventory-summary",
+    revision: 1,
+    status: "running",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: head,
+    usage: { cycles: 1, wallTimeMs: 1000, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  };
+  await writeCheckpoint(fixture.stateRoot, cp);
+
+  // 1. Submit stop request (pending)
+  await requestTaskStop({
+    stateRoot: fixture.stateRoot,
+    contractId: "inventory-summary",
+    contractDigest: digest,
+    reason: "operator_halt",
+  });
+
+  // Forcibly rewrite stop record to pending with mock alive PID to test pending gating
+  const stopFile = join(fixture.stateRoot, "tasks", "inventory-summary", "control", `${digest}.stop.json`);
+  await writeFile(
+    stopFile,
+    JSON.stringify({
+      schemaVersion: 1,
+      contractId: "inventory-summary",
+      contractDigest: digest,
+      runId: digest,
+      requestedAt: new Date().toISOString(),
+      reason: "operator_halt",
+      caller: "test",
+      confirmedAt: null,
+      terminationEvidence: null,
+      controllerPid: process.pid, // alive
+      leaseToken: "mock-token",
+      status: "pending",
+    }),
+    "utf8",
+  );
+
+  // 2. inspectTaskResumeReadiness reports ready: false due to pending stop
+  const pendingReadiness = await inspectTaskResumeReadiness(fixture.contractPath, digest, fixture.stateRoot);
+  assert.equal(pendingReadiness.ready, false);
+  assert.match(pendingReadiness.reason ?? "", /A stop request is pending and process termination has not been confirmed/u);
+
+  // 3. resumeTask throws error on pending stop
+  const ports = fixturePorts({
+    controller: referenceControllerPort("correct"),
+    reviewer: staticReviewerPort(passingReview),
+  });
+  await assert.rejects(
+    () =>
+      resumeTask({
+        contractPath: fixture.contractPath,
+        expectedDigest: digest,
+        stateRoot: fixture.stateRoot,
+        packageRoot: fixture.scratch,
+        ports,
+      }),
+    /stop request is still pending/u,
+  );
+
+  // 4. Confirm stop
+  await recordTaskStopConfirmation({
+    stateRoot: fixture.stateRoot,
+    contractId: "inventory-summary",
+    runId: digest,
+    contractDigest: digest,
+    terminationEvidence: "verified-in-test",
+    stopReason: "operator_halt",
+  });
+
+  // 5. Readiness now succeeds once stop is confirmed and state is consistent
+  const confirmedReadiness = await inspectTaskResumeReadiness(fixture.contractPath, digest, fixture.stateRoot);
+  assert.equal(confirmedReadiness.ready, true);
 });

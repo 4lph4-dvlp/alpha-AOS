@@ -62,6 +62,7 @@ import {
   type LoadedTaskContract,
   type TaskContractPreview,
 } from "./core/task-contract.js";
+import { requestTaskStop, readTaskStopState } from "./core/task-control.js";
 import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
@@ -1941,36 +1942,48 @@ async function main(): Promise<void> {
     }
 
     if (subcommand === "stop") {
-      if (operand === undefined) throw new Error("task stop requires a contract id: alpha-aos task stop <contract-id> [--reason <reason>]");
+      if (operand === undefined) throw new Error("task stop requires a contract id: alpha-aos task stop <contract-id> [--run <run-id>] [--reason <reason>]");
       const runId = optionValue(args, "--run");
       const found = await findLatestTaskCheckpoint(stateRoot, operand, runId);
       if (found === null) throw new Error(`no checkpoint recorded for task ${operand}`);
-      const reason = optionValue(args, "--reason") ?? "user_requested_stop";
-      const updatedCheckpoint: TaskCheckpoint = {
-        ...found.checkpoint,
-        status: "stopped",
-        stopReason: reason,
-        updatedAt: new Date().toISOString(),
-      };
-      await writeCheckpoint(stateRoot, updatedCheckpoint);
-      await appendJournalEvent(stateRoot, found.contractDigest, {
-        kind: "limit_exceeded",
+      const reason = optionValue(args, "--reason") ?? "operator_halt";
+      const projectRoot = process.cwd();
+
+      const stopResult = await requestTaskStop({
+        stateRoot,
+        contractId: operand,
+        runId: runId ?? undefined,
         contractDigest: found.contractDigest,
-        attemptIndex: updatedCheckpoint.attemptIndex,
-        payload: {
-          stopCode: "user_requested_stop",
-          reason,
-        },
+        projectRoot,
+        reason,
+        caller: "cli",
+        waitTimeoutMs: 100,
       });
-      const result = {
-        stopped: true,
-        contractDigest: found.contractDigest,
-        checkpoint: updatedCheckpoint,
-      };
+
+      let resumeCmd: string | undefined = undefined;
+      if (stopResult.status === "confirmed") {
+        resumeCmd = taskResumeCommand(resolve(operand), stopResult.contractDigest);
+      }
+
+      const humanOutput = [
+        stopResult.status === "confirmed"
+          ? `Task ${stopResult.contractId} (${stopResult.contractDigest.slice(0, 12)}) stopped: ${stopResult.reason}`
+          : `Task ${stopResult.contractId} (${stopResult.contractDigest.slice(0, 12)}) stop requested: ${stopResult.reason} (pending)`,
+        `Run ID: ${stopResult.runId}`,
+        `Confirmation: ${stopResult.status === "confirmed" ? "terminated (confirmed)" : "pending process exit (not stopped yet)"}`,
+        `Next action: ${stopResult.nextAction}`,
+        ...(resumeCmd ? [`Resume command: ${resumeCmd}`] : []),
+      ].join("\n");
+
       print(
-        result,
+        {
+          ...stopResult,
+          stopped: stopResult.status === "confirmed",
+          contractDigest: stopResult.contractDigest,
+          resumeCommand: resumeCmd,
+        },
         json,
-        `Task ${updatedCheckpoint.contractId} (${found.contractDigest.slice(0, 12)}) stopped: ${reason}`,
+        humanOutput,
         context,
       );
       return;

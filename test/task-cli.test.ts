@@ -579,7 +579,7 @@ test("task status prints checkpoint and effect summary", async (context) => {
   assert.equal(data.checkpoint.attemptIndex, 2);
 });
 
-test("task stop sets stopped status on checkpoint and records limit_exceeded event", async (context) => {
+test("task stop sets stopped status on checkpoint and provides resume command (D-12, D-13)", async (context) => {
   const { fixture, digest } = await contractFixture(context);
   const cp: TaskCheckpoint = {
     schemaVersion: 1,
@@ -599,11 +599,20 @@ test("task stop sets stopped status on checkpoint and records limit_exceeded eve
   const stopResult = await cli(fixture, ["stop", "inventory-summary", "--reason", "operator_halt"]);
   assert.equal(stopResult.exitCode, 0, stopResult.stderr.excerpt);
   assert.ok(stopResult.stdout.excerpt.includes("stopped: operator_halt"));
+  assert.ok(stopResult.stdout.excerpt.includes("terminated (confirmed)"));
+  assert.ok(stopResult.stdout.excerpt.includes("Resume command: alpha-aos task resume"));
 
   const updated = await readCheckpoint(fixture.stateRoot, digest);
   assert.ok(updated !== null);
   assert.equal(updated.status, "stopped");
   assert.equal(updated.stopReason, "operator_halt");
+
+  const jsonResult = await cli(fixture, ["stop", "inventory-summary", "--reason", "operator_halt", "--json"]);
+  assert.equal(jsonResult.exitCode, 0, jsonResult.stderr.excerpt);
+  const data = JSON.parse(jsonResult.stdout.excerpt) as { status: string; stopped: boolean; resumeCommand?: string };
+  assert.equal(data.status, "confirmed");
+  assert.equal(data.stopped, true);
+  assert.ok(data.resumeCommand?.includes("task resume"));
 });
 
 // ---------------------------------------------------------------------------

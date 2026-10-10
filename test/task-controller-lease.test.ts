@@ -15,6 +15,11 @@ import {
   previewTaskContract,
 } from "../src/core/task-contract.js";
 import {
+  requestTaskStop,
+  readTaskStopState,
+  recordTaskStopConfirmation,
+} from "../src/core/task-control.js";
+import {
   createTaskFixture,
   fixturePorts,
   inventorySummaryContract,
@@ -177,4 +182,67 @@ test("startTask acquires project controller lease and releases on completion (RO
   });
   assert.ok(newLease.token);
   await newLease.release();
+});
+
+test("requestTaskStop fences against foreign controller lease and reports pending for live process (D-12, UX-02, T-21-07)", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const lease = await acquireControllerLease({
+    projectRoot: fixture.projectRoot,
+    harness: "codex",
+    contractDigest: "digest-matching-task",
+  });
+
+  try {
+    // 1. Stop request targeting a foreign digest does not target this live controller
+    const foreignStop = await requestTaskStop({
+      stateRoot: fixture.stateRoot,
+      contractId: "other-task",
+      contractDigest: "foreign-digest",
+      projectRoot: fixture.projectRoot,
+      reason: "test_foreign_stop",
+    });
+    // Controller PID must be null because lease digest does not match foreign digest
+    assert.equal(foreignStop.controllerPid, null);
+
+    // 2. Stop request targeting matching digest attaches controllerPid and reports pending (since process is alive)
+    const matchingStop = await requestTaskStop({
+      stateRoot: fixture.stateRoot,
+      contractId: "inventory-summary",
+      contractDigest: "digest-matching-task",
+      projectRoot: fixture.projectRoot,
+      reason: "test_matching_stop",
+    });
+    assert.equal(matchingStop.controllerPid, process.pid);
+    assert.equal(matchingStop.status, "pending");
+
+    // 3. readTaskStopState also confirms pending, not confirmed/stopped (D-12)
+    const stopState = await readTaskStopState({
+      stateRoot: fixture.stateRoot,
+      contractId: "inventory-summary",
+      contractDigest: "digest-matching-task",
+      projectRoot: fixture.projectRoot,
+    });
+    assert.equal(stopState.status, "pending");
+    assert.equal(stopState.controllerPid, process.pid);
+    assert.ok(stopState.nextAction.includes("Waiting for child process"));
+
+    // 4. Once confirmation is explicitly recorded, state transitions to confirmed
+    await recordTaskStopConfirmation({
+      stateRoot: fixture.stateRoot,
+      contractId: "inventory-summary",
+      runId: matchingStop.runId,
+      contractDigest: "digest-matching-task",
+      terminationEvidence: "test-verified-termination",
+    });
+    const confirmedState = await readTaskStopState({
+      stateRoot: fixture.stateRoot,
+      contractId: "inventory-summary",
+      contractDigest: "digest-matching-task",
+      projectRoot: fixture.projectRoot,
+    });
+    assert.equal(confirmedState.status, "confirmed");
+    assert.equal(confirmedState.terminationEvidence, "test-verified-termination");
+  } finally {
+    await lease.release();
+  }
 });

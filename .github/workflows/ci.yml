@@ -23,6 +23,8 @@ jobs:
   package:
     name: Authoritative Release Package (Linux)
     runs-on: ubuntu-latest
+    outputs:
+      tarball: ${{ steps.pack.outputs.tarball }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -36,12 +38,16 @@ jobs:
       - run: npm run build
       - run: npm run build:check
       - name: Pack authoritative release tarball
-        run: npm pack
+        id: pack
+        run: |
+          tarball=$(npm pack)
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
       - name: Audit tarball contents against allowlist
-        run: node scripts/audit-tarball.mjs alpha-aos-0.2.0.tgz
+        run: node scripts/audit-tarball.mjs "$TARBALL"
       - name: Generate SHA-256 checksum
         run: >
-          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file='alpha-aos-0.2.0.tgz';
+          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file=process.env.TARBALL;
           const digest=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
           fs.writeFileSync(file+'.sha256',digest+'  '+file+'\n');"
       - name: Upload release tarball artifact
@@ -49,8 +55,8 @@ jobs:
         with:
           name: release-tarball
           path: |
-            alpha-aos-0.2.0.tgz
-            alpha-aos-0.2.0.tgz.sha256
+            ${{ steps.pack.outputs.tarball }}
+            ${{ steps.pack.outputs.tarball }}.sha256
           if-no-files-found: error
 
   test:
@@ -64,7 +70,7 @@ jobs:
     # pack-skill-drift.yml.
     env:
       ALPHA_AOS_REQUIRE_UPSTREAM_MCP: "1"
-      ALPHA_AOS_RELEASE_TARBALL: ${{ github.workspace }}/alpha-aos-0.2.0.tgz
+      ALPHA_AOS_RELEASE_TARBALL: ${{ github.workspace }}/${{ needs.package.outputs.tarball }}
     strategy:
       fail-fast: false
       matrix:
@@ -83,8 +89,10 @@ jobs:
         with:
           name: release-tarball
       - name: Verify release tarball checksum with Node.js
+        env:
+          TARBALL: ${{ needs.package.outputs.tarball }}
         run: >
-          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file='alpha-aos-0.2.0.tgz';
+          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file=process.env.TARBALL;
           const expected=fs.readFileSync(file+'.sha256','utf8').trim().split(/\s+/u)[0].toLowerCase();
           const actual=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
           if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"

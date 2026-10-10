@@ -1222,33 +1222,71 @@ export function formatTaskApproval(
  */
 export function formatTaskRunReport(run: TaskRunRecord): string {
   if (run.generalReport) {
-    return formatGeneralTaskReport(run.generalReport);
+    return formatGeneralTaskReport(run.generalReport, run);
   }
   const artifact = run.artifact === null ? "none" : run.artifact.digest.slice(0, 12);
-  const rows = (run.verdict?.rows ?? []).map((row) => [
-    row.criterionId,
-    row.verdict,
-    `${row.measured.outcome} (exit ${row.measured.exitCode === null ? "none" : String(row.measured.exitCode)})`,
-    row.review === null ? "none" : row.review.verdict,
-    row.artifactDigest.slice(0, 12),
-    row.reason,
-  ]);
+  const allRows = run.verdict?.rows ?? [];
+  const unresolved = allRows.filter((row) => row.verdict !== "pass");
+  const passed = allRows.filter((row) => row.verdict === "pass");
+
   const lines = [
     `Task: ${run.contractId} (revision ${run.revision})`,
     `Status: ${run.status.toUpperCase()}${run.verdict?.refusal ? ` (refused: ${run.verdict.refusal})` : ""}`,
     `Contract digest: ${run.contractDigest.slice(0, 12)}`,
     `Artifact digest: ${artifact}`,
     `Run: ${run.runId}`,
+    `Started at: ${run.startedAt}`,
     "",
-    rows.length === 0
-      ? "No criterion was judged."
-      : table(["Criterion", "Verdict", "Measured", "Review", "Artifact", "Reason"], rows),
-    "",
+  ];
+
+  if (unresolved.length > 0) {
+    const unresolvedTableRows = unresolved.map((row) => [
+      row.criterionId,
+      row.verdict,
+      `${row.measured.outcome} (exit ${row.measured.exitCode === null ? "none" : String(row.measured.exitCode)})`,
+      row.review === null ? "none" : row.review.verdict,
+      row.artifactDigest.slice(0, 12),
+      row.reason,
+    ]);
+    lines.push(
+      "Unresolved Mandatory Criteria:",
+      table(["Criterion", "Verdict", "Measured", "Review", "Artifact", "Reason"], unresolvedTableRows),
+      "",
+    );
+
+    const unresolvedActions = [
+      ...unresolved.flatMap((row) => (row.nextAction ? [`${row.criterionId}: ${row.nextAction}`] : [])),
+      ...(run.nextAction ? [run.nextAction] : []),
+    ];
+    if (unresolvedActions.length > 0) {
+      lines.push("Unresolved Criteria Next Actions:", ...Array.from(new Set(unresolvedActions)).map((a) => `  - ${a}`), "");
+    }
+  }
+
+  if (passed.length > 0) {
+    const passedTableRows = passed.map((row) => [
+      row.criterionId,
+      row.verdict,
+      `${row.measured.outcome} (exit ${row.measured.exitCode === null ? "none" : String(row.measured.exitCode)})`,
+      row.review === null ? "none" : row.review.verdict,
+      row.artifactDigest.slice(0, 12),
+      row.reason,
+    ]);
+    lines.push(
+      unresolved.length > 0 ? "Passed Mandatory Criteria (Verified):" : "",
+      table(["Criterion", "Verdict", "Measured", "Review", "Artifact", "Reason"], passedTableRows),
+      "",
+    );
+  } else if (unresolved.length === 0) {
+    lines.push("No criterion was judged.", "");
+  }
+
+  lines.push(
     `Consent: autopilot, single run of revision ${run.revision}`,
     run.gitDirectory !== null && run.gitDirectory !== undefined
       ? `Git directory granted to the controller: ${run.gitDirectory} (config, hooks and info read-only)`
       : "Git directory granted to the controller: none",
-  ];
+  );
 
   // What the controller chose and why (CON-02, D-06).
   if (run.decisions.length === 0) {
@@ -1838,10 +1876,11 @@ export function formatTaskReapprovalPreview(preview: TaskReapprovalPreview): str
  * Formats a General Task / CoursePilot execution report (D-13, D-14, D-15, D-16).
  * Follows aggregate-first principle, followed by course/week/material details, and finally next actions.
  */
-export function formatGeneralTaskReport(report: GeneralTaskReportData): string {
+export function formatGeneralTaskReport(report: GeneralTaskReportData, run?: TaskRunRecord): string {
   const lines: string[] = [
     `General Task Report: ${report.contractId}`,
     `Run: ${report.runId}`,
+    ...(run?.startedAt ? [`Started at: ${run.startedAt}`] : []),
     `Overall Status: ${report.overallStatus.toUpperCase()}`,
     "",
     "=== 1. Summary (Aggregate) ===",
@@ -1888,6 +1927,23 @@ export function formatGeneralTaskReport(report: GeneralTaskReportData): string {
       lines.push(`  Reason: ${action.reason}`);
       lines.push(`  Action: ${sanitize(action.description, 200)}`);
     }
+  }
+
+  if (run) {
+    lines.push("", "=== 4. Execution & Resource Provenance ===");
+    if (run.executor) {
+      lines.push(`  Executor: ${run.executor.harness} ${run.executor.version ?? "(version unknown)"} (terminal: ${run.executor.terminal})`);
+    } else {
+      lines.push("  Executor: none");
+    }
+    if (run.reviewer) {
+      lines.push(`  Reviewer: ${run.reviewer.harness} ${run.reviewer.version ?? "(version unknown)"}`);
+    } else {
+      lines.push("  Reviewer: none");
+    }
+    lines.push("  Resource Usage:");
+    lines.push("    Tokens: (unmetered)");
+    lines.push("    Cost (USD): (unmetered)");
   }
 
   return lines.join("\n");

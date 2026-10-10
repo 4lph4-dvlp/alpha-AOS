@@ -63,7 +63,7 @@ import {
   type TaskContractPreview,
 } from "./core/task-contract.js";
 import { requestTaskStop, readTaskStopState } from "./core/task-control.js";
-import { readTaskStatusModel, selectTaskExecution } from "./core/task-read.js";
+import { normalizeTaskRunForReport, readTaskStatusModel, selectTaskExecution } from "./core/task-read.js";
 import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
@@ -1883,7 +1883,7 @@ async function main(): Promise<void> {
       if (selected.isReserved || selected.runRecord === null) {
         throw new Error(`no run recorded for task ${operand}${runId === null ? "" : ` with run id ${runId}`}`);
       }
-      const run = selected.runRecord;
+      const run = normalizeTaskRunForReport(selected.runRecord);
       print(run, json, formatTaskRunReport(run), context);
       return;
     }

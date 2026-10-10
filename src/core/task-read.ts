@@ -422,3 +422,67 @@ export async function readTaskStatusModel(options: {
     ...(pendingSuggestionsCount > 0 && suggestionsPath ? { suggestionsPath } : {}),
   };
 }
+
+/**
+ * Normalizes a TaskRunRecord for reporting (D-15, T-21-12, UX-03).
+ * Ensures that if review evidence is bound to a stale artifact digest,
+ * or if mandatory review evidence is missing, the affected criteria are
+ * judged as unknown and cannot falsely sustain an accepted run status.
+ */
+export function normalizeTaskRunForReport(run: TaskRunRecord): TaskRunRecord {
+  if (!run.verdict) return run;
+
+  const currentArtifactDigest = run.artifact?.digest;
+  let modified = false;
+
+  const rows = run.verdict.rows.map((row) => {
+    if (row.verdict === "pass") {
+      // 1. Check artifact digest match
+      if (currentArtifactDigest && row.artifactDigest !== currentArtifactDigest) {
+        modified = true;
+        return {
+          ...row,
+          verdict: "unknown" as const,
+          reason: `Artifact digest mismatch: review evaluated ${row.artifactDigest.slice(0, 12)}, but current artifact digest is ${currentArtifactDigest.slice(0, 12)}.`,
+          nextAction: "re-run review against the current artifact",
+        };
+      }
+      // 2. Check review presence
+      if (row.review === null) {
+        modified = true;
+        return {
+          ...row,
+          verdict: "unknown" as const,
+          reason: "Mandatory review evidence is missing.",
+          nextAction: "execute independent review for this criterion",
+        };
+      }
+      // 3. Check review locator digest if present
+      if (row.review.locator?.digest && currentArtifactDigest && row.review.locator.digest !== currentArtifactDigest) {
+        modified = true;
+        return {
+          ...row,
+          verdict: "unknown" as const,
+          reason: `Review locator digest mismatch: locator has ${row.review.locator.digest.slice(0, 12)}, but current artifact digest is ${currentArtifactDigest.slice(0, 12)}.`,
+          nextAction: "re-run review against the current artifact",
+        };
+      }
+    }
+    return row;
+  });
+
+  if (!modified) return run;
+
+  const hasUnresolved = rows.some((r) => r.verdict !== "pass");
+  const newStatus = hasUnresolved && run.status === "accepted" ? "unknown" : run.status;
+
+  return {
+    ...run,
+    status: newStatus,
+    verdict: {
+      ...run.verdict,
+      overall: hasUnresolved && run.verdict.overall === "accepted" ? "unknown" : run.verdict.overall,
+      rows,
+    },
+  };
+}

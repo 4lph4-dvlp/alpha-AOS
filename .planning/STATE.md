@@ -8,7 +8,7 @@ status: completed
 stopped_at: Phase 22 execution and verification complete; ready for post-phase UAT and milestone audit
 last_updated: "2026-10-10T16:47:56.000Z"
 last_activity: 2026-10-11
-last_activity_desc: Completed quick task 261011-2iz — Repair weekly dependency promotion and add administrator override
+last_activity_desc: Release v0.3.0 — Promoted dependencies to latest and bumped package version
 state_head: aecfe4533c7235ac018318b997b45218bea29811
 progress:
   total_phases: 9
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 Phase: 22 (Release Proof) — COMPLETED
 Plan: 6 of 6 complete
 Status: Phase 22 execution and verification complete
-Last activity: 2026-10-11 — Completed quick task 261011-2iz: Repair weekly dependency promotion and add administrator override
+Last activity: 2026-10-11 — Release v0.3.0: Promoted dependencies to latest and bumped package version
 
 ## Performance Metrics
 

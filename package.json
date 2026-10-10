@@ -1,6 +1,6 @@
 {
   "name": "alpha-aos",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Declarative installer and updater for the alpha-AOS agent workflow stack",
   "license": "Apache-2.0",
   "repository": {

@@ -31,12 +31,12 @@
     {
       "number": "19",
       "name": "Structured Independent Review",
-      "status": "complete"
+      "status": "pending"
     },
     {
       "number": "20",
       "name": "General Tool Connectors",
-      "status": "complete"
+      "status": "pending"
     },
     {
       "number": "21",
@@ -46,13 +46,13 @@
     {
       "number": "22",
       "name": "Release Proof",
-      "status": "pending"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-execute-phase 22",
-    "label": "Execute Phase 22",
-    "reason": "Phase 21 complete; advance to Phase 22 Release Proof"
+    "command": "/gsd-code-review 22",
+    "label": "Review Phase 22 changes",
+    "reason": "Phase 22 verification and UAT complete"
   },
-  "updated_at": "2026-10-10T05:30:00.000Z"
+  "updated_at": "2026-10-10T13:28:00.000Z"
 }

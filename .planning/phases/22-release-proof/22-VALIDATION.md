@@ -37,7 +37,7 @@ created: "2026-10-10"
 | 22-03 | VER-02 | Exact-version role/capability cells and real handoffs, no blanket support | Support matrix, role receipt and capability receipt tests | Native per-cell and sender/receiver receipts |
 | 22-04 | VER-03 | Same-hash packed lifecycle, stable lock and no unknown real-host drift | Tarball fixture and release-control tests | Package SHA and path-category before/after summary |
 | 22-05 | VER-04 | Both examples retain every criterion/item and applicable call result | Development and CoursePilot exemplar tests | Same-revision independent review; authenticated LMS check or UNVERIFIED |
-| 22-06 | VER-01..04 | Public docs equal release evidence, all final gates block on gaps | Evidence schema/report tests and full suite | Final three-OS run, GSD audit/UAT, integration check and independent review |
+| 22-06 | VER-01..04 | Public docs equal release evidence, all final candidate gates block on gaps | Evidence schema/report tests and full suite | Final three-OS run and reviewer; GSD audit/UAT/integration/code review after Phase 22 verification |
 
 ## Wave 0 Requirements
 
@@ -55,7 +55,7 @@ created: "2026-10-10"
 | Real cross-harness handoff | VER-02 | Send and receive a bounded artifact across representative distinct harness pairs; bind sender and receiver receipts to exact versions. Keep synthetic 5×5×5 results separate. |
 | Packed real-host safety | VER-03 | Run packed lifecycle in isolated roots; compare actual host managed path categories before/after. Investigate unknown drift, then retest the same tarball SHA. |
 | End-to-end examples | VER-04 | Run development and CoursePilot fixture cases through GSD and read actual criterion/item/capability receipts. Mark live LMS unverified if credentials are unavailable. Independently review the development revision. |
-| Milestone closure | VER-01..04 | Run GSD milestone audit, cross-phase integration check, UAT and independent code review. Resolve every blocking gap before closeout; do not turn unverified external evidence into a pass. |
+| Milestone closure | VER-01..04 | After Phase 22 `VERIFICATION.md` exists, run GSD milestone audit, cross-phase integration check, UAT and independent code review. Resolve every blocking gap before closeout; do not turn unverified external evidence into a pass. |
 
 ## Validation Sign-Off
 

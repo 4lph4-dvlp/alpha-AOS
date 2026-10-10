@@ -17,7 +17,7 @@
 - [x] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD (completed 2026-10-08)
 - [ ] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit
 - [ ] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar
-- [ ] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX
+- [x] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX (verified 2026-10-10)
 - [ ] **Phase 22: Release Proof** - Three-OS, packed and live-harness evidence
 
 ## Phase Map
@@ -421,6 +421,28 @@ Plans:
 6. GSD milestone audit, cross-phase integration check and independent code review find no unresolved blocking requirement gap before closeout.
 
 **Verification:** Final full `npm run check`, `npm test`, `npm run build`, three-OS CI run and GSD audit/verify-work; record role, skill, MCP, pack and hook invocation receipts and limits in the release matrix. Do not claim a missing paid or authenticated canary passed.
+
+**Plans:** 6 plans in 4 waves
+
+Plans:
+
+**Wave 1**
+
+- [ ] 22-01-PLAN.md — Candidate evidence identity and one receipt-to-doctor tracer
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 22-02-PLAN.md — Five fault controls and one-candidate three-OS CI evidence
+- [ ] 22-03-PLAN.md — Exact-version support cells and real cross-harness handoffs
+- [ ] 22-05-PLAN.md — Development and CoursePilot criteria and capability receipts
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 22-04-PLAN.md — Packed lifecycle, stable lock and real-host drift proof
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 22-06-PLAN.md — Current-candidate release evidence, documentation and independent milestone gate
 
 ## Planning and Execution Gates
 

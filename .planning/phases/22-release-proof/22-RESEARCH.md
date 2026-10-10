@@ -52,6 +52,7 @@ Phase 22 is an evidence and release integration phase. The underlying supervisor
 - The packed fixture's `hostMutationTargets` is a bounded list. Release reporting must state coverage and categories, rather than claim an unbounded whole-host scan.
 - A CoursePilot `viewed_only`, planned, partial, or absent local file result is not a downloaded file. Fixture results do not prove authenticated production LMS access.
 - The CI workflow and `scripts/release.mjs` hard-code `0.1.0` filenames/text; coordinate the release version before the candidate run, then verify package metadata, lock, docs and artifact hash agree.
+- Phase 19 and 20 have completed plan summaries but no `19-VERIFICATION.md` or `20-VERIFICATION.md` in their phase directories as inspected during planning. GSD milestone audit treats a missing phase verification as blocking, so closeout must establish those records through the supported GSD verification route or retain an explicit blocking gap. Phase 21 has a passed verification report.
 
 ## Validation Architecture
 

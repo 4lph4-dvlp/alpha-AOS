@@ -1099,18 +1099,29 @@ export function formatUninstallResult(result: UninstallResult): string {
 export function formatTaskContractPreview(preview: TaskContractPreview, command: string): string {
   const contract = preview.contract;
   const minutes = contract.resourcePolicy.maxWallTimeMinutes;
-  const lines: string[] = [
+  const cycles = contract.resourcePolicy.maxCycles;
+  const tokens = contract.resourcePolicy.maxTokens;
+  const cost = contract.resourcePolicy.maxCostUsd;
+
+  const lines: string[] = [];
+
+  if (preview.blockedReasons && preview.blockedReasons.length > 0) {
+    lines.push(
+      "Blocked: task prerequisites not satisfied (cannot approve or start)",
+      "Blocked reasons:",
+      ...preview.blockedReasons.map((reason) => `  - ${reason}`),
+    );
+    if (preview.nextActions && preview.nextActions.length > 0) {
+      lines.push("Next actions:", ...preview.nextActions.map((action) => `  - ${action}`));
+    }
+    lines.push("");
+  }
+
+  lines.push(
     `Task: ${contract.id} (revision ${contract.revision})`,
     `Contract digest: ${preview.digest}`,
     `Mode: ${contract.mode} — approving authorizes one single run of this revision only; autopilot stays off for every other task.`,
     `Goal: ${contract.goal}`,
-    `Project root: ${contract.scope.projectRoot}`,
-    `Workflow: ${contract.scope.workflow} — ${contract.scope.summary}`,
-    `Allowed roots: ${contract.allowedRoots.join(", ")}`,
-    `Allowed effect kinds: ${contract.allowedEffects.join(", ")}`,
-    preview.gitAuthority.grant === "git-directory"
-      ? `Git authority (local-commit): the controller may write ${preview.gitAuthority.gitDirectory ?? ""} for this run; its config, hooks and info stay read-only`
-      : `Git authority (local-commit): none — ${preview.gitAuthority.reason ?? "no git directory is granted"}`,
     "Mandatory criteria:",
     ...contract.criterion.map((criterion) => {
       const measuredDesc =
@@ -1119,13 +1130,42 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
           : `measured by item ${criterion.measurement.itemId}, expected status ${criterion.measurement.expect.status}`;
       return `  ${criterion.id}: ${criterion.title} — ${measuredDesc}`;
     }),
+    `Allowed roots: ${contract.allowedRoots.join(", ")}`,
+    `Allowed effect kinds: ${contract.allowedEffects.join(", ")}`,
+    preview.gitAuthority.grant === "git-directory"
+      ? `Git authority (local-commit): the controller may write ${preview.gitAuthority.gitDirectory ?? ""} for this run; its config, hooks and info stay read-only`
+      : `Git authority (local-commit): none — ${preview.gitAuthority.reason ?? "no git directory is granted"}`,
+    `Project root: ${contract.scope.projectRoot}`,
+    `Workflow: ${contract.scope.workflow} — ${contract.scope.summary}`,
     `Agents: controller ${contract.agentPolicy.controller}, executor ${contract.agentPolicy.executor}, reviewer ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession})`,
-    `Wall-time limit: ${minutes === null ? "no overall limit" : `${minutes} minutes`}`,
+    `Wall-time limit: ${minutes === null || minutes === undefined ? "no overall limit" : `${minutes} minutes`}`,
+    `Cycles limit: ${cycles === null || cycles === undefined ? "no limit" : `${cycles} cycles`}`,
+    `Tokens limit: ${tokens === null || tokens === undefined ? "no limit" : `${tokens} tokens`}`,
+    `Cost limit: ${cost === null || cost === undefined ? "no limit" : `$${cost.toFixed(2)} USD`}`,
+  );
+
+  if (preview.telemetryStatus) {
+    lines.push(
+      preview.telemetryStatus.ready
+        ? "Telemetry: all required meters available"
+        : `Telemetry: unmetered (${preview.telemetryStatus.missingMeters.join("; ")})`,
+    );
+  }
+
+  if (preview.changedFields && preview.changedFields.length > 0) {
+    lines.push(
+      "",
+      "Changed contract fields from previous approved revision:",
+      ...preview.changedFields.map((f) => `  - ${f}`),
+    );
+  }
+
+  lines.push(
     `Approval: ${preview.approved ? "this digest is approved" : "not approved"}`,
     "",
     "Preview only. Nothing was written: approving is a separate act from looking (D-01).",
     `Approve exactly this digest: ${command}`,
-  ];
+  );
 
   if (preview.reapprovalPreview) {
     lines.push("", formatTaskReapprovalPreview(preview.reapprovalPreview));

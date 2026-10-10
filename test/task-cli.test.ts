@@ -605,3 +605,116 @@ test("task stop sets stopped status on checkpoint and records limit_exceeded eve
   assert.equal(updated.status, "stopped");
   assert.equal(updated.stopReason, "operator_halt");
 });
+
+// ---------------------------------------------------------------------------
+// Plan 21-02: Contract preview fidelity, ordering, diffs, and blocked preview
+// ---------------------------------------------------------------------------
+
+test("task preview places goal, criteria and allowed effects before agents and resource limits (D-05)", async (context) => {
+  const { fixture } = await contractFixture(context);
+  const result = await cli(fixture, ["preview", fixture.contractPath]);
+  assert.equal(result.exitCode, 0, result.stderr.excerpt);
+  const out = result.stdout.excerpt;
+
+  const goalIndex = out.indexOf("Goal:");
+  const criteriaIndex = out.indexOf("Mandatory criteria:");
+  const rootsIndex = out.indexOf("Allowed roots:");
+  const effectsIndex = out.indexOf("Allowed effect kinds:");
+  const agentsIndex = out.indexOf("Agents:");
+  const wallTimeIndex = out.indexOf("Wall-time limit:");
+  const approvalIndex = out.indexOf("Approval:");
+
+  assert.ok(goalIndex !== -1 && criteriaIndex !== -1 && rootsIndex !== -1 && effectsIndex !== -1);
+  assert.ok(agentsIndex !== -1 && wallTimeIndex !== -1 && approvalIndex !== -1);
+
+  // Goal, criteria, roots and effects must precede agents and resource limits
+  assert.ok(goalIndex < criteriaIndex);
+  assert.ok(criteriaIndex < rootsIndex);
+  assert.ok(rootsIndex < effectsIndex);
+  assert.ok(effectsIndex < agentsIndex);
+  assert.ok(agentsIndex < wallTimeIndex);
+  assert.ok(wallTimeIndex < approvalIndex);
+
+  // Limits without configuration must state no limit without invented numbers
+  assert.ok(out.includes("Cycles limit: no limit"));
+  assert.ok(out.includes("Tokens limit: no limit"));
+  assert.ok(out.includes("Cost limit: no limit"));
+});
+
+test("task preview shows changed fields diff when previewing a contract after prior revision was approved (D-06, D-09)", async (context) => {
+  const { fixture, digest: digest1 } = await contractFixture(context);
+
+  // 1. Approve initial contract revision 1
+  const approveResult = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest1, "--apply"]);
+  assert.equal(approveResult.exitCode, 0, approveResult.stderr.excerpt);
+
+  // 2. Modify contract: change goal, bump revision to 2
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.revision = 2;
+  contract.goal = "Refactored inventory summary implementation";
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest: digest2 } = await loadTaskContract(fixture.contractPath);
+  assert.notEqual(digest1, digest2);
+
+  // 3. Preview modified contract
+  const previewResult = await cli(fixture, ["preview", fixture.contractPath]);
+  assert.equal(previewResult.exitCode, 0, previewResult.stderr.excerpt);
+  const out = previewResult.stdout.excerpt;
+
+  // Full modified contract is visible
+  assert.ok(out.includes("Task: inventory-summary (revision 2)"));
+  assert.ok(out.includes(`Contract digest: ${digest2}`));
+  assert.ok(out.includes("Goal: Refactored inventory summary implementation"));
+  assert.ok(out.includes("Mandatory criteria:"));
+
+  // Changed contract fields diff is displayed
+  assert.ok(out.includes("Changed contract fields from previous approved revision:"));
+  assert.ok(out.includes("- goal"));
+  assert.ok(out.includes("- revision"));
+
+  // Stale approval cannot be used for new contract
+  const staleApprove = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest1, "--apply"]);
+  assert.equal(staleApprove.exitCode, 2);
+  assert.match(staleApprove.stderr.excerpt, /contract-drift/u);
+});
+
+test("task preview renders full contract and blocked reasons when telemetry meter is missing (D-07, D-08)", async (context) => {
+  const { fixture } = await contractFixture(context);
+
+  // Contract requiring cost telemetry but controller is pi (unmetered)
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.agentPolicy.controller = "pi";
+  contract.resourcePolicy.maxCostUsd = 10.0;
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest } = await loadTaskContract(fixture.contractPath);
+
+  // 1. Preview still shows full contract and blocked reasons
+  const previewResult = await cli(fixture, ["preview", fixture.contractPath]);
+  assert.equal(previewResult.exitCode, 0, previewResult.stderr.excerpt);
+  const out = previewResult.stdout.excerpt;
+
+  assert.ok(out.includes("Blocked: task prerequisites not satisfied"));
+  assert.ok(out.includes("MISSING_TELEMETRY_METER"));
+  assert.ok(out.includes("Next actions:"));
+  assert.ok(out.includes("Goal: Implement a Node ESM program at bin/inventory-summary.mjs"));
+  assert.ok(out.includes("Mandatory criteria:"));
+  assert.ok(out.includes("Telemetry: unmetered"));
+
+  // JSON preview includes status: blocked and full contract
+  const jsonResult = await cli(fixture, ["preview", fixture.contractPath, "--json"]);
+  assert.equal(jsonResult.exitCode, 0, jsonResult.stderr.excerpt);
+  const jsonEnvelope = JSON.parse(jsonResult.stdout.excerpt) as {
+    status: string;
+    blockedReasons: string[];
+    contract: { id: string; goal: string };
+  };
+  assert.equal(jsonEnvelope.status, "blocked");
+  assert.ok(Array.isArray(jsonEnvelope.blockedReasons));
+  assert.ok(jsonEnvelope.blockedReasons.some((r) => r.includes("MISSING_TELEMETRY_METER")));
+  assert.equal(jsonEnvelope.contract.id, "inventory-summary");
+
+  // 2. Approve --apply fails closed
+  const approveResult = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(approveResult.exitCode, 2);
+  assert.match(approveResult.stderr.excerpt, /MISSING_TELEMETRY_METER/u);
+});

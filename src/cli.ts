@@ -69,7 +69,7 @@ import {
 } from "./core/task-final-review.js";
 import { loadTaskReviewSuggestions, suggestionsFilePath } from "./core/task-review-suggestions.js";
 import { collectTaskArtifact } from "./core/task-check.js";
-import { checkCostMeterReadiness } from "./core/task-telemetry.js";
+import { checkCostMeterReadiness, HARNESS_TELEMETRY_CAPABILITIES } from "./core/task-telemetry.js";
 import {
   buildTaskDoctorReport,
   formatDoctorTable,
@@ -2201,6 +2201,11 @@ async function main(): Promise<void> {
           command,
           contract: preview.contract,
           gitAuthority: preview.gitAuthority,
+          ...(preview.status ? { status: preview.status } : {}),
+          ...(preview.blockedReasons ? { blockedReasons: preview.blockedReasons } : {}),
+          ...(preview.nextActions ? { nextActions: preview.nextActions } : {}),
+          ...(preview.changedFields ? { changedFields: preview.changedFields } : {}),
+          ...(preview.telemetryStatus ? { telemetryStatus: preview.telemetryStatus } : {}),
           ...(preview.reapprovalPreview ? { reapprovalPreview: preview.reapprovalPreview } : {}),
         },
         json,
@@ -2215,8 +2220,24 @@ async function main(): Promise<void> {
       const command = taskApproveCommand({ contractPath: preview.sourcePath, digest: preview.digest });
       if (subcommand === "preview" || !apply) {
         const meterCheck = checkCostMeterReadiness(preview.contract.agentPolicy, preview.contract.resourcePolicy);
+        const blockedReasons: string[] = [];
+        const nextActions: string[] = [];
         if (!meterCheck.ready) {
-          throw new Error(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
+          blockedReasons.push(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
+          nextActions.push("Configure cost telemetry meter or remove cost limit from contract resourcePolicy");
+        }
+        preview.telemetryStatus = {
+          ready: meterCheck.ready,
+          missingMeters: meterCheck.missingMeters,
+          costMetered: HARNESS_TELEMETRY_CAPABILITIES[preview.contract.agentPolicy.controller]?.metersCost ?? false,
+          tokenMetered: HARNESS_TELEMETRY_CAPABILITIES[preview.contract.agentPolicy.controller]?.metersTokens ?? false,
+        };
+        if (blockedReasons.length > 0) {
+          preview.status = "blocked";
+          preview.blockedReasons = blockedReasons;
+          preview.nextActions = nextActions;
+        } else {
+          preview.status = preview.approved ? "approved" : "reviewable";
         }
         showPreview(preview, command);
         return;

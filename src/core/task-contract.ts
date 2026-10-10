@@ -215,9 +215,19 @@ export interface TaskContractPreview {
   consent: { mode: "autopilot"; grant: "explicit-cli-approval"; scope: "single-run"; revision: number };
   /** The overall wall-time limit in minutes, or null when the contract sets none. */
   resourceLimit: number | null;
-  /** The git directory approving this digest lets the controller write (AUTO-02, D-03). */
+  /** The git authority approving this digest lets the controller write (AUTO-02, D-03). */
   gitAuthority: TaskGitAuthority;
   reapprovalPreview?: TaskReapprovalPreview | undefined;
+  changedFields?: string[] | undefined;
+  status?: "approved" | "reviewable" | "blocked" | undefined;
+  blockedReasons?: string[] | undefined;
+  nextActions?: string[] | undefined;
+  telemetryStatus?: {
+    ready: boolean;
+    missingMeters: string[];
+    costMetered: boolean;
+    tokenMetered: boolean;
+  } | undefined;
 }
 
 export type TaskApprovalResult =
@@ -722,15 +732,25 @@ export async function previewTaskContract(options: {
 }): Promise<TaskContractPreview> {
   const loaded = await loadTaskContract(options.contractPath);
   const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: loaded.contract.id });
+  const isApproved = approvals.some((approval) => approval.contractDigest === loaded.digest);
+  let changedFields: string[] | undefined;
+  if (!isApproved && approvals.length > 0) {
+    const latestPrior = approvals[approvals.length - 1];
+    if (latestPrior) {
+      changedFields = changedContractFields(latestPrior.contract, digestableTaskContract(loaded.contract));
+    }
+  }
+
   return {
     contract: digestableTaskContract(loaded.contract),
     digest: loaded.digest,
     sourcePath: loaded.sourcePath,
     approvals,
-    approved: approvals.some((approval) => approval.contractDigest === loaded.digest),
+    approved: isApproved,
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: loaded.contract.revision },
     resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
     gitAuthority: await taskGitAuthority(loaded.contract),
+    ...(changedFields !== undefined && changedFields.length > 0 ? { changedFields } : {}),
     ...(options.reapprovalPreview !== undefined ? { reapprovalPreview: options.reapprovalPreview } : {}),
   };
 }

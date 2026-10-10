@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  evaluateFullReleaseEvidence,
   evaluateOrdinaryGsdBoundary,
   evaluateReleaseEvidence,
+  renderReleaseEvidenceMarkdown,
+  type FullReleaseEvidenceInput,
   type ReleaseCandidateIdentity,
   type ReleaseEvidenceSource,
 } from "../src/core/release-evidence.js";
@@ -259,3 +262,155 @@ test("mixing identical-version role receipts preserves strict cell boundaries an
   const codexCtrl = forwardReport.cells.find((c) => c.harness === "codex" && c.role === "controller");
   assert.equal(codexCtrl?.status, "UNVERIFIED");
 });
+
+// ---------------------------------------------------------------------------
+// Full Release Evidence Conjunction Probes (VER-01..04)
+// ---------------------------------------------------------------------------
+
+test("evaluateFullReleaseEvidence reports UNVERIFIED when CI run is missing or unverified", () => {
+  const input: FullReleaseEvidenceInput = {
+    candidate,
+    ordinaryGsd: evaluateOrdinaryGsdBoundary("Normal GSD request", 0),
+  };
+
+  const verdict = evaluateFullReleaseEvidence(input);
+  assert.equal(verdict.overallStatus, "UNVERIFIED");
+  assert.equal(verdict.isReleaseReady, false);
+  assert.equal(verdict.gates.ci.status, "UNVERIFIED");
+  assert.ok(verdict.blockingGaps.some((g) => g.includes("CI Gate")));
+});
+
+test("evaluateFullReleaseEvidence rejects commit SHA or tarball SHA mismatch", () => {
+  const inputShaMismatch: FullReleaseEvidenceInput = {
+    candidate,
+    threeOsRun: {
+      releaseSha: "wrong-sha",
+      tarballSha256: candidateTarballSha,
+      overallStatus: "passed",
+      evaluatedAt: observedAt,
+      legs: [],
+      reason: null,
+      nextAction: null,
+      summary: { requiredLegsCount: 3, presentLegsCount: 0, passedLegsCount: 0, allFaultsDetected: false },
+    },
+  };
+  const v1 = evaluateFullReleaseEvidence(inputShaMismatch);
+  assert.equal(v1.overallStatus, "REJECTED");
+  assert.equal(v1.isReleaseReady, false);
+  assert.equal(v1.gates.ci.status, "REJECTED");
+
+  const inputTarballMismatch: FullReleaseEvidenceInput = {
+    candidate,
+    packedLifecycle: {
+      status: "passed",
+      tarballSha256: "different-tarball-hash",
+      stableLockChannel: "stable",
+      stableLockIdentifier: "id",
+      candidateRefused: true,
+      steps: [],
+      hostCategories: [],
+      unobservedScopeNotice: "",
+    },
+  };
+  const v2 = evaluateFullReleaseEvidence(inputTarballMismatch);
+  assert.equal(v2.gates.package.status, "REJECTED");
+  assert.equal(v2.isReleaseReady, false);
+});
+
+test("evaluateFullReleaseEvidence succeeds with PROVEN and isReleaseReady when all gates pass", () => {
+  const input: FullReleaseEvidenceInput = {
+    candidate,
+    threeOsRun: {
+      releaseSha: candidateSha,
+      tarballSha256: candidateTarballSha,
+      overallStatus: "passed",
+      evaluatedAt: observedAt,
+      reason: null,
+      nextAction: null,
+      summary: { requiredLegsCount: 1, presentLegsCount: 1, passedLegsCount: 1, allFaultsDetected: true },
+      legs: [
+        {
+          os: "linux",
+          runId: "1",
+          jobId: "1",
+          headSha: candidateSha,
+          tarballSha256: candidateTarballSha,
+          status: "passed",
+          faults: [],
+          logUrl: "http://example.com/log",
+          diagnostics: null,
+        },
+      ],
+    },
+    supportMatrix: {
+      schemaVersion: 2,
+      release: "0.2.0",
+      generatedAt: observedAt,
+      platform: "linux",
+      evidenceSource: "state/receipts",
+      summary: {
+        provenCount: 10,
+        unverifiedCount: 23,
+        unsupportedCount: 2,
+        realHandoffsCount: 3,
+        syntheticHandoffsCount: 1,
+        byHarness: {} as any,
+      },
+      cells: [],
+      handoffs: [],
+    },
+    packedLifecycle: {
+      status: "passed",
+      tarballSha256: candidateTarballSha,
+      stableLockChannel: "stable",
+      stableLockIdentifier: "id",
+      candidateRefused: true,
+      steps: [],
+      hostCategories: [],
+      unobservedScopeNotice: "notice",
+    },
+    developmentExample: {
+      exampleId: "development",
+      title: "Game",
+      overallStatus: "completed",
+      reasons: [],
+      mandatoryCriteriaMet: true,
+      reviewerApproved: true,
+      requiredCapabilitiesInvoked: true,
+      unmetMandatoryCriteria: [],
+      missingRequiredCapabilities: [],
+      sortedCriteria: [],
+      sortedCapabilities: [],
+    },
+    coursepilotExample: {
+      exampleId: "coursepilot",
+      title: "CoursePilot",
+      overallStatus: "completed",
+      reasons: [],
+      mandatoryCriteriaMet: true,
+      reviewerApproved: true,
+      requiredCapabilitiesInvoked: true,
+      unmetMandatoryCriteria: [],
+      missingRequiredCapabilities: [],
+      sortedCriteria: [],
+      sortedCapabilities: [],
+    },
+    ordinaryGsd: evaluateOrdinaryGsdBoundary("Refactor helper", 0),
+  };
+
+  const verdict = evaluateFullReleaseEvidence(input);
+  assert.equal(verdict.overallStatus, "PROVEN");
+  assert.equal(verdict.isReleaseReady, true);
+  assert.equal(verdict.blockingGaps.length, 0);
+
+  const markdown = renderReleaseEvidenceMarkdown(verdict);
+  assert.ok(markdown.includes("Full Release Evidence & Audit Verdict"));
+  assert.ok(markdown.includes("YES (PROVEN)"));
+  assert.ok(markdown.includes("VER-01"));
+  assert.ok(markdown.includes("VER-02"));
+  assert.ok(markdown.includes("VER-03"));
+  assert.ok(markdown.includes("VER-04-DEV"));
+  assert.ok(markdown.includes("VER-04-CP"));
+  assert.ok(markdown.includes("GSD-CORE"));
+});
+

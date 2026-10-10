@@ -267,6 +267,8 @@ alpha-aos project status .
 
 ## What is Installed (Global Stack Matrix)
 
+For the complete 35-cell role & capability support evaluation and verified handoffs, see the [v0.2.0 Support Matrix](./docs/SUPPORT_MATRIX_v0.2.0.md) and [v0.2.0 Release Notes](./docs/RELEASE_NOTES_v0.2.0.md).
+
 | Layer | Component / Package | Targets | Notes |
 |---|---|---|---|
 | **Workflow & State Spine** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |

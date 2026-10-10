@@ -265,6 +265,8 @@ alpha-aos project status .
 
 ## 설치 구성 요소 목록 (전역 매트릭스)
 
+5대 하네스의 역할·기능별 35개 셀 지원 상태와 검증된 인계에 대한 상세 내용은 [v0.2.0 지원 매트릭스](./docs/SUPPORT_MATRIX_v0.2.0.md) 및 [v0.2.0 릴리스 노트](./docs/RELEASE_NOTES_v0.2.0.md)를 참조하십시오.
+
 | 레이어 | 패키지 / 구성 요소 | 타깃 | 설명 |
 |---|---|---|---|
 | **워크플로우 척추** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | 프로젝트 기획, 단계별 계획/실행 및 검증 총괄. |

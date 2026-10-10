@@ -369,37 +369,37 @@ Plans:
 
 **Verification:** Packed CLI scenarios, skill discovery canaries and malformed/stale contract tests.
 
-**Plans:** 0/7 plans complete
+**Plans:** 7/7 plans complete
 
 Plans:
 
 **Wave 1**
 
-- [ ] 21-01-PLAN.md — Native task skill and end-to-end entry tracer
+- [x] 21-01-PLAN.md — Native task skill and end-to-end entry tracer
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 21-02-PLAN.md — Full contract preview, changes, limits and blocked readiness
+- [x] 21-02-PLAN.md — Full contract preview, changes, limits and blocked readiness
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 21-03-PLAN.md — Reserved run identity and durable control commands
+- [x] 21-03-PLAN.md — Reserved run identity and durable control commands
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 21-04-PLAN.md — Cross-process stop, confirmed termination and safe resume
+- [x] 21-04-PLAN.md — Cross-process stop, confirmed termination and safe resume
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 21-05-PLAN.md — Run-scoped status and shared evidence view
+- [x] 21-05-PLAN.md — Run-scoped status and shared evidence view
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 21-06-PLAN.md — Complete criterion and item-level reports
+- [x] 21-06-PLAN.md — Complete criterion and item-level reports
 
 **Wave 7** *(blocked on Wave 6 completion)*
 
-- [ ] 21-07-PLAN.md — Scoped doctor, structured failure JSON and integrated proof
+- [x] 21-07-PLAN.md — Scoped doctor, structured failure JSON and integrated proof
 
 ### Phase 22: Release Proof
 

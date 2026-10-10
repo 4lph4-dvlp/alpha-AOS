@@ -41,7 +41,7 @@
     {
       "number": "21",
       "name": "Natural Entry and Operator CLI",
-      "status": "pending"
+      "status": "complete"
     },
     {
       "number": "22",
@@ -50,9 +50,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-execute-phase 21",
-    "label": "Execute Phase 21",
-    "reason": "Phase 20 complete; advance to Phase 21 Natural Entry and Operator CLI"
+    "command": "/gsd-execute-phase 22",
+    "label": "Execute Phase 22",
+    "reason": "Phase 21 complete; advance to Phase 22 Release Proof"
   },
-  "updated_at": "2026-10-09T11:55:00.000Z"
+  "updated_at": "2026-10-10T05:30:00.000Z"
 }

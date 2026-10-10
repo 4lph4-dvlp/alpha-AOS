@@ -135,9 +135,9 @@ test("the managed install operation plan enumerates every fixture and component 
   assert.equal(plan.components.eccSkills.length, 1);
   assert.equal(plan.components.mcp.length, 1);
   assert.equal(plan.components.policy, null, "Claude is not a target, so no policy write is planned");
-  assert.equal(plan.components.ownedSkills.length, 1);
-  assert.equal(plan.components.ownedSkills[0]?.target, "codex");
-  assert.equal(plan.components.ownedSkills[0]?.sync.id, "alpha-aos-control");
+  assert.equal(plan.components.ownedSkills.length, 2);
+  assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-control"), true);
+  assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-task"), true);
 
   // Every external installer is declared before it runs.
   assert.deepEqual(plan.external.map((step) => step.id).sort(), ["ecc:runtime", "gsd:codex"]);

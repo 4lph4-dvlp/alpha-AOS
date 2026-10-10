@@ -21,7 +21,7 @@ interface CapabilityFixtureDefinition {
 /**
  * Data-driven positive and negative fixture manifest covering every single
  * capability declared across catalog, lock, pack catalog, commands, tools, and hooks.
- * Total: 77 declared capabilities.
+ * Total: 78 declared capabilities.
  */
 export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[] = [
   // 1. GSD Workflows (5)
@@ -368,12 +368,20 @@ export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[]
     negativeReasonPattern: /Project pack WEB_REACT is unapproved or unselected/u,
   },
 
-  // 5. Owned Skills (2)
+  // 5. Owned Skills (3)
   {
     capabilityId: "owned:alpha-aos-control",
     kind: "owned-skill",
     positivePrompt: "Execute alpha-AOS control plane operations and policy checks.",
     negativePrompt: "Standalone third-party utility without control commands.",
+    positiveReasonPattern: /Owned skill configured in catalog/u,
+    negativeReasonPattern: /unsupported/u,
+  },
+  {
+    capabilityId: "owned:alpha-aos-task",
+    kind: "owned-skill",
+    positivePrompt: "Execute natural task intake and operator CLI workflows.",
+    negativePrompt: "Standalone script without task lifecycle commands.",
     positiveReasonPattern: /Owned skill configured in catalog/u,
     negativeReasonPattern: /unsupported/u,
   },
@@ -684,7 +692,7 @@ test("CAP-05 completeness: fixture manifest matches exact inventory declaration 
     `Fixture manifest contains extra undeclared capabilities: ${extraInManifest.join(", ")}`,
   );
   assert.equal(manifestIds.size, declaredIds.size);
-  assert.equal(manifestIds.size, 77, "Must cover all 77 declared capabilities");
+  assert.equal(manifestIds.size, 78, "Must cover all 78 declared capabilities");
 });
 
 test("CAP-05: every capability has non-empty positive and negative prompts and reason patterns", () => {

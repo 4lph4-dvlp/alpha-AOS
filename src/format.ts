@@ -1949,6 +1949,8 @@ export function formatGeneralTaskReport(report: GeneralTaskReportData, run?: Tas
   return lines.join("\n");
 }
 
+export { formatTaskTargetedDoctorReport, type TaskTargetedDoctorReport } from "./core/task-doctor.js";
+
 
 
 

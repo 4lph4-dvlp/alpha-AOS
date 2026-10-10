@@ -74,7 +74,7 @@ test("stable catalog loads exact locked components", async () => {
   assert.equal(lock.components.ecc?.targetSha256["deep-research"]?.codex, "fdd97098a3a4a02513baf0428faacbe390b42fd4f86362387938e3455c80d90c");
   assert.deepEqual(Object.keys(lock.components.mcp ?? {}), ["context7", "exa", "firecrawl"]);
   assert.equal(lock.components.mcpBridges?.pi?.version, "2.36.0");
-  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-control"]);
+  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-control", "alpha-aos-task"]);
   const shipSource = await readFile(join(root, "skills", "alpha-aos-ship", "SKILL.md"));
   const shipHash = createHash("sha256").update(shipSource).digest("hex");
   const lockedShip = lock.components.ownedSkills?.["alpha-aos-ship"];
@@ -90,6 +90,15 @@ test("stable catalog loads exact locked components", async () => {
   for (const target of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
     const renderedControl = renderOwnedSkill(controlSource.toString("utf8"), target, "automatic");
     assert.equal(lockedControl?.targetSha256[target], createHash("sha256").update(renderedControl).digest("hex"));
+  }
+
+  const taskSource = await readFile(join(root, "skills", "alpha-aos-task", "SKILL.md"));
+  const taskHash = createHash("sha256").update(taskSource).digest("hex");
+  const lockedTask = lock.components.ownedSkills?.["alpha-aos-task"];
+  assert.equal(lockedTask?.sourceSha256, taskHash);
+  for (const target of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const renderedTask = renderOwnedSkill(taskSource.toString("utf8"), target, "automatic");
+    assert.equal(lockedTask?.targetSha256[target], createHash("sha256").update(renderedTask).digest("hex"));
   }
 });
 

@@ -58,13 +58,15 @@ import {
   taskStatusCommand,
   taskStopCommand,
   taskResumeCommand,
+  isTaskContractId,
+  TaskContractError,
   type DigestableTaskContract,
   type LoadedTaskContract,
   type TaskContractPreview,
 } from "./core/task-contract.js";
 import { requestTaskStop, readTaskStopState } from "./core/task-control.js";
 import { normalizeTaskRunForReport, readTaskStatusModel, selectTaskExecution } from "./core/task-read.js";
-import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
+import { listTaskRuns, readTaskReport, startTask, TaskRunError, type TaskStartReadiness } from "./core/task-run.js";
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
 import { createNativeFinalReviewPort, nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
@@ -81,6 +83,8 @@ import {
   formatDoctorTable,
   diagnoseGsdLifecycleStatus,
   formatGsdDoctorReport,
+  diagnoseTargetedTask,
+  formatTaskTargetedDoctorReport,
   type GsdLifecycleDiagnostics,
 } from "./core/task-doctor.js";
 import {
@@ -98,7 +102,7 @@ import {
 import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 import {
   canaryProof,
   canaryRow,
@@ -1830,6 +1834,19 @@ async function main(): Promise<void> {
     const operand = parts[0];
 
     if (subcommand === "doctor") {
+      const runId = optionValue(args, "--run");
+      const targetId = operand ?? (runId !== null ? runId : undefined);
+      if (targetId !== undefined) {
+        const report = await diagnoseTargetedTask({
+          stateRoot,
+          targetId,
+          runId: runId ?? undefined,
+          projectRoot: process.cwd(),
+        });
+        print(report, json, formatTaskTargetedDoctorReport(report), context);
+        return;
+      }
+
       const report = await buildTaskDoctorReport(join(stateRoot, "receipts"));
       let gsdDiagnostics: GsdLifecycleDiagnostics | null = null;
       try {
@@ -2390,10 +2407,267 @@ async function main(): Promise<void> {
   throw new Error(`Unknown command: ${command}\n\n${HELP}`);
 }
 
+export interface CliErrorEnvelope {
+  readonly status: "failed" | "blocked" | "refused";
+  readonly reasonCode: string;
+  readonly reason: string;
+  readonly nextAction: string;
+  readonly contractId?: string | undefined;
+  readonly runId?: string | undefined;
+  readonly contractDigest?: string | undefined;
+  readonly evidence?: string | undefined;
+}
+
+const RUN_ID_REGEX = /^[0-9a-z]{8,}-[0-9a-f]{8}$/iu;
+const DIGEST_REGEX = /^[0-9a-f]{64}$/iu;
+
+function serializeCliError(
+  error: unknown,
+  args: string[],
+  context: RedactionContext,
+): CliErrorEnvelope {
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const message = redactString(rawMessage, context);
+
+  let status: "failed" | "blocked" | "refused" = "failed";
+  let reasonCode = "COMMAND_FAILED";
+  let nextAction = "Inspect the error message and retry with valid arguments.";
+
+  if (error instanceof TaskContractError) {
+    switch (error.code) {
+      case "contract-drift":
+        status = "blocked";
+        reasonCode = "STALE_DIGEST";
+        nextAction = "Review updated contract preview and approve with current contract digest.";
+        break;
+      case "not-approved":
+        status = "blocked";
+        reasonCode = "APPROVAL_REQUIRED";
+        nextAction = "Approve the contract with 'alpha-aos task approve <contract> --contract-digest <digest> --apply' before starting.";
+        break;
+      case "unsupported-controller":
+        status = "blocked";
+        reasonCode = "UNSUPPORTED_ROLE";
+        nextAction = "Prove required harness role receipts with 'alpha-aos task doctor' or update agent policy.";
+        break;
+      case "cost-meter-unavailable":
+        status = "blocked";
+        reasonCode = "MISSING_METER";
+        nextAction = "Switch to an unmetered policy or run with a harness that supports token/cost metering.";
+        break;
+      case "contract-invalid":
+        status = "failed";
+        reasonCode = "CONTRACT_INVALID";
+        nextAction = "Check contract syntax and schema requirements.";
+        break;
+      case "secret-in-contract":
+        status = "refused";
+        reasonCode = "SECRET_IN_CONTRACT";
+        nextAction = "Remove credentials or secret tokens from the contract before proceeding.";
+        break;
+      case "git-directory-changed":
+        status = "blocked";
+        reasonCode = "GIT_DIRECTORY_CHANGED";
+        nextAction = "Verify workspace git root matches approved contract scope.";
+        break;
+      case "root-changed":
+        status = "blocked";
+        reasonCode = "ROOT_CHANGED";
+        nextAction = "Re-plan task under the original project root or re-approve.";
+        break;
+      case "revision-reused":
+        status = "blocked";
+        reasonCode = "REVISION_REUSED";
+        nextAction = "Increment revision number for contract changes.";
+        break;
+      default:
+        status = "failed";
+        reasonCode = "CONTRACT_ERROR";
+        nextAction = "Review contract structure and state.";
+    }
+  } else if (error instanceof TaskRunError) {
+    switch (error.code) {
+      case "approval-consumed":
+        status = "blocked";
+        reasonCode = "APPROVAL_CONSUMED";
+        nextAction = "Contract approval has already been consumed by an earlier run; create or approve a new revision.";
+        break;
+      case "unsupported-agent-pair":
+        status = "blocked";
+        reasonCode = "UNSUPPORTED_ROLE";
+        nextAction = "Ensure controller and executor harnesses have proven role support.";
+        break;
+      case "run-record-invalid":
+        status = "failed";
+        reasonCode = "RUN_RECORD_INVALID";
+        nextAction = "Inspect corrupted or invalid run record in state directory.";
+        break;
+      case "dirty-baseline":
+        status = "blocked";
+        reasonCode = "DIRTY_BASELINE";
+        nextAction = "Commit or stash uncommitted changes before starting autonomous execution.";
+        break;
+      case "gsd-not-ready":
+        status = "blocked";
+        reasonCode = "GSD_NOT_READY";
+        nextAction = "Resolve GSD status blockers before initiating task run.";
+        break;
+      case "missing-connector":
+        status = "blocked";
+        reasonCode = "MISSING_CONNECTOR";
+        nextAction = "Install or configure missing capability connectors.";
+        break;
+      case "stale-manifest":
+        status = "blocked";
+        reasonCode = "STALE_MANIFEST";
+        nextAction = "Update project manifest to match current state.";
+        break;
+      default:
+        status = "failed";
+        reasonCode = "RUN_ERROR";
+        nextAction = "Inspect task run configuration and state.";
+    }
+  } else {
+    if (/stale digest|contract-drift|digest mismatch|does not match current contract digest/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "STALE_DIGEST";
+      nextAction = "Review updated contract preview and approve with current contract digest.";
+    } else if (/not[- ]approved|approval required|is not approved/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "APPROVAL_REQUIRED";
+      nextAction = "Approve the contract with 'alpha-aos task approve <contract> --contract-digest <digest> --apply' before starting.";
+    } else if (/unsupported[- ](?:role|controller|agent|pair)|no harness role receipt/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "UNSUPPORTED_ROLE";
+      nextAction = "Prove required harness role receipts with 'alpha-aos task doctor' or update agent policy.";
+    } else if (/missing[- ](?:telemetry[- ])?meter|cost[- ]meter[- ]unavailable|cannot measure/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "MISSING_METER";
+      nextAction = "Switch to an unmetered policy or run with a harness that supports token/cost metering.";
+    } else if (/stop request is pending|active stop/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "STOP_PENDING";
+      nextAction = "Wait for active controller process to confirm exit before issuing commands.";
+    } else if (/resume blocked|without confirmed stop record/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "RESUME_BLOCKED";
+      nextAction = "Reconcile task state with 'alpha-aos task doctor <contract-id>' before attempting resume.";
+    } else if (/no run recorded for task/iu.test(rawMessage)) {
+      status = "failed";
+      reasonCode = "RUN_NOT_FOUND";
+      nextAction = "Verify the task run ID or run 'alpha-aos task status <contract-id>' to inspect available runs.";
+    } else if (/no task or run found/iu.test(rawMessage)) {
+      status = "failed";
+      reasonCode = "NOT_FOUND";
+      nextAction = "Check the specified identifier and ensure the task or run exists in state.";
+    } else if (/no checkpoint recorded/iu.test(rawMessage)) {
+      status = "failed";
+      reasonCode = "NO_CHECKPOINT";
+      nextAction = "Verify task has started execution and written checkpoints.";
+    } else if (/schema validation|contract-invalid|malformed contract|failed schema validation/iu.test(rawMessage)) {
+      status = "failed";
+      reasonCode = "CONTRACT_INVALID";
+      nextAction = "Check contract syntax and schema requirements.";
+    } else if (/dirty[- ]baseline/iu.test(rawMessage)) {
+      status = "blocked";
+      reasonCode = "DIRTY_BASELINE";
+      nextAction = "Commit or stash uncommitted changes before starting autonomous execution.";
+    }
+  }
+
+  let contractId: string | undefined = undefined;
+  let runId: string | undefined = undefined;
+  let contractDigest: string | undefined = undefined;
+
+  const suppliedDigest = optionValue(args, "--contract-digest");
+  if (suppliedDigest && DIGEST_REGEX.test(suppliedDigest)) {
+    contractDigest = suppliedDigest;
+  } else {
+    const digestMatch = rawMessage.match(/\b([0-9a-f]{64})\b/iu);
+    if (digestMatch) {
+      contractDigest = digestMatch[1];
+    }
+  }
+
+  const suppliedRun = optionValue(args, "--run");
+  if (suppliedRun && RUN_ID_REGEX.test(suppliedRun)) {
+    runId = suppliedRun;
+  }
+
+  for (const arg of args) {
+    if (arg.startsWith("-")) continue;
+    if (["task", "plan", "preview", "approve", "start", "report", "status", "stop", "resume", "doctor", "answer", "final-review", "help"].includes(arg)) {
+      continue;
+    }
+    if (!runId && RUN_ID_REGEX.test(arg)) {
+      runId = arg;
+      continue;
+    }
+    if (!contractId) {
+      if (arg.endsWith(".json")) {
+        const base = basename(arg, ".json");
+        if (isTaskContractId(base)) {
+          contractId = base;
+        }
+      } else if (isTaskContractId(arg)) {
+        contractId = arg;
+      }
+    }
+  }
+
+  if (!contractId) {
+    const taskMatch = rawMessage.match(/\btask ([a-z0-9][a-z0-9-]{0,63})\b/iu);
+    if (taskMatch && isTaskContractId(taskMatch[1]!)) {
+      contractId = taskMatch[1];
+    }
+  }
+
+  if (!runId) {
+    const runMatch = rawMessage.match(/\brun(?: id)? ([0-9a-z]{8,}-[0-9a-f]{8})\b/iu);
+    if (runMatch && RUN_ID_REGEX.test(runMatch[1]!)) {
+      runId = runMatch[1];
+    }
+  }
+
+  return {
+    status,
+    reasonCode,
+    reason: message,
+    nextAction,
+    ...(contractId ? { contractId } : {}),
+    ...(runId ? { runId } : {}),
+    ...(contractDigest ? { contractDigest } : {}),
+    evidence: message,
+  };
+}
+
 main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
+  const context = observableContext();
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const message = redactString(rawMessage, context);
+  const args = process.argv.slice(2);
+  const command = args[0] ?? "help";
+  const json = hasFlag(args, "--json");
+
+  if (json && command === "task" && !rawMessage.includes("Refusing to print a JSON envelope over the observable byte budget")) {
+    try {
+      const errorPayload = serializeCliError(error, args, context);
+      const envelope = serializeObservable(errorPayload, context);
+      process.stdout.write(`${envelope.text}\n`);
+    } catch {
+      process.stdout.write(
+        JSON.stringify({
+          status: "failed",
+          reasonCode: "COMMAND_FAILED",
+          reason: message,
+          nextAction: "Inspect the error message and retry with valid arguments.",
+        }) + "\n",
+      );
+    }
+  }
+
   // The error channel is an observable surface too: it leaves through the same
   // seam as everything else.
-  process.stderr.write(`alpha-aos: ${redactString(message, observableContext())}\n`);
+  process.stderr.write(`alpha-aos: ${message}\n`);
   process.exitCode = 2;
 });

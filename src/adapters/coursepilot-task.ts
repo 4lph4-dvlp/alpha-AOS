@@ -230,6 +230,7 @@ export async function resolveCoursePilotRuntime(options: {
         }
       } else {
         missingProof.push(`CoursePilot CLI probe returned non-ok status: ${helpResult.code}`);
+        missingProof.push("D-17 public materials contract flags (--contract-version/--manifest) not supported in CLI help");
       }
     } catch (err) {
       missingProof.push(`Failed to probe CoursePilot CLI: ${(err as Error).message}`);

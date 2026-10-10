@@ -8,6 +8,8 @@ import { userStateRoot } from "./paths.js";
 import { discoverPhaseProgression } from "./task-gsd-discovery.js";
 import { runGitRead } from "./task-gsd.js";
 import { readTaskReviewSuggestions } from "./task-review-suggestions.js";
+import { isTaskContractId, loadTaskContract, readTaskApprovals, readReservedTaskRun } from "./task-contract.js";
+import { readTaskStatusModel } from "./task-read.js";
 
 export interface HarnessDoctorEntry {
   harness: string;
@@ -320,6 +322,220 @@ export function formatGsdDoctorReport(diagnostics: GsdLifecycleDiagnostics): str
       lines.push("Pending Suggestions: none");
     }
   }
+  return lines.join("\n");
+}
+
+export interface TaskTargetedDoctorReport {
+  readonly scope: "task";
+  readonly targetType: "contract" | "run";
+  readonly contractId: string;
+  readonly runId?: string | undefined;
+  readonly contractDigest: string;
+  readonly status: string;
+  readonly verdict: string;
+  readonly blocked: boolean;
+  readonly reasonCode: string;
+  readonly reason: string;
+  readonly nextAction: string;
+  readonly selectedStartedAt?: string | null | undefined;
+  readonly blockingFindings: readonly string[];
+  readonly harnessRoles?: {
+    readonly controller: string;
+    readonly executor: string;
+    readonly reviewer: string;
+  } | undefined;
+  readonly stopState: string;
+  readonly resumeBlocked: boolean;
+  readonly gsdStatus?: string | undefined;
+}
+
+/**
+ * Targeted doctor diagnosis for a specific contract ID or run ID (D-16).
+ * Inspects role support, capability dependencies, GSD status, stop/lease fencing,
+ * and resume blockers without mutating state or implicitly falling back to recent runs.
+ */
+export async function diagnoseTargetedTask(options: {
+  stateRoot: string;
+  targetId: string;
+  runId?: string | undefined;
+  projectRoot?: string | undefined;
+  packageRoot?: string | undefined;
+}): Promise<TaskTargetedDoctorReport> {
+  const { stateRoot, targetId, projectRoot = process.cwd() } = options;
+
+  let contractId: string | null = null;
+  let targetRunId: string | null = options.runId ?? null;
+  let targetType: "contract" | "run" = options.runId ? "run" : "contract";
+
+  // 1. Check if targetId is a contract file
+  if (targetId.endsWith(".json") && existsSync(targetId)) {
+    try {
+      const loaded = await loadTaskContract(targetId);
+      contractId = loaded.contract.id;
+    } catch {
+      // not a contract file
+    }
+  }
+
+  // 2. Check if targetId is a contract directory in stateRoot
+  if (contractId === null && existsSync(join(stateRoot, "tasks", targetId))) {
+    contractId = targetId;
+  }
+
+  // 3. Check if targetId is a runId across any task's runs directory or reserved runs
+  if (contractId === null) {
+    const tasksDir = join(stateRoot, "tasks");
+    if (existsSync(tasksDir)) {
+      try {
+        const contracts = await readdir(tasksDir);
+        for (const cid of contracts) {
+          const runFile = join(tasksDir, cid, "runs", `${targetId}.json`);
+          if (existsSync(runFile)) {
+            contractId = cid;
+            targetRunId = targetId;
+            targetType = "run";
+            break;
+          }
+          const reserved = await readReservedTaskRun({ stateRoot, contractId: cid, runId: targetId });
+          if (reserved && reserved.status !== "refused") {
+            contractId = cid;
+            targetRunId = targetId;
+            targetType = "run";
+            break;
+          }
+        }
+      } catch {}
+    }
+  }
+
+  // 4. Check if targetId matches a valid contractId with approved receipts
+  if (contractId === null && isTaskContractId(targetId)) {
+    try {
+      const approvals = await readTaskApprovals({ stateRoot, contractId: targetId });
+      if (approvals.length > 0) {
+        contractId = targetId;
+      }
+    } catch {}
+  }
+
+  if (contractId === null) {
+    throw new Error(`no task or run found for identifier ${targetId}`);
+  }
+
+  // Use readTaskStatusModel to get the cohesive status and execution facts
+  const statusModel = await readTaskStatusModel({
+    stateRoot,
+    contractId,
+    runId: targetRunId ?? undefined,
+    detail: true,
+    projectRoot,
+  });
+
+  const blockingFindings: string[] = [];
+  let isBlocked = false;
+
+  if (statusModel.stopState.status === "pending") {
+    isBlocked = true;
+    blockingFindings.push("Stop request is pending: waiting for active controller process to confirm exit.");
+  } else if (statusModel.stopState.status === "unknown") {
+    isBlocked = true;
+    blockingFindings.push("Process exited without confirmed stop record; reconciliation required before resume.");
+  }
+
+  if (statusModel.checkpoint.status === "blocked") {
+    isBlocked = true;
+    blockingFindings.push(statusModel.checkpoint.stopReason ?? "Task execution is blocked.");
+  }
+
+  if (statusModel.checkpoint.status === "stopped") {
+    blockingFindings.push(`Task execution was stopped (${statusModel.checkpoint.stopReason ?? "operator halt"}).`);
+  }
+
+  if (statusModel.capabilities && statusModel.capabilities.blockedCount > 0) {
+    isBlocked = true;
+    for (const b of statusModel.capabilities.blocked) {
+      blockingFindings.push(`Required capability ${b.capabilityId} is blocked: ${b.nextAction}`);
+    }
+  }
+
+  if (statusModel.gsdDiagnostics && statusModel.gsdDiagnostics.phaseStatus === "blocked") {
+    isBlocked = true;
+    blockingFindings.push("GSD phase status is blocked.");
+  }
+
+  // Check harness role receipts
+  const doctorReport = await buildTaskDoctorReport(join(stateRoot, "receipts"));
+  const defaultHarness = doctorReport.find((h) => h.roles.controller === "PROVEN");
+  const harnessRoles = defaultHarness
+    ? {
+        controller: defaultHarness.roles.controller,
+        executor: defaultHarness.roles.executor,
+        reviewer: defaultHarness.roles.reviewer,
+      }
+    : undefined;
+
+  return {
+    scope: "task",
+    targetType,
+    contractId,
+    ...(targetRunId ? { runId: targetRunId } : statusModel.selectedRunId ? { runId: statusModel.selectedRunId } : {}),
+    contractDigest: statusModel.contractDigest,
+    status: statusModel.status,
+    verdict: statusModel.verdict,
+    blocked: isBlocked || statusModel.verdict === "blocked",
+    reasonCode: isBlocked ? (statusModel.reasonCode !== "RUNNING" ? statusModel.reasonCode : "TASK_BLOCKED") : statusModel.reasonCode,
+    reason: isBlocked && blockingFindings.length > 0 ? blockingFindings[0]! : statusModel.reason,
+    nextAction: statusModel.nextAction,
+    selectedStartedAt: statusModel.selectedStartedAt,
+    blockingFindings,
+    harnessRoles,
+    stopState: statusModel.stopState.status,
+    resumeBlocked: statusModel.stopState.status === "pending" || statusModel.stopState.status === "unknown",
+    ...(statusModel.gsdDiagnostics ? { gsdStatus: statusModel.gsdDiagnostics.phaseStatus ?? "unknown" } : {}),
+  };
+}
+
+export function formatTaskTargetedDoctorReport(report: TaskTargetedDoctorReport): string {
+  const lines: string[] = [
+    `Targeted Task Doctor: ${report.contractId}`,
+    `Target type: ${report.targetType}${report.runId ? ` (${report.runId})` : ""}`,
+    ...(report.selectedStartedAt ? [`Started at: ${report.selectedStartedAt}`] : []),
+    `Contract digest: ${report.contractDigest}`,
+    `Status: ${report.status}`,
+    `Verdict: ${report.verdict.toUpperCase()}`,
+    `Blocked: ${report.blocked ? "YES" : "NO"}`,
+    `Reason code: ${report.reasonCode}`,
+    `Reason: ${report.reason}`,
+    `Next action: ${report.nextAction}`,
+    "",
+    "Blocking Findings:",
+  ];
+
+  if (report.blockingFindings.length === 0) {
+    lines.push("  None: no blockers detected.");
+  } else {
+    for (const finding of report.blockingFindings) {
+      lines.push(`  - ${finding}`);
+    }
+  }
+
+  lines.push(
+    "",
+    "Stop & Recovery State:",
+    `  Stop state: ${report.stopState}`,
+    `  Resume blocked: ${report.resumeBlocked ? "YES" : "NO"}`,
+  );
+
+  if (report.harnessRoles) {
+    lines.push(
+      "",
+      "Harness Role Proofs:",
+      `  Controller: ${report.harnessRoles.controller}`,
+      `  Executor:   ${report.harnessRoles.executor}`,
+      `  Reviewer:   ${report.harnessRoles.reviewer}`,
+    );
+  }
+
   return lines.join("\n");
 }
 

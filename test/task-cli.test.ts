@@ -880,3 +880,210 @@ test("task status on reserved runId reports reserved status without phantom run 
   assert.ok(out.includes("Started at: not started yet"));
   assert.ok(out.includes("Start approved execution:"));
 });
+
+// ---------------------------------------------------------------------------
+// Plan 21-07: Targeted doctor and structured error JSON contracts (D-16, D-17)
+// ---------------------------------------------------------------------------
+
+test("task doctor separates environment sweep from targeted contract/run diagnosis (D-16)", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+
+  // 1. Environment sweep (no ID) does not select recent runs or tasks
+  const sweep = await cli(fixture, ["doctor", "--json"]);
+  assert.equal(sweep.exitCode, 0, sweep.stderr.excerpt);
+  const sweepData = JSON.parse(sweep.stdout.excerpt) as { status: string; harnesses: unknown[]; scope?: unknown };
+  assert.equal(sweepData.status, "ok");
+  assert.equal(Array.isArray(sweepData.harnesses), true);
+  assert.equal(sweepData.scope, undefined, "Environment sweep must not contain task-scoped fields");
+
+  // Approve and start a task run to create state
+  const approveResult = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest, "--apply", "--json"]);
+  assert.equal(approveResult.exitCode, 0);
+  const approveData = JSON.parse(approveResult.stdout.excerpt) as { reservedRunId: string };
+
+  const { run } = await startFixtureTask(fixture, {
+    ports: fixturePorts({
+      controller: referenceControllerPort("correct"),
+      reviewer: staticReviewerPort(passingReview),
+    }),
+    expectedDigest: digest,
+    runId: approveData.reservedRunId,
+  });
+  const runId = run.runId;
+
+  // 2. Targeted doctor with contract ID
+  const contractDoc = await cli(fixture, ["doctor", "inventory-summary", "--json"]);
+  assert.equal(contractDoc.exitCode, 0, contractDoc.stderr.excerpt);
+  const contractData = JSON.parse(contractDoc.stdout.excerpt) as {
+    scope: string;
+    targetType: string;
+    contractId: string;
+    verdict: string;
+    reasonCode: string;
+    nextAction: string;
+    blocked: boolean;
+  };
+  assert.equal(contractData.scope, "task");
+  assert.equal(contractData.contractId, "inventory-summary");
+  assert.ok(contractData.reasonCode.length > 0);
+  assert.ok(contractData.nextAction.length > 0);
+
+  // Human output contains targeted section
+  const contractDocHuman = await cli(fixture, ["doctor", "inventory-summary"]);
+  assert.equal(contractDocHuman.exitCode, 0);
+  assert.ok(contractDocHuman.stdout.excerpt.includes("Targeted Task Doctor: inventory-summary"));
+  assert.ok(contractDocHuman.stdout.excerpt.includes("Reason code:"));
+  assert.ok(contractDocHuman.stdout.excerpt.includes("Next action:"));
+
+  // 3. Targeted doctor with exact run ID
+  const runDoc = await cli(fixture, ["doctor", "inventory-summary", "--run", runId, "--json"]);
+  assert.equal(runDoc.exitCode, 0, runDoc.stderr.excerpt);
+  const runData = JSON.parse(runDoc.stdout.excerpt) as {
+    scope: string;
+    targetType: string;
+    contractId: string;
+    runId: string;
+    verdict: string;
+  };
+  assert.equal(runData.scope, "task");
+  assert.equal(runData.targetType, "run");
+  assert.equal(runData.contractId, "inventory-summary");
+  assert.equal(runData.runId, runId);
+
+  // 4. Targeted doctor fails closed on non-existent ID without fallback (UX-02 edge probe)
+  const invalidDoc = await cli(fixture, ["doctor", "non-existent-task", "--json"]);
+  assert.equal(invalidDoc.exitCode, 2);
+  const invalidData = JSON.parse(invalidDoc.stdout.excerpt) as {
+    status: string;
+    reasonCode: string;
+    reason: string;
+    nextAction: string;
+  };
+  assert.equal(invalidData.status, "failed");
+  assert.equal(invalidData.reasonCode, "NOT_FOUND");
+  assert.match(invalidData.reason, /no task or run found/iu);
+  assert.ok(invalidData.nextAction.length > 0);
+
+  // 5. Targeted doctor with run ID not belonging to contract fails without fallback
+  const foreignRunDoc = await cli(fixture, ["doctor", "inventory-summary", "--run", "00000000-00000000", "--json"]);
+  assert.equal(foreignRunDoc.exitCode, 2);
+  const foreignData = JSON.parse(foreignRunDoc.stdout.excerpt) as {
+    status: string;
+    reasonCode: string;
+    contractId?: string;
+  };
+  assert.equal(foreignData.status, "failed");
+  assert.equal(foreignData.reasonCode, "RUN_NOT_FOUND");
+  assert.equal(foreignData.contractId, "inventory-summary");
+
+  // Read-only invariant: doctor never alters state listings
+  const stateAfterDoctor = await listing(fixture.stateRoot);
+  const afterDoctorRun = await cli(fixture, ["doctor", "inventory-summary", "--json"]);
+  assert.equal(afterDoctorRun.exitCode, 0);
+  const stateAfterSecondDoctor = await listing(fixture.stateRoot);
+  assert.deepEqual(stateAfterSecondDoctor, stateAfterDoctor);
+});
+
+test("structured error JSON envelopes are emitted across CLI failure modes (D-17, T-21-14, T-21-15)", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+
+  // Case 1: Stale digest rejection
+  const staleApprove = await cli(fixture, [
+    "approve",
+    fixture.contractPath,
+    "--contract-digest",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "--apply",
+    "--json",
+  ]);
+  assert.equal(staleApprove.exitCode, 2);
+  const stalePayload = JSON.parse(staleApprove.stdout.excerpt) as {
+    status: string;
+    reasonCode: string;
+    reason: string;
+    nextAction: string;
+    contractDigest?: string;
+  };
+  assert.equal(stalePayload.status, "blocked");
+  assert.equal(stalePayload.reasonCode, "STALE_DIGEST");
+  assert.ok(stalePayload.nextAction.length > 0);
+  assert.equal(stalePayload.contractDigest, "0000000000000000000000000000000000000000000000000000000000000000");
+
+  // Case 2: Approval required on start
+  const unapprovedStart = await cli(fixture, [
+    "start",
+    fixture.contractPath,
+    "--contract-digest",
+    digest,
+    "--apply",
+    "--json",
+  ]);
+  assert.equal(unapprovedStart.exitCode, 2);
+  const unapprovedPayload = JSON.parse(unapprovedStart.stdout.excerpt) as {
+    status: string;
+    reasonCode: string;
+    reason: string;
+    nextAction: string;
+  };
+  assert.equal(unapprovedPayload.status, "blocked");
+  assert.equal(unapprovedPayload.reasonCode, "APPROVAL_REQUIRED");
+  assert.ok(unapprovedPayload.nextAction.length > 0);
+
+  // Case 3: Missing run query in report
+  const missingRun = await cli(fixture, [
+    "report",
+    "inventory-summary",
+    "--run",
+    "00000000-00000000",
+    "--json",
+  ]);
+  assert.equal(missingRun.exitCode, 2);
+  const missingPayload = JSON.parse(missingRun.stdout.excerpt) as {
+    status: string;
+    reasonCode: string;
+    contractId?: string;
+    runId?: string;
+  };
+  assert.equal(missingPayload.status, "failed");
+  assert.equal(missingPayload.reasonCode, "RUN_NOT_FOUND");
+  assert.equal(missingPayload.contractId, "inventory-summary");
+  assert.equal(missingPayload.runId, "00000000-00000000");
+
+  // Case 4: Malformed contract file
+  const malformedPath = join(fixture.scratch, "malformed-contract.json");
+  await writeFile(malformedPath, "{ invalid json content: true", "utf8");
+  const malformedPreview = await cli(fixture, ["preview", malformedPath, "--json"]);
+  assert.equal(malformedPreview.exitCode, 2);
+  const malformedPayload = JSON.parse(malformedPreview.stdout.excerpt) as {
+    status: string;
+    reasonCode: string;
+    nextAction: string;
+  };
+  assert.equal(malformedPayload.status, "failed");
+  assert.equal(malformedPayload.reasonCode, "CONTRACT_INVALID");
+  assert.ok(malformedPayload.nextAction.length > 0);
+
+  // Case 5: Secret redaction in JSON error output (T-21-14)
+  const secretContractPath = join(fixture.scratch, "secret-token-contract.json");
+  await writeFile(
+    secretContractPath,
+    JSON.stringify({
+      ...inventorySummaryContract(fixture.projectRoot),
+      goal: "Use api-key=sk-ant-api03-verylongsecretkey12345 to fetch data",
+    }),
+    "utf8",
+  );
+  const secretStart = await cli(fixture, [
+    "start",
+    secretContractPath,
+    "--contract-digest",
+    "0000000000000000000000000000000000000000000000000000000000000000",
+    "--apply",
+    "--json",
+  ]);
+  assert.equal(secretStart.exitCode, 2);
+  assert.ok(!secretStart.stdout.excerpt.includes("sk-ant-api03-verylongsecretkey12345"));
+  assert.ok(!secretStart.stderr.excerpt.includes("sk-ant-api03-verylongsecretkey12345"));
+  const secretPayload = JSON.parse(secretStart.stdout.excerpt) as { status: string; reasonCode: string };
+  assert.ok(["blocked", "refused", "failed"].includes(secretPayload.status));
+});

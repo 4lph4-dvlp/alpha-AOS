@@ -318,6 +318,32 @@ test("evaluateFullReleaseEvidence rejects commit SHA or tarball SHA mismatch", (
 });
 
 test("evaluateFullReleaseEvidence succeeds with PROVEN and isReleaseReady when all gates pass", () => {
+  const faultIds = ["crash", "cancellation", "concurrency", "duplicate-effect", "false-acceptance"] as const;
+  const faults = faultIds.map((id) => ({
+    id,
+    detected: true,
+    reason: null,
+    expectedAssertion: `assert_${id}`,
+    green: { exitCode: 0, passed: true, failedAssertion: null, observation: "ok", logReference: "log" },
+    red: { exitCode: 1, passed: false, failedAssertion: `assert_${id}`, observation: "ok", logReference: "log" },
+  }));
+
+  const cells = BASE_RELEASE_SUPPORT_MATRIX.map((entry) => ({
+    harness: entry.harnessId,
+    harnessVersion: "2.0.0",
+    os: entry.os,
+    role: entry.role,
+    capability: entry.capability,
+    status: entry.baselineTier,
+    tier: entry.baselineTier,
+    evidenceSummary: "Verified baseline cell",
+    reason: null,
+    nextAction: null,
+    receipt: null,
+  }));
+
+  const categories = ["managed_state", "harness_config", "harness_policy", "skills", "gsd_workflow"] as const;
+
   const input: FullReleaseEvidenceInput = {
     candidate,
     threeOsRun: {
@@ -327,20 +353,18 @@ test("evaluateFullReleaseEvidence succeeds with PROVEN and isReleaseReady when a
       evaluatedAt: observedAt,
       reason: null,
       nextAction: null,
-      summary: { requiredLegsCount: 1, presentLegsCount: 1, passedLegsCount: 1, allFaultsDetected: true },
-      legs: [
-        {
-          os: "linux",
-          runId: "1",
-          jobId: "1",
-          headSha: candidateSha,
-          tarballSha256: candidateTarballSha,
-          status: "passed",
-          faults: [],
-          logUrl: "http://example.com/log",
-          diagnostics: null,
-        },
-      ],
+      summary: { requiredLegsCount: 3, presentLegsCount: 3, passedLegsCount: 3, allFaultsDetected: true },
+      legs: (["windows", "macos", "linux"] as const).map((os) => ({
+        os,
+        runId: "unified-run-1",
+        jobId: `job-${os}`,
+        headSha: candidateSha,
+        tarballSha256: candidateTarballSha,
+        status: "passed",
+        faults,
+        logUrl: `https://github.com/example/ci/${os}`,
+        diagnostics: null,
+      })),
     },
     supportMatrix: {
       schemaVersion: 2,
@@ -356,7 +380,7 @@ test("evaluateFullReleaseEvidence succeeds with PROVEN and isReleaseReady when a
         syntheticHandoffsCount: 1,
         byHarness: {} as any,
       },
-      cells: [],
+      cells,
       handoffs: [],
     },
     packedLifecycle: {
@@ -365,8 +389,22 @@ test("evaluateFullReleaseEvidence succeeds with PROVEN and isReleaseReady when a
       stableLockChannel: "stable",
       stableLockIdentifier: "id",
       candidateRefused: true,
-      steps: [],
-      hostCategories: [],
+      steps: [
+        { name: "install", exitCode: 0, status: "passed", tarballSha256: candidateTarballSha, observedAt },
+        { name: "doctor", exitCode: 0, status: "passed", tarballSha256: candidateTarballSha, observedAt },
+        { name: "uninstall", exitCode: 0, status: "passed", tarballSha256: candidateTarballSha, observedAt },
+      ],
+      hostCategories: categories.map((category) => ({
+        category,
+        description: `${category} delta`,
+        beforeDigest: "1".repeat(64),
+        afterDigest: "1".repeat(64),
+        addedCount: 0,
+        removedCount: 0,
+        changedCount: 0,
+        vanishedCount: 0,
+        isClean: true,
+      })),
       unobservedScopeNotice: "notice",
     },
     developmentExample: {
@@ -412,5 +450,56 @@ test("evaluateFullReleaseEvidence succeeds with PROVEN and isReleaseReady when a
   assert.ok(markdown.includes("VER-04-DEV"));
   assert.ok(markdown.includes("VER-04-CP"));
   assert.ok(markdown.includes("GSD-CORE"));
+});
+
+test("evaluateFullReleaseEvidence refuses incomplete sub-evidence with UNVERIFIED (CR-02)", () => {
+  const incompleteInput: FullReleaseEvidenceInput = {
+    candidate,
+    threeOsRun: {
+      releaseSha: candidateSha,
+      tarballSha256: candidateTarballSha,
+      overallStatus: "passed",
+      evaluatedAt: observedAt,
+      reason: null,
+      nextAction: null,
+      summary: { requiredLegsCount: 1, presentLegsCount: 1, passedLegsCount: 1, allFaultsDetected: true },
+      legs: [
+        {
+          os: "linux",
+          runId: "1",
+          jobId: "1",
+          headSha: candidateSha,
+          tarballSha256: candidateTarballSha,
+          status: "passed",
+          faults: [],
+          logUrl: "http://example.com/log",
+          diagnostics: null,
+        },
+      ],
+    },
+    supportMatrix: {
+      schemaVersion: 2,
+      release: "0.2.0",
+      generatedAt: observedAt,
+      platform: "linux",
+      evidenceSource: "state/receipts",
+      summary: {
+        provenCount: 0,
+        unverifiedCount: 0,
+        unsupportedCount: 0,
+        realHandoffsCount: 0,
+        syntheticHandoffsCount: 0,
+        byHarness: {} as any,
+      },
+      cells: [], // 0 cells!
+      handoffs: [],
+    },
+  };
+
+  const verdict = evaluateFullReleaseEvidence(incompleteInput);
+  assert.equal(verdict.gates.ci.status, "UNVERIFIED");
+  assert.equal(verdict.gates.matrix.status, "UNVERIFIED");
+  assert.equal(verdict.isReleaseReady, false);
+  assert.ok(verdict.blockingGaps.length > 0);
 });
 

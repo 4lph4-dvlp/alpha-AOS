@@ -77,8 +77,8 @@ jobs:
       - run: npm run check
       - run: npm test
 
-      # Release fault controls suite (VER-01) - crash, cancellation, concurrency, duplicate-effect, false-acceptance
-      - name: Release fault controls suite (VER-01)
+      # Release fault controls evaluator unit test suite (VER-01) - checks fault classification and named assertion matching
+      - name: Release fault controls evaluator unit test (VER-01)
         run: node scripts/run-tests.mjs --files dist/test/release-fault-controls.test.js
 
       # Lifecycle regressions use tiny loopback registry fixtures. Verify the

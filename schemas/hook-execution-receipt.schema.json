@@ -63,6 +63,7 @@
     "status": {
       "enum": ["passed", "failed"]
     },
+    "harnessId": { "type": "string" },
     "receiptDigest": { "$ref": "#/$defs/sha256" }
   }
 }

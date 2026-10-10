@@ -16,6 +16,7 @@ import {
   evaluateSupportMatrix,
   renderReleaseSupportMatrixMarkdown,
   renderSupportMatrixMarkdown,
+  type ReleaseHandoffEntry,
   type SupportMatrixEntry,
 } from "../src/core/support-matrix.js";
 import type { HarnessRoleReceipt } from "../src/adapters/task-receipts.js";
@@ -318,6 +319,7 @@ test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge pr
         durationMs: 100,
         executedAt: observedAt,
         status: "passed",
+        harnessId: "claude",
         receiptDigest: "1".repeat(64),
       },
     ],
@@ -326,6 +328,8 @@ test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge pr
   const claudeHook = hookReport.cells.find((c) => c.harness === "claude" && c.capability === "hook");
   assert.equal(claudeHook?.status, "PROVEN");
   assert.equal(claudeHook?.receipt?.reference, "receipts/hooks/hook-1234.json");
+  const codexHook = hookReport.cells.find((c) => c.harness === "codex" && c.capability === "hook");
+  assert.equal(codexHook?.status, "UNVERIFIED", "a hook receipt for claude must not prove codex");
 
   // 6. Capability receipt promotion (skill / mcp)
   const capReport = await evaluateReleaseSupportMatrix(inv, {
@@ -366,10 +370,48 @@ test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge pr
   const claudeSkillCell = capReport.cells.find((c) => c.harness === "claude" && c.capability === "skill");
   assert.equal(claudeSkillCell?.status, "PROVEN");
 
-  // 7. Representative handoffs (real vs synthetic separation, D-04)
-  assert.equal(capReport.summary.realHandoffsCount, 3);
-  assert.equal(capReport.summary.syntheticHandoffsCount, 1);
-  assert.equal(capReport.handoffs.length, 4);
+  // 7. Representative handoffs (real vs synthetic separation, D-04, CR-01)
+  assert.equal(capReport.summary.realHandoffsCount, 0, "default handoffs must be empty without receipts");
+  assert.equal(capReport.summary.syntheticHandoffsCount, 0);
+  assert.equal(capReport.handoffs.length, 0);
+
+  const sampleHandoffs: ReleaseHandoffEntry[] = [
+    {
+      kind: "real",
+      fromHarness: "claude",
+      fromVersion: "2.1.291",
+      fromRole: "controller",
+      fromReceipt: "receipts/claude-controller.receipt.json",
+      toHarness: "antigravity",
+      toVersion: "1.3.3",
+      toRole: "executor",
+      toReceipt: "receipts/antigravity-executor.receipt.json",
+      artifactDigest: "1".repeat(64),
+      status: "PROVEN",
+      observedAt,
+    },
+    {
+      kind: "synthetic",
+      fromHarness: "claude",
+      fromVersion: "1.0.0",
+      fromRole: "controller",
+      fromReceipt: "synthetic://1",
+      toHarness: "codex",
+      toVersion: "1.0.0",
+      toRole: "executor",
+      toReceipt: "synthetic://2",
+      artifactDigest: "0".repeat(64),
+      status: "PROVEN",
+      observedAt,
+    },
+  ];
+  const handoffReport = await evaluateReleaseSupportMatrix(inv, {
+    handoffs: sampleHandoffs,
+    generatedAt: observedAt,
+  });
+  assert.equal(handoffReport.summary.realHandoffsCount, 1);
+  assert.equal(handoffReport.summary.syntheticHandoffsCount, 1);
+  assert.equal(handoffReport.handoffs.length, 2);
 
   // 8. Ordering: reversed/permuted input entries produces deterministic sorted output
   const reversedEntries = [...BASE_RELEASE_SUPPORT_MATRIX].reverse();

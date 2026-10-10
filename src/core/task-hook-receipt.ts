@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import type { HarnessId } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
 import {
   runProcess,
@@ -39,6 +40,7 @@ export interface HookExecutionReceipt {
   readonly durationMs: number;
   readonly executedAt: string;
   readonly status: "passed" | "failed";
+  readonly harnessId?: HarnessId | string | undefined;
   readonly receiptDigest: string;
 }
 
@@ -51,6 +53,7 @@ export interface ExecuteHookOptions {
   readonly cwd: string;
   readonly targetRevisionSha: string;
   readonly workingTreeDigest: string;
+  readonly harnessId?: HarnessId | string | undefined;
   readonly receiptsRoot?: string | undefined;
   readonly timeoutMs?: number | undefined;
   readonly packageRoot?: string | undefined;
@@ -231,6 +234,7 @@ export async function executeHookWithReceipt(
     durationMs,
     executedAt,
     status,
+    ...(options.harnessId ? { harnessId: options.harnessId } : {}),
   };
 
   const receiptDigest = computeReceiptPayloadDigest(payload);

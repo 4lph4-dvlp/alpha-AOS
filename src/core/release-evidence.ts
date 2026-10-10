@@ -1,5 +1,5 @@
 import type { HarnessId } from "../types.js";
-import type { ThreeOsRunEvaluation } from "./release-fault-proof.js";
+import type { CiOs, ThreeOsRunEvaluation } from "./release-fault-proof.js";
 import type { ReleaseSupportMatrixReport } from "./support-matrix.js";
 import type { PackedLifecycleEvaluationResult } from "./release-package-proof.js";
 import type { ExampleEvaluationResult } from "./release-examples.js";
@@ -345,13 +345,33 @@ export function evaluateFullReleaseEvidence(
     };
     blockingGaps.push(`CI Gate: Status is ${input.threeOsRun.overallStatus.toUpperCase()} (${input.threeOsRun.reason ?? "failures detected"})`);
   } else {
-    ciGate = {
-      status: "PROVEN",
-      details: "Windows, macOS, and Linux all passed cleanly with 5/5 fault controls detected at expected assertions",
-    };
+    // CR-02: Verify that all 3 required OS legs are present and each detected all 5 fault controls
+    const requiredOses: CiOs[] = ["windows", "macos", "linux"];
+    const legsByOs = new Map(input.threeOsRun.legs.map((l) => [l.os, l]));
+    const missingOses = requiredOses.filter((os) => !legsByOs.has(os));
+    const allLegsHave5Faults = input.threeOsRun.legs.length === 3 && input.threeOsRun.legs.every(
+      (l) => l.faults && l.faults.length === 5 && l.faults.every((f) => f.detected),
+    );
+
+    if (missingOses.length > 0 || input.threeOsRun.legs.length !== 3 || !allLegsHave5Faults) {
+      ciGate = {
+        status: "UNVERIFIED",
+        details: missingOses.length > 0
+          ? `CI Gate incomplete: missing OS legs (${missingOses.join(", ")})`
+          : "CI Gate incomplete: all 3 OS legs must contain all 5 verified fault controls",
+        reason: "Incomplete CI legs or missing fault controls",
+        nextAction: "Execute complete three-OS CI suite with 5 fault injection controls",
+      };
+      blockingGaps.push("CI Gate: Incomplete OS legs or fault controls");
+    } else {
+      ciGate = {
+        status: "PROVEN",
+        details: "Windows, macOS, and Linux all passed cleanly with 5/5 fault controls detected at expected assertions",
+      };
+    }
   }
 
-  // 2. Matrix Gate (VER-02, D-01..D-04)
+  // 2. Matrix Gate (VER-02, D-01..D-04, CR-02)
   let matrixGate: GateVerdict;
   if (!input.supportMatrix) {
     matrixGate = {
@@ -360,6 +380,14 @@ export function evaluateFullReleaseEvidence(
       nextAction: "Evaluate 35-cell matrix against discovered harnesses and recorded receipts",
     };
     blockingGaps.push("Matrix Gate: Support matrix report not evaluated");
+  } else if (!input.supportMatrix.cells || input.supportMatrix.cells.length < 35) {
+    matrixGate = {
+      status: "UNVERIFIED",
+      details: `Support matrix incomplete: found ${input.supportMatrix.cells?.length ?? 0} cells, required 35`,
+      reason: "Incomplete support matrix cells",
+      nextAction: "Evaluate full 35-cell support matrix across 5 harnesses and all roles",
+    };
+    blockingGaps.push("Matrix Gate: Incomplete support matrix (fewer than 35 cells)");
   } else {
     const summary = input.supportMatrix.summary;
     matrixGate = {
@@ -368,7 +396,7 @@ export function evaluateFullReleaseEvidence(
     };
   }
 
-  // 3. Package Gate (VER-03, D-09..D-12)
+  // 3. Package Gate (VER-03, D-09..D-12, CR-02, CR-05)
   let packageGate: GateVerdict;
   if (!input.packedLifecycle) {
     packageGate = {
@@ -395,10 +423,27 @@ export function evaluateFullReleaseEvidence(
     };
     blockingGaps.push(`Package Gate: Status is ${input.packedLifecycle.status.toUpperCase()} (${input.packedLifecycle.reason ?? "drift/failure detected"})`);
   } else {
-    packageGate = {
-      status: "PROVEN",
-      details: "Packed install/doctor/uninstall passed cleanly; stable lock and candidate refusal verified; all 5 host categories 100% clean",
-    };
+    // CR-02 / CR-05: verify that steps has 3 passed steps, all 5 host categories are present and clean, and candidateRefused is true
+    const has3Steps = Boolean(input.packedLifecycle.steps && input.packedLifecycle.steps.length === 3 &&
+      input.packedLifecycle.steps.every((s) => s.status === "passed"));
+    const has5Categories = Boolean(input.packedLifecycle.hostCategories && input.packedLifecycle.hostCategories.length === 5 &&
+      input.packedLifecycle.hostCategories.every((c) => c.isClean));
+    const candidateRefused = input.packedLifecycle.candidateRefused === true;
+
+    if (!has3Steps || !has5Categories || !candidateRefused) {
+      packageGate = {
+        status: "UNVERIFIED",
+        details: "Package lifecycle incomplete: requires 3 passed steps, 5 clean host categories, and verified candidate refusal",
+        reason: "Incomplete packed lifecycle observations",
+        nextAction: "Run full packed lifecycle sandbox with all 5 host categories observed",
+      };
+      blockingGaps.push("Package Gate: Incomplete lifecycle steps or unobserved host categories");
+    } else {
+      packageGate = {
+        status: "PROVEN",
+        details: "Packed install/doctor/uninstall passed cleanly; stable lock and candidate refusal verified; all 5 host categories 100% clean",
+      };
+    }
   }
 
   // 4. Development Workload Gate (VER-04, D-13..D-16)

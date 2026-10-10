@@ -979,8 +979,11 @@ async function main(): Promise<void> {
       const inventory = collectInventory(catalog);
       const stateRoot = userStateRoot();
       const receiptsRoot = join(stateRoot, "receipts");
+      const ledgerRead = await readCapabilityLedger(capabilityLedgerPath(stateRoot));
+      const capabilityLedger = ledgerRead.state === "present" ? ledgerRead.ledger : undefined;
       const report = await evaluateReleaseSupportMatrix(inventory, {
         receiptsRoot,
+        ...(capabilityLedger ? { capabilityLedger } : {}),
         generatedAt: inventory.generatedAt,
       });
       print(report, json, formatReleaseSupportMatrixTable(report), context);

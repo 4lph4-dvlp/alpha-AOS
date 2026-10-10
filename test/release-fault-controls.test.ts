@@ -250,6 +250,57 @@ test("evaluateThreeOsRun rejects if any leg misses a fault control", () => {
   assert.match(evaluation.reason ?? "", /undetected fault control: 'concurrency'/i);
 });
 
+test("evaluateThreeOsRun rejects mixed runId across OS legs (CR-04)", () => {
+  const legs: CiLegResult[] = [
+    { ...makePassingLeg("windows"), runId: "run-0" },
+    { ...makePassingLeg("macos"), runId: "run-1" },
+    { ...makePassingLeg("linux"), runId: "run-2" },
+  ];
+
+  const evaluation = evaluateThreeOsRun({
+    candidateSha,
+    candidateTarballSha256: candidateTarballSha,
+    legs,
+  });
+
+  assert.equal(evaluation.overallStatus, "indeterminate");
+  assert.match(evaluation.reason ?? "", /Mixed or missing CI workflow runId/i);
+});
+
+test("evaluateThreeOsRun rejects duplicate OS legs (CR-04)", () => {
+  const legs: CiLegResult[] = [
+    makePassingLeg("windows"),
+    makePassingLeg("windows"),
+    makePassingLeg("linux"),
+  ];
+
+  const evaluation = evaluateThreeOsRun({
+    candidateSha,
+    candidateTarballSha256: candidateTarballSha,
+    legs,
+  });
+
+  assert.equal(evaluation.overallStatus, "indeterminate");
+  assert.match(evaluation.reason ?? "", /Duplicate CI OS leg/i);
+});
+
+test("evaluateThreeOsRun rejects legs missing non-empty jobId or logUrl (CR-04)", () => {
+  const legs: CiLegResult[] = [
+    { ...makePassingLeg("windows"), jobId: "" },
+    makePassingLeg("macos"),
+    makePassingLeg("linux"),
+  ];
+
+  const evaluation = evaluateThreeOsRun({
+    candidateSha,
+    candidateTarballSha256: candidateTarballSha,
+    legs,
+  });
+
+  assert.equal(evaluation.overallStatus, "indeterminate");
+  assert.match(evaluation.reason ?? "", /missing required non-empty jobId or logUrl/i);
+});
+
 test("scripts/release-evidence.mjs parseCiMetadata parses and evaluates valid metadata payload", async () => {
   const { parseCiMetadata } = await import(scriptUrl);
   const metadata = {

@@ -222,6 +222,7 @@ test("the platform environment floor is declared rather than discovered at runti
     executable: process.execPath,
     args: [fixture.echoScript],
     cwd: fixture.root,
+    excerptBytes: PARSEABLE_PROCESS_OUTPUT_BYTES,
     environment: { source: {} },
   });
   const reported = JSON.parse(result.stdout.excerpt) as { env: Record<string, string> };

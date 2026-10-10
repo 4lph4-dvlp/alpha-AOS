@@ -368,6 +368,8 @@ test("evaluateReleaseExample fails if material file is missing from disk or view
         status: "viewed_only", // not downloaded
         filePresentOnDisk: false,
         sourceIdentityVerified: false,
+        expectedSha256: "a".repeat(64),
+        actualSha256: "a".repeat(64),
       },
     ],
   });
@@ -375,6 +377,41 @@ test("evaluateReleaseExample fails if material file is missing from disk or view
 
   assert.equal(evaluation.overallStatus, "failed");
   assert.equal(evaluation.materialsVerified, false);
+});
+
+test("evaluateReleaseExample fails if material SHA-256 does not match expected (CR-06)", () => {
+  const hashMismatchExample = makeCoursePilotExample({
+    coursePilotMaterials: [
+      {
+        courseId: "CS101",
+        weekId: "W01",
+        moduleId: "M01",
+        fileId: "f01",
+        filename: "syllabus.pdf",
+        status: "downloaded",
+        filePresentOnDisk: true,
+        sourceIdentityVerified: true,
+        expectedSha256: "a".repeat(64),
+        actualSha256: "b".repeat(64),
+      },
+    ],
+  });
+  const evaluation = evaluateReleaseExample(hashMismatchExample);
+
+  assert.equal(evaluation.overallStatus, "failed");
+  assert.equal(evaluation.materialsVerified, false);
+  assert.match(evaluation.reasons[0] ?? "", /SHA-256 mismatch/i);
+});
+
+test("evaluateReleaseExample fails if CoursePilot materials array is empty (CR-06)", () => {
+  const emptyMaterialsExample = makeCoursePilotExample({
+    coursePilotMaterials: [],
+  });
+  const evaluation = evaluateReleaseExample(emptyMaterialsExample);
+
+  assert.equal(evaluation.overallStatus, "failed");
+  assert.equal(evaluation.materialsVerified, false);
+  assert.match(evaluation.reasons[0] ?? "", /materials list is empty/i);
 });
 
 test("evaluateReleaseExample fails closed on empty criteria or capability lists (VER-04 edge empty)", () => {

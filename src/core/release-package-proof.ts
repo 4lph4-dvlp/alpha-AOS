@@ -20,6 +20,14 @@ export type HostPathCategory =
   | "gsd_workflow"
   | "unclassified_boundary";
 
+export const MANDATORY_HOST_CATEGORIES: readonly HostPathCategory[] = Object.freeze([
+  "managed_state",
+  "harness_config",
+  "harness_policy",
+  "skills",
+  "gsd_workflow",
+]);
+
 export interface HostPathCategoryDelta {
   readonly category: HostPathCategory;
   readonly description: string;
@@ -254,17 +262,28 @@ export function evaluatePackedLifecycle(input: PackedLifecycleInput): PackedLife
     };
   }
 
-  // 4. Host path category drift inspection (D-11 & D-09)
-  const uncleanCategories = input.hostCategories.filter((c) => !c.isClean);
-  if (uncleanCategories.length > 0) {
-    const firstUnclean = uncleanCategories[0];
-    const categoryName = firstUnclean?.category ?? "unknown";
-    const reasonText = firstUnclean?.explanation
-      ? `host path drift in category ${categoryName} (${firstUnclean.explanation})`
-      : `unexplained host path drift in category ${categoryName}: before ${firstUnclean?.beforeDigest.slice(0, 12)} -> after ${firstUnclean?.afterDigest.slice(0, 12)}`;
+  // 4. Mandatory host path category observation and zero drift (CR-05, D-11, D-09)
+  const observedCategories = new Set<HostPathCategory>();
+  for (const c of input.hostCategories) {
+    if (observedCategories.has(c.category)) {
+      return {
+        status: "indeterminate",
+        tarballSha256: input.tarballSha256,
+        stableLockChannel: input.stableLockChannel,
+        stableLockIdentifier: input.stableLockIdentifier,
+        candidateRefused: input.candidateRefused,
+        steps: input.steps,
+        hostCategories: input.hostCategories,
+        reason: `Duplicate host path category observed: ${c.category}`,
+        nextAction: "Ensure each host category delta is recorded exactly once",
+        unobservedScopeNotice: notice,
+      };
+    }
+    observedCategories.add(c.category);
+  }
 
-    // D-11: "원인 불명 실제 호스트 경로 차이는 통과가 아니라 판정 보류(indeterminate)이며 동일 tarball hash로 조사 후 재검증한다."
-    // Even if an explanation is provided, real host path modification cannot be marked passed without a clean reverification receipt.
+  const missingCategories = MANDATORY_HOST_CATEGORIES.filter((cat) => !observedCategories.has(cat));
+  if (missingCategories.length > 0 || input.hostCategories.length !== MANDATORY_HOST_CATEGORIES.length) {
     return {
       status: "indeterminate",
       tarballSha256: input.tarballSha256,
@@ -273,10 +292,34 @@ export function evaluatePackedLifecycle(input: PackedLifecycleInput): PackedLife
       candidateRefused: input.candidateRefused,
       steps: input.steps,
       hostCategories: input.hostCategories,
-      reason: reasonText,
-      nextAction: `investigate host path drift in category ${categoryName} and re-verify using identical tarball ${input.tarballSha256}`,
+      reason: missingCategories.length > 0
+        ? `Missing mandatory host category observations: ${missingCategories.join(", ")}`
+        : `Expected exactly 5 mandatory host categories, found ${input.hostCategories.length}`,
+      nextAction: "Observe and record deltas for all 5 mandatory host categories: managed_state, harness_config, harness_policy, skills, gsd_workflow",
       unobservedScopeNotice: notice,
     };
+  }
+
+  for (const c of input.hostCategories) {
+    const hasModifications = c.addedCount !== 0 || c.removedCount !== 0 || c.changedCount !== 0 || c.vanishedCount !== 0;
+    const digestMismatch = c.beforeDigest !== c.afterDigest;
+    if (!c.isClean || hasModifications || digestMismatch) {
+      const reasonText = c.explanation
+        ? `host path drift in category ${c.category} (${c.explanation})`
+        : `unexplained host path drift in category ${c.category}: before ${c.beforeDigest.slice(0, 12)} -> after ${c.afterDigest.slice(0, 12)}`;
+      return {
+        status: "indeterminate",
+        tarballSha256: input.tarballSha256,
+        stableLockChannel: input.stableLockChannel,
+        stableLockIdentifier: input.stableLockIdentifier,
+        candidateRefused: input.candidateRefused,
+        steps: input.steps,
+        hostCategories: input.hostCategories,
+        reason: reasonText,
+        nextAction: `investigate host path drift in category ${c.category} and re-verify using identical tarball ${input.tarballSha256}`,
+        unobservedScopeNotice: notice,
+      };
+    }
   }
 
   return {

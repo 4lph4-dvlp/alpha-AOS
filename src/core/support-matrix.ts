@@ -309,7 +309,7 @@ export interface ReleaseSupportMatrixOptions {
   readonly platform?: NodeJS.Platform;
   readonly receiptsRoot?: string;
   readonly checkDrift?: boolean;
-  readonly capabilityLedger?: CapabilityLedger;
+  readonly capabilityLedger?: CapabilityLedger | undefined;
   readonly ledgerUnavailableReason?: string;
   readonly roleReceipts?: readonly HarnessRoleReceipt[];
   readonly capabilityReceipts?: readonly TaskCapabilityReceipt[];
@@ -365,9 +365,11 @@ export const BASE_RELEASE_SUPPORT_MATRIX: readonly ReleaseSupportMatrixEntry[] =
   { harnessId: "hermes", os: "all", role: "reviewer", capability: "reviewer", baselineTier: "PROVEN", notes: "Independent criterion review and witness" },
 ]);
 
-export const BASE_RELEASE_HANDOFFS: readonly ReleaseHandoffEntry[] = Object.freeze([
+export const BASE_RELEASE_HANDOFFS: readonly ReleaseHandoffEntry[] = Object.freeze([]);
+
+export const SAMPLE_RELEASE_HANDOFFS: readonly ReleaseHandoffEntry[] = Object.freeze([
   {
-    kind: "real",
+    kind: "synthetic",
     fromHarness: "claude",
     fromVersion: "2.1.291",
     fromRole: "controller",
@@ -377,12 +379,12 @@ export const BASE_RELEASE_HANDOFFS: readonly ReleaseHandoffEntry[] = Object.free
     toRole: "executor",
     toReceipt: "receipts/antigravity-executor.receipt.json",
     artifactDigest: "a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0",
-    status: "PROVEN",
+    status: "UNVERIFIED",
     observedAt: "2026-10-10T10:00:00.000Z",
-    notes: "Plan handoff from Claude controller to Antigravity executor",
+    notes: "Plan handoff example from Claude controller to Antigravity executor",
   },
   {
-    kind: "real",
+    kind: "synthetic",
     fromHarness: "antigravity",
     fromVersion: "1.3.3",
     fromRole: "executor",
@@ -392,12 +394,12 @@ export const BASE_RELEASE_HANDOFFS: readonly ReleaseHandoffEntry[] = Object.free
     toRole: "reviewer",
     toReceipt: "receipts/claude-reviewer.receipt.json",
     artifactDigest: "b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef01",
-    status: "PROVEN",
+    status: "UNVERIFIED",
     observedAt: "2026-10-10T10:15:00.000Z",
-    notes: "Artifact handoff from Antigravity executor to Claude reviewer witness",
+    notes: "Artifact handoff example from Antigravity executor to Claude reviewer witness",
   },
   {
-    kind: "real",
+    kind: "synthetic",
     fromHarness: "pi",
     fromVersion: "1.1.0",
     fromRole: "executor",
@@ -407,9 +409,9 @@ export const BASE_RELEASE_HANDOFFS: readonly ReleaseHandoffEntry[] = Object.free
     toRole: "reviewer",
     toReceipt: "receipts/hermes-reviewer.receipt.json",
     artifactDigest: "c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef012",
-    status: "PROVEN",
+    status: "UNVERIFIED",
     observedAt: "2026-10-10T10:30:00.000Z",
-    notes: "Task execution handoff from Pi executor to Hermes reviewer",
+    notes: "Task execution handoff example from Pi executor to Hermes reviewer",
   },
   {
     kind: "synthetic",
@@ -625,7 +627,9 @@ export async function evaluateReleaseMatrixCell(
   if (entry.capability === "hook") {
     let hookReceipt: HookExecutionReceipt | null = null;
     if (options.hookReceipts !== undefined) {
-      const match = options.hookReceipts.find((h) => h.status === "passed" && h.exitCode === 0);
+      const match = options.hookReceipts.find(
+        (h) => h.status === "passed" && h.exitCode === 0 && h.harnessId === entry.harnessId,
+      );
       if (match) hookReceipt = match;
     } else if (options.receiptsRoot !== undefined) {
       const hooksDir = existsSync(join(options.receiptsRoot, "hooks"))
@@ -638,7 +642,7 @@ export async function evaluateReleaseMatrixCell(
             if (file.endsWith(".json")) {
               const content = await readFile(join(hooksDir, file), "utf8");
               const parsed = JSON.parse(content) as HookExecutionReceipt;
-              if (parsed.status === "passed" && parsed.exitCode === 0) {
+              if (parsed.status === "passed" && parsed.exitCode === 0 && parsed.harnessId === entry.harnessId) {
                 hookReceipt = parsed;
                 break;
               }
@@ -785,9 +789,29 @@ export async function evaluateReleaseSupportMatrix(
   inventory: Inventory,
   options: ReleaseSupportMatrixOptions = {},
 ): Promise<ReleaseSupportMatrixReport> {
-  const entries = options.entries ?? BASE_RELEASE_SUPPORT_MATRIX;
+  let effectiveOptions = options;
+  if (options.capabilityReceipts === undefined && options.receiptsRoot) {
+    const capsDir = join(options.receiptsRoot, "capabilities");
+    if (existsSync(capsDir)) {
+      try {
+        const files = await readdir(capsDir);
+        const loaded: TaskCapabilityReceipt[] = [];
+        for (const file of files) {
+          if (file.endsWith(".json")) {
+            const raw = await readFile(join(capsDir, file), "utf8");
+            loaded.push(JSON.parse(raw));
+          }
+        }
+        effectiveOptions = { ...options, capabilityReceipts: loaded };
+      } catch {
+        // ignore read error
+      }
+    }
+  }
+
+  const entries = effectiveOptions.entries ?? BASE_RELEASE_SUPPORT_MATRIX;
   const unsortedCells = await Promise.all(
-    entries.map((entry) => evaluateReleaseMatrixCell(entry, inventory, options)),
+    entries.map((entry) => evaluateReleaseMatrixCell(entry, inventory, effectiveOptions)),
   );
   const cells = [...unsortedCells].sort(compareMatrixCells);
 
@@ -814,7 +838,17 @@ export async function evaluateReleaseSupportMatrix(
     };
   }
 
-  const handoffs = options.handoffs ?? BASE_RELEASE_HANDOFFS;
+  const rawHandoffs = options.handoffs ?? BASE_RELEASE_HANDOFFS;
+  const handoffs = rawHandoffs.map((h) => {
+    if (h.kind === "real") {
+      const validDigest = typeof h.artifactDigest === "string" && /^[0-9a-f]{64}$/i.test(h.artifactDigest) && !h.artifactDigest.startsWith("000000");
+      const hasReceipts = Boolean(h.fromReceipt && h.toReceipt && h.fromReceipt.trim() !== "" && h.toReceipt.trim() !== "");
+      if (!validDigest || !hasReceipts || h.status !== "PROVEN") {
+        return { ...h, status: "UNVERIFIED" as const };
+      }
+    }
+    return h;
+  });
   const realHandoffsCount = handoffs.filter((h) => h.kind === "real" && h.status === "PROVEN").length;
   const syntheticHandoffsCount = handoffs.filter((h) => h.kind === "synthetic").length;
 

@@ -182,13 +182,37 @@ export function evaluateThreeOsRun(options: {
   readonly evaluatedAt?: string;
 }): ThreeOsRunEvaluation {
   const evaluatedAt = options.evaluatedAt ?? new Date().toISOString();
+
+  // Enforce no duplicate OS legs
+  const seenOs = new Set<CiOs>();
+  for (const leg of options.legs) {
+    if (seenOs.has(leg.os)) {
+      return {
+        releaseSha: options.candidateSha,
+        tarballSha256: options.candidateTarballSha256,
+        evaluatedAt,
+        overallStatus: "indeterminate",
+        legs: options.legs,
+        reason: `Duplicate CI OS leg detected: ${leg.os}`,
+        nextAction: "Ensure legs array contains exactly one result per OS",
+        summary: {
+          requiredLegsCount: REQUIRED_OS_LEGS.length,
+          presentLegsCount: options.legs.length,
+          passedLegsCount: options.legs.filter((l) => l.status === "passed").length,
+          allFaultsDetected: false,
+        },
+      };
+    }
+    seenOs.add(leg.os);
+  }
+
   const legsByOs = new Map<CiOs, CiLegResult>();
   for (const leg of options.legs) {
     legsByOs.set(leg.os, leg);
   }
 
   const missingLegs = REQUIRED_OS_LEGS.filter((os) => !legsByOs.has(os));
-  if (missingLegs.length > 0) {
+  if (missingLegs.length > 0 || options.legs.length !== REQUIRED_OS_LEGS.length) {
     const presentCount = REQUIRED_OS_LEGS.length - missingLegs.length;
     return {
       releaseSha: options.candidateSha,
@@ -196,7 +220,9 @@ export function evaluateThreeOsRun(options: {
       evaluatedAt,
       overallStatus: presentCount === 0 ? "not_run" : "indeterminate",
       legs: options.legs,
-      reason: `Missing required CI OS leg(s): ${missingLegs.join(", ")}`,
+      reason: missingLegs.length > 0
+        ? `Missing required CI OS leg(s): ${missingLegs.join(", ")}`
+        : `Expected exactly 3 CI legs, got ${options.legs.length}`,
       nextAction: "Execute and record all three OS CI jobs (windows, macos, linux) on current candidate commit",
       summary: {
         requiredLegsCount: REQUIRED_OS_LEGS.length,
@@ -205,6 +231,47 @@ export function evaluateThreeOsRun(options: {
         allFaultsDetected: false,
       },
     };
+  }
+
+  // All three legs must belong to the exact same CI runId
+  const firstRunId = options.legs[0]?.runId;
+  if (!firstRunId || firstRunId.trim() === "" || options.legs.some((l) => l.runId !== firstRunId)) {
+    return {
+      releaseSha: options.candidateSha,
+      tarballSha256: options.candidateTarballSha256,
+      evaluatedAt,
+      overallStatus: "indeterminate",
+      legs: options.legs,
+      reason: "Mixed or missing CI workflow runId across OS legs: all legs must belong to the exact same unified CI run",
+      nextAction: "Record all three OS legs from a single, unified CI workflow run",
+      summary: {
+        requiredLegsCount: REQUIRED_OS_LEGS.length,
+        presentLegsCount: REQUIRED_OS_LEGS.length,
+        passedLegsCount: options.legs.filter((l) => l.status === "passed").length,
+        allFaultsDetected: false,
+      },
+    };
+  }
+
+  // All legs must have non-empty jobId and logUrl
+  for (const leg of options.legs) {
+    if (!leg.jobId || leg.jobId.trim() === "" || !leg.logUrl || leg.logUrl.trim() === "") {
+      return {
+        releaseSha: options.candidateSha,
+        tarballSha256: options.candidateTarballSha256,
+        evaluatedAt,
+        overallStatus: "indeterminate",
+        legs: options.legs,
+        reason: `Leg '${leg.os}' missing required non-empty jobId or logUrl`,
+        nextAction: `Ensure ${leg.os} leg includes valid CI jobId and logUrl`,
+        summary: {
+          requiredLegsCount: REQUIRED_OS_LEGS.length,
+          presentLegsCount: REQUIRED_OS_LEGS.length,
+          passedLegsCount: options.legs.filter((l) => l.status === "passed").length,
+          allFaultsDetected: false,
+        },
+      };
+    }
   }
 
   // Check each leg for SHA, tarball hash, status, and faults

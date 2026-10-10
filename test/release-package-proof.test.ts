@@ -74,10 +74,32 @@ function createCleanCategories(): HostPathCategoryDelta[] {
       isClean: true,
     },
     {
-      category: "skills",
-      description: "Harness ECC skills directories",
+      category: "harness_policy",
+      description: "Harness policy files",
       beforeDigest: "3333333333333333333333333333333333333333333333333333333333333333",
       afterDigest: "3333333333333333333333333333333333333333333333333333333333333333",
+      addedCount: 0,
+      removedCount: 0,
+      changedCount: 0,
+      vanishedCount: 0,
+      isClean: true,
+    },
+    {
+      category: "skills",
+      description: "Harness ECC skills directories",
+      beforeDigest: "4444444444444444444444444444444444444444444444444444444444444444",
+      afterDigest: "4444444444444444444444444444444444444444444444444444444444444444",
+      addedCount: 0,
+      removedCount: 0,
+      changedCount: 0,
+      vanishedCount: 0,
+      isClean: true,
+    },
+    {
+      category: "gsd_workflow",
+      description: "GSD workflow files",
+      beforeDigest: "5555555555555555555555555555555555555555555555555555555555555555",
+      afterDigest: "5555555555555555555555555555555555555555555555555555555555555555",
       addedCount: 0,
       removedCount: 0,
       changedCount: 0,
@@ -345,4 +367,35 @@ test("computeCategoryDelta and buildHostCategoryDeltas calculate accurate counts
   assert.equal(delta.addedCount, 1);
   assert.equal(delta.removedCount, 1);
   assert.equal(delta.changedCount, 1);
+});
+
+test("evaluatePackedLifecycle returns indeterminate if hostCategories is empty (CR-05)", () => {
+  const input: PackedLifecycleInput = {
+    tarballSha256: VALID_TARBALL_SHA,
+    stableLockChannel: "stable",
+    stableLockIdentifier: "sha256:abc123stablelock",
+    candidateRefused: true,
+    steps: createValidSteps(),
+    hostCategories: [],
+  };
+
+  const result = evaluatePackedLifecycle(input);
+  assert.equal(result.status, "indeterminate");
+  assert.match(result.reason ?? "", /Missing mandatory host category observations/i);
+});
+
+test("evaluatePackedLifecycle returns indeterminate if any mandatory host category is missing (CR-05)", () => {
+  const incomplete = createCleanCategories().filter((c) => c.category !== "gsd_workflow");
+  const input: PackedLifecycleInput = {
+    tarballSha256: VALID_TARBALL_SHA,
+    stableLockChannel: "stable",
+    stableLockIdentifier: "sha256:abc123stablelock",
+    candidateRefused: true,
+    steps: createValidSteps(),
+    hostCategories: incomplete,
+  };
+
+  const result = evaluatePackedLifecycle(input);
+  assert.equal(result.status, "indeterminate");
+  assert.match(result.reason ?? "", /Missing mandatory host category observations: gsd_workflow/i);
 });

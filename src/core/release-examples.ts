@@ -207,20 +207,36 @@ export function evaluateReleaseExample(example: ReleaseExampleCase): ExampleEval
   }
 
   // 5. CoursePilot materials & LMS evaluation (D-15, VER-04 edge adjacency)
+  // 5. CoursePilot materials & LMS evaluation (D-15, VER-04 edge adjacency, CR-06)
   let materialsVerified: boolean | undefined = undefined;
   let lmsStatus: CoursePilotLmsStatus | null | undefined = example.coursePilotLms;
 
-  if (sortedMaterials !== undefined) {
-    materialsVerified = true;
-    for (const item of sortedMaterials) {
-      const isDownloaded = item.status === "downloaded";
-      const isPresent = item.filePresentOnDisk;
-      const isIdentityOk = item.sourceIdentityVerified;
-      if (!isDownloaded || !isPresent || !isIdentityOk) {
-        materialsVerified = false;
-        reasons.push(
-          `Material item '${item.courseId}/${item.weekId}/${item.moduleId}/${item.filename}' failed verification (status: ${item.status}, disk: ${isPresent}, identity: ${isIdentityOk})`,
-        );
+  if (example.id === "coursepilot" || example.id === "coursepilot-lms" || sortedMaterials !== undefined) {
+    if (!sortedMaterials || sortedMaterials.length === 0) {
+      materialsVerified = false;
+      reasons.push("CoursePilot materials list is empty; verified course materials are required");
+    } else {
+      materialsVerified = true;
+      const sha256Regex = /^[0-9a-f]{64}$/i;
+      for (const item of sortedMaterials) {
+        const isDownloaded = item.status === "downloaded";
+        const isPresent = item.filePresentOnDisk;
+        const isIdentityOk = item.sourceIdentityVerified;
+        const validExpected = typeof item.expectedSha256 === "string" && sha256Regex.test(item.expectedSha256);
+        const validActual = typeof item.actualSha256 === "string" && sha256Regex.test(item.actualSha256);
+        const hashesMatch = validExpected && validActual && item.expectedSha256.toLowerCase() === item.actualSha256.toLowerCase();
+
+        if (!isDownloaded || !isPresent || !isIdentityOk || !hashesMatch) {
+          materialsVerified = false;
+          const failureDetail = !validExpected || !validActual
+            ? "invalid SHA-256 format"
+            : !hashesMatch
+              ? `SHA-256 mismatch (expected: ${item.expectedSha256}, actual: ${item.actualSha256})`
+              : `status/disk/identity failure (status: ${item.status}, disk: ${isPresent}, identity: ${isIdentityOk})`;
+          reasons.push(
+            `Material item '${item.courseId}/${item.weekId}/${item.moduleId}/${item.filename}' failed verification: ${failureDetail}`,
+          );
+        }
       }
     }
   }

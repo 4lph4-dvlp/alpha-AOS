@@ -9,7 +9,7 @@ A cell reaches **PROVEN** only through a matching, inspectable real-host invocat
 ## Summary by Harness
 
 Overall: 0 PROVEN, 33 UNVERIFIED, 2 UNSUPPORTED  
-Handoffs: 3 real PROVEN, 1 synthetic
+Handoffs: 0 real PROVEN, 0 synthetic
 
 | Harness | Exact Detected Version | Proven Cells | Unverified Cells | Unsupported Cells |
 | --- | --- | --- | --- | --- |
@@ -63,10 +63,6 @@ Handoffs: 3 real PROVEN, 1 synthetic
 
 | Kind | From | To | Artifact Digest | Status | Observed Receipts / Notes |
 | --- | --- | --- | --- | --- | --- |
-| real | claude @ 2.1.291 (controller) | antigravity @ 1.3.3 (executor) | `a1b2c3d4e5f60718...` | **PROVEN** | receipts/claude-controller.receipt.json -> receipts/antigravity-executor.receipt.json |
-| real | antigravity @ 1.3.3 (executor) | claude @ 2.1.291 (reviewer) | `b2c3d4e5f6071829...` | **PROVEN** | receipts/antigravity-executor.receipt.json -> receipts/claude-reviewer.receipt.json |
-| real | pi @ 1.1.0 (executor) | hermes @ v0.21.5+8825.g69d126b (reviewer) | `c3d4e5f60718293a...` | **PROVEN** | receipts/pi-executor.receipt.json -> receipts/hermes-reviewer.receipt.json |
-| synthetic | claude @ 1.0.0 (controller) | codex @ 1.0.0 (executor) | `0000000000000000...` | **PROVEN** | synthetic://125-triple/claude-controller -> synthetic://125-triple/codex-executor |
 
 ## Taxonomy
 

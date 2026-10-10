@@ -15,7 +15,7 @@
 | **Claude Code** | `2.1.291 (Claude Code)` | `C:\Users\alpha\.claude\skills\alpha-aos-task\SKILL.md` | `db309c5...` | **PROVEN / VERIFIED** | Live session invocation via `claude -p` successfully read the skill, explained decision rules (D-01..D-04), ordering invariant, and CLI verbs. |
 | **Codex** | `codex-cli 0.161.0` | `C:\Users\alpha\.agents\skills\alpha-aos-task\SKILL.md` | `db309c5...` | **human_needed / unverified** | Skill file synced and verified on disk. Non-interactive model execution blocked by elevated Windows sandbox provisioning failure (`helper_unknown_error`). Handed off to Phase 22. |
 | **Antigravity** | `1.3.2 (agy)` | `C:\Users\alpha\.gemini\config\skills\alpha-aos-task\SKILL.md` | `db309c5...` | **PROVEN / VERIFIED** | Active session startup automatically discovered and loaded `alpha-aos-task` skill from the config directory into session system prompts. |
-| **Pi Agent** | `1.1.0` | `C:\Users\alpha\.agents\skills\alpha-aos-task\SKILL.md` | `db309c5...` | **human_needed / unverified** | Skill file synced and verified on disk. Non-interactive execution (`pi -p`) without injected provider API keys (`ANTHROPIC_API_KEY`, etc.) blocks on stdin. Handed off to Phase 22. |
+| **Pi Agent** | `1.1.0` | `C:\Users\alpha\.agents\skills\alpha-aos-task\SKILL.md` | `db309c5...` | **PROVEN / VERIFIED** | Live session invocation via `"" | pi -p` with configured `freellmapi` endpoint successfully discovered and read `alpha-aos-task`, accurately explaining D-01..D-04 paths, preview/approval lifecycle, and boundary rules. |
 | **Hermes Agent** | `v0.21.5+8825.g69d126b` | `C:\Users\alpha\AppData\Local\hermes\skills\alpha-aos-task\SKILL.md` | `db309c5...` | **PROVEN / VERIFIED** | Live session invocation via `hermes --oneshot` successfully read the skill, identified two-path routing, strict contract lifecycle, and safety boundaries. |
 
 ---
@@ -67,12 +67,33 @@
 ### 4) Pi Agent (`1.1.0`)
 - **Invocation Command:**
   ```powershell
-  pi -p "hello"
+  "" | pi -p "Explain the alpha-aos-task skill: what does it do and what are its paths?"
   ```
-- **Observed Behavior:**
-  The command hangs indefinitely without output due to missing API key environment variables (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`), falling back to an unprompted interactive stdin read.
-- **Reason for Unverified Status:**
-  Requires explicit model API key injection or interactive TTY input. Kept as `human_needed / unverified` for Phase 22.
+- **Observed Output:**
+  ```text
+  ## alpha-aos-task Skill
+  Location: C:\Users\alpha\.agents\skills\alpha-aos-task\SKILL.md
+
+  ### What It Does
+  The alpha-aos-task skill is the natural-language task entry and autonomous workflow coordinator for alpha-AOS.
+  It serves as the coordination interface across all supported harnesses (Claude Code, Codex, Antigravity, Pi Agent, Hermes Agent).
+  Its core job is to guide users between two modes of operation and enforce strict authorization boundaries:
+  - Ordinary Conversational GSD (default)
+  - Autonomous Autopilot
+
+  ### Decision Paths (D-01 through D-04)
+  | Path | Trigger | Behavior |
+  | D-01/D-02: General Task Request | User expresses a general task | Clarify goal, present two-path choice. |
+  | D-03: Ambiguous Autopilot Request | Unclear criteria/boundaries | Ask clarifying questions only. |
+  | D-04: Explicit Autopilot Request | Explicitly asks for autopilot | Direct to read-only contract preview. |
+
+  ### Contract Review & Execution Protocol (D-05, D-08–D-10)
+  1. Read-Only Contract Preview
+  2. Exact-Digest Approval
+  3. Separate Execution Start
+  4. Status/Report Tracking
+  ```
+- **Outcome:** Complete native discovery, interpretation, and read-only protocol comprehension via configured local `freellmapi` endpoint with piped EOF stdin handling.
 
 ### 5) Hermes Agent (`v0.21.5+8825.g69d126b`)
 - **Invocation Command:**
@@ -95,6 +116,6 @@
 ## 3. Residual Gap Handoff
 
 In accordance with Phase 21 constraints (AGENTS.md and 21-VALIDATION.md):
-- Real live-host invocation receipts are proven for **Claude Code**, **Antigravity**, and **Hermes Agent**.
-- Host-level credential/sandbox prerequisites on Windows currently limit headless execution for **Codex** and **Pi Agent**, which remain explicitly documented as `human_needed / unverified`.
-- These two cells are carried as open validation targets into Phase 22's dedicated three-OS live-host matrix.
+- Real live-host invocation receipts are proven for **Claude Code**, **Antigravity**, **Hermes Agent**, and **Pi Agent**.
+- Host-level sandbox prerequisites on Windows currently limit headless execution for **Codex**, which remains explicitly documented as `human_needed / unverified`.
+- This single Codex host cell is carried as an open validation target into Phase 22's dedicated three-OS live-host matrix.

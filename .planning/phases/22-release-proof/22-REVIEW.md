@@ -101,6 +101,12 @@ status: issues_found
 **Issue:** 실제 CLI는 `receiptsRoot`만 전달한다. `evaluateReleaseMatrixCell`의 skill/MCP/pack 분기는 `options.capabilityReceipts` 또는 `options.capabilityLedger`가 주입된 경우에만 영수증을 검사한다. CLI 호출에서는 둘 다 없으므로 호스트에 유효한 능력 영수증이 있어도 해당 15개 셀은 항상 `UNVERIFIED`다.  
 **Fix:** CLI에서 저장된 capability 영수증과 ledger를 검증해 전달하거나, 평가 함수가 `receiptsRoot`에서 직접 읽도록 한다. 읽기 실패는 셀별 `UNVERIFIED` 사유로 남긴다.
 
+## Verification
+
+- 보고서 frontmatter와 24개 파일 목록 및 8개 finding ID를 파싱해 일치함을 확인했다.
+- 위 결함 중 정적 실인계 3건, 서로 다른 CI `runId`의 통과, 호스트 범주 0개의 통과, CoursePilot 해시 불일치의 완료 판정은 컴파일된 모듈로 재현했다.
+- `npm test`: 1,542 passed, 1 failed, 10 skipped. 실패는 이번 리뷰 범위 밖인 `test/process.test.ts:216`의 환경 출력 JSON이 기본 4,096바이트 excerpt에서 잘려 발생했다. `node scripts/run-tests.mjs --files dist/test/process.test.js`로 같은 실패를 재현했다.
+
 ---
 
 _Reviewed: 2026-10-10T13:54:42Z_  

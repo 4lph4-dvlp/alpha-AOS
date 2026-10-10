@@ -124,7 +124,7 @@ function packedTarball(report, artifacts) {
     throw new Error("npm pack did not return JSON");
   }
   const filename = Array.isArray(parsed) && parsed.length === 1 ? parsed[0]?.filename : null;
-  if (filename !== "alpha-aos-0.1.0.tgz") throw new Error("npm pack did not report alpha-aos-0.1.0.tgz");
+  if (filename !== "alpha-aos-0.2.0.tgz") throw new Error("npm pack did not report alpha-aos-0.2.0.tgz");
   const tarballPath = join(artifacts, filename);
   if (!existsSync(tarballPath)) throw new Error("npm pack did not create its declared tarball");
   return tarballPath;
@@ -189,12 +189,12 @@ export function runRelease(options) {
       env,
       label: "npm public publish",
     });
-    run(process.execPath, [join(staging.checkout, "scripts", "smoke-test.mjs"), "--registry", "alpha-aos@0.1.0"], {
+    run(process.execPath, [join(staging.checkout, "scripts", "smoke-test.mjs"), "--registry", "alpha-aos@0.2.0"], {
       cwd: staging.checkout,
       env,
       label: "Stage 2 public-registry smoke test",
     });
-    process.stdout.write(`Release v0.1.0 published and Stage 2 smoke verification passed.\nArtifact SHA-256: ${sha256(tarballPath)}\n`);
+    process.stdout.write(`Release v0.2.0 published and Stage 2 smoke verification passed.\nArtifact SHA-256: ${sha256(tarballPath)}\n`);
     return 0;
   } finally {
     rmSync(staging.root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });

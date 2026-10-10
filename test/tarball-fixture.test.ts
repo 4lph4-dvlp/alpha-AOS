@@ -178,7 +178,7 @@ test("tar parser enforces bounded entry sizes before allocating or advancing", a
 test("prepack audit ignores inherited pack destinations and removes its isolated archive", async (context) => {
   const staleDestination = await mkdtemp(join(tmpdir(), "alpha-aos-stale-pack-destination-"));
   context.after(async () => rm(staleDestination, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
-  const staleArchive = join(staleDestination, "alpha-aos-0.1.0.tgz");
+  const staleArchive = join(staleDestination, "alpha-aos-0.2.0.tgz");
   const sentinel = Buffer.from("not a tarball");
   await writeFile(staleArchive, sentinel);
 

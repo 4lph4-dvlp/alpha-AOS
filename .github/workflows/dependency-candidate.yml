@@ -3,7 +3,7 @@ name: Dependency candidate
 # Monday half of the unattended weekly dependency promotion.
 #
 # Resolves the latest registry versions, promotes every changed package into
-# catalog/stack.lock.json on automation/dependency-candidate, and runs the full
+# catalog/stack.lock.json on a run-specific candidate branch, and runs the full
 # promotion verification against that commit. A green run leaves a
 # `verified-candidate` artifact naming the commit; auto-promote.yml lands it on
 # main on Wednesday. A red run leaves no artifact, so nothing is promoted and
@@ -53,10 +53,10 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git checkout -B automation/dependency-candidate
+          git checkout -B "automation/dependency-candidate-${{ github.run_id }}"
           git add catalog/stack.lock.json catalog/candidate.lock.json
           git commit -m "chore(deps): promote $SUMMARY"
-          git push --force origin HEAD:automation/dependency-candidate
+          git push --force origin "HEAD:refs/heads/automation/dependency-candidate-${{ github.run_id }}"
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   verify:

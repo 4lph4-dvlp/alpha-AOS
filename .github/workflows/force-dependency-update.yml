@@ -1,0 +1,98 @@
+name: Force latest dependency update
+
+# Explicit repository administrator override. It resolves current npm versions
+# and integrity pins, then publishes the lock without the weekly CI, fixture,
+# or cooldown gates. ECC hash acquisition remains necessary to form a usable lock.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type FORCE_LATEST to bypass weekly verification.
+        required: true
+        type: string
+      reason:
+        description: Audit reason for bypassing weekly verification.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-promotion
+  cancel-in-progress: false
+
+jobs:
+  force:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Require an administrator and exact confirmation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.triggering_actor }}
+          REPOSITORY: ${{ github.repository }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+          REASON: ${{ inputs.reason }}
+          REF: ${{ github.ref }}
+        shell: bash
+        run: |
+          if [ "$REF" != "refs/heads/main" ] || [ "$CONFIRMATION" != "FORCE_LATEST" ] || [ -z "${REASON//[[:space:]]/}" ]; then
+            echo "::error::Run on main with FORCE_LATEST and a nonempty reason."
+            exit 1
+          fi
+          permission=$(gh api "repos/$REPOSITORY/collaborators/$ACTOR/permission" --jq .permission)
+          if [ "$permission" != "admin" ]; then
+            echo "::error::$ACTOR must have repository administrator permission."
+            exit 1
+          fi
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Resolve and pin current npm versions
+        run: node dist/src/cli.js update --stage --apply
+      - name: Promote with registry integrity checks
+        id: promote
+        run: node scripts/auto-promote.mjs stage
+      - name: Publish the audited lock commit
+        if: steps.promote.outputs.changed == 'true'
+        env:
+          REASON: ${{ inputs.reason }}
+          SUMMARY: ${{ steps.promote.outputs.summary }}
+          ACTOR: ${{ github.triggering_actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          base=$(git rev-parse HEAD)
+          git fetch origin main
+          if [ "$(git rev-parse origin/main)" != "$base" ]; then
+            echo "::error::main moved during the forced update; run again against the new main."
+            exit 1
+          fi
+          unexpected=$(git diff --name-only | grep -v -x -e catalog/stack.lock.json -e catalog/candidate.lock.json || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::forced update changed files outside the two locks: $unexpected"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add catalog/stack.lock.json catalog/candidate.lock.json
+          git commit -m "chore(deps): force latest $SUMMARY" -m "Requested by: $ACTOR
+          Reason: $REASON
+          Verification override: weekly CI, fixtures, and cooldown skipped
+          Workflow: $RUN_URL"
+          git push origin HEAD:refs/heads/main
+          echo "Forced update: $SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+          echo "Reason: $REASON" >> "$GITHUB_STEP_SUMMARY"
+          echo "Commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+      - name: Report no change
+        if: steps.promote.outputs.changed != 'true'
+        run: echo "All pinned dependency versions are already current." >> "$GITHUB_STEP_SUMMARY"

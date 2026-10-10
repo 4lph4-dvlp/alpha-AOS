@@ -318,17 +318,18 @@ alpha-aos update --apply
 alpha-aos update --apply --target codex,claude
 ```
 
-alpha-AOS uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the verified `catalog/stack.lock.json`. Unverified candidate releases (`candidate.lock.json`) are never applied on user workstations. `update --check` shows the registry's latest versions; an `update` status means the version has not been promoted into the stable lock yet, so `update --apply` will not install it until the weekly promotion lands.
+alpha-AOS uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the stable `catalog/stack.lock.json`. Candidate releases (`candidate.lock.json`) are never applied on user workstations. `update --check` shows the registry's latest versions; an `update` status means the version has not been promoted into the stable lock yet, so `update --apply` will not install it until a weekly or administrator-forced promotion lands.
 
 ### 3. Automated Weekly Dependency Promotion
 
-Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapter) are promoted into the stable lock without manual approval, but only through verification gates:
+Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapter) normally reach the stable lock through the weekly verification gates:
 
-- **Monday 03:17 UTC (12:17 KST)**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml) resolves the registry's latest versions, checks their integrity, writes every changed package into `catalog/stack.lock.json` on the `automation/dependency-candidate` branch (re-pinning ECC skill hashes when ECC moves), and verifies that commit with the full CI suite plus real GSD, ECC, MCP server, and Pi bridge fixtures on Linux, macOS, and Windows.
+- **Monday 03:17 UTC (12:17 KST)**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml) resolves the registry's latest versions, checks their integrity, writes every changed package into `catalog/stack.lock.json` on a run-specific candidate branch (re-pinning ECC skill hashes when ECC moves), and verifies that commit with the full CI suite plus real GSD, ECC, MCP server, and Pi bridge fixtures on Linux, macOS, and Windows.
 - **Wednesday 03:17 UTC (12:17 KST)**: [`.github/workflows/auto-promote.yml`](.github/workflows/auto-promote.yml) takes the commit Monday verified, rebases it onto current `main`, re-checks the registry (a version that was unpublished, altered, or is younger than 36 hours is refused), verifies the rebased commit again, and fast-forwards `main` to exactly that commit.
 - **Refusal is the safe default**: Any failure fails the workflow run, leaves `main` untouched, and triggers GitHub's failure notification. All packages in a week are promoted together, so one failing package holds the whole week back. The next Monday run starts over from the latest registry versions.
 - **Pack Skill Drift Audit**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml) runs weekly **every Monday at 04:17 UTC (13:17 KST)** to verify that catalog pack skills match pinned hashes.
 - **Manual Trigger**: Either workflow can be started at any time with the GitHub Actions `workflow_dispatch` button, for example to retry Wednesday's promotion after `main` moved during verification.
+- **Administrator override**: [`.github/workflows/force-dependency-update.yml`](.github/workflows/force-dependency-update.yml) can explicitly publish current registry versions without the weekly CI, fixture matrix, or cooldown. It requires repository `admin` permission, `FORCE_LATEST`, and an audit reason; registry integrity and ECC hash generation remain required. See the [promotion guide](docs/how-to/promote-dependencies.md#6-administrator-force-update).
 
 ### 4. Running Verification and Promotion Manually
 
@@ -358,7 +359,8 @@ gh run watch "$(gh run list --workflow dependency-candidate.yml --limit 1 --json
 
 #    Verified if every job passed and the run lists the "verified-candidate" artifact.
 #    The candidate commit message names the versions it will promote:
-git fetch origin automation/dependency-candidate
+gh run list --workflow dependency-candidate.yml --limit 1 --json databaseId --jq '.[0].databaseId'
+git fetch origin "automation/dependency-candidate-<run-id>"
 git log -1 --format=%s FETCH_HEAD
 
 # 2. Promote: start the Wednesday workflow and follow it

@@ -97,7 +97,7 @@ The authority boundaries are:
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion
 - **Secrets**: Credential values cannot enter manifests, locks, plans, journals, diagnostics, command arguments, or repository files — project-only launch environments must default to a reviewed allowlist
-- **Supply chain**: End users receive only the verified stable lock — candidate dependencies reach it solely through the automated weekly promotion gates (registry integrity, full 3-OS CI, real component fixtures, and a registry re-check after a two-day cooldown), and mutable external automation is not trusted without them
+- **Supply chain**: End users receive only the stable lock. Weekly automatic promotion requires registry integrity, full 3-OS CI, real component fixtures, and a registry re-check after a two-day cooldown. A repository administrator can explicitly force current registry versions into the stable lock with an audit reason, skipping the weekly test and cooldown gates while retaining registry integrity and required ECC hashes.
 - **Validation**: Native discovery plus a meaningful read-only invocation is required — configuration-file presence alone is insufficient
 
 ## Key Decisions

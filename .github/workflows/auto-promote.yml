@@ -31,6 +31,7 @@ jobs:
       ready: ${{ steps.rebase.outputs.ready }}
       sha: ${{ steps.rebase.outputs.sha }}
       base: ${{ steps.rebase.outputs.base }}
+      candidate_run: ${{ steps.find.outputs.candidate_run }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -45,10 +46,17 @@ jobs:
         shell: bash
         run: |
           since=$(date -u -d '7 days ago' +%Y-%m-%d)
-          run_id=$(gh run list --workflow dependency-candidate.yml --branch main --status success \
-            --created ">=$since" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          latest=$(gh run list --workflow dependency-candidate.yml --branch main \
+            --created ">=$since" --limit 1 --json databaseId,conclusion --jq '.[0] // empty')
+          run_id=$(jq -r '.databaseId // empty' <<< "$latest")
+          conclusion=$(jq -r '.conclusion // empty' <<< "$latest")
           if [ -z "$run_id" ]; then
-            echo "No successful dependency-candidate run since $since; nothing to promote."
+            echo "No dependency-candidate run since $since; nothing to promote."
+            echo "verified=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$conclusion" != "success" ]; then
+            echo "Latest dependency-candidate run $run_id concluded $conclusion; nothing eligible to promote."
             echo "verified=" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -58,14 +66,15 @@ jobs:
             exit 0
           fi
           verified=$(cat verified/sha.txt)
-          git fetch origin automation/dependency-candidate
+          git fetch origin "refs/heads/automation/dependency-candidate-$run_id"
           head=$(git rev-parse FETCH_HEAD)
           if [ "$head" != "$verified" ]; then
-            echo "::error::automation/dependency-candidate moved after verification ($head, verified $verified)"
+            echo "::error::candidate for run $run_id differs from its verified commit ($head, verified $verified)"
             exit 1
           fi
           echo "Verified in run $run_id: $(cat verified/summary.txt)"
           echo "verified=$verified" >> "$GITHUB_OUTPUT"
+          echo "candidate_run=$run_id" >> "$GITHUB_OUTPUT"
       - name: Rebase the verified commit onto current main
         id: rebase
         env:
@@ -134,3 +143,4 @@ jobs:
           fi
           git push origin "$SHA:refs/heads/main"
           git push origin --delete automation/dependency-promotion
+          git push origin --delete "automation/dependency-candidate-${{ needs.prepare.outputs.candidate_run }}"

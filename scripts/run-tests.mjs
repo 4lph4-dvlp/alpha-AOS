@@ -143,23 +143,29 @@ if (named === null) {
   files = requested.map((entry) => entry.path);
 }
 
-const child = spawn(process.execPath, ["--test", ...flags, ...files], {
-  cwd: repositoryRoot,
-  stdio: "inherit",
-  env: scrubbedEnvironment(process.env),
-  shell: false,
-  windowsHide: true,
-});
+function runFiles(selected) {
+  return new Promise((resolveRun) => {
+    const child = spawn(process.execPath, ["--test", ...flags, ...selected], {
+      cwd: repositoryRoot,
+      stdio: "inherit",
+      env: scrubbedEnvironment(process.env),
+      shell: false,
+      windowsHide: true,
+    });
+    child.once("error", (error) => {
+      process.stderr.write(`failed to launch the test process: ${error.message}\n`);
+      resolveRun(1);
+    });
+    child.once("exit", (code, signal) => {
+      if (signal !== null) process.stderr.write(`the test process was terminated by ${signal}\n`);
+      resolveRun(signal === null ? code ?? 1 : 1);
+    });
+  });
+}
 
-child.once("error", (error) => {
-  process.stderr.write(`failed to launch the test process: ${error.message}\n`);
-  process.exit(1);
-});
-
-child.once("exit", (code, signal) => {
-  if (signal !== null) {
-    process.stderr.write(`the test process was terminated by ${signal}\n`);
-    process.exit(1);
-  }
-  process.exit(code ?? 1);
-});
+// The packed lifecycle fingerprints real host paths. Run it after the other
+// files so another suite cannot write to those paths during its snapshot.
+const packed = named === null ? files.filter((file) => file.endsWith("tarball-fixture.test.js")) : [];
+const concurrent = named === null ? files.filter((file) => !file.endsWith("tarball-fixture.test.js")) : files;
+const first = concurrent.length > 0 ? await runFiles(concurrent) : 0;
+process.exitCode = first === 0 && packed.length > 0 ? await runFiles(packed) : first;

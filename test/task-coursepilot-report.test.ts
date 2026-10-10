@@ -868,6 +868,7 @@ test("runtime prereqs check rejects uninstalled or mismatched CoursePilot CLI wi
 
   const resolution = await resolveCoursePilotRuntime({
     overrideRepoRoot: "/nonexistent-repo",
+    overrideUvExecutable: "/mock/uv",
     runner: mockRunner,
   });
 

@@ -14,7 +14,6 @@ import {
   describeHostDrift,
   fingerprintManifest,
   HOST_DRIFT_LISTING_LIMIT,
-  hostNpmCache,
   installPackedRelease,
   packRelease,
   parseJsonResult,
@@ -327,7 +326,6 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
   const beforeManifests = new Map<string, HostFingerprint>();
   const beforeHost = await hostSnapshot(beforeManifests);
   const sandbox = await createIsolatedSandbox(context);
-  const npmCache = hostNpmCache();
 
   let tarballPath: string;
   const authoritativeTarball = process.env.ALPHA_AOS_RELEASE_TARBALL?.trim();
@@ -339,12 +337,12 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
   }
 
   // installPackedRelease audits the tarball (allowlist, dist/src/cli.js present, no
-  // catalog/candidate.lock.json), installs it into the sandbox prefix with the host npm
+  // catalog/candidate.lock.json), installs it into the sandbox prefix with the sandbox npm
   // cache, and asserts the installed lock channel is `stable` with no candidate lock.
   // seedHarnessPrerequisites seeds GSD at the locked values, installs the locked ECC
   // runtime with the sandbox cache, renders the three ECC skills against the lock target
   // hashes, and renders the Codex MCP config with the packed renderMcpConfig.
-  const release = await installPackedRelease(sandbox, { tarballPath, hostNpmCache: npmCache });
+  const release = await installPackedRelease(sandbox, { tarballPath, hostNpmCache: sandbox.cache });
   const tarballBefore = release.tarballSha256;
   await seedHarnessPrerequisites(sandbox, release, "codex");
 

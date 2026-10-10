@@ -113,14 +113,14 @@ export async function discoverTools(
         FIRECRAWL_NO_ENDPOINT_FEEDBACK: "1",
       },
     }),
-    timeoutMs: 120_000,
+    timeoutMs: 240_000,
     maxOutputBytes: 64 * 1024,
   });
 
   const send = (value: unknown): void => { session.send(value); };
   const waitFor = async (id: number): Promise<Record<string, unknown>> => {
     try {
-      return await session.waitFor((message) => message.id === id, 60_000);
+      return await session.waitFor((message) => message.id === id, 150_000);
     } catch {
       // A wait ends only with a coded session outcome, so the failure is
       // described from exit metadata and stream fingerprints — never by

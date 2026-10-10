@@ -1,4 +1,8 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
   COURSEPILOT_CONNECTOR_ID,
@@ -12,8 +16,26 @@ import {
   type CoursePilotCoarseManifestV1,
 } from "../src/adapters/coursepilot-task.js";
 
-test("resolveCoursePilotRuntime probes actual installed environment and reports D-17 unmet gate honestly", async () => {
-  const resolution = await resolveCoursePilotRuntime();
+test("resolveCoursePilotRuntime reports D-17 unmet gate from an isolated legacy CLI probe", async () => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-coursepilot-runtime-"));
+  const skillPath = join(root, "SKILL.md");
+  const contractPath = join(root, "skills", "coursepilot", "JSON_CONTRACT.md");
+  await mkdir(join(root, "skills", "coursepilot"), { recursive: true });
+  await writeFile(skillPath, "CoursePilot test skill\n", "utf8");
+  await writeFile(contractPath, "CoursePilot test contract\n", "utf8");
+  const excerpt = "legacy materials help without contract flags";
+  const stream = { excerpt, capped: false, totalBytes: Buffer.byteLength(excerpt), sha256: createHash("sha256").update(excerpt).digest("hex") };
+  let resolution;
+  try {
+    resolution = await resolveCoursePilotRuntime({
+      overrideRepoRoot: root,
+      overrideSkillPath: skillPath,
+      overrideUvExecutable: join(root, "uv"),
+      runner: async () => ({ code: "ok", exitCode: 0, signal: null, timedOut: false, outputCapped: false, durationMs: 1, stdout: stream, stderr: { ...stream, excerpt: "", totalBytes: 0, sha256: createHash("sha256").update("").digest("hex") } }),
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 
   assert.equal(resolution.status, "available", "Skill and repo root should be located");
   assert.ok(resolution.repoRoot !== null);
@@ -22,8 +44,7 @@ test("resolveCoursePilotRuntime probes actual installed environment and reports 
   assert.ok(resolution.skillFingerprint !== null);
   assert.ok(resolution.contractFingerprint !== null);
 
-  // The actual installed CoursePilot CLI does not yet implement D-17 flags (--contract-version/--manifest)
-  // The adapter must fail closed honestly!
+  // A legacy CLI without D-17 flags must fail closed.
   assert.equal(resolution.supported, false, "Must fail closed when D-17 flags are not yet in CLI");
   assert.equal(resolution.nextAction, COURSEPILOT_UNMET_GATE_ACTION);
   assert.ok(resolution.missingProof.length > 0);

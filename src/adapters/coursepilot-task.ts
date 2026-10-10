@@ -119,6 +119,7 @@ export function sanitizeLmsString(raw: string, maxLen = 200): string {
 export async function resolveCoursePilotRuntime(options: {
   overrideRepoRoot?: string | undefined;
   overrideSkillPath?: string | undefined;
+  overrideUvExecutable?: string | undefined;
   runner?: CoursePilotProcessRunner | undefined;
 } = {}): Promise<CoursePilotRuntimeResolution> {
   const missingProof: string[] = [];
@@ -184,7 +185,7 @@ export async function resolveCoursePilotRuntime(options: {
   // 4. Resolve uv executable
   let uvExecutable: string | null = null;
   try {
-    uvExecutable = resolveCommand("uv");
+    uvExecutable = options.overrideUvExecutable ?? resolveCommand("uv");
   } catch {
     missingProof.push("uv executable not found on PATH");
   }

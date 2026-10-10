@@ -22,13 +22,13 @@ Monday 03:17 UTC            dependency-candidate.yml
   update --stage --apply    resolve registry "latest" for every pinned package
   auto-promote.mjs stage    verify integrity, write changed packages into stack.lock.json,
                             re-pin ECC source/target hashes if ECC moved, reset candidate
-  push                      automation/dependency-candidate (one commit, two lock files)
+  push                      automation/dependency-candidate-<run-id> (one commit, two lock files)
   promotion-verify.yml      full CI (Linux/macOS/Windows) + real component fixtures
   record                    artifact "verified-candidate" = the verified commit SHA
 
 Wednesday 03:17 UTC         auto-promote.yml
-  find                      Monday's successful run and its verified SHA
-                            (refuses if the candidate branch moved after verification)
+  find                      latest Monday run; only a successful run with an artifact
+                            and matching run-specific branch is eligible
   rebase                    onto current main; refuses if files other than the locks change
   verify-registry           refuses unpublished, altered, or <36h-old versions
   promotion-verify.yml      full CI + fixtures again on the rebased commit
@@ -65,7 +65,7 @@ All changed packages in a week are promoted together, so one failing package hol
 | `Re-verify promoted packages against the registry` | A version was unpublished, altered, or is too young | Nothing; the next Monday run resolves again. |
 | `Push the verified commit to main` | `main` moved while the promotion was verified | Re-run `auto-promote.yml` with **Run workflow**. |
 
-Either workflow can be started manually with **Run workflow** (`workflow_dispatch`).
+Either workflow can be started manually with **Run workflow** (`workflow_dispatch`). A failed Monday run cannot replace the candidate commit verified by another run.
 
 ---
 
@@ -87,6 +87,18 @@ Open a pull request and merge it only after `ci.yml` passes on all three operati
 
 ---
 
-## 6. Release Hygiene
+## 6. Administrator Force Update
+
+Repository administrators can use **Force latest dependency update** when they explicitly accept the risk of bypassing the weekly CI, real component fixtures, and 36-hour cooldown. Run it on `main`, type `FORCE_LATEST`, and provide an audit reason:
+
+```sh
+gh workflow run force-dependency-update.yml --ref main -f confirmation=FORCE_LATEST -f reason="<reason>"
+```
+
+The workflow checks the triggering user's repository `admin` permission through GitHub's collaborator API, including on a rerun. It resolves current registry versions, verifies their integrity, computes required ECC skill hashes when ECC moves, and commits only the two lock files directly to `main`. The commit records the actor, reason, and workflow URL. No three-OS CI, component fixture matrix, or cooldown check runs. If `main` moves meanwhile, it refuses and must be run again. Branch rules that block the workflow token also block this override; the workflow does not alter branch protection.
+
+---
+
+## 7. Release Hygiene
 
 `catalog/candidate.lock.json`, `.planning/`, tests, and scratch files are excluded from release tarballs by `scripts/audit-tarball.mjs`, which every CI run executes before publication.

@@ -63,6 +63,7 @@ import {
   type TaskContractPreview,
 } from "./core/task-contract.js";
 import { requestTaskStop, readTaskStopState } from "./core/task-control.js";
+import { readTaskStatusModel, selectTaskExecution } from "./core/task-read.js";
 import { listTaskRuns, readTaskReport, startTask, type TaskStartReadiness } from "./core/task-run.js";
 import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
 import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
@@ -1874,8 +1875,15 @@ async function main(): Promise<void> {
     if (subcommand === "report") {
       if (operand === undefined) throw new Error("task report requires a contract id: alpha-aos task report <contract-id> [--run <run-id>]");
       const runId = optionValue(args, "--run");
-      const run = await readTaskReport({ stateRoot, contractId: operand, ...(runId === null ? {} : { runId }) });
-      if (run === null) throw new Error(`no run recorded for task ${operand}${runId === null ? "" : ` with run id ${runId}`}`);
+      const selected = await selectTaskExecution({
+        stateRoot,
+        contractId: operand,
+        runId: runId ?? undefined,
+      });
+      if (selected.isReserved || selected.runRecord === null) {
+        throw new Error(`no run recorded for task ${operand}${runId === null ? "" : ` with run id ${runId}`}`);
+      }
+      const run = selected.runRecord;
       print(run, json, formatTaskRunReport(run), context);
       return;
     }
@@ -1884,60 +1892,17 @@ async function main(): Promise<void> {
       if (operand === undefined) throw new Error("task status requires a contract id: alpha-aos task status <contract-id> [--run <run-id>]");
       const runId = optionValue(args, "--run");
       const detail = hasFlag(args, "--detail");
-      const found = await findLatestTaskCheckpoint(stateRoot, operand, runId);
-      if (found === null) throw new Error(`no checkpoint recorded for task ${operand}`);
-      const ledger = await readEffectLedger(stateRoot, found.contractDigest);
-      const events = await readJournalEvents(stateRoot, found.contractDigest);
-      let gsdDiagnostics: GsdLifecycleDiagnostics | null = null;
-      try {
-        const projectRoot = process.cwd();
-        gsdDiagnostics = await diagnoseGsdLifecycleStatus({
-          projectRoot,
-          receiptsRoot: join(stateRoot, "receipts"),
-        });
-      } catch {}
+      const projectRoot = process.cwd();
 
-      let contractSnapshot: DigestableTaskContract | undefined;
-      try {
-        const approvals = await readTaskApprovals({ stateRoot, contractId: operand });
-        const matched = approvals.find((a) => a.contractDigest === found.contractDigest);
-        if (matched) {
-          contractSnapshot = matched.contract;
-        }
-      } catch {}
-
-      const capabilityReport = await buildTaskCapabilityReport({
-        contract: contractSnapshot,
-        contractId: operand,
-        contractRevision: found.checkpoint.revision,
-        contractDigest: found.contractDigest,
-        projectRoot: contractSnapshot?.scope.projectRoot ? resolve(contractSnapshot.scope.projectRoot) : process.cwd(),
+      const statusModel = await readTaskStatusModel({
         stateRoot,
-        stopReason: found.checkpoint.stopReason,
-        checkpointStatus: found.checkpoint.status,
+        contractId: operand,
+        runId: runId ?? undefined,
+        detail,
+        projectRoot,
       });
 
-      let pendingSuggestionsCount = 0;
-      let suggestionsPath: string | undefined = undefined;
-      try {
-        const suggestionsDoc = await loadTaskReviewSuggestions(stateRoot, operand);
-        if (suggestionsDoc) {
-          pendingSuggestionsCount = suggestionsDoc.suggestions.filter((s) => s.status === "pending").length;
-          suggestionsPath = suggestionsFilePath(stateRoot, operand);
-        }
-      } catch {}
-
-      const statusData = {
-        checkpoint: found.checkpoint,
-        ledger,
-        eventsCount: events.length,
-        ...(gsdDiagnostics ? { gsdDiagnostics } : {}),
-        capabilities: capabilityReport.summary,
-        capabilityReport,
-        pendingSuggestionsCount,
-        ...(pendingSuggestionsCount > 0 && suggestionsPath ? { suggestionsPath } : {}),
-      };
-      print(statusData, json, formatTaskStatus({ ...statusData, detail }), context);
+      print(statusModel, json, formatTaskStatus({ ...statusModel, detail }), context);
       return;
     }
 

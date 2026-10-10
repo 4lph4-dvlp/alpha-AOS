@@ -784,3 +784,99 @@ test("task approval and start receipts present matching runId, contract location
   assert.equal(reportResult.exitCode, 0, reportResult.stderr.excerpt);
   assert.ok(reportResult.stdout.excerpt.includes(`Run: ${run.runId}`));
 });
+
+// ---------------------------------------------------------------------------
+// Plan 21-05: Unified read model, deterministic selection, verdict-first status (D-11, D-14, UX-03)
+// ---------------------------------------------------------------------------
+
+test("status and report without --run select the latest execution deterministically and show ID and timestamp (D-11)", async (context) => {
+  const { fixture, digest: digest1 } = await contractFixture(context);
+
+  // 1. First run
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest1, stateRoot: fixture.stateRoot });
+  const { run: run1 } = await startFixtureTask(fixture, {
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    expectedDigest: digest1,
+    now: () => new Date("2026-10-10T01:00:00.000Z"),
+  });
+
+  // 2. Modify contract for revision 2 and start second run
+  const contract2 = inventorySummaryContract(fixture.projectRoot);
+  contract2.revision = 2;
+  await writeTaskContract(fixture.contractPath, contract2);
+  const { digest: digest2 } = await loadTaskContract(fixture.contractPath);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest2, stateRoot: fixture.stateRoot });
+  const { run: run2 } = await startFixtureTask(fixture, {
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    expectedDigest: digest2,
+    now: () => new Date("2026-10-10T02:00:00.000Z"),
+  });
+
+  // 3. Status without --run chooses the latest run (run2)
+  const statusResult = await cli(fixture, ["status", "inventory-summary"]);
+  assert.equal(statusResult.exitCode, 0, statusResult.stderr.excerpt);
+  const statusOut = statusResult.stdout.excerpt;
+  assert.ok(statusOut.includes(`Run ID: ${run2.runId}`));
+  assert.ok(statusOut.includes("Started at: 2026-10-10T02:00:00.000Z"));
+
+  // 4. Report without --run also chooses run2
+  const reportResult = await cli(fixture, ["report", "inventory-summary"]);
+  assert.equal(reportResult.exitCode, 0, reportResult.stderr.excerpt);
+  assert.ok(reportResult.stdout.excerpt.includes(`Run: ${run2.runId}`));
+
+  // 5. Specifying --run run1 queries exactly run1
+  const run1Status = await cli(fixture, ["status", "inventory-summary", "--run", run1.runId]);
+  assert.equal(run1Status.exitCode, 0, run1Status.stderr.excerpt);
+  assert.ok(run1Status.stdout.excerpt.includes(`Run ID: ${run1.runId}`));
+  assert.ok(run1Status.stdout.excerpt.includes("Started at: 2026-10-10T01:00:00.000Z"));
+});
+
+test("task status presents verdict, reason, and next action before progress details (D-14, UX-03)", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const { run } = await startFixtureTask(fixture, {
+    ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }),
+    expectedDigest: digest,
+  });
+
+  const result = await cli(fixture, ["status", "inventory-summary", "--run", run.runId]);
+  assert.equal(result.exitCode, 0, result.stderr.excerpt);
+  const out = result.stdout.excerpt;
+
+  const verdictIndex = out.indexOf("Verdict:");
+  const reasonCodeIndex = out.indexOf("Reason code:");
+  const reasonIndex = out.indexOf("Reason:");
+  const nextActionIndex = out.indexOf("Next action:");
+  const progressIndex = out.indexOf("Progress & Execution:");
+
+  assert.ok(verdictIndex !== -1 && reasonCodeIndex !== -1 && reasonIndex !== -1 && nextActionIndex !== -1);
+  assert.ok(progressIndex !== -1);
+
+  // Verdict, reason and next action appear before progress details (D-14)
+  assert.ok(verdictIndex < progressIndex);
+  assert.ok(reasonCodeIndex < progressIndex);
+  assert.ok(reasonIndex < progressIndex);
+  assert.ok(nextActionIndex < progressIndex);
+
+  // Unmetered usage displayed as unmetered, not fake zeros
+  assert.ok(out.includes("Tokens: (unmetered)"));
+  assert.ok(out.includes("Cost (USD): (unmetered)"));
+});
+
+test("task status on reserved runId reports reserved status without phantom run record (UX-02, UX-03)", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+  const approveResult = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest, "--apply", "--json"]);
+  assert.equal(approveResult.exitCode, 0);
+  const approveData = JSON.parse(approveResult.stdout.excerpt) as { reservedRunId: string };
+
+  // Query status with the reserved run ID before start
+  const statusResult = await cli(fixture, ["status", "inventory-summary", "--run", approveData.reservedRunId]);
+  assert.equal(statusResult.exitCode, 0, statusResult.stderr.excerpt);
+  const out = statusResult.stdout.excerpt;
+
+  assert.ok(out.includes("Verdict: RESERVED"));
+  assert.ok(out.includes("Status: reserved"));
+  assert.ok(out.includes("Reason code: APPROVAL_RECORDED"));
+  assert.ok(out.includes("Started at: not started yet"));
+  assert.ok(out.includes("Start approved execution:"));
+});

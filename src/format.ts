@@ -1421,10 +1421,17 @@ export function formatTaskResumeReadiness(readiness: TaskResumeReadiness, comman
 /**
  * Formats a task status summary into human-readable text.
  */
-export function formatTaskStatus(status: {
+export function formatTaskStatus(statusModel: {
   checkpoint: TaskCheckpoint;
   ledger: TaskEffectLedger | null;
   eventsCount: number;
+  selectedRunId?: string | undefined;
+  selectedStartedAt?: string | null | undefined;
+  verdict?: string | undefined;
+  status?: string | undefined;
+  reasonCode?: string | undefined;
+  reason?: string | undefined;
+  nextAction?: string | undefined;
   gsdDiagnostics?: GsdLifecycleDiagnostics | null | undefined;
   capabilities?: TaskCapabilitySummary | undefined;
   capabilityReport?: TaskCapabilityReport | undefined;
@@ -1432,23 +1439,51 @@ export function formatTaskStatus(status: {
   pendingSuggestionsCount?: number | undefined;
   suggestionsPath?: string | undefined;
 }): string {
-  const { checkpoint, ledger, eventsCount, gsdDiagnostics, capabilities, capabilityReport, detail, pendingSuggestionsCount, suggestionsPath } = status;
+  const {
+    checkpoint,
+    ledger,
+    eventsCount,
+    selectedRunId,
+    selectedStartedAt,
+    verdict,
+    status,
+    reasonCode,
+    reason,
+    nextAction,
+    gsdDiagnostics,
+    capabilities,
+    capabilityReport,
+    detail,
+    pendingSuggestionsCount,
+    suggestionsPath,
+  } = statusModel;
   const entries = ledger !== null ? Object.values(ledger.entries) : [];
   const appliedCount = entries.filter((e) => e.status === "applied").length;
   const pendingCount = entries.filter((e) => e.status !== "applied").length;
 
+  const displayStatus = status ?? checkpoint.status;
   const lines: string[] = [
     `Task: ${checkpoint.contractId} (revision ${checkpoint.revision})`,
+    ...(selectedRunId ? [`Run ID: ${selectedRunId}`] : []),
+    ...(selectedStartedAt !== undefined ? [`Started at: ${selectedStartedAt ?? "not started yet"}`] : []),
     `Contract digest: ${checkpoint.contractDigest}`,
-    `Status: ${checkpoint.status}`,
-    `Cycle: ${checkpoint.usage.cycles}`,
-    `Attempt: ${checkpoint.attemptIndex}`,
-    `Wall time: ${Math.round(checkpoint.usage.wallTimeMs / 1000)}s`,
-    `Last verified HEAD: ${checkpoint.lastVerifiedHead ?? "none"}`,
-    `Stop reason: ${checkpoint.stopReason ?? "none"}`,
-    `Effect summary: ${appliedCount} applied, ${pendingCount} pending`,
-    `Journal events: ${eventsCount}`,
-    `Last updated: ${checkpoint.updatedAt}`,
+    `Verdict: ${(verdict ?? displayStatus).toUpperCase()}`,
+    `Status: ${displayStatus}`,
+    ...(reasonCode ? [`Reason code: ${reasonCode}`] : []),
+    ...(reason ? [`Reason: ${reason}`] : checkpoint.stopReason ? [`Stop reason: ${checkpoint.stopReason}`] : []),
+    ...(nextAction ? [`Next action: ${nextAction}`] : []),
+    "",
+    "Progress & Execution:",
+    `  Cycle: ${checkpoint.usage.cycles}`,
+    `  Attempt: ${checkpoint.attemptIndex}`,
+    `  Wall time: ${Math.round(checkpoint.usage.wallTimeMs / 1000)}s`,
+    `  Tokens: ${checkpoint.usage.tokens !== null ? checkpoint.usage.tokens : "(unmetered)"}`,
+    `  Cost (USD): ${checkpoint.usage.costUsd !== null ? `$${checkpoint.usage.costUsd.toFixed(2)}` : "(unmetered)"}`,
+    `  Last verified HEAD: ${checkpoint.lastVerifiedHead ?? "none"}`,
+    `  Stop reason: ${checkpoint.stopReason ?? "none"}`,
+    `  Effect summary: ${appliedCount} applied, ${pendingCount} pending`,
+    `  Journal events: ${eventsCount}`,
+    `  Last updated: ${checkpoint.updatedAt}`,
   ];
 
   if (pendingSuggestionsCount !== undefined && pendingSuggestionsCount > 0) {

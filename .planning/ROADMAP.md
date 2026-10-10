@@ -422,27 +422,27 @@ Plans:
 
 **Verification:** Final full `npm run check`, `npm test`, `npm run build`, three-OS CI run and GSD audit/verify-work; record role, skill, MCP, pack and hook invocation receipts and limits in the release matrix. Do not claim a missing paid or authenticated canary passed.
 
-**Plans:** 6 plans in 4 waves
+**Plans:** 6/6 plans complete
 
 Plans:
 
 **Wave 1**
 
-- [ ] 22-01-PLAN.md — Candidate evidence identity and one receipt-to-doctor tracer
+- [x] 22-01-PLAN.md — Candidate evidence identity and one receipt-to-doctor tracer
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 22-02-PLAN.md — Five fault controls and one-candidate three-OS CI evidence
-- [ ] 22-03-PLAN.md — Exact-version support cells and real cross-harness handoffs
-- [ ] 22-05-PLAN.md — Development and CoursePilot criteria and capability receipts
+- [x] 22-02-PLAN.md — Five fault controls and one-candidate three-OS CI evidence
+- [x] 22-03-PLAN.md — Exact-version support cells and real cross-harness handoffs
+- [x] 22-05-PLAN.md — Development and CoursePilot criteria and capability receipts
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 22-04-PLAN.md — Packed lifecycle, stable lock and real-host drift proof
+- [x] 22-04-PLAN.md — Packed lifecycle, stable lock and real-host drift proof
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 22-06-PLAN.md — Current-candidate release evidence, documentation and independent milestone gate
+- [x] 22-06-PLAN.md — Current-candidate release evidence, documentation and independent milestone gate
 
 ## Planning and Execution Gates
 

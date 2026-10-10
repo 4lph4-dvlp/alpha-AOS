@@ -38,10 +38,10 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 ### GSD lifecycle
 
-- [ ] **GSD-01**: A user can run the appropriate GSD discuss, plan, execute and verify steps for a development goal without typing each step, with authorized defaults recorded.
-- [ ] **GSD-02**: A user sees confirmed implementation gaps routed into GSD gap plans or new phases, then re-executed and re-verified against the approved criteria.
-- [ ] **GSD-03**: A user can inspect GSD as the sole project lifecycle authority while alpha-AOS owns attempts, role dispatch, limits and recovery in a separate journal.
-- [ ] **GSD-04**: A user sees mandatory GSD gates backed by actual execution and same-revision evidence; a configured skill or exit code alone cannot satisfy independent-review acceptance.
+- [x] **GSD-01**: A user can run the appropriate GSD discuss, plan, execute and verify steps for a development goal without typing each step, with authorized defaults recorded.
+- [x] **GSD-02**: A user sees confirmed implementation gaps routed into GSD gap plans or new phases, then re-executed and re-verified against the approved criteria.
+- [x] **GSD-03**: A user can inspect GSD as the sole project lifecycle authority while alpha-AOS owns attempts, role dispatch, limits and recovery in a separate journal.
+- [x] **GSD-04**: A user sees mandatory GSD gates backed by actual execution and same-revision evidence; a configured skill or exit code alone cannot satisfy independent-review acceptance.
 
 ### Full alpha-AOS capability use
 
@@ -53,28 +53,28 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 
 ### Independent acceptance
 
-- [ ] **REV-01**: A user receives a verdict for every mandatory criterion supported by current measured evidence, including an explicit `unknown` when the result cannot be verified.
-- [ ] **REV-02**: A user receives structured reviewer findings with contract/revision identity, severity, criterion ID, reproduction steps and evidence, and cannot accept stale or malformed reports.
-- [ ] **REV-03**: A user sees an independent final review of required features, implementation quality, architecture and test evidence before a development milestone is accepted.
-- [ ] **REV-04**: A user sees review receipts invalidated when the artifact changes, with resolved findings reconciled and a new review run on the changed artifact.
-- [ ] **REV-05**: A user can distinguish a review suggestion outside approved scope from a blocking requirement defect, without the controller silently expanding the goal.
+- [x] **REV-01**: A user receives a verdict for every mandatory criterion supported by current measured evidence, including an explicit `unknown` when the result cannot be verified.
+- [x] **REV-02**: A user receives structured reviewer findings with contract/revision identity, severity, criterion ID, reproduction steps and evidence, and cannot accept stale or malformed reports.
+- [x] **REV-03**: A user sees an independent final review of required features, implementation quality, architecture and test evidence before a development milestone is accepted.
+- [x] **REV-04**: A user sees review receipts invalidated when the artifact changes, with resolved findings reconciled and a new review run on the changed artifact.
+- [x] **REV-05**: A user can distinguish a review suggestion outside approved scope from a blocking requirement defect, without the controller silently expanding the goal.
 
 ### General task tools
 
-- [ ] **TOOL-01**: A user can run a non-code task through a versioned connector that previews a bounded item/effect manifest and verifies each required outcome independently.
-- [ ] **TOOL-02**: A user can request all in-scope CoursePilot teaching-material downloads and see actual saved files reconciled against a fresh item manifest; `planned`, LMS completion and `viewed_only` never count as downloads.
+- [x] **TOOL-01**: A user can run a non-code task through a versioned connector that previews a bounded item/effect manifest and verifies each required outcome independently.
+- [x] **TOOL-02**: A user can request all in-scope CoursePilot teaching-material downloads and see actual saved files reconciled against a fresh item manifest; `planned`, LMS completion and `viewed_only` never count as downloads.
 - [x] **TOOL-03**: A user sees external actions assigned stable operation keys and an uncertain effect reconciled before retry, preventing duplicate actions after a crash when source evidence is available.
-- [ ] **TOOL-04**: A user sees partial, fatal and schema-version errors from a connector reported per item, with untrusted source content handled as data.
+- [x] **TOOL-04**: A user sees partial, fatal and schema-version errors from a connector reported per item, with untrusted source content handled as data.
 
 ### Entry and release proof
 
-- [ ] **UX-01**: A user can state a task naturally through an alpha-AOS skill in each supported harness, choose ordinary GSD interaction or explicitly opt into autopilot, and review the resulting task contract.
-- [ ] **UX-02**: A user can preview, start, inspect, stop, resume and diagnose a task through a local CLI, including after the original chat ends.
-- [ ] **UX-03**: A user can view selected tools, agent/model identities, progress, limits, failed criteria and actionable stop reasons in human-readable and JSON output.
-- [ ] **VER-01**: A user can see three-OS CI evidence for crash recovery, concurrency, cancellation, false acceptance and effect deduplication, including tests that fail against the broken behavior.
-- [ ] **VER-02**: A user can inspect exact-version real-host invocation receipts for every advertised role capability and representative cross-harness handoffs; unproven cells remain unverified.
-- [ ] **VER-03**: A user can verify a packed install/doctor/uninstall lifecycle that leaves unrelated real-host paths unchanged after the new capability is distributed.
-- [ ] **VER-04**: A user can run development and CoursePilot end-to-end cases with applicable global/project ECC skills, MCPs and packs automatically invoked through GSD, and see every required criterion, capability receipt and remaining limitation reported honestly.
+- [x] **UX-01**: A user can state a task naturally through an alpha-AOS skill in each supported harness, choose ordinary GSD interaction or explicitly opt into autopilot, and review the resulting task contract.
+- [x] **UX-02**: A user can preview, start, inspect, stop, resume and diagnose a task through a local CLI, including after the original chat ends.
+- [x] **UX-03**: A user can view selected tools, agent/model identities, progress, limits, failed criteria and actionable stop reasons in human-readable and JSON output.
+- [x] **VER-01**: A user can see three-OS CI evidence for crash recovery, concurrency, cancellation, false acceptance and effect deduplication, including tests that fail against the broken behavior.
+- [x] **VER-02**: A user can inspect exact-version real-host invocation receipts for every advertised role capability and representative cross-harness handoffs; unproven cells remain unverified.
+- [x] **VER-03**: A user can verify a packed install/doctor/uninstall lifecycle that leaves unrelated real-host paths unchanged after the new capability is distributed.
+- [x] **VER-04**: A user can run development and CoursePilot end-to-end cases with applicable global/project ECC skills, MCPs and packs automatically invoked through GSD, and see every required criterion, capability receipt and remaining limitation reported honestly.
 
 ## Future Requirements
 
@@ -102,9 +102,9 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 | ROL-01..05 | 16 | Complete |
 | GSD-01..04 | 17 | Complete |
 | CAP-01..05 | 18 | Complete |
-| REV-02..05 | 19 | Planned |
-| TOOL-01..02, TOOL-04 | 20 | Planned |
-| UX-01..03 | 21 | Planned |
-| VER-01..04 | 22 | Planned |
+| REV-02..05 | 19 | Complete |
+| TOOL-01..02, TOOL-04 | 20 | Complete |
+| UX-01..03 | 21 | Complete |
+| VER-01..04 | 22 | Complete |
 
 **Coverage:** 41 requirements; 41 mapped exactly once; 0 unmapped. Phase 14 is the opt-in vertical tracer; later phases deepen each seam without reassigning a requirement.

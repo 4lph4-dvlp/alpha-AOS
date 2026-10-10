@@ -6,7 +6,7 @@
 
 - ✅ **v0.1.0 Vertical MVP** — archived in `milestones/v0.1.0-ROADMAP.md`.
 - ✅ **v0.1.1 CI Green & Dependency Promotion** — archived in `milestones/v0.1.1-ROADMAP.md`.
-- ◇ **v0.2.0 Universal Autonomous Work** — Phases 14–22; roadmap approved, implementation pending.
+- ✅ **v0.2.0 Universal Autonomous Work** — Phases 14–22 completed and audit passed (2026-10-10).
 
 ## Phases
 

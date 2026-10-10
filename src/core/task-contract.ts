@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { open, readdir, readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
@@ -231,8 +232,35 @@ export interface TaskContractPreview {
 }
 
 export type TaskApprovalResult =
-  | { status: "approved"; recordPath: string; contractDigest: string; transactionId: string }
-  | { status: "already-approved"; recordPath: string; contractDigest: string; transactionId: null };
+  | {
+      status: "approved";
+      recordPath: string;
+      contractDigest: string;
+      transactionId: string;
+      reservedRunId: string;
+      contractId: string;
+      contractPath: string;
+    }
+  | {
+      status: "already-approved";
+      recordPath: string;
+      contractDigest: string;
+      transactionId: null;
+      reservedRunId: string;
+      contractId: string;
+      contractPath: string;
+    };
+
+export interface ReservedTaskRunResult {
+  status: "reserved" | "active" | "completed" | "refused";
+  contractId: string;
+  runId: string;
+  revision?: number | undefined;
+  contractDigest?: string | undefined;
+  reason?: string | undefined;
+  approval?: TaskApprovalRecord | undefined;
+  run?: unknown | undefined;
+}
 
 export type TaskSchemaName = "task-contract" | "task-receipt" | "task-review";
 
@@ -803,6 +831,94 @@ export function taskPreviewCommand(options: { contractPath: string }): string {
   return `alpha-aos task preview ${shellQuote(options.contractPath)}`;
 }
 
+/** The exact runnable line that inspects status for a task and optional run. */
+export function taskStatusCommand(contractId: string, runId?: string): string {
+  return runId ? `alpha-aos task status ${contractId} --run ${runId}` : `alpha-aos task status ${contractId}`;
+}
+
+/** The exact runnable line that halts an active task run. */
+export function taskStopCommand(contractId: string, runId?: string, reason = "operator_halt"): string {
+  return runId
+    ? `alpha-aos task stop ${contractId} --run ${runId} --reason ${reason}`
+    : `alpha-aos task stop ${contractId} --reason ${reason}`;
+}
+
+/** The exact runnable line that resumes a halted task run. */
+export function taskResumeCommand(contractPath: string, digest?: string): string {
+  return digest
+    ? `alpha-aos task resume ${shellQuote(contractPath)} --contract-digest ${digest} --apply`
+    : `alpha-aos task resume ${shellQuote(contractPath)}`;
+}
+
+/**
+ * Computes a deterministic reserved runId from an approved contract digest (D-09, D-10).
+ * Conforms to RUN_ID_PATTERN: ^[0-9a-z]{8,}-[0-9a-f]{8}$
+ */
+export function reservedRunIdForApproval(approval: { contractDigest: string }): string {
+  const digest = approval.contractDigest;
+  return `${digest.slice(0, 16)}-${digest.slice(16, 24)}`;
+}
+
+/**
+ * Queries the reserved run state for a contractId and runId directly from validated approvals (D-09).
+ * Returns { status: "reserved" } before start, "active"/"completed" when run record exists,
+ * or "refused" when unapproved/tampered.
+ */
+export async function readReservedTaskRun(options: {
+  stateRoot: string;
+  contractId: string;
+  runId: string;
+}): Promise<ReservedTaskRunResult> {
+  const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: options.contractId });
+  const matched = approvals.find((a) => reservedRunIdForApproval(a) === options.runId);
+  if (!matched) {
+    return {
+      status: "refused",
+      contractId: options.contractId,
+      runId: options.runId,
+      reason: `No approval record with reserved run id ${options.runId} found for task ${options.contractId}`,
+    };
+  }
+
+  const runFile = join(options.stateRoot, "tasks", options.contractId, "runs", `${options.runId}.json`);
+  if (existsSync(runFile)) {
+    try {
+      const text = await readFile(runFile, "utf8");
+      const record = JSON.parse(text);
+      if (record.contractDigest !== matched.contractDigest) {
+        return {
+          status: "refused",
+          contractId: options.contractId,
+          revision: matched.revision,
+          contractDigest: matched.contractDigest,
+          runId: options.runId,
+          reason: "Run record contractDigest does not match approval digest",
+        };
+      }
+      return {
+        status: record.status === "executing" ? "active" : "completed",
+        contractId: options.contractId,
+        revision: matched.revision,
+        contractDigest: matched.contractDigest,
+        runId: options.runId,
+        approval: matched,
+        run: record,
+      };
+    } catch {
+      // unreadable run record falls through
+    }
+  }
+
+  return {
+    status: "reserved",
+    contractId: options.contractId,
+    revision: matched.revision,
+    contractDigest: matched.contractDigest,
+    runId: options.runId,
+    approval: matched,
+  };
+}
+
 /** The lowest revision number that no approval for this id has used yet. */
 function nextRevision(approvals: readonly TaskApprovalRecord[], current: number): number {
   return Math.max(current, ...approvals.map((approval) => approval.revision)) + 1;
@@ -863,9 +979,19 @@ export async function approveTaskContract(options: {
 
   const { contract, digest } = loaded;
   const recordPath = taskApprovalPath(options.stateRoot, contract.id, contract.revision, digest);
+  const reservedRunId = reservedRunIdForApproval({ contractDigest: digest });
+  const resolvedContractPath = resolve(options.contractPath);
   const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: contract.id });
   if (approvals.some((approval) => approval.contractDigest === digest)) {
-    return { status: "already-approved", recordPath, contractDigest: digest, transactionId: null };
+    return {
+      status: "already-approved",
+      recordPath,
+      contractDigest: digest,
+      transactionId: null,
+      reservedRunId,
+      contractId: contract.id,
+      contractPath: resolvedContractPath,
+    };
   }
   // CON-03: one revision number names one approved content. Changed content
   // under an approved number would make "revision 1" mean two contracts.
@@ -911,7 +1037,15 @@ export async function approveTaskContract(options: {
     allowedRoots: [join(options.stateRoot, "tasks")],
     operations: [{ target: recordPath, content: Buffer.from(text, "utf8") }],
   });
-  return { status: "approved", recordPath, contractDigest: digest, transactionId: journal.id };
+  return {
+    status: "approved",
+    recordPath,
+    contractDigest: digest,
+    transactionId: journal.id,
+    reservedRunId,
+    contractId: contract.id,
+    contractPath: resolvedContractPath,
+  };
 }
 
 /**

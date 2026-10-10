@@ -53,7 +53,11 @@ import {
   loadTaskContract,
   previewTaskContract,
   readTaskApprovals,
+  reservedRunIdForApproval,
   taskApproveCommand,
+  taskStatusCommand,
+  taskStopCommand,
+  taskResumeCommand,
   type DigestableTaskContract,
   type LoadedTaskContract,
   type TaskContractPreview,
@@ -537,10 +541,6 @@ async function readTaskStartReadiness(
   return { readiness, command: taskStartCommand(loaded.sourcePath, digest) };
 }
 
-/** The exact runnable line that resumes one interrupted task. */
-function taskResumeCommand(contractPath: string, digest: string): string {
-  return `alpha-aos task resume ${shellQuote(contractPath)} --contract-digest ${digest} --apply`;
-}
 
 async function findLatestTaskCheckpoint(
   stateRoot: string,
@@ -2175,14 +2175,35 @@ async function main(): Promise<void> {
         }
         // AUTO-01, AUTO-03: the one call site that launches the supervisor, bound
         // to this task's own approved, unconsumed digest. Every refusal is thrown.
+        const reservedRunId = reservedRunIdForApproval({ contractDigest: supplied });
         const { run } = await startTask({
           contractPath: operand,
           expectedDigest: supplied,
           stateRoot,
           packageRoot: packageRoot(),
           ports: nativeTaskPorts(),
+          runId: reservedRunId,
         });
-        print(run, json, formatTaskRunReport(run), context);
+        const statusCmd = taskStatusCommand(run.contractId, run.runId);
+        const stopCmd = taskStopCommand(run.contractId, run.runId);
+        const resumeCmd = taskResumeCommand(resolve(operand), run.contractDigest);
+        const runOutput = [
+          formatTaskRunReport(run),
+          "",
+          "Operator control commands (durable across chat sessions):",
+          `  Status: ${statusCmd}`,
+          `  Stop:   ${stopCmd}`,
+          `  Resume: ${resumeCmd}`,
+        ].join("\n");
+        const jsonPayload = {
+          ...run,
+          commands: {
+            status: statusCmd,
+            stop: stopCmd,
+            resume: resumeCmd,
+          },
+        };
+        print(jsonPayload, json, runOutput, context);
         process.exitCode = run.status === "accepted" ? 0 : 1;
         return;
       }
@@ -2251,7 +2272,27 @@ async function main(): Promise<void> {
     }
     const result = await approveTaskContract({ contractPath: operand, expectedDigest: reviewed, stateRoot });
     const start = taskStartCommand(resolve(operand), result.contractDigest);
-    print({ ...result, startCommand: start }, json, formatTaskApproval(result, start), context);
+    const statusCmd = taskStatusCommand(result.contractId, result.reservedRunId);
+    const stopCmd = taskStopCommand(result.contractId, result.reservedRunId);
+    const resumeCmd = taskResumeCommand(resolve(operand), result.contractDigest);
+    const payload = {
+      ...result,
+      startCommand: start,
+      statusCommand: statusCmd,
+      stopCommand: stopCmd,
+      resumeCommand: resumeCmd,
+    };
+    print(
+      payload,
+      json,
+      formatTaskApproval(result, {
+        startCommand: start,
+        statusCommand: statusCmd,
+        stopCommand: stopCmd,
+        resumeCommand: resumeCmd,
+      }),
+      context,
+    );
     return;
   }
 

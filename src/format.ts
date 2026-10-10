@@ -1175,16 +1175,44 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
 }
 
 /** What a task approve did, or did not need to do. */
-export function formatTaskApproval(result: TaskApprovalResult, startCommand?: string): string {
-  return [
+export function formatTaskApproval(
+  result: TaskApprovalResult,
+  options?: {
+    startCommand?: string;
+    statusCommand?: string;
+    stopCommand?: string;
+    resumeCommand?: string;
+  } | string,
+): string {
+  const startCmd = typeof options === "string" ? options : options?.startCommand;
+  const statusCmd = typeof options === "object" ? options?.statusCommand : undefined;
+  const stopCmd = typeof options === "object" ? options?.stopCommand : undefined;
+  const resumeCmd = typeof options === "object" ? options?.resumeCommand : undefined;
+
+  const lines = [
+    `Task: ${result.contractId ?? "unknown"}`,
+    `Contract file: ${result.contractPath ?? "unknown"}`,
     `Contract digest: ${result.contractDigest}`,
+    `Reserved run ID: ${result.reservedRunId ?? "none"} (reserved for execution — not started yet)`,
     `Approval record: ${result.recordPath}`,
     `Transaction: ${result.transactionId ?? "none"}`,
     result.status === "already-approved"
       ? "Already approved. No bytes were written and no transaction was opened."
       : "Approved for a single run of this exact revision. Starting the run is a separate act.",
-    ...(startCommand === undefined ? [] : [`Preview readiness without --apply, then start it: ${startCommand}`]),
-  ].join("\n");
+  ];
+
+  if (startCmd !== undefined) {
+    lines.push(`Preview readiness without --apply, then start it: ${startCmd}`);
+  }
+
+  if (statusCmd || stopCmd || resumeCmd) {
+    lines.push("", "Operator control commands (durable across chat sessions):");
+    if (statusCmd) lines.push(`  Status: ${statusCmd}`);
+    if (stopCmd) lines.push(`  Stop:   ${stopCmd}`);
+    if (resumeCmd) lines.push(`  Resume: ${resumeCmd}`);
+  }
+
+  return lines.join("\n");
 }
 
 /**

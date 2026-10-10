@@ -718,3 +718,60 @@ test("task preview renders full contract and blocked reasons when telemetry mete
   assert.equal(approveResult.exitCode, 2);
   assert.match(approveResult.stderr.excerpt, /MISSING_TELEMETRY_METER/u);
 });
+
+// ---------------------------------------------------------------------------
+// Plan 21-03: Consistent runId, copyable commands, and status/stop/resume (D-10)
+// ---------------------------------------------------------------------------
+
+test("task approval and start receipts present matching runId, contract location, and copyable commands (D-10)", async (context) => {
+  const { fixture, digest } = await contractFixture(context);
+
+  // 1. Approval outputs contract path, reserved run ID, and copyable control commands
+  const approveHuman = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest, "--apply"]);
+  assert.equal(approveHuman.exitCode, 0, approveHuman.stderr.excerpt);
+  const approveOut = approveHuman.stdout.excerpt;
+
+  assert.ok(approveOut.includes("Task: inventory-summary"));
+  assert.ok(approveOut.includes(`Contract file: ${fixture.contractPath}`));
+  assert.ok(approveOut.includes("Reserved run ID:"));
+  assert.ok(approveOut.includes(`Contract digest: ${digest}`));
+  assert.ok(approveOut.includes("Operator control commands (durable across chat sessions):"));
+  assert.ok(approveOut.includes("Status: alpha-aos task status inventory-summary --run"));
+  assert.ok(approveOut.includes("Stop:   alpha-aos task stop inventory-summary --run"));
+  assert.ok(approveOut.includes("Resume: alpha-aos task resume"));
+  assert.ok(approveOut.includes(`--contract-digest ${digest} --apply`));
+
+  const approveJson = await cli(fixture, ["approve", fixture.contractPath, "--contract-digest", digest, "--apply", "--json"]);
+  assert.equal(approveJson.exitCode, 0, approveJson.stderr.excerpt);
+  const approveData = JSON.parse(approveJson.stdout.excerpt) as {
+    contractId: string;
+    contractPath: string;
+    contractDigest: string;
+    reservedRunId: string;
+    startCommand: string;
+    statusCommand: string;
+    stopCommand: string;
+    resumeCommand: string;
+  };
+  assert.equal(approveData.contractId, "inventory-summary");
+  assert.ok(approveData.contractPath.endsWith("contract.json"));
+  assert.equal(approveData.contractDigest, digest);
+  assert.ok(approveData.reservedRunId.length > 0);
+  assert.ok(approveData.statusCommand.includes(approveData.reservedRunId));
+  assert.ok(approveData.stopCommand.includes(approveData.reservedRunId));
+
+  // 2. Start presents matching real run ID identical to reserved run ID
+  const { run } = await startFixtureTask(fixture, {
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    expectedDigest: digest,
+    runId: approveData.reservedRunId,
+  });
+  assert.equal(run.runId, approveData.reservedRunId);
+  assert.equal(run.contractId, "inventory-summary");
+  assert.equal(run.contractDigest, digest);
+
+  // 3. New CLI process can query report using the copied command
+  const reportResult = await cli(fixture, ["report", "inventory-summary", "--run", run.runId]);
+  assert.equal(reportResult.exitCode, 0, reportResult.stderr.excerpt);
+  assert.ok(reportResult.stdout.excerpt.includes(`Run: ${run.runId}`));
+});

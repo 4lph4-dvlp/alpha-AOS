@@ -9,6 +9,8 @@ import {
   loadTaskContract,
   previewTaskContract,
   readTaskApprovals,
+  readReservedTaskRun,
+  reservedRunIdForApproval,
   TaskContractError,
   taskContractDigest,
   taskSchema,
@@ -601,4 +603,58 @@ test("an approval recorded before git-directory binding is refused as git-direct
       assert.ok(message.includes(now), message);
     }),
   );
+});
+
+// ---------------------------------------------------------------------------
+// Plan 21-03: Deterministic reserved runId and readReservedTaskRun (D-09, D-10)
+// ---------------------------------------------------------------------------
+
+test("reservedRunIdForApproval produces deterministic valid runId from contract digest", () => {
+  const digest1 = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+  const digest2 = "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210";
+
+  const runId1 = reservedRunIdForApproval({ contractDigest: digest1 });
+  const runId1Repeat = reservedRunIdForApproval({ contractDigest: digest1 });
+  const runId2 = reservedRunIdForApproval({ contractDigest: digest2 });
+
+  // RUN_ID_PATTERN: ^[0-9a-z]{8,}-[0-9a-f]{8}$
+  assert.match(runId1, /^[0-9a-z]{8,}-[0-9a-f]{8}$/u);
+  assert.match(runId2, /^[0-9a-z]{8,}-[0-9a-f]{8}$/u);
+
+  assert.equal(runId1, runId1Repeat);
+  assert.notEqual(runId1, runId2);
+});
+
+test("readReservedTaskRun queries reserved state before start and refuses missing/tampered approvals", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digest = await approveOriginal(fixture);
+  const reservedId = reservedRunIdForApproval({ contractDigest: digest });
+
+  // 1. Before start: status is reserved, run record does not exist
+  const reserved = await readReservedTaskRun({
+    stateRoot: fixture.stateRoot,
+    contractId: "inventory-summary",
+    runId: reservedId,
+  });
+  assert.equal(reserved.status, "reserved");
+  assert.equal(reserved.runId, reservedId);
+  assert.equal(reserved.contractDigest, digest);
+  assert.equal(reserved.contractId, "inventory-summary");
+  assert.equal(reserved.run, undefined);
+
+  // 2. Refuses query for non-existent runId or non-existent contractId
+  const missing = await readReservedTaskRun({
+    stateRoot: fixture.stateRoot,
+    contractId: "inventory-summary",
+    runId: "nonexistent-00000000",
+  });
+  assert.equal(missing.status, "refused");
+  assert.ok(missing.reason?.includes("No approval record"));
+
+  const otherContract = await readReservedTaskRun({
+    stateRoot: fixture.stateRoot,
+    contractId: "other-task",
+    runId: reservedId,
+  });
+  assert.equal(otherContract.status, "refused");
 });

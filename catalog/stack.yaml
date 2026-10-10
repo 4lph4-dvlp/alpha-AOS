@@ -63,6 +63,10 @@ components:
       source: skills/alpha-aos-task/SKILL.md
       targets: [claude, codex, antigravity, pi, hermes]
       invocation: automatic
+    - id: cli-anything
+      source: skills/cli-anything/SKILL.md
+      targets: [claude, codex, antigravity, pi, hermes]
+      invocation: automatic
 
 policy:
   mutationDefault: dry-run

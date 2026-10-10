@@ -1231,7 +1231,7 @@ test("projectLiveSupportCell enforces CAP-05 status projection and forbids synth
   assert.match(syntheticCell.reason, /synthetic fixture evidence cannot prove live host support/i);
 });
 
-test("Five-harness matrix collector generates complete structured report for all 5 harnesses and all 78 capabilities (Plan 18-07 Task 2)", async () => {
+test("Five-harness matrix collector generates complete structured report for all 5 harnesses and all 79 capabilities (Plan 18-07 Task 2)", async () => {
   const scriptPath = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "scripts", "capability-host-matrix.mjs");
   const { collectHostMatrix } = (await import(pathToFileURL(scriptPath).href)) as {
     collectHostMatrix: () => Promise<{
@@ -1270,10 +1270,10 @@ test("Five-harness matrix collector generates complete structured report for all
     assert.ok(h in report.harnesses, `${h} must be present in report.harnesses`);
   }
 
-  // Exactly 78 declared capabilities and 390 cells (78 x 5)
-  assert.equal(report.summary.totalCapabilities, 78);
-  assert.equal(report.summary.totalCells, 390);
-  assert.equal(report.cells.length, 390);
+  // Exactly 79 declared capabilities and 395 cells (79 x 5)
+  assert.equal(report.summary.totalCapabilities, 79);
+  assert.equal(report.summary.totalCells, 395);
+  assert.equal(report.cells.length, 395);
 
   // Check every cell contract
   for (const cell of report.cells) {

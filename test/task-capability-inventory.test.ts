@@ -347,6 +347,20 @@ test("changing lock integrity alters inputFingerprint", async () => {
   assert.notEqual(inv1.inputFingerprint, inv2.inputFingerprint);
 });
 
+test("owned skill source changes alter the capability fingerprint", async () => {
+  const lock1 = mockLock();
+  const lock2 = mockLock();
+  lock1.components.ownedSkills = {
+    "alpha-aos-ship": { sourceSha256: "a".repeat(64), targetSha256: { claude: "a".repeat(64) } },
+  };
+  lock2.components.ownedSkills = {
+    "alpha-aos-ship": { sourceSha256: "b".repeat(64), targetSha256: { claude: "b".repeat(64) } },
+  };
+  const first = await buildTaskCapabilityInventory({ catalog: mockCatalog(), lock: lock1, harness: "claude" });
+  const second = await buildTaskCapabilityInventory({ catalog: mockCatalog(), lock: lock2, harness: "claude" });
+  assert.notEqual(first.inputFingerprint, second.inputFingerprint);
+});
+
 test("filtering by harness resolves harness-specific support and nativeUse", async () => {
   const catalog = mockCatalog();
   const lock = mockLock();

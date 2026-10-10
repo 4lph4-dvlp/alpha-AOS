@@ -136,6 +136,16 @@
           "pi": "db309c51342fcf2f52239c542c30e19824ed3028d869b4917b535f7d61905685",
           "hermes": "db309c51342fcf2f52239c542c30e19824ed3028d869b4917b535f7d61905685"
         }
+      },
+      "cli-anything": {
+        "sourceSha256": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1",
+        "targetSha256": {
+          "claude": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1",
+          "codex": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1",
+          "antigravity": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1",
+          "pi": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1",
+          "hermes": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1"
+        }
       }
     }
   }

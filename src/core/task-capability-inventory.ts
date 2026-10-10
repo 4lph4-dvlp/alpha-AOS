@@ -3,6 +3,7 @@ import { resolve, join } from "node:path";
 import { packageRoot, userStateRoot } from "./paths.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import { loadPackCatalogStrict } from "./pack-catalog.js";
+import { planOwnedSkillSync } from "./owned-skills.js";
 import { readCapabilityLedger, capabilityLedgerPath } from "./capability-ledger.js";
 import { readApprovedProjectPlan, PROJECT_PLAN_ARTIFACT } from "./project-plan.js";
 import {
@@ -160,6 +161,9 @@ function computeInputFingerprint(
   const mcpEntries = Object.entries(lock.components.mcp ?? {})
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([k, v]) => `${k}:${v?.version ?? ""}:${v?.integrity ?? ""}`);
+  const ownedEntries = Object.entries(lock.components.ownedSkills ?? {})
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, entry]) => `${id}:${entry.sourceSha256}:${Object.entries(entry.targetSha256).sort(([a], [b]) => a.localeCompare(b)).map(([target, hash]) => `${target}:${hash}`).join(",")}`);
 
   const parts = [
     catalog.name,
@@ -170,6 +174,7 @@ function computeInputFingerprint(
     ecc?.version ?? "",
     ecc?.integrity ?? "",
     ...mcpEntries,
+    ...ownedEntries,
     ...packs.map((p) => p.id).sort(),
     projectPlan?.planDigest ?? "no-plan",
   ];
@@ -404,6 +409,19 @@ export async function buildTaskCapabilityInventory(
   // 4. Owned Skills
   for (const owned of catalog.components.ownedSkills) {
     const id = `owned:${owned.id}`;
+    const locked = lock.components.ownedSkills?.[owned.id];
+    const declaredTargets = options.harness ? owned.targets.filter((target) => target === options.harness) : owned.targets;
+    let deployment: PackState = "STALE";
+    if (locked && declaredTargets.length > 0) {
+      try {
+        const plans = await Promise.all(declaredTargets.map((target) =>
+          planOwnedSkillSync(root, catalog, lock, owned.id, target)));
+        deployment = plans.every((plan) => plan.action === "current") ? "CURRENT"
+          : plans.some((plan) => plan.action === "replace") ? "DRIFTED" : "STALE";
+      } catch {
+        deployment = "STALE";
+      }
+    }
     const { nativeUse, nativeUseReason } = resolveNativeUseForCapability(id, owned.id, options.harness, ledger);
     const { support, supportReason } = resolveSupportForCapability(owned.targets, options.harness);
     items.push({
@@ -413,14 +431,14 @@ export async function buildTaskCapabilityInventory(
       scope: "global",
       version: "1.0.0",
       source: owned.source,
-      sourceHash: null,
+      sourceHash: locked?.sourceSha256 ?? null,
       targetHarnesses: owned.targets,
       applicable: true,
       selected: true,
       applicabilityReason: `Owned skill configured in catalog for targets: ${owned.targets.join(", ")}.`,
       exclusionReason: null,
-      unavailableReason: null,
-      deployment: "CURRENT",
+      unavailableReason: deployment === "CURRENT" ? null : `Owned skill ${owned.id} is not current on the selected harness target(s).`,
+      deployment,
       nativeUse,
       support,
       nativeUseReason,

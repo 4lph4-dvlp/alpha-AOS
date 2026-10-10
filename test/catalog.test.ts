@@ -78,7 +78,7 @@ test("stable catalog loads exact locked components", async () => {
     }
   }
   assert.match(lock.components.mcpBridges?.pi?.version ?? "", exactVersion);
-  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-control", "alpha-aos-task"]);
+  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-control", "alpha-aos-task", "cli-anything"]);
   const shipSource = await readFile(join(root, "skills", "alpha-aos-ship", "SKILL.md"));
   const shipHash = createHash("sha256").update(shipSource).digest("hex");
   const lockedShip = lock.components.ownedSkills?.["alpha-aos-ship"];
@@ -104,6 +104,14 @@ test("stable catalog loads exact locked components", async () => {
     const renderedTask = renderOwnedSkill(taskSource.toString("utf8"), target, "automatic");
     assert.equal(lockedTask?.targetSha256[target], createHash("sha256").update(renderedTask).digest("hex"));
   }
+
+  const cliAnythingSource = await readFile(join(root, "skills", "cli-anything", "SKILL.md"));
+  const lockedCliAnything = lock.components.ownedSkills?.["cli-anything"];
+  assert.equal(lockedCliAnything?.sourceSha256, createHash("sha256").update(cliAnythingSource).digest("hex"));
+  for (const target of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const renderedCliAnything = renderOwnedSkill(cliAnythingSource.toString("utf8"), target, "automatic");
+    assert.equal(lockedCliAnything?.targetSha256[target], createHash("sha256").update(renderedCliAnything).digest("hex"));
+  }
 });
 
 test("install plan is ordered and never installs GSD on Hermes", async () => {
@@ -127,6 +135,11 @@ test("install plan is ordered and never installs GSD on Hermes", async () => {
   assert.equal(ship?.phase, 3);
   assert.equal(ship?.approval, true);
   assert.match(ship?.command ?? "", /owned-skills sync alpha-aos-ship --target claude --apply/u);
+  for (const target of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const cliAnything = plan.find((action) => action.id === `owned-skill:cli-anything:${target}`);
+    assert.equal(cliAnything?.approval, true);
+    assert.match(cliAnything?.command ?? "", new RegExp(`owned-skills sync cli-anything --target ${target} --apply`, "u"));
+  }
   assert.ok(plan.every((action, index) => index === 0 || action.phase >= (plan[index - 1]?.phase ?? -1)));
 });
 

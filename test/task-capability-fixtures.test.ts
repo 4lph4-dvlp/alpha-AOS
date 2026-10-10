@@ -368,7 +368,7 @@ export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[]
     negativeReasonPattern: /Project pack WEB_REACT is unapproved or unselected/u,
   },
 
-  // 5. Owned Skills (3)
+  // 5. Owned Skills (4)
   {
     capabilityId: "owned:alpha-aos-control",
     kind: "owned-skill",
@@ -392,6 +392,14 @@ export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[]
     negativePrompt: "Ship invocation on unsupported harness or non-GSD workflow.",
     positiveReasonPattern: /Owned skill configured in catalog/u,
     negativeReasonPattern: /Target harness .* is not in declared targets/u,
+  },
+  {
+    capabilityId: "owned:cli-anything",
+    kind: "owned-skill",
+    positivePrompt: "Find an application CLI through CLI-Hub for the requested software task.",
+    negativePrompt: "Edit a plain text file with the harness native tool.",
+    positiveReasonPattern: /Owned skill configured in catalog/u,
+    negativeReasonPattern: /not current|not requested/u,
   },
 
   // 6. MCP Servers (3)
@@ -692,7 +700,7 @@ test("CAP-05 completeness: fixture manifest matches exact inventory declaration 
     `Fixture manifest contains extra undeclared capabilities: ${extraInManifest.join(", ")}`,
   );
   assert.equal(manifestIds.size, declaredIds.size);
-  assert.equal(manifestIds.size, 78, "Must cover all 78 declared capabilities");
+  assert.equal(manifestIds.size, 79, "Must cover all 79 declared capabilities");
 });
 
 test("CAP-05: every capability has non-empty positive and negative prompts and reason patterns", () => {

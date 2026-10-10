@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -138,7 +139,14 @@ export function validateHarnessRoleReceiptShape(raw: unknown): HarnessRoleReceip
  * Defaults to `~/.alpha-aos/receipts/harnesses/<harness>-<role>.json` (ROL-02, D-04).
  */
 export function receiptFilePath(harness: HarnessId, role: string, root?: string): string {
-  const base = root ?? join(homedir(), ".alpha-aos", "receipts", "harnesses");
+  let base: string;
+  if (!root) {
+    base = join(homedir(), ".alpha-aos", "receipts", "harnesses");
+  } else if (existsSync(join(root, "harnesses"))) {
+    base = join(root, "harnesses");
+  } else {
+    base = root;
+  }
   return join(base, `${harness}-${role}.json`);
 }
 

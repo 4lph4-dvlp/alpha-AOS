@@ -122,6 +122,7 @@ export function formatReleaseSupportMatrixTable(
     `alpha-AOS ${report.release} support matrix (${report.platform}, ${report.generatedAt})`,
     "",
     `Summary: ${report.summary.provenCount} PROVEN, ${report.summary.unverifiedCount} UNVERIFIED, ${report.summary.unsupportedCount} UNSUPPORTED`,
+    `Handoffs: ${report.summary.realHandoffsCount} real PROVEN, ${report.summary.syntheticHandoffsCount} synthetic`,
     "By harness:",
     ...(Object.entries(report.summary.byHarness) as Array<[
       HarnessId,
@@ -152,13 +153,33 @@ export function formatReleaseSupportMatrixTable(
     cell.nextAction ?? "-",
   ]);
 
-  const rendered = [
+  const sections: string[] = [
     summaryLines.join("\n"),
     table(
       ["HARNESS", "VERSION", "OS", "ROLE", "CAPABILITY", "STATUS", "REASON / EVIDENCE", "NEXT ACTION"],
       rows,
     ),
-  ].join("\n\n");
+  ];
+
+  if (report.handoffs && report.handoffs.length > 0) {
+    const handoffRows = report.handoffs.map((h) => [
+      h.kind,
+      `${h.fromHarness}${h.fromVersion ? ` @ ${h.fromVersion}` : ""} (${h.fromRole})`,
+      `${h.toHarness}${h.toVersion ? ` @ ${h.toVersion}` : ""} (${h.toRole})`,
+      `${h.artifactDigest.slice(0, 16)}...`,
+      h.status,
+      h.status === "PROVEN" ? `${h.fromReceipt} -> ${h.toReceipt}` : (h.notes ?? "Unverified"),
+    ]);
+    sections.push(
+      "Representative Handoffs:\n" +
+      table(
+        ["KIND", "FROM", "TO", "ARTIFACT", "STATUS", "RECEIPTS / NOTES"],
+        handoffRows,
+      ),
+    );
+  }
+
+  const rendered = sections.join("\n\n");
 
   const color = options.color ?? (process.stdout.isTTY === true && process.env.NO_COLOR === undefined);
   if (!color) return rendered;

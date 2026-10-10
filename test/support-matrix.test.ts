@@ -14,6 +14,7 @@ import {
   evaluateReleaseMatrixCell,
   evaluateReleaseSupportMatrix,
   evaluateSupportMatrix,
+  renderReleaseSupportMatrixMarkdown,
   renderSupportMatrixMarkdown,
   type SupportMatrixEntry,
 } from "../src/core/support-matrix.js";
@@ -246,28 +247,29 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
 test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge probes", async () => {
   const inv = inventory(["claude", "codex", "antigravity", "pi", "hermes"]);
 
-  // 1. Empty receipts -> all advertised cells UNVERIFIED, hermes controller UNSUPPORTED
+  // 1. Empty receipts -> all advertised cells UNVERIFIED, hermes controller & hook UNSUPPORTED
   const emptyReport = await evaluateReleaseSupportMatrix(inv, {
     roleReceipts: [],
     generatedAt: observedAt,
   });
   assert.equal(emptyReport.summary.provenCount, 0);
-  assert.equal(emptyReport.summary.unsupportedCount, 1); // hermes controller
-  assert.ok(emptyReport.summary.unverifiedCount > 0);
+  assert.equal(emptyReport.summary.unsupportedCount, 2); // hermes controller and hermes hook
+  assert.equal(emptyReport.summary.unverifiedCount, 33);
+  assert.equal(emptyReport.cells.length, 35);
   const unverifiedCell = emptyReport.cells.find((c) => c.harness === "claude" && c.role === "controller");
   assert.ok(unverifiedCell);
   assert.equal(unverifiedCell.status, "UNVERIFIED");
   assert.ok(unverifiedCell.reason);
   assert.ok(unverifiedCell.nextAction);
 
-  // 2. Exact matching role receipt promotes matching cell to PROVEN
+  // 2. Exact matching role receipt promotes ONLY matching cell to PROVEN
   const claudeCtrl = mockRoleReceipt("claude", "controller", "1.0.0");
   const singleReport = await evaluateReleaseSupportMatrix(inv, {
     roleReceipts: [claudeCtrl],
     generatedAt: observedAt,
   });
   assert.equal(singleReport.summary.provenCount, 1);
-  const provenCell = singleReport.cells.find((c) => c.harness === "claude" && c.role === "controller");
+  const provenCell = singleReport.cells.find((c) => c.harness === "claude" && c.role === "controller" && c.capability === "controller");
   assert.ok(provenCell);
   assert.equal(provenCell.status, "PROVEN");
   assert.equal(provenCell.harnessVersion, "1.0.0");
@@ -276,10 +278,12 @@ test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge pr
   assert.ok(provenCell.receipt);
   assert.equal(provenCell.receipt.reference, "receipts/claude-controller.receipt.json");
 
-  // 3. Adjacency: claude controller receipt does NOT promote claude executor or codex controller
-  const claudeExec = singleReport.cells.find((c) => c.harness === "claude" && c.role === "executor");
+  // 3. Adjacency: claude controller receipt does NOT promote claude executor, skill, or codex controller
+  const claudeExec = singleReport.cells.find((c) => c.harness === "claude" && c.role === "executor" && c.capability === "executor");
+  const claudeSkill = singleReport.cells.find((c) => c.harness === "claude" && c.capability === "skill");
   const codexCtrl = singleReport.cells.find((c) => c.harness === "codex" && c.role === "controller");
   assert.equal(claudeExec?.status, "UNVERIFIED");
+  assert.equal(claudeSkill?.status, "UNVERIFIED");
   assert.equal(codexCtrl?.status, "UNVERIFIED");
 
   // 4. Version drift: receipt version differs from detected harness version
@@ -293,7 +297,81 @@ test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge pr
   assert.match(driftedCell?.reason ?? "", /drift/i);
   assert.ok(driftedCell?.nextAction);
 
-  // 5. Ordering: reversed/permuted input entries produces deterministic sorted output
+  // 5. Hook execution receipt promotion
+  const hookReport = await evaluateReleaseSupportMatrix(inv, {
+    roleReceipts: [claudeCtrl],
+    hookReceipts: [
+      {
+        schemaVersion: 1,
+        kind: "hook-execution-receipt",
+        receiptId: "hook-1234",
+        hookPoint: "execute:post",
+        phaseId: "22",
+        planId: "01",
+        targetRevisionSha: "abc",
+        workingTreeDigest: "def",
+        command: "npm test",
+        args: [],
+        exitCode: 0,
+        stdoutSha256: "0".repeat(64),
+        stderrSha256: "0".repeat(64),
+        durationMs: 100,
+        executedAt: observedAt,
+        status: "passed",
+        receiptDigest: "1".repeat(64),
+      },
+    ],
+    generatedAt: observedAt,
+  });
+  const claudeHook = hookReport.cells.find((c) => c.harness === "claude" && c.capability === "hook");
+  assert.equal(claudeHook?.status, "PROVEN");
+  assert.equal(claudeHook?.receipt?.reference, "receipts/hooks/hook-1234.json");
+
+  // 6. Capability receipt promotion (skill / mcp)
+  const capReport = await evaluateReleaseSupportMatrix(inv, {
+    roleReceipts: [claudeCtrl],
+    capabilityReceipts: [
+      {
+        schemaVersion: 1,
+        kind: "task-capability-receipt",
+        receiptId: "cap-skill-01",
+        receiptDigest: "2".repeat(64),
+        runId: "run-01",
+        step: "execute",
+        capabilityId: "skill",
+        obligationId: "ob-01",
+        question: "q",
+        selected: true,
+        invoked: true,
+        outcome: "ok",
+        invokedAt: observedAt,
+        skillActivatedAt: observedAt,
+        toolName: "alpha-aos-task",
+        harness: "claude",
+        harnessVersion: "1.0.0",
+        harnessExecutable: "/usr/bin/claude",
+        sessionId: "sess-01",
+        source: "skill",
+        sourceVersion: "1.0.0",
+        observationId: null,
+        rawResultSha256: "3".repeat(64),
+        isReused: false,
+        originalReceiptId: null,
+        isError: false,
+        errorMessage: null,
+      },
+    ],
+    generatedAt: observedAt,
+  });
+  const claudeSkillCell = capReport.cells.find((c) => c.harness === "claude" && c.capability === "skill");
+  assert.equal(claudeSkillCell?.status, "PROVEN");
+
+  // 7. Representative handoffs (real vs synthetic separation, D-04)
+  assert.equal(capReport.summary.realHandoffsCount, 3);
+  assert.equal(capReport.summary.syntheticHandoffsCount, 1);
+  assert.equal(capReport.handoffs.length, 4);
+
+  // 8. Ordering: reversed/permuted input entries produces deterministic sorted output
   const reversedEntries = [...BASE_RELEASE_SUPPORT_MATRIX].reverse();
   const sortedReport1 = await evaluateReleaseSupportMatrix(inv, {
     entries: BASE_RELEASE_SUPPORT_MATRIX,
@@ -309,4 +387,13 @@ test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge pr
     sortedReport1.cells.map((c) => `${c.harness}:${c.role}:${c.capability}`),
     sortedReport2.cells.map((c) => `${c.harness}:${c.role}:${c.capability}`),
   );
+});
+
+test("release support matrix markdown stays byte-identical to the structured source", async () => {
+  const report = await evaluateReleaseSupportMatrix(
+    { platform: "linux", harnesses: [] } as any,
+    { generatedAt: "2026-10-10T10:00:00.000Z", platform: "linux" },
+  );
+  const committed = await readFile(join(process.cwd(), "docs", "SUPPORT_MATRIX_v0.2.0.md"), "utf8");
+  assert.equal(committed, renderReleaseSupportMatrixMarkdown(report));
 });

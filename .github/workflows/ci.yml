@@ -40,9 +40,10 @@ jobs:
       - name: Pack authoritative release tarball
         id: pack
         run: |
-          tarball=$(npm pack)
-          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
-          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+          npm pack
+          file="alpha-aos-$(node -p "require('./package.json').version").tgz"
+          echo "tarball=$file" >> "$GITHUB_OUTPUT"
+          echo "TARBALL=$file" >> "$GITHUB_ENV"
       - name: Audit tarball contents against allowlist
         run: node scripts/audit-tarball.mjs "$TARBALL"
       - name: Generate SHA-256 checksum

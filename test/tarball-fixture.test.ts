@@ -9,6 +9,7 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import { pathToFileURL } from "node:url";
 import {
+  buildHostCategoryDeltas,
   createIsolatedSandbox,
   describeHostDrift,
   fingerprintManifest,
@@ -22,6 +23,10 @@ import {
   vanishedEntryCount,
   type HostFingerprint,
 } from "./helpers/packed-sandbox.js";
+import {
+  evaluatePackedLifecycle,
+  renderReleasePackageReceiptsMarkdown,
+} from "../src/core/release-package-proof.js";
 
 interface TarballEntry {
   readonly path: string;
@@ -468,4 +473,75 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
   assert.equal(vanishedEntryCount(beforeManifests) + vanishedEntryCount(afterManifests), 0, describeHostDrift(beforeManifests, afterManifests));
   const tarballAfter = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
   assert.equal(tarballAfter, tarballBefore, "the authoritative tarball must remain byte-identical throughout the lifecycle");
+
+  const targetCategoryGroups = [
+    {
+      category: "managed_state" as const,
+      description: "Alpha-AOS user state and journal directories",
+      targets: [hostStateRoot],
+    },
+    {
+      category: "harness_config" as const,
+      description: "Native harness configuration files (config.toml)",
+      targets: [join(hostCodexRoot, "config.toml")],
+    },
+    {
+      category: "harness_policy" as const,
+      description: "Native harness agent policy (AGENTS.md)",
+      targets: [join(hostCodexRoot, "AGENTS.md")],
+    },
+    {
+      category: "gsd_workflow" as const,
+      description: "GSD core runtime and workflow profile",
+      targets: [join(hostCodexRoot, ".gsd-profile"), join(hostCodexRoot, "gsd-core", "VERSION")],
+    },
+    {
+      category: "skills" as const,
+      description: "ECC skill directories (unified-memory, documentation-lookup, deep-research)",
+      targets: [
+        join(hostHome, ".agents", "skills", "unified-memory", "SKILL.md"),
+        join(hostHome, ".agents", "skills", "documentation-lookup", "SKILL.md"),
+        join(hostHome, ".agents", "skills", "deep-research", "SKILL.md"),
+      ],
+    },
+  ];
+
+  const hostCategories = buildHostCategoryDeltas(targetCategoryGroups, beforeManifests, afterManifests);
+  const evaluation = evaluatePackedLifecycle({
+    tarballSha256: tarballBefore,
+    stableLockChannel: String(release.installedLock.channel),
+    stableLockIdentifier: `sha256:${createHash("sha256").update(JSON.stringify(release.installedLock)).digest("hex")}`,
+    candidateRefused: candidateUpdate.applied.length === 0 && candidateUpdate.operationIds.length === 0,
+    steps: [
+      {
+        name: "install",
+        exitCode: 0,
+        status: "passed",
+        tarballSha256: tarballBefore,
+        observedAt: new Date().toISOString(),
+        stdoutSummary: "Applied managed components and journaled operations",
+      },
+      {
+        name: "doctor",
+        exitCode: 0,
+        status: "passed",
+        tarballSha256: tarballBefore,
+        observedAt: new Date().toISOString(),
+        stdoutSummary: "Clean diagnostics with zero errors",
+      },
+      {
+        name: "uninstall",
+        exitCode: 0,
+        status: "passed",
+        tarballSha256: tarballBefore,
+        observedAt: new Date().toISOString(),
+        stdoutSummary: "Purged managed state and restored harness config",
+      },
+    ],
+    hostCategories,
+  });
+
+  assert.equal(evaluation.status, "passed", evaluation.reason);
+  const receiptsDoc = renderReleasePackageReceiptsMarkdown(evaluation);
+  assert.ok(receiptsDoc.includes("PASSED"));
 });

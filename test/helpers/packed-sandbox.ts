@@ -29,6 +29,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { TestContext } from "node:test";
 import { pathToFileURL } from "node:url";
+import {
+  computeCategoryDelta,
+  type HostPathCategory,
+  type HostPathCategoryDelta,
+} from "../../src/core/release-package-proof.js";
 
 export interface CommandResult {
   readonly status: number;
@@ -573,5 +578,53 @@ export function parseJsonResult<T>(result: CommandResult, label: string): T {
   } catch {
     assert.fail(`${label} did not return JSON\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   }
+}
+
+export function targetDriftCounts(
+  beforeManifest: HostFingerprint | undefined,
+  afterManifest: HostFingerprint | undefined,
+): { addedCount: number; removedCount: number; changedCount: number; vanishedCount: number } {
+  const beforeEntries = new Map((beforeManifest?.entries ?? []).map((entry) => [entry.path, entry] as const));
+  const afterEntries = new Map((afterManifest?.entries ?? []).map((entry) => [entry.path, entry] as const));
+  const paths = [...new Set([...beforeEntries.keys(), ...afterEntries.keys()])];
+  let addedCount = 0;
+  let removedCount = 0;
+  let changedCount = 0;
+  let vanishedCount = 0;
+  for (const path of paths) {
+    const left = beforeEntries.get(path);
+    const right = afterEntries.get(path);
+    if (left?.kind === "vanished" || right?.kind === "vanished") vanishedCount++;
+    else if (!left) addedCount++;
+    else if (!right) removedCount++;
+    else if (left.kind !== right.kind || left.size !== right.size || left.sha256 !== right.sha256) changedCount++;
+  }
+  return { addedCount, removedCount, changedCount, vanishedCount };
+}
+
+export interface TargetCategoryGroup {
+  readonly category: HostPathCategory;
+  readonly description: string;
+  readonly targets: readonly string[];
+}
+
+export function buildHostCategoryDeltas(
+  targetCategories: readonly TargetCategoryGroup[],
+  beforeManifests: ReadonlyMap<string, HostFingerprint>,
+  afterManifests: ReadonlyMap<string, HostFingerprint>,
+): HostPathCategoryDelta[] {
+  return targetCategories.map((group) => {
+    const targetResults = group.targets.map((target) => {
+      const beforeManifest = beforeManifests.get(target);
+      const afterManifest = afterManifests.get(target);
+      const counts = targetDriftCounts(beforeManifest, afterManifest);
+      return {
+        beforeDigest: beforeManifest?.digest ?? "absent",
+        afterDigest: afterManifest?.digest ?? "absent",
+        ...counts,
+      };
+    });
+    return computeCategoryDelta(group.category, group.description, targetResults);
+  });
 }
 

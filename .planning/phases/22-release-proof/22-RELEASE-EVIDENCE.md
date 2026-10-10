@@ -3,9 +3,9 @@
 ## 1. Executive Summary & Release Verdict
 
 - **Release Version:** `0.2.0`
-- **Candidate Commit SHA:** `e80a1bd573b0b7f100ee01d703746f6b3d621f32`
-- **Authoritative Tarball SHA-256:** `30bbfc57d4268427549529bf9872ed75c1279e7d7da25d953272dc30c57d1ed5`
-- **Evaluated At:** `2026-10-10T10:26:18.027Z`
+- **Candidate Commit SHA:** `5227d16a89ea7ed2f5e6cb64dcf5b681694085d0`
+- **Authoritative Tarball SHA-256:** `4933a4cc83f88f7738667e890bffec916e327705a2d19d802c4042cd25d905ee`
+- **Evaluated At:** `2026-10-10T15:48:00.000Z`
 - **Overall Status:** **`UNVERIFIED`**
 - **Release Ready:** **`NO (Awaiting Gate Resolution)`**
 

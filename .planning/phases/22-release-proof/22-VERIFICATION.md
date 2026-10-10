@@ -1,10 +1,10 @@
 ---
 phase: 22-release-proof
-verified: 2026-10-10T10:30:00Z
+verified: 2026-10-10T15:48:00Z
 status: passed
 score: 4/4 requirements verified across 6 plans
-candidate_sha: 2c9d10526262ad3e50ee4096dde73f02ecd0874c
-tarball_sha256: 30bbfc57d4268427549529bf9872ed75c1279e7d7da25d953272dc30c57d1ed5
+candidate_sha: 5227d16a89ea7ed2f5e6cb64dcf5b681694085d0
+tarball_sha256: 4933a4cc83f88f7738667e890bffec916e327705a2d19d802c4042cd25d905ee
 release_version: 0.2.0
 ---
 
@@ -48,7 +48,7 @@ Phase 22 produces the v0.2.0 release proof across Windows, macOS, and Linux. It 
 
 ### 4. Packed Sandbox Lifecycle & Host Zero-Mutation Proof (VER-03, Plan 22-04)
 - **Status:** PASS
-- **Evidence:** `src/core/release-package-proof.ts` and `test/tarball-fixture.test.ts` prove that installing `alpha-aos-0.2.0.tgz` (`30bbfc57d4268427549529bf9872ed75c1279e7d7da25d953272dc30c57d1ed5`) into an isolated sandbox prefix, executing `install --apply`, `doctor --json`, and `uninstall --all --yes --apply --purge --json` leaves all 5 real-host managed directory categories (`managed_state`, `harness_config`, `harness_policy`, `skills`, `gsd_workflow`) 100% clean (0 additions, 0 deletions, 0 changes, 0 vanishings). Unexplained drift returns `indeterminate` (D-11), requiring identical tarball hash re-verification. Candidate lock injection is refused without modifying journals. Private paths are strictly scrubbed from public markdown (`22-PACKAGE-RECEIPTS.md`).
+- **Evidence:** `src/core/release-package-proof.ts` and `test/tarball-fixture.test.ts` prove that installing `alpha-aos-0.2.0.tgz` (`4933a4cc83f88f7738667e890bffec916e327705a2d19d802c4042cd25d905ee`) into an isolated sandbox prefix, executing `install --apply`, `doctor --json`, and `uninstall --all --yes --apply --purge --json` leaves all 5 real-host managed directory categories (`managed_state`, `harness_config`, `harness_policy`, `skills`, `gsd_workflow`) 100% clean (0 additions, 0 deletions, 0 changes, 0 vanishings). Unexplained drift returns `indeterminate` (D-11), requiring identical tarball hash re-verification. Candidate lock injection is refused without modifying journals. Private paths are strictly scrubbed from public markdown (`22-PACKAGE-RECEIPTS.md`).
 
 ### 5. Development & CoursePilot End-to-End Workload Proofs (VER-04, Plan 22-05)
 - **Status:** PASS
@@ -58,7 +58,7 @@ Phase 22 produces the v0.2.0 release proof across Windows, macOS, and Linux. It 
 
 ### 6. Candidate Evidence Binding & Milestone Closeout Handoff (Plan 22-06)
 - **Status:** PASS
-- **Evidence:** Candidate source commit SHA `2c9d10526262ad3e50ee4096dde73f02ecd0874c` fixed. `docs/RELEASE_NOTES_v0.2.0.md`, `README.md`, and `README.ko.md` updated and synchronized. `.planning/phases/22-release-proof/22-RELEASE-EVIDENCE.md` binds the 6 gates into a single conjunction verdict. `.planning/phases/22-release-proof/22-CLOSEOUT-HANDOFF.md` establishes the post-phase sequence: Phase 22 verification, conversational UAT (`/gsd-verify-work 22`), phase code review (`/gsd-code-review`), resolution of historical Phase 19/20 verification artifacts, and milestone final audit (`/gsd-audit-milestone`).
+- **Evidence:** Candidate source commit SHA `5227d16a89ea7ed2f5e6cb64dcf5b681694085d0` fixed. `docs/RELEASE_NOTES_v0.2.0.md`, `README.md`, and `README.ko.md` updated and synchronized. `.planning/phases/22-release-proof/22-RELEASE-EVIDENCE.md` binds the 6 gates into a single conjunction verdict. `.planning/phases/22-release-proof/22-CLOSEOUT-HANDOFF.md` establishes the post-phase sequence: Phase 22 verification, conversational UAT (`/gsd-verify-work 22`), phase code review (`/gsd-code-review`), resolution of historical Phase 19/20 verification artifacts, and milestone final audit (`/gsd-audit-milestone`).
 
 ---
 

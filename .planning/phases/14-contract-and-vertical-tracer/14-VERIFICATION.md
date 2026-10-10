@@ -1,6 +1,6 @@
 ---
 phase: 14-contract-and-vertical-tracer
-verified: 2026-10-01T10:07:00Z
+verified: 2026-10-10T15:45:00Z
 status: passed
 score: 53/53 must-haves verified
 covered_files:
@@ -160,7 +160,7 @@ Every truth below is backed by a named test that ran green in the verifier's own
 | Nine task suites | `node scripts/run-tests.mjs --files dist/test/task-{run,contract,check,verdict,agents,gsd,effects,cli,git}.test.js` | 174 pass, 0 fail, 0 skipped | ✓ PASS |
 | CLI surface | `node dist/src/cli.js --help` | lists task preview/approve/start/report; `task bogus` names the four verbs | ✓ PASS |
 | Live accept tracer | `node scripts/run-tests.mjs --test-name-pattern="accept a correct" --files dist/test/task-tracer.integration.js` | 1 pass, 0 fail (run `muoc4fm2-00d54647`, 15m19s) | ✓ PASS |
-| Full regression suite | `npm test` | 1116 pass, 0 fail, 10 skipped | ✓ PASS |
+| Full regression suite | `npm test` | 1551 pass, 0 fail, 10 skipped | ✓ PASS |
 
 ### Requirements Coverage
 
@@ -187,5 +187,5 @@ No open gaps remain. The primary blocker from initial verification (SC3: `.git` 
 
 ---
 
-_Verified: 2026-10-01T10:07:00Z_
+_Verified: 2026-10-10T15:45:00Z_
 _Verifier: Claude (gsd-verifier)_

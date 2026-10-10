@@ -15,10 +15,10 @@
 - [x] **Phase 16: Composable Harness Roles** - Proven native adapters and exclusive GSD controller (completed 2026-10-02)
 - [x] **Phase 17: GSD Lifecycle Bridge** - Full discuss/plan/execute/verify/gap routing through GSD (completed 2026-10-03)
 - [x] **Phase 18: Capability Fabric and Automatic Invocation** - Global/project skills, MCPs, packs and hooks selected and used inside GSD (completed 2026-10-08)
-- [ ] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit
-- [ ] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar
+- [x] **Phase 19: Structured Independent Review** - Exact-revision review, repair and final architecture audit (completed 2026-10-08)
+- [x] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar (completed 2026-10-09)
 - [x] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX (verified 2026-10-10)
-- [ ] **Phase 22: Release Proof** - Three-OS, packed and live-harness evidence
+- [x] **Phase 22: Release Proof** - Three-OS, packed and live-harness evidence (completed 2026-10-10)
 
 ## Phase Map
 

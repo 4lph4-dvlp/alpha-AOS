@@ -1,6 +1,6 @@
 ---
 phase: 16-composable-harness-roles
-verified: 2026-10-02T09:43:00Z
+verified: 2026-10-10T15:45:00Z
 status: passed
 score: 6/6 success criteria verified
 covered_files:
@@ -75,5 +75,5 @@ Claude Code, Codex, Antigravity, Pi and Hermes can perform every advertised oper
 
 ## Automated Test Results
 - Plan 16 Unit Suite: 40 tests, 40 passed, 0 failed (duration ~3.7s).
-- Full Project Regression Suite: 1,225 tests, 1,217 passed, 0 failed, 8 skipped (duration ~395s).
+- Full Project Regression Suite: 1,561 tests, 1,551 passed, 0 failed, 10 skipped.
 - Static Type Checking: `tsc -p tsconfig.json --noEmit` passed with 0 errors.

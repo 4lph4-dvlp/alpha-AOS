@@ -8,8 +8,8 @@ status: completed
 stopped_at: Phase 22 execution and verification complete; ready for post-phase UAT and milestone audit
 last_updated: "2026-10-10T16:47:56.000Z"
 last_activity: 2026-10-11
-last_activity_desc: Completed quick task 261011-1oi — CLI-Anything integration
-state_head: 0dae634563a6f95f4ba77fc75e53e4b77ae587ff
+last_activity_desc: Completed quick task 261011-2iz — Repair weekly dependency promotion and add administrator override
+state_head: aecfe4533c7235ac018318b997b45218bea29811
 progress:
   total_phases: 9
   completed_phases: 8
@@ -32,7 +32,7 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 Phase: 22 (Release Proof) — COMPLETED
 Plan: 6 of 6 complete
 Status: Phase 22 execution and verification complete
-Last activity: 2026-10-11 — Completed quick task 261011-1oi: CLI-Anything integration
+Last activity: 2026-10-11 — Completed quick task 261011-2iz: Repair weekly dependency promotion and add administrator override
 
 ## Performance Metrics
 
@@ -417,6 +417,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 260927-eqm | Updated all five Windows harnesses at 64e2ce2; all 24 managed steps current; two fixture failures reproduced and recorded | 2026-09-27 | 64e2ce2 | Machine verified; suite failures | [260927-eqm](./quick/260927-eqm-update-the-verified-local-alpha-aos-buil/) |
 | 260927-feo | Separated fixture preparation and installation npm caches; preserved download assertions; full Windows suite passes | 2026-09-27 | 5597657 | Verified | [260927-feo](./quick/260927-feo-separate-fixture-package-preparation-fro/) |
 | 261011-1oi | Integrate CLI-Anything as an intent-driven five-harness skill | 2026-10-11 | 0d2b909 | Needs Review | [261011-1oi](./quick/261011-1oi-integrate-cli-anything-as-an-optional-al/) |
+| 261011-2iz | Repair weekly dependency promotion and add administrator override | 2026-10-11 | aecfe45 | Verified | [261011-2iz](./quick/261011-2iz-repair-weekly-dependency-promotion-failu/) |
 
 ## Session Continuity
 

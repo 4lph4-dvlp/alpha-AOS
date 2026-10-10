@@ -3,6 +3,7 @@ import type {
   CrashRepairResult,
   DoctorFinding,
   DriftDiagnostic,
+  HarnessId,
   Inventory,
   IsolationLaunchSpec,
   IsolationPlan,
@@ -31,7 +32,7 @@ import {
   type RemovalPlan,
 } from "./core/project-plan.js";
 import type { PackProvenance, ProjectPackSyncResult } from "./core/project-pack-sync.js";
-import type { SupportMatrixReport, SupportTier } from "./core/support-matrix.js";
+import type { ReleaseSupportMatrixReport, SupportMatrixReport, SupportTier } from "./core/support-matrix.js";
 import type { TaskApprovalResult, TaskContractPreview } from "./core/task-contract.js";
 import type { TaskRunRecord, TaskStartReadiness } from "./core/task-run.js";
 import type { SupervisorResult, TaskResumeReadiness } from "./core/task-supervisor.js";
@@ -105,6 +106,60 @@ export function formatSupportMatrixTable(
     `alpha-AOS ${report.release} support matrix (${report.platform}, ${report.generatedAt})`,
     table(["HARNESS", "SURFACE", "PLATFORM", "STATUS", "EVIDENCE / NOTES"], rows),
   ].join("\n\n");
+  const color = options.color ?? (process.stdout.isTTY === true && process.env.NO_COLOR === undefined);
+  if (!color) return rendered;
+  return (Object.keys(supportTierAnsi) as SupportTier[]).reduce(
+    (text, tier) => text.replaceAll(tier, `${supportTierAnsi[tier]}${tier}\u001b[0m`),
+    rendered,
+  );
+}
+
+export function formatReleaseSupportMatrixTable(
+  report: ReleaseSupportMatrixReport,
+  options: { readonly color?: boolean } = {},
+): string {
+  const summaryLines = [
+    `alpha-AOS ${report.release} support matrix (${report.platform}, ${report.generatedAt})`,
+    "",
+    `Summary: ${report.summary.provenCount} PROVEN, ${report.summary.unverifiedCount} UNVERIFIED, ${report.summary.unsupportedCount} UNSUPPORTED`,
+    "By harness:",
+    ...(Object.entries(report.summary.byHarness) as Array<[
+      HarnessId,
+      {
+        harnessVersion: string | null;
+        provenCount: number;
+        unverifiedCount: number;
+        unsupportedCount: number;
+      },
+    ]>).map(
+      ([harness, s]) =>
+        `  ${harness} (${s.harnessVersion ?? "not detected"}): ${s.provenCount} PROVEN, ${s.unverifiedCount} UNVERIFIED, ${s.unsupportedCount} UNSUPPORTED`,
+    ),
+  ];
+
+  const rows = report.cells.map((cell) => [
+    cell.harness,
+    cell.harnessVersion ?? "n/a",
+    cell.os,
+    cell.role,
+    cell.capability,
+    cell.status,
+    cell.status === "PROVEN"
+      ? cell.receipt
+        ? `${cell.evidenceSummary}; ${cell.receipt.reference}`
+        : cell.evidenceSummary
+      : (cell.reason ?? cell.evidenceSummary),
+    cell.nextAction ?? "-",
+  ]);
+
+  const rendered = [
+    summaryLines.join("\n"),
+    table(
+      ["HARNESS", "VERSION", "OS", "ROLE", "CAPABILITY", "STATUS", "REASON / EVIDENCE", "NEXT ACTION"],
+      rows,
+    ),
+  ].join("\n\n");
+
   const color = options.color ?? (process.stdout.isTTY === true && process.env.NO_COLOR === undefined);
   if (!color) return rendered;
   return (Object.keys(supportTierAnsi) as SupportTier[]).reduce(

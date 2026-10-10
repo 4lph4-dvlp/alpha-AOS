@@ -1,5 +1,6 @@
 import type { CapabilityLedger, CapabilityProof } from "./capability-ledger.js";
 import type { HarnessId, Inventory } from "../types.js";
+import { readHarnessRoleReceipt, type HarnessRoleReceipt } from "../adapters/task-receipts.js";
 
 export type SupportTier = "PROVEN" | "RESIDUE" | "UNVERIFIED" | "UNSUPPORTED";
 
@@ -222,4 +223,436 @@ export function renderSupportMatrixMarkdown(report: SupportMatrixReport): string
     "Run `alpha-aos doctor --matrix` on a host to evaluate its receipts. Run `alpha-aos doctor --matrix --json` for the structured report.",
     "",
   ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// v0.2.0 Release Support Matrix (VER-01..04, D-01..D-04)
+// ---------------------------------------------------------------------------
+
+export const RELEASE_SUPPORT_MATRIX_VERSION = "0.2.0";
+
+export interface ReleaseSupportMatrixEntry {
+  readonly harnessId: HarnessId;
+  readonly os: "win32" | "darwin" | "linux" | "all";
+  readonly role: "controller" | "executor" | "reviewer";
+  readonly capability: string;
+  readonly baselineTier: SupportTier;
+  readonly notes: string;
+}
+
+export interface ReleaseMatrixCell {
+  readonly harness: HarnessId;
+  readonly harnessVersion: string | null;
+  readonly os: "win32" | "darwin" | "linux" | "all";
+  readonly role: "controller" | "executor" | "reviewer";
+  readonly capability: string;
+  readonly status: SupportTier;
+  readonly tier: SupportTier;
+  readonly evidenceSummary: string;
+  readonly reason: string | null;
+  readonly nextAction: string | null;
+  readonly receipt: SupportReceiptReference | null;
+}
+
+export interface ReleaseSupportMatrixSummary {
+  readonly provenCount: number;
+  readonly unverifiedCount: number;
+  readonly unsupportedCount: number;
+  readonly byHarness: Readonly<Record<HarnessId, {
+    readonly harnessVersion: string | null;
+    readonly provenCount: number;
+    readonly unverifiedCount: number;
+    readonly unsupportedCount: number;
+  }>>;
+}
+
+export interface ReleaseSupportMatrixReport {
+  readonly schemaVersion: 2;
+  readonly release: "0.2.0";
+  readonly generatedAt: string;
+  readonly platform: NodeJS.Platform;
+  readonly evidenceSource: string;
+  readonly summary: ReleaseSupportMatrixSummary;
+  readonly cells: readonly ReleaseMatrixCell[];
+}
+
+export interface ReleaseSupportMatrixOptions {
+  readonly generatedAt?: string;
+  readonly platform?: NodeJS.Platform;
+  readonly receiptsRoot?: string;
+  readonly checkDrift?: boolean;
+  readonly capabilityLedger?: CapabilityLedger;
+  readonly ledgerUnavailableReason?: string;
+  readonly roleReceipts?: readonly HarnessRoleReceipt[];
+  readonly entries?: readonly ReleaseSupportMatrixEntry[];
+}
+
+export const BASE_RELEASE_SUPPORT_MATRIX: readonly ReleaseSupportMatrixEntry[] = Object.freeze([
+  // claude
+  {
+    harnessId: "claude",
+    os: "all",
+    role: "controller",
+    capability: "controller",
+    baselineTier: "PROVEN",
+    notes: "Autonomous task coordinator and planner",
+  },
+  {
+    harnessId: "claude",
+    os: "all",
+    role: "executor",
+    capability: "executor",
+    baselineTier: "PROVEN",
+    notes: "Task execution and workspace edits",
+  },
+  {
+    harnessId: "claude",
+    os: "all",
+    role: "reviewer",
+    capability: "reviewer",
+    baselineTier: "PROVEN",
+    notes: "Independent criterion review",
+  },
+  // codex
+  {
+    harnessId: "codex",
+    os: "all",
+    role: "controller",
+    capability: "controller",
+    baselineTier: "PROVEN",
+    notes: "Autonomous task coordinator and planner",
+  },
+  {
+    harnessId: "codex",
+    os: "all",
+    role: "executor",
+    capability: "executor",
+    baselineTier: "PROVEN",
+    notes: "Task execution and workspace edits",
+  },
+  {
+    harnessId: "codex",
+    os: "all",
+    role: "reviewer",
+    capability: "reviewer",
+    baselineTier: "PROVEN",
+    notes: "Independent criterion review",
+  },
+  // antigravity
+  {
+    harnessId: "antigravity",
+    os: "all",
+    role: "controller",
+    capability: "controller",
+    baselineTier: "PROVEN",
+    notes: "Autonomous task coordinator and planner",
+  },
+  {
+    harnessId: "antigravity",
+    os: "all",
+    role: "executor",
+    capability: "executor",
+    baselineTier: "PROVEN",
+    notes: "Task execution and workspace edits",
+  },
+  {
+    harnessId: "antigravity",
+    os: "all",
+    role: "reviewer",
+    capability: "reviewer",
+    baselineTier: "PROVEN",
+    notes: "Independent criterion review",
+  },
+  // pi
+  {
+    harnessId: "pi",
+    os: "all",
+    role: "controller",
+    capability: "controller",
+    baselineTier: "PROVEN",
+    notes: "Autonomous task coordinator and planner",
+  },
+  {
+    harnessId: "pi",
+    os: "all",
+    role: "executor",
+    capability: "executor",
+    baselineTier: "PROVEN",
+    notes: "Task execution and workspace edits",
+  },
+  {
+    harnessId: "pi",
+    os: "all",
+    role: "reviewer",
+    capability: "reviewer",
+    baselineTier: "PROVEN",
+    notes: "Independent criterion review",
+  },
+  // hermes
+  {
+    harnessId: "hermes",
+    os: "all",
+    role: "controller",
+    capability: "controller",
+    baselineTier: "UNSUPPORTED",
+    notes: "Hermes is a worker and must not become GSD lifecycle/state controller",
+  },
+  {
+    harnessId: "hermes",
+    os: "all",
+    role: "executor",
+    capability: "executor",
+    baselineTier: "PROVEN",
+    notes: "Task execution and workspace edits",
+  },
+  {
+    harnessId: "hermes",
+    os: "all",
+    role: "reviewer",
+    capability: "reviewer",
+    baselineTier: "PROVEN",
+    notes: "Independent criterion review",
+  },
+]);
+
+const HARNESS_ORDER: readonly HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
+const ROLE_ORDER: readonly string[] = ["controller", "executor", "reviewer"];
+
+export function compareMatrixCells(a: ReleaseMatrixCell, b: ReleaseMatrixCell): number {
+  const hA = HARNESS_ORDER.indexOf(a.harness);
+  const hB = HARNESS_ORDER.indexOf(b.harness);
+  if (hA !== hB) return hA - hB;
+
+  const vA = a.harnessVersion ?? "";
+  const vB = b.harnessVersion ?? "";
+  if (vA !== vB) return vA.localeCompare(vB);
+
+  if (a.os !== b.os) return a.os.localeCompare(b.os);
+
+  const rA = ROLE_ORDER.indexOf(a.role);
+  const rB = ROLE_ORDER.indexOf(b.role);
+  if (rA !== rB) return (rA >= 0 ? rA : 99) - (rB >= 0 ? rB : 99);
+
+  return a.capability.localeCompare(b.capability);
+}
+
+export async function evaluateReleaseMatrixCell(
+  entry: ReleaseSupportMatrixEntry,
+  inventory: Inventory,
+  options: ReleaseSupportMatrixOptions = {},
+): Promise<ReleaseMatrixCell> {
+  const detectedHarness = inventory.harnesses.find((cand) => cand.id === entry.harnessId);
+
+  // 1. Structural incompatibility / unsupported baseline
+  if (entry.baselineTier === "UNSUPPORTED") {
+    return {
+      harness: entry.harnessId,
+      harnessVersion: detectedHarness?.version ?? null,
+      os: entry.os,
+      role: entry.role,
+      capability: entry.capability,
+      status: "UNSUPPORTED",
+      tier: "UNSUPPORTED",
+      evidenceSummary: entry.notes,
+      reason: entry.notes,
+      nextAction: null,
+      receipt: null,
+    };
+  }
+
+  // 2. Platform mismatch
+  if (entry.os !== "all" && entry.os !== inventory.platform) {
+    return {
+      harness: entry.harnessId,
+      harnessVersion: detectedHarness?.version ?? null,
+      os: entry.os,
+      role: entry.role,
+      capability: entry.capability,
+      status: "UNSUPPORTED",
+      tier: "UNSUPPORTED",
+      evidenceSummary: `Not supported on platform ${inventory.platform}`,
+      reason: `Platform mismatch: cell requires ${entry.os}, current is ${inventory.platform}`,
+      nextAction: null,
+      receipt: null,
+    };
+  }
+
+  // 3. Harness executable not detected
+  if (!detectedHarness?.detected) {
+    return {
+      harness: entry.harnessId,
+      harnessVersion: null,
+      os: entry.os,
+      role: entry.role,
+      capability: entry.capability,
+      status: "UNVERIFIED",
+      tier: "UNVERIFIED",
+      evidenceSummary: "Harness executable not detected on host",
+      reason: `Harness '${entry.harnessId}' executable not detected on PATH`,
+      nextAction: `Install ${entry.harnessId} or ensure executable is on PATH`,
+      receipt: null,
+    };
+  }
+
+  // 4. Role receipt evaluation (exact version & binary drift)
+  let receipt: HarnessRoleReceipt | null = null;
+  let versionDrift = false;
+  let driftReason: string | null = null;
+
+  if (options.roleReceipts !== undefined) {
+    // If role receipts are supplied in options, check them directly
+    const found = options.roleReceipts.find(
+      (r) => r.harness === entry.harnessId && r.role === entry.role,
+    );
+    if (found) {
+      receipt = found;
+      if (detectedHarness.version && found.version !== detectedHarness.version) {
+        versionDrift = true;
+        driftReason = `Version drift: receipt has ${found.version}, detected ${detectedHarness.version}`;
+      }
+    }
+  } else {
+    try {
+      const readResult = await readHarnessRoleReceipt(
+        entry.harnessId,
+        entry.role,
+        options.receiptsRoot,
+        { checkDrift: options.checkDrift ?? true },
+      );
+      receipt = readResult.receipt;
+      versionDrift = readResult.versionDrift;
+      driftReason = readResult.driftReason;
+    } catch (error) {
+      return {
+        harness: entry.harnessId,
+        harnessVersion: detectedHarness.version ?? null,
+        os: entry.os,
+        role: entry.role,
+        capability: entry.capability,
+        status: "UNVERIFIED",
+        tier: "UNVERIFIED",
+        evidenceSummary: `Error reading receipt: ${error instanceof Error ? error.message : String(error)}`,
+        reason: `Receipt read failed for ${entry.harnessId} ${entry.role}`,
+        nextAction: `Inspect receipt directory or re-run role canary`,
+        receipt: null,
+      };
+    }
+  }
+
+  if (receipt === null) {
+    return {
+      harness: entry.harnessId,
+      harnessVersion: detectedHarness.version ?? null,
+      os: entry.os,
+      role: entry.role,
+      capability: entry.capability,
+      status: "UNVERIFIED",
+      tier: "UNVERIFIED",
+      evidenceSummary: `Receipt missing: receipts/${entry.harnessId}-${entry.role}.receipt.json`,
+      reason: `No verified invocation receipt on this host for ${entry.harnessId} ${entry.role}`,
+      nextAction: `Run role probe or task preview with ${entry.harnessId} to generate receipt`,
+      receipt: null,
+    };
+  }
+
+  if (versionDrift) {
+    return {
+      harness: entry.harnessId,
+      harnessVersion: receipt.version,
+      os: entry.os,
+      role: entry.role,
+      capability: entry.capability,
+      status: "UNVERIFIED",
+      tier: "UNVERIFIED",
+      evidenceSummary: driftReason ?? `Binary or version drift detected for ${entry.harnessId} ${entry.role}`,
+      reason: driftReason ?? `Binary drift detected: current binary differs from receipt`,
+      nextAction: `Re-run role probe on current ${entry.harnessId} binary to update receipt`,
+      receipt: null,
+    };
+  }
+
+  if (!receipt.capabilities.invoked) {
+    return {
+      harness: entry.harnessId,
+      harnessVersion: receipt.version,
+      os: entry.os,
+      role: entry.role,
+      capability: entry.capability,
+      status: "UNVERIFIED",
+      tier: "UNVERIFIED",
+      evidenceSummary: `Role receipt exists but capability.invoked is false`,
+      reason: `Receipt indicates ${entry.harnessId} ${entry.role} invocation failed or was cancelled`,
+      nextAction: `Execute successful invocation canary for ${entry.harnessId}`,
+      receipt: null,
+    };
+  }
+
+  return {
+    harness: entry.harnessId,
+    harnessVersion: receipt.version,
+    os: entry.os,
+    role: entry.role,
+    capability: entry.capability,
+    status: "PROVEN",
+    tier: "PROVEN",
+    evidenceSummary: `Verified ${entry.harnessId} ${entry.role} invocation at ${receipt.probedAt}`,
+    reason: null,
+    nextAction: null,
+    receipt: {
+      reference: `receipts/${entry.harnessId}-${entry.role}.receipt.json`,
+      capability: entry.capability,
+      observedAt: receipt.probedAt,
+      harnessVersion: receipt.version,
+      oracleCommand: receipt.executable,
+    },
+  };
+}
+
+export async function evaluateReleaseSupportMatrix(
+  inventory: Inventory,
+  options: ReleaseSupportMatrixOptions = {},
+): Promise<ReleaseSupportMatrixReport> {
+  const entries = options.entries ?? BASE_RELEASE_SUPPORT_MATRIX;
+  const unsortedCells = await Promise.all(
+    entries.map((entry) => evaluateReleaseMatrixCell(entry, inventory, options)),
+  );
+  const cells = [...unsortedCells].sort(compareMatrixCells);
+
+  const provenCount = cells.filter((c) => c.status === "PROVEN").length;
+  const unverifiedCount = cells.filter((c) => c.status === "UNVERIFIED").length;
+  const unsupportedCount = cells.filter((c) => c.status === "UNSUPPORTED").length;
+
+  const byHarness: Record<HarnessId, {
+    harnessVersion: string | null;
+    provenCount: number;
+    unverifiedCount: number;
+    unsupportedCount: number;
+  }> = {} as any;
+
+  for (const h of HARNESS_ORDER) {
+    const hCells = cells.filter((c) => c.harness === h);
+    const detected = inventory.harnesses.find((cand) => cand.id === h);
+    const version = hCells.find((c) => c.harnessVersion !== null)?.harnessVersion ?? detected?.version ?? null;
+    byHarness[h] = {
+      harnessVersion: version,
+      provenCount: hCells.filter((c) => c.status === "PROVEN").length,
+      unverifiedCount: hCells.filter((c) => c.status === "UNVERIFIED").length,
+      unsupportedCount: hCells.filter((c) => c.status === "UNSUPPORTED").length,
+    };
+  }
+
+  return {
+    schemaVersion: 2,
+    release: "0.2.0",
+    generatedAt: options.generatedAt ?? new Date().toISOString(),
+    platform: options.platform ?? inventory.platform,
+    evidenceSource: options.receiptsRoot ? `receipts under ${options.receiptsRoot}` : "state/receipts",
+    summary: {
+      provenCount,
+      unverifiedCount,
+      unsupportedCount,
+      byHarness,
+    },
+    cells,
+  };
 }

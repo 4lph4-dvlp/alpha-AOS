@@ -7,12 +7,17 @@ import test from "node:test";
 
 import type { CapabilityLedger, CapabilityProof } from "../src/core/capability-ledger.js";
 import {
+  BASE_RELEASE_SUPPORT_MATRIX,
   BASE_SUPPORT_MATRIX,
+  compareMatrixCells,
   evaluateMatrixCell,
+  evaluateReleaseMatrixCell,
+  evaluateReleaseSupportMatrix,
   evaluateSupportMatrix,
   renderSupportMatrixMarkdown,
   type SupportMatrixEntry,
 } from "../src/core/support-matrix.js";
+import type { HarnessRoleReceipt } from "../src/adapters/task-receipts.js";
 import type { Inventory } from "../src/types.js";
 
 const observedAt = "2026-09-18T00:00:00.000Z";
@@ -176,6 +181,25 @@ test("support matrix markdown stays byte-identical to the structured source", as
   assert.equal(committed, renderSupportMatrixMarkdown(report));
 });
 
+function mockRoleReceipt(harness: string, role: "controller" | "executor" | "reviewer", version = "1.0.0"): HarnessRoleReceipt {
+  return {
+    schemaVersion: 1,
+    harness: harness as any,
+    role,
+    version,
+    binarySha256: "d".repeat(64),
+    executable: `/usr/bin/${harness}`,
+    probedAt: observedAt,
+    capabilities: {
+      invoked: true,
+      cancelled: false,
+      outputParsed: true,
+      readOnlyGuaranteed: true,
+    },
+    sampleDigest: "e".repeat(64),
+  };
+}
+
 test("compiled doctor exposes table and structured matrix diagnostics", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-support-matrix-"));
   context.after(async () => rm(root, { recursive: true, force: true }));
@@ -190,8 +214,9 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
     windowsHide: true,
   });
   assert.equal(tableResult.status, 0, `${tableResult.stdout}\n${tableResult.stderr}`);
-  assert.match(tableResult.stdout, /HARNESS\s+SURFACE\s+PLATFORM\s+STATUS/u);
-  assert.match(tableResult.stdout, /claude\s+GSD Core\s+all\s+UNVERIFIED/u);
+  assert.match(tableResult.stdout, /HARNESS\s+VERSION\s+OS\s+ROLE\s+CAPABILITY\s+STATUS\s+REASON \/ EVIDENCE\s+NEXT ACTION/u);
+  assert.match(tableResult.stdout, /Summary:\s+\d+\s+PROVEN,\s+\d+\s+UNVERIFIED,\s+\d+\s+UNSUPPORTED/u);
+  assert.match(tableResult.stdout, /claude\s+.*all\s+controller\s+controller\s+UNVERIFIED/u);
   assert.doesNotMatch(tableResult.stdout, /RESIDUE/u);
   assert.doesNotMatch(tableResult.stdout, /\u001b\[/u);
 
@@ -205,10 +230,83 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
   assert.equal(jsonResult.status, 0, `${jsonResult.stdout}\n${jsonResult.stderr}`);
   const report = JSON.parse(jsonResult.stdout) as {
     readonly schemaVersion?: number;
-    readonly cells?: readonly { readonly tier?: string; readonly entry?: { readonly harnessId?: string } }[];
+    readonly release?: string;
+    readonly summary?: { readonly provenCount?: number; readonly unverifiedCount?: number };
+    readonly cells?: readonly { readonly tier?: string; readonly harness?: string; readonly harnessVersion?: string | null; readonly reason?: string | null; readonly nextAction?: string | null }[];
   };
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, 2);
+  assert.equal(report.release, "0.2.0");
   assert.ok((report.cells?.length ?? 0) > 0);
   assert.equal(report.cells?.some((cell) => cell.tier === "RESIDUE"), false);
-  assert.equal(report.cells?.some((cell) => cell.entry?.harnessId === "claude"), true);
+  assert.equal(report.cells?.some((cell) => cell.harness === "claude"), true);
+  assert.ok(typeof report.summary?.provenCount === "number");
+  assert.ok(typeof report.summary?.unverifiedCount === "number");
+});
+
+test("evaluateReleaseSupportMatrix enforces D-01 through D-04 and VER-02 edge probes", async () => {
+  const inv = inventory(["claude", "codex", "antigravity", "pi", "hermes"]);
+
+  // 1. Empty receipts -> all advertised cells UNVERIFIED, hermes controller UNSUPPORTED
+  const emptyReport = await evaluateReleaseSupportMatrix(inv, {
+    roleReceipts: [],
+    generatedAt: observedAt,
+  });
+  assert.equal(emptyReport.summary.provenCount, 0);
+  assert.equal(emptyReport.summary.unsupportedCount, 1); // hermes controller
+  assert.ok(emptyReport.summary.unverifiedCount > 0);
+  const unverifiedCell = emptyReport.cells.find((c) => c.harness === "claude" && c.role === "controller");
+  assert.ok(unverifiedCell);
+  assert.equal(unverifiedCell.status, "UNVERIFIED");
+  assert.ok(unverifiedCell.reason);
+  assert.ok(unverifiedCell.nextAction);
+
+  // 2. Exact matching role receipt promotes matching cell to PROVEN
+  const claudeCtrl = mockRoleReceipt("claude", "controller", "1.0.0");
+  const singleReport = await evaluateReleaseSupportMatrix(inv, {
+    roleReceipts: [claudeCtrl],
+    generatedAt: observedAt,
+  });
+  assert.equal(singleReport.summary.provenCount, 1);
+  const provenCell = singleReport.cells.find((c) => c.harness === "claude" && c.role === "controller");
+  assert.ok(provenCell);
+  assert.equal(provenCell.status, "PROVEN");
+  assert.equal(provenCell.harnessVersion, "1.0.0");
+  assert.equal(provenCell.reason, null);
+  assert.equal(provenCell.nextAction, null);
+  assert.ok(provenCell.receipt);
+  assert.equal(provenCell.receipt.reference, "receipts/claude-controller.receipt.json");
+
+  // 3. Adjacency: claude controller receipt does NOT promote claude executor or codex controller
+  const claudeExec = singleReport.cells.find((c) => c.harness === "claude" && c.role === "executor");
+  const codexCtrl = singleReport.cells.find((c) => c.harness === "codex" && c.role === "controller");
+  assert.equal(claudeExec?.status, "UNVERIFIED");
+  assert.equal(codexCtrl?.status, "UNVERIFIED");
+
+  // 4. Version drift: receipt version differs from detected harness version
+  const driftedReceipt = mockRoleReceipt("codex", "controller", "0.9.0");
+  const driftReport = await evaluateReleaseSupportMatrix(inv, {
+    roleReceipts: [driftedReceipt],
+    generatedAt: observedAt,
+  });
+  const driftedCell = driftReport.cells.find((c) => c.harness === "codex" && c.role === "controller");
+  assert.equal(driftedCell?.status, "UNVERIFIED");
+  assert.match(driftedCell?.reason ?? "", /drift/i);
+  assert.ok(driftedCell?.nextAction);
+
+  // 5. Ordering: reversed/permuted input entries produces deterministic sorted output
+  const reversedEntries = [...BASE_RELEASE_SUPPORT_MATRIX].reverse();
+  const sortedReport1 = await evaluateReleaseSupportMatrix(inv, {
+    entries: BASE_RELEASE_SUPPORT_MATRIX,
+    roleReceipts: [claudeCtrl],
+    generatedAt: observedAt,
+  });
+  const sortedReport2 = await evaluateReleaseSupportMatrix(inv, {
+    entries: reversedEntries,
+    roleReceipts: [claudeCtrl],
+    generatedAt: observedAt,
+  });
+  assert.deepEqual(
+    sortedReport1.cells.map((c) => `${c.harness}:${c.role}:${c.capability}`),
+    sortedReport2.cells.map((c) => `${c.harness}:${c.role}:${c.capability}`),
+  );
 });

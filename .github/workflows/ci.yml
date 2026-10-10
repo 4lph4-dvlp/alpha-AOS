@@ -5,6 +5,16 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # The dependency promotion workflows call this suite against the exact
+  # promotion commit; every other trigger leaves ref empty and checks out the
+  # triggering commit.
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit to verify.
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -15,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24
@@ -59,6 +71,8 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.ref }}
       - uses: actions/setup-node@v6
         with:
           node-version: 24

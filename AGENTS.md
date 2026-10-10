@@ -19,7 +19,7 @@ The system manages capability scope as well as installation: broadly useful, low
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion
 - **Secrets**: Credential values cannot enter manifests, locks, plans, journals, diagnostics, command arguments, or repository files — project-only launch environments must default to a reviewed allowlist
-- **Supply chain**: End users receive only the reviewed stable lock — candidate dependencies and mutable external automation are not trusted without fixture and review gates
+- **Supply chain**: End users receive only the verified stable lock — candidate dependencies reach it solely through the automated weekly promotion gates (registry integrity, full 3-OS CI, real component fixtures, and a registry re-check after a two-day cooldown), and mutable external automation is not trusted without them
 - **Validation**: Native discovery plus a meaningful read-only invocation is required — configuration-file presence alone is insufficient
 
 <!-- GSD:project-end -->
@@ -57,12 +57,12 @@ The system manages capability scope as well as installation: broadly useful, low
 
 - `@modelcontextprotocol/sdk` 1.30.0 - launches upstream MCP servers over stdio and exposes the local Firecrawl policy proxy in `src/core/mcp-proxy.ts`.
 - `yaml` 2.9.0 - parses the catalog, project manifests, and Hermes configuration in `src/core/catalog.ts`, `src/core/project.ts`, and `src/core/mcp.ts`.
-- `@opengsd/gsd-core` 1.14.0 - pinned external workflow/state spine installed for Claude, Codex, Antigravity, and Pi according to `catalog/stack.lock.json` and `src/core/install.ts`.
-- `ecc-universal` 2.2.1 - pinned runtime whose selected skill files are distributed through adapters in `src/core/ecc-skills.ts` and `catalog/stack.lock.json`.
-- `@upstash/context7-mcp` 4.1.1 - pinned Context7 MCP server in `catalog/stack.lock.json`.
-- `exa-mcp-server` 3.4.1 - pinned Exa MCP server in `catalog/stack.lock.json`.
-- `firecrawl-mcp` 3.25.2 - pinned upstream Firecrawl MCP server behind the local allow-list proxy in `src/core/mcp-proxy.ts`.
-- `pi-mcp-adapter` 2.36.0 - pinned Pi MCP bridge installed and verified separately by `src/core/install.ts` and `src/core/mcp-fixture.ts`.
+- `@opengsd/gsd-core` (version pinned in `catalog/stack.lock.json`) - pinned external workflow/state spine installed for Claude, Codex, Antigravity, and Pi according to `catalog/stack.lock.json` and `src/core/install.ts`.
+- `ecc-universal` (version pinned in `catalog/stack.lock.json`) - pinned runtime whose selected skill files are distributed through adapters in `src/core/ecc-skills.ts` and `catalog/stack.lock.json`.
+- `@upstash/context7-mcp` (version pinned in `catalog/stack.lock.json`) - pinned Context7 MCP server in `catalog/stack.lock.json`.
+- `exa-mcp-server` (version pinned in `catalog/stack.lock.json`) - pinned Exa MCP server in `catalog/stack.lock.json`.
+- `firecrawl-mcp` (version pinned in `catalog/stack.lock.json`) - pinned upstream Firecrawl MCP server behind the local allow-list proxy in `src/core/mcp-proxy.ts`.
+- `pi-mcp-adapter` (version pinned in `catalog/stack.lock.json`) - pinned Pi MCP bridge installed and verified separately by `src/core/install.ts` and `src/core/mcp-fixture.ts`.
 - `@types/node` 24.7.2 - Node.js type declarations used by the TypeScript compiler in `package.json`.
 
 ## Configuration

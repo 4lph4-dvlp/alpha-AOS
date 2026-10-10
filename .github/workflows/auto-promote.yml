@@ -1,0 +1,136 @@
+name: Dependency auto-promotion
+
+# Wednesday half of the unattended weekly dependency promotion.
+#
+# Takes the commit Monday's dependency-candidate.yml verified, rebases it onto
+# current main, re-checks the registry (unpublished, altered or too-young
+# versions are refused), runs the full promotion verification again on the
+# rebased commit, and fast-forwards main to exactly that commit. Any refusal
+# fails the run, so GitHub sends the failure notification and main is untouched.
+
+on:
+  schedule:
+    - cron: "17 3 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-promotion
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare promotion
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    outputs:
+      ready: ${{ steps.rebase.outputs.ready }}
+      sha: ${{ steps.rebase.outputs.sha }}
+      base: ${{ steps.rebase.outputs.base }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Find this week's verified candidate
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          since=$(date -u -d '7 days ago' +%Y-%m-%d)
+          run_id=$(gh run list --workflow dependency-candidate.yml --branch main --status success \
+            --created ">=$since" --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -z "$run_id" ]; then
+            echo "No successful dependency-candidate run since $since; nothing to promote."
+            echo "verified=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! gh run download "$run_id" --name verified-candidate --dir verified; then
+            echo "Run $run_id found no dependency change; nothing to promote."
+            echo "verified=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          verified=$(cat verified/sha.txt)
+          git fetch origin automation/dependency-candidate
+          head=$(git rev-parse FETCH_HEAD)
+          if [ "$head" != "$verified" ]; then
+            echo "::error::automation/dependency-candidate moved after verification ($head, verified $verified)"
+            exit 1
+          fi
+          echo "Verified in run $run_id: $(cat verified/summary.txt)"
+          echo "verified=$verified" >> "$GITHUB_OUTPUT"
+      - name: Rebase the verified commit onto current main
+        id: rebase
+        env:
+          VERIFIED: ${{ steps.find.outputs.verified }}
+        shell: bash
+        run: |
+          if [ -z "$VERIFIED" ]; then
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          base=$(git rev-parse origin/main)
+          git checkout --detach "$VERIFIED"
+          git rebase "$base"
+          if git diff --quiet "$base" HEAD; then
+            echo "The verified promotion is already on main."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The promotion commit may only move the two lock files.
+          unexpected=$(git diff --name-only "$base" HEAD | grep -v -x -e catalog/stack.lock.json -e catalog/candidate.lock.json || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::promotion commit touches files other than the locks: $unexpected"
+            exit 1
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+      - name: Re-verify promoted packages against the registry
+        if: steps.rebase.outputs.ready == 'true'
+        run: node scripts/auto-promote.mjs verify-registry --base origin/main
+      - name: Publish the rebased commit for verification
+        if: steps.rebase.outputs.ready == 'true'
+        run: git push --force origin HEAD:refs/heads/automation/dependency-promotion
+
+  verify:
+    name: Verify
+    needs: prepare
+    if: needs.prepare.outputs.ready == 'true'
+    uses: ./.github/workflows/promotion-verify.yml
+    with:
+      ref: ${{ needs.prepare.outputs.sha }}
+
+  land:
+    name: Fast-forward main
+    needs: [prepare, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Push the verified commit to main
+        env:
+          SHA: ${{ needs.prepare.outputs.sha }}
+          BASE: ${{ needs.prepare.outputs.base }}
+        shell: bash
+        run: |
+          git fetch origin main automation/dependency-promotion
+          current=$(git rev-parse origin/main)
+          if [ "$current" != "$BASE" ]; then
+            echo "::error::main moved from $BASE to $current while the promotion was verified. Re-run this workflow to rebase and verify again."
+            exit 1
+          fi
+          git push origin "$SHA:refs/heads/main"
+          git push origin --delete automation/dependency-promotion

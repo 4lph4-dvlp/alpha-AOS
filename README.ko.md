@@ -269,12 +269,12 @@ alpha-aos project status .
 
 | 레이어 | 패키지 / 구성 요소 | 타깃 | 설명 |
 |---|---|---|---|
-| **워크플로우 척추** | GSD Core `standard` (`1.14.0`) | Claude, Codex, Antigravity, Pi | 프로젝트 기획, 단계별 계획/실행 및 검증 총괄. |
+| **워크플로우 척추** | GSD Core `standard` | Claude, Codex, Antigravity, Pi | 프로젝트 기획, 단계별 계획/실행 및 검증 총괄. |
 | **작업자 하네스** | Hermes Agent | Hermes | 작업자 전용(Worker-only)으로 설정되어 GSD 기획 상태를 임의 변경하지 않음. |
 | **에이전트 통합 메모리** | ECC `unified-memory` | 5대 하네스 공통 | 에이전트 간 맥락과 결정 사항을 공유하는 Memory Vault. |
 | **최신 라이브러리 문서** | ECC `documentation-lookup` + Context7 | 5대 하네스 공통 | Context7 stdio MCP 게이트웨이를 통한 실시간 최신 공식 문서 조회. |
 | **심층 멀티 웹 리서치** | ECC `deep-research` + Exa/Firecrawl | 5대 하네스 공통 | Exa 검색 및 안전하게 필터링된 Firecrawl 기반의 리서치. |
-| **웹 스크래핑 프록시** | Firecrawl Proxy (`3.25.2`) | 5대 하네스 공통 | 상위 25개 도구 중 안전한 4개 추출/크롤링 도구만 노출하는 로컬 SDK 프록시. |
+| **웹 스크래핑 프록시** | Firecrawl Proxy | 5대 하네스 공통 | 상위 25개 도구 중 안전한 4개 추출/크롤링 도구만 노출하는 로컬 SDK 프록시. |
 | **자율형 통합 제어기** | `alpha-aos-control` | 5대 하네스 공통 | 프로젝트 팩 추천·자동설치, 폴더 격리(Tree-Off), 진단, 롤백을 통합 제어. |
 | **GSD PR 배포 스킬** | `alpha-aos-ship` | Claude Code | 사용자 호출 전용의 브랜치 푸시 및 PR 생성 스킬. |
 | **프로젝트 격리 지원** | alpha-AOS 런타임 어댑터 | 5대 하네스 공통 | Fail-closed 보장을 갖춘 프로젝트 독립 샌드박스 실행. |
@@ -314,17 +314,76 @@ alpha-aos update --apply
 alpha-aos update --apply --target codex,claude
 ```
 
-alpha-AOS는 `git pull --ff-only`를 수행하고 CLI를 재빌드하며, 검증되지 않은 후보 버전(`candidate.lock.json`)은 일반 사용자 머신에 절대 적용되지 않습니다.
+alpha-AOS는 `git pull --ff-only`를 수행하고 CLI를 재빌드하며, 검증을 통과한 `catalog/stack.lock.json`만 반영합니다. 검증되지 않은 후보 버전(`candidate.lock.json`)은 일반 사용자 머신에 절대 적용되지 않습니다. `update --check`는 npm 레지스트리의 최신 버전을 보여 줍니다. 상태가 `update`로 표시되면 아직 안정 락으로 승격되지 않은 버전이라는 뜻이며, 주간 승격이 반영되기 전까지 `update --apply`로는 설치되지 않습니다.
 
-### 3. 도구별 정기 업데이트 확인 주기 (Automated Upstream Cadence)
+### 3. 주간 자동 의존성 승격 (Automated Weekly Dependency Promotion)
 
-상위 도구들(GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP 어댑터)의 신규 버전은 GitHub Actions 정기 워크플로우를 통해 자동으로 감지 및 검증됩니다:
+상위 도구들(GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP 어댑터)의 신규 버전은 사람의 승인 없이 안정 락으로 승격됩니다. 단, 아래 검증 게이트를 모두 통과한 경우에만 승격됩니다:
 
-- **정기 확인 주기**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml)이 **매주 월요일 낮 12시 17분 KST (03:17 UTC)**에 자동 실행됩니다.
-- **후보 PR 자동 생성**: npm 레지스트리에 새로운 상위 버전이 등록되면 `automation/dependency-candidate` 브랜치를 생성하고 자동으로 후보 PR을 열어둡니다.
+- **매주 월요일 낮 12시 17분 KST (03:17 UTC)**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml)이 레지스트리 최신 버전을 조회해 무결성을 확인합니다. 바뀐 패키지를 `automation/dependency-candidate` 브랜치의 `catalog/stack.lock.json`에 반영하고(ECC가 바뀌면 스킬 해시도 다시 고정), 그 커밋을 Linux/macOS/Windows 전체 CI와 GSD·ECC·MCP 서버·Pi 브리지 실제 설치 검증으로 확인합니다.
+- **매주 수요일 낮 12시 17분 KST (03:17 UTC)**: [`.github/workflows/auto-promote.yml`](.github/workflows/auto-promote.yml)이 월요일에 검증된 커밋을 최신 `main` 위로 다시 올립니다. 레지스트리를 다시 확인해 그사이 내려갔거나 바뀌었거나 배포된 지 36시간이 안 된 버전은 거부하고, 한 번 더 검증한 뒤 `main`을 그 커밋으로 fast-forward합니다.
+- **실패하면 승격하지 않음**: 어느 단계든 실패하면 워크플로우 실행이 실패로 끝나고 `main`은 그대로 유지되며, GitHub가 실패 알림을 보냅니다. 한 주의 패키지는 함께 승격되므로 하나가 실패하면 그 주 전체가 보류되고, 다음 월요일 실행이 최신 버전으로 다시 시작합니다.
 - **팩 스킬 드리프트 점검**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml)이 **매주 월요일 낮 1시 17분 KST (04:17 UTC)**에 실행되어 카탈로그 팩 스킬의 해시 무결성을 점검합니다.
-- **3단계 CI 게이트 검증**: 검증되지 않은 후보는 무자격 격리 테스트(Fixture), Linux/macOS/Windows 3대 운영체제 회귀 테스트, 메인 브랜치 베이스라인 가드를 모두 통과해야만 메인테이너에 의해 공식 `catalog/stack.lock.json`으로 승격(Promote)됩니다.
-- **수동 즉시 확인**: 정기 주기 외에도 필요 시 언제든 GitHub Actions 웹 화면에서 `workflow_dispatch`(수동 실행) 버튼을 눌러 즉시 최신 버전을 확인할 수 있습니다.
+- **수동 실행**: 두 워크플로우 모두 GitHub Actions의 `workflow_dispatch`(Run workflow) 버튼으로 언제든 실행할 수 있습니다. 예를 들어 검증 도중 `main`이 바뀌어 수요일 승격이 실패했다면 다시 실행하면 됩니다.
+
+### 4. 검증과 승격을 수동으로 실행하기
+
+주간 주기에는 아무것도 할 필요가 없습니다. 새 버전을 더 빨리 받고 싶거나 실패한 실행을 다시 시도할 때 두 워크플로우를 직접 실행합니다. 순서는 항상 같습니다:
+
+1. **검증** — *Dependency candidate*(월요일 워크플로우)를 실행합니다.
+2. **승격** — 검증이 성공한 뒤 *Dependency auto-promotion*(수요일 워크플로우)을 실행합니다.
+3. **반영** — 내 PC를 `main` 기준으로 업데이트합니다.
+
+2단계에는 두 가지 시간 규칙이 있습니다:
+
+- 최근 7일 안에 성공한 *Dependency candidate* 실행이 검증한 커밋만 승격합니다.
+- 새로 승격되는 모든 버전은 배포된 지 36시간 이상 지나야 합니다. 더 최근 버전이 있으면 *Re-verify promoted packages against the registry* 단계에서 실패하니, 36시간이 지난 뒤 다시 실행하세요.
+
+#### 방법 A: 명령어 (GitHub CLI)
+
+이 저장소에 쓰기 권한이 있는 계정으로 [GitHub CLI](https://cli.github.com/)에 로그인되어 있어야 합니다(`gh auth status`로 확인). 아래 명령은 PowerShell과 POSIX 셸에서 그대로 동작합니다.
+
+```sh
+# 0. 안정 락보다 새로운 상위 버전 확인
+alpha-aos update --check
+
+# 1. 검증: 월요일 워크플로우를 실행하고 진행 상황 따라가기 (약 15분)
+gh workflow run dependency-candidate.yml --ref main
+# 새 실행이 목록에 나타나도록 몇 초 기다린 뒤:
+gh run watch "$(gh run list --workflow dependency-candidate.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+
+#    모든 job이 통과하고 "verified-candidate" 아티팩트가 있으면 검증 완료입니다.
+#    후보 커밋 메시지에 승격될 버전이 적혀 있습니다:
+git fetch origin automation/dependency-candidate
+git log -1 --format=%s FETCH_HEAD
+
+# 2. 승격: 수요일 워크플로우를 실행하고 따라가기
+gh workflow run auto-promote.yml --ref main
+gh run watch "$(gh run list --workflow auto-promote.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+
+#    main의 최신 커밋이 "chore(deps): promote ..."이면 승격 완료입니다:
+git fetch origin
+git log -1 --format=%s origin/main
+```
+
+1단계의 *Stage promotion commit*이 `No dependency version changes.`를 출력하고 나머지 job을 건너뛰었다면 승격할 것이 없는 상태입니다. 2단계에서 *Verify*와 *Fast-forward main*이 건너뛰어졌다면 반영할 검증 커밋이 없는 것입니다(이미 `main`에 있는 경우 포함).
+
+#### 방법 B: GitHub 웹
+
+1. **검증**
+   - 저장소의 **Actions** 탭을 열고 왼쪽 목록에서 **Dependency candidate**를 선택합니다.
+   - **Run workflow**를 누르고 **Branch: main**을 그대로 둔 채 초록색 **Run workflow** 버튼을 누릅니다.
+   - 새로고침 후 새 실행을 엽니다. 모든 job에 초록 체크가 표시되고 실행 **Summary** 하단의 **Artifacts**에 `verified-candidate`가 있으면 검증 완료입니다. 승격될 버전은 *Stage promotion commit* job 로그에서 확인할 수 있습니다.
+2. **승격**
+   - **Actions**에서 **Dependency auto-promotion**을 선택하고 **Run workflow** → **Branch: main** → **Run workflow**를 누릅니다.
+   - **Fast-forward main**을 포함한 모든 job에 초록 체크가 표시되면 승격 완료입니다. **Code** 탭에서 `main`의 최신 커밋이 `chore(deps): promote ...`로 보입니다.
+3. **실패했을 때**
+   - 빨간 실행을 열고 빨간 표시가 있는 job을 누릅니다. 실패한 단계 이름이 원인을 알려 주며, [실패 원인 표](docs/how-to/promote-dependencies.md#4-when-a-week-is-refused)에 단계별 의미와 대처법이 정리되어 있습니다.
+   - 다시 시도하려면 실행 페이지에서 **Re-run all jobs**를 누르거나 **Run workflow**로 새로 실행합니다.
+
+#### 승격된 버전을 내 PC에 반영하기
+
+`main`에 승격이 반영된 뒤 [1번 항목](#1-저장소-및-전역-cli-갱신-원클릭-부트스트랩-스크립트)의 부트스트랩 업데이트(`.\scripts\update.ps1 -Apply` 또는 `sh ./scripts/update.sh --apply`)를 실행하고, `alpha-aos update --check`에서 모든 행이 `current`인지 확인합니다.
 
 ---
 

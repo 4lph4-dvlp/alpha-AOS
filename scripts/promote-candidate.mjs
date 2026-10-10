@@ -67,7 +67,7 @@ export async function promoteCandidate(options = {}) {
     throw new Error("No candidate components found to promote in candidate.lock.json");
   }
 
-  const rawComponents = options.components ?? ["gsd", "ecc", "context7", "firecrawl", "pi"];
+  const rawComponents = options.components ?? ["gsd", "ecc", "context7", "exa", "firecrawl", "pi"];
   const componentsToPromote = Array.isArray(rawComponents)
     ? rawComponents
     : String(rawComponents).split(",").map((s) => s.trim()).filter(Boolean);
@@ -180,7 +180,7 @@ Promote verified components from candidate.lock.json to catalog/stack.lock.json.
 
 Options:
   --verify-integrity      Verify live SHA-512 SRI against registry metadata
-  --components <list>     Comma-separated components to promote (default: gsd,ecc,context7,firecrawl,pi)
+  --components <list>     Comma-separated components to promote (default: gsd,ecc,context7,exa,firecrawl,pi)
   --reset-candidate       Reset catalog/candidate.lock.json to empty status
   --dry-run               Preview changes without modifying lockfiles
   --root <path>           Repository root directory

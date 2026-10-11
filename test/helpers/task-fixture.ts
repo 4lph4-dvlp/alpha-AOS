@@ -20,7 +20,7 @@
 // path-literal guard stays green, and every fixture repository gets its own
 // local git identity so a commit succeeds on a host with no global config.
 
-import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -133,7 +133,7 @@ export async function writeGsdStub(scratch: string): Promise<string> {
 
 /** A scratch root holding the project, a private state root and the contract path. */
 export async function createTaskFixture(context: TestContext): Promise<TaskFixture> {
-  const scratch = await mkdtemp(join(tmpdir(), "alpha-aos-task-fixture-"));
+  const scratch = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-task-fixture-")));
   context.after(async () => {
     await rm(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 });
   });

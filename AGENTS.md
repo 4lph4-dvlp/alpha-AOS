@@ -262,17 +262,30 @@ No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skill
 
 <!-- GSD:workflow-start source:GSD defaults -->
 
-## GSD Workflow Enforcement
+## GSD Workflow Enforcement & alpha-AOS Governance
 
-Before using Edit, Write, or other file-changing tools, start work through a GSD command so planning artifacts and execution context stay in sync.
+Before using Edit, Write, or other file-changing tools, tasks must route through alpha-AOS governance so planning artifacts, user intent, and execution context stay in sync.
 
-Use these entry points:
+### 1. Primary Intake Authority (Top Priority)
+All natural language task requests, new task intents, or requests for autonomous execution are governed first by **`alpha-aos-task`**.
+- The agent **MUST NOT** unilaterally bypass the user to execute unreviewed mutations or silently self-assign bare `$gsd-quick`.
+- The agent **MUST** present or confirm the appropriate path with the user:
+  - **Ordinary Conversational GSD (Default)**: Interactive step-by-step workflow within the current conversation.
+  - **Autonomous Autopilot**: Isolated, bounded execution governed by an explicit task contract and exact-digest approval.
 
-- `$gsd-quick` for small fixes, doc updates, and ad-hoc tasks
-- `$gsd-debug` for investigation and bug fixing
-- `$gsd-execute-phase` for planned phase work
+### 2. Execution Entry Points & Native Shortcuts
+Once task intake is established under `alpha-aos-task`, native shortcuts remain fully valid and operational as downstream execution mechanisms:
+- `$gsd-quick`: For small, focused fixes, documentation updates, and ad-hoc tasks where the approach is unambiguous. Non-trivial tasks involving external repositories, new tools, or architecture decisions must not use bare quick without required research.
+- `$gsd-debug`: For investigation and bug fixing.
+- `$gsd-execute-phase`: For planned milestone and phase execution.
 
 Do not make direct repo edits outside a GSD workflow unless the user explicitly asks to bypass it.
+
+### 3. Active Capability Orchestration (D-02)
+During GSD research, planning, and execution, agents must actively invoke managed capabilities rather than falling back to unverified assumptions:
+- **External Repositories & Web Docs**: Use Exa (`web_search_exa`) for discovery and Firecrawl (`firecrawl_scrape`) for content extraction.
+- **Libraries & APIs**: Use Context7 (`resolve-library-id`, `query-docs`) to ground code against up-to-date official documentation.
+- **Session & Harness Continuity**: Persist durable context into the ECC Unified Memory vault (`unified-memory` / `ecc memory`) across phase or harness boundaries.
 <!-- GSD:workflow-end -->
 
 <!-- GSD:profile-start -->

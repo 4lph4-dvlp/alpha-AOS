@@ -19,8 +19,12 @@ When a user expresses a general task request (e.g., "Implement feature X", "Fix 
 2. Present a clear two-path choice to the user:
    - **Ordinary Conversational GSD (Recommended / Default)**: Interactive, step-by-step workflow within the current conversation (`$gsd-quick`, `$gsd-execute-phase`, or `$gsd-debug`).
    - **Autonomous Autopilot**: Isolated, bounded, background-supervised execution governed by an explicit task contract.
-3. **If user chooses Ordinary GSD (or defaults to it)**:
+3. **Precedence Invariant (No Ambient Shortcut Bypass)**:
+   - The agent **MUST NOT** bypass path confirmation by unilaterally jumping directly into execution shortcuts (such as bare `$gsd-quick`).
+   - Native shortcuts (`$gsd-quick`, `$gsd-debug`, `$gsd-execute-phase`) operate **downstream** of intake confirmation, never as a bypass around it.
+4. **If user chooses Ordinary GSD (or defaults to it)**:
    - Continue immediately within the same conversation in the appropriate GSD workflow.
+   - For non-trivial tasks (involving external repositories, new capabilities, or architectural decisions), the agent **MUST NOT** use bare `$gsd-quick` that silently skips research and discussion.
    - Do NOT require the user to re-enter a separate CLI command.
    - Do NOT create task contracts, supervisor records, or background run files.
 
@@ -97,6 +101,31 @@ Even if the original chat session terminates or disconnects:
    ```
 3. If `--run` is omitted and multiple runs exist, the CLI deterministically queries the latest run and displays its Run ID and start timestamp.
 4. `task stop` requests termination; the supervisor marks `stopped` only after actual child process termination is verified.
+
+---
+
+## Active Capability Orchestration Rules (D-02)
+
+alpha-AOS provides an integrated capability suite across all supported harnesses. During GSD planning and execution, agents MUST actively invoke these capabilities when triggered by task context:
+
+1. **External Repository & Open Web Investigation (ORCH-01)**:
+   - **Trigger**: Tasks referencing external git repositories, third-party libraries, unfamiliar documentation URLs, or web resources.
+   - **Mandatory Capabilities**:
+     - `web_search_exa`: Candidate source and repository discovery.
+     - `firecrawl_scrape`: Deep extraction of authoritative source documentation, release notes, or repository READMEs/APIs.
+   - **Rule**: Do not guess external repository structures or API behaviors from internal memory. Execute active discovery and extraction before finalizing plans or editing code.
+
+2. **Official Documentation Grounding (ORCH-02)**:
+   - **Trigger**: Tasks modifying package dependencies, updating framework versions, or integrating library APIs.
+   - **Mandatory Capabilities**:
+     - Context7 (`resolve-library-id`, `query-docs`): Direct lookup of official, versioned library documentation.
+   - **Rule**: Verify library APIs and release notes against Context7 before making breaking changes or updating dependency manifests.
+
+3. **Cross-Agent & Session Boundary Continuity (ORCH-03)**:
+   - **Trigger**: Phase completion, cross-harness task transitions (e.g. Codex ↔ Claude ↔ Antigravity), or session pause/resume.
+   - **Mandatory Capabilities**:
+     - ECC Unified Memory vault (`unified-memory` skill / `ecc memory` CLI): Persisting structured handoff context into `.ecc/memory/`.
+   - **Rule**: Any critical architectural decision, phase summary, or uncommitted task state must be recorded for continuous recall across harnesses.
 
 ---
 

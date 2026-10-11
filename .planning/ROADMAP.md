@@ -19,6 +19,7 @@
 - [x] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar (completed 2026-10-09)
 - [x] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX (verified 2026-10-10)
 - [x] **Phase 22: Release Proof** - Three-OS, packed and live-harness evidence (completed 2026-10-10)
+- [ ] **Phase 23: Capability Governance and Active Tool Orchestration** - Top-priority intake hierarchy across harnesses and enforced active invocation of Exa, Firecrawl, Context7, and Unified Memory
 
 ## Phase Map
 
@@ -33,6 +34,7 @@
 | 20 | General connectors and CoursePilot materials proof | TOOL-01..02, TOOL-04 | 15, 19 |
 | 21 | Natural-language skill, opt-in mode and persistent CLI | UX-01..03 | 16–20 |
 | 22 | Cross-platform, packed-release and live support proof | VER-01..04 | 14–21 |
+| 23 | Top-priority intake governance and active tool orchestration | GOV-01..03, ORCH-01..03 | 18, 21, 22 |
 
 Every requirement maps to exactly one phase. Subsequent phases can reuse a previous capability but must not claim its requirement complete without the owning phase's verification. Each phase starts with the existing GSD discuss → plan → plan check workflow; execute and verify when its plan passes. One production-quality end-to-end tracer leads each plan unless the phase planner documents a specific reason to vary it.
 
@@ -443,6 +445,40 @@ Plans:
 **Wave 4** *(blocked on Wave 3 completion)*
 
 - [x] 22-06-PLAN.md — Current-candidate release evidence, documentation and independent milestone gate
+
+### Phase 23: Capability Governance and Active Tool Orchestration
+
+**Goal:** Establish top-priority task intake governance across all five harnesses without deleting native shortcuts, and enforce active invocation of Exa, Firecrawl, Context7, and ECC Unified Memory across the GSD lifecycle.
+
+**Requirements**: GOV-01..03, ORCH-01..03.
+
+**Depends on:** Phases 18, 21, 22.
+
+**Implementation slices:**
+1. Governance hierarchy: `alpha-aos-task` intake outranks native shortcuts in `AGENTS.md` and harness instructions while preserving native shortcut viability under alpha-AOS governance.
+2. Active tool orchestration: GSD planning and execution templates mandate Exa/Firecrawl web research for external references, Context7 for dependency/API changes, and ECC Unified Memory handoffs on session boundaries.
+3. Guardrails against unreviewed bare `quick` bypass for non-trivial tasks.
+4. Multi-harness verification tracer proving native discovery, interactive intake adherence, and positive capability receipt generation.
+
+**Success Criteria** (what must be TRUE):
+1. In all five harnesses, natural task requests trigger `alpha-aos-task` intake path selection (conversational GSD vs autonomous autopilot) before mutations begin, without bypassing via native shortcuts.
+2. Native shortcuts remain operational and valid under alpha-AOS priority rather than being removed.
+3. Tasks involving external URLs or software repositories produce verifiable Firecrawl/Exa invocation evidence before planning/execution.
+4. Tasks altering dependencies, libraries, or APIs produce verifiable Context7 documentation lookup evidence.
+5. Session handoffs and milestone pauses produce verifiable ECC Unified Memory vault records.
+6. Automated regression tests and live tracers confirm governance adherence across Claude, Codex, Antigravity, Pi, and Hermes.
+
+**Plans:** 3/3 plans complete
+
+Plans:
+**Wave 1**
+- [x] 23-01-PLAN.md — Governance Precedence Hierarchy: Establish alpha-aos-task primary intake authority and anti-bypass guards in AGENTS.md and SKILL.md (GOV-01, GOV-02, GOV-03)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 23-02-PLAN.md — Active Capability Orchestration: Enforce mandatory Exa/Firecrawl, Context7, and Unified Memory in GSD lifecycle across all 5 harnesses (ORCH-01, ORCH-02, ORCH-03)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 23-03-PLAN.md — End-to-End Tracer & Cross-Harness Verification: E2E tracer suite and full 1,569-test green verification
 
 ## Planning and Execution Gates
 

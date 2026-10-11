@@ -955,11 +955,15 @@ export async function readReceiptClaims(root: string): Promise<ReceiptClaims> {
  * not which skills alpha-AOS installs globally.
  */
 function personalSkillRoots(environment: NodeJS.ProcessEnv, home: string): string[] {
+  const hermes = environment.HERMES_HOME?.trim()
+    || (process.platform === "win32" && environment.LOCALAPPDATA?.trim() && existsSync(join(environment.LOCALAPPDATA.trim(), "hermes"))
+      ? join(environment.LOCALAPPDATA.trim(), "hermes")
+      : join(home, ".hermes"));
   return [
     join(environment.CLAUDE_CONFIG_DIR?.trim() || join(home, ".claude"), "skills"),
     join(home, ".agents", "skills"),
     join(environment.ANTIGRAVITY_CONFIG_DIR?.trim() || join(home, ".gemini", "config"), "skills"),
-    join(environment.HERMES_HOME?.trim() || join(home, ".hermes"), "skills"),
+    join(hermes, "skills"),
   ];
 }
 

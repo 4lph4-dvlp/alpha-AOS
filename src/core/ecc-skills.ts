@@ -4,6 +4,7 @@ import { readFile, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, StackLock } from "../types.js";
+import { hermesHome } from "../adapters/harnesses.js";
 import {
   createEccFixtureOperationPlan,
   runEccFixture,
@@ -54,7 +55,7 @@ export function globalEccSkillRoot(harness: HarnessId, env: NodeJS.ProcessEnv = 
     case "codex": return join(home, ".agents", "skills");
     case "antigravity": return join(env.ANTIGRAVITY_CONFIG_DIR?.trim() || join(home, ".gemini", "config"), "skills");
     case "pi": return join(home, ".agents", "skills");
-    case "hermes": return join(env.HERMES_HOME?.trim() || join(home, ".hermes"), "skills");
+    case "hermes": return join(hermesHome(env, home), "skills");
   }
 }
 

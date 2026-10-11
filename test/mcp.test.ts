@@ -6,7 +6,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
 import { loadLock } from "../src/core/catalog.js";
-import { applyMcpSync, NativeConfigError, planMcpOperation, planMcpSync, renderMcpConfig, validateNativeConfig } from "../src/core/mcp.js";
+import { applyMcpSync, ensureHermesAutoLoadSkill, NativeConfigError, planMcpOperation, planMcpSync, renderMcpConfig, validateNativeConfig } from "../src/core/mcp.js";
+import { hermesHome } from "../src/adapters/harnesses.js";
 import { ComponentPlanError } from "../src/core/component-session.js";
 import { acquireMutationSession, inspectWriterState, WriterConflictError, writerLockPath } from "../src/core/writer-lock.js";
 import { allowedMcpTools } from "../src/core/mcp-proxy.js";
@@ -373,3 +374,74 @@ test("an MCP plan reviewed before the native config changed refuses and writes n
   assert.equal(await readFile(configPath, "utf8"), edited, "a refused plan leaves the user's edit alone");
   assert.equal(existsSync(writerLockPath(stateRoot)), false);
 });
+
+test("hermesHome resolves HERMES_HOME, LOCALAPPDATA, and homedir with platform fallback", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-hermes-home-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  // 1. Explicit HERMES_HOME takes top priority
+  assert.equal(
+    hermesHome({ HERMES_HOME: join(root, "custom-hermes") }, root, "win32"),
+    join(root, "custom-hermes"),
+  );
+
+  // 2. Windows with existing LOCALAPPDATA/hermes
+  const localAppHermes = join(root, "AppData", "Local", "hermes");
+  await mkdir(localAppHermes, { recursive: true });
+  assert.equal(
+    hermesHome({ LOCALAPPDATA: join(root, "AppData", "Local") }, root, "win32"),
+    localAppHermes,
+  );
+
+  // 3. Fallback to ~/.hermes when LOCALAPPDATA/hermes does not exist but ~/.hermes exists
+  const home2 = await mkdtemp(join(tmpdir(), "alpha-aos-hermes-home2-"));
+  context.after(async () => rm(home2, { recursive: true, force: true }));
+  const dotHermes = join(home2, ".hermes");
+  await mkdir(dotHermes, { recursive: true });
+  assert.equal(
+    hermesHome({ LOCALAPPDATA: join(home2, "nonexistent") }, home2, "win32"),
+    dotHermes,
+  );
+
+  // 4. Default on non-Windows is ~/.hermes
+  assert.equal(
+    hermesHome({}, home2, "linux"),
+    dotHermes,
+  );
+});
+
+test("Hermes MCP config rendering automatically ensures alpha-aos-task in skills.auto_load while preserving existing skills", async () => {
+  const lock = await loadLock(packageRoot());
+
+  // Existing config with user skills
+  const existingWithCoursepilot = `
+model:
+  provider: anthropic
+skills:
+  auto_load:
+    - coursepilot
+`;
+  const rendered1 = renderMcpConfig("hermes", existingWithCoursepilot, lock);
+  const parsed1 = parse(rendered1) as { skills?: { auto_load?: string[] } };
+  assert.deepEqual(parsed1.skills?.auto_load, ["coursepilot", "alpha-aos-task"]);
+
+  // Idempotency: re-rendering does not duplicate alpha-aos-task
+  const rendered2 = renderMcpConfig("hermes", rendered1, lock);
+  const parsed2 = parse(rendered2) as { skills?: { auto_load?: string[] } };
+  assert.deepEqual(parsed2.skills?.auto_load, ["coursepilot", "alpha-aos-task"]);
+
+  // Scalar auto_load converted to list
+  const existingScalar = `
+skills:
+  auto_load: custom-skill
+`;
+  const renderedScalar = renderMcpConfig("hermes", existingScalar, lock);
+  const parsedScalar = parse(renderedScalar) as { skills?: { auto_load?: string[] } };
+  assert.deepEqual(parsedScalar.skills?.auto_load, ["custom-skill", "alpha-aos-task"]);
+
+  // Empty config initializes skills.auto_load
+  const renderedEmpty = renderMcpConfig("hermes", "", lock);
+  const parsedEmpty = parse(renderedEmpty) as { skills?: { auto_load?: string[] } };
+  assert.deepEqual(parsedEmpty.skills?.auto_load, ["alpha-aos-task"]);
+});
+

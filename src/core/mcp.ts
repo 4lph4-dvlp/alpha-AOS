@@ -4,7 +4,8 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseDocument } from "yaml";
+import { isMap, isSeq, parseDocument, type Document } from "yaml";
+import { hermesHome } from "../adapters/harnesses.js";
 import type { HarnessId, LockedPackage, McpServerId, StackLock } from "../types.js";
 import { resolveNodePackageCli } from "./process.js";
 import { aliasPath, createPathAliases, packageRoot, userStateRoot } from "./paths.js";
@@ -108,7 +109,7 @@ export function globalMcpConfigPath(harness: HarnessId, env: NodeJS.ProcessEnv =
     case "codex": return join(env.CODEX_HOME?.trim() || join(home, ".codex"), "config.toml");
     case "antigravity": return join(home, ".gemini", "config", "mcp_config.json");
     case "pi": return join(env.PI_CODING_AGENT_DIR?.trim() || join(home, ".pi", "agent"), "mcp.json");
-    case "hermes": return join(env.HERMES_HOME?.trim() || join(home, ".hermes"), "config.yaml");
+    case "hermes": return join(hermesHome(env, home), "config.yaml");
   }
 }
 
@@ -289,6 +290,42 @@ function managedJsonIsCurrent(
   return true;
 }
 
+function managedHermesIsCurrent(
+  existing: string,
+  rendered: string,
+  selected: McpServerId[],
+): boolean {
+  if (!existing.trim()) return false;
+  try {
+    const currentDoc = parseDocument(existing);
+    const desiredDoc = parseDocument(rendered);
+    if (currentDoc.errors.length > 0 || desiredDoc.errors.length > 0) return false;
+    const currentServersNode = currentDoc.get("mcp_servers");
+    const desiredServersNode = desiredDoc.get("mcp_servers");
+    const currentServers = currentServersNode && typeof currentServersNode === "object" && "toJSON" in currentServersNode
+      ? (currentServersNode as { toJSON: () => unknown }).toJSON()
+      : undefined;
+    const desiredServers = desiredServersNode && typeof desiredServersNode === "object" && "toJSON" in desiredServersNode
+      ? (desiredServersNode as { toJSON: () => unknown }).toJSON()
+      : undefined;
+    if (typeof currentServers !== "object" || currentServers === null || Array.isArray(currentServers)) return false;
+    if (typeof desiredServers !== "object" || desiredServers === null || Array.isArray(desiredServers)) return false;
+    for (const id of selected) {
+      const currentEntry = (currentServers as Record<string, unknown>)[id];
+      const desiredEntry = (desiredServers as Record<string, unknown>)[id];
+      if (canonicalJson(currentEntry) !== canonicalJson(desiredEntry)) return false;
+    }
+    const currentSkillsNode = currentDoc.getIn(["skills", "auto_load"]);
+    const currentSkills = currentSkillsNode && typeof currentSkillsNode === "object" && "toJSON" in currentSkillsNode
+      ? (currentSkillsNode as { toJSON: () => unknown }).toJSON()
+      : currentSkillsNode;
+    if (!Array.isArray(currentSkills) || !currentSkills.includes("alpha-aos-task")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function tomlString(value: string): string {
   return JSON.stringify(value);
 }
@@ -346,6 +383,45 @@ function renderCodexConfig(existing: string, locks: Record<McpServerId, LockedPa
   return `${base ? `${base}\n\n` : ""}${blocks.join("\n")}\n`;
 }
 
+export function ensureHermesAutoLoadSkill(
+  document: Document,
+  skillsToEnsure: string[] | string = "alpha-aos-task",
+): void {
+  const targets = Array.isArray(skillsToEnsure) ? skillsToEnsure : [skillsToEnsure];
+  const skillsNode = document.get("skills");
+  if (!skillsNode || !isMap(skillsNode)) {
+    document.set("skills", { auto_load: [...targets] });
+    return;
+  }
+  const current = document.getIn(["skills", "auto_load"]);
+  if (!current) {
+    document.setIn(["skills", "auto_load"], [...targets]);
+    return;
+  }
+  if (isSeq(current)) {
+    const items = current.toJSON() as unknown[];
+    for (const skill of targets) {
+      if (Array.isArray(items) && !items.includes(skill)) {
+        current.add(skill);
+      }
+    }
+  } else if (Array.isArray(current)) {
+    for (const skill of targets) {
+      if (!current.includes(skill)) {
+        current.push(skill);
+      }
+    }
+  } else if (typeof current === "string") {
+    const list = [current];
+    for (const skill of targets) {
+      if (!list.includes(skill)) {
+        list.push(skill);
+      }
+    }
+    document.setIn(["skills", "auto_load"], list);
+  }
+}
+
 function renderHermesConfig(existing: string, locks: Record<McpServerId, LockedPackage>, selected: McpServerId[], options: McpRenderOptions = {}): string {
   const document = parseDocument(existing.trim() ? existing : "{}\n");
   if (document.errors.length > 0) throw new Error(`Hermes config YAML is invalid: ${document.errors[0]?.message ?? "unknown parse error"}`);
@@ -360,6 +436,7 @@ function renderHermesConfig(existing: string, locks: Record<McpServerId, LockedP
       enabled: true,
     });
   }
+  ensureHermesAutoLoadSkill(document, "alpha-aos-task");
   return document.toString({ lineWidth: 0 });
 }
 
@@ -511,7 +588,9 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
   const managedCurrent = currentHash !== null && (
     harness === "claude" || harness === "antigravity" || harness === "pi"
       ? managedJsonIsCurrent(harness, existing, rendered, selected)
-      : currentHash === sha256(rendered)
+      : harness === "hermes"
+        ? managedHermesIsCurrent(existing, rendered, selected)
+        : currentHash === sha256(rendered)
   );
   const expectedHash = managedCurrent ? currentHash : sha256(rendered);
   const locks = lockedServers(lock, selected);

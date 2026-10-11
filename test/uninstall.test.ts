@@ -153,11 +153,17 @@ mcp_servers:
   context7:
     command: npx
     args: ["@upstash/context7-mcp"]
+skills:
+  auto_load:
+    - coursepilot
+    - alpha-aos-task
 `;
   const prunedYaml = pruneHermesConfig(userYaml);
   assert.ok(prunedYaml.includes("user_setting: true"));
   assert.ok(prunedYaml.includes("custom_server:"));
   assert.ok(!prunedYaml.includes("context7:"));
+  assert.ok(prunedYaml.includes("coursepilot"));
+  assert.ok(!prunedYaml.includes("alpha-aos-task"));
 
   // Pi config with user settings and custom server
   const userPi = JSON.stringify({

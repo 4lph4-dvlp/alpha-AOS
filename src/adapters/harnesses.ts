@@ -40,9 +40,31 @@ const probes: Record<HarnessId, ProbeDefinition> = {
   },
   hermes: {
     commands: ["hermes"],
-    configRoots: () => [environmentOrFallback("HERMES_HOME", join(homedir(), ".hermes"))],
+    configRoots: () => [
+      ...(process.env.HERMES_HOME?.trim() ? [process.env.HERMES_HOME.trim()] : []),
+      ...(process.platform === "win32" && process.env.LOCALAPPDATA ? [join(process.env.LOCALAPPDATA, "hermes")] : []),
+      join(homedir(), ".hermes"),
+    ],
   },
 };
+
+export function hermesHome(
+  env: NodeJS.ProcessEnv = process.env,
+  home = homedir(),
+  platform: NodeJS.Platform = process.platform,
+): string {
+  if (env.HERMES_HOME?.trim()) return env.HERMES_HOME.trim();
+  if (platform === "win32" && env.LOCALAPPDATA?.trim()) {
+    const local = join(env.LOCALAPPDATA.trim(), "hermes");
+    if (existsSync(local)) return local;
+  }
+  const dotHermes = join(home, ".hermes");
+  if (existsSync(dotHermes)) return dotHermes;
+  if (platform === "win32" && env.LOCALAPPDATA?.trim()) {
+    return join(env.LOCALAPPDATA.trim(), "hermes");
+  }
+  return dotHermes;
+}
 
 export function probeHarness(id: HarnessId, catalog: StackCatalog): HarnessInventory {
   const definition = probes[id];

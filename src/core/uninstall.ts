@@ -4,7 +4,7 @@ import { readFile, readdir, rm } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { parse as parseToml } from "smol-toml";
-import { parseDocument } from "yaml";
+import { isSeq, parseDocument } from "yaml";
 import type {
   HarnessId,
   RecoveryReceiptEntry,
@@ -186,6 +186,7 @@ export function prunePiConfig(
 export function pruneHermesConfig(
   content: string,
   managedServers: readonly string[] = ["context7", "exa", "firecrawl"],
+  managedSkills: readonly string[] = ["alpha-aos-task"],
 ): string {
   if (!content.trim()) return content;
   const doc = parseDocument(content);
@@ -206,6 +207,30 @@ export function pruneHermesConfig(
       (afterNode as { items: unknown[] }).items.length === 0
     ) {
       doc.delete("mcp_servers");
+    }
+  }
+  const autoLoadNode = doc.getIn(["skills", "auto_load"]);
+  if (autoLoadNode && isSeq(autoLoadNode)) {
+    for (const skill of managedSkills) {
+      const idx = autoLoadNode.items.findIndex(
+        (item: unknown) => (item as { value?: unknown })?.value === skill || item === skill,
+      );
+      if (idx !== -1) {
+        autoLoadNode.delete(idx);
+      }
+    }
+    if (autoLoadNode.items.length === 0) {
+      doc.deleteIn(["skills", "auto_load"]);
+      const skillsNode = doc.get("skills");
+      if (
+        skillsNode &&
+        typeof skillsNode === "object" &&
+        "items" in skillsNode &&
+        Array.isArray((skillsNode as { items: unknown[] }).items) &&
+        (skillsNode as { items: unknown[] }).items.length === 0
+      ) {
+        doc.delete("skills");
+      }
     }
   }
   return doc.toString({ lineWidth: 0 });

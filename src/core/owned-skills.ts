@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, StackCatalog, StackLock } from "../types.js";
+import { hermesHome } from "../adapters/harnesses.js";
 import { userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
@@ -45,7 +46,7 @@ function homedirRootFor(target: HarnessId, env: NodeJS.ProcessEnv = process.env,
     case "codex": return env.CODEX_HOME?.trim() || join(home, ".agents");
     case "antigravity": return env.ANTIGRAVITY_CONFIG_DIR?.trim() || join(home, ".gemini", "config");
     case "pi": return join(home, ".agents");
-    case "hermes": return env.HERMES_HOME?.trim() || join(home, ".hermes");
+    case "hermes": return hermesHome(env, home);
   }
 }
 

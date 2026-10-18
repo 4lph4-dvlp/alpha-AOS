@@ -76,7 +76,6 @@ export function probeHarness(id: HarnessId, catalog: StackCatalog): HarnessInven
   if (!command && roots.length > 0) notes.push("config detected, CLI command not found");
   // An unreadable version is reported as unsupported, never simulated.
   if (probe.unsupportedReason !== null) notes.push(`version unavailable: ${probe.unsupportedReason}`);
-  if (id === "hermes") notes.push("worker-only by stack policy; not a GSD state writer");
   if (id === "pi") notes.push("Pi 0.84.4+ discovers Agent Skills from the shared ~/.agents/skills root; extensions remain separate");
   return {
     id,
@@ -101,14 +100,11 @@ export interface HarnessAuthority {
 }
 
 export function probeHarnessAuthority(id: HarnessId): HarnessAuthority {
-  const isHermes = id === "hermes";
   return {
     id,
-    defaultRole: isHermes ? "worker" : "controller",
-    isStateWriterAllowed: !isHermes,
-    notes: isHermes
-      ? ["worker-only by stack policy; not a GSD state writer"]
-      : ["permitted GSD controller role when session initiator"],
+    defaultRole: "controller",
+    isStateWriterAllowed: true,
+    notes: ["permitted GSD controller role when session initiator"],
   };
 }
 

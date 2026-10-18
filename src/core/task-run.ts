@@ -1516,7 +1516,12 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     }
 
     // GSD's own evidence, read and never written (RUN-01).
-    const evidence = await verifyGsdEvidence({ projectRoot, baseCommit: baseline.baseCommit, claimQuickId: claim?.gsdQuickId ?? null });
+    const evidence = await verifyGsdEvidence({
+      projectRoot,
+      baseCommit: baseline.baseCommit,
+      claimQuickId: claim?.gsdQuickId ?? null,
+      allowExistingClaimedQuick: contract.revision > 1 || prior.length > 0 || Boolean(options.allowPriorRun),
+    });
     record = { ...record, gsd: gsdBlock(evidence, outline.sourceSha256) };
     const planningAfter = await snapshotPlanningState(projectRoot);
     const preconditions: TaskPrecondition[] = [

@@ -60,9 +60,10 @@ import {
 } from "./skill-policy.js";
 import { rollbackFileTransaction } from "./transaction.js";
 import { resolveDirectLaunch } from "../adapters/capability-oracle.js";
+import { hermesHome } from "../adapters/harnesses.js";
 
 const allHarnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
-const gsdHarnesses: GsdFixtureHarness[] = ["claude", "codex", "antigravity", "pi"];
+const gsdHarnesses: GsdFixtureHarness[] = ["claude", "codex", "antigravity", "pi", "hermes"];
 
 export interface ManagedInstallStep {
   id: string;
@@ -105,6 +106,7 @@ export function globalGsdConfigRoot(harness: GsdFixtureHarness, env: NodeJS.Proc
     case "codex": return environmentOrFallback(env, "CODEX_HOME", join(home, ".codex"));
     case "antigravity": return environmentOrFallback(env, "ANTIGRAVITY_CONFIG_DIR", join(home, ".gemini", "antigravity"));
     case "pi": return environmentOrFallback(env, "PI_CODING_AGENT_DIR", join(home, ".pi", "agent"));
+    case "hermes": return environmentOrFallback(env, "HERMES_HOME", hermesHome(env, home));
   }
 }
 
@@ -185,6 +187,11 @@ export const NODE_RUNTIME_ENVIRONMENT_NAMES: readonly string[] = [
   "npm_config_registry",
   "npm_config_userconfig",
   "NODE_EXTRA_CA_CERTS",
+  "CLAUDE_CONFIG_DIR",
+  "CODEX_HOME",
+  "ANTIGRAVITY_CONFIG_DIR",
+  "PI_CODING_AGENT_DIR",
+  "HERMES_HOME",
 ];
 
 /** An environment policy for a Node/npm child plus operation-specific names. */
@@ -193,10 +200,14 @@ export function nodeRuntimeEnvironment(options: {
   literal?: Readonly<Record<string, string>>;
   source?: NodeJS.ProcessEnv;
 } = {}): EnvironmentPolicy {
+  const source = options.source ?? process.env;
+  const inferredHermes = !source.HERMES_HOME?.trim() && process.platform === "win32" && source.LOCALAPPDATA?.trim()
+    ? { HERMES_HOME: hermesHome(source) }
+    : {};
   return {
     optional: [...NODE_RUNTIME_ENVIRONMENT_NAMES, ...(options.extraNames ?? [])],
-    literal: options.literal ?? {},
-    source: options.source ?? process.env,
+    literal: { ...inferredHermes, ...(options.literal ?? {}) },
+    source,
   };
 }
 

@@ -62,6 +62,9 @@ export interface TaskAgentPolicy {
   controller: HarnessId;
   executor: HarnessId;
   reviewer: HarnessId;
+  controllerModel?: string | undefined;
+  executorModel?: string | undefined;
+  reviewerModel?: string | undefined;
   reviewerSession: "fresh-read-only";
   differentReviewerPolicy?: DifferentReviewerPolicy | undefined;
 }
@@ -603,6 +606,15 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       controller: contract.agentPolicy.controller,
       executor: contract.agentPolicy.executor,
       reviewer: contract.agentPolicy.reviewer,
+      ...(contract.agentPolicy.controllerModel !== undefined
+        ? { controllerModel: contract.agentPolicy.controllerModel.normalize("NFC") }
+        : {}),
+      ...(contract.agentPolicy.executorModel !== undefined
+        ? { executorModel: contract.agentPolicy.executorModel.normalize("NFC") }
+        : {}),
+      ...(contract.agentPolicy.reviewerModel !== undefined
+        ? { reviewerModel: contract.agentPolicy.reviewerModel.normalize("NFC") }
+        : {}),
       reviewerSession: contract.agentPolicy.reviewerSession,
     },
     resourcePolicy: {
@@ -649,6 +661,9 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("agentPolicy.controller", before.agentPolicy.controller, after.agentPolicy.controller);
   compare("agentPolicy.executor", before.agentPolicy.executor, after.agentPolicy.executor);
   compare("agentPolicy.reviewer", before.agentPolicy.reviewer, after.agentPolicy.reviewer);
+  compare("agentPolicy.controllerModel", before.agentPolicy.controllerModel ?? null, after.agentPolicy.controllerModel ?? null);
+  compare("agentPolicy.executorModel", before.agentPolicy.executorModel ?? null, after.agentPolicy.executorModel ?? null);
+  compare("agentPolicy.reviewerModel", before.agentPolicy.reviewerModel ?? null, after.agentPolicy.reviewerModel ?? null);
   compare("agentPolicy.reviewerSession", before.agentPolicy.reviewerSession, after.agentPolicy.reviewerSession);
   compare("resourcePolicy.maxCostUsd", before.resourcePolicy.maxCostUsd, after.resourcePolicy.maxCostUsd);
   compare("resourcePolicy.maxCycles", before.resourcePolicy.maxCycles, after.resourcePolicy.maxCycles);

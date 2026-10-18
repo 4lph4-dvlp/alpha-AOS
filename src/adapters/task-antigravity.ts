@@ -1,6 +1,7 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { packageRoot as defaultPackageRoot } from "../core/paths.js";
+import type { TaskAgentPolicy } from "../core/task-contract.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
 import type {
   ControllerDispatchRequest,
@@ -40,6 +41,7 @@ export const ANTIGRAVITY_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 export const ANTIGRAVITY_TASK_OUTPUT_BYTES = 4 * 1024 * 1024;
 const DETAIL_LIMIT = 400;
 const ISSUE_LIMIT = 400;
+const SAFE_MODEL_ID = /^[A-Za-z0-9._:/-]+$/u;
 
 export const ANTIGRAVITY_TASK_ENVIRONMENT_NAMES: readonly string[] = uniqueNames([
   ...TASK_AGENT_BASE_ENVIRONMENT_NAMES,
@@ -53,6 +55,134 @@ export interface AntigravityAdapterOptions {
   packageRoot?: string;
   source?: NodeJS.ProcessEnv;
   now?: () => Date;
+  model?: string | undefined;
+}
+
+export interface AntigravitySubagentValidation {
+  readonly ok: boolean;
+  readonly code: "OK" | "INCOMPATIBLE_SUBAGENT_MODEL";
+  readonly reason: string | null;
+}
+
+/**
+ * Guards against silent model downgrades on Antigravity `invoke_subagent` calls (BUG-05).
+ * The Antigravity platform launcher forces `"inherit": true` for `typeName: "self"`,
+ * ignoring any explicit `Model` override (such as `"pro"` or `"flash"`).
+ */
+export function validateAntigravitySubagentDispatch(options: {
+  typeName: string;
+  requestedModel?: string | null | undefined;
+  parentModel?: string | null | undefined;
+}): AntigravitySubagentValidation {
+  const typeName = options.typeName.trim();
+  const requested = options.requestedModel?.trim() ?? "";
+  const parent = options.parentModel?.trim() ?? "";
+
+  if (
+    typeName === "self" &&
+    requested.length > 0 &&
+    requested.toLowerCase() !== "inherit" &&
+    (parent.length === 0 || requested.toLowerCase() !== parent.toLowerCase())
+  ) {
+    return {
+      ok: false,
+      code: "INCOMPATIBLE_SUBAGENT_MODEL",
+      reason:
+        `INCOMPATIBLE_SUBAGENT_MODEL: Antigravity subagent typeName 'self' forces parent model inheritance and cannot honor explicit model override '${requested}'. ` +
+        `Use a dedicated role subagent (e.g. 'gsd-planner', 'gsd-executor', 'gsd-verifier', 'research') or dispatch via CLI with '--model ${requested}'.`,
+    };
+  }
+
+  return { ok: true, code: "OK", reason: null };
+}
+
+export function assertAntigravitySubagentDispatch(options: {
+  typeName: string;
+  requestedModel?: string | null | undefined;
+  parentModel?: string | null | undefined;
+}): void {
+  const result = validateAntigravitySubagentDispatch(options);
+  if (!result.ok) {
+    throw new Error(result.reason ?? "INCOMPATIBLE_SUBAGENT_MODEL");
+  }
+}
+
+/**
+ * Resolves the explicit model identifier for an Antigravity role from adapter options,
+ * contract `agentPolicy`, or `<projectRoot>/.planning/config.json` (BUG-01).
+ */
+export async function resolveAntigravityRoleModel(options: {
+  role: "controller" | "executor" | "reviewer";
+  adapterModel?: string | undefined;
+  agentPolicy?: TaskAgentPolicy | undefined;
+  projectRoot?: string | undefined;
+}): Promise<string | undefined> {
+  const sanitize = (candidate: unknown): string | undefined => {
+    if (typeof candidate !== "string") return undefined;
+    const trimmed = candidate.trim();
+    return trimmed.length > 0 && SAFE_MODEL_ID.test(trimmed) ? trimmed : undefined;
+  };
+
+  const direct = sanitize(options.adapterModel);
+  if (direct !== undefined) return direct;
+
+  const policy = options.agentPolicy;
+  if (policy !== undefined) {
+    if (options.role === "controller") {
+      const ctrl = sanitize(policy.controllerModel) ?? (policy.controller === policy.executor ? sanitize(policy.executorModel) : undefined);
+      if (ctrl !== undefined) return ctrl;
+    } else if (options.role === "executor") {
+      const exec = sanitize(policy.executorModel) ?? (policy.executor === policy.controller ? sanitize(policy.controllerModel) : undefined);
+      if (exec !== undefined) return exec;
+    } else if (options.role === "reviewer") {
+      const rev = sanitize(policy.reviewerModel);
+      if (rev !== undefined) return rev;
+    }
+  }
+
+  if (options.projectRoot) {
+    try {
+      const configPath = join(options.projectRoot, ".planning", "config.json");
+      const raw = await readFile(configPath, "utf8");
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const overrides = parsed.model_profile_overrides;
+      if (typeof overrides === "object" && overrides !== null && !Array.isArray(overrides)) {
+        const record = overrides as Record<string, unknown>;
+        const agyNested = record.antigravity;
+        if (typeof agyNested === "object" && agyNested !== null && !Array.isArray(agyNested)) {
+          const nestedRole =
+            sanitize((agyNested as Record<string, unknown>)[options.role]) ??
+            (options.role === "reviewer" ? sanitize((agyNested as Record<string, unknown>).verifier) : undefined);
+          if (nestedRole !== undefined) return nestedRole;
+        }
+        const roleOverride =
+          sanitize(record[options.role]) ??
+          (options.role === "reviewer" ? sanitize(record.verifier) : undefined);
+        if (roleOverride !== undefined) return roleOverride;
+        if (options.role === "controller") {
+          const execFallback = sanitize(record.executor);
+          if (execFallback !== undefined) return execFallback;
+        }
+        const defaultOverride = sanitize(record.default);
+        if (defaultOverride !== undefined) return defaultOverride;
+      }
+      const crossAiCmd =
+        typeof parsed.cross_ai_command === "string"
+          ? parsed.cross_ai_command
+          : typeof parsed.review === "object" && parsed.review !== null && typeof (parsed.review as Record<string, unknown>).cross_ai_command === "string"
+            ? ((parsed.review as Record<string, unknown>).cross_ai_command as string)
+            : undefined;
+      if (crossAiCmd) {
+        const match = crossAiCmd.match(/--model(?:\s+|=)([A-Za-z0-9._:/-]+)/u);
+        const extracted = sanitize(match?.[1]);
+        if (extracted !== undefined) return extracted;
+      }
+    } catch {
+      // Optional .planning/config.json not present or unreadable
+    }
+  }
+
+  return undefined;
 }
 
 export function antigravityEnvironment(source: NodeJS.ProcessEnv = process.env): EnvironmentPolicy {
@@ -65,7 +195,11 @@ export function resolveAntigravityLaunch(options: { resolve?: TaskAgentResolver 
   return resolveTaskAgentLaunch("agy", options);
 }
 
-export function antigravityReviewerArgs(options: { schemaPath: string; prompt?: string }): string[] {
+export function antigravityReviewerArgs(options: {
+  schemaPath: string;
+  prompt?: string;
+  model?: string | undefined;
+}): string[] {
   const args = [
     "-p",
     "--output-format",
@@ -76,13 +210,20 @@ export function antigravityReviewerArgs(options: { schemaPath: string; prompt?: 
     "plan",
     "--sandbox",
   ];
+  if (options.model !== undefined && options.model.trim().length > 0) {
+    args.push("--model", options.model.trim());
+  }
   if (options.prompt !== undefined) {
     args.push(options.prompt);
   }
   return args;
 }
 
-export function antigravityControllerArgs(options: { schemaPath: string; prompt?: string }): string[] {
+export function antigravityControllerArgs(options: {
+  schemaPath: string;
+  prompt?: string;
+  model?: string | undefined;
+}): string[] {
   const args = [
     "-p",
     "--output-format",
@@ -92,10 +233,21 @@ export function antigravityControllerArgs(options: { schemaPath: string; prompt?
     "--mode",
     "accept-edits",
   ];
+  if (options.model !== undefined && options.model.trim().length > 0) {
+    args.push("--model", options.model.trim());
+  }
   if (options.prompt !== undefined) {
     args.push(options.prompt);
   }
   return args;
+}
+
+export function antigravityExecutorArgs(options: {
+  schemaPath: string;
+  prompt?: string;
+  model?: string | undefined;
+}): string[] {
+  return antigravityControllerArgs(options);
 }
 
 export async function probeAntigravityVersion(
@@ -175,9 +327,16 @@ export async function runAntigravityController(
   const schema = await loadAgentSchema("task-executor-result.schema.json", options.packageRoot ?? defaultPackageRoot());
   await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
 
+  const resolvedModel = await resolveAntigravityRoleModel({
+    role: "controller",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.projectRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...antigravityControllerArgs({ schemaPath }),
+    ...antigravityControllerArgs({ schemaPath, ...(resolvedModel ? { model: resolvedModel } : {}) }),
   ];
 
   let result: ProcessResult;
@@ -318,9 +477,16 @@ export async function runAntigravityReviewer(
   const schema = await loadAgentSchema("task-review.schema.json", options.packageRoot ?? defaultPackageRoot());
   await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
 
+  const resolvedModel = await resolveAntigravityRoleModel({
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.contract.scope.projectRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...antigravityReviewerArgs({ schemaPath }),
+    ...antigravityReviewerArgs({ schemaPath, ...(resolvedModel ? { model: resolvedModel } : {}) }),
   ];
 
   let result: ProcessResult;
@@ -420,9 +586,16 @@ export async function runAntigravityFinalReviewer(
   const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
   await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
 
+  const resolvedModel = await resolveAntigravityRoleModel({
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.contract.scope.projectRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...antigravityReviewerArgs({ schemaPath }),
+    ...antigravityReviewerArgs({ schemaPath, ...(resolvedModel ? { model: resolvedModel } : {}) }),
   ];
 
   const result = await runner({

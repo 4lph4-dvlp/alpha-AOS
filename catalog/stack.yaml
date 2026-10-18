@@ -31,14 +31,14 @@ harnesses:
     eccStrategy: bridge
   hermes:
     displayName: Hermes Agent
-    gsdStrategy: worker-only
+    gsdTarget: hermes
     eccTarget: hermes
 
 components:
   gsd:
     package: "@opengsd/gsd-core"
     profile: standard
-    targets: [claude, codex, antigravity, pi]
+    targets: [claude, codex, antigravity, pi, hermes]
   ecc:
     package: ecc-universal
     globalSkills: [unified-memory, documentation-lookup, deep-research]

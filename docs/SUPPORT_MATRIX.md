@@ -20,10 +20,10 @@ A cell reaches **PROVEN** only through a matching, inspectable real-host invocat
 | antigravity | Unified Memory | all | **UNVERIFIED** | Harness executable not detected |
 | pi | GSD Core | all | **UNVERIFIED** | Harness executable not detected |
 | pi | Context7 | all | **UNVERIFIED** | Harness executable not detected |
+| hermes | GSD Core | all | **UNVERIFIED** | Harness executable not detected |
 | hermes | Worker Authority | all | **UNVERIFIED** | Harness executable not detected |
 | hermes | Unified Memory | all | **UNVERIFIED** | Harness executable not detected |
 | antigravity | GUI Desktop Preload | all | **UNSUPPORTED** | The desktop GUI has no supported preload interception surface |
-| hermes | GSD State Controller | all | **UNSUPPORTED** | Hermes is a worker and must not become the GSD lifecycle/state writer |
 
 ## Taxonomy
 

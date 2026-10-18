@@ -496,6 +496,7 @@ async function readTaskStartReadiness(
   contractPath: string,
   supplied: string | null,
   stateRoot: string,
+  options?: { reprobeOnDrift?: boolean; probeMissing?: boolean },
 ): Promise<{ readiness: TaskStartReadiness; command: string }> {
   let loaded: LoadedTaskContract;
   let approved: boolean;
@@ -512,7 +513,11 @@ async function readTaskStartReadiness(
   const { contract, digest } = loaded;
   const runs = await listTaskRuns({ stateRoot, contractId: contract.id });
   const consumedBy = runs.find((run) => run.contractDigest === digest)?.runId ?? null;
-  const agents = await probeTaskAgentPair(contract.agentPolicy);
+  const agents = await probeTaskAgentPair(contract.agentPolicy, {
+    receiptsRoot: join(stateRoot, "receipts"),
+    reprobeOnDrift: options?.reprobeOnDrift ?? true,
+    probeMissing: options?.probeMissing,
+  });
   const projectRoot = resolve(contract.scope.projectRoot);
   const gsd = await probeGsdQuickReadiness({ projectRoot, gsdToolsPath: resolveInstalledGsdTools() });
   let baseline: TaskStartReadiness["baseline"];
@@ -793,9 +798,9 @@ async function main(): Promise<void> {
       }
       return;
     }
-    const validTargets: GsdFixtureHarness[] = ["claude", "codex", "antigravity", "pi"];
+    const validTargets: GsdFixtureHarness[] = ["claude", "codex", "antigravity", "pi", "hermes"];
     if (component !== "gsd" || !validTargets.includes(target as GsdFixtureHarness)) {
-      throw new Error("Usage: alpha-aos fixture gsd <claude|codex|antigravity|pi> [--apply] [--keep] [--json]");
+      throw new Error("Usage: alpha-aos fixture gsd <claude|codex|antigravity|pi|hermes> [--apply] [--keep] [--json]");
     }
     const gsd = lock.components.gsd;
     if (!gsd) throw new Error("Stable lock has no GSD component");
@@ -1829,6 +1834,7 @@ async function main(): Promise<void> {
 
     if (subcommand === "doctor") {
       const runId = optionValue(args, "--run");
+      const probe = hasFlag(args, "--probe");
       const targetId = operand ?? (runId !== null ? runId : undefined);
       if (targetId !== undefined) {
         const report = await diagnoseTargetedTask({
@@ -1836,12 +1842,17 @@ async function main(): Promise<void> {
           targetId,
           runId: runId ?? undefined,
           projectRoot: process.cwd(),
+          reprobeOnDrift: probe,
+          probeMissing: probe,
         });
         print(report, json, formatTaskTargetedDoctorReport(report), context);
         return;
       }
 
-      const report = await buildTaskDoctorReport(join(stateRoot, "receipts"));
+      const report = await buildTaskDoctorReport(join(stateRoot, "receipts"), {
+        reprobeOnDrift: probe,
+        probeMissing: probe,
+      });
       let gsdDiagnostics: GsdLifecycleDiagnostics | null = null;
       try {
         const projectRoot = process.cwd();
@@ -2123,6 +2134,7 @@ async function main(): Promise<void> {
 
     if (subcommand === "resume") {
       const supplied = optionValue(args, "--contract-digest");
+      const probe = hasFlag(args, "--probe");
       if (hasFlag(args, "--apply")) {
         if (supplied === null) {
           const loaded = await loadTaskContract(operand);
@@ -2135,7 +2147,7 @@ async function main(): Promise<void> {
           expectedDigest: supplied,
           stateRoot,
           packageRoot: packageRoot(),
-          ports: nativeTaskPorts(),
+          ports: nativeTaskPorts({ receiptsRoot: join(stateRoot, "receipts"), reprobeOnDrift: true, probeMissing: probe }),
         });
         print(result, json, formatSupervisorReport(result), context);
         process.exitCode = result.status === "accepted" ? 0 : 1;
@@ -2150,6 +2162,7 @@ async function main(): Promise<void> {
 
     if (subcommand === "start") {
       const supplied = optionValue(args, "--contract-digest");
+      const probe = hasFlag(args, "--probe");
       if (hasFlag(args, "--apply")) {
         if (supplied === null) {
           const preview = await previewTaskContract({ contractPath: operand, stateRoot });
@@ -2170,7 +2183,7 @@ async function main(): Promise<void> {
           expectedDigest: supplied,
           stateRoot,
           packageRoot: packageRoot(),
-          ports: nativeTaskPorts(),
+          ports: nativeTaskPorts({ receiptsRoot: join(stateRoot, "receipts"), reprobeOnDrift: true, probeMissing: probe }),
           runId: reservedRunId,
         });
         const statusCmd = taskStatusCommand(run.contractId, run.runId);
@@ -2196,7 +2209,10 @@ async function main(): Promise<void> {
         process.exitCode = run.status === "accepted" ? 0 : 1;
         return;
       }
-      const { readiness, command: startCommand } = await readTaskStartReadiness(operand, supplied, stateRoot);
+      const { readiness, command: startCommand } = await readTaskStartReadiness(operand, supplied, stateRoot, {
+        reprobeOnDrift: true,
+        probeMissing: probe,
+      });
       print({ applied: false, readiness, command: startCommand }, json, formatTaskStartReadiness(readiness, startCommand), context);
       if (!readiness.ready) process.exitCode = 2;
       return;

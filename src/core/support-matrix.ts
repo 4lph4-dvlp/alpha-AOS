@@ -76,7 +76,8 @@ const activeSurfaces = Object.freeze({
     ["Context7", "CAPA-01", "Version-sensitive documentation lookup through the MCP bridge"],
   ],
   hermes: [
-    ["Worker Authority", "WORKER_AUTHORITY", "Workspace worker with planning-state writes prohibited"],
+    ["GSD Core", "GSD_CORE", "Lifecycle controller and state writer"],
+    ["Worker Authority", "WORKER_AUTHORITY", "Workspace worker with planning-state writes prohibited when delegated"],
     ["Unified Memory", "CAPA-03", "Cross-harness context handoff"],
   ],
 } as const satisfies Readonly<Record<HarnessId, readonly (readonly [string, string, string])[]>>);
@@ -105,13 +106,6 @@ export const BASE_SUPPORT_MATRIX: readonly SupportMatrixEntry[] = Object.freeze(
     platform: "all",
     baselineTier: "UNSUPPORTED",
     notes: "The desktop GUI has no supported preload interception surface",
-  },
-  {
-    harnessId: "hermes",
-    surface: "GSD State Controller",
-    platform: "all",
-    baselineTier: "UNSUPPORTED",
-    notes: "Hermes is a worker and must not become the GSD lifecycle/state writer",
   },
 ]);
 

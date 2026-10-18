@@ -20,7 +20,7 @@ import {
   reviewedDigest,
 } from "./component-session.js";
 
-export type GsdFixtureHarness = Exclude<HarnessId, "hermes">;
+export type GsdFixtureHarness = HarnessId;
 
 export interface GsdFixtureSpec {
   harness: GsdFixtureHarness;

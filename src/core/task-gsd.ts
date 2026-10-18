@@ -224,6 +224,7 @@ export function buildGsdControllerPrompt(options: {
       "# Delegation",
       "You may choose the implementation approach, the file layout and extra tests inside the allowed roots without asking.",
       "You may never weaken the goal, a criterion, an allowed root or an allowed effect.",
+      "Never invoke an Antigravity subagent with typeName 'self' when overriding Model (e.g. 'pro' or 'flash'), as 'self' forces parent inheritance (INCOMPATIBLE_SUBAGENT_MODEL); use dedicated role subagents or CLI --model flags.",
     ],
     [
       "# Decisions",
@@ -325,6 +326,7 @@ export async function verifyGsdEvidence(options: {
   projectRoot: string;
   baseCommit: string;
   claimQuickId: string | null;
+  allowExistingClaimedQuick?: boolean | undefined;
 }): Promise<GsdEvidence> {
   const projectRoot = resolve(options.projectRoot);
   const quickRoot = join(projectRoot, ".planning", "quick");
@@ -356,9 +358,17 @@ export async function verifyGsdEvidence(options: {
     options.claimQuickId === null
       ? undefined
       : fresh.find((name) => name === options.claimQuickId || name.startsWith(`${options.claimQuickId}-`));
+  const existingClaimed =
+    options.claimQuickId !== null && options.allowExistingClaimedQuick === true
+      ? current.find((name) => name === options.claimQuickId || name.startsWith(`${options.claimQuickId}-`))
+      : undefined;
   let directory: string;
+  let reusedExistingQuick = false;
   if (claimed !== undefined) {
     directory = claimed;
+  } else if (existingClaimed !== undefined) {
+    directory = existingClaimed;
+    reusedExistingQuick = true;
   } else if (fresh.length === 1 && fresh[0] !== undefined) {
     directory = fresh[0];
   } else if (fresh.length === 0) {
@@ -385,15 +395,22 @@ export async function verifyGsdEvidence(options: {
   }
   if (!stateRow) missing.push(`.planning/STATE.md row for ${quickId}`);
 
+  const parseQuickCommits = (rawLog: string) =>
+    rawLog
+      .split(/\r?\n/u)
+      .filter((line) => line !== "")
+      .map((line) => {
+        const tab = line.indexOf("\t");
+        return { sha: line.slice(0, tab), subject: line.slice(tab + 1) };
+      })
+      .filter((commit) => commit.subject.startsWith(`docs(quick-${quickId})`));
+
   const log = await runGitRead(projectRoot, ["log", `${options.baseCommit}..HEAD`, "--format=%H%x09%s"]);
-  const commits = log
-    .split(/\r?\n/u)
-    .filter((line) => line !== "")
-    .map((line) => {
-      const tab = line.indexOf("\t");
-      return { sha: line.slice(0, tab), subject: line.slice(tab + 1) };
-    })
-    .filter((commit) => commit.subject.startsWith(`docs(quick-${quickId})`));
+  let commits = parseQuickCommits(log);
+  if (commits.length === 0 && reusedExistingQuick) {
+    const historyLog = await runGitRead(projectRoot, ["log", "-n", "50", "HEAD", "--format=%H%x09%s"]);
+    commits = parseQuickCommits(historyLog);
+  }
   if (commits.length === 0) missing.push(`a docs(quick-${quickId}) commit after the base commit`);
 
   return {

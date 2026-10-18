@@ -24,7 +24,11 @@ export interface HarnessDoctorEntry {
 
 export async function buildTaskDoctorReport(
   receiptsRoot?: string,
-  options?: { checkDrift?: boolean },
+  options?: {
+    checkDrift?: boolean | undefined;
+    reprobeOnDrift?: boolean | undefined;
+    probeMissing?: boolean | undefined;
+  },
 ): Promise<HarnessDoctorEntry[]> {
   const report: HarnessDoctorEntry[] = [];
   const checkDrift = options?.checkDrift ?? true;
@@ -37,7 +41,11 @@ export async function buildTaskDoctorReport(
     };
 
     for (const role of ["controller", "executor", "reviewer"] as const) {
-      const res = await readHarnessRoleReceipt(harness, role, receiptsRoot, { checkDrift });
+      const res = await readHarnessRoleReceipt(harness, role, receiptsRoot, {
+        checkDrift,
+        autoReprobeOnDrift: options?.reprobeOnDrift,
+        probeMissing: options?.probeMissing,
+      });
       if (res.receipt && !res.versionDrift) {
         roles[role] = "PROVEN";
       } else if (res.versionDrift) {
@@ -360,6 +368,8 @@ export async function diagnoseTargetedTask(options: {
   runId?: string | undefined;
   projectRoot?: string | undefined;
   packageRoot?: string | undefined;
+  reprobeOnDrift?: boolean | undefined;
+  probeMissing?: boolean | undefined;
 }): Promise<TaskTargetedDoctorReport> {
   const { stateRoot, targetId, projectRoot = process.cwd() } = options;
 
@@ -464,7 +474,10 @@ export async function diagnoseTargetedTask(options: {
   }
 
   // Check harness role receipts
-  const doctorReport = await buildTaskDoctorReport(join(stateRoot, "receipts"));
+  const doctorReport = await buildTaskDoctorReport(join(stateRoot, "receipts"), {
+    reprobeOnDrift: options.reprobeOnDrift,
+    probeMissing: options.probeMissing,
+  });
   const defaultHarness = doctorReport.find((h) => h.roles.controller === "PROVEN");
   const harnessRoles = defaultHarness
     ? {

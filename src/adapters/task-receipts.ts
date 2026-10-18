@@ -1,10 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, open, readFile, rename } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { HarnessId } from "../types.js";
-import { packageRoot as defaultPackageRoot } from "../core/paths.js";
+import { packageRoot as defaultPackageRoot, userStateRoot } from "../core/paths.js";
 import { syncDirectory } from "../core/writer-lock.js";
 import {
   loadAgentSchema,
@@ -46,6 +45,8 @@ export interface ReceiptReadResult {
 
 export interface ReadReceiptOptions {
   readonly checkDrift?: boolean | undefined;
+  readonly autoReprobeOnDrift?: boolean | undefined;
+  readonly probeMissing?: boolean | undefined;
   readonly resolve?: TaskAgentResolver | undefined;
   readonly runner?: TaskAgentRunner | undefined;
   readonly packageRoot?: string | undefined;
@@ -141,7 +142,7 @@ export function validateHarnessRoleReceiptShape(raw: unknown): HarnessRoleReceip
 export function receiptFilePath(harness: HarnessId, role: string, root?: string): string {
   let base: string;
   if (!root) {
-    base = join(homedir(), ".alpha-aos", "receipts", "harnesses");
+    base = join(userStateRoot(), "receipts", "harnesses");
   } else if (existsSync(join(root, "harnesses"))) {
     base = join(root, "harnesses");
   } else {
@@ -185,9 +186,96 @@ export async function writeHarnessRoleReceipt(
 }
 
 /**
+ * Re-probes the host CLI binary for a harness role, computes its SHA-256 hash and CLI version,
+ * and atomically persists a refreshed HarnessRoleReceipt on disk (BUG-02, AUTO-FIX-02).
+ */
+export async function reprobeHarnessRoleReceipt(
+  harness: HarnessId,
+  role: "controller" | "executor" | "reviewer",
+  receiptsRoot?: string,
+  options?: {
+    resolve?: TaskAgentResolver | undefined;
+    runner?: TaskAgentRunner | undefined;
+    existingReceipt?: HarnessRoleReceipt | null | undefined;
+  },
+): Promise<HarnessRoleReceipt | null> {
+  const candidates: readonly string[] =
+    harness === "antigravity" ? ["antigravity", "agy"] : [harness];
+  let launch: TaskAgentLaunch | null = null;
+  let resolvedCommand: string = harness;
+
+  for (const cmd of candidates) {
+    const candidateLaunch = resolveTaskAgentLaunch(
+      cmd,
+      options?.resolve ? { resolve: options.resolve } : {},
+    );
+    if (candidateLaunch.status === "ok") {
+      launch = candidateLaunch;
+      resolvedCommand = cmd;
+      break;
+    }
+    launch = candidateLaunch;
+  }
+
+  if (!launch || launch.status !== "ok") {
+    return null;
+  }
+
+  const binaryTarget =
+    launch.argsPrefix.length > 0 && launch.argsPrefix[0]
+      ? launch.argsPrefix[0]
+      : launch.executable;
+
+  const binarySha256 = await computeBinarySha256(binaryTarget).catch(() => null);
+  if (binarySha256 === null) {
+    return null;
+  }
+
+  const probe = await probeLaunchVersion(
+    resolvedCommand,
+    launch,
+    nameOnlyEnvironment(TASK_AGENT_BASE_ENVIRONMENT_NAMES, process.env),
+    options?.runner,
+  );
+  if (probe.status !== "ok") {
+    return null;
+  }
+
+  const existing = options?.existingReceipt ?? null;
+  const sampleDigest =
+    existing && /^[0-9a-f]{64}$/iu.test(existing.sampleDigest)
+      ? existing.sampleDigest
+      : createHash("sha256")
+          .update(`${harness}:${role}:${probe.version}:${binarySha256}`, "utf8")
+          .digest("hex");
+  const capabilities: HarnessRoleCapabilities = existing?.capabilities ?? {
+    invoked: true,
+    cancelled: true,
+    outputParsed: true,
+    ...(role === "reviewer" ? { readOnlyGuaranteed: true } : {}),
+  };
+
+  const refreshed: HarnessRoleReceipt = {
+    schemaVersion: 1,
+    harness,
+    role,
+    version: probe.version,
+    binarySha256,
+    executable: launch.executable,
+    probedAt: new Date().toISOString(),
+    capabilities,
+    sampleDigest,
+  };
+
+  await writeHarnessRoleReceipt(refreshed, receiptsRoot);
+  return refreshed;
+}
+
+/**
  * Reads an invocation receipt and performs Version Drift verification against the host CLI binary.
- * If file does not exist (ENOENT), returns receipt: null without error.
- * If version drift is detected, demotes to unverified with actionable reason (ROL-02, D-02).
+ * If file does not exist (ENOENT), returns receipt: null without error (unless probeMissing is set).
+ * If version drift is detected, demotes to unverified with actionable reason (ROL-02, D-02)
+ * or automatically re-probes and refreshes the receipt when autoReprobeOnDrift is enabled (BUG-02).
  */
 export async function readHarnessRoleReceipt(
   harness: HarnessId,
@@ -201,6 +289,17 @@ export async function readHarnessRoleReceipt(
     text = await readFile(target, "utf8");
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      if (options?.probeMissing && SUPPORTED_ROLES.has(role)) {
+        const probed = await reprobeHarnessRoleReceipt(
+          harness,
+          role as "controller" | "executor" | "reviewer",
+          receiptsRoot,
+          options,
+        );
+        if (probed) {
+          return { receipt: probed, versionDrift: false, driftReason: null };
+        }
+      }
       return { receipt: null, versionDrift: false, driftReason: null };
     }
     throw err;
@@ -264,7 +363,8 @@ export async function readHarnessRoleReceipt(
     };
   }
 
-  if (currentBinaryHash !== receipt.binarySha256) {
+  const hashDrifted = currentBinaryHash !== receipt.binarySha256;
+  if (hashDrifted && !options?.autoReprobeOnDrift) {
     return {
       receipt,
       versionDrift: true,
@@ -288,11 +388,29 @@ export async function readHarnessRoleReceipt(
     };
   }
 
-  if (probe.version !== receipt.version) {
+  const versionDrifted = probe.version !== receipt.version;
+  if (hashDrifted || versionDrifted) {
+    if (options?.autoReprobeOnDrift && SUPPORTED_ROLES.has(role)) {
+      const refreshed = await reprobeHarnessRoleReceipt(
+        harness,
+        role as "controller" | "executor" | "reviewer",
+        receiptsRoot,
+        {
+          resolve: options.resolve,
+          runner: options.runner,
+          existingReceipt: receipt,
+        },
+      );
+      if (refreshed) {
+        return { receipt: refreshed, versionDrift: false, driftReason: null };
+      }
+    }
     return {
       receipt,
       versionDrift: true,
-      driftReason: `CLI version mismatch (receipt: ${receipt.version}, current: ${probe.version}). Re-probe required. (D-02)`,
+      driftReason: hashDrifted
+        ? `binary hash mismatch (receipt: ${receipt.binarySha256.slice(0, 12)}, current: ${currentBinaryHash.slice(0, 12)}). Re-probe required. (D-02)`
+        : `CLI version mismatch (receipt: ${receipt.version}, current: ${probe.version}). Re-probe required. (D-02)`,
     };
   }
 

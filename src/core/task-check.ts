@@ -238,10 +238,39 @@ export async function collectTaskArtifact(options: {
   };
 }
 
+async function mirrorPlanningDirectory(sourceDir: string, targetDir: string): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(sourceDir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  entries.sort((left, right) => byCodeUnit(left.name, right.name));
+  await mkdir(targetDir, { recursive: true });
+  for (const entry of entries) {
+    const sourceEntry = join(sourceDir, entry.name);
+    const targetEntry = join(targetDir, entry.name);
+    const stats = await lstat(sourceEntry).catch(() => null);
+    if (!stats || stats.isSymbolicLink()) {
+      continue;
+    }
+    if (stats.isDirectory()) {
+      await mirrorPlanningDirectory(sourceEntry, targetEntry);
+    } else if (stats.isFile()) {
+      const content = await readFile(sourceEntry);
+      await writeFile(targetEntry, content, { flag: "wx" });
+    }
+  }
+}
+
 /**
  * Copies exactly the manifest's files into a fresh directory and proves the
  * copy re-collects to the manifest digest, so measurement and review both see
  * the bytes that were hashed and nothing written afterwards (REV-01).
+ * Also mirrors `<projectRoot>/.planning` regular files read-only so criterion
+ * measurement scripts and reviewers can inspect GSD state (`ROADMAP.md`,
+ * `STATE.md`, phase plans) without altering the artifact manifest digest (BUG-03).
  */
 export async function materializeTaskSnapshot(options: {
   manifest: TaskArtifactManifest;
@@ -275,6 +304,7 @@ export async function materializeTaskSnapshot(options: {
       `Snapshot refused: the copy re-collects to ${copied.status === "ok" ? copied.digest.slice(0, 12) : copied.cause}, not ${manifest.digest.slice(0, 12)}.`,
     );
   }
+  await mirrorPlanningDirectory(join(projectRoot, ".planning"), join(destination, ".planning"));
   return destination;
 }
 

@@ -19,7 +19,8 @@
 - [x] **Phase 20: General Tool Connectors** - Non-code task protocol and CoursePilot exemplar (completed 2026-10-09)
 - [x] **Phase 21: Natural Entry and Operator CLI** - Opt-in mode, skill distribution and persistent command UX (verified 2026-10-10)
 - [x] **Phase 22: Release Proof** - Three-OS, packed and live-harness evidence (completed 2026-10-10)
-- [ ] **Phase 23: Capability Governance and Active Tool Orchestration** - Top-priority intake hierarchy across harnesses and enforced active invocation of Exa, Firecrawl, Context7, and Unified Memory
+- [x] **Phase 23: Capability Governance and Active Tool Orchestration** - Top-priority intake hierarchy across harnesses and enforced active invocation of Exa, Firecrawl, Context7, and Unified Memory (completed 2026-10-11)
+- [x] **Phase 24: Autopilot Antigravity Routing and Snapshot Resilience** - Explicit Antigravity `--model` routing, subagent inheritance guardrails, automated receipt drift re-probing, snapshot `.planning` read-only mirroring, and `verifyGsdEvidence` retry resilience (completed 2026-10-18)
 
 ## Phase Map
 
@@ -35,6 +36,7 @@
 | 21 | Natural-language skill, opt-in mode and persistent CLI | UX-01..03 | 16–20 |
 | 22 | Cross-platform, packed-release and live support proof | VER-01..04 | 14–21 |
 | 23 | Top-priority intake governance and active tool orchestration | GOV-01..03, ORCH-01..03 | 18, 21, 22 |
+| 24 | Autopilot Antigravity routing, receipt drift recovery, snapshot `.planning` mirroring, and GSD quick retry resilience | AUTO-FIX-01..05 | 14, 16, 17, 19 |
 
 Every requirement maps to exactly one phase. Subsequent phases can reuse a previous capability but must not claim its requirement complete without the owning phase's verification. Each phase starts with the existing GSD discuss → plan → plan check workflow; execute and verify when its plan passes. One production-quality end-to-end tracer leads each plan unless the phase planner documents a specific reason to vary it.
 
@@ -479,6 +481,26 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [x] 23-03-PLAN.md — End-to-End Tracer & Cross-Harness Verification: E2E tracer suite and full 1,569-test green verification
+
+### Phase 24: Autopilot Antigravity Routing and Snapshot Resilience
+
+**Goal:** Eliminate all five production defects identified during `GPTRPG` autonomous autopilot development (`BUG-01`..`BUG-05`): explicit Antigravity `--model` routing, subagent model inheritance guardrails, automated receipt drift re-probing, snapshot `.planning` read-only mirroring, and `verifyGsdEvidence` retry resilience.
+
+**Requirements**: AUTO-FIX-01..05.
+
+**Depends on:** Phases 14, 16, 17, 19.
+
+**Plans:** 3/3 plans complete
+
+Plans:
+**Wave 1**
+- [x] 24-01-PLAN.md — Antigravity Model Tier Routing & Subagent Guardrails (BUG-01, BUG-05)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [x] 24-02-PLAN.md — Harness Role Receipt Re-Probing & CLI `--probe` Integration (BUG-02)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [x] 24-03-PLAN.md — Snapshot `.planning` Read-Only Mirroring & `verifyGsdEvidence` Retry Resilience (BUG-03, BUG-04)
 
 ## Planning and Execution Gates
 

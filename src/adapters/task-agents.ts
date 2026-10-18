@@ -90,10 +90,12 @@ export interface RoleCapabilityAssessment {
 export async function verifyRoleCapabilities(
   policy: TaskAgentPolicy,
   options: {
-    receiptsRoot?: string;
-    probeVersion?: boolean;
-    resolve?: TaskAgentResolver;
-    runner?: TaskAgentRunner;
+    receiptsRoot?: string | undefined;
+    probeVersion?: boolean | undefined;
+    reprobeOnDrift?: boolean | undefined;
+    probeMissing?: boolean | undefined;
+    resolve?: TaskAgentResolver | undefined;
+    runner?: TaskAgentRunner | undefined;
   } = {},
 ): Promise<RoleCapabilityAssessment> {
   const missingProof: string[] = [];
@@ -107,6 +109,8 @@ export async function verifyRoleCapabilities(
     const harness = policy[role];
     const proof = await readHarnessRoleReceipt(harness, role, options.receiptsRoot, {
       checkDrift: options.probeVersion !== false,
+      autoReprobeOnDrift: options.reprobeOnDrift,
+      probeMissing: options.probeMissing,
       resolve: options.resolve,
       runner: options.runner,
     });
@@ -155,8 +159,10 @@ export interface TaskAgentPairProbeOptions {
 export type NativeTaskPortOptions = CodexAdapterOptions &
   ClaudeAdapterOptions &
   TaskAgentPairProbeOptions & {
-    receiptsRoot?: string;
-    probeVersion?: boolean;
+    receiptsRoot?: string | undefined;
+    probeVersion?: boolean | undefined;
+    reprobeOnDrift?: boolean | undefined;
+    probeMissing?: boolean | undefined;
   };
 
 export interface DynamicTaskPortOptions extends NativeTaskPortOptions {

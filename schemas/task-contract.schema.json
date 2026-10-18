@@ -126,6 +126,9 @@
         "controller": { "$ref": "#/$defs/harness" },
         "executor": { "$ref": "#/$defs/harness" },
         "reviewer": { "$ref": "#/$defs/harness" },
+        "controllerModel": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:/-]+$" },
+        "executorModel": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:/-]+$" },
+        "reviewerModel": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:/-]+$" },
         "reviewerSession": { "const": "fresh-read-only" },
         "differentReviewerPolicy": {
           "type": "string",

@@ -196,12 +196,12 @@ test("witnessWorkerDelegation rolls back .planning/ mutations even if worker act
   assert.equal(stateContent, "untainted state\n");
 });
 
-test("probeHarnessAuthority confirms Hermes is worker-only while other harnesses permit controller role", () => {
+test("probeHarnessAuthority confirms all supported harnesses permit controller role when session initiator", () => {
   const hermesAuth = probeHarnessAuthority("hermes");
   assert.equal(hermesAuth.id, "hermes");
-  assert.equal(hermesAuth.defaultRole, "worker");
-  assert.equal(hermesAuth.isStateWriterAllowed, false);
-  assert.match(hermesAuth.notes[0] ?? "", /worker-only/);
+  assert.equal(hermesAuth.defaultRole, "controller");
+  assert.equal(hermesAuth.isStateWriterAllowed, true);
+  assert.match(hermesAuth.notes[0] ?? "", /permitted GSD controller role/);
 
   const codexAuth = probeHarnessAuthority("codex");
   assert.equal(codexAuth.id, "codex");

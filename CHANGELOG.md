@@ -2,6 +2,16 @@
 
 All notable changes to alpha-AOS are documented in this file. The format follows Keep a Changelog, and the project uses Semantic Versioning.
 
+## [0.3.1] - 2026-10-18
+
+### Fixed
+
+- **Antigravity Model Tier Routing (`BUG-01`)**: Antigravity adapter now passes `--model <model-id>` to avoid falling back to exhausted default quota tiers. Models resolve from `adapterModel` -> `contract.agentPolicy.{controllerModel,executorModel,reviewerModel}` -> `.planning/config.json` (`model_profile_overrides` / `review.cross_ai_command`).
+- **Antigravity Subagent Inheritance Guardrails (`BUG-05`)**: Added fail-closed `INCOMPATIBLE_SUBAGENT_MODEL` check and controller prompt guardrails when Antigravity `invoke_subagent` is called with `typeName: "self"` and explicit model overrides.
+- **Harness Role Receipt Drift Recovery (`BUG-02`)**: Host binary updates causing `binarySha256` or CLI version mismatch can now be automatically re-probed and atomically updated via `reprobeHarnessRoleReceipt` and CLI `--probe` flag (`alpha-aos task doctor --probe`, `task start --probe`, `task resume --probe`).
+- **Snapshot `.planning` Read-Only Mirroring (`BUG-03`)**: `materializeTaskSnapshot` mirrors regular files under `<projectRoot>/.planning` (`ROADMAP.md`, `STATE.md`, etc.) into isolated snapshots without altering the artifact manifest hash, enabling criterion measurements and reviewers to read planning state.
+- **GSD Quick Retry Resilience (`BUG-04`)**: `verifyGsdEvidence` now accepts `allowExistingClaimedQuick` so contract retries and revisions > 1 can verify pre-existing claimed `.planning/quick/<id>` directories and their `docs(quick-<id>)` commits across git history.
+
 ## [Unreleased]
 
 ### Changed

@@ -114,12 +114,12 @@ test("stable catalog loads exact locked components", async () => {
   }
 });
 
-test("install plan is ordered and never installs GSD on Hermes", async () => {
+test("install plan is ordered and installs GSD on all harnesses including Hermes", async () => {
   const root = packageRoot();
   const lock = await loadLock(root);
   const plan = createInstallPlan(await loadCatalog(root), lock);
   assert.ok(plan.length > 20);
-  assert.equal(plan.some((action) => action.id === "gsd:hermes"), false);
+  assert.equal(plan.some((action) => action.id === "gsd:hermes"), true);
   assert.equal(plan.find((action) => action.id === "gsd:codex")?.note, "canary first");
   assert.ok(plan.filter((action) => action.component === "gsd" && action.operation === "install")
     .every((action) => action.command?.includes("--no-legacy-cleanup")));

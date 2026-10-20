@@ -614,6 +614,12 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const command = args[0] ?? "help";
   const json = hasFlag(args, "--json");
+  if (command === "computer-use" && !hasFlag(args, "--help")) {
+    const { runComputerCommand } = await import("./core/computer-use-command.js");
+    const result = await runComputerCommand(args.slice(1));
+    if (result !== undefined) process.stdout.write(`${JSON.stringify(result, null, json ? 2 : 0)}\n`);
+    return;
+  }
   // `--help` anywhere is a request for help, not a flag on the command it sits
   // beside: `alpha-aos doctor --help` must print help rather than run a doctor
   // sweep against a machine, and one help text is the whole contract.

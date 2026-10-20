@@ -77,6 +77,7 @@ export interface TaskResourcePolicy {
 }
 
 export interface TaskContract {
+  computerUse?: { authorityHash: string; deterministic: boolean; reversible: boolean } | undefined;
   schemaVersion: 1;
   id: string;
   revision: number;
@@ -131,6 +132,7 @@ export interface DigestableTaskCriterion {
 
 /** Everything a reviewer approves, in one fixed key order. */
 export interface DigestableTaskContract {
+  computerUse?: { authorityHash: string; deterministic: boolean; reversible: boolean } | undefined;
   schemaVersion: 1;
   id: string;
   revision: number;
@@ -623,6 +625,7 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       maxTokens: contract.resourcePolicy.maxTokens ?? null,
       maxWallTimeMinutes: contract.resourcePolicy.maxWallTimeMinutes ?? null,
     },
+    ...(contract.computerUse ? { computerUse: { ...contract.computerUse } } : {}),
     ...(contract.category === "general"
       ? {
           connectorId: contract.connectorId,

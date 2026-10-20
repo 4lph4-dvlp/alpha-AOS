@@ -562,6 +562,16 @@ export async function buildTaskCapabilityInventory(
     });
   }
 
+  items.push({
+    id: "control:computer-use", name: "computer-use", kind: "control-command", scope: "project",
+    version: "0.37.0", source: "src/core/computer-use.ts", sourceHash: null,
+    targetHarnesses: ALL_HARNESSES, applicable: true, selected: false,
+    applicabilityReason: "Optional explicit project pack and digest-bound desktop authority required.",
+    exclusionReason: "No implicit GUI authority", unavailableReason: "Requires task-local verified native invocation and exact-target permissions",
+    deployment: "CURRENT", nativeUse: "unverified", support: "supported",
+    nativeUseReason: "Guidance deployment is not host invocation evidence", supportReason: "All harnesses route through the same local broker; native OS support remains separately unverified",
+  });
+
   // 9. Native Tools
   const nativeTools = ["bash", "read_file", "write_file", "edit_file", "glob", "grep"] as const;
   for (const tool of nativeTools) {

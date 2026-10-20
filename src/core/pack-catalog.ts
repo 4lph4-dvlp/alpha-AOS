@@ -50,6 +50,7 @@ const PACK_FILES: readonly string[] = [
   "catalog/packs/ai.yaml",
   "catalog/packs/backend.yaml",
   "catalog/packs/brownfield.yaml",
+  "catalog/packs/computer-use.yaml",
   "catalog/packs/infra.yaml",
   "catalog/packs/research.yaml",
   "catalog/packs/security.yaml",

@@ -54,9 +54,9 @@ export async function computerProcessIdentity(target: ComputerTarget): Promise<v
   const args = windows ? ["-NoProfile", "-NonInteractive", "-Command", `$p=Get-Process -Id ${target.pid} -ErrorAction Stop; [Console]::Write(($p.Path)+[char]10+($p.StartTime.ToUniversalTime().Ticks))`] : ["-p", String(target.pid), "-o", "comm=", "-o", "lstart="];
   const result = await runProcess({ executable, args, cwd: dirname(target.executable), environment: commandProbeEnvironment(), timeoutMs: 3000, maxOutputBytes: 8192, excerptBytes: 8192 });
   if (result.code !== "ok") throw new Error("Computer process identity probe failed");
-  // Diagnostic excerpts deliberately alias private paths. Compare a hash-only
-  // generation supplied by the trusted launcher instead of trusting an alias.
-  if (computerHash(result.stdout.excerpt.trim()) !== target.processGeneration) throw new Error("Computer process generation mismatch");
+  // The raw-stream fingerprint binds path and generation without persisting
+  // private process details or treating a redacted path alias as identity.
+  if (result.stdout.sha256 !== target.processGeneration) throw new Error("Computer process generation mismatch");
 }
 export function cuaActionArguments(a: ComputerAuthority, action: ComputerAction, observation: ComputerObservation): Record<string, unknown> {
   const windowId = Number(a.target.windowId); if (!Number.isSafeInteger(windowId) || windowId < 1) throw new Error("Cua native window identifier unsupported");

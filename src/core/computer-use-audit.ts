@@ -68,6 +68,16 @@ export class ComputerAudit {
     try { const journal = await open(join(directory, "events.jsonl"), "wx", 0o600); return new ComputerAudit(directory, runId, journal, lock); }
     catch (error) { await lock.close(); await unlink(join(directory, "writer.lock")); throw error; }
   }
+  static async resumeReviewed(root: string, runId: string, anchor: ComputerAnchor): Promise<ComputerAudit> {
+    await verifyComputerAudit(root, runId, anchor);
+    const directory = await safeComputerPath(join(root, runId));
+    const lock = await open(join(directory, "writer.lock"), "wx", 0o600);
+    try {
+      await verifyComputerAudit(root, runId, anchor);
+      const journal = await open(await safeComputerPath(join(directory, "events.jsonl")), "a", 0o600);
+      const audit = new ComputerAudit(directory, runId, journal, lock); audit.#count = anchor.count; audit.#hash = anchor.hash; return audit;
+    } catch (error) { await lock.close(); await unlink(join(directory, "writer.lock")); throw error; }
+  }
   async capture(png: Buffer, width: number, height: number): Promise<ComputerCapture> {
     if (this.#closed) throw new Error("Computer audit closed");
     validateComputerPng(png, width, height);
@@ -84,6 +94,9 @@ export class ComputerAudit {
     this.#busy = true;
     try {
       await safeComputerPath(join(this.directory, "events.jsonl"));
+      const pathStat = await lstat(join(this.directory, "events.jsonl"));
+      const openStat = await this.#journal.stat();
+      if (!pathStat.isFile() || pathStat.ino !== openStat.ino || pathStat.dev !== openStat.dev || pathStat.size !== openStat.size) throw new Error("Computer audit journal identity changed");
       const body = { sequence: this.#count + 1, previous: this.#hash, runId: this.runId, at: Date.now(), kind, data };
       const event = { ...body, hash: computerHash(body) }; const line = canonicalComputerJson(event) + "\n";
       if (Buffer.byteLength(line) > 32_768 || this.#count >= 5000) throw new Error("Computer audit record budget exceeded");
@@ -127,4 +140,23 @@ export async function verifyComputerAudit(root: string, runId: string, anchor: C
     }
   }
   return { events, pending: [...intents], expired: [...expired] };
+}
+
+export async function expireComputerCaptures(root: string, runId: string, anchor: ComputerAnchor, policy: { reviewed: boolean; olderThan: number }): Promise<ComputerAnchor> {
+  if (!policy.reviewed || !Number.isFinite(policy.olderThan) || policy.olderThan > Date.now()) throw new Error("Computer retention requires explicit review and past expiry");
+  const verified = await verifyComputerAudit(root, runId, anchor);
+  if (verified.pending.length || verified.events.some((e) => e.kind === "result" && e.data.outcome !== "verified")) throw new Error("Computer retention preserves pending/failed evidence");
+  const audit = await ComputerAudit.resumeReviewed(root, runId, anchor);
+  try {
+    const captures = new Set<string>();
+    for (const event of verified.events) {
+      if (event.at >= policy.olderThan) continue;
+      for (const key of ["capture", "before", "after"]) { const capture = event.data[key] as ComputerCapture | undefined; if (capture && !verified.expired.includes(capture.hash)) captures.add(capture.hash); }
+    }
+    for (const captureHash of captures) {
+      await audit.append("tombstone", { captureHash, reviewed: true, reason: "reviewed-retention-expiry" });
+      await unlink(await safeComputerPath(join(audit.directory, `${captureHash}.png`)));
+    }
+    return await audit.checkpoint();
+  } finally { await audit.close(); }
 }

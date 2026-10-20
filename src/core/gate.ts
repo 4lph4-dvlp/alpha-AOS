@@ -22,6 +22,11 @@ export interface RiskSurfaceDefinition {
 
 export const RISK_SURFACE_DEFINITIONS: readonly RiskSurfaceDefinition[] = [
   {
+    factId: "computer-use",
+    globs: ["src/core/computer-use*.ts", "src/adapters/computer-use*.ts", "schemas/computer-use*.json", "catalog/computer-use-runtime.json", "skills/computer-use/**"],
+    obligation: "security-review",
+  },
+  {
     factId: "auth-change",
     globs: [
       "**/auth/**",

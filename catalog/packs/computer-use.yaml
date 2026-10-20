@@ -1,0 +1,9 @@
+schemaVersion: 1
+packs:
+  - id: COMPUTER_USE
+    evidence:
+      manifestOptIn: computerUse
+    skills: []
+    selectionPolicy: explicit-task-authority-required
+    x-guidance: computer-use
+    x-runtime: optional-cua-driver-0.37.0

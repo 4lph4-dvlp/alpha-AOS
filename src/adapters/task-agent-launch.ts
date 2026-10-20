@@ -12,6 +12,14 @@ import {
   type ProcessSpec,
 } from "../core/process.js";
 import { resolveDirectLaunch } from "./capability-oracle.js";
+import type { HarnessId } from "../types.js";
+import type { TaskContract } from "../core/task-contract.js";
+
+export function taskComputerUseRoute(harness: HarnessId, contract: Pick<TaskContract, "computerUse">): { command: string; args: string[]; granted: boolean; instruction: string } {
+  if (!["claude", "codex", "antigravity", "pi", "hermes"].includes(harness)) throw new Error("Unsupported computer-use harness");
+  return { command: "alpha-aos", args: ["computer-use", "plan"], granted: contract.computerUse !== undefined,
+    instruction: contract.computerUse ? "GUI checks must use alpha-aos computer-use plan/action/mcp with this exact approved digest and run. Reversible deterministic checks may run automatically; journal the decision. Human judgment stays manual." : "No GUI authority is granted. Offer automatic/manual verification for ordinary GSD; obtain a reviewed task grant before native input." };
+}
 
 /**
  * The names every task agent child may receive before its harness-specific

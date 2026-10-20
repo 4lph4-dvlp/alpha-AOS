@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile, rm, mkdir } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,7 +42,31 @@ export async function checkAudit() {
 export async function checkIntegration() {
   const { computerDoctor } = await production("core/computer-use-command");
   const doctor = await computerDoctor(root); assert.equal(doctor.nativeUse, "unverified"); assert.equal(doctor.enabled, false);
-  throw new Error("Integration expansion is incomplete");
+  const cli = JSON.parse(execFileSync(process.execPath, [join(root, "dist/src/cli.js"), "computer-use", "doctor", "--json"], { encoding: "utf8" })); assert.equal(cli.nativeUse, "unverified");
+  const { loadCatalog, loadLock } = await production("core/catalog"); const catalog = await loadCatalog(root); const lock = await loadLock(root);
+  const { loadPackCatalogStrict } = await production("core/pack-catalog"); assert.ok((await loadPackCatalogStrict(root)).value.packs.some((v) => v.id === "COMPUTER_USE"));
+  const { evaluateRiskObligations } = await production("core/gate"); assert.ok(evaluateRiskObligations({ baseCommit: "base", headCommit: "head", isWorkingTreeDirty: true, modifiedFiles: ["src/core/computer-use-policy.ts"], untrackedFiles: [] }).obligations.includes("security-review"));
+  const { taskComputerUseRoute } = await production("adapters/task-agent-launch"); const { planOwnedSkillSync } = await production("core/owned-skills");
+  const scratch = await mkdtemp(join(tmpdir(), "aos-cu-integration-"));
+  try {
+    for (const harness of ["claude", "codex", "antigravity", "pi", "hermes"]) {
+      assert.equal(taskComputerUseRoute(harness, {}).granted, false);
+      assert.equal((await planOwnedSkillSync(root, catalog, lock, "computer-use", harness, { targetHome: join(scratch, harness) })).action, "create");
+    }
+    const { buildTaskCapabilityInventory } = await production("core/task-capability-inventory");
+    const inventory = await buildTaskCapabilityInventory({ packageRoot: root, projectRoot: scratch, catalog, lock }); assert.equal(inventory.items.find((v) => v.id === "control:computer-use").nativeUse, "unverified");
+    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js"); const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
+    const { ComputerSession } = await production("core/computer-use"); const { createComputerMcpServer } = await production("core/computer-use-mcp"); const { validateComputerAuthority } = await production("core/computer-use-policy");
+    const a = validateComputerAuthority(authorityInput()); let reads = 0; let effects = 0;
+    const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => ({ target: a.target, captureId: String(++reads), png, width: 1, height: 1, state: String(effects), safe: true, foreground: false }), dispatch: async () => { effects++; }, close: async () => {} }, scratch);
+    const server = createComputerMcpServer(session); const client = new Client({ name: "verification", version: "1" }); const [left, right] = InMemoryTransport.createLinkedPair();
+    try {
+      await Promise.all([server.connect(right), client.connect(left)]); assert.equal((await client.listTools()).tools.length, 2);
+      await assert.rejects(client.callTool({ name: "shell_execute", arguments: {} }));
+      const result = await client.callTool({ name: "computer_action", arguments: { action: { kind: "click", x: 0, y: 0 }, postcondition: { equals: "1" } } });
+      assert.match(JSON.stringify(result), /verified/); assert.equal(effects, 1);
+    } finally { await client.close(); await server.close(); await session.close(); }
+  } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 export async function checkResearch() {
   throw new Error("Research verification is incomplete");

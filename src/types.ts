@@ -254,6 +254,7 @@ export interface ProjectStackManifest {
   packs?: string[];
   criticalUserFlows?: string[];
   scientificResearch?: boolean;
+  computerUse?: boolean;
   securityReview?: boolean;
   /** D-06: force any declared pack on or off. The override is recorded as evidence. */
   packOverrides?: Record<string, PackOverride>;

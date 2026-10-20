@@ -37,6 +37,8 @@ export class ComputerSession {
   }
   static async open(value: unknown, transport: ComputerUseTransport, root: string): Promise<ComputerSession> {
     const authority = validateComputerAuthority(value);
+    function freeze(value: object): void { for (const child of Object.values(value)) if (child && typeof child === "object") freeze(child); Object.freeze(value); }
+    freeze(authority);
     if (computerHash(transport.identity) !== computerHash(authority.runtime)) throw new Error("Computer runtime authority mismatch");
     const audit = await ComputerAudit.open(root, authority.runId);
     try {
@@ -71,15 +73,17 @@ export class ComputerSession {
   async action(action: ComputerAction, postcondition: ComputerPostcondition): Promise<ComputerActionResult> {
     if (this.#busy) throw new Error("Computer concurrent action refused; no action queue");
     if (!postcondition || Object.keys(postcondition).some((k) => !["equals", "stateHash", "changed"].includes(k)) || Object.keys(postcondition).length !== 1 || !(typeof postcondition.equals === "string" && postcondition.equals.length <= 1024 || typeof postcondition.stateHash === "string" && /^[a-f0-9]{64}$/.test(postcondition.stateHash) || postcondition.changed === true)) throw new Error("Computer explicit deterministic postcondition required");
-    this.#busy = true; const started = performance.now(); let intent = 0; let dispatched = false; let captureMs = 0; let dispatchMs = 0;
+    this.#busy = true; const started = performance.now(); let intent = 0; let dispatched = false; let completed = false; let captureMs = 0; let dispatchMs = 0;
     try {
       await this.#checkStop(); authorizeComputerAction(this.authority, this.#state(this.authority.target), action);
       const before = await this.#observe(); captureMs = performance.now() - started;
+      const observedAt = Date.now();
       if (this.#used.has(before.captureId)) throw new Error("Computer stale/consumed capture");
       const capture = await this.audit.capture(before.png, before.width, before.height);
       const record = await this.audit.append("intent", { policyHash: computerHash(this.authority), contractDigest: this.authority.contractDigest, runtime: this.#transport.identity, target: this.authority.target, action: action.kind, actionDigest: computerHash(action), before: capture, stateHash: computerHash(before.state) });
       intent = record.sequence;
       await this.#checkStop(); authorizeComputerAction(this.authority, this.#state(before.target), action);
+      if (Date.now() - observedAt > Math.min(1000, this.authority.budget.gestureMs)) throw new Error("Computer observation expired before dispatch");
       this.#used.add(before.captureId); this.#actions++; dispatched = true;
       const dispatchStart = performance.now(); await this.#bounded((signal) => this.#transport.dispatch(action, before, signal)); dispatchMs = performance.now() - dispatchStart;
       await this.#checkStop();
@@ -89,10 +93,11 @@ export class ComputerSession {
       const verified = postcondition.equals !== undefined ? after.state === postcondition.equals : postcondition.stateHash !== undefined ? computerHash(after.state) === postcondition.stateHash : after.state !== before.state;
       const outcome = verified ? "verified" : "not-verified";
       await this.audit.append("result", { intent, outcome, after: afterCapture, stateHash: computerHash(after.state), postconditionDigest: computerHash(postcondition) });
+      completed = true;
       this.#lastActivityAt = Date.now();
       return { outcome, intent, anchor: await this.audit.checkpoint(), durations: { captureMs, dispatchMs, totalMs: performance.now() - started } };
     } catch (error) {
-      if (intent) await this.audit.append("result", { intent, outcome: this.#abort.signal.aborted ? "interrupted" : dispatched ? "unknown" : "refused" });
+      if (intent && !completed) await this.audit.append("result", { intent, outcome: this.#abort.signal.aborted ? "interrupted" : dispatched ? "unknown" : "refused" });
       if (dispatched) this.#cancel();
       throw error;
     } finally { this.#busy = false; }

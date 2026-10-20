@@ -22,6 +22,10 @@
 # before `$` is written `[^\S\n]` so a CRLF checkout still matches.
 schemaVersion: 1
 facts:
+  - id: computer-use
+    kind: file
+    files: [src/core/computer-use.ts, scripts/verify-computer-use.mjs]
+    description: Optional desktop broker implementation; selection still requires manifest opt-in and task authority.
   # --- AI / agent runtime ---------------------------------------------------
   - id: mcp-sdk-dependency
     kind: dependency

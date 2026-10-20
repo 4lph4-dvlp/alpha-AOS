@@ -3,6 +3,7 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
+import { taskComputerUseRoute } from "../adapters/task-agent-launch.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
 import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
 import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guard.js";
@@ -1431,7 +1432,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
         runId,
         decisionLogPath,
         outline,
-        ...(options.promptInjection ? { promptInjection: options.promptInjection } : {}),
+        promptInjection: [options.promptInjection, taskComputerUseRoute(contract.agentPolicy.executor, contract).instruction].filter(Boolean).join("\n"),
       }),
       deadlineAt,
       gitDirectory,

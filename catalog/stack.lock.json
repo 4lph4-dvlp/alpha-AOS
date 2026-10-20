@@ -146,6 +146,16 @@
           "pi": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1",
           "hermes": "f238e56fe81491f4dd9e4d9df2ae0eb4a131dcb557fa648ca19388ac1574e3d1"
         }
+      },
+      "computer-use": {
+        "sourceSha256": "d37975447b64771c95a31a743bc3e053c921a33a9da214ca86fd1d40cc84bd95",
+        "targetSha256": {
+          "claude": "c20f5404cb12e24c78a3fcf83a2dfd52a94fe364728662bece85d7983945d3e5",
+          "codex": "c20f5404cb12e24c78a3fcf83a2dfd52a94fe364728662bece85d7983945d3e5",
+          "antigravity": "c20f5404cb12e24c78a3fcf83a2dfd52a94fe364728662bece85d7983945d3e5",
+          "pi": "c20f5404cb12e24c78a3fcf83a2dfd52a94fe364728662bece85d7983945d3e5",
+          "hermes": "c20f5404cb12e24c78a3fcf83a2dfd52a94fe364728662bece85d7983945d3e5"
+        }
       }
     }
   }

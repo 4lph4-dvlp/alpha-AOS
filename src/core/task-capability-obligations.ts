@@ -135,6 +135,11 @@ export function evaluateStepObligations(
 ): StepObligationsDecision {
   const obligations: TaskCapabilityObligation[] = [];
   const omitted: OmittedCapabilityObligation[] = [];
+  if (options.contract?.computerUse && INDEPENDENT_CHECK_BOUNDARIES.has(options.step)) {
+    obligations.push({ id: `computer-use:${options.step}`, capabilityId: "control:computer-use", step: options.step,
+      question: "Independently verify GUI authority, audit anchor/captures, actual postconditions and platform invocation evidence; configuration or a prior receipt is insufficient.",
+      required: true, scope: "task", source: "src/core/computer-use.ts", version: "0.4.0", selectionReason: "Digest-bound desktop grant adds an independent trust-boundary check" });
+  }
 
   // D-08: Check for ambiguity in task description
   const contractGoal = options.contract?.goal ?? "";

@@ -27,6 +27,7 @@
     "scientificResearch": {
       "type": "boolean"
     },
+    "computerUse": { "type": "boolean", "description": "Opt in to desktop capability planning; grants no native input authority." },
     "packOverrides": {
       "description": "D-06: force a declared pack on or off. Keys are pack ids declared by catalog/packs/*.yaml; a key naming an undeclared pack is refused with domain.unknown-pack-override rather than silently ignored. Values are force-on / force-off rather than on / off, because YAML 1.1 resolves bare on and off as booleans.",
       "type": "object",

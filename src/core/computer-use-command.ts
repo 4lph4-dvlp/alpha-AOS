@@ -1,7 +1,7 @@
 import { lstat, readFile, mkdir, open } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { ComputerSession, stopComputerSession } from "./computer-use.js";
-import { verifyComputerAudit, safeComputerPath } from "./computer-use-audit.js";
+import { verifyComputerAudit, safeComputerPath, expireComputerCaptures } from "./computer-use-audit.js";
 import { computerHash, validateComputerAuthority, decideComputerVerification } from "./computer-use-policy.js";
 import type { ComputerAuthority, ComputerAction } from "./computer-use-policy.js";
 import type { ComputerPostcondition } from "./computer-use.js";
@@ -35,10 +35,16 @@ export async function runComputerCommand(args: string[]): Promise<unknown> {
   const operation = args[0] ?? "doctor";
   const option = (name: string): string | undefined => { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; };
   if (operation === "doctor") return computerDoctor();
-  if (["report", "replay"].includes(operation)) {
+  if (["report", "replay", "retain"].includes(operation)) {
     const root = option("--evidence"); const run = option("--run"); const anchorPath = option("--anchor");
     if (!root || !run || !anchorPath) throw new Error("Computer report/replay requires --evidence --run --anchor");
-    return verifyComputerAudit(root, run, await readComputerJson(anchorPath) as ComputerAnchor);
+    const anchor = await readComputerJson(anchorPath) as ComputerAnchor;
+    if (operation === "retain") {
+      if (!args.includes("--apply") || !args.includes("--reviewed")) return { dryRun: true, requiresReview: true, defaultRetentionDays: 7 };
+      const expiry = Number(option("--older-than"));
+      return expireComputerCaptures(root, run, anchor, { reviewed: true, olderThan: expiry });
+    }
+    return verifyComputerAudit(root, run, anchor);
   }
   if (operation === "stop") {
     const root = option("--evidence"); const run = option("--run"); if (!root || !run) throw new Error("Computer stop requires --evidence --run");
@@ -64,9 +70,10 @@ export async function runComputerCommand(args: string[]): Promise<unknown> {
     }
     const requestPath = option("--request"); if (!requestPath) throw new Error("Computer action requires --request JSON file");
     const request = await readComputerJson(requestPath) as { action: ComputerAction; postcondition: ComputerPostcondition };
-    const result = await session.action(request.action, request.postcondition);
+    return await session.action(request.action, request.postcondition);
+  } finally {
+    const anchor = await session.audit.checkpoint();
     const anchorFile = await open(join(evidenceRoot, `${a.runId}.anchor.json`), "wx", 0o600);
-    try { await anchorFile.writeFile(JSON.stringify(result.anchor)); await anchorFile.sync(); } finally { await anchorFile.close(); }
-    return result;
-  } finally { await session.close(); }
+    try { await anchorFile.writeFile(JSON.stringify(anchor)); await anchorFile.sync(); } finally { await anchorFile.close(); await session.close(); }
+  }
 }

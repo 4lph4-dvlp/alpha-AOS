@@ -1,0 +1,36 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { validateComputerAuthority, decideComputerVerification, authorizeComputerAction } from "../src/core/computer-use-policy.js";
+
+export const authorityFixture = () => ({
+  version: 1, runId: "test-run", contractDigest: "a".repeat(64),
+  expiresAt: Date.now() + 60_000, idleMs: 10_000,
+  target: { executable: process.execPath, executableHash: "b".repeat(64), pid: 42, processGeneration: "start-42", windowId: "window-42", windowGeneration: "1" },
+  runtime: { executableHash: "c".repeat(64), schemaHash: "d".repeat(64) },
+  region: { x: 0, y: 0, width: 1, height: 1 },
+  permissions: { actions: ["click", "right_click", "drag", "type_text", "press_key", "launch_app"], capture: true, publicData: true, foreground: false },
+  budget: { actions: 5, captures: 12, bytes: 1_000_000, durationMs: 30_000, gestureMs: 2000 },
+});
+
+test("computer verification offers ordinary choice and keeps judgment manual", () => {
+  assert.equal(decideComputerVerification({ mode: "ordinary", deterministic: true, reversible: true, covered: true }).mode, "offer");
+  assert.equal(decideComputerVerification({ mode: "autopilot", deterministic: true, reversible: true, covered: true }).mode, "automatic");
+  assert.equal(decideComputerVerification({ mode: "autopilot", deterministic: false, reversible: true, covered: true }).mode, "manual");
+});
+
+test("authority is closed and grants nothing by omission", () => {
+  assert.throws(() => validateComputerAuthority({}), /authority/i);
+  assert.throws(() => validateComputerAuthority({ ...authorityFixture(), shell: true }), /unknown/i);
+  assert.throws(() => validateComputerAuthority({ ...authorityFixture(), expiresAt: Infinity }), /finite/i);
+});
+
+test("exact target, digest, budget and finite geometry refuse before dispatch", () => {
+  const authority = validateComputerAuthority(authorityFixture());
+  const state = { runId: authority.runId, contractDigest: authority.contractDigest, target: authority.target, runtime: authority.runtime, now: Date.now(), startedAt: Date.now(), lastActivityAt: Date.now(), actions: 0, captures: 0, bytes: 0, stopped: false };
+  assert.doesNotThrow(() => authorizeComputerAction(authority, state, { kind: "click", x: 0, y: 0 }));
+  for (const change of [{ stopped: true }, { actions: 5 }, { contractDigest: "f".repeat(64) }, { target: { ...authority.target, pid: 43 } }, { now: authority.expiresAt + 1 }]) {
+    assert.throws(() => authorizeComputerAction(authority, { ...state, ...change }, { kind: "click", x: 0, y: 0 }));
+  }
+  assert.throws(() => authorizeComputerAction(authority, state, { kind: "click", x: NaN, y: 0 }));
+  assert.throws(() => authorizeComputerAction(authority, state, { kind: "type_text", text: "secret", classification: "secret" }));
+});

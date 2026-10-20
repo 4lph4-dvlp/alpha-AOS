@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ComputerAudit, verifyComputerAudit } from "../src/core/computer-use-audit.js";
 
-export const pngFixture = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==", "base64");
+import { pngFixture } from "./fixtures/computer-use.js";
 test("immutable PNG audit validates retained anchor and rejects tampering", async () => {
   const root = await mkdtemp(join(tmpdir(), "computer-audit-"));
   try {

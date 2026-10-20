@@ -2,8 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { ComputerSession } from "../src/core/computer-use.js";
 import { validateComputerAuthority } from "../src/core/computer-use-policy.js";
-import { authorityFixture } from "./computer-use-policy.test.js";
-import { pngFixture } from "./computer-use-audit.test.js";
+import { authorityFixture, pngFixture } from "./fixtures/computer-use.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -29,4 +28,12 @@ test("production broker records intent before effect and verifies fresh observat
     assert.equal(effects, 1);
     await session.close();
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("session authority cannot be widened after opening", async () => {
+  const root = await mkdtemp(join(tmpdir(), "computer-session-"));
+  const a = validateComputerAuthority(authorityFixture());
+  const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => { throw new Error("unused"); }, dispatch: async () => {}, close: async () => {} }, root);
+  try { assert.throws(() => { session.authority.permissions.foreground = true; }, TypeError); }
+  finally { await session.close(); await rm(root, { recursive: true, force: true }); }
 });

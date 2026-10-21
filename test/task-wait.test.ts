@@ -1902,29 +1902,21 @@ test("task-wait: journal prefix rewrite detected and refused as REGRESSING_SEQUE
 
     const jPath = runJournalPath(stateRoot, digest);
 
-    const waitPromise = waitTask({
-      stateRoot,
-      projectRoot,
-      contractId,
-      runId,
-      contractDigest: digest,
-      revision,
-      scope: "attempt",
-      timeoutMs: 3000,
+    let observed = false;
+    const result = await waitTask({
+      stateRoot, projectRoot, contractId, runId, contractDigest: digest, revision,
+      scope: "attempt", timeoutMs: 8000,
+      _onJournalReadBarrier: async () => {
+        if (observed) return;
+        observed = true;
+        const rewrittenEvent = {
+          sequence: 1, timestamp: new Date().toISOString(), kind: "run_started",
+          contractDigest: digest, attemptIndex: 1, payload: { runId, tampered: true },
+        };
+        await writeFile(jPath, `${JSON.stringify(rewrittenEvent)}\n`, "utf8");
+      },
     });
-
-    await new Promise((r) => setTimeout(r, 60));
-    const rewrittenEvent = {
-      sequence: 1,
-      timestamp: new Date().toISOString(),
-      kind: "run_started",
-      contractDigest: digest,
-      attemptIndex: 1,
-      payload: { runId, tampered: true },
-    };
-    await writeFile(jPath, `${JSON.stringify(rewrittenEvent)}\n`, "utf8");
-
-    const result = await waitPromise;
+    assert.equal(observed, true, "Mutation requires a retained validated journal prefix");
     assert.equal(result.ok, false);
     assert.equal(result.status, "refused");
     assert.equal(result.reasonCode, "REGRESSING_SEQUENCE");
@@ -1955,21 +1947,17 @@ test("task-wait: journal file deletion after observation refused as REGRESSING_S
 
     const jPath = runJournalPath(stateRoot, digest);
 
-    const waitPromise = waitTask({
-      stateRoot,
-      projectRoot,
-      contractId,
-      runId,
-      contractDigest: digest,
-      revision,
-      scope: "attempt",
-      timeoutMs: 3000,
+    let observed = false;
+    const result = await waitTask({
+      stateRoot, projectRoot, contractId, runId, contractDigest: digest, revision,
+      scope: "attempt", timeoutMs: 8000,
+      _onJournalReadBarrier: async () => {
+        if (observed) return;
+        observed = true;
+        await rm(jPath, { force: true });
+      },
     });
-
-    await new Promise((r) => setTimeout(r, 60));
-    await rm(jPath, { force: true });
-
-    const result = await waitPromise;
+    assert.equal(observed, true, "Mutation requires a retained validated journal prefix");
     assert.equal(result.ok, false);
     assert.equal(result.status, "refused");
     assert.equal(result.reasonCode, "REGRESSING_SEQUENCE");
@@ -2288,3 +2276,109 @@ test("task-wait: ownerless nonterminal execution resolves OWNER_ABSENT before de
     await fixture.cleanup();
   }
 });
+
+
+async function provenOriginRetryFixture(options: {
+  scope?: "attempt" | "supervisor";
+  mutation?: "missing-chain" | "wrong-run" | "missing-run-id" | "foreign-owner" | "rotated-owner" | "accepted-origin";
+  running?: boolean;
+} = {}) {
+  const fixture = await createTestState();
+  const contractId = "test-linked-origin-retry";
+  const digest = "c2".repeat(32);
+  const origin = "testrun0-00000041";
+  const final = "testrun0-00000042";
+  let lease = await acquireControllerLease({ projectRoot: fixture.projectRoot, harness: "codex", contractDigest: digest });
+  try {
+    const runs = join(fixture.stateRoot, "tasks", contractId, "runs");
+    await mkdir(runs, { recursive: true });
+    const originStatus = options.mutation === "accepted-origin" ? "accepted" :
+      options.mutation === "rotated-owner" ? "executing" : "rejected";
+    await writeFile(join(runs, origin + ".json"), JSON.stringify(createRunRecord({
+      contractId, runId: origin, contractDigest: digest, revision: 1, status: originStatus,
+    })));
+    await writeFile(join(runs, final + ".json"), JSON.stringify(createRunRecord({
+      contractId, runId: final, contractDigest: digest, revision: 1, status: options.running ? "executing" : "accepted",
+    })));
+    const journal: { kind: TaskJournalEventKind; attemptIndex: number; payload: Record<string, unknown> }[] = [
+      { kind: "attempt_started", attemptIndex: 1, payload: { runId: origin } },
+      ...options.mutation === "missing-chain" ? [] : [
+        { kind: "attempt_finished" as const, attemptIndex: 1, payload: { runId: origin, verdict: "rejected" } },
+      ],
+      { kind: "attempt_started", attemptIndex: 2, payload: options.mutation === "missing-run-id" ? { stage: "retry" } :
+        { runId: options.mutation === "wrong-run" ? "testrun0-00000043" : final } },
+      ...options.running ? [] : [
+        { kind: "accepted" as const, attemptIndex: 2, payload: { runId: final } },
+      ],
+    ];
+    for (const event of journal) {
+      await appendJournalEvent(fixture.stateRoot, digest, { ...event, contractDigest: digest });
+    }
+    await writeCheckpoint(fixture.stateRoot, {
+      schemaVersion: 1, contractDigest: digest, contractId, revision: 1,
+      status: options.running ? "running" : "accepted", attemptIndex: 2, lastSequence: journal.length,
+      lastVerifiedHead: null, usage: { cycles: 2, wallTimeMs: 25, tokens: null, costUsd: null },
+      stopReason: null, updatedAt: new Date().toISOString(),
+    });
+    if (options.mutation === "foreign-owner") {
+      const path = join(fixture.projectRoot, ".alpha-aos", "controller.lock");
+      const record = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
+      await writeFile(path, JSON.stringify({ ...record, host: "another-review-host" }));
+    }
+    let rotated = false;
+    return await waitTask({
+      stateRoot: fixture.stateRoot, projectRoot: fixture.projectRoot,
+      contractId, runId: origin, contractDigest: digest, revision: 1,
+      scope: options.scope ?? "supervisor", timeoutMs: options.running ? 100 : 1000,
+      ...(options.mutation === "rotated-owner" ? {
+        _onJournalReadBarrier: async () => {
+          if (rotated) return;
+          rotated = true;
+          await lease.release();
+          lease = await acquireControllerLease({ projectRoot: fixture.projectRoot, harness: "codex", contractDigest: digest });
+        },
+      } : {}),
+    });
+  } finally {
+    try { await lease.release(); } finally { await fixture.cleanup(); }
+  }
+}
+
+test("task-wait: supervisor follows only a fully proven same-controller retry from origin run", async () => {
+  const result = await provenOriginRetryFixture();
+  assert.equal(result.status, "completed");
+  assert.equal(result.taskStatus, "accepted");
+  assert.equal(result.runId, "testrun0-00000041");
+  assert.equal(result.observedRunId, "testrun0-00000042");
+  assert.equal(result.attemptIndex, 2);
+});
+
+test("task-wait: attempt scope remains the exact origin despite a proven accepted retry", async () => {
+  const result = await provenOriginRetryFixture({ scope: "attempt" });
+  assert.equal(result.status, "completed");
+  assert.equal(result.taskStatus, "rejected");
+  assert.equal(result.runId, "testrun0-00000041");
+  assert.equal(result.observedRunId, undefined);
+  assert.equal(result.attemptIndex, 1);
+});
+
+test("task-wait: fully proven running retry remains pending instead of unsupported", async () => {
+  const result = await provenOriginRetryFixture({ running: true });
+  assert.equal(result.status, "timeout");
+  assert.equal(result.reasonCode, undefined);
+});
+
+for (const [mutation, code] of [
+  ["missing-chain", "UNSUPPORTED_SUPERVISOR_EVIDENCE"],
+  ["missing-run-id", "UNSUPPORTED_SUPERVISOR_EVIDENCE"],
+  ["wrong-run", "UNLINKED_CHECKPOINT"],
+  ["foreign-owner", "FOREIGN_OWNER"],
+  ["rotated-owner", "OWNER_MISMATCH"],
+  ["accepted-origin", "CONTRADICTORY_TERMINAL_STATE"],
+] as const) {
+  test("task-wait: origin retry refuses " + mutation, async () => {
+    const result = await provenOriginRetryFixture({ mutation });
+    assert.equal(result.ok, false);
+    assert.equal(result.reasonCode, code);
+  });
+}

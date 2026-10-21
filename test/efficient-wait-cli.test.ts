@@ -648,4 +648,3 @@ test("efficient-wait-cli: job wait on nonexistent job ID exits non-zero with dia
     await cleanup();
   }
 });
-

@@ -576,5 +576,3 @@ test("completion-wait: check-induced abort during registration cleans up all han
   assert.equal(watcherCloseCount, 2);
   assert.equal(timerCount(), 0);
 });
-
-

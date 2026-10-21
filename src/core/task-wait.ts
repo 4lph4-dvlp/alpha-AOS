@@ -17,6 +17,7 @@ import {
   validateNumericFlag,
   type CompletionCheckResult,
   MAX_OBSERVER_TIMEOUT_MS,
+  DEFAULT_OBSERVER_TIMEOUT_MS,
 } from "./completion-wait.js";
 import { isProcessAlive } from "./writer-lock.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
@@ -35,6 +36,7 @@ export interface TaskWaitOptions {
   readonly scope?: TaskWaitScope | undefined;
   readonly timeoutMs?: number | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly _onJournalReadBarrier?: (() => Promise<void> | void) | undefined;
   readonly _onRunReadBarrier?: ((rawRunText: string) => Promise<void> | void) | undefined;
 }
 
@@ -47,6 +49,8 @@ export interface TaskWaitResult {
   readonly contractDigest: string;
   readonly revision: number;
   readonly taskStatus?: string;
+  /** Proven final retry run; runId remains the requested origin. */
+  readonly observedRunId?: string;
   readonly attemptIndex?: number;
   readonly stopReason?: string | null;
   readonly reasonCode?: string;
@@ -739,8 +743,10 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
   let lastKnownJournalPrefixHashes: string[] = [];
   let pinnedAttemptIndex: number | null = null;
   let isFirstCheck = true;
+  const retryObservationDeadline = performance.now() + (options.timeoutMs ?? DEFAULT_OBSERVER_TIMEOUT_MS);
+  const retryObservationExpired = (): boolean => options.signal?.aborted === true || performance.now() >= retryObservationDeadline;
 
-  const check = async (): Promise<CompletionCheckResult<{ taskStatus: string; attemptIndex?: number; stopReason: string | null }>> => {
+  const check = async (): Promise<CompletionCheckResult<{ taskStatus: string; attemptIndex?: number; stopReason: string | null; observedRunId?: string }>> => {
     // A. Read and validate Checkpoint
     const checkpointPath = runCheckpointPath(stateRoot, contractDigest);
     let checkpoint: TaskCheckpoint | null = null;
@@ -836,6 +842,8 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
       }
       lastKnownJournalPrefixHashes = currentHashes;
     }
+
+    await options._onJournalReadBarrier?.();
 
     // C. Read canonical task run record using bounded file reader and validate retained bytes
     let runRecord: TaskRunRecord | null = null;
@@ -1061,6 +1069,120 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
     }
 
     if (scope === "supervisor") {
+      // Only a fully explicit same-owner journal chain can advance the origin.
+      // The requested canonical run and attempt scope remain immutable.
+      if (checkpoint !== null && linkedAttemptIndex !== null && checkpoint.attemptIndex > linkedAttemptIndex) {
+        if (pinnedOwner === null) {
+          return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "A linked retry requires an observed controller fence." };
+        }
+        // The initial retained read may precede the just-observed retry;
+        // wait for its canonical rejection rather than treating lag as forgery.
+        if (runRecord?.status === "executing") return { state: "pending" };
+        if (runRecord === null || runRecord.status !== "rejected") {
+          return { state: "refused", code: "CONTRADICTORY_TERMINAL_STATE", reason: "The selected origin is not a rejected canonical attempt." };
+        }
+        if (checkpoint.attemptIndex > events.length) {
+          return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Incomplete explicit retry chain." };
+        }
+
+        const attempts = new Map<number, TaskJournalEvent[]>();
+        for (const event of events) {
+          if (retryObservationExpired()) return { state: "pending" };
+          const group = attempts.get(event.attemptIndex) ?? [];
+          group.push(event);
+          attempts.set(event.attemptIndex, group);
+        }
+        const seenRuns = new Set<string>();
+        let previousFinish = 0;
+        let finalRun: TaskRunRecord | null = null;
+        let observedRunId: string | undefined;
+        let finalStart = 0;
+        for (let index = 1; index <= checkpoint.attemptIndex; index++) {
+          if (retryObservationExpired()) return { state: "pending" };
+          const attemptEvents = attempts.get(index) ?? [];
+          const starts = attemptEvents.filter((event) => event.kind === "attempt_started");
+          const started = starts[0];
+          const nextRunId = started?.payload.runId;
+          if (starts.length !== 1 || !started || typeof nextRunId !== "string" || !CANONICAL_RUN_ID_REGEX.test(nextRunId)) {
+            return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Retry starts must explicitly identify exactly one canonical run per attempt." };
+          }
+          if (seenRuns.has(nextRunId) || (index === linkedAttemptIndex) !== (nextRunId === runId)) {
+            return { state: "refused", code: "CONFLICTING_ATTEMPT_LINK", reason: "Retry chain reuses or contradicts the selected origin identity." };
+          }
+          seenRuns.add(nextRunId);
+          if (attemptEvents.some((event) => RUN_LINK_EVENT_KINDS.has(event.kind) && event.payload.runId !== undefined && event.payload.runId !== nextRunId)) {
+            return { state: "refused", code: "UNLINKED_CHECKPOINT", reason: "Retry attempt explicitly names conflicting runs." };
+          }
+          if (started.sequence <= previousFinish) {
+            return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Retry starts before the preceding attempt finished." };
+          }
+
+          let linkedRun: TaskRunRecord;
+          if (nextRunId === runId) {
+            linkedRun = runRecord;
+          } else {
+            // Never list files or follow a latest alias: this path comes only
+            // from the validated explicit journal link above.
+            const linkedPath = taskRunPath(stateRoot, contractId, nextRunId);
+            try {
+              if (retryObservationExpired()) return { state: "pending" };
+              const linkedText = await safeReadBoundedFile(linkedPath, 1024 * 1024);
+              if (retryObservationExpired()) return { state: "pending" };
+              if (linkedText === null) {
+                return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Linked retry has no canonical run record." };
+              }
+              await options._onRunReadBarrier?.(linkedText);
+              if (retryObservationExpired()) return { state: "pending" };
+              linkedRun = await validateTaskRunText({ text: linkedText, path: linkedPath, contractId, root: pkgRoot });
+              if (retryObservationExpired()) return { state: "pending" };
+            } catch (error: unknown) {
+              return { state: "refused", code: "RUN_RECORD_INVALID", reason: error instanceof Error ? error.message : String(error) };
+            }
+            if (linkedRun.kind !== "task-run" || linkedRun.runId !== nextRunId || linkedRun.contractId !== contractId || linkedRun.contractDigest !== contractDigest || linkedRun.revision !== revision) {
+              return { state: "refused", code: "RUN_RECORD_INVALID", reason: "Linked retry canonical identity differs from the selected contract." };
+            }
+          }
+
+          if (index < checkpoint.attemptIndex) {
+            const finishes = attemptEvents.filter((event) => event.kind === "attempt_finished");
+            const finished = finishes[0];
+            if (finishes.length !== 1 || !finished || finished.payload.runId !== nextRunId || finished.payload.verdict !== "rejected" || finished.sequence <= started.sequence) {
+              return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Prior retry attempt lacks an ordered explicit rejection link." };
+            }
+            if (linkedRun.status !== "rejected" || attemptEvents.some((event) => event.kind === "accepted")) {
+              return { state: "refused", code: "CONTRADICTORY_TERMINAL_STATE", reason: "Prior retry canonical state contradicts rejection." };
+            }
+            previousFinish = finished.sequence;
+          } else {
+            finalRun = linkedRun;
+            observedRunId = nextRunId;
+            finalStart = started.sequence;
+          }
+        }
+
+        if (retryObservationExpired() || !TERMINAL_CHECKPOINT_STATUSES.has(checkpoint.status)) return { state: "pending" };
+        const finalEvents = attempts.get(checkpoint.attemptIndex) ?? [];
+        const disposition = finalEvents.findLast((event) => {
+          if (checkpoint.status === "stopped") return event.kind === "process_cancelled" || event.kind === "limit_exceeded";
+          return event.kind === checkpoint.status ||
+            (event.kind === "attempt_finished" && event.payload.verdict === checkpoint.status);
+        });
+        if (!disposition || disposition.sequence <= finalStart || !finalRun || !observedRunId) {
+          return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Linked retry has no ordered terminal disposition." };
+        }
+        if ((checkpoint.status === "accepted" || checkpoint.status === "rejected") && disposition.payload.runId !== observedRunId) {
+          return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Terminal retry disposition lacks its explicit run identity." };
+        }
+        if (((checkpoint.status === "accepted" || checkpoint.status === "rejected") && finalRun.status !== checkpoint.status) ||
+            ((checkpoint.status === "blocked" || checkpoint.status === "stopped") && finalRun.status === "accepted")) {
+          return { state: "refused", code: "CONTRADICTORY_TERMINAL_STATE", reason: "Linked canonical run contradicts the supervisor disposition." };
+        }
+        if (checkpoint.status === "accepted" && !finalEvents.some((event) => event.kind === "accepted" && event.payload.runId === observedRunId)) {
+          return { state: "refused", code: "CONTRADICTORY_TERMINAL_STATE", reason: "Accepted retry has no explicit accepted event." };
+        }
+        return { state: "terminal", value: { taskStatus: checkpoint.status, attemptIndex: checkpoint.attemptIndex, stopReason: checkpoint.stopReason, observedRunId } };
+      }
+
       if (checkpoint !== null && TERMINAL_CHECKPOINT_STATUSES.has(checkpoint.status)) {
         if (events.length === 0) {
           return {
@@ -1294,6 +1416,7 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
       contractDigest,
       revision,
       taskStatus: settlement.value.taskStatus,
+      ...(settlement.value.observedRunId !== undefined ? { observedRunId: settlement.value.observedRunId } : {}),
       ...(settlement.value.attemptIndex !== undefined ? { attemptIndex: settlement.value.attemptIndex } : {}),
       stopReason: settlement.value.stopReason,
     };

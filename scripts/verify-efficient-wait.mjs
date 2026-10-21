@@ -754,8 +754,8 @@ export async function runVerification(inputCheck) {
   const missingRequirements = [];
 
   for (const req of expectedReqs) {
-    const canonicalExpected = pinnedFiles.get(req.suite)?.canonicalPath;
-    if (!canonicalExpected) {
+    const expectedPin = pinnedFiles.get(req.suite);
+    if (!expectedPin) {
       missingRequirements.push(req);
       continue;
     }
@@ -768,10 +768,10 @@ export async function runVerification(inputCheck) {
       if (!leafRel || leafRel.startsWith("..") || isAbsolute(leafRel)) {
         return false;
       }
-      const leafCompCheck = validatePathComponent(leafRel, repositoryRoot, canonicalRepoRoot, true);
+      const leafCompCheck = pinValidatedFile(leafRel, repositoryRoot, canonicalRepoRoot);
       if (!leafCompCheck.ok) return false;
 
-      return areCanonicalPathsEqual(leafCompCheck.canonicalPath, canonicalExpected);
+      return samePinnedFile(leafCompCheck, expectedPin);
     });
 
     if (!matched) {
@@ -836,6 +836,13 @@ export async function runVerification(inputCheck) {
   }
   if (Date.now() - startTime >= TOTAL_VERIFY_BUDGET_MS) {
     process.stderr.write("verification budget exhausted before acceptance\n");
+    return { ok: false, exitCode: 1 };
+  }
+
+  // Keep freshness expectations immutable through the final build check.
+  const finalManifestPin = pinValidatedFile("dist/build-artifact.json", repositoryRoot, canonicalRepoRoot);
+  if (!finalManifestPin.ok || !samePinnedFile(finalManifestPin, manifestPin) || Date.now() - startTime >= TOTAL_VERIFY_BUDGET_MS) {
+    process.stderr.write("final freshness identity or verification deadline check failed\n");
     return { ok: false, exitCode: 1 };
   }
 

@@ -10,6 +10,8 @@ files_modified:
   - src/core/task-wait.ts
   - src/core/command-jobs.ts
   - src/core/command-job-worker.ts
+  - src/core/process.ts
+  - test/process.test.ts
   - src/cli.ts
   - schemas/command-job.schema.json
   - test/completion-wait.test.ts
@@ -105,6 +107,8 @@ Output: Runtime and CLI behavior, adversarial regressions, executable verifier, 
 
 <execution_contract>
 This is an approved quick --full --auto, with one plan and three sequential ownership packets. Recommended routine defaults are preapproved. There is no ROADMAP phase requirement mapping or phase-state mutation. The sole controller owns GSD records, local commits, check orchestration and recovery; implementation workers never write .planning/ or commit. Preserve other agents' changes.
+
+Security repair clarifications (after the independent Packet A interim review): reuse the existing process runner with opt-in output drain/spawn observation, retaining its default policy. CLI job start/cancel are dry-run previews unless explicit --apply is supplied, consistent with project governance; read-only wait/status reject --apply. This refines the prototype command spellings below without expanding authority. Programmatic start/cancel remain explicit calls. Correct terminal exit metadata must not become a green CLI result merely because observation completed. Unsupported legacy supervisor linkage remains explicitly unresolved rather than guessed.
 
 Every source, test, script, schema and product-document edit, including review fixes, MUST be performed through agy with the explicit arguments --model gemini-3.8-flash-high --effort high. No substitute model, inherited model, self role, nested agents, global configuration changes or GUI actions. GPT-6.1 Sol high performs architecture, plan checking, independent code/security review and verification. Pass a compact packet with objective, exact owned files, constraints, references and expected diff/evidence; launch packets sequentially and reclaim ownership before changing the next packet. Workers return a concise diff summary and unresolved limits; the controller runs tests and creates commits. On quota/usage failure preserve the boundary and recovery record; stop blind retries.
 

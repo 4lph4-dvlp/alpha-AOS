@@ -1,12 +1,18 @@
 ---
 phase: quick-261021-677
-verified: 2026-10-21T06:12:21Z
+verified: 2026-10-21T06:33:15Z
 status: passed
 score: 6/6 must-haves verified
 covered_files: [".github/workflows/ci.yml",".gitignore",".planning/quick/261021-677-research-implement-and-verify-cross-plat/261021-677-PLAN.md",".planning/quick/261021-677-research-implement-and-verify-cross-plat/261021-677-SUMMARY.md","CHANGELOG.md","README.ko.md","README.md","catalog/computer-use-runtime.json","catalog/facts.yaml","catalog/packs/computer-use.yaml","catalog/stack.lock.json","catalog/stack.yaml","docs/computer-use.md","docs/research/computer-use.md","docs/research/computer-use/all-platform-provenance.json","docs/research/computer-use/evidence.json","docs/research/computer-use/execution-progress.md","docs/research/computer-use/extracted-hashes.json","docs/research/computer-use/fetch-metadata.mjs","docs/research/computer-use/host-repository-metadata.json","docs/research/computer-use/host-runtime-verification.json","docs/research/computer-use/implementation-verification.json","docs/research/computer-use/metadata-live.json","docs/research/computer-use/native-discovery.json","docs/research/computer-use/receipts-context7.json","docs/research/computer-use/receipts-deep.json","docs/research/computer-use/receipts-fields.json","docs/research/computer-use/receipts-host-cli.json","docs/research/computer-use/receipts-initial.json","docs/research/computer-use/receipts-metadata.json","docs/research/computer-use/receipts-web.json","docs/research/computer-use/release-verification.txt","docs/research/computer-use/research-plan-input.json","docs/research/computer-use/setup-capability-inspection.json","docs/research/computer-use/signature-verification.txt","docs/research/computer-use/windows-host-smoke.json","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963.anchor.json","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/2cef2a71be697585d23e4c6c5a017dfc629d9cd427c62b7da1d92cae74af84fa.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/691f6aad64ae03ed9516d28e9193c25f592cab603bbd4d63a2dfbb0040543d89.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/6b3f119d5ad6e361cb684258f29541b38c729c5daf12ec60ed4100e52cf40658.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/8b31df8bf2932b03c38d630279288155513285654c4ff390cde204d0486ab9cd.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/8e434637e9787a124bc8be849b91c22d489fb609fc7a1312aa2b6eb961ed96d4.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/91fcb27887818a0316247bbbe34ed7e61538bdd60facc46909ebcbc9584cd4e2.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/9b7fda77d7ed4b8569f3c548e18bac25629c7485fa3e50f1ba9c4c0a867144b6.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/e524db204f2078a2ac63a0111a4d1bfd36db90769db1d5b1f70fc700825b56a6.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/ecb25db1de1ae7d02ac28b1f10cfa960a64a7a9312631a49fed68ea68fd4e2cb.png","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/events.jsonl","docs/research/computer-use/windows-live/602031e623d88e4a-4a994963/f65a0ec7cb085773fffdbca5c68aba70af7ee00fe8c44530547b7889e8f5301b.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1.anchor.json","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/2cef2a71be697585d23e4c6c5a017dfc629d9cd427c62b7da1d92cae74af84fa.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/691f6aad64ae03ed9516d28e9193c25f592cab603bbd4d63a2dfbb0040543d89.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/6b3f119d5ad6e361cb684258f29541b38c729c5daf12ec60ed4100e52cf40658.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/8b31df8bf2932b03c38d630279288155513285654c4ff390cde204d0486ab9cd.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/8e434637e9787a124bc8be849b91c22d489fb609fc7a1312aa2b6eb961ed96d4.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/91fcb27887818a0316247bbbe34ed7e61538bdd60facc46909ebcbc9584cd4e2.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/9b7fda77d7ed4b8569f3c548e18bac25629c7485fa3e50f1ba9c4c0a867144b6.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/e524db204f2078a2ac63a0111a4d1bfd36db90769db1d5b1f70fc700825b56a6.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/ecb25db1de1ae7d02ac28b1f10cfa960a64a7a9312631a49fed68ea68fd4e2cb.png","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/events.jsonl","docs/research/computer-use/windows-live/aed4e462b67b0af5-804901b1/f65a0ec7cb085773fffdbca5c68aba70af7ee00fe8c44530547b7889e8f5301b.png","docs/research/computer-use/windows-live/anchor.json","docs/research/computer-use/windows-live/report.html","docs/research/computer-use/windows-smoke.json","package-lock.json","package.json","schemas/computer-use-authority.schema.json","schemas/computer-use-evidence.schema.json","schemas/project-stack.schema.json","schemas/task-contract.schema.json","scripts/audit-tarball.mjs","scripts/computer-use-smoke.mjs","scripts/verify-computer-use.mjs","skills/alpha-aos-task/SKILL.md","skills/computer-use/SKILL.md","src/adapters/computer-use-cua.ts","src/adapters/task-agent-launch.ts","src/cli.ts","src/core/computer-use-audit.ts","src/core/computer-use-command.ts","src/core/computer-use-mcp.ts","src/core/computer-use-policy.ts","src/core/computer-use-task.ts","src/core/computer-use.ts","src/core/gate.ts","src/core/pack-catalog.ts","src/core/task-capability-inventory.ts","src/core/task-capability-obligations.ts","src/core/task-check.ts","src/core/task-contract.ts","src/core/task-run.ts","src/types.ts","test/capability-oracle.test.ts","test/catalog.test.ts","test/computer-use-audit.test.ts","test/computer-use-cua.test.ts","test/computer-use-integration.test.ts","test/computer-use-policy.test.ts","test/computer-use-research.test.ts","test/computer-use.test.ts","test/fixtures/computer-use-app.html","test/fixtures/computer-use-app.ps1","test/fixtures/computer-use.ts","test/fixtures/cua-0.37.0-windows-tools.json","test/install.test.ts","test/pack-catalog.test.ts","test/project-plan.test.ts","test/task-capability-fixtures.test.ts","test/task-check.test.ts","test/task-e2e-tracer.test.ts"]
-covered_digest: "v3:sha256:cc542b4bb75dc36da78045d838ccf1c198b5537ae2ee08f5401dfa14c2e2f184"
+covered_digest: "v3:sha256:af4e67b28e63e99141fe4d21764d172fee9ed0347c1620950cff1440274334db"
 behavior_unverified: 0
 overrides_applied: 0
+re_verification:
+  previous_status: passed
+  previous_score: 6/6
+  gaps_closed: []
+  gaps_remaining: []
+  regressions: []
 human_verification: []
 decision_coverage:
   honored: 0
@@ -19,8 +25,26 @@ decision_coverage:
 **Goal:** Deliver optional cross-platform desktop control selected from current research, integrated with alpha-AOS and existing GSD authority. Users can discover capabilities, review bounded GUI plans, execute permitted effects, stop, and inspect verifiable evidence. Complete release readiness with honest platform limitations.
 
 **Status:** passed  
-**Re-verification:** No — initial GSD goal verification. Independent review repair history was examined separately.  
-**Implementation reviewed:** `822a38317d09e05e7ab0c3ac923cb7bca3c19bf5`. Only SUMMARY.md was already uncommitted on entry. No implementation, SUMMARY, STATE, installation or native desktop changes were made by this verifier.
+**Re-verification:** Yes — narrow canonical-byte verification at `f42b31aac398f173718de9fe95b7f2762a6c3dc6`, following initial goal verification at 822a383. Independent review repair history is preserved below.
+**Initial implementation reviewed:** `822a38317d09e05e7ab0c3ac923cb7bca3c19bf5`. Only SUMMARY.md was already uncommitted on initial entry. The source tree was clean on re-verification entry. No implementation, SUMMARY, STATE, installation or native desktop changes were made by this verifier.
+
+## Canonical-Byte Re-verification
+
+The canonical query correctly returned **stale** before this pass. Five source working files contained CRLF bytes while Git and the original workspace held the committed LF form. This pass did not force the previous digest or omit affected files.
+
+Independently read the retained `canonical-text-alignment.json` and the five raw originals in `C:/Users/alpha/AppData/Local/Temp/alpha-aos-computer-use/canonical-text-before/`. Compared each original to the current source after only CRLF-to-LF normalization: all five matched exactly. The three JSON files also retained identical parsed values. Changes were PLAN's final line (40,936 → 40,935 bytes), extracted-hashes.json (767 → 741), host-repository-metadata.json (1,395 → 1,339), signature-verification.txt (13 → 12), and the pinned Windows tools schema fixture (82,388 → 80,363).
+
+Independently read **all 109 existing covered files** from source, original `D:/dev/alpha-AOS`, and `git show HEAD:path`. Every source file matched both other copies byte-for-byte: zero cross-root differences and zero source-versus-commit differences. Compared commits after 822a383: only GSD closeout documents and the two-line project-memory privacy ignore guard changed; production implementation, packaged documentation and tests did not change. The full release evidence at 7a0aa77 and final package evidence at 822a383 remain applicable to their canonical committed inputs.
+
+Reran all four production probes in this verifier's process: policy, audit, integration and research each returned their exact success JSON and exit **0**. Reran the affected named test, `node --test --test-name-pattern '^native argument mappings satisfy the actual pinned Windows 0.37.0 closed schemas$' dist/test/computer-use-cua.test.js`: **1 passed, 0 failed, 0 skipped**, exit **0**. No full suite, native driver, GUI action or installation was repeated.
+
+Read the actual `canonical-final-criteria.json`: four contract-measured criteria passed with exit 0 and no substitutes on the canonical immutable snapshot, **633 files / 10,787,720 bytes**, digest **fcaadf5dbe432e66269d882c0e0b046c0ea490c309db05d6406457fbd55c57ec**. That replaces neither the earlier historical snapshot receipt nor this report's separate GSD coverage fingerprint.
+
+Recomputed `verification.fingerprint` with the **complete unchanged 109-member covered set** and copied its digest verbatim. Previous six truth verdicts and review evidence remain valid; no gaps, regressions, overrides or new human-verification needs were found. Existing non-Windows live/three-OS-CI limits and the original controller's unknown verdict remain unchanged.
+
+### Advisory (New Scope, Unevidenced)
+
+None. This pass found canonical text alignment only, with deterministic byte-equivalence evidence.
 
 ## Goal Achievement
 
@@ -167,10 +191,10 @@ macOS/Linux/X11, each Wayland compositor/toolkit, macOS TCC and executed three-O
 
 No blocking goal gap found. All six must-have truths have implementation, wiring and applicable behavioral evidence. No overrides or deferrals were used.
 
-GSD completion registry, memory handoff, final documentation commit, local integration into the original workspace and original CLI build are the orchestrator's remaining completion steps; this report does not claim those later operations have already occurred. No commit was created by the verifier.
+At initial verification, GSD registry/memory closeout and original-workspace integration/build remained orchestrator steps. The subsequent lifecycle-only closeout is retained below and in SUMMARY. This narrow pass independently confirms both workspaces' identical covered bytes; it does not invent another GUI or full-release run. No commit was created by the verifier.
 
 ---
-_Verified: 2026-10-21T06:12:21Z_  
+_Initially verified: 2026-10-21T06:12:21Z; canonical bytes re-verified: 2026-10-21T06:33:15Z_
 _Verifier: independent Codex gpt-6.1-sol high, GSD quick Step 6.5_
 
 

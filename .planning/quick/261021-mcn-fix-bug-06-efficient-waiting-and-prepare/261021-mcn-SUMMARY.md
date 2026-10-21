@@ -1,10 +1,10 @@
 ---
 quick_id: 261021-mcn
-status: incomplete
+status: in-progress
 completed: false
 updated: 2026-10-21
 resume_task: 1
-blocker: Antigravity CLI authentication requires user action outside the current authority grant
+blocker: none; host-user agy authentication verified, implementation repairs in progress
 ---
 
 Research, context and the three-task plan are complete. Independent plan checking reported 0 blockers, 0 warnings and 1 informational size advisory; no revision was required. Implementation has not started. All three planned tasks remain.
@@ -20,3 +20,11 @@ No implementation review, full test suite, release dry-run or goal verification 
 External audit logs are retained in `C:/Users/Public/Documents/ESTsoft/CreatorTemp/bug06-041`: packet-a.txt, agy-a.jsonl and its stderr/internal log, npm-ci/debug logs, base-check, and setup plan/status output. Preserve these logs, the GSD artifacts and the external defect report.
 
 Resume this same quick task after the user manually authenticates the Antigravity CLI. Retry Packet A using the same explicit model and effort; do not create a new quick ID or substitute another implementation model. Continue the existing PLAN with agy-only implementation, controller-managed tests/commits, independent review, and its final release gate. The GSD controller records STATE recovery separately. Current disposition: needs-authority.
+
+## Host-user recovery and current boundary
+
+The preceding text records the first native run, not the current blocker. The parent controller verified an actual `agy --model gemini-3.8-flash-high --effort high` request in the existing host-user context: SUCCESS, MODEL_READY. No login, global configuration or GUI change was required. The native sandbox invocation remains honestly blocked in its original record. This same quick task resumes under the authorized parent controller with host-user implementation workers; it does not create a second GSD writer.
+
+Packet A and its compiler-only correction completed through the required Gemini model. Type checking and build passed. The first targeted runtime slice recorded 23 tests, 12 passed and 11 failed. Independent GPT-6.1 Sol high interim review confirmed nine blockers and one fixture warning, including synthetic credential persistence, checkpoint-only false acceptance and a rejected attempt misreported as completed. The external report is `C:/Users/alpha/AppData/Local/Temp/alpha-aos-041/interim-review.md`; no real credentials were used in reproductions. No source implementation commit or completion claim has been made.
+
+Repair order: bounded process/environment and job ownership/storage, canonical task identity/linkage, strict CLI/valid fixtures, then Packet B adversarial checks and Packet C guidance/version. The controller may narrowly extend `src/core/process.ts` with opt-in output-drain and spawn-observation seams while retaining existing default behavior; add corresponding focused process regressions. This is a dependency-free implementation correction, not a lifecycle or authority expansion. Workers remain sequential and source/test/doc edits remain agy-only. Final review, release gate and verification remain pending.

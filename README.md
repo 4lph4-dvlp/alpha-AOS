@@ -2,6 +2,13 @@
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
+Release **0.4.0** adds optional [task-bound computer use](docs/computer-use.md):
+bounded GUI authority, stop, immutable screenshot/action evidence and read-only
+replay through the same CLI/MCP broker for all five harnesses. Start with
+`alpha-aos computer-use plan --json` to choose automatic/manual verification.
+The runtime is opt-in; current live Cua proof is unavailable after a failed pinned
+asset download. Configuration and host-free fixtures are not live platform proof.
+
 Declarative, cross-platform installer and updater for a small, consistent AI-agent workflow stack.
 
 alpha-AOS configures the supported harnesses already present on a machine: Claude Code, Codex, Antigravity, Pi Agent, and Hermes Agent. It uses GSD as the workflow/state spine, installs exactly three selected ECC skills, and registers Context7, Exa, and a four-tool Firecrawl surface. It does not install the harness applications themselves and does not install an ECC profile.

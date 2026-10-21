@@ -1,0 +1,56 @@
+[
+  {
+    "repo": "trycua/cua",
+    "stars": 30414,
+    "forks": 2196,
+    "archived": false,
+    "pushedAt": "2026-10-20T19:36:00Z",
+    "license": "MIT",
+    "url": "https://github.com/trycua/cua"
+  },
+  {
+    "repo": "bytedance/UI-TARS-desktop",
+    "stars": 39347,
+    "forks": 3992,
+    "archived": false,
+    "pushedAt": "2026-10-09T01:29:53Z",
+    "license": "Apache-2.0",
+    "url": "https://github.com/bytedance/UI-TARS-desktop"
+  },
+  {
+    "repo": "simular-ai/Agent-S",
+    "stars": 12661,
+    "forks": 1631,
+    "archived": false,
+    "pushedAt": "2026-10-08T22:27:33Z",
+    "license": "Apache-2.0",
+    "url": "https://github.com/simular-ai/Agent-S"
+  },
+  {
+    "repo": "nut-tree/nut.js",
+    "stars": 2857,
+    "forks": 186,
+    "archived": false,
+    "pushedAt": "2024-05-01T19:50:22Z",
+    "license": null,
+    "url": "https://github.com/nut-tree/nut.js"
+  },
+  {
+    "repo": "asweigart/pyautogui",
+    "stars": 12737,
+    "forks": 1435,
+    "archived": false,
+    "pushedAt": "2024-08-20T18:34:57Z",
+    "license": "BSD-3-Clause",
+    "url": "https://github.com/asweigart/pyautogui"
+  },
+  {
+    "repo": "screenpipe/screenpipe",
+    "stars": 22003,
+    "forks": 2246,
+    "archived": false,
+    "pushedAt": "2026-10-20T18:44:14Z",
+    "license": "NOASSERTION",
+    "url": "https://github.com/screenpipe/screenpipe"
+  }
+]

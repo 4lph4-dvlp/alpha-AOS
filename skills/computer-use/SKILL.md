@@ -37,3 +37,5 @@ same-user whole-history replacement is outside a locally writable anchor's proof
 Retain failed/pending evidence for review. Expiry removes only reviewed capture
 blobs with durable tombstones; it cannot erase the action journal. Read
 `docs/computer-use.md` for setup, privacy, platform refusals and actual live limits.
+
+Use `--mode ordinary --verification automatic` after the ordinary automatic/manual choice. In autopilot use `--mode autopilot`; eligibility is still checked against the approved contract. Persistent `mcp` serves multiple actions in one grant. Runtime defaults to `<state-root>/computer-use/runtime` and evidence to `<state-root>/computer-use/evidence`; keep these out of project Git. Foreground permission is not a request: actions default to background. A foreground action additionally needs explicit `delivery: "foreground"`; never silently retry a refused gesture. Launch apps with an existing reviewed CLI/process tool before binding the returned exact target. On macOS supply the approved target `bundleId` and existing TCC permissions for the direct driver runtime.

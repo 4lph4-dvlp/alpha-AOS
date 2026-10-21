@@ -562,14 +562,15 @@ export async function buildTaskCapabilityInventory(
     });
   }
 
+  const computerNative = resolveNativeUseForCapability("control:computer-use", "computer-use", options.harness, ledger);
   items.push({
     id: "control:computer-use", name: "computer-use", kind: "control-command", scope: "project",
     version: "0.37.0", source: "src/core/computer-use.ts", sourceHash: null,
     targetHarnesses: ALL_HARNESSES, applicable: true, selected: false,
     applicabilityReason: "Optional explicit project pack and digest-bound desktop authority required.",
     exclusionReason: "No implicit GUI authority", unavailableReason: "Requires task-local verified native invocation and exact-target permissions",
-    deployment: "CURRENT", nativeUse: "unverified", support: "supported",
-    nativeUseReason: "Guidance deployment is not host invocation evidence", supportReason: "All harnesses route through the same local broker; native OS support remains separately unverified",
+    deployment: "CURRENT", nativeUse: computerNative.nativeUse, support: "supported",
+    nativeUseReason: computerNative.nativeUseReason, supportReason: "All harnesses route through the same local broker; native OS support remains separately unverified",
   });
 
   // 9. Native Tools

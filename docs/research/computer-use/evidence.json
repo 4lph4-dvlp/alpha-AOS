@@ -1,0 +1,483 @@
+{
+  "schemaVersion": 1,
+  "researchCutUtc": "2026-10-20T19:37:23.270Z",
+  "researchDateLocal": "2026-10-21",
+  "timezone": "Asia/Seoul",
+  "taskId": "261021-677",
+  "contractDigest": "60b6c24f91541163c5019442ba94c55751299fb10d3e6641b2d38fb4f722a5d3",
+  "evidenceLevels": [
+    "documented",
+    "upstream-fixture",
+    "alpha-aos-fixture",
+    "live",
+    "unavailable"
+  ],
+  "providers": {
+    "exa": {
+      "attempted": true,
+      "outcome": "unavailable",
+      "reason": "401 missing EXA_API_KEY",
+      "receipt": "receipts-initial.json#/initial/0"
+    },
+    "firecrawl": {
+      "attempted": true,
+      "outcome": "partial-success",
+      "reason": "Primary documentation extracted; later 502 and connection closed",
+      "receipt": "receipts-deep.json"
+    },
+    "context7": {
+      "attempted": true,
+      "outcome": "success",
+      "receipt": "receipts-context7.json"
+    },
+    "shellNetwork": {
+      "attempted": true,
+      "outcome": "unavailable",
+      "receipt": "metadata-live.json"
+    }
+  },
+  "sources": [
+    {
+      "id": "cua-driver",
+      "url": "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/README.md",
+      "receipt": "receipts-initial.json#/sources/0",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "cua-actions",
+      "url": "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/docs/action-support.md",
+      "receipt": "receipts-deep.json#/results/0",
+      "provider": "firecrawl",
+      "level": "upstream-fixture"
+    },
+    {
+      "id": "cua-windows",
+      "url": "https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/rust/Skills/cua-driver/WINDOWS.md",
+      "receipt": "receipts-deep.json#/results/1",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "cua-permissions",
+      "url": "https://cua.ai/docs/cua-driver/guides/permissions",
+      "receipt": "receipts-deep.json#/results/3",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "ui-tars",
+      "url": "https://raw.githubusercontent.com/bytedance/UI-TARS-desktop/main/README.md",
+      "receipt": "receipts-initial.json#/sources/1",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "ui-tars-quickstart",
+      "url": "https://raw.githubusercontent.com/bytedance/UI-TARS-desktop/main/docs/quick-start.md",
+      "receipt": "receipts-deep.json#/results/4",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "agent-s",
+      "url": "https://raw.githubusercontent.com/simular-ai/Agent-S/main/README.md",
+      "receipt": "receipts-initial.json#/sources/2",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "agent-s-cli",
+      "url": "https://raw.githubusercontent.com/simular-ai/Agent-S/main/gui_agents/s3/cli_app.py",
+      "receipt": "receipts-deep.json#/results/5",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "nut-js",
+      "url": "https://raw.githubusercontent.com/nut-tree/nut.js/develop/README.md",
+      "receipt": "receipts-initial.json#/sources/3",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "pyautogui",
+      "url": "https://pyautogui.readthedocs.io/en/latest/",
+      "receipt": "receipts-initial.json#/sources/4",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "screenpipe",
+      "url": "https://raw.githubusercontent.com/screenpipe/screenpipe/main/README.md",
+      "receipt": "receipts-initial.json#/sources/5",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "screenpipe-license",
+      "url": "https://raw.githubusercontent.com/screenpipe/screenpipe/main/LICENSE.md",
+      "receipt": "receipts-deep.json#/results/6",
+      "provider": "firecrawl",
+      "level": "documented"
+    },
+    {
+      "id": "driver-release",
+      "url": "https://github.com/trycua/cua/releases",
+      "receipt": "receipts-web.json#/repositories",
+      "provider": "web",
+      "level": "documented"
+    },
+    {
+      "id": "driver-protocol",
+      "url": "https://raw.githubusercontent.com/trycua/cua/cua-driver-rs-v0.37.0/libs/cua-driver/docs/mcp-protocol-and-skills.md",
+      "receipt": "receipts-web.json#/protocol",
+      "provider": "web",
+      "level": "documented"
+    },
+    {
+      "id": "driver-runtime",
+      "url": "https://raw.githubusercontent.com/trycua/cua/cua-driver-rs-v0.37.0/libs/cua-driver/rust/Skills/cua-driver/RUNTIME.md",
+      "receipt": "receipts-web.json#/protocol",
+      "provider": "web",
+      "level": "documented"
+    },
+    {
+      "id": "driver-api",
+      "url": "https://cua.ai/docs/cua-driver/reference/mcp-tools/click-and-type",
+      "receipt": "receipts-fields.json#/result",
+      "provider": "web",
+      "level": "documented"
+    },
+    {
+      "id": "context7-apis",
+      "url": "https://github.com/nut-tree/nut.js",
+      "receipt": "receipts-context7.json#/queries",
+      "provider": "context7",
+      "level": "documented"
+    }
+  ],
+  "candidates": [
+    {
+      "id": "cua",
+      "name": "Cua / Cua Driver",
+      "role": "native-actuator",
+      "sources": [
+        "cua-driver",
+        "cua-actions",
+        "cua-permissions",
+        "driver-protocol",
+        "driver-api"
+      ],
+      "operations": {
+        "drag": "documented-conditional",
+        "leftClick": "documented-conditional",
+        "rightClick": "documented-conditional",
+        "keyboard": "documented-conditional",
+        "launch": "documented",
+        "screenshot": "documented",
+        "perception": "optional-separate-license"
+      },
+      "platforms": {
+        "windows": "documented-conditional",
+        "macos": "documented-permissions-required",
+        "linuxX11": "upstream-fixture-deliveries-and-refusals",
+        "wayland": "compositor-specific-refusals"
+      },
+      "license": "MIT driver; FSL Spaces; optional perception has AGPL-only detector",
+      "offline": "local driver; telemetry/no-egress not live verified",
+      "mcp": "stdio; authenticated legacy loopback HTTP",
+      "liveProof": false,
+      "recommendation": "preferred-optional-actuator"
+    },
+    {
+      "id": "ui-tars",
+      "name": "UI-TARS Desktop",
+      "role": "visual-agent",
+      "sources": [
+        "ui-tars",
+        "ui-tars-quickstart"
+      ],
+      "operations": {
+        "drag": "operator-mapping-not-individually-verified",
+        "leftClick": "documented",
+        "rightClick": "operator-mapping-not-individually-verified",
+        "keyboard": "documented",
+        "launch": "agent-operated-not-bounded-launch-contract",
+        "screenshot": "documented",
+        "perception": "vision-model"
+      },
+      "platforms": {
+        "windows": "documented",
+        "macos": "documented",
+        "linuxX11": "not-established-for-local-desktop",
+        "wayland": "not-established"
+      },
+      "license": "Apache-2.0 repo; models separate",
+      "offline": "local endpoint possible; not live verified",
+      "mcp": "Agent TARS supports MCP; Desktop actuator server not established",
+      "liveProof": false,
+      "recommendation": "alternative-planner-outside-core-slice"
+    },
+    {
+      "id": "agent-s",
+      "name": "Agent S",
+      "role": "research-agent-framework",
+      "sources": [
+        "agent-s",
+        "agent-s-cli"
+      ],
+      "operations": {
+        "drag": "generated-action-stack",
+        "leftClick": "documented",
+        "rightClick": "generated-action-stack",
+        "keyboard": "documented",
+        "launch": "generated-platform-code",
+        "screenshot": "pyautogui",
+        "perception": "grounding-model-and-OCR"
+      },
+      "platforms": {
+        "windows": "documented",
+        "macos": "documented",
+        "linuxX11": "source-path",
+        "wayland": "not-established"
+      },
+      "license": "Apache-2.0 repo; models separate",
+      "offline": "local provider possible; not live verified",
+      "mcp": "hosted Sai separate from local framework",
+      "liveProof": false,
+      "recommendation": "alternative-planner-outside-core-slice"
+    },
+    {
+      "id": "nut-js",
+      "name": "nut.js",
+      "role": "typescript-actuator",
+      "sources": [
+        "nut-js",
+        "context7-apis"
+      ],
+      "operations": {
+        "drag": "documented",
+        "leftClick": "documented",
+        "rightClick": "documented",
+        "keyboard": "documented",
+        "launch": "integration-required",
+        "screenshot": "documented",
+        "perception": "image-matching-plugins"
+      },
+      "platforms": {
+        "windows": "documented",
+        "macos": "documented",
+        "linuxX11": "documented",
+        "wayland": "explicitly-unsupported"
+      },
+      "license": "Apache-2.0 core; prebuilt subscription",
+      "offline": "local native operations; no inference required",
+      "mcp": "wrapper-required-not-proven",
+      "liveProof": false,
+      "recommendation": "strong-language-fit-but-wayland-and-distribution-gaps"
+    },
+    {
+      "id": "pyautogui",
+      "name": "PyAutoGUI",
+      "role": "python-actuator",
+      "sources": [
+        "pyautogui",
+        "context7-apis"
+      ],
+      "operations": {
+        "drag": "documented",
+        "leftClick": "documented",
+        "rightClick": "documented",
+        "keyboard": "foreground-focus",
+        "launch": "external-integration-required",
+        "screenshot": "primary-monitor",
+        "perception": "image-matching-no-built-in-OCR"
+      },
+      "platforms": {
+        "windows": "documented",
+        "macos": "documented",
+        "linuxX11": "Xlib-XTest-source",
+        "wayland": "not-established-native"
+      },
+      "license": "BSD-3-Clause",
+      "offline": "local actuator; dependencies must be installed",
+      "mcp": "wrapper-required-not-proven",
+      "liveProof": false,
+      "recommendation": "narrow-fallback"
+    },
+    {
+      "id": "screenpipe",
+      "name": "Screenpipe",
+      "role": "screen-audio-history",
+      "sources": [
+        "screenpipe",
+        "screenpipe-license"
+      ],
+      "operations": {
+        "drag": "not-established-bounded-actuator",
+        "leftClick": "input-capture-not-actuation-proof",
+        "rightClick": "not-established-bounded-actuator",
+        "keyboard": "input-capture-not-actuation-proof",
+        "launch": "workflow-agents-separate",
+        "screenshot": "event-driven-capture",
+        "perception": "accessibility-OCR-transcription"
+      },
+      "platforms": {
+        "windows": "documented-app",
+        "macos": "documented-app",
+        "linuxX11": "documented-app-session-dependent",
+        "wayland": "session-dependent-not-actuator-proof"
+      },
+      "license": "current Screenpipe Commercial License; old MIT versions separate",
+      "offline": "capture/search after setup; cloud paths separate",
+      "mcp": "history-query-server",
+      "liveProof": false,
+      "recommendation": "separate-opt-in-history-not-default-actuator"
+    }
+  ],
+  "claims": [
+    {
+      "id": "C001",
+      "claim": "Cua bounded mode requires reviewed manifest and narrows tools/resources",
+      "sourceIds": [
+        "cua-permissions",
+        "driver-runtime"
+      ],
+      "level": "documented"
+    },
+    {
+      "id": "C002",
+      "claim": "Cua background behavior includes expected refusals, not universal delivery",
+      "sourceIds": [
+        "cua-actions",
+        "cua-windows"
+      ],
+      "level": "upstream-fixture"
+    },
+    {
+      "id": "C003",
+      "claim": "nut.js explicitly excludes Wayland",
+      "sourceIds": [
+        "nut-js"
+      ],
+      "level": "documented"
+    },
+    {
+      "id": "C004",
+      "claim": "Screenpipe current license is commercial source-available",
+      "sourceIds": [
+        "screenpipe-license"
+      ],
+      "level": "documented"
+    },
+    {
+      "id": "C005",
+      "claim": "PyAutoGUI has primary monitor and foreground focus limits",
+      "sourceIds": [
+        "pyautogui"
+      ],
+      "level": "documented"
+    },
+    {
+      "id": "C006",
+      "claim": "Cua legacy stdio MCP is suitable for existing SDK negotiation; actual handshake remains required",
+      "sourceIds": [
+        "driver-protocol"
+      ],
+      "level": "documented"
+    },
+    {
+      "id": "C007",
+      "claim": "Cua pixel clicks can consume a capture_id atomically and refuse stale/mismatch",
+      "sourceIds": [
+        "driver-api"
+      ],
+      "level": "documented"
+    },
+    {
+      "id": "C008",
+      "claim": "Native Codex Windows discovery succeeded; no actions/screenshots taken",
+      "sourceIds": [],
+      "receipt": "native-discovery.json",
+      "level": "live",
+      "scope": "discovery-only"
+    }
+  ],
+  "optionalRuntime": {
+    "name": "cua-driver",
+    "version": "0.37.0",
+    "tag": "cua-driver-rs-v0.37.0",
+    "sourceCommit": "2d2f99228d4d2508dc6fcc84c176b296e146714a",
+    "sourceId": "driver-release",
+    "stableLockPromotion": false,
+    "downloadVerified": false,
+    "signatureVerified": false,
+    "enabled": false,
+    "assets": [
+      {
+        "os": "windows",
+        "arch": "x64",
+        "name": "cua-driver-rs-0.37.0-windows-x86_64-binary.zip",
+        "sha256": "40481b55073f1225b0010235b30217bd640ef1f323e982aec0a5f6131d3e4a99",
+        "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.37.0/cua-driver-rs-0.37.0-windows-x86_64-binary.zip",
+        "proof": "published-checksum-only",
+        "liveVerified": false,
+        "files": {
+          "cua_driver_abi.h": "c17169f41da321baa5e7e953323c3ad660b00790176ba381e93189fba3506587",
+          "cua_driver_node_runtime.node": "ca2d817447cd0687d9439876fab936e6694c1cf14e5867d5a950da02e7cd3b3d",
+          "cua_driver_sdk.dll": "8f3ca450310b1e86694f314052ef5dc68f3c325fac65b235d689d1c51e642d04",
+          "cua-cursor-theme.exe": "27cab49c44aa9ed2013d969ef8b53955bbf4df87ae3522aa9167e1f9e4c33ca0",
+          "cua-driver-uia.exe": "e9dd9f16d55acc3b029d84aec3ae699d8244a1fc72414b206512d52f7ed77f5b",
+          "cua-driver.exe": "30b14e435defbd440f53ffbd1761b0c888182a519db0c15c4678977bd7c9481e"
+        }
+      },
+      {
+        "os": "windows",
+        "arch": "arm64",
+        "name": "cua-driver-rs-0.37.0-windows-arm64-binary.zip",
+        "sha256": "0fce682b251775e25fd76bf29ff856f7f5ab5aae5759d6b76a40f8312a194a5a",
+        "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.37.0/cua-driver-rs-0.37.0-windows-arm64-binary.zip",
+        "proof": "published-checksum-only",
+        "liveVerified": false
+      },
+      {
+        "os": "macos",
+        "arch": "universal",
+        "name": "cua-driver-rs-0.37.0-darwin-universal-binary.tar.gz",
+        "sha256": "7d491f67f54be5f3b380ffd85c64b242eaefd05dad6df78012cde227c95aee2a",
+        "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.37.0/cua-driver-rs-0.37.0-darwin-universal-binary.tar.gz",
+        "proof": "published-checksum-only",
+        "liveVerified": false
+      },
+      {
+        "os": "linux",
+        "arch": "x64",
+        "name": "cua-driver-rs-0.37.0-linux-x86_64-binary.tar.gz",
+        "sha256": "c7ac376b10da7c207e510b2d90b88a9588bec9852a237962c273fe81b9cd5623",
+        "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.37.0/cua-driver-rs-0.37.0-linux-x86_64-binary.tar.gz",
+        "proof": "published-checksum-only",
+        "liveVerified": false
+      },
+      {
+        "os": "linux",
+        "arch": "arm64",
+        "name": "cua-driver-rs-0.37.0-linux-arm64-binary.tar.gz",
+        "sha256": "879e8040a4ce24caeee34b2e4ac6119be01661082202919db1bcc1ab0b97e4c8",
+        "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.37.0/cua-driver-rs-0.37.0-linux-arm64-binary.tar.gz",
+        "proof": "published-checksum-only",
+        "liveVerified": false
+      }
+    ]
+  },
+  "limits": [
+    "No alpha-AOS production action proof yet",
+    "No macOS/Linux live proof",
+    "Exa 401 missing key",
+    "Firecrawl later disconnected",
+    "Shell registry/network unavailable",
+    "npm legitimacy SUS from unknown signals; no npm install recommended",
+    "No comparable actuator benchmark",
+    "No stable dependency promotion"
+  ]
+}

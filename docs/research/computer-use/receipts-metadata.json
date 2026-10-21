@@ -1,0 +1,97 @@
+{
+  "capturedAt": "2026-10-20T19:31:30.484Z",
+  "urls": [
+    "https://api.github.com/repos/trycua/cua/releases?per_page=10",
+    "https://api.github.com/repos/trycua/cua",
+    "https://api.github.com/repos/bytedance/UI-TARS-desktop",
+    "https://api.github.com/repos/simular-ai/Agent-S",
+    "https://api.github.com/repos/nut-tree/nut.js",
+    "https://api.github.com/repos/asweigart/pyautogui",
+    "https://api.github.com/repos/screenpipe/screenpipe",
+    "https://pypi.org/pypi/PyAutoGUI/json",
+    "https://registry.npmjs.org/@trycua%2fcua-driver/latest"
+  ],
+  "results": [
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32000: MCP error -32000: Connection closed"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    },
+    {
+      "content": [
+        {
+          "type": "text",
+          "text": "tool call error: tool call failed for `firecrawl/firecrawl_scrape`\n\nCaused by:\n    Mcp error: -32603: Not connected"
+        }
+      ],
+      "isError": true
+    }
+  ]
+}

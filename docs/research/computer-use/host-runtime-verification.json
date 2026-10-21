@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-20T19:51:28.4344745Z",
+  "kind": "host-runtime-provenance",
+  "backend": "cua-driver",
+  "version": "0.37.0",
+  "platform": "windows",
+  "arch": "x86_64",
+  "releaseTag": "cua-driver-rs-v0.37.0",
+  "sourceCommit": "2d2f99228d4d2508dc6fcc84c176b296e146714a",
+  "archiveSha256": "40481b55073f1225b0010235b30217bd640ef1f323e982aec0a5f6131d3e4a99",
+  "releaseApiDigestMatched": true,
+  "publishedChecksumsMatched": true,
+  "sigstore": {
+    "verified": true,
+    "result": "Verified OK",
+    "log": "signature-verification.txt",
+    "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.37.0",
+    "issuer": "https://token.actions.githubusercontent.com",
+    "verifier": "cosign 3.1.4",
+    "exitCode": 0
+  },
+  "extractedFiles": [
+    {
+      "file": "cua_driver_abi.h",
+      "Hash": "C17169F41DA321BAA5E7E953323C3AD660B00790176BA381E93189FBA3506587"
+    },
+    {
+      "file": "cua_driver_node_runtime.node",
+      "Hash": "CA2D817447CD0687D9439876FAB936E6694C1CF14E5867D5A950DA02E7CD3B3D"
+    },
+    {
+      "file": "cua_driver_sdk.dll",
+      "Hash": "8F3CA450310B1E86694F314052EF5DC68F3C325FAC65B235D689D1C51E642D04"
+    },
+    {
+      "file": "cua-cursor-theme.exe",
+      "Hash": "27CAB49C44AA9ED2013D969EF8B53955BBF4DF87AE3522AA9167E1F9E4C33CA0"
+    },
+    {
+      "file": "cua-driver-uia.exe",
+      "Hash": "E9DD9F16D55ACC3B029D84AEC3AE699D8244A1FC72414B206512D52F7ED77F5B"
+    },
+    {
+      "file": "cua-driver.exe",
+      "Hash": "30B14E435DEFBD440F53FFBD1761B0C888182A519DB0C15C4678977BD7C9481E"
+    }
+  ],
+  "versionProbe": "cua-driver 0.37.0",
+  "guiActionsExecuted": 0,
+  "screenshotsCaptured": 0,
+  "limits": "Provenance and version only. No GUI or cross-platform execution proof."
+}

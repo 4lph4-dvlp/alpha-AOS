@@ -76,8 +76,15 @@ export interface TaskResourcePolicy {
   maxTokens?: number;
 }
 
+export interface TaskComputerUseGrant {
+  authorityHash: string;
+  deterministic: boolean;
+  reversible: boolean;
+  verification?: { authorityFile: string; runtimeFile: string; requestFile: string; requestHash: string; runtimeReceiptHash: string };
+}
+
 export interface TaskContract {
-  computerUse?: { authorityHash: string; deterministic: boolean; reversible: boolean } | undefined;
+  computerUse?: TaskComputerUseGrant | undefined;
   schemaVersion: 1;
   id: string;
   revision: number;
@@ -132,7 +139,7 @@ export interface DigestableTaskCriterion {
 
 /** Everything a reviewer approves, in one fixed key order. */
 export interface DigestableTaskContract {
-  computerUse?: { authorityHash: string; deterministic: boolean; reversible: boolean } | undefined;
+  computerUse?: TaskComputerUseGrant | undefined;
   schemaVersion: 1;
   id: string;
   revision: number;
@@ -449,6 +456,11 @@ function projectPathProblem(normalized: string): string | null {
  */
 function assertContractAuthority(contract: TaskContract, label: string): void {
   const refuse = (detail: string, path: string) => invalid(`Task contract ${label} is invalid: ${detail} at ${path}.`);
+  if (contract.computerUse?.verification) {
+    for (const key of ["authorityFile", "runtimeFile", "requestFile"] as const) {
+      if (projectPathProblem(normalizeContractPath(contract.computerUse.verification[key])) !== null) throw refuse("GUI verification files must be bounded project-relative paths", `/computerUse/verification/${key}`);
+    }
+  }
   if (!isAbsolute(contract.scope.projectRoot)) throw refuse("the project root must be an absolute path", "/scope/projectRoot");
   const roots: string[] = [];
   for (const [index, entry] of contract.allowedRoots.entries()) {
@@ -625,7 +637,12 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       maxTokens: contract.resourcePolicy.maxTokens ?? null,
       maxWallTimeMinutes: contract.resourcePolicy.maxWallTimeMinutes ?? null,
     },
-    ...(contract.computerUse ? { computerUse: { ...contract.computerUse } } : {}),
+    ...(contract.computerUse ? { computerUse: { authorityHash: contract.computerUse.authorityHash, deterministic: contract.computerUse.deterministic, reversible: contract.computerUse.reversible,
+      ...(contract.computerUse.verification ? { verification: {
+        authorityFile: normalizeContractPath(contract.computerUse.verification.authorityFile), runtimeFile: normalizeContractPath(contract.computerUse.verification.runtimeFile), requestFile: normalizeContractPath(contract.computerUse.verification.requestFile),
+        requestHash: contract.computerUse.verification.requestHash, runtimeReceiptHash: contract.computerUse.verification.runtimeReceiptHash,
+      } } : {}),
+    } } : {}),
     ...(contract.category === "general"
       ? {
           connectorId: contract.connectorId,
@@ -675,6 +692,7 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("connectorId", before.connectorId ?? null, after.connectorId ?? null);
   compare("protocolVersion", before.protocolVersion ?? null, after.protocolVersion ?? null);
   compare("manifestDigest", before.manifestDigest ?? null, after.manifestDigest ?? null);
+  compare("computerUse", before.computerUse ?? null, after.computerUse ?? null);
   const criteria = (view: DigestableTaskContract) =>
     new Map(view.criterion.map((criterion) => [criterion.id, JSON.stringify(canonicalJsonValue(criterion))]));
   const left = criteria(before);

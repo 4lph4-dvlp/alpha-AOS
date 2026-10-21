@@ -2,6 +2,19 @@
 
 All notable changes to alpha-AOS are documented in this file. The format follows Keep a Changelog, and the project uses Semantic Versioning.
 
+## [0.4.0] - 2026-10-21
+
+### Added
+
+- Optional task-bound computer-use CLI/MCP broker with closed digest-bound authority, exact target/runtime checks, finite budgets, persistent emergency stop and fresh observed postconditions.
+- Immutable validated PNG captures, durable chained intents/results, trusted-anchor replay, interrupted/unknown evidence and reviewed retention tombstones.
+- Explicit COMPUTER_USE pack/guidance, five harness routing, inventory and mandatory GUI security-review surfaces; old task contracts retain their digest and grant no GUI access.
+- Host-free production checks, adversarial coverage, a controlled Windows CLI/MCP run with six actions and twenty replay-verified audit events, verified optional Cua 0.37.0 provenance and explicit platform evidence. macOS/Linux live actions remain untested here.
+
+### Security
+
+- No new external npm runtime dependency or stable dependency promotion. Raw native tools, secret typing, arbitrary launch arguments and full-desktop fallback are denied. Public-data capture is an explicit reviewed classification, not a secret-detection guarantee.
+
 ## [0.3.1] - 2026-10-18
 
 ### Fixed

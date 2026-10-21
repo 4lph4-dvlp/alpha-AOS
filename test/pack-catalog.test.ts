@@ -181,6 +181,7 @@ const DECLARED_PACK_IDS: readonly string[] = [
   "BROWNFIELD_INIT",
   "CACHE_REDIS",
   "CONTAINER",
+  "COMPUTER_USE",
   "DB_MIGRATION",
   "DB_POSTGRES",
   "DEPLOYMENT",
@@ -192,11 +193,11 @@ const DECLARED_PACK_IDS: readonly string[] = [
   "WEB_REACT",
 ];
 
-test("all seven pack files merge into one catalog of fifteen packs", async () => {
+test("all declared pack files merge into one catalog including explicit computer use", async () => {
   const catalog = await loadPackCatalogStrict(packageRoot());
   const ids = catalog.value.packs.map((pack) => pack.id);
 
-  assert.equal(ids.length, 15);
+  assert.equal(ids.length, DECLARED_PACK_IDS.length);
   assert.deepEqual([...ids].sort(), [...DECLARED_PACK_IDS].sort());
   // Codepoint order, not locale order: the merged catalog must be byte-stable
   // on every host, and `localeCompare` is not.
@@ -359,7 +360,8 @@ test("the real repository catalog satisfies every invariant", async () => {
   const vocabulary = await loadFactVocabularyStrict(root);
 
   assert.deepEqual(packCatalogInvariants(catalog.value, vocabulary.value), []);
-  assert.equal(catalog.value.packs.length, 15);
+  assert.equal(catalog.value.packs.length, DECLARED_PACK_IDS.length);
+  assert.equal(catalog.value.packs.find((p) => p.id === "COMPUTER_USE")?.selectionPolicy, "explicit-task-authority-required");
 });
 
 // ---------------------------------------------------------------------------

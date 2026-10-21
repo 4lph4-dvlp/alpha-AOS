@@ -40,40 +40,61 @@ export async function checkAudit() {
   } finally { await rm(scratch, { recursive: true, force: true }); }
 }
 export async function checkIntegration() {
+  // This criterion also runs in dependency-free immutable task snapshots.
+  // Live SDK/CLI/harness integration is exercised by the compiled integration suite.
   const { computerDoctor } = await production("core/computer-use-command");
-  const doctor = await computerDoctor(root); assert.equal(doctor.nativeUse, "unverified"); assert.equal(doctor.enabled, false);
-  const cli = JSON.parse(execFileSync(process.execPath, [join(root, "dist/src/cli.js"), "computer-use", "doctor", "--json"], { encoding: "utf8" })); assert.equal(cli.nativeUse, "unverified");
-  const { loadCatalog, loadLock } = await production("core/catalog"); const catalog = await loadCatalog(root); const lock = await loadLock(root);
-  const { loadPackCatalogStrict } = await production("core/pack-catalog"); assert.ok((await loadPackCatalogStrict(root)).value.packs.some((v) => v.id === "COMPUTER_USE"));
-  const { evaluateRiskObligations } = await production("core/gate"); assert.ok(evaluateRiskObligations({ baseCommit: "base", headCommit: "head", isWorkingTreeDirty: true, modifiedFiles: ["src/core/computer-use-policy.ts"], untrackedFiles: [] }).obligations.includes("security-review"));
-  const { taskComputerUseRoute } = await production("adapters/task-agent-launch"); const { planOwnedSkillSync } = await production("core/owned-skills");
+  assert.equal((await computerDoctor(root)).nativeUse, "unverified");
+  const lock = JSON.parse(await readFile(join(root, "catalog/stack.lock.json"), "utf8"));
+  const { createHash } = await import("node:crypto");
+  const guide = await readFile(join(root, "skills/computer-use/SKILL.md"));
+  assert.ok(JSON.stringify(lock).includes(createHash("sha256").update(guide).digest("hex")));
+  const { ComputerSession } = await production("core/computer-use");
+  const { validateComputerAuthority } = await production("core/computer-use-policy");
+  const { verifyComputerAudit } = await production("core/computer-use-audit");
   const scratch = await mkdtemp(join(tmpdir(), "aos-cu-integration-"));
+  const a = validateComputerAuthority(authorityInput()); let reads = 0; let effects = 0;
+  const session = await ComputerSession.open(a, { identity: a.runtime,
+    observe: async () => ({ target: a.target, captureId: String(++reads), png, width: 1, height: 1, state: String(effects), safe: true, foreground: false }),
+    dispatch: async () => { effects++; }, close: async () => {} }, scratch);
   try {
-    for (const harness of ["claude", "codex", "antigravity", "pi", "hermes"]) {
-      assert.equal(taskComputerUseRoute(harness, {}).granted, false);
-      assert.equal((await planOwnedSkillSync(root, catalog, lock, "computer-use", harness, { targetHome: join(scratch, harness) })).action, "create");
-    }
-    const { buildTaskCapabilityInventory } = await production("core/task-capability-inventory");
-    const inventory = await buildTaskCapabilityInventory({ packageRoot: root, projectRoot: scratch, catalog, lock }); assert.equal(inventory.items.find((v) => v.id === "control:computer-use").nativeUse, "unverified");
-    const { Client } = await import("@modelcontextprotocol/sdk/client/index.js"); const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
-    const { ComputerSession } = await production("core/computer-use"); const { createComputerMcpServer } = await production("core/computer-use-mcp"); const { validateComputerAuthority } = await production("core/computer-use-policy");
-    const a = validateComputerAuthority(authorityInput()); let reads = 0; let effects = 0;
-    const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => ({ target: a.target, captureId: String(++reads), png, width: 1, height: 1, state: String(effects), safe: true, foreground: false }), dispatch: async () => { effects++; }, close: async () => {} }, scratch);
-    const server = createComputerMcpServer(session); const client = new Client({ name: "verification", version: "1" }); const [left, right] = InMemoryTransport.createLinkedPair();
-    try {
-      await Promise.all([server.connect(right), client.connect(left)]); assert.equal((await client.listTools()).tools.length, 2);
-      await assert.rejects(client.callTool({ name: "shell_execute", arguments: {} }));
-      const result = await client.callTool({ name: "computer_action", arguments: { action: { kind: "click", x: 0, y: 0 }, postcondition: { equals: "1" } } });
-      assert.match(JSON.stringify(result), /verified/); assert.equal(effects, 1);
-    } finally { await client.close(); await server.close(); await session.close(); }
-  } finally { await rm(scratch, { recursive: true, force: true }); }
+    assert.equal((await session.action({ kind: "click", x: 0, y: 0 }, { equals: "1" })).outcome, "verified");
+    assert.equal(effects, 1);
+    const result = await verifyComputerAudit(scratch, a.runId, await session.audit.checkpoint());
+    assert.deepEqual(result.events.map((v) => v.kind), ["intent", "result"]);
+    assert.deepEqual(result.pending, []);
+    await session.stop();
+    await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { equals: "2" }));
+    assert.equal(effects, 1);
+  } finally { await session.close(); await rm(scratch, { recursive: true, force: true }); }
 }
 export async function checkResearch() {
-  throw new Error("Research verification is incomplete");
+  const evidenceRoot = join(root, "docs/research/computer-use"); const e = JSON.parse(await readFile(join(evidenceRoot, "evidence.json"), "utf8"));
+  assert.deepEqual([...e.candidates.map((v) => v.id)].sort(), ["agent-s", "cua", "nut-js", "pyautogui", "screenpipe", "ui-tars"]);
+  const sources = new Map(e.sources.map((v) => [v.id, v])); assert.equal(sources.size, e.sources.length);
+  for (const source of e.sources) {
+    assert.ok(source.url.startsWith("https://")); const [file, pointer] = source.receipt.split("#"); assert.match(file, /^receipts-[a-z0-9-]+\.json$/);
+    let receipt = JSON.parse(await readFile(join(evidenceRoot, file), "utf8"));
+    if (pointer) for (const key of pointer.slice(1).split("/")) { assert.ok(Object.hasOwn(receipt, key)); receipt = receipt[key]; }
+    assert.ok(receipt && JSON.stringify(receipt).length > 10);
+  }
+  for (const candidate of e.candidates) { assert.ok(candidate.sources.length); for (const source of candidate.sources) assert.ok(sources.has(source)); assert.equal(candidate.liveProof, false); }
+  for (const claim of e.claims) {
+    for (const source of claim.sourceIds) assert.ok(sources.has(source)); assert.ok(e.evidenceLevels.includes(claim.level));
+    if (!claim.sourceIds.length) { assert.equal(claim.scope, "discovery-only"); assert.equal(claim.receipt, "native-discovery.json"); assert.ok(JSON.parse(await readFile(join(evidenceRoot, claim.receipt), "utf8"))); }
+  }
+  assert.equal(e.candidates.find((v) => v.id === "cua").recommendation, "preferred-optional-actuator");
+  assert.equal(e.providers.exa.outcome, "unavailable");
+  const initial = await readFile(join(evidenceRoot, e.providers.exa.receipt.split("#")[0]), "utf8"); assert.match(initial, /401/);
+  for (const provider of ["firecrawl", "context7"]) { const receipt = await readFile(join(evidenceRoot, e.providers[provider].receipt.split("#")[0]), "utf8"); assert.ok(receipt.length > 1000); }
+  const pin = JSON.parse(await readFile(join(root, "catalog/computer-use-runtime.json"), "utf8"));
+  assert.equal(pin.version, "0.37.0"); assert.equal(pin.sourceCommit, e.optionalRuntime.sourceCommit); assert.deepEqual(pin.assets, e.optionalRuntime.assets); assert.equal(pin.stableLockPromotion, false);
+  for (const asset of pin.assets) { assert.match(asset.sha256, /^[a-f0-9]{64}$/); assert.ok(asset.url.startsWith(`https://github.com/trycua/cua/releases/download/${pin.tag}/`)); assert.equal(asset.liveVerified, false); }
+  const report = await readFile(join(root, "docs/research/computer-use.md"), "utf8"); assert.match(report, /No apples-to-apples/); assert.match(report, /interest proxy/);
 }
 if (process.argv[1] && resolveEntry(process.argv[1]) === fileURLToPath(import.meta.url)) {
   try {
-    const input = JSON.parse(process.argv[2] ?? "null");
+    const argument = process.argv[2] ?? "null";
+    const input = JSON.parse(argument.trimStart().startsWith("{") ? argument : await readFile(argument, "utf8"));
     assert.deepEqual(Object.keys(input ?? {}), ["check"]);
     const checks = { policy: checkPolicy, audit: checkAudit, integration: checkIntegration, research: checkResearch };
     assert.ok(Object.hasOwn(checks, input.check)); await checks[input.check]();

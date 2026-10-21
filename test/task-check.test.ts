@@ -102,6 +102,10 @@ test("the artifact manifest lists the allowed files in sorted order, skips manag
   await writeFile(join(fixture.projectRoot, "bin", "node_modules", "dep.js"), "export {};\n", "utf8");
   await mkdir(join(fixture.projectRoot, "bin", ".alpha-aos"), { recursive: true });
   await writeFile(join(fixture.projectRoot, "bin", ".alpha-aos", "note.txt"), "managed\n", "utf8");
+  for (const name of [".gsd", ".ecc"]) {
+    await mkdir(join(fixture.projectRoot, "bin", name), { recursive: true });
+    await writeFile(join(fixture.projectRoot, "bin", name, "private-state.json"), "{}\n");
+  }
 
   const first = requireManifest(await collectTaskArtifact({ projectRoot: fixture.projectRoot, allowedRoots }));
   const second = requireManifest(await collectTaskArtifact({ projectRoot: fixture.projectRoot, allowedRoots }));

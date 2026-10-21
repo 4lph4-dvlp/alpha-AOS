@@ -1,0 +1,8 @@
+{
+  "at": "2026-10-20T20:07:18.174Z",
+  "planExit": 0,
+  "statusExit": 0,
+  "plan": ".gsd/computer-use-capability-plan.json",
+  "status": ".gsd/computer-use-capability-status.json",
+  "applied": false
+}

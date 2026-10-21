@@ -1656,6 +1656,15 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
 
     const substitutes = selectMeasurementSubstitutes(decisionLog.entries, contract);
 
+    if (contract.computerUse) {
+      const { runTaskComputerVerification } = await import("./computer-use-task.js");
+      const gui = await runTaskComputerVerification({ contract, contractPath: options.contractPath, runId, digest, stateRoot: options.stateRoot });
+      const refreshed = await readTaskDecisionLog({ projectRoot, runId });
+      record = { ...record, decisions: refreshed.entries, decisionLog: { status: refreshed.status, reason: refreshed.reason } };
+      preconditions.push({ id: "computer-use-verification", satisfied: gui.status === "verified", reason: gui.reason, nextAction: gui.status === "verified" ? "none" : "Review GUI authority/evidence or complete the manual judgment checkpoint" });
+      if (gui.status !== "verified") return await finish({ ...record, status: "blocked", finishedAt: clock().toISOString(), stopReason: `computer-use-${gui.status}: ${gui.reason}`, nextAction: "Inspect GUI evidence; human judgment stays manual and missing authority requires contract reapproval." });
+    }
+
     const collected = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
     if (collected.status === "unavailable") {
       return await finish({

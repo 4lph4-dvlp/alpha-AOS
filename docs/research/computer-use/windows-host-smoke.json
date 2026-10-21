@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "at": "2026-10-21T01:15:23.099Z",
+  "platform": "win32",
+  "arch": "x64",
+  "backend": "Cua Driver 0.37.0",
+  "level": "live",
+  "stage": "production-cli-mcp",
+  "operations": [
+    {
+      "action": "click",
+      "outcome": "verified",
+      "independentlyObserved": true,
+      "durations": {
+        "captureMs": 1603.6048,
+        "dispatchMs": 1686.0945000000002,
+        "totalMs": 4982.5232000000005
+      },
+      "intent": 3
+    },
+    {
+      "action": "right_click",
+      "outcome": "verified",
+      "independentlyObserved": true,
+      "durations": {
+        "captureMs": 1706.281500000001,
+        "dispatchMs": 2257.249600000001,
+        "totalMs": 5682.256500000001
+      },
+      "intent": 6
+    },
+    {
+      "action": "click",
+      "outcome": "verified",
+      "independentlyObserved": null,
+      "durations": {
+        "captureMs": 1824.0087999999996,
+        "dispatchMs": 2330.986499999999,
+        "totalMs": 5880.7723000000005
+      },
+      "intent": 9
+    },
+    {
+      "action": "type_text",
+      "outcome": "verified",
+      "independentlyObserved": true,
+      "durations": {
+        "captureMs": 1721.5779000000002,
+        "dispatchMs": 2334.7210000000014,
+        "totalMs": 5925.8668
+      },
+      "intent": 12
+    },
+    {
+      "action": "press_key",
+      "outcome": "verified",
+      "independentlyObserved": true,
+      "durations": {
+        "captureMs": 1735.867299999998,
+        "dispatchMs": 1715.8148999999976,
+        "totalMs": 5214.003499999999
+      },
+      "intent": 15
+    },
+    {
+      "action": "drag",
+      "outcome": "verified",
+      "independentlyObserved": true,
+      "durations": {
+        "captureMs": 1835.9135999999999,
+        "dispatchMs": 2925.8856000000014,
+        "totalMs": 6713.612200000003
+      },
+      "intent": 18
+    }
+  ],
+  "actionsAttempted": 6,
+  "liveAction": true,
+  "reason": "Production CLI/MCP actions, independent app counters/text and screenshot replay verified",
+  "runId": "602031e623d88e4a-4a994963",
+  "contractDigest": "602031e623d88e4a4a994963f8e9c272ea1dedf4be3e3ec3860141ca4d209f47",
+  "anchor": {
+    "runId": "602031e623d88e4a-4a994963",
+    "count": 20,
+    "hash": "a3e6aafd66f90d17686e1007bcb4566c1fa9cde05f07ca8f9108679de051f47b"
+  },
+  "evidenceRoot": "<state-root>/computer-use/evidence",
+  "eventCount": 20,
+  "portableEvidence": "windows-live"
+}

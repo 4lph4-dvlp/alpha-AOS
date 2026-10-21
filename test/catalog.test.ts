@@ -78,7 +78,7 @@ test("stable catalog loads exact locked components", async () => {
     }
   }
   assert.match(lock.components.mcpBridges?.pi?.version ?? "", exactVersion);
-  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["alpha-aos-ship", "alpha-aos-control", "alpha-aos-task", "cli-anything"]);
+  assert.deepEqual(catalog.components.ownedSkills.map((skill) => skill.id), ["computer-use", "alpha-aos-ship", "alpha-aos-control", "alpha-aos-task", "cli-anything"]);
   const shipSource = await readFile(join(root, "skills", "alpha-aos-ship", "SKILL.md"));
   const shipHash = createHash("sha256").update(shipSource).digest("hex");
   const lockedShip = lock.components.ownedSkills?.["alpha-aos-ship"];

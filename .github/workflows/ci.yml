@@ -99,6 +99,13 @@ jobs:
           if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"
       - run: npm run check
       - run: npm test
+      - name: Verify host-free computer use policy audit integration and research
+        shell: bash
+        run: |
+          node scripts/verify-computer-use.mjs '{"check":"policy"}'
+          node scripts/verify-computer-use.mjs '{"check":"audit"}'
+          node scripts/verify-computer-use.mjs '{"check":"integration"}'
+          node scripts/verify-computer-use.mjs '{"check":"research"}'
 
       # Release fault controls evaluator unit test suite (VER-01) - checks fault classification and named assertion matching
       - name: Release fault controls evaluator unit test (VER-01)

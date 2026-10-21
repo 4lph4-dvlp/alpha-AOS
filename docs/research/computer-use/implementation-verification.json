@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "status": "release-and-independent-review-pending",
+  "version": "0.4.0",
+  "modelPolicy": {
+    "harness": "codex",
+    "model": "gpt-6.1-sol",
+    "reasoning": "high"
+  },
+  "research": {
+    "candidates": 6,
+    "decision": "preferred optional Cua Driver 0.37.0 actuator; Codex remains planner",
+    "comparativeActuatorBenchmark": false
+  },
+  "checks": {
+    "typecheck": "pass",
+    "focusedComputerTests": {
+      "pass": 30,
+      "fail": 0
+    },
+    "integrationRegressionTests": {
+      "pass": 88,
+      "fail": 0
+    },
+    "snapshotCriteria": {
+      "pass": 4,
+      "fail": 0,
+      "note": "Measured before final doctor/launch guard edits; refresh at final gate"
+    },
+    "prepackAudit": {
+      "pass": true,
+      "entries": 348
+    },
+    "fullSuite": "pending clean-checkout release preview; in-tree-log attempts are not final passing evidence"
+  },
+  "live": {
+    "windows": "production CLI/MCP six actions, five independent domain checks, twenty audit events",
+    "evidence": "windows-host-smoke.json",
+    "visualReport": "windows-live/report.html",
+    "macos": "not run; private direct runtime and TCC prerequisites implemented",
+    "linux": "not run; X11/Wayland prerequisites and refusals documented"
+  },
+  "governance": {
+    "originalNativeRun": "60b6c24f91541163-c5019442",
+    "nativeVerdict": "unknown: recovered orphan, never fabricated accepted",
+    "gsdQuick": "261021-677",
+    "scope": "same user-preapproved task; original main integration and release remain pending"
+  },
+  "limits": [
+    "No 3-OS live proof",
+    "No external stable dependency promotion",
+    "No push or publishing"
+  ]
+}

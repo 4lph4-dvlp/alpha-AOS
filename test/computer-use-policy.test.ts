@@ -25,4 +25,6 @@ test("exact target, digest, budget and finite geometry refuse before dispatch", 
   }
   assert.throws(() => authorizeComputerAction(authority, state, { kind: "click", x: NaN, y: 0 }));
   assert.throws(() => authorizeComputerAction(authority, state, { kind: "type_text", text: "secret", classification: "secret" }));
+  assert.throws(() => authorizeComputerAction(authority, state, { kind: "click", x: 0, y: 0, delivery: "foreground" }), /foreground/);
+  assert.throws(() => authorizeComputerAction(authority, state, { kind: "launch_app" }), /foreground/);
 });

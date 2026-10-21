@@ -1,0 +1,6 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>alpha-AOS public synthetic fixture</title>
+<style>body{font:20px sans-serif}#drag{background:lightblue;width:400px;height:100px}</style>
+<button id="click">Public click target</button><input id="text" aria-label="Public text"><div id="drag">Public drag target</div><pre id="state"></pre>
+<script>
+const state={left:0,right:0,drag:0,text:""};const show=()=>document.querySelector("#state").textContent=JSON.stringify(state);const target=document.querySelector("#click");target.onclick=()=>{state.left++;show()};target.oncontextmenu=e=>{e.preventDefault();state.right++;show()};document.querySelector("#text").oninput=e=>{state.text=e.target.value;show()};document.querySelector("#drag").onpointerup=()=>{state.drag++;show()};show();
+</script></html>

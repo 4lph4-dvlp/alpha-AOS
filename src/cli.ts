@@ -184,7 +184,7 @@ const HELP = `alpha-aos
 Usage:
   alpha-aos --version
   alpha-aos inventory [--json]
-  alpha-aos computer-use doctor|plan|action|mcp|stop|report|replay|retain [--json]
+  alpha-aos computer-use doctor|plan|observe|action|mcp|stop|report|replay|retain [--json]
   alpha-aos plan [--json]
   alpha-aos install [--target <claude,codex,antigravity,pi,hermes>] [--apply] [--json]
   alpha-aos owned-skills sync <id> --target <harness> [--apply] [--json]

@@ -1,6 +1,6 @@
 {
   "name": "alpha-aos",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Declarative installer and updater for the alpha-AOS agent workflow stack",
   "license": "Apache-2.0",
   "repository": {
@@ -17,6 +17,7 @@
     "dist/build-artifact.json",
     "catalog/stack.yaml",
     "catalog/stack.lock.json",
+    "catalog/computer-use-runtime.json",
     "catalog/facts.yaml",
     "catalog/canaries.yaml",
     "catalog/packs/",

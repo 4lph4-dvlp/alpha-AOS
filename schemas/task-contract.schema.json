@@ -88,6 +88,17 @@
         "authorityHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
         "deterministic": { "type": "boolean" },
         "reversible": { "type": "boolean" }
+        ,"verification": {
+          "type": "object", "additionalProperties": false,
+          "required": ["authorityFile", "runtimeFile", "requestFile", "requestHash", "runtimeReceiptHash"],
+          "properties": {
+            "authorityFile": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "runtimeFile": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "requestFile": { "type": "string", "minLength": 1, "maxLength": 512 },
+            "requestHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "runtimeReceiptHash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        }
       }
     },
     "schemaVersion": { "const": 1 },

@@ -1,0 +1,13 @@
+{
+  "capturedAt": "2026-10-20T19:33:03.207Z",
+  "kind": "live-discovery-only",
+  "backend": "Codex bundled @oai/sky",
+  "initialized": true,
+  "discoverySucceeded": true,
+  "appCount": 40,
+  "windowTitlesRetained": false,
+  "appIdentifiersRetained": false,
+  "guiActionsExecuted": 0,
+  "screenshotsCaptured": 0,
+  "notes": "Actual native discovery succeeded. This sanitized receipt intentionally omits unrelated application names/paths and does not prove alpha-AOS integration, Cua Driver availability, or GUI actions."
+}

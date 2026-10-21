@@ -135,7 +135,8 @@ test("the managed install operation plan enumerates every fixture and component 
   assert.equal(plan.components.eccSkills.length, 1);
   assert.equal(plan.components.mcp.length, 1);
   assert.equal(plan.components.policy, null, "Claude is not a target, so no policy write is planned");
-  assert.equal(plan.components.ownedSkills.length, 3);
+  assert.equal(plan.components.ownedSkills.length, 4);
+  assert.ok(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "computer-use"));
   assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-control"), true);
   assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-task"), true);
   assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "cli-anything"), true);

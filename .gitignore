@@ -9,6 +9,11 @@ coverage/
 .alpha-aos/journal/
 .alpha-aos/snapshots/
 .alpha-aos/evidence/
+.alpha-aos/task-runs/
+.alpha-aos/controller.lock
+.alpha-aos/controller-lease-audit.jsonl
+.alpha-aos/computer-use-runtime/
+.alpha-aos/computer-use-evidence/
 
 # GSD run-scoped runtime state
 .gsd/

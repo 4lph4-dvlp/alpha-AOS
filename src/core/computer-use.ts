@@ -3,10 +3,10 @@ import type { FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import { ComputerAudit, safeComputerPath } from "./computer-use-audit.js";
 import type { ComputerAnchor } from "./computer-use-audit.js";
-import { authorizeComputerAction, computerHash, validateComputerAuthority } from "./computer-use-policy.js";
+import { authorizeComputerAction, authorizeComputerObservation, computerHash, validateComputerAuthority } from "./computer-use-policy.js";
 import type { ComputerAction, ComputerAuthority, ComputerRuntimeIdentity, ComputerTarget, ComputerPolicyState } from "./computer-use-policy.js";
 
-export interface ComputerObservation { target: ComputerTarget; captureId: string; png: Buffer; width: number; height: number; state: string; safe: boolean; foreground: boolean }
+export interface ComputerObservation { target: ComputerTarget; captureId: string; png: Buffer; width: number; height: number; state: string; safe: boolean; foreground: boolean; windowBounds?: { x: number; y: number; width: number; height: number } }
 export interface ComputerUseTransport {
   readonly identity: ComputerRuntimeIdentity;
   observe(signal: AbortSignal): Promise<ComputerObservation>;
@@ -21,21 +21,23 @@ export class ComputerSession {
   readonly #transport: ComputerUseTransport;
   readonly #root: string;
   readonly #lease: FileHandle;
+  readonly #revoked: (() => Promise<boolean>) | undefined;
   readonly #abort = new AbortController();
   readonly #startedAt = Date.now();
   #lastActivityAt = Date.now();
   #actions = 0; #captures = 0; #bytes = 0; #busy = false; #closed = false;
   #used = new Set<string>();
   #monitor: NodeJS.Timeout;
-  private constructor(authority: ComputerAuthority, transport: ComputerUseTransport, audit: ComputerAudit, root: string, lease: FileHandle) {
+  private constructor(authority: ComputerAuthority, transport: ComputerUseTransport, audit: ComputerAudit, root: string, lease: FileHandle, revoked?: () => Promise<boolean>) {
     this.authority = authority; this.#transport = transport; this.audit = audit; this.#root = root; this.#lease = lease;
+    this.#revoked = revoked;
     this.#monitor = setInterval(() => {
-      void access(join(root, authority.runId, "STOP")).then(() => this.#cancel(), () => undefined);
+      void this.#checkStop().catch(() => this.#cancel());
       if (Date.now() >= authority.expiresAt || Date.now() - this.#startedAt >= authority.budget.durationMs || Date.now() - this.#lastActivityAt >= authority.idleMs) this.#cancel();
     }, 50);
     this.#monitor.unref();
   }
-  static async open(value: unknown, transport: ComputerUseTransport, root: string): Promise<ComputerSession> {
+  static async open(value: unknown, transport: ComputerUseTransport, root: string, options: { revoked?: () => Promise<boolean> } = {}): Promise<ComputerSession> {
     const authority = validateComputerAuthority(value);
     function freeze(value: object): void { for (const child of Object.values(value)) if (child && typeof child === "object") freeze(child); Object.freeze(value); }
     freeze(authority);
@@ -43,7 +45,7 @@ export class ComputerSession {
     const audit = await ComputerAudit.open(root, authority.runId);
     try {
       const lease = await open(join(await safeComputerPath(root), "desktop.lock"), "wx", 0o600);
-      return new ComputerSession(authority, transport, audit, root, lease);
+      return new ComputerSession(authority, transport, audit, root, lease, options.revoked);
     } catch (error) { await audit.close(); throw error; }
   }
   #cancel(): void { if (!this.#abort.signal.aborted) { this.#abort.abort(); void this.#transport.close().catch(() => undefined); } }
@@ -82,7 +84,7 @@ export class ComputerSession {
       const capture = await this.audit.capture(before.png, before.width, before.height);
       const record = await this.audit.append("intent", { policyHash: computerHash(this.authority), contractDigest: this.authority.contractDigest, runtime: this.#transport.identity, target: this.authority.target, action: action.kind, actionDigest: computerHash(action), before: capture, stateHash: computerHash(before.state) });
       intent = record.sequence;
-      await this.#checkStop(); authorizeComputerAction(this.authority, this.#state(before.target), action);
+      await this.#checkStop(); authorizeComputerAction(this.authority, this.#state(before.target), action, 1);
       if (Date.now() - observedAt > Math.min(1000, this.authority.budget.gestureMs)) throw new Error("Computer observation expired before dispatch");
       this.#used.add(before.captureId); this.#actions++; dispatched = true;
       const dispatchStart = performance.now(); await this.#bounded((signal) => this.#transport.dispatch(action, before, signal)); dispatchMs = performance.now() - dispatchStart;
@@ -102,11 +104,29 @@ export class ComputerSession {
       throw error;
     } finally { this.#busy = false; }
   }
+  async observe(): Promise<{ capture: import("./computer-use-audit.js").ComputerCapture; png: Buffer; untrustedState: string; anchor: ComputerAnchor }> {
+    if (this.#busy) throw new Error("Computer concurrent observation refused"); this.#busy = true;
+    try {
+      await this.#checkStop(); authorizeComputerObservation(this.authority, this.#state(this.authority.target));
+      const observed = await this.#observe(); const capture = await this.audit.capture(observed.png, observed.width, observed.height);
+      await this.audit.append("decision", { decision: "observe", capture, stateHash: computerHash(observed.state), target: observed.target, runtime: this.#transport.identity });
+      this.#lastActivityAt = Date.now(); return { capture, png: observed.png, untrustedState: observed.state, anchor: await this.audit.checkpoint() };
+    } finally { this.#busy = false; }
+  }
   async #checkStop(): Promise<void> {
+    if (this.#revoked && await this.#revoked()) this.#cancel();
     if (await access(join(this.#root, this.authority.runId, "STOP")).then(() => true, () => false)) this.#cancel();
     this.#abort.signal.throwIfAborted(); if (this.#closed) throw new Error("Computer session closed");
   }
   async stop(): Promise<void> { this.#cancel(); await stopComputerSession(this.#root, this.authority.runId); }
+  async quiesce(): Promise<void> {
+    this.#cancel();
+    const deadline = Date.now() + this.authority.budget.gestureMs;
+    while (this.#busy) {
+      if (Date.now() >= deadline) throw new Error("Computer interrupted operation did not settle; preserve locks for review");
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+  }
   async close(): Promise<void> {
     if (this.#busy) throw new Error("Computer action must settle before closing audit");
     if (this.#closed) return; this.#closed = true; clearInterval(this.#monitor); this.#cancel();

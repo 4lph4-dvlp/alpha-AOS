@@ -1,0 +1,115 @@
+{
+  "capturedAt": "2026-10-20T19:31:13.837Z",
+  "results": [
+    {
+      "url": "https://api.github.com/repos/trycua/cua",
+      "at": "2026-10-20T19:31:13.718Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/trycua/cua/releases?per_page=4",
+      "at": "2026-10-20T19:31:13.789Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/trycua/cua/commits?per_page=1",
+      "at": "2026-10-20T19:31:13.791Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/bytedance/UI-TARS-desktop",
+      "at": "2026-10-20T19:31:13.792Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/bytedance/UI-TARS-desktop/releases?per_page=4",
+      "at": "2026-10-20T19:31:13.793Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/bytedance/UI-TARS-desktop/commits?per_page=1",
+      "at": "2026-10-20T19:31:13.794Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/simular-ai/Agent-S",
+      "at": "2026-10-20T19:31:13.795Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/simular-ai/Agent-S/releases?per_page=4",
+      "at": "2026-10-20T19:31:13.796Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/simular-ai/Agent-S/commits?per_page=1",
+      "at": "2026-10-20T19:31:13.797Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/nut-tree/nut.js",
+      "at": "2026-10-20T19:31:13.798Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/nut-tree/nut.js/releases?per_page=4",
+      "at": "2026-10-20T19:31:13.800Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/nut-tree/nut.js/commits?per_page=1",
+      "at": "2026-10-20T19:31:13.801Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/asweigart/pyautogui",
+      "at": "2026-10-20T19:31:13.802Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/asweigart/pyautogui/releases?per_page=4",
+      "at": "2026-10-20T19:31:13.802Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/asweigart/pyautogui/commits?per_page=1",
+      "at": "2026-10-20T19:31:13.803Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/screenpipe/screenpipe",
+      "at": "2026-10-20T19:31:13.804Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/screenpipe/screenpipe/releases?per_page=4",
+      "at": "2026-10-20T19:31:13.804Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://api.github.com/repos/screenpipe/screenpipe/commits?per_page=1",
+      "at": "2026-10-20T19:31:13.805Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://pypi.org/pypi/PyAutoGUI/json",
+      "at": "2026-10-20T19:31:13.806Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://pypi.org/pypi/cua-driver/json",
+      "at": "2026-10-20T19:31:13.807Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://registry.npmjs.org/@trycua%2fcua-driver",
+      "at": "2026-10-20T19:31:13.807Z",
+      "error": "TypeError: fetch failed"
+    },
+    {
+      "url": "https://registry.npmjs.org/@nut-tree%2fnut-js",
+      "at": "2026-10-20T19:31:13.808Z",
+      "error": "TypeError: fetch failed"
+    }
+  ]
+}

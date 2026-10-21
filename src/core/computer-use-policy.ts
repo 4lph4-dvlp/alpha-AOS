@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 
 export const computerActions = ["launch_app", "click", "right_click", "drag", "type_text", "press_key"] as const;
 export type ComputerActionKind = typeof computerActions[number];
-export interface ComputerTarget { executable: string; executableHash: string; pid: number; processGeneration: string; windowId: string; windowGeneration: string }
+export interface ComputerTarget { executable: string; executableHash: string; pid: number; processGeneration: string; windowId: string; windowGeneration: string; bundleId?: string }
 export interface ComputerRuntimeIdentity { executableHash: string; schemaHash: string }
 export interface ComputerAuthority {
   version: 1; runId: string; contractDigest: string; expiresAt: number; idleMs: number;
@@ -12,7 +12,7 @@ export interface ComputerAuthority {
   permissions: { actions: ComputerActionKind[]; capture: boolean; publicData: boolean; foreground: boolean };
   budget: { actions: number; captures: number; bytes: number; durationMs: number; gestureMs: number };
 }
-export interface ComputerAction { kind: ComputerActionKind; x?: number; y?: number; toX?: number; toY?: number; text?: string; key?: string; classification?: "public" | "secret" }
+export interface ComputerAction { kind: ComputerActionKind; x?: number; y?: number; toX?: number; toY?: number; text?: string; key?: string; classification?: "public" | "secret"; delivery?: "background" | "foreground" }
 export interface ComputerPolicyState {
   runId: string; contractDigest: string; target: ComputerTarget; runtime: ComputerRuntimeIdentity;
   now: number; startedAt: number; lastActivityAt: number; actions: number; captures: number; bytes: number; stopped: boolean;
@@ -47,7 +47,9 @@ export function validateComputerAuthority(value: unknown): ComputerAuthority {
   if (a.version !== 1) throw new Error("Computer authority version must be 1");
   text(a.runId, "runId", /^[a-zA-Z0-9][\w-]{0,95}$/); text(a.contractDigest, "digest", /^[a-f0-9]{64}$/);
   finite(a.expiresAt, 1, Number.MAX_SAFE_INTEGER, "expiresAt"); finite(a.idleMs, 100, 300_000, "idleMs");
-  const target = computerObject(a.target, ["executable", "executableHash", "pid", "processGeneration", "windowId", "windowGeneration"], "target");
+  const targetValue = a.target as Record<string, unknown>;
+  const target = computerObject(a.target, ["executable", "executableHash", "pid", "processGeneration", "windowId", "windowGeneration", ...(targetValue && Object.hasOwn(targetValue, "bundleId") ? ["bundleId"] : [])], "target");
+  if (Object.hasOwn(target, "bundleId")) text(target.bundleId, "bundleId", /^[a-zA-Z0-9][a-zA-Z0-9.-]{2,254}$/);
   if (typeof target.executable !== "string" || !isAbsolute(target.executable) || target.executable.length > 4096 || /[\x00-\x1f]/.test(target.executable)) throw new Error("Computer authority requires absolute executable");
   text(target.executableHash, "executableHash", /^[a-f0-9]{64}$/); finite(target.pid, 1, 2 ** 32 - 1, "pid");
   if (!Number.isInteger(target.pid)) throw new Error("Computer authority pid must be integer");
@@ -70,18 +72,26 @@ export function decideComputerVerification(input: { mode: "ordinary" | "autopilo
   if (input.mode === "ordinary") return { mode: "offer", choices: ["automatic", "manual"], reason: "Choose automatic or manual GUI verification" };
   return { mode: "automatic", choices: ["automatic"], reason: "Approved reversible deterministic check" };
 }
-export function authorizeComputerAction(a: ComputerAuthority, s: ComputerPolicyState, action: ComputerAction): void {
+export function authorizeComputerObservation(a: ComputerAuthority, s: ComputerPolicyState): void {
   validateComputerAuthority(a);
   if (s.stopped) throw new Error("Computer session stopped");
   if (s.runId !== a.runId || s.contractDigest !== a.contractDigest) throw new Error("Computer authority run/digest mismatch");
   if (computerHash(s.target) !== computerHash(a.target) || computerHash(s.runtime) !== computerHash(a.runtime)) throw new Error("Computer target/runtime identity changed");
   if (![s.now, s.startedAt, s.lastActivityAt, s.actions, s.captures, s.bytes].every(Number.isFinite) || s.now < s.startedAt || s.now < s.lastActivityAt) throw new Error("Computer invalid clock/counters");
   if (s.now >= a.expiresAt || s.now - s.startedAt >= a.budget.durationMs || s.now - s.lastActivityAt >= a.idleMs) throw new Error("Computer authority expired");
-  if (s.actions >= a.budget.actions || s.captures + 2 > a.budget.captures || s.bytes >= a.budget.bytes) throw new Error("Computer budget exhausted");
-  if (!a.permissions.capture || !a.permissions.publicData || !a.permissions.actions.includes(action.kind)) throw new Error("Computer permission denied");
+  if (s.captures >= a.budget.captures || s.bytes >= a.budget.bytes) throw new Error("Computer budget exhausted");
+  if (!a.permissions.capture || !a.permissions.publicData) throw new Error("Computer permission denied");
+}
+export function authorizeComputerAction(a: ComputerAuthority, s: ComputerPolicyState, action: ComputerAction, requiredCaptures: 1 | 2 = 2): void {
+  authorizeComputerObservation(a, s);
+  if (s.actions >= a.budget.actions || s.captures + requiredCaptures > a.budget.captures) throw new Error("Computer budget exhausted");
+  if (!a.permissions.actions.includes(action.kind)) throw new Error("Computer permission denied");
   const allowed: Record<ComputerActionKind, string[]> = { click: ["kind", "x", "y"], right_click: ["kind", "x", "y"], drag: ["kind", "x", "y", "toX", "toY"], type_text: ["kind", "text", "classification"], press_key: ["kind", "key"], launch_app: ["kind"] };
   const keys = allowed[action.kind]; if (!keys) throw new Error("Computer action refused");
-  computerObject(action, keys, "action");
+  computerObject(action, [...keys, ...(Object.hasOwn(action, "delivery") ? ["delivery"] : [])], "action");
+  if (Object.hasOwn(action, "delivery") && !["background", "foreground"].includes(action.delivery!)) throw new Error("Computer delivery mode invalid");
+  if (action.delivery === "foreground" && !a.permissions.foreground) throw new Error("Computer foreground permission denied");
+  if (action.kind === "launch_app" && !a.permissions.foreground) throw new Error("Computer app activation needs foreground authority");
   if (["click", "right_click", "drag"].includes(action.kind)) {
     for (const [xKey, yKey] of action.kind === "drag" ? [["x", "y"], ["toX", "toY"]] : [["x", "y"]]) {
       const x = action[xKey as "x"]; const y = action[yKey as "y"];

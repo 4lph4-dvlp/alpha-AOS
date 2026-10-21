@@ -80,7 +80,7 @@ export interface TaskReproductionConfirmation {
 }
 
 /** Path segments that are never part of a task artifact. */
-const ARTIFACT_SKIPPED_SEGMENTS = new Set([".git", ".planning", ".alpha-aos", "node_modules"]);
+const ARTIFACT_SKIPPED_SEGMENTS = new Set([".git", ".planning", ".alpha-aos", ".gsd", ".ecc", "node_modules"]);
 const DETAIL_LIMIT = 299;
 
 function bounded(text: string, limit: number = DETAIL_LIMIT): string {

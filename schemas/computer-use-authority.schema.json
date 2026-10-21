@@ -1,0 +1,213 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/computer-use-authority.schema.json",
+  "title": "Exact task-bound desktop authority",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "runId",
+    "contractDigest",
+    "expiresAt",
+    "idleMs",
+    "target",
+    "runtime",
+    "region",
+    "permissions",
+    "budget"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9][A-Za-z0-9_-]{0,95}$"
+    },
+    "contractDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "expiresAt": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "idleMs": {
+      "type": "integer",
+      "minimum": 100,
+      "maximum": 300000
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable",
+        "executableHash",
+        "pid",
+        "processGeneration",
+        "windowId",
+        "windowGeneration"
+      ],
+      "properties": {
+        "executable": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "executableHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "pid": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "processGeneration": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "windowId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "windowGeneration": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "bundleId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9.-]{2,254}$"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executableHash",
+        "schemaHash"
+      ],
+      "properties": {
+        "executableHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "schemaHash": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "region": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "x",
+        "y",
+        "width",
+        "height"
+      ],
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32768
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 32768
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32768
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32768
+        }
+      }
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actions",
+        "capture",
+        "publicData",
+        "foreground"
+      ],
+      "properties": {
+        "actions": {
+          "type": "array",
+          "uniqueItems": true,
+          "maxItems": 6,
+          "items": {
+            "enum": [
+              "launch_app",
+              "click",
+              "right_click",
+              "drag",
+              "type_text",
+              "press_key"
+            ]
+          }
+        },
+        "capture": {
+          "type": "boolean"
+        },
+        "publicData": {
+          "type": "boolean"
+        },
+        "foreground": {
+          "type": "boolean"
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actions",
+        "captures",
+        "bytes",
+        "durationMs",
+        "gestureMs"
+      ],
+      "properties": {
+        "actions": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "captures": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2002
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300000
+        },
+        "gestureMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 30000
+        }
+      }
+    }
+  }
+}

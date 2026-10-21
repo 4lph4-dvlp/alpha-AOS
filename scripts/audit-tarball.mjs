@@ -182,6 +182,7 @@ export function auditTarballEntries(files) {
     "dist/build-artifact.json",
     "catalog/stack.yaml",
     "catalog/stack.lock.json",
+    "catalog/computer-use-runtime.json",
     "catalog/facts.yaml",
     "catalog/canaries.yaml",
   ]);

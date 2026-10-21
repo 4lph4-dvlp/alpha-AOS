@@ -1,0 +1,9 @@
+{
+  "ecosystem": "npm",
+  "config": {"exa_search":true,"brave_search":false,"firecrawl":false,"tavily_search":false},
+  "questions": [
+    {"text":"Compare Cua Driver UI-TARS Desktop Agent S nut.js PyAutoGUI Screenpipe capabilities licensing maintenance Linux display server support", "kind":"web"},
+    {"text":"How to use mouse drag click screenshot keyboard and fail safe with PyAutoGUI", "kind":"docs","library":"PyAutoGUI"},
+    {"text":"How does nut.js support mouse drag keyboard screen capture Linux X11", "kind":"docs","library":"nut.js"}
+  ]
+}

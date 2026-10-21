@@ -21,6 +21,7 @@ files_modified:
   - test/command-job-paths.test.ts
   - test/command-job-fences.test.ts
   - test/command-job-runtime.test.ts
+  - test/helpers/command-job-runtime.ts
   - test/verify-efficient-wait-integrity.test.ts
   - test/efficient-wait-cli.test.ts
   - scripts/verify-efficient-wait.mjs

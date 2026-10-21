@@ -17,8 +17,8 @@ Serve as the natural-language task coordination interface for alpha-AOS across a
 When a user expresses a general task request (e.g., "Implement feature X", "Fix bug Y", "Write tests for Z"):
 1. Briefly clarify the core goal and scope.
 2. Present a clear two-path choice to the user:
-   - **Ordinary Conversational GSD (Recommended / Default)**: Interactive, step-by-step workflow within the current conversation (`$gsd-quick`, `$gsd-execute-phase`, or `$gsd-debug`).
-   - **Autonomous Autopilot**: Isolated, bounded, background-supervised execution governed by an explicit task contract.
+   - **Ordinary Conversational GSD (Recommended / Default)**: Interactive, step-by-step workflow within the current conversation (`$gsd-quick`, `$gsd-execute-phase`, or `$gsd-debug`). Ordinary/quick work does not need an autopilot contract just to run an already-authorized build or test.
+   - **Autonomous Autopilot**: Isolated, bounded execution governed by an explicit task contract and exact-digest approval.
 3. **Precedence Invariant (No Ambient Shortcut Bypass)**:
    - The agent **MUST NOT** bypass path confirmation by unilaterally jumping directly into execution shortcuts (such as bare `$gsd-quick`).
    - Native shortcuts (`$gsd-quick`, `$gsd-debug`, `$gsd-execute-phase`) operate **downstream** of intake confirmation, never as a bypass around it.
@@ -84,14 +84,16 @@ Upon start, the command outputs durable, reproducible identifiers and commands f
 
 ---
 
-## Chat-Termination & Operator Control (D-10, D-11, D-12)
+## Chat-Termination, Process Lifetime & Operator Control (D-10, D-11, D-12)
 
-Even if the original chat session terminates or disconnects:
-1. The background execution runs under supervisor control in an independent process.
-2. Any new shell or terminal process can inspect, stop, or resume the execution using the standard CLI:
+1. **Foreground / Awaited Task Execution Truth**:
+   The standard `alpha-aos task start --apply` command is foreground and awaited by default. It does not spawn a detached background supervisor on its own.
+   To obtain an independent process lifetime, an explicit command job wrapper (`alpha-aos job start --cwd <dir> --deadline-ms <ms> --apply -- <argv...>`) supplies independent process lifetime under the EXACT SAME user and sandbox identity. The job wrapper does not escape security boundaries or transfer credentials.
+2. Even across chat session termination or disconnection:
+   Any new shell or terminal process can inspect, stop, or resume an execution using the standard CLI:
    ```bash
    # Check status and verdict
-   alpha-aos task status <contract-id>
+   alpha-aos task status <contract-id> --run <run-id>
 
    # Full report with criteria verification evidence
    alpha-aos task report <contract-id>
@@ -101,6 +103,17 @@ Even if the original chat session terminates or disconnects:
    ```
 3. If `--run` is omitted and multiple runs exist, the CLI deterministically queries the latest run and displays its Run ID and start timestamp.
 4. `task stop` requests termination; the supervisor marks `stopped` only after actual child process termination is verified.
+
+---
+
+## Efficient Wait & Completion Guidance (No Repetitive Sleep/Status Loops)
+
+To reduce model-driven polling without claiming measured billing or rate-limit savings:
+1. **Discourage Repetitive Loops**: Agents and controllers MUST NOT enter repetitive MODEL `sleep`, polling status loops, or busy-wait delay loops while waiting for long-running processes (tests, builds, subagents).
+2. **Persistent Native Handles & Single Observation**: Prefer existing persistent native completion handles. While a child process or task runs, do independent authorized work within allowed roots, then perform ONE runtime observation with a finite deadline covering expected work.
+3. **Exact Identifiers**: Always use exact IDs (`job-` followed by 16 lowercase hexadecimal digits, exact contract ID, canonical `--run`, `--contract-digest`, `--revision`), never moving 'latest' or redundant waiting agents.
+4. **Host Limitations & Durable Handoff**: If transport yields or native callbacks are unavailable in the current host environment, state the host limitation honestly and use durable reconnect or handoff; do not promise zero model wakeups or zero tokens.
+5. **Preserved Authority & GSD Spine**: Ordinary or quick work does not need an autopilot contract just to run an already-authorized build or test. Waiting grants no new process, delegation, or GUI authority. All existing authority boundaries, GSD sole workflow spine ownership, single-writer model inheritance, sandbox isolation, and GUI restrictions remain strictly preserved.
 
 ---
 

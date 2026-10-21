@@ -2,13 +2,17 @@
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
+Release **0.4.1** adds event-driven [efficient waiting and reactive completion](docs/efficient-wait.md) (`alpha-aos job` and `alpha-aos task wait`):
+aims to eliminate model-driven polling loops on its execution path with detached command jobs, single finite observations, and canonical run tracking (without promising host rate-limit prevention or measured token savings).
+Start a background job with `alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs` and wait via `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`.
+macOS/Linux GUI actions and 3OS CI remain unrun as requested. Historical targeted slice established 67/67 test pass at commit `0320c27`; broader cases (69 total: 63 pass, 6 fail) and independent review findings (5 blockers, 2 warnings) are under active repair with final release verification pending.
+
 Release **0.4.0** adds optional [task-bound computer use](docs/computer-use.md):
 bounded GUI authority, stop, immutable screenshot/action evidence and read-only
 replay through the same CLI/MCP broker for all five harnesses. Start with
 `alpha-aos computer-use plan --json` to choose automatic/manual verification.
-The runtime is opt-in. A controlled Windows CLI/MCP run verified mouse/keyboard
-effects and screenshot replay; [see the visual evidence](docs/research/computer-use/windows-live/report.html).
-macOS/Linux GUI actions remain untested here. Configuration and portable fixtures are not live platform proof.
+The runtime is opt-in. A controlled Windows CLI/MCP run verified six actions, twenty audit events, and ten validated captures with screenshot replay; [see the visual evidence](docs/research/computer-use/windows-live/report.html).
+macOS/Linux GUI actions and 3OS CI remain untested and unrun here. Configuration and portable fixtures are not live platform proof.
 
 Declarative, cross-platform installer and updater for a small, consistent AI-agent workflow stack.
 

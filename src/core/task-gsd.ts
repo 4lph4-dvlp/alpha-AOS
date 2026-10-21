@@ -227,6 +227,15 @@ export function buildGsdControllerPrompt(options: {
       "Never invoke an Antigravity subagent with typeName 'self' when overriding Model (e.g. 'pro' or 'flash'), as 'self' forces parent inheritance (INCOMPATIBLE_SUBAGENT_MODEL); use dedicated role subagents or CLI --model flags.",
     ],
     [
+      "# Waiting and completion",
+      "Never enter repetitive MODEL sleep or polling status loops (e.g. repeated sleep, busy-wait delay loops, or polling status checks).",
+      "Prefer existing persistent native completion handles: do independent authorized work within allowed roots while a child task runs, then perform ONE runtime observation with a finite deadline covering the expected work.",
+      "Always use exact IDs (exact contract ID, run ID, or job ID), never moving 'latest' or redundant waiting agents.",
+      "If transport yields or a native callback is unavailable, state the host limitation and use durable reconnect or handoff; do not promise zero model wakeups or zero tokens.",
+      "Ordinary or quick work does not need an autopilot contract just to run an already-authorized build or test.",
+      "Waiting grants no new process, delegation, or GUI authority. All existing authority boundaries, GSD sole workflow spine ownership, single-writer model inheritance, sandbox isolation, and GUI restrictions remain strictly preserved.",
+    ],
+    [
       "# Decisions",
       `Append one JSON line per meaningful decision to ${decisionLogPath} with exactly the keys id, at, category, choice, rationale, criterionIds and substitute (null unless it is a measurement substitute).`,
       "Categories: implementation, file-layout, verification, dependency, measurement-substitute, gsd-default.",

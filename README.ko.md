@@ -1,5 +1,10 @@
 # alpha-AOS
 
+**0.4.1**에는 이벤트 기반 [효율적 대기 및 반응형 완료 런타임](docs/efficient-wait.md)(`alpha-aos job` 및 `alpha-aos task wait`)이 추가되었습니다.
+모델 경로에서의 반복적인 sleep/status 폴링 루프를 회피하고 분리된 프로세스 생명주기 관리와 단일 유한 관찰을 제공합니다(호스트 레이트 리밋 고갈 방지 보장이나 측정된 토큰 절감액은 주장하지 않음).
+`alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs`로 백그라운드 잡을 시작하고, `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`으로 단일 대기를 수행합니다.
+macOS/Linux GUI 실기 동작 및 3OS CI는 요청에 따라 미실행(unrun) 상태로 유지됩니다. 커밋 `0320c27`의 기존 대상 슬라이스에서 67/67 테스트 통과가 수립되었으나, 확장 케이스(총 69건 중 63 통과, 6 실패) 및 독립 리뷰 지적 사항(5개 블로커, 2개 경고)에 대한 수리가 진행 중이며 최종 릴리스 검증은 보류(PENDING) 상태입니다.
+
 **0.4.0**에는 선택형 [작업 범위 컴퓨터 제어](docs/computer-use.md)가 추가되었습니다.
 다섯 하네스는 동일한 CLI/MCP 브로커를 통해 정확한 대상·작업 다이제스트·권한·예산을
 검증하며, 긴급 중지와 변경 전후 스크린샷 해시 감사 및 읽기 전용 재생을 제공합니다.
@@ -19,8 +24,8 @@
 못합니다. 재생은 입력을 실행하지 않습니다.
 
 초기 샌드박스의 다운로드 실패 후 호스트에서 서명 검증을 완료하고, 전용 Windows 앱의
-좌·우클릭, 텍스트·키 입력, 드래그와 화면 감사 재생을 검증했습니다. [화면 기록](docs/research/computer-use/windows-live/report.html)을 확인할 수 있습니다.
-macOS/Linux와 각 Wayland 컴포지터의 실기는 확인하지 못했습니다. 호스트 없는
+6개 액션, 20개 감사 이벤트, 10개 검증 캡처(좌·우클릭, 텍스트·키 입력, 드래그와 화면 감사 재생)를 검증했습니다. [화면 기록](docs/research/computer-use/windows-live/report.html)을 확인할 수 있습니다.
+macOS/Linux GUI 실기 동작 및 전체 3OS CI는 검증되지 않았으며 미실행 상태입니다. 호스트 없는
 정책·감사·MCP 테스트 결과를 실기 GUI 성공으로 표시하지 않습니다.
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)

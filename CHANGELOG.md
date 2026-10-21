@@ -2,6 +2,24 @@
 
 All notable changes to alpha-AOS are documented in this file. The format follows Keep a Changelog, and the project uses Semantic Versioning.
 
+## [0.4.1] - 2026-10-22
+
+### Added
+
+- Detached command jobs (`alpha-aos job start`, `job wait`, `job status`, `job cancel`) for running long-running test suites and build processes with independent process lifetimes under the caller identity and sandbox authority, assigning exact IDs (`job-` plus 16 lowercase hex characters) and bounding combined retained child output to 64 KiB (`MAX_COMBINED_OUTPUT_BYTES`).
+- Canonical task wait (`alpha-aos task wait`) supporting exact contract, run, digest, and revision observation with anti-forgery run record verification; manual task wait linkage for unsupported legacy supervisor records remains explicitly unresolved.
+- Event-driven efficient wait guidance in `docs/efficient-wait.md` and five-harness support matrix across Claude Code, Codex, Antigravity, Pi Agent, and Hermes Agent.
+- Explicit controller prompt directives and task skill updates discouraging repetitive model `sleep` or busy-wait polling loops.
+
+### Fixed
+
+- **Long-Running Process Polling Defect (`BUG-06`) (In-Progress Mitigation)**: Implemented event-driven detached command jobs and canonical task wait to avoid model-driven polling loops on runtime paths (without claiming host rate-limit prevention or measured token savings); active repairs addressing independent review findings (5 blockers, 2 warnings) and final release verification remain pending.
+- **Task Lifetime Documentation Correction**: Clarified that `alpha-aos task start --apply` is foreground and awaited by default; detached independent process lifetimes are managed via `alpha-aos job start --apply`.
+
+### Security
+
+- Command jobs enforce a restricted environment allowlist (stripping provider credentials and `NODE_OPTIONS`), reject secret-bearing argument arrays, isolate state to `~/.alpha-aos/jobs/`, enforce owner fencing on cancel, and preserve exact argv arrays without shell concatenation.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added

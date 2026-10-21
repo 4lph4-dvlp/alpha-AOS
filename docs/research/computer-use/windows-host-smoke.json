@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "at": "2026-10-21T01:15:23.099Z",
+  "at": "2026-10-21T01:47:09.952Z",
   "platform": "win32",
   "arch": "x64",
   "backend": "Cua Driver 0.37.0",
@@ -12,9 +12,9 @@
       "outcome": "verified",
       "independentlyObserved": true,
       "durations": {
-        "captureMs": 1603.6048,
-        "dispatchMs": 1686.0945000000002,
-        "totalMs": 4982.5232000000005
+        "captureMs": 1560.7294000000002,
+        "dispatchMs": 1465.7869999999994,
+        "totalMs": 4597.527300000001
       },
       "intent": 3
     },
@@ -23,9 +23,9 @@
       "outcome": "verified",
       "independentlyObserved": true,
       "durations": {
-        "captureMs": 1706.281500000001,
-        "dispatchMs": 2257.249600000001,
-        "totalMs": 5682.256500000001
+        "captureMs": 1637.2258000000002,
+        "dispatchMs": 2233.6484,
+        "totalMs": 5497.0239
       },
       "intent": 6
     },
@@ -34,9 +34,9 @@
       "outcome": "verified",
       "independentlyObserved": null,
       "durations": {
-        "captureMs": 1824.0087999999996,
-        "dispatchMs": 2330.986499999999,
-        "totalMs": 5880.7723000000005
+        "captureMs": 1672.4542999999976,
+        "dispatchMs": 2223.004000000001,
+        "totalMs": 5564.844399999998
       },
       "intent": 9
     },
@@ -45,9 +45,9 @@
       "outcome": "verified",
       "independentlyObserved": true,
       "durations": {
-        "captureMs": 1721.5779000000002,
-        "dispatchMs": 2334.7210000000014,
-        "totalMs": 5925.8668
+        "captureMs": 1686.1964000000007,
+        "dispatchMs": 2213.4064999999973,
+        "totalMs": 5658.8290000000015
       },
       "intent": 12
     },
@@ -56,9 +56,9 @@
       "outcome": "verified",
       "independentlyObserved": true,
       "durations": {
-        "captureMs": 1735.867299999998,
-        "dispatchMs": 1715.8148999999976,
-        "totalMs": 5214.003499999999
+        "captureMs": 1719.6022999999986,
+        "dispatchMs": 1555.0806000000011,
+        "totalMs": 5047.960099999997
       },
       "intent": 15
     },
@@ -67,9 +67,9 @@
       "outcome": "verified",
       "independentlyObserved": true,
       "durations": {
-        "captureMs": 1835.9135999999999,
-        "dispatchMs": 2925.8856000000014,
-        "totalMs": 6713.612200000003
+        "captureMs": 1820.0633000000016,
+        "dispatchMs": 2752.972099999999,
+        "totalMs": 6382.702599999997
       },
       "intent": 18
     }
@@ -77,12 +77,12 @@
   "actionsAttempted": 6,
   "liveAction": true,
   "reason": "Production CLI/MCP actions, independent app counters/text and screenshot replay verified",
-  "runId": "602031e623d88e4a-4a994963",
-  "contractDigest": "602031e623d88e4a4a994963f8e9c272ea1dedf4be3e3ec3860141ca4d209f47",
+  "runId": "aed4e462b67b0af5-804901b1",
+  "contractDigest": "aed4e462b67b0af5804901b11a17b7f7cb3775a873a24ccc0b3404b7d3d2131b",
   "anchor": {
-    "runId": "602031e623d88e4a-4a994963",
+    "runId": "aed4e462b67b0af5-804901b1",
     "count": 20,
-    "hash": "a3e6aafd66f90d17686e1007bcb4566c1fa9cde05f07ca8f9108679de051f47b"
+    "hash": "f5b45629f410075dab83cee279acd03fd83ac82e2a4e2ee9bbda5b31722a6be0"
   },
   "evidenceRoot": "<state-root>/computer-use/evidence",
   "eventCount": 20,

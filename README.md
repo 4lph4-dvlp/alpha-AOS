@@ -6,8 +6,9 @@ Release **0.4.0** adds optional [task-bound computer use](docs/computer-use.md):
 bounded GUI authority, stop, immutable screenshot/action evidence and read-only
 replay through the same CLI/MCP broker for all five harnesses. Start with
 `alpha-aos computer-use plan --json` to choose automatic/manual verification.
-The runtime is opt-in; current live Cua proof is unavailable after a failed pinned
-asset download. Configuration and host-free fixtures are not live platform proof.
+The runtime is opt-in. A controlled Windows CLI/MCP run verified mouse/keyboard
+effects and screenshot replay; [see the visual evidence](docs/research/computer-use/windows-live/report.html).
+macOS/Linux GUI actions remain untested here. Configuration and portable fixtures are not live platform proof.
 
 Declarative, cross-platform installer and updater for a small, consistent AI-agent workflow stack.
 

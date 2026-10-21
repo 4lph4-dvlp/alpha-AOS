@@ -6,6 +6,18 @@ import { join } from "node:path";
 import { ComputerAudit, verifyComputerAudit, expireComputerCaptures } from "../src/core/computer-use-audit.js";
 
 import { pngFixture } from "./fixtures/computer-use.js";
+test("retention keeps deduplicated captures referenced by recent events", async () => {
+  const root = await mkdtemp(join(tmpdir(), "computer-shared-retention-"));
+  try {
+    const audit = await ComputerAudit.open(root, "check"); const capture = await audit.capture(pngFixture, 1, 1);
+    const old = await audit.append("decision", { capture }); await new Promise((resolve) => setTimeout(resolve, 10));
+    const recent = await audit.append("decision", { capture }); const anchor = await audit.checkpoint(); await audit.close();
+    assert.ok(recent.at > old.at);
+    const retained = await expireComputerCaptures(root, "check", anchor, { reviewed: true, olderThan: recent.at });
+    assert.deepEqual((await verifyComputerAudit(root, "check", retained)).expired, []);
+    assert.deepEqual(await readFile(join(root, "check", `${capture.hash}.png`)), pngFixture);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 test("immutable PNG audit validates retained anchor and rejects tampering", async () => {
   const root = await mkdtemp(join(tmpdir(), "computer-audit-"));
   try {

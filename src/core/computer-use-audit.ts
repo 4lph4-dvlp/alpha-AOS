@@ -60,6 +60,7 @@ export class ComputerAudit {
   #hash = ZERO;
   #closed = false;
   #busy = false;
+  #committed: Buffer = Buffer.alloc(0);
   private constructor(directory: string, runId: string, journal: FileHandle, lock: FileHandle) { this.directory = directory; this.runId = runId; this.#journal = journal; this.#lock = lock; }
   static async open(root: string, runId: string): Promise<ComputerAudit> {
     runName(runId); const base = await safeComputerPath(root); await mkdir(base, { recursive: true, mode: 0o700 });
@@ -75,7 +76,7 @@ export class ComputerAudit {
     try {
       await verifyComputerAudit(root, runId, anchor);
       const journal = await open(await safeComputerPath(join(directory, "events.jsonl")), "a", 0o600);
-      const audit = new ComputerAudit(directory, runId, journal, lock); audit.#count = anchor.count; audit.#hash = anchor.hash; return audit;
+      const audit = new ComputerAudit(directory, runId, journal, lock); audit.#count = anchor.count; audit.#hash = anchor.hash; audit.#committed = await readFile(join(directory, "events.jsonl")); return audit;
     } catch (error) { await lock.close(); await unlink(join(directory, "writer.lock")); throw error; }
   }
   async capture(png: Buffer, width: number, height: number): Promise<ComputerCapture> {
@@ -97,13 +98,19 @@ export class ComputerAudit {
       const pathStat = await lstat(join(this.directory, "events.jsonl"));
       const openStat = await this.#journal.stat();
       if (!pathStat.isFile() || pathStat.ino !== openStat.ino || pathStat.dev !== openStat.dev || pathStat.size !== openStat.size) throw new Error("Computer audit journal identity changed");
+      if (pathStat.size !== this.#committed.length || !(await readFile(join(this.directory, "events.jsonl"))).equals(this.#committed)) throw new Error("Computer active audit journal changed");
       const body = { sequence: this.#count + 1, previous: this.#hash, runId: this.runId, at: Date.now(), kind, data };
       const event = { ...body, hash: computerHash(body) }; const line = canonicalComputerJson(event) + "\n";
-      if (Buffer.byteLength(line) > 32_768 || this.#count >= 5000) throw new Error("Computer audit record budget exceeded");
-      await this.#journal.writeFile(line); await this.#journal.sync(); this.#count++; this.#hash = event.hash; return event;
+      if (Buffer.byteLength(line) > 32_768 || this.#count >= 5000 || this.#committed.length + Buffer.byteLength(line) > 16 * 1024 * 1024) throw new Error("Computer audit record budget exceeded");
+      await this.#journal.writeFile(line); await this.#journal.sync(); this.#committed = Buffer.concat([this.#committed, Buffer.from(line)]); this.#count++; this.#hash = event.hash; return event;
     } finally { this.#busy = false; }
   }
   async checkpoint(): Promise<ComputerAnchor> { await this.#journal.sync(); return { runId: this.runId, count: this.#count, hash: this.#hash }; }
+  async assertIntact(pendingIntent?: number): Promise<void> {
+    if (this.#closed || !(await readFile(await safeComputerPath(join(this.directory, "events.jsonl")))).equals(this.#committed)) throw new Error("Computer active audit journal changed");
+    const verified = await verifyComputerAudit(dirname(this.directory), this.runId, await this.checkpoint());
+    if (verified.pending.length !== (pendingIntent === undefined ? 0 : 1) || pendingIntent !== undefined && verified.pending[0] !== pendingIntent) throw new Error("Computer audit has an unsettled prior effect");
+  }
   async close(): Promise<void> {
     if (this.#closed) return; this.#closed = true; await this.#journal.close(); await this.#lock.close(); await unlink(join(this.directory, "writer.lock"));
   }
@@ -148,12 +155,12 @@ export async function expireComputerCaptures(root: string, runId: string, anchor
   if (verified.pending.length || verified.events.some((e) => e.kind === "result" && e.data.outcome !== "verified")) throw new Error("Computer retention preserves pending/failed evidence");
   const audit = await ComputerAudit.resumeReviewed(root, runId, anchor);
   try {
-    const captures = new Set<string>();
+    const captures = new Set<string>(); const recent = new Set<string>();
     for (const event of verified.events) {
-      if (event.at >= policy.olderThan) continue;
-      for (const key of ["capture", "before", "after"]) { const capture = event.data[key] as ComputerCapture | undefined; if (capture && !verified.expired.includes(capture.hash)) captures.add(capture.hash); }
+      for (const key of ["capture", "before", "after"]) { const capture = event.data[key] as ComputerCapture | undefined; if (capture && !verified.expired.includes(capture.hash)) (event.at >= policy.olderThan ? recent : captures).add(capture.hash); }
     }
     for (const captureHash of captures) {
+      if (recent.has(captureHash)) continue;
       await audit.append("tombstone", { captureHash, reviewed: true, reason: "reviewed-retention-expiry" });
       await unlink(await safeComputerPath(join(audit.directory, `${captureHash}.png`)));
     }

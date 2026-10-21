@@ -167,3 +167,5 @@ supplement the full repository suite and independent review/verification.
 `node scripts/computer-use-smoke.mjs --controlled-local --contract-template <development-contract.json> [--runtime <verified-receipt.json>]` uses a host-verified pinned runtime and creates only a synthetic owned Windows fixture. It records the
 precise unavailable stage without touching unrelated applications, permissions,
 accounts or credentials. No unavailable platform is promoted to live support.
+
+The selected native executable must match the pinned archive entrypoint path/name and file hash. Every companion file is rehashed before native calls. All five OS/architecture archives were checksum- and Sigstore-verified and inspected without extraction; see [provenance](research/computer-use/all-platform-provenance.json). This does not supply GUI live proof on another OS. Active journal bytes and referenced captures are checked against the in-memory trusted checkpoint before input. Corruption revokes the session; result-storage failure cannot suppress cancellation. Retention preserves any blob with a reference newer than its cutoff.

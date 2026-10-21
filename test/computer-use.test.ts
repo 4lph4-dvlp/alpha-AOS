@@ -5,7 +5,7 @@ import type { ComputerUseTransport } from "../src/core/computer-use.js";
 import { verifyComputerAudit } from "../src/core/computer-use-audit.js";
 import { validateComputerAuthority } from "../src/core/computer-use-policy.js";
 import { authorityFixture, pngFixture } from "./fixtures/computer-use.js";
-import { mkdtemp, rm, readFile, unlink } from "node:fs/promises";
+import { mkdtemp, rm, readFile, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -36,8 +36,43 @@ test("session authority cannot be widened after opening", async () => {
   const root = await mkdtemp(join(tmpdir(), "computer-session-"));
   const a = validateComputerAuthority(authorityFixture());
   const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => { throw new Error("unused"); }, dispatch: async () => {}, close: async () => {} }, root);
-  try { assert.throws(() => { session.authority.permissions.foreground = true; }, TypeError); }
+  try {
+    assert.throws(() => { session.authority.permissions.foreground = true; }, TypeError);
+    assert.equal(Reflect.set(session, "authority", { ...a, permissions: { ...a.permissions, foreground: true } }), false);
+    assert.throws(() => Object.defineProperty(session, "authority", { value: a }), TypeError);
+  }
   finally { await session.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+for (const corruption of ["rewrite", "truncate", "append", "capture"]) {
+  test(`active ${corruption} tampering revokes the broker before another effect`, async () => {
+    const root = await mkdtemp(join(tmpdir(), "computer-active-audit-")); const a = validateComputerAuthority(authorityFixture()); let effects = 0; let reads = 0;
+    const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => ({ target: a.target, captureId: String(++reads), png: pngFixture, width: 1, height: 1, state: String(effects), safe: true, foreground: false }), dispatch: async () => { effects++; }, close: async () => {} }, root);
+    try {
+      await session.action({ kind: "click", x: 0, y: 0 }, { equals: "1" });
+      const path = join(root, a.runId, "events.jsonl"); const bytes = await readFile(path, "utf8");
+      if (corruption === "rewrite") await writeFile(path, bytes.replace("verified", "tampered"));
+      if (corruption === "truncate") await writeFile(path, bytes.slice(0, -1));
+      if (corruption === "append") await writeFile(path, bytes + "{}\n");
+      if (corruption === "capture") { const event = JSON.parse(bytes.split("\n")[0]!); await writeFile(join(root, a.runId, `${event.data.before.hash}.png`), "corrupt"); }
+      await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { equals: "2" }));
+      assert.equal(effects, 1);
+      await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { equals: "2" })); assert.equal(effects, 1);
+    } finally { await session.close(); await rm(root, { recursive: true, force: true }); }
+  });
+}
+
+test("lost native response plus failed audit result still permanently revokes input", async () => {
+  const root = await mkdtemp(join(tmpdir(), "computer-uncertain-audit-")); const a = validateComputerAuthority(authorityFixture()); let effects = 0; let closed = 0; let reads = 0;
+  const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => ({ target: a.target, captureId: String(++reads), png: pngFixture, width: 1, height: 1, state: String(effects), safe: true, foreground: false }), dispatch: async () => { effects++; throw new Error("lost response"); }, close: async () => { closed++; } }, root);
+  const append = session.audit.append.bind(session.audit);
+  try {
+    session.audit.append = async (kind, data) => { if (kind === "result") throw new Error("storage failed"); return append(kind, data); };
+    await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true })); assert.ok(closed > 0);
+    session.audit.append = append;
+    await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true })); assert.equal(effects, 1);
+    assert.equal((await verifyComputerAudit(root, a.runId, await session.audit.checkpoint())).pending.length, 1);
+  } finally { await session.close(); await rm(root, { recursive: true, force: true }); }
 });
 
 for (const failure of ["unsafe", "target", "runtime", "audit", "unchanged", "dispatch-failure", "stale"]) {

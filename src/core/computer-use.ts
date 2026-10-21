@@ -36,6 +36,7 @@ export class ComputerSession {
       if (Date.now() >= authority.expiresAt || Date.now() - this.#startedAt >= authority.budget.durationMs || Date.now() - this.#lastActivityAt >= authority.idleMs) this.#cancel();
     }, 50);
     this.#monitor.unref();
+    Object.freeze(this);
   }
   static async open(value: unknown, transport: ComputerUseTransport, root: string, options: { revoked?: () => Promise<boolean> } = {}): Promise<ComputerSession> {
     const authority = validateComputerAuthority(value);
@@ -78,6 +79,7 @@ export class ComputerSession {
     this.#busy = true; const started = performance.now(); let intent = 0; let dispatched = false; let completed = false; let captureMs = 0; let dispatchMs = 0;
     try {
       await this.#checkStop(); authorizeComputerAction(this.authority, this.#state(this.authority.target), action);
+      await this.#verifyAudit();
       const before = await this.#observe(); captureMs = performance.now() - started;
       const observedAt = Date.now();
       if (this.#used.has(before.captureId)) throw new Error("Computer stale/consumed capture");
@@ -85,6 +87,7 @@ export class ComputerSession {
       const record = await this.audit.append("intent", { policyHash: computerHash(this.authority), contractDigest: this.authority.contractDigest, runtime: this.#transport.identity, target: this.authority.target, action: action.kind, actionDigest: computerHash(action), before: capture, stateHash: computerHash(before.state) });
       intent = record.sequence;
       await this.#checkStop(); authorizeComputerAction(this.authority, this.#state(before.target), action, 1);
+      await this.#verifyAudit(intent);
       if (Date.now() - observedAt > Math.min(1000, this.authority.budget.gestureMs)) throw new Error("Computer observation expired before dispatch");
       this.#used.add(before.captureId); this.#actions++; dispatched = true;
       const dispatchStart = performance.now(); await this.#bounded((signal) => this.#transport.dispatch(action, before, signal)); dispatchMs = performance.now() - dispatchStart;
@@ -99,8 +102,9 @@ export class ComputerSession {
       this.#lastActivityAt = Date.now();
       return { outcome, intent, anchor: await this.audit.checkpoint(), durations: { captureMs, dispatchMs, totalMs: performance.now() - started } };
     } catch (error) {
-      if (intent && !completed) await this.audit.append("result", { intent, outcome: this.#abort.signal.aborted ? "interrupted" : dispatched ? "unknown" : "refused" });
+      const outcome = this.#abort.signal.aborted ? "interrupted" : dispatched ? "unknown" : "refused";
       if (dispatched) this.#cancel();
+      if (intent && !completed) await this.audit.append("result", { intent, outcome });
       throw error;
     } finally { this.#busy = false; }
   }
@@ -117,6 +121,9 @@ export class ComputerSession {
     if (this.#revoked && await this.#revoked()) this.#cancel();
     if (await access(join(this.#root, this.authority.runId, "STOP")).then(() => true, () => false)) this.#cancel();
     this.#abort.signal.throwIfAborted(); if (this.#closed) throw new Error("Computer session closed");
+  }
+  async #verifyAudit(pendingIntent?: number): Promise<void> {
+    try { await this.audit.assertIntact(pendingIntent); } catch (error) { this.#cancel(); throw error; }
   }
   async stop(): Promise<void> { this.#cancel(); await stopComputerSession(this.#root, this.authority.runId); }
   async quiesce(): Promise<void> {

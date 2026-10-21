@@ -15,7 +15,7 @@
   "checks": {
     "typecheck": "pass",
     "focusedComputerTests": {
-      "pass": 30,
+      "pass": 38,
       "fail": 0
     },
     "integrationRegressionTests": {
@@ -50,5 +50,17 @@
     "No 3-OS live proof",
     "No external stable dependency promotion",
     "No push or publishing"
-  ]
+  ],
+  "provenance": {
+    "verifiedSignedArchives": 5,
+    "entrypointsAndCompanionsPinned": true,
+    "receipt": "all-platform-provenance.json",
+    "nonWindowsNativeExecuted": false
+  },
+  "review": {
+    "initialBlockers": 5,
+    "initialWarnings": 1,
+    "repairs": "implemented; focused regressions38/38 and final Windows live6 actions passed",
+    "rereview": "pending"
+  }
 }

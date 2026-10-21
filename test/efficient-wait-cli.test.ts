@@ -564,3 +564,88 @@ test("efficient-wait-cli: task wait resolves canonical terminal accepted run, an
     await cleanup();
   }
 });
+
+test("efficient-wait-cli: job cancel dry-run preview does not mutate job state", async () => {
+  const { stateRoot, cleanup, recordJob } = await createCliTestFixture();
+  try {
+    // Start real job with --apply
+    const startRes = await runCli(
+      [
+        "job",
+        "start",
+        "--apply",
+        "--json",
+        "--cwd",
+        process.cwd(),
+        "--",
+        process.execPath,
+        "-e",
+        "setTimeout(() => {}, 15000);",
+      ],
+      stateRoot,
+    );
+    assert.equal(startRes.exitCode, 0);
+    const startPayload = JSON.parse(startRes.stdout.excerpt);
+    const jobId = startPayload.jobId as string;
+    assert.ok(jobId);
+    recordJob(jobId);
+
+    // Cancel WITHOUT --apply (dry-run preview)
+    const dryCancelRes = await runCli(
+      [
+        "job",
+        "cancel",
+        jobId,
+        "--json",
+      ],
+      stateRoot,
+    );
+    assert.equal(dryCancelRes.exitCode, 0);
+    const dryPayload = JSON.parse(dryCancelRes.stdout.excerpt);
+    assert.equal(dryPayload.applied, false);
+
+    // Verify cancel.request does NOT exist
+    const cancelRequestFile = join(stateRoot, "jobs", jobId, "cancel.request");
+    assert.equal(existsSync(cancelRequestFile), false, "Dry run cancel must not write cancel.request");
+
+    // Clean up: actually cancel with --apply
+    const realCancelRes = await runCli(
+      [
+        "job",
+        "cancel",
+        jobId,
+        "--apply",
+        "--json",
+      ],
+      stateRoot,
+    );
+    assert.equal(realCancelRes.exitCode, 0);
+  } finally {
+    await cleanup();
+  }
+});
+
+test("efficient-wait-cli: job wait on nonexistent job ID exits non-zero with diagnostic", async () => {
+  const { stateRoot, cleanup } = await createCliTestFixture();
+  try {
+    const res = await runCli(
+      [
+        "job",
+        "wait",
+        "job-ffffffffffffffff",
+        "--timeout-ms",
+        "200",
+        "--json",
+      ],
+      stateRoot,
+    );
+    assert.notEqual(res.exitCode, 0, "Wait on nonexistent job must exit non-zero");
+    const payload = JSON.parse(res.stdout.excerpt);
+    assert.equal(payload.jobId, "job-ffffffffffffffff");
+    assert.ok(payload.status === "timeout" || payload.status === "unresolved" || payload.status === "refused");
+    assert.ok(typeof payload.reason === "string" && payload.reason.length > 0);
+  } finally {
+    await cleanup();
+  }
+});
+

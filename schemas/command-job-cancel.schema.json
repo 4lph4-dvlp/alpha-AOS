@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/command-job-cancel.schema.json",
+  "title": "alpha-AOS command job cancel request",
+  "description": "Closed bounded cancel request marker (BUG-06).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "ownerToken",
+    "specDigest",
+    "requestedAt"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": { "type": "string", "enum": ["command-job-cancel"] },
+    "jobId": { "type": "string", "pattern": "^job-[0-9a-f]{16}$", "maxLength": 64 },
+    "ownerToken": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "specDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "requestedAt": { "type": "string", "maxLength": 64 }
+  }
+}

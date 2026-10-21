@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/command-job-launch.schema.json",
+  "title": "alpha-AOS command job private launch spec",
+  "description": "Closed bounded launch spec for private command job execution (BUG-06).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "ownerToken",
+    "executable",
+    "args",
+    "cwd",
+    "deadlineMs",
+    "createdAt"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": { "type": "string", "enum": ["command-job-launch"] },
+    "jobId": { "type": "string", "pattern": "^job-[0-9a-f]{16}$", "maxLength": 64 },
+    "ownerToken": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "executable": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "args": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 65536 }
+    },
+    "cwd": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "deadlineMs": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+    "createdAt": { "type": "string", "maxLength": 64 }
+  }
+}

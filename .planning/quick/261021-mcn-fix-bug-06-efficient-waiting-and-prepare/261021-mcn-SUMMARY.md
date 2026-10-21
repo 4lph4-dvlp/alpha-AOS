@@ -3,7 +3,7 @@ quick_id: 261021-mcn
 status: in-progress
 completed: false
 updated: 2026-10-21
-resume_task: 1
+resume_task: 2
 blocker: none; host-user agy authentication verified, implementation repairs in progress
 ---
 
@@ -32,3 +32,11 @@ Repair order: bounded process/environment and job ownership/storage, canonical t
 Job/process repair Packet A1 completed in the required host-user Gemini model. Its result reports 37 focused tests passed, 0 failed (15 job, 22 process); the final controller regression gate and independent re-review still must corroborate the repaired behavior. Packet A2 now owns only task-wait/observer implementation and their tests. No final source commit or release claim yet.
 
 Packet A2 completed through the required Gemini model and reports 24 observer/task tests passed. Packet A3 now owns only CLI parsing and real CLI tracers. Its required security correction makes job start/cancel dry-run unless --apply is explicit; this follows the existing project mutation boundary. Native/source code, tests, verifier, guidance and release remain pending final controller checks and independent review.
+
+## Implemented runtime and current verification boundary
+
+Task 1 runtime/CLI/process implementation is committed as `0320c27`. The parent controller independently verified fresh build artifacts and ran all five affected compiled suites together: **67 tests passed, 0 failed, 0 skipped** (`task1-combined-tests.log`, exit 0). The repaired CLI uses explicit --apply for job mutations, closed parsing and preserved child argv.
+
+Packet B added the behavioral verifier, verifier/guidance self-tests and additional adversarial cases; the controller's `npm run check` passed. Its worker result ended with a waiting message and supplied no actual test outcome, so no runtime success is inferred from that result. No owned background test process remained on reconciliation. The two newly compiled test fixtures incorrectly resolved the package root to dist; the controller has assigned only those root declarations for correction with Packet C, without changing assertions.
+
+Packet C is active on product guidance, both READMEs, current BUG-06 report, local PR/release notes and 0.4.1 metadata. The version bump must be its last mutation, followed immediately by the parent alpha-aos-control capability checkpoint. Task 2 behavioral checks, final independent re-review, mandatory gates, full release dry-run, goal verification and original-checkout integration remain pending. Original native blocked records, unrun platform limits and no-publication scope remain unchanged.

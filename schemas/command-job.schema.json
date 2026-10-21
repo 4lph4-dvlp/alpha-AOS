@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/command-job.schema.json",
+  "title": "alpha-AOS command job",
+  "description": "Closed bounded durable command job record (BUG-06).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "jobId",
+    "ownerToken",
+    "specDigest",
+    "status",
+    "createdAt",
+    "cwd",
+    "command",
+    "deadlineMs",
+    "cancelRequested"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "enum": [1] },
+    "kind": { "type": "string", "enum": ["command-job"] },
+    "jobId": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{8,64}$", "maxLength": 64 },
+    "ownerToken": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "specDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "completed", "failed", "cancelled", "timed_out", "orphaned"]
+    },
+    "createdAt": { "type": "string", "maxLength": 64 },
+    "startedAt": { "type": ["string", "null"], "maxLength": 64 },
+    "acknowledgedAt": { "type": ["string", "null"], "maxLength": 64 },
+    "finishedAt": { "type": ["string", "null"], "maxLength": 64 },
+    "stateRevision": { "type": "integer", "minimum": 0 },
+    "cwd": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "command": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "deadlineMs": { "type": "integer", "minimum": 1, "maximum": 86400000 },
+    "workerPid": { "type": ["integer", "null"] },
+    "workerHost": { "type": ["string", "null"], "maxLength": 256 },
+    "childPid": { "type": ["integer", "null"] },
+    "exitCode": { "type": ["integer", "null"] },
+    "signal": { "type": ["string", "null"], "maxLength": 32 },
+    "cancelRequested": { "type": "boolean" },
+    "cancelRequestedAt": { "type": ["string", "null"], "maxLength": 64 },
+    "cancelDelivered": { "type": ["boolean", "null"] },
+    "cancelConfirmedAt": { "type": ["string", "null"], "maxLength": 64 },
+    "durationMs": { "type": ["number", "null"] },
+    "output": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["stdout", "stderr", "combined", "truncated", "totalBytes"],
+      "properties": {
+        "stdout": { "type": "string", "maxLength": 65536 },
+        "stderr": { "type": "string", "maxLength": 65536 },
+        "combined": { "type": "string", "maxLength": 65536 },
+        "truncated": { "type": "boolean" },
+        "totalBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "error": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["code", "message"],
+      "properties": {
+        "code": { "type": "string", "maxLength": 128 },
+        "message": { "type": "string", "maxLength": 1024 }
+      }
+    }
+  }
+}

@@ -67,6 +67,17 @@ export interface ProcessSpec {
   excerptBytes?: number;
   /** Optional cancellation signal to terminate the process tree. */
   signal?: AbortSignal;
+  /**
+   * Narrowly opt-in overflow policy. Default "kill" terminates the child once total
+   * output exceeds 8 * maxOutputBytes. "drain" truncates/drains output past limit
+   * without killing the child while deadline and signals are still enforced.
+   */
+  overflowPolicy?: "kill" | "drain";
+  /**
+   * Hook called immediately on child spawn AFTER handlers (stdout, stderr, error, close)
+   * are installed, before any asynchronous storage or operations.
+   */
+  onSpawn?: (child: { pid: number | undefined }) => void;
 }
 
 export interface ProcessResult {
@@ -541,8 +552,8 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       stream?.on("data", (chunk: Buffer) => {
         sink.push(chunk);
         // A child that keeps writing past the budget is terminated rather than
-        // allowed to exhaust memory.
-        if (sink.totalBytes > limit * 8 && !cappedKill) {
+        // allowed to exhaust memory, unless the caller opt into drain.
+        if (spec.overflowPolicy !== "drain" && sink.totalBytes > limit * 8 && !cappedKill) {
           cappedKill = true;
           if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
         }
@@ -561,6 +572,14 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       if (exitCode === 0) return finish("ok", exitCode, signal);
       finish("non-zero-exit", exitCode, signal);
     });
+
+    if (spec.onSpawn) {
+      try {
+        spec.onSpawn({ pid: child.pid });
+      } catch {
+        // onSpawn hook must not crash runProcess
+      }
+    }
   });
 }
 
@@ -1114,5 +1133,47 @@ export function probeCommand(command: string): CommandProbe {
     command: resolved,
     version: null,
     unsupportedReason: `reading a version from ${extname(resolved)} shims would require an interpreter`,
+  };
+}
+
+export interface DetachedProcessSpec {
+  executable: string;
+  args: readonly string[];
+  cwd: string;
+  environment?: EnvironmentPolicy;
+  onError?: (err: Error) => void;
+}
+
+export interface DetachedProcessHandle {
+  pid: number | undefined;
+  unref(): void;
+}
+
+/**
+ * Spawns a detached process without a shell, with an explicit environment.
+ * The process runs detached and unreferenced so callers can manage separate lifecycle.
+ */
+export function spawnDetachedProcess(spec: DetachedProcessSpec): DetachedProcessHandle {
+  const environment = materializeEnvironment(spec.environment);
+  if (!isAbsolute(spec.executable)) {
+    throw new ProcessPolicyError(
+      "unsupported-executable",
+      `Executable must be an absolute path to avoid PATH-search ambiguity: ${spec.executable}`,
+    );
+  }
+  const child = spawn(spec.executable, [...spec.args], {
+    cwd: spec.cwd,
+    env: environment,
+    shell: false,
+    windowsHide: true,
+    detached: true,
+    stdio: "ignore",
+  });
+  if (spec.onError) {
+    child.once("error", spec.onError);
+  }
+  return {
+    pid: child.pid,
+    unref: () => child.unref(),
   };
 }

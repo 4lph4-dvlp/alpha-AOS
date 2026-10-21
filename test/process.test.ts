@@ -795,3 +795,25 @@ test("stdin is delivered to a child that expects an event on it", async (context
   const reported = JSON.parse(result.stdout.excerpt) as { received: string };
   assert.deepEqual(JSON.parse(reported.received), { hook_event_name: "Stop" });
 });
+
+test("opt-in overflowPolicy drain truncates without killing child and onSpawn reports pid", async (context) => {
+  const fixture = await createProcessFixture(context);
+
+  let spawnedPid: number | undefined;
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.floodScript],
+    cwd: fixture.root,
+    timeoutMs: 3000,
+    maxOutputBytes: 4096,
+    overflowPolicy: "drain",
+    onSpawn: (info) => {
+      spawnedPid = info.pid;
+    },
+  });
+
+  assert.ok(spawnedPid !== undefined, "onSpawn hook must be called with child pid");
+  assert.ok(result.stdout.capped, "stdout must be capped");
+  assert.ok(result.outputCapped, "outputCapped must be true");
+  assert.ok(result.stdout.excerpt.length <= 4096, "excerpt must be bounded by limit");
+});

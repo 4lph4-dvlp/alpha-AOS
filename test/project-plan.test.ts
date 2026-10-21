@@ -506,7 +506,7 @@ test("every failed leaf carries a reason sourced from the evidence envelope's ne
   }
 });
 
-test("every one of the 15 declared packs is evaluated with both a satisfied and a failed array", async (context) => {
+test("every declared pack is evaluated once with both a satisfied and a failed array", async (context) => {
   const root = await reactFixture(context);
   const result = await runCli(["project", "plan", root, "--json"]);
   assert.equal(result.status, 0, result.stderr);
@@ -514,7 +514,10 @@ test("every one of the 15 declared packs is evaluated with both a satisfied and 
   const plan = JSON.parse(result.stdout) as {
     evaluations: Array<{ packId: string; status: string; satisfied: unknown[]; failed: unknown[] }>;
   };
-  assert.equal(plan.evaluations.length, 15);
+  const catalog = await loadPackCatalogStrict(repositoryRoot);
+  const declaredIds = catalog.value.packs.map((pack) => pack.id).sort();
+  assert.ok(declaredIds.includes("COMPUTER_USE"));
+  assert.deepEqual(plan.evaluations.map((evaluation) => evaluation.packId).sort(), declaredIds);
   for (const evaluation of plan.evaluations) {
     assert.ok(Array.isArray(evaluation.satisfied), `${evaluation.packId} has no satisfied array`);
     assert.ok(Array.isArray(evaluation.failed), `${evaluation.packId} has no failed array`);
@@ -715,14 +718,16 @@ test("the near-miss order is descending satisfied-leaf count, then ascending pac
   );
 });
 
-test("--why prints every one of the 15 packs with leaf detail and applies no cap", async (context) => {
+test("--why prints every declared pack once with leaf detail and applies no cap", async (context) => {
   const root = await reactFixture(context);
   const plain = await runCli(["project", "plan", root]);
   const why = await runCli(["project", "plan", root, "--why"]);
 
   assert.equal(why.status, 0, why.stderr);
   const catalog = await loadPackCatalogStrict(repositoryRoot);
-  assert.equal(catalog.value.packs.length, 15);
+  const declaredIds = catalog.value.packs.map((pack) => pack.id).sort();
+  assert.ok(declaredIds.includes("COMPUTER_USE"));
+  assert.deepEqual([...why.stdout.matchAll(/^WHY (\S+) /gmu)].map((match) => match[1]).sort(), declaredIds);
   for (const pack of catalog.value.packs) {
     assert.ok(why.stdout.includes(`WHY ${pack.id} `), `--why omitted ${pack.id}`);
   }

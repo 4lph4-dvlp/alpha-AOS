@@ -2,7 +2,7 @@
 quick_id: 261021-mcn
 status: in-progress
 completed: false
-updated: 2026-10-21
+updated: 2026-10-22
 resume_task: 2
 blocker: independent review findings remain open; authenticated implementation corrections in progress
 ---
@@ -79,3 +79,11 @@ Latest frozen reviews are task-wait-final-review.md (3 remaining blockers -> E3)
 The prior strong reviewer stopped on an explicit GPT usage-limit error before its E4 rationale was written. Its external 21,225-byte correction patch is retained, not assumed complete. User continuation after the reported reset resumes the same task and review boundary; no wave or native autopilot is restarted. All five native sessions were reconciled as terminal with no owned process remaining: E3/J2/I2 SUCCESS, G3/H2 stream-idle ERROR. Transport status does not establish source correctness. The controller's fresh build exited 0. J2 actual process log has 31 passed/0 failed; I2 actual verifier self-test log has 18 passed/0 failed, but actual three stable repository selections are still pending. Source inspection confirms H2 only partially repaired its findings, so a narrow source-only H3 packet owns candidate/domain validation and uniform identity fences. The controller owns checks to avoid agent-managed test polling. All final review, release, verification and integration gates remain pending.
 
 Controller reconciliation after the reviewed E4 patch was applied by Gemini: fresh build exited 0 and the affected observer/task-run/task-wait slice executed **71 tests, 71 passed, 0 failed/cancelled/skipped** (e4-tests.log, exit0), including the actual superviseTask index-zero producer and eight new terminal-link/owner regressions. Earlier current job/CLI/process/verifier combined slice executed **88 tests, 88 passed, 0 failed/cancelled/skipped** (resume-targeted.log, exit0). These are incremental evidence, not final acceptance. I2 attestation review identified a remaining directory-alias trust-root issue; exact root/component checks and real-producer required-leaf selection remain to repair. H3/G4 have narrow disjoint source-only ownership; controller performs checks. The accidental j2-tests.log inside the quick directory was preserved externally and removed as disposable output.
+
+## 2026-10-22 actual integrated correction boundary
+
+Canonical task/observer corrections are preserved at 2122bc8, with 71 passing affected tests including a real superviseTask producer. Process lifecycle/cleanup corrections are preserved at c0d3281, with 31 passing process tests. These commits remain subject to the final combined release/review gates.
+
+H3 completed deep baseline freezing, full candidate validation and immutable concrete claims, but left its identity comparator unused by callers. The controller therefore prepared a narrow H5 repair spec, applied by Gemini, which unifies handshake/wait/cancel fencing, binds the actual spawned worker identity and removes weak cancellation fallbacks. G4/G5 add actual worker fixtures, a deterministic natural-close barrier and an actual spawned-child death assertion. H4 retained path proofs and exact-wire preflight plus nine regressions, and I3/I4 anchored verifier components, real E4 required leaves and directory-alias controls, were applied through Gemini.
+
+The controller fresh build passed. The integrated h4-i4-targeted slice has **76 tests: 69 passed, 6 failed, 1 skipped**; the one skip explicitly reports unavailable file-symlink setup, while both Windows directory-junction verifier controls actually passed. Failures are preserved externally, not hidden: one Windows open-FD ancestor rename setup, old diagnostic/count assertions and a journal mutation fixture racing its first retained read. G6/E5 applies narrow fixture/worker-claim corrections via Gemini. H6 is an external strong-role domain/runtime-fixture repair spec in progress; I5 is an external strong-role attestation repair spec after two actual false-green probes (same-path selected test replacement and built product mutation during otherwise passing required bodies). No final success, savings or publication is claimed.

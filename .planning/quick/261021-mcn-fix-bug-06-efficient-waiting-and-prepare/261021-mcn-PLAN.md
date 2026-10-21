@@ -17,6 +17,11 @@ files_modified:
   - test/completion-wait.test.ts
   - test/task-wait.test.ts
   - test/command-jobs.test.ts
+  - test/command-job-worker.test.ts
+  - test/command-job-paths.test.ts
+  - test/command-job-fences.test.ts
+  - test/command-job-runtime.test.ts
+  - test/verify-efficient-wait-integrity.test.ts
   - test/efficient-wait-cli.test.ts
   - scripts/verify-efficient-wait.mjs
   - test/verify-efficient-wait.test.ts
@@ -110,7 +115,7 @@ This is an approved quick --full --auto, with one plan and three sequential owne
 
 Security repair clarifications (after the independent Packet A interim review): reuse the existing process runner with opt-in output drain/spawn observation, retaining its default policy. CLI job start/cancel are dry-run previews unless explicit --apply is supplied, consistent with project governance; read-only wait/status reject --apply. This refines the prototype command spellings below without expanding authority. Programmatic start/cancel remain explicit calls. Correct terminal exit metadata must not become a green CLI result merely because observation completed. Unsupported legacy supervisor linkage remains explicitly unresolved rather than guessed.
 
-Every source, test, script, schema and product-document edit, including review fixes, MUST be performed through agy with the explicit arguments --model gemini-3.8-flash-high --effort high. No substitute model, inherited model, self role, nested agents, global configuration changes or GUI actions. GPT-6.1 Sol high performs architecture, plan checking, independent code/security review and verification. Pass a compact packet with objective, exact owned files, constraints, references and expected diff/evidence; launch packets sequentially and reclaim ownership before changing the next packet. Workers return a concise diff summary and unresolved limits; the controller runs tests and creates commits. On quota/usage failure preserve the boundary and recovery record; stop blind retries.
+Every source, test, script, schema and product-document edit, including review fixes, MUST be performed through agy with the explicit arguments --model gemini-3.8-flash-high --effort high. No substitute model, inherited model, self role, nested agents, global configuration changes or GUI actions. GPT-6.1 Sol high performs architecture, plan checking, independent code/security review and verification. Pass a compact packet with objective, exact owned files, constraints, references and expected diff/evidence; launch packets sequentially and reclaim ownership before changing the next packet. Workers return a concise diff summary and unresolved limits; the controller runs tests and creates commits. Recovery clarification: after the initial sequential tracer, independent correction packets may run with disjoint file ownership; the parent records ownership and reconciles terminal results before integration. Implementation packets now perform source-only edits or apply a completed strong-role repair patch; they must not launch builds/tests or model-managed polling. The controller executes affected checks after ownership is returned. This changes scheduling only and waives no review, verification, authority or release gate. On quota/usage failure preserve the boundary and recovery record; stop blind retries.
 
 Bind external log root and the original checkout's pre-existing compiled CLI as controller-owned environment variables BUG06_LOG_ROOT and BUG06_ORIGINAL_CLI using the controlling task packet. Verify those bindings before use; no alternate checkout or rebuilt CLI may replace the original CLI capability-pack probe. Keep verbose logs outside the repository. Retain useful audit logs; delete disposable fixtures only after checking each exact resolved path and ownership. No push, tag, publish, project approve, project sync or relaxation of release checks.
 

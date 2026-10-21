@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { destinationFor } from "../src/core/owned-skills.js";
+import { applyOwnedSkillSync, destinationFor, planOwnedSkillOperation, renderOwnedSkill } from "../src/core/owned-skills.js";
+import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import type { HarnessId } from "../src/types.js";
 
 const repositoryRoot = process.cwd();
@@ -85,44 +86,39 @@ test("E2E Tracer: Active Tool Orchestration Rules in GSD Lifecycle", async () =>
   );
 });
 
-test("E2E Tracer: 5-Harness Synchronized Integrity Check", async () => {
-  const lockPath = join(repositoryRoot, "catalog", "stack.lock.json");
-  const lock = JSON.parse(await readFile(lockPath, "utf8"));
-  const taskSkillLock = lock.components?.ownedSkills?.["alpha-aos-task"];
-
-  assert.ok(taskSkillLock, "alpha-aos-task must be locked in stack.lock.json");
-  const expectedHash = taskSkillLock.sourceSha256;
-
-  const skillPath = join(repositoryRoot, "skills", "alpha-aos-task", "SKILL.md");
-  const sourceContent = await readFile(skillPath, "utf8");
-
+test("E2E Tracer: 5-Harness Synchronized Integrity Check", async (context) => {
+  const catalog = await loadCatalog(repositoryRoot);
+  const lock = await loadLock(repositoryRoot);
+  const fixtureRoot = await mkdtemp(join(tmpdir(), "alpha-aos-e2e-tracer-"));
+  assert.equal(dirname(fixtureRoot), resolve(tmpdir()));
+  context.after(async () => rm(fixtureRoot, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   const harnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
-
-  for (const harness of harnesses) {
-    // 1. Verify locked hash matches source hash
-    assert.equal(
-      taskSkillLock.targetSha256?.[harness],
-      expectedHash,
-      `Harness '${harness}' targetSha256 in lock must match sourceSha256`,
-    );
-
-    // 2. If the harness skill file is physically installed on the current host, verify its integrity
-    const dest = destinationFor(harness, "alpha-aos-task");
-    if (existsSync(dest)) {
+  for (const id of ["alpha-aos-task", "computer-use"]) {
+    const skill = catalog.components.ownedSkills.find((entry) => entry.id === id);
+    const locked = lock.components.ownedSkills?.[id];
+    assert.ok(skill);
+    assert.ok(locked);
+    const sourceContent = await readFile(join(repositoryRoot, skill.source), "utf8");
+    assert.equal(createHash("sha256").update(sourceContent).digest("hex"), locked.sourceSha256);
+    for (const harness of harnesses) {
+      const rendered = renderOwnedSkill(sourceContent, harness, skill.invocation, skill.argumentHint);
+      const expectedHash = createHash("sha256").update(rendered).digest("hex");
+      assert.equal(locked.targetSha256[harness], expectedHash);
+      const targetHome = join(fixtureRoot, harness);
+      const stateRoot = join(fixtureRoot, "state");
+      const plan = await planOwnedSkillOperation(repositoryRoot, catalog, lock, id, harness, { targetHome, stateRoot });
+      const applied = await applyOwnedSkillSync(repositoryRoot, catalog, lock, id, harness, { plan, targetHome, stateRoot });
+      assert.ok(applied.operationId);
+      const dest = destinationFor(harness, id, targetHome);
+      assert.equal(applied.plan.destination, dest);
       const destContent = await readFile(dest);
       const destHash = createHash("sha256").update(destContent).digest("hex");
-
-      assert.equal(
-        destHash,
-        expectedHash,
-        `Harness '${harness}' installed skill hash must match stack.lock.json expected hash`,
-      );
-
-      const destText = destContent.toString("utf8");
-      assert.ok(
-        destText.includes("## Active Capability Orchestration Rules (D-02)"),
-        `Harness '${harness}' installed skill must contain active capability orchestration rules`,
-      );
+      assert.equal(destHash, expectedHash, `Harness '${harness}' installed ${id} must match its locked hash`);
+      assert.equal(destContent.toString("utf8"), rendered);
+      if (id === "alpha-aos-task") {
+        assert.ok(rendered.includes("## Active Capability Orchestration Rules (D-02)"));
+        assert.ok(rendered.includes("GUI verification orchestration"));
+      }
     }
   }
 });

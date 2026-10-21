@@ -21,7 +21,7 @@ interface CapabilityFixtureDefinition {
 /**
  * Data-driven positive and negative fixture manifest covering every single
  * capability declared across catalog, lock, pack catalog, commands, tools, and hooks.
- * Total: 78 declared capabilities.
+ * Completeness is checked against the exact current inventory declaration set.
  */
 export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[] = [
   // 1. GSD Workflows (5)
@@ -92,7 +92,15 @@ export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[]
     negativeReasonPattern: /does not require unified-memory/u,
   },
 
-  // 3. Capability Packs (15)
+  // 3. Capability Packs
+  {
+    capabilityId: "pack:COMPUTER_USE",
+    kind: "capability-pack",
+    positivePrompt: "Select the explicitly approved COMPUTER_USE project capability pack.",
+    negativePrompt: "Inspect project files without approving a desktop capability pack.",
+    positiveReasonPattern: /Project evidence satisfies criteria for pack COMPUTER_USE/u,
+    negativeReasonPattern: /not approved or selected/u,
+  },
   {
     capabilityId: "pack:AGENT_RUNTIME",
     kind: "capability-pack",
@@ -368,7 +376,15 @@ export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[]
     negativeReasonPattern: /Project pack WEB_REACT is unapproved or unselected/u,
   },
 
-  // 5. Owned Skills (4)
+  // 5. Owned Skills
+  {
+    capabilityId: "owned:computer-use",
+    kind: "owned-skill",
+    positivePrompt: "Consult computer-use guidance for bounded desktop verification.",
+    negativePrompt: "Complete a pure file operation without any GUI interaction.",
+    positiveReasonPattern: /Owned skill configured in catalog/u,
+    negativeReasonPattern: /unsupported|not current|not requested/u,
+  },
   {
     capabilityId: "owned:alpha-aos-control",
     kind: "owned-skill",
@@ -494,7 +510,15 @@ export const CAPABILITY_FIXTURE_MANIFEST: readonly CapabilityFixtureDefinition[]
     negativeReasonPattern: /not requested/u,
   },
 
-  // 8. Control Commands (7)
+  // 8. Control Commands
+  {
+    capabilityId: "control:computer-use",
+    kind: "control-command",
+    positivePrompt: "Perform an exact-target GUI check with digest-bound desktop authority.",
+    negativePrompt: "Run a file-only check with no desktop authority or native permissions.",
+    positiveReasonPattern: /digest-bound desktop authority/u,
+    negativeReasonPattern: /No implicit GUI authority/u,
+  },
   {
     capabilityId: "control:command:checkpoint",
     kind: "control-command",
@@ -700,7 +724,33 @@ test("CAP-05 completeness: fixture manifest matches exact inventory declaration 
     `Fixture manifest contains extra undeclared capabilities: ${extraInManifest.join(", ")}`,
   );
   assert.equal(manifestIds.size, declaredIds.size);
-  assert.equal(manifestIds.size, 79, "Must cover all 79 declared capabilities");
+  assert.equal(CAPABILITY_FIXTURE_MANIFEST.length, manifestIds.size, "Every capability needs exactly one fixture");
+});
+
+test("CAP-05: GUI guide and pack discovery never imply native desktop authority", async () => {
+  for (const harness of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const inventory = await buildTaskCapabilityInventory({ harness });
+    const guide = inventory.items.find((item) => item.id === "owned:computer-use");
+    const control = inventory.items.find((item) => item.id === "control:computer-use");
+    assert.ok(guide);
+    assert.equal(guide.support, "supported");
+    assert.ok(control);
+    assert.equal(control.selected, false);
+    assert.match(control.exclusionReason ?? "", /No implicit GUI authority/u);
+    assert.match(control.unavailableReason ?? "", /verified native invocation.*exact-target permissions/u);
+  }
+  for (const approved of [false, true]) {
+    const inventory = await buildTaskCapabilityInventory({
+      harness: "codex",
+      projectPlan: {
+        applicable: ["COMPUTER_USE"],
+        selected: approved ? ["COMPUTER_USE"] : [],
+        targetPreState: [],
+      } as unknown as import("../src/types.js").ProjectCapabilityPlan,
+    });
+    assert.equal(inventory.items.find((item) => item.id === "pack:COMPUTER_USE")?.selected, approved);
+    assert.equal(inventory.items.find((item) => item.id === "control:computer-use")?.selected, false);
+  }
 });
 
 test("CAP-05: every capability has non-empty positive and negative prompts and reason patterns", () => {

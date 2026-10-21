@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile, writeFile, mkdtemp, rm } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
 import { Ajv } from "ajv";
@@ -18,11 +18,14 @@ test("an intact approved archive and companions cannot authorize a different ent
     const hash = (value: string) => createHash("sha256").update(value).digest("hex");
     const main = process.platform === "win32" ? "cua-driver.exe" : "cua-driver";
     const helper = "helper.exe";
+    const extension = "wayland-helper/winrects@cua/extension.js";
+    await mkdir(join(root, "wayland-helper", "winrects@cua"), { recursive: true });
+    await writeFile(join(root, extension), "verified-extension");
     await writeFile(join(root, main), "verified-main"); await writeFile(join(root, helper), "verified-helper"); await writeFile(join(root, "archive"), "verified-archive");
     const publisherIdentity = "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.37.0";
     const a: CuaRuntimeApproval = { version: "0.37.0", sourceCommit: "2d2f99228d4d2508dc6fcc84c176b296e146714a", platform: process.platform, arch: process.arch, executable: join(root, main), executableHash: hash("verified-main"), archive: join(root, "archive"), archiveHash: hash("verified-archive"), schemaHash: "a".repeat(64), publisherVerified: true, publisherIdentity };
     const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
-    const pin = { publisherIdentity, assets: [{ os, arch: process.arch, sha256: a.archiveHash, entrypoint: main, files: { [main]: a.executableHash, [helper]: hash("verified-helper") } }] };
+    const pin = { publisherIdentity, assets: [{ os, arch: process.arch, sha256: a.archiveHash, entrypoint: main, files: { [main]: a.executableHash, [helper]: hash("verified-helper"), [extension]: hash("verified-extension") } }] };
     await assert.doesNotReject(verifyCuaRuntime(a, pin, root));
     await assert.rejects(verifyCuaRuntime({ ...a, executable: join(root, helper), executableHash: hash("verified-helper") }, pin, root), /entrypoint/);
     await writeFile(join(root, main), "verified-helper");

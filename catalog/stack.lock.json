@@ -128,13 +128,13 @@
         }
       },
       "alpha-aos-task": {
-        "sourceSha256": "3b3fbdb8056ddb1485da0f7488d328e314a2992414722047aad21974809529d9",
+        "sourceSha256": "dad83f5bebb55021e28b1a6259ea62f78d1ad7477f28370d3c792e021771fc89",
         "targetSha256": {
-          "claude": "3b3fbdb8056ddb1485da0f7488d328e314a2992414722047aad21974809529d9",
-          "codex": "3b3fbdb8056ddb1485da0f7488d328e314a2992414722047aad21974809529d9",
-          "antigravity": "3b3fbdb8056ddb1485da0f7488d328e314a2992414722047aad21974809529d9",
-          "pi": "3b3fbdb8056ddb1485da0f7488d328e314a2992414722047aad21974809529d9",
-          "hermes": "3b3fbdb8056ddb1485da0f7488d328e314a2992414722047aad21974809529d9"
+          "claude": "dad83f5bebb55021e28b1a6259ea62f78d1ad7477f28370d3c792e021771fc89",
+          "codex": "dad83f5bebb55021e28b1a6259ea62f78d1ad7477f28370d3c792e021771fc89",
+          "antigravity": "dad83f5bebb55021e28b1a6259ea62f78d1ad7477f28370d3c792e021771fc89",
+          "pi": "dad83f5bebb55021e28b1a6259ea62f78d1ad7477f28370d3c792e021771fc89",
+          "hermes": "dad83f5bebb55021e28b1a6259ea62f78d1ad7477f28370d3c792e021771fc89"
         }
       },
       "cli-anything": {
@@ -150,11 +150,11 @@
       "computer-use": {
         "sourceSha256": "35e0394b8816c88a5408815d1db9b84b69a214d58c5410fec7a0e65f3ab483a1",
         "targetSha256": {
-          "claude": "2064c830731d045e1aa89b34731f099ddb03066abc7fc6d4fb47bd48e21bb073",
-          "codex": "2064c830731d045e1aa89b34731f099ddb03066abc7fc6d4fb47bd48e21bb073",
-          "antigravity": "2064c830731d045e1aa89b34731f099ddb03066abc7fc6d4fb47bd48e21bb073",
-          "pi": "2064c830731d045e1aa89b34731f099ddb03066abc7fc6d4fb47bd48e21bb073",
-          "hermes": "2064c830731d045e1aa89b34731f099ddb03066abc7fc6d4fb47bd48e21bb073"
+          "claude": "35e0394b8816c88a5408815d1db9b84b69a214d58c5410fec7a0e65f3ab483a1",
+          "codex": "35e0394b8816c88a5408815d1db9b84b69a214d58c5410fec7a0e65f3ab483a1",
+          "antigravity": "35e0394b8816c88a5408815d1db9b84b69a214d58c5410fec7a0e65f3ab483a1",
+          "pi": "35e0394b8816c88a5408815d1db9b84b69a214d58c5410fec7a0e65f3ab483a1",
+          "hermes": "35e0394b8816c88a5408815d1db9b84b69a214d58c5410fec7a0e65f3ab483a1"
         }
       }
     }

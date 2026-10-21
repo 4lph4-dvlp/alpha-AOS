@@ -137,3 +137,9 @@ alpha-AOS provides an integrated capability suite across all supported harnesses
 4. **Ordering Invariant**: The workflow MUST strictly follow:
    `Path Selection → Read-Only Preview → Exact Digest Approval → Separate Start → Status/Report Tracking`.
    No step may be skipped or reordered.
+
+## GUI verification orchestration
+
+When verification depends on visible UI behavior, use the managed `computer-use` guide and run `alpha-aos computer-use doctor --json` followed by the bounded plan. The guide is discoverable in ordinary GSD, quick and autopilot; it grants no desktop authority. Prefer existing application CLI/API/process tools to open an app, then bind the exact returned target.
+
+For ordinary GSD and quick, present automatic GUI verification and manual user verification at that checkpoint. Honor a choice already given in this task. For autopilot, automatically execute deterministic, reversible checks already covered by the approved task grant and record the choice; do not ask again for the same authority. Human judgment, missing permission and unsupported delivery remain explicit checkpoints. Use the same CLI/MCP broker, retained anchors and screenshot/action evidence for every route. An unverified/unknown outcome is never a completed verification.

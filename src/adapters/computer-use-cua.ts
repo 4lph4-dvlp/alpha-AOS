@@ -21,7 +21,7 @@ async function verifyCuaCompanions(approval: CuaRuntimeApproval, pin: Record<str
   const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
   const asset = (pin.assets as Array<{ os: string; arch: string; sha256: string; entrypoint?: string; files?: Record<string, string> }>).find((v) => v.os === os && (v.arch === approval.arch || v.arch === "universal") && v.sha256 === approval.archiveHash);
   const entrypoint = asset?.entrypoint;
-  const safeEntry = (name: string): boolean => /^(?:[\w.-]+\/)*[\w.-]+$/.test(name) && name.split("/").every((part) => part !== "." && part !== "..");
+  const safeEntry = (name: string): boolean => /^(?:[\w.@+-]+\/)*[\w.@+-]+$/.test(name) && name.split("/").every((part) => part !== "." && part !== "..");
   if (!entrypoint || !safeEntry(entrypoint) || !asset.files || Object.keys(asset.files).length > 32 || asset.files[entrypoint] !== approval.executableHash || basename(approval.executable) !== basename(entrypoint)) throw new Error("Computer runtime selected executable is not the verified archive entrypoint");
   let extractionRoot = approval.executable;
   for (const _part of entrypoint.split("/")) extractionRoot = dirname(extractionRoot);

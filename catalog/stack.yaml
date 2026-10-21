@@ -50,7 +50,7 @@ components:
     - id: computer-use
       source: skills/computer-use/SKILL.md
       targets: [claude, codex, antigravity, pi, hermes]
-      invocation: explicit
+      invocation: automatic
     - id: alpha-aos-ship
       source: skills/alpha-aos-ship/SKILL.md
       targets: [claude]

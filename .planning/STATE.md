@@ -5,10 +5,10 @@ milestone_name: Universal Autonomous Work
 current_phase: 24
 current_phase_name: Autopilot Antigravity Routing and Snapshot Resilience
 status: completed
-stopped_at: "Quick 261021-mcn blocked before implementation: agy authentication timed out; no source edits"
+stopped_at: "Quick 261021-mcn resumed in authenticated host context; exact-task observation repair active"
 last_updated: "2026-10-21T07:30:12.255Z"
 last_activity: 2026-10-21
-last_activity_desc: Completed quick 261021-677 - verified computer-use v0.4.0
+last_activity_desc: Quick 261021-mcn BUG-06 implementation in progress; computer-use v0.4.0 remains verified
 state_head: 54ecf5042a5cc969004716484f85c0b91b013505
 progress:
   total_phases: 11
@@ -380,7 +380,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - Phase 14 live accept tracer proven (14-08-02 run muoc4fm2-00d54647 green); live defect tracer and stale review proof (14-06-03/14-08-03/14-09-02) formally deferred to Phase 16 SC6 in ROADMAP.md due to host Codex usage limit exhaustion
 - [Phase 19]: [19-01]: Checkpoint decision v2-audit-v1 adopted: task review report schema upgraded to schemaVersion 2 requiring targetRevisionSha and typed locator; v1 reports accepted only for audit views and rejected as stale for mandatory reviews.
 - [Phase 19]: [19-01]: D-03 all-or-nothing binding strictly enforced: missing criteria or invalid locators fail the entire review report as malformed, preventing cherry-picking.
-- Quick 261021-mcn needs authority: required agy gemini-3.8-flash-high high invocation failed authentication before any model turn. User must authenticate CLI outside this no-GUI/no-global-config grant; all implementation and release gates remain.
+- Quick 261021-mcn: native sandbox agy authentication failed, but the existing host-user context executes the required model successfully without login/config changes. Parent-controlled sequential repairs are active; full review, release and verification remain pending. Original native blocked evidence is retained.
 
 ## Deferred Items
 
@@ -423,7 +423,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 ## Session Continuity
 
 Last session: 2026-10-21T07:30:11.056Z
-Stopped at: Quick 261021-mcn blocked before implementation: agy authentication timed out; no source edits
+Stopped at: Quick 261021-mcn resumed in authenticated host context; exact-task observation repair active
 Resume file: .planning/quick/261021-mcn-fix-bug-06-efficient-waiting-and-prepare/261021-mcn-SUMMARY.md
 
 ## Operator Next Steps

@@ -5,11 +5,11 @@ milestone_name: Universal Autonomous Work
 current_phase: 24
 current_phase_name: Autopilot Antigravity Routing and Snapshot Resilience
 status: completed
-stopped_at: Quick 261021-677 verified and locally integrated; computer-use v0.4.0 complete
-last_updated: "2026-10-21T06:21:40.915Z"
+stopped_at: "Quick 261021-mcn blocked before implementation: agy authentication timed out; no source edits"
+last_updated: "2026-10-21T07:30:12.255Z"
 last_activity: 2026-10-21
 last_activity_desc: Completed quick 261021-677 - verified computer-use v0.4.0
-state_head: 822a38317d09e05e7ab0c3ac923cb7bca3c19bf5
+state_head: 54ecf5042a5cc969004716484f85c0b91b013505
 progress:
   total_phases: 11
   completed_phases: 11
@@ -380,6 +380,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - Phase 14 live accept tracer proven (14-08-02 run muoc4fm2-00d54647 green); live defect tracer and stale review proof (14-06-03/14-08-03/14-09-02) formally deferred to Phase 16 SC6 in ROADMAP.md due to host Codex usage limit exhaustion
 - [Phase 19]: [19-01]: Checkpoint decision v2-audit-v1 adopted: task review report schema upgraded to schemaVersion 2 requiring targetRevisionSha and typed locator; v1 reports accepted only for audit views and rejected as stale for mandatory reviews.
 - [Phase 19]: [19-01]: D-03 all-or-nothing binding strictly enforced: missing criteria or invalid locators fail the entire review report as malformed, preventing cherry-picking.
+- Quick 261021-mcn needs authority: required agy gemini-3.8-flash-high high invocation failed authentication before any model turn. User must authenticate CLI outside this no-GUI/no-global-config grant; all implementation and release gates remain.
 
 ## Deferred Items
 
@@ -421,9 +422,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-10-21T06:21:39.531Z
-Stopped at: Quick 261021-677 verified and locally integrated; computer-use v0.4.0 complete
-Resume file: None
+Last session: 2026-10-21T07:30:11.056Z
+Stopped at: Quick 261021-mcn blocked before implementation: agy authentication timed out; no source edits
+Resume file: .planning/quick/261021-mcn-fix-bug-06-efficient-waiting-and-prepare/261021-mcn-SUMMARY.md
 
 ## Operator Next Steps
 

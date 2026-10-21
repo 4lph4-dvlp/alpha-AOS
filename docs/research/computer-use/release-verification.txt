@@ -1,0 +1,5 @@
+Implementation commit: 7a0aa772564672b6dfb2a80d802a158b412c2ed8
+Clean main checkout; unchanged node scripts/release.mjs --dry-run
+All required subcommands passed. The source checkout and every guard remained intact.
+Release preview PASSED without publishing.
+Artifact SHA-256: 96c28ed9abeb07374852d5ad4343f1fad52d7e473326794ea10a0d7152511c3d

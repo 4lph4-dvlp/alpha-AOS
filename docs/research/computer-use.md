@@ -192,9 +192,9 @@ These are narrow source observations, not instructions to rewrite unrelated modu
 6. **Three-OS CI:** run portable compiled policy/audit/integration tests; report macOS/Linux GUI as unavailable without actual host runs. Distinguish X11, each Wayland compositor, toolkit, architecture and driver version in support evidence.
 7. **Final gates:** appropriate focused tests and source-snapshot verifier, TypeScript check, meaningful full suite, independent review and mandatory security gate. Update public support text only to the level actually proven.
 
-## Open evidence and deliberate exclusions
+## Initial executor evidence limits (historical)
 
-- Exact Cua runtime bytes/signatures and pinned tool schemas were not downloaded/run due shell network restrictions; official release metadata is available, but production enablement must validate artifacts locally.
+- The initial executor could not download/run exact Cua bytes because of shell network restrictions. The later host continuation below supersedes this prerequisite limit with actual checksum, signature, schema and Windows action evidence.
 - Exa remains unavailable (missing key); Firecrawl succeeded for substantive sources before disconnecting. This task has not fabricated success receipts.
 - UI-TARS local Linux/Wayland operator parity, Agent S native Wayland, Screenpipe per-action actuator APIs and current nut.js native artifact compatibility are unverified.
 - No benchmark-based actuator ranking, download/user estimates or compliance retention period is asserted.
@@ -216,3 +216,6 @@ Current official CLI docs explicitly support private `mcp --direct` on macOS wit
 
 
 The independent review found and reproduced five blockers before final release. Repairs bind each selected executable to its verified archive entrypoint and all companion hashes, prevent whole-authority replacement, reject active journal/blob corruption before input, revoke even when outcome storage fails, and preserve recent references to deduplicated captures during retention. Thirty-eight focused tests and a new six-action production Windows run passed after these repairs; full release and GSD goal verification remain separately recorded.
+
+
+All five pinned platform/architecture archives were subsequently downloaded, checksum- and Sigstore-verified against the exact tag/workflow/source identity, and inspected for entrypoint and companion hashes without executing non-Windows binaries. Linux companion paths include the vendor `winrects@cua` directory. [All-platform provenance](computer-use/all-platform-provenance.json). The independent review resolved all five initial blockers and one warning. Later clean-checkout checks repaired LF hash bookkeeping, covered all GUI inventory entries and installed both guides into five isolated harness roots. The unchanged clean-main full release preview passed at implementation commit `7a0aa77`, including full tests, provenance and local tarball smoke. [Release receipt](computer-use/release-verification.txt). Final documentation and GSD completion receipts remain separate from the honestly unknown original native controller run.

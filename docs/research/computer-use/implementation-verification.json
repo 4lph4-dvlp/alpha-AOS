@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "release-and-independent-review-pending",
+  "status": "implementation-and-release-verified",
   "version": "0.4.0",
   "modelPolicy": {
     "harness": "codex",
@@ -25,13 +25,34 @@
     "snapshotCriteria": {
       "pass": 4,
       "fail": 0,
-      "note": "Measured before final doctor/launch guard edits; refresh at final gate"
+      "sourceCommit": "7a0aa772564672b6dfb2a80d802a158b412c2ed8",
+      "artifactDigest": "b0f59176135516b87c78c55e7c9aedc50c9744d6cce63c4c89caaedd6d28c4f2",
+      "files": 632,
+      "bytes": 10785885,
+      "note": "Measured externally on an immutable dependency-free source snapshot before this receipt-only documentation update. Final GSD evidence records the later snapshot."
     },
     "prepackAudit": {
-      "pass": true,
-      "entries": 348
+      "pass": true
     },
-    "fullSuite": "pending clean-checkout release preview; in-tree-log attempts are not final passing evidence"
+    "fullSuite": {
+      "status": "pass",
+      "sourceCommit": "7a0aa772564672b6dfb2a80d802a158b412c2ed8",
+      "via": "unchanged node scripts/release.mjs --dry-run",
+      "exitCode": 0,
+      "note": "The release runner executes full npm test, including the separately serialized tarball lifecycle suite; it summarizes successful subcommands and does not expose a total assertion count. No count is invented."
+    },
+    "followupTests": [
+      {
+        "scope": "canonical guide lock and complete project-pack evaluation/output",
+        "pass": 3,
+        "fail": 0
+      },
+      {
+        "scope": "exact GUI capability fixtures and real isolated installation of both guides on five harnesses",
+        "pass": 10,
+        "fail": 0
+      }
+    ]
   },
   "live": {
     "windows": "production CLI/MCP six actions, five independent domain checks, twenty audit events",
@@ -44,10 +65,12 @@
     "originalNativeRun": "60b6c24f91541163-c5019442",
     "nativeVerdict": "unknown: recovered orphan, never fabricated accepted",
     "gsdQuick": "261021-677",
-    "scope": "same user-preapproved task; original main integration and release remain pending"
+    "scope": "Same user-preapproved task; independent GSD goal verification and final local main integration are recorded by GSD, not a fabricated native accepted verdict.",
+    "gsdVerification": ".planning/quick/261021-677-research-implement-and-verify-cross-plat/261021-677-VERIFICATION.md"
   },
   "limits": [
-    "No 3-OS live proof",
+    "No macOS/Linux native GUI live proof or executed three-OS CI on this Windows host",
+    "No comparative actuator speed/user-count ranking",
     "No external stable dependency promotion",
     "No push or publishing"
   ],
@@ -60,7 +83,29 @@
   "review": {
     "initialBlockers": 5,
     "initialWarnings": 1,
-    "repairs": "implemented; focused regressions38/38 and final Windows live6 actions passed",
-    "rereview": "pending"
+    "repairs": "All five blockers and one warning resolved; independent targeted repairs and subsequent clean-checkout regressions retained",
+    "rereview": "clean at 47ddb85; later LF hash bookkeeping, complete fixtures and hermetic five-harness installation have passing compiled regressions; final goal review is recorded separately by GSD"
+  },
+  "observedAt": "2026-10-21T06:03:04.272Z",
+  "implementationCommit": "7a0aa772564672b6dfb2a80d802a158b412c2ed8",
+  "release": {
+    "status": "pass",
+    "sourceCommit": "7a0aa772564672b6dfb2a80d802a158b412c2ed8",
+    "branch": "main",
+    "cleanCheckout": true,
+    "command": "node scripts/release.mjs --dry-run",
+    "artifactSha256": "96c28ed9abeb07374852d5ad4343f1fad52d7e473326794ea10a0d7152511c3d",
+    "published": false,
+    "receipt": "release-verification.txt",
+    "stages": [
+      "typecheck",
+      "build",
+      "full tests",
+      "tarball allowlist audit",
+      "npm pack",
+      "provenance generation and verification",
+      "Stage 1 local tarball smoke"
+    ],
+    "environment": "Owned child-only scratch outside Git/project ancestors, bounded eight-core affinity and process-only core.longpaths; no global settings changed"
   }
 }

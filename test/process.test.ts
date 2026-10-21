@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import {
   isDirectlyExecutable,
@@ -23,6 +23,7 @@ import {
   resolveCommand,
   resolveNodePackageCli,
   runProcess,
+  spawnDetachedProcess,
   CLOSE_TREE_DEADLINE_MS,
 } from "../src/core/process.js";
 import {
@@ -796,24 +797,560 @@ test("stdin is delivered to a child that expects an event on it", async (context
   assert.deepEqual(JSON.parse(reported.received), { hook_event_name: "Stop" });
 });
 
-test("opt-in overflowPolicy drain truncates without killing child and onSpawn reports pid", async (context) => {
+test("opt-in overflowPolicy drain runs to completion with expected bytes, post-flood marker, UTF-8 cap, and redaction", async (context) => {
   const fixture = await createProcessFixture(context);
+  const drainScript = join(fixture.root, "drain-test.mjs");
+  const postFloodMarkerFile = join(fixture.root, "post-flood-marker.txt");
+
+  const secretValue = "secret-token-drain-val-987654";
+  const postFloodMarker = "\n__POST_FLOOD_MARKER_SUCCESS__\n";
+  const utf8MultiByte = "✨ UTF-8 Multi-Byte Rocket 🚀 Test 🎉\n";
+  const floodChunk = "X".repeat(1024);
+  const floodChunksCount = 30; // 30KB of flood
+
+  await writeFile(
+    drainScript,
+    [
+      `import { writeFile } from 'node:fs/promises';`,
+      `const secret = process.env.ALPHA_DRAIN_SECRET || '';`,
+      `process.stdout.write('SECRET=' + secret + '\\n');`,
+      `process.stdout.write(${JSON.stringify(utf8MultiByte)});`,
+      `const chunk = ${JSON.stringify(floodChunk)};`,
+      `for (let i = 0; i < ${floodChunksCount}; i++) {`,
+      `  process.stdout.write(chunk);`,
+      `}`,
+      `process.stdout.write(${JSON.stringify(postFloodMarker)});`,
+      `await writeFile(${JSON.stringify(postFloodMarkerFile)}, "post-flood-confirmed", "utf8");`,
+      `process.exit(0);`,
+    ].join("\n"),
+    "utf8",
+  );
+
+  const secretLineBytes = Buffer.byteLength(`SECRET=${secretValue}\n`, "utf8");
+  const utf8LineBytes = Buffer.byteLength(utf8MultiByte, "utf8");
+  const floodBytes = floodChunksCount * 1024;
+  const markerBytes = Buffer.byteLength(postFloodMarker, "utf8");
+  const expectedTotalBytes = secretLineBytes + utf8LineBytes + floodBytes + markerBytes;
 
   let spawnedPid: number | undefined;
   const result = await runProcess({
     executable: process.execPath,
-    args: [fixture.floodScript],
+    args: [drainScript],
     cwd: fixture.root,
-    timeoutMs: 3000,
-    maxOutputBytes: 4096,
+    timeoutMs: 10_000,
+    maxOutputBytes: 1024,
+    excerptBytes: 1024,
     overflowPolicy: "drain",
+    environment: {
+      literal: {
+        ALPHA_DRAIN_SECRET: secretValue,
+      },
+    },
     onSpawn: (info) => {
       spawnedPid = info.pid;
     },
   });
 
-  assert.ok(spawnedPid !== undefined, "onSpawn hook must be called with child pid");
-  assert.ok(result.stdout.capped, "stdout must be capped");
-  assert.ok(result.outputCapped, "outputCapped must be true");
-  assert.ok(result.stdout.excerpt.length <= 4096, "excerpt must be bounded by limit");
+  assert.equal(result.code, "ok");
+  assert.equal(result.exitCode, 0);
+  assert.ok(typeof spawnedPid === "number" && spawnedPid > 0);
+  assert.equal(result.stdout.capped, true);
+  assert.equal(result.outputCapped, true);
+  assert.equal(result.stdout.totalBytes, expectedTotalBytes);
+
+  assert.ok(existsSync(postFloodMarkerFile), "child must write post-flood marker file after completing full flood");
+  const markerContent = await readFile(postFloodMarkerFile, "utf8");
+  assert.equal(markerContent, "post-flood-confirmed");
+
+  const excerptBytes = Buffer.byteLength(result.stdout.excerpt, "utf8");
+  assert.ok(excerptBytes <= 1024, `excerpt bytes (${excerptBytes}) must not exceed maxOutputBytes (1024)`);
+  assert.ok(!result.stdout.excerpt.includes(secretValue), "secret must not appear in excerpt");
+  assert.ok(result.stdout.excerpt.includes("[redacted:secret:"), "excerpt must include redaction placeholder");
+});
+
+test("default overflowPolicy terminates child with output-cap when limit is exceeded", async (context) => {
+  const fixture = await createProcessFixture(context);
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.floodScript],
+    cwd: fixture.root,
+    timeoutMs: 30_000,
+    maxOutputBytes: 4096,
+  });
+
+  assert.equal(result.code, "output-cap");
+  assert.equal(result.outputCapped, true);
+  assert.equal(result.stdout.capped, true);
+  assert.ok(result.stdout.totalBytes > 4096 * 8, "child must exceed 8x limit before being killed");
+});
+
+test("onSpawn hook is never called when executable does not exist", async (context) => {
+  const fixture = await createProcessFixture(context);
+  let spawnHookCalled = false;
+  const missingExe = join(fixture.root, "nonexistent-cmd.exe");
+
+  const result = await runProcess({
+    executable: missingExe,
+    args: [],
+    cwd: fixture.root,
+    onSpawn: () => {
+      spawnHookCalled = true;
+    },
+  });
+
+  assert.equal(result.code, "spawn-failed");
+  assert.equal(spawnHookCalled, false, "onSpawn must not be called when executable fails to spawn");
+});
+
+test("onSpawn hook receives concrete PID with handlers ready on successful spawn", async (context) => {
+  const fixture = await createProcessFixture(context);
+  let spawnedPid: number | undefined;
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.echoScript, "hello-spawn"],
+    cwd: fixture.root,
+    onSpawn: (info) => {
+      spawnedPid = info.pid;
+    },
+  });
+
+  assert.equal(result.code, "ok");
+  assert.equal(typeof spawnedPid, "number");
+  assert.ok(spawnedPid! > 0, "onSpawn must receive a concrete positive integer PID");
+  const parsed = JSON.parse(result.stdout.excerpt) as { argv: string[] };
+  assert.deepEqual(parsed.argv, ["hello-spawn"]);
+});
+
+test("onSpawn hook exceptions do not crash runProcess or abort child execution", async (context) => {
+  const fixture = await createProcessFixture(context);
+  let hookThrew = false;
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.echoScript, "after-throwing-hook"],
+    cwd: fixture.root,
+    onSpawn: () => {
+      hookThrew = true;
+      throw new Error("simulated onSpawn hook failure");
+    },
+  });
+
+  assert.equal(result.code, "ok");
+  assert.equal(hookThrew, true);
+  const parsed = JSON.parse(result.stdout.excerpt) as { argv: string[] };
+  assert.deepEqual(parsed.argv, ["after-throwing-hook"]);
+});
+
+test("spawnDetachedProcess throws TypeError synchronously before spawn when onError is omitted or invalid", async (context) => {
+  const fixture = await createProcessFixture(context);
+  assert.throws(
+    () => (spawnDetachedProcess as unknown as (spec: unknown) => void)({ executable: process.execPath, args: [], cwd: fixture.root }),
+    TypeError,
+  );
+  assert.throws(
+    () => (spawnDetachedProcess as unknown as (spec: unknown) => void)({ executable: process.execPath, args: [], cwd: fixture.root, onError: "not-a-func" }),
+    TypeError,
+  );
+});
+
+test("spawnDetachedProcess with supplied onError receives error in isolated subprocess without crash", async (context) => {
+  const fixture = await createProcessFixture(context);
+  const probeScript = join(fixture.root, "detached-error-probe.mjs");
+  const missingExe = join(fixture.root, "nonexistent-detached-target.exe");
+
+  const processModuleUrl = pathToFileURL(resolve(repositoryRoot, "dist", "src", "core", "process.js")).href;
+  await writeFile(
+    probeScript,
+    [
+      `import { spawnDetachedProcess } from ${JSON.stringify(processModuleUrl)};`,
+      `let handled = false;`,
+      `try {`,
+      `  const handle = spawnDetachedProcess({`,
+      `    executable: ${JSON.stringify(missingExe)},`,
+      `    args: [],`,
+      `    cwd: process.cwd(),`,
+      `    onError: (err) => {`,
+      `      handled = true;`,
+      `      process.stdout.write(JSON.stringify({ code: err.code || err.name, handled: true }));`,
+      `      process.exit(0);`,
+      `    },`,
+      `  });`,
+      `  handle.unref();`,
+      `} catch (e) {`,
+      `  process.stderr.write("unexpected sync error: " + e.message);`,
+      `  process.exit(2);`,
+      `}`,
+      `setTimeout(() => {`,
+      `  if (!handled) {`,
+      `    process.stderr.write("timeout waiting for onError");`,
+      `    process.exit(1);`,
+      `  }`,
+      `}, 3000).unref();`,
+    ].join("\n"),
+    "utf8",
+  );
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [probeScript],
+    cwd: fixture.root,
+    timeoutMs: 5000,
+  });
+
+  assert.equal(result.code, "ok");
+  assert.equal(result.exitCode, 0);
+  const parsed = JSON.parse(result.stdout.excerpt.trim()) as { code: string; handled: boolean };
+  assert.equal(parsed.handled, true);
+  assert.ok(parsed.code.length > 0);
+});
+
+test("deadline with descendant holding inherited pipes yields unconfirmed timeout within cleanup grace", { concurrency: false }, async (context) => {
+  const fixture = await createProcessFixture(context);
+  const descendantScript = join(fixture.root, "pipe-holding-descendant.mjs");
+  const parentScript = join(fixture.root, "direct-parent-spawner.mjs");
+  const descendantPidFile = join(fixture.root, "descendant.pid");
+  const descendantReadyFile = join(fixture.root, "descendant.ready");
+  const parentExitFile = join(fixture.root, "parent-exit.marker");
+
+  await writeFile(
+    descendantScript,
+    [
+      `import { writeFile } from 'node:fs/promises';`,
+      `const [pidFile, readyFile] = process.argv.slice(2);`,
+      `if (pidFile) await writeFile(pidFile, String(process.pid), 'utf8');`,
+      `if (readyFile) await writeFile(readyFile, 'PIPE_HOLDER_READY', 'utf8');`,
+      `await new Promise((r) => setTimeout(r, 2000));`,
+      `process.exit(0);`,
+    ].join("\n"),
+    "utf8",
+  );
+
+  await writeFile(
+    parentScript,
+    [
+      `import { spawn } from 'node:child_process';`,
+      `import { writeFile } from 'node:fs/promises';`,
+      `const [childScript, pidFile, readyFile, parentExit] = process.argv.slice(2);`,
+      `const child = spawn(process.execPath, [childScript, pidFile, readyFile], {`,
+      `  detached: true,`,
+      `  stdio: ['ignore', 'inherit', 'inherit'],`,
+      `});`,
+      `child.unref();`,
+      `process.stdout.write('PARENT_EXITING\\n');`,
+      `if (parentExit) await writeFile(parentExit, String(process.pid), 'utf8');`,
+      `process.exit(0);`,
+    ].join("\n"),
+    "utf8",
+  );
+
+  let directParentPid: number | undefined;
+  let descendantPid: number | undefined;
+  context.after(async () => {
+    context.mock.restoreAll();
+    if (descendantPid) {
+      try { process.kill(descendantPid, "SIGKILL"); } catch {}
+    }
+  });
+
+  const TARGET_DEADLINE_MS = 150;
+  const originalSetTimeout = globalThis.setTimeout;
+  let capturedDeadlineCallback: (() => void) | null = null;
+  let capturedDeadlineTimer: NodeJS.Timeout | null = null;
+
+  context.mock.method(globalThis, "setTimeout", ((
+    callback: (...args: unknown[]) => void,
+    delay?: number,
+    ...args: unknown[]
+  ): NodeJS.Timeout => {
+    if (delay === TARGET_DEADLINE_MS && capturedDeadlineCallback === null) {
+      // Retain a real Timeout object for unref/clearTimeout without triggering early
+      const dummyTimer = originalSetTimeout(() => {}, 60_000);
+      dummyTimer.unref();
+      capturedDeadlineTimer = dummyTimer;
+      capturedDeadlineCallback = () => {
+        try {
+          clearTimeout(dummyTimer);
+        } catch {}
+        callback(...args);
+      };
+      return dummyTimer;
+    }
+    return originalSetTimeout(callback, delay, ...args);
+  }) as typeof globalThis.setTimeout);
+
+  try {
+    const runPromise = runProcess({
+      executable: process.execPath,
+      args: [parentScript, descendantScript, descendantPidFile, descendantReadyFile, parentExitFile],
+      cwd: fixture.root,
+      timeoutMs: TARGET_DEADLINE_MS,
+      cleanupGraceMs: 200,
+      onSpawn: ({ pid }) => {
+        directParentPid = pid;
+      },
+    });
+
+    // Deterministic readiness barrier with finite startup guard:
+    const guardTimeoutMs = 5000;
+    const guardStart = Date.now();
+    let ready = false;
+
+    while (Date.now() - guardStart < guardTimeoutMs) {
+      if (
+        capturedDeadlineCallback !== null &&
+        existsSync(descendantPidFile) &&
+        existsSync(descendantReadyFile) &&
+        existsSync(parentExitFile)
+      ) {
+        const rawPid = await readFile(descendantPidFile, "utf8");
+        const readyMarker = await readFile(descendantReadyFile, "utf8");
+        const parsedPid = Number.parseInt(rawPid.trim(), 10);
+        if (
+          !Number.isNaN(parsedPid) &&
+          parsedPid > 0 &&
+          readyMarker.trim() === "PIPE_HOLDER_READY"
+        ) {
+          // Direct parent exit proof:
+          let directParentExited = true;
+          if (directParentPid !== undefined) {
+            try {
+              process.kill(directParentPid, 0);
+              directParentExited = false;
+            } catch {
+              directParentExited = true;
+            }
+          }
+
+          // Descendant liveness proof:
+          let descendantAlive = false;
+          try {
+            process.kill(parsedPid, 0);
+            descendantAlive = true;
+          } catch {
+            descendantAlive = false;
+          }
+
+          if (directParentExited && descendantAlive) {
+            descendantPid = parsedPid;
+            ready = true;
+            break;
+          }
+        }
+      }
+      await new Promise((r) => originalSetTimeout(r, 20));
+    }
+
+    assert.ok(
+      ready,
+      "deterministic readiness barrier must prove descendant marker and direct parent exit before deadline",
+    );
+    assert.ok(descendantPid !== undefined && descendantPid > 0, "descendant identity must be proven");
+    const deadlineCallback = capturedDeadlineCallback as (() => void) | null;
+    assert.ok(deadlineCallback !== null, "target deadline timer must be intercepted");
+
+    // Trigger the captured deadline callback after the barrier is fully satisfied
+    const deadlineTriggeredAt = Date.now();
+    deadlineCallback();
+
+    const result = await runPromise;
+    const deadlineSettlementElapsed = Date.now() - deadlineTriggeredAt;
+
+    assert.equal(result.code, "timeout");
+    assert.equal(result.closeConfirmed, false, "closeConfirmed must be false when descendant holds pipes open");
+    assert.ok(
+      deadlineSettlementElapsed < 900,
+      `duration (${deadlineSettlementElapsed}ms) must resolve within cleanup grace (< 900ms), not wait for descendant`,
+    );
+
+    // Verify owned descendant self-exits cleanly
+    const waitSelfExitStart = Date.now();
+    let isAlive = true;
+    while (isAlive && Date.now() - waitSelfExitStart < 3500) {
+      try {
+        process.kill(descendantPid, 0);
+        isAlive = true;
+        await new Promise((r) => originalSetTimeout(r, 50));
+      } catch {
+        isAlive = false;
+      }
+    }
+    assert.equal(isAlive, false, "descendant must have self-exited cleanly, leaving no lasting process");
+  } finally {
+    context.mock.restoreAll();
+    if (capturedDeadlineTimer) {
+      try {
+        clearTimeout(capturedDeadlineTimer);
+      } catch {}
+    }
+  }
+});
+
+test("normal timeout with cleanly terminated child keeps closeConfirmed true", async (context) => {
+  const fixture = await createProcessFixture(context);
+
+  const result = await runProcess({
+    executable: process.execPath,
+    args: [fixture.sleepScript],
+    cwd: fixture.root,
+    timeoutMs: 200,
+    cleanupGraceMs: 2000,
+  });
+
+  assert.equal(result.code, "timeout");
+  assert.equal(result.closeConfirmed, true, "normal cleanly terminated timeout must have closeConfirmed true");
+});
+
+test("abort with descendant holding inherited pipes yields unconfirmed cancellation while clean abort confirms close", { concurrency: false }, async (context) => {
+  const fixture = await createProcessFixture(context);
+  const descendantScript = join(fixture.root, "abort-pipe-descendant.mjs");
+  const parentScript = join(fixture.root, "abort-direct-parent.mjs");
+  const descendantPidFile = join(fixture.root, "abort-descendant.pid");
+  const barrierFile = join(fixture.root, "abort-barrier.txt");
+  const parentExitFile = join(fixture.root, "abort-parent-exit.txt");
+
+  await writeFile(
+    descendantScript,
+    [
+      `import { writeFile } from 'node:fs/promises';`,
+      `const [pidFile, barrier] = process.argv.slice(2);`,
+      `if (pidFile) await writeFile(pidFile, String(process.pid), 'utf8');`,
+      `if (barrier) await writeFile(barrier, 'PIPE_HOLDER_READY', 'utf8');`,
+      `await new Promise((r) => setTimeout(r, 2000));`,
+      `process.exit(0);`,
+    ].join("\n"),
+    "utf8",
+  );
+
+  await writeFile(
+    parentScript,
+    [
+      `import { spawn } from 'node:child_process';`,
+      `import { writeFile } from 'node:fs/promises';`,
+      `const [childScript, pidFile, barrier, parentExit] = process.argv.slice(2);`,
+      `const child = spawn(process.execPath, [childScript, pidFile, barrier], {`,
+      `  detached: true,`,
+      `  stdio: ['ignore', 'inherit', 'inherit'],`,
+      `});`,
+      `child.unref();`,
+      `process.stdout.write('PARENT_READY\\n');`,
+      `if (parentExit) await writeFile(parentExit, String(process.pid), 'utf8');`,
+      `process.exit(0);`,
+    ].join("\n"),
+    "utf8",
+  );
+
+  let directParentPid: number | undefined;
+  let descendantPid: number | undefined;
+  context.after(async () => {
+    if (descendantPid) {
+      try { process.kill(descendantPid, "SIGKILL"); } catch {}
+    }
+  });
+
+  // Part A: Abort while descendant holds pipes -> closeConfirmed false
+  const abortController = new AbortController();
+  const runPromise = runProcess({
+    executable: process.execPath,
+    args: [parentScript, descendantScript, descendantPidFile, barrierFile, parentExitFile],
+    cwd: fixture.root,
+    signal: abortController.signal,
+    timeoutMs: 10_000,
+    cleanupGraceMs: 200,
+    onSpawn: ({ pid }) => {
+      directParentPid = pid;
+    },
+  });
+
+  // Deterministic readiness barrier with finite startup guard:
+  const barrierWaitStart = Date.now();
+  let barrierReady = false;
+  while (Date.now() - barrierWaitStart < 5000) {
+    if (
+      existsSync(barrierFile) &&
+      existsSync(descendantPidFile) &&
+      existsSync(parentExitFile)
+    ) {
+      const rawPid = await readFile(descendantPidFile, "utf8");
+      const barrierMarker = await readFile(barrierFile, "utf8");
+      const parsedPid = Number.parseInt(rawPid.trim(), 10);
+      if (
+        !Number.isNaN(parsedPid) &&
+        parsedPid > 0 &&
+        barrierMarker.trim() === "PIPE_HOLDER_READY"
+      ) {
+        let parentExited = true;
+        if (directParentPid !== undefined) {
+          try {
+            process.kill(directParentPid, 0);
+            parentExited = false;
+          } catch {
+            parentExited = true;
+          }
+        }
+        let descendantAlive = false;
+        try {
+          process.kill(parsedPid, 0);
+          descendantAlive = true;
+        } catch {
+          descendantAlive = false;
+        }
+        if (parentExited && descendantAlive) {
+          descendantPid = parsedPid;
+          barrierReady = true;
+          break;
+        }
+      }
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
+
+  // Assert barrier success BEFORE abort! Do not unconditionally abort after failed readiness loop.
+  assert.ok(barrierReady, "abort barrier must be proven ready before triggering abort");
+  assert.ok(descendantPid !== undefined && descendantPid > 0, "descendant identity must be proven before abort");
+
+  const abortTriggeredAt = Date.now();
+  abortController.abort();
+
+  const unconfirmedResult = await runPromise;
+  const abortElapsed = Date.now() - abortTriggeredAt;
+
+  assert.equal(unconfirmedResult.code, "cancelled");
+  assert.equal(unconfirmedResult.closeConfirmed, false, "cancellation with surviving pipe-holder must be unconfirmed");
+  assert.ok(abortElapsed < 900, `unconfirmed cancellation (${abortElapsed}ms) must resolve within cleanup grace (< 900ms)`);
+
+  // Part B: Clean abort on normal child -> closeConfirmed true
+  const cleanController = new AbortController();
+  const cleanPromise = runProcess({
+    executable: process.execPath,
+    args: [fixture.sleepScript],
+    cwd: fixture.root,
+    signal: cleanController.signal,
+    timeoutMs: 10_000,
+    cleanupGraceMs: 2000,
+    onSpawn: () => {
+      cleanController.abort();
+    },
+  });
+
+  const confirmedResult = await cleanPromise;
+  assert.equal(confirmedResult.code, "cancelled");
+  assert.equal(confirmedResult.closeConfirmed, true, "clean cancellation must report closeConfirmed true");
+
+  // Part C: Ensure descendant has cleanly self-exited
+  if (descendantPid) {
+    const waitSelfExitStart = Date.now();
+    let isAlive = true;
+    while (isAlive && Date.now() - waitSelfExitStart < 3500) {
+      try {
+        process.kill(descendantPid, 0);
+        isAlive = true;
+        await new Promise((r) => setTimeout(r, 50));
+      } catch {
+        isAlive = false;
+      }
+    }
+    assert.equal(isAlive, false, "descendant must have self-exited cleanly, leaving no lasting process");
+  }
 });

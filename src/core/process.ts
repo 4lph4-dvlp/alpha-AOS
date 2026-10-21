@@ -76,8 +76,16 @@ export interface ProcessSpec {
   /**
    * Hook called immediately on child spawn AFTER handlers (stdout, stderr, error, close)
    * are installed, before any asynchronous storage or operations.
+   * Invoked only on successful spawn with concrete PID.
+   * Errors thrown by onSpawn are caught and ignored so they cannot crash runProcess.
    */
-  onSpawn?: (child: { pid: number | undefined }) => void;
+  onSpawn?: (child: { pid: number }) => void;
+  /**
+   * Bounded post-deadline / post-cancellation grace period in ms before unconfirmed
+   * exit is resolved with closeConfirmed = false and streams are destroyed.
+   * Defaults to CLOSE_TREE_DEADLINE_MS (5000ms).
+   */
+  cleanupGraceMs?: number;
 }
 
 export interface ProcessResult {
@@ -96,6 +104,11 @@ export interface ProcessResult {
    * interpolated into a diagnostic message (D-12).
    */
   treeTermination?: KillDelivery;
+  /**
+   * Whether the process tree closure was confirmed via stream close within the bounded
+   * deadline and cleanup grace period, rather than timing out on held handles.
+   */
+  closeConfirmed?: boolean;
 }
 
 /**
@@ -494,16 +507,34 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
     let treeDelivery: KillDelivery = "not-required";
 
     let deadline: NodeJS.Timeout | undefined;
+    let timeoutFallbackTimer: NodeJS.Timeout | undefined;
     let cancelFallbackTimer: NodeJS.Timeout | undefined;
     let abortListener: (() => void) | undefined;
+    const cleanupGraceMs = spec.cleanupGraceMs ?? CLOSE_TREE_DEADLINE_MS;
 
-    const finish = (code: ProcessCode, exitCode: number | null, signal: NodeJS.Signals | null): void => {
+    const cleanupPipes = (): void => {
+      try { child.stdout?.destroy(); } catch {}
+      try { child.stderr?.destroy(); } catch {}
+      try { child.stdin?.destroy(); } catch {}
+      try { child.unref(); } catch {}
+    };
+
+    const finish = (
+      code: ProcessCode,
+      exitCode: number | null,
+      signal: NodeJS.Signals | null,
+      closeConfirmed: boolean = true,
+    ): void => {
       if (settled) return;
       settled = true;
       if (deadline !== undefined) clearTimeout(deadline);
+      if (timeoutFallbackTimer !== undefined) clearTimeout(timeoutFallbackTimer);
       if (cancelFallbackTimer !== undefined) clearTimeout(cancelFallbackTimer);
       if (abortListener && spec.signal) {
         spec.signal.removeEventListener("abort", abortListener);
+      }
+      if (!closeConfirmed) {
+        cleanupPipes();
       }
       resolveResult({
         code,
@@ -515,6 +546,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
         stdout: stdout.finish(redaction, spec.excerptBytes),
         stderr: stderr.finish(redaction, spec.excerptBytes),
         treeTermination: treeDelivery,
+        closeConfirmed,
       });
     };
 
@@ -523,11 +555,12 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       if (child.pid !== undefined) {
         treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
         cancelFallbackTimer = setTimeout(() => {
-          finish("cancelled", null, null);
-        }, 5000);
+          cleanupPipes();
+          finish("cancelled", null, null, false);
+        }, cleanupGraceMs);
         cancelFallbackTimer.unref();
       } else {
-        finish("cancelled", null, null);
+        finish("cancelled", null, null, true);
       }
     };
 
@@ -544,7 +577,14 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
 
     deadline = setTimeout(() => {
       timedOut = true;
-      if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
+      if (child.pid !== undefined) {
+        treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
+      }
+      timeoutFallbackTimer = setTimeout(() => {
+        cleanupPipes();
+        finish("timeout", null, null, false);
+      }, cleanupGraceMs);
+      timeoutFallbackTimer.unref();
     }, timeoutMs);
     deadline.unref();
 
@@ -563,23 +603,25 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
     watch(child.stderr, stderr);
 
     child.once("error", () => {
-      finish("spawn-failed", null, null);
+      finish("spawn-failed", null, null, true);
     });
     child.once("close", (exitCode, signal) => {
-      if (cancelled) return finish("cancelled", exitCode, signal);
-      if (timedOut) return finish("timeout", exitCode, signal);
-      if (cappedKill) return finish("output-cap", exitCode, signal);
-      if (exitCode === 0) return finish("ok", exitCode, signal);
-      finish("non-zero-exit", exitCode, signal);
+      if (cancelled) return finish("cancelled", exitCode, signal, true);
+      if (timedOut) return finish("timeout", exitCode, signal, true);
+      if (cappedKill) return finish("output-cap", exitCode, signal, true);
+      if (exitCode === 0) return finish("ok", exitCode, signal, true);
+      finish("non-zero-exit", exitCode, signal, true);
     });
 
-    if (spec.onSpawn) {
-      try {
-        spec.onSpawn({ pid: child.pid });
-      } catch {
-        // onSpawn hook must not crash runProcess
+    child.once("spawn", () => {
+      if (spec.onSpawn && child.pid !== undefined) {
+        try {
+          spec.onSpawn({ pid: child.pid });
+        } catch {
+          // onSpawn hook must not crash runProcess
+        }
       }
-    }
+    });
   });
 }
 
@@ -1141,7 +1183,7 @@ export interface DetachedProcessSpec {
   args: readonly string[];
   cwd: string;
   environment?: EnvironmentPolicy;
-  onError?: (err: Error) => void;
+  onError: (err: Error) => void;
 }
 
 export interface DetachedProcessHandle {
@@ -1154,6 +1196,9 @@ export interface DetachedProcessHandle {
  * The process runs detached and unreferenced so callers can manage separate lifecycle.
  */
 export function spawnDetachedProcess(spec: DetachedProcessSpec): DetachedProcessHandle {
+  if (typeof spec.onError !== "function") {
+    throw new TypeError("DetachedProcessSpec requires an onError callback function before spawn");
+  }
   const environment = materializeEnvironment(spec.environment);
   if (!isAbsolute(spec.executable)) {
     throw new ProcessPolicyError(
@@ -1169,9 +1214,7 @@ export function spawnDetachedProcess(spec: DetachedProcessSpec): DetachedProcess
     detached: true,
     stdio: "ignore",
   });
-  if (spec.onError) {
-    child.once("error", spec.onError);
-  }
+  child.once("error", spec.onError);
   return {
     pid: child.pid,
     unref: () => child.unref(),

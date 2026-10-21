@@ -168,6 +168,10 @@ export async function waitForCompletion<T>(options: CompletionObserverOptions<T>
         triggerCheck();
         scheduleReconciliation();
       }, reconciliationIntervalMs);
+      if (settled && reconcileTimer !== null) {
+        clock.clearTimeout(reconcileTimer);
+        reconcileTimer = null;
+      }
     };
 
     const triggerCheck = (): void => {
@@ -242,25 +246,46 @@ export async function waitForCompletion<T>(options: CompletionObserverOptions<T>
       options.signal.addEventListener("abort", abortListener, { once: true });
     }
 
+    if (settled) return;
+
     // 3. Register deadline timer
     timeoutTimer = clock.setTimeout(() => {
       settle({ status: "timeout", elapsedMs: clock.now() - startTime });
     }, timeoutMs);
+    if (settled && timeoutTimer !== null) {
+      clock.clearTimeout(timeoutTimer);
+      timeoutTimer = null;
+    }
+
+    if (settled) return;
 
     // 4. Register directory watchers (hint only)
     for (const dir of watchDirectories) {
+      if (settled) break;
       try {
         const handle = watcherFactory(dir, (_eventType, _filename) => {
           triggerCheck();
         });
+        if (settled) {
+          try {
+            handle.close();
+          } catch {
+            // Ignore disposal errors
+          }
+          break;
+        }
         watchers.push(handle);
       } catch {
         // Watcher failure is non-fatal; runtime reconciliation carries the load
       }
     }
 
+    if (settled) return;
+
     // 5. Register bounded runtime reconciliation timer
     scheduleReconciliation();
+
+    if (settled) return;
 
     // 6. Register then recheck: immediate check closes the lost-wakeup window
     triggerCheck();

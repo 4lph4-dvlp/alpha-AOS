@@ -402,8 +402,12 @@ function bounded(text: string, limit: number): string {
   return single.length <= limit ? single : `${single.slice(0, limit - 3)}...`;
 }
 
-function runsDirectory(stateRoot: string, contractId: string): string {
+export function runsDirectory(stateRoot: string, contractId: string): string {
   return join(stateRoot, "tasks", contractId, "runs");
+}
+
+export function taskRunPath(stateRoot: string, contractId: string, runId: string): string {
+  return join(runsDirectory(stateRoot, contractId), `${runId}.json`);
 }
 
 function requireContractId(contractId: string): void {
@@ -508,11 +512,19 @@ async function writeRunRecord(stateRoot: string, root: string, record: TaskRunRe
   return target;
 }
 
-async function readRunRecord(path: string, contractId: string, root: string): Promise<TaskRunRecord> {
+export interface ValidateTaskRunTextOptions {
+  readonly text: string;
+  readonly path: string;
+  readonly contractId: string;
+  readonly root: string;
+}
+
+export async function validateTaskRunText(options: ValidateTaskRunTextOptions): Promise<TaskRunRecord> {
+  const { text, path, contractId, root } = options;
   const tampered = (detail: string) =>
     new TaskRunError("run-record-invalid", `Task run record ${path} is invalid or tampered: ${detail}.`);
   const validation = validateManagedDocument<TaskRunRecord>({
-    text: await readFile(path, "utf8"),
+    text,
     format: "json",
     kind: "task-receipt",
     schema: await taskSchema("task-receipt", root),
@@ -528,6 +540,11 @@ async function readRunRecord(path: string, contractId: string, root: string): Pr
     if (checked.report === null) throw tampered(checked.issue ?? "the embedded review report is invalid");
   }
   return record;
+}
+
+async function readRunRecord(path: string, contractId: string, root: string): Promise<TaskRunRecord> {
+  const text = await readFile(path, "utf8");
+  return validateTaskRunText({ text, path, contractId, root });
 }
 
 /** Every run recorded for one contract id, strictly read, oldest first. */

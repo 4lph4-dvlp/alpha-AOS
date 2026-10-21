@@ -298,3 +298,283 @@ test("completion-wait: validateNumericFlag rejects non-integers, negative, NaN, 
   assert.throws(() => validateNumericFlag(150, "timeout", 1, 100), /out of bounds/);
   assert.equal(validateNumericFlag(50, "timeout", 1, 100), 50);
 });
+
+test("completion-wait: register/recheck race resolves immediately without waiting for reconciliation timer", async () => {
+  let checkCount = 0;
+  let watcherRegistered = false;
+
+  const start = Date.now();
+  const settlement = await waitForCompletion({
+    watchDir: "/mock/watch/dir",
+    reconciliationIntervalMs: 10000,
+    fsWatcher: () => {
+      watcherRegistered = true;
+      return { close: () => undefined };
+    },
+    check: async () => {
+      checkCount++;
+      return { state: "terminal", value: "race-closed" };
+    },
+  });
+
+  const duration = Date.now() - start;
+  assert.equal(settlement.status, "completed");
+  if (settlement.status === "completed") {
+    assert.equal(settlement.value, "race-closed");
+  }
+  assert.equal(watcherRegistered, true);
+  assert.equal(checkCount, 1);
+  assert.ok(duration < 1000, `Must complete immediately via recheck, took ${duration}ms`);
+});
+
+test("completion-wait: watcher creation failure or error event is non-fatal and reconciliation completes", async () => {
+  let checkCount = 0;
+  let isDone = false;
+
+  const observerPromise = waitForCompletion({
+    watchDir: "/mock/unwatchable/dir",
+    reconciliationIntervalMs: 20,
+    fsWatcher: () => {
+      throw new Error("EACCES: permission denied to watch directory");
+    },
+    check: async () => {
+      checkCount++;
+      if (isDone) {
+        return { state: "terminal", value: "recovered-via-reconciliation" };
+      }
+      return { state: "pending" };
+    },
+  });
+
+  await new Promise((r) => setTimeout(r, 40));
+  isDone = true;
+
+  const settlement = await observerPromise;
+  assert.equal(settlement.status, "completed");
+  if (settlement.status === "completed") {
+    assert.equal(settlement.value, "recovered-via-reconciliation");
+  }
+  assert.ok(checkCount >= 2);
+});
+
+test("completion-wait: null, dropped, or rename event hints trigger check safely", async () => {
+  let checkCount = 0;
+  let watcherListener: ((eventType: string, filename: string | null) => void) | null = null;
+  let state: "pending" | "terminal" = "pending";
+
+  const observerPromise = waitForCompletion({
+    watchDir: "/mock/watch/dir",
+    reconciliationIntervalMs: 5000,
+    fsWatcher: (_dir, listener) => {
+      watcherListener = listener;
+      return { close: () => undefined };
+    },
+    check: async () => {
+      checkCount++;
+      if (state === "terminal") {
+        return { state: "terminal", value: "rename-and-null-safe" };
+      }
+      return { state: "pending" };
+    },
+  });
+
+  await new Promise((r) => setTimeout(r, 10));
+  const listener = watcherListener as ((eventType: string, filename: string | null) => void) | null;
+  assert.ok(listener !== null);
+
+  listener("rename", null);
+  listener("change", null);
+  listener("rename", "replaced.json.tmp");
+
+  state = "terminal";
+  listener("rename", "replaced.json");
+
+  const settlement = await observerPromise;
+  assert.equal(settlement.status, "completed");
+  if (settlement.status === "completed") {
+    assert.equal(settlement.value, "rename-and-null-safe");
+  }
+});
+
+test("completion-wait: two concurrent observers on same target settle independently without cross-talk", async () => {
+  let watcher1Closed = false;
+  let watcher2Closed = false;
+  let sharedState: "pending" | "terminal" = "pending";
+
+  let listener1: ((eventType: string, filename: string | null) => void) | null = null;
+  let listener2: ((eventType: string, filename: string | null) => void) | null = null;
+
+  const obs1 = waitForCompletion({
+    watchDir: "/mock/shared/dir",
+    fsWatcher: (_d, l) => {
+      listener1 = l;
+      return { close: () => { watcher1Closed = true; } };
+    },
+    check: async () => {
+      if (sharedState === "terminal") return { state: "terminal", value: "obs1-done" };
+      return { state: "pending" };
+    },
+  });
+
+  const obs2 = waitForCompletion({
+    watchDir: "/mock/shared/dir",
+    fsWatcher: (_d, l) => {
+      listener2 = l;
+      return { close: () => { watcher2Closed = true; } };
+    },
+    check: async () => {
+      if (sharedState === "terminal") return { state: "terminal", value: "obs2-done" };
+      return { state: "pending" };
+    },
+  });
+
+  await new Promise((r) => setTimeout(r, 10));
+  sharedState = "terminal";
+
+  listener1!("change", "event.json");
+  listener2!("change", "event.json");
+
+  const [settlement1, settlement2] = await Promise.all([obs1, obs2]);
+
+  assert.equal(settlement1.status, "completed");
+  if (settlement1.status === "completed") {
+    assert.equal(settlement1.value, "obs1-done");
+  }
+
+  assert.equal(settlement2.status, "completed");
+  if (settlement2.status === "completed") {
+    assert.equal(settlement2.value, "obs2-done");
+  }
+
+  assert.equal(watcher1Closed, true);
+  assert.equal(watcher2Closed, true);
+});
+
+test("completion-wait: all watcher handles, timers, and abort listeners disposed across all settlement kinds", async () => {
+  const outcomes: Array<{
+    name: string;
+    check: () => Promise<CompletionCheckResult<string>>;
+    expectedStatus: string;
+    abortAfter?: boolean;
+    timeout?: boolean;
+  }> = [
+    {
+      name: "terminal",
+      check: async () => ({ state: "terminal", value: "done" }),
+      expectedStatus: "completed",
+    },
+    {
+      name: "refused",
+      check: async () => ({ state: "refused", code: "REFUSED_CODE", reason: "Refused" }),
+      expectedStatus: "refused",
+    },
+    {
+      name: "unresolved",
+      check: async () => ({ state: "unresolved", code: "UNRESOLVED_CODE", reason: "Unresolved" }),
+      expectedStatus: "unresolved",
+    },
+    {
+      name: "timeout",
+      check: async () => ({ state: "pending" }),
+      expectedStatus: "timeout",
+      timeout: true,
+    },
+    {
+      name: "aborted",
+      check: async () => ({ state: "pending" }),
+      expectedStatus: "aborted",
+      abortAfter: true,
+    },
+  ];
+
+  for (const outcome of outcomes) {
+    let closed = false;
+    const { clock, advance, timerCount } = createMockClock();
+    const ac = new AbortController();
+
+    const p = waitForCompletion({
+      clock,
+      watchDir: "/mock/dir",
+      signal: ac.signal,
+      timeoutMs: outcome.timeout ? 100 : 5000,
+      reconciliationIntervalMs: 50,
+      fsWatcher: () => ({
+        close: () => {
+          closed = true;
+        },
+      }),
+      check: outcome.check,
+    });
+
+    if (outcome.timeout) {
+      advance(100);
+    } else if (outcome.abortAfter) {
+      await new Promise((r) => setTimeout(r, 0));
+      ac.abort("test-abort");
+    }
+
+    const s = await p;
+    assert.equal(s.status, outcome.expectedStatus, `Outcome ${outcome.name} had unexpected status`);
+    assert.equal(closed, true, `Watcher must be closed for outcome ${outcome.name}`);
+    assert.equal(timerCount(), 0, `All timers must be cleared for outcome ${outcome.name}`);
+  }
+});
+
+test("completion-wait: abort during watcher registration closes newly returned watcher exactly once and stops subsequent registration", async () => {
+  const ac = new AbortController();
+  const createdDirs: string[] = [];
+  const closedDirs: string[] = [];
+  let closeCount = 0;
+
+  const settlement = await waitForCompletion({
+    watchDirs: ["/mock/dir1", "/mock/dir2", "/mock/dir3"],
+    signal: ac.signal,
+    fsWatcher: (dir) => {
+      createdDirs.push(dir);
+      if (dir === "/mock/dir1") {
+        ac.abort("synchronous-abort-in-factory");
+      }
+      return {
+        close: () => {
+          closedDirs.push(dir);
+          closeCount++;
+        },
+      };
+    },
+    check: async () => ({ state: "pending" }),
+  });
+
+  assert.equal(settlement.status, "aborted");
+  assert.equal(createdDirs.length, 1);
+  assert.equal(createdDirs[0], "/mock/dir1");
+  assert.equal(closedDirs.length, 1);
+  assert.equal(closedDirs[0], "/mock/dir1");
+  assert.equal(closeCount, 1);
+});
+
+test("completion-wait: check-induced abort during registration cleans up all handles and timers", async () => {
+  const ac = new AbortController();
+  let watcherCloseCount = 0;
+  const { clock, timerCount } = createMockClock();
+
+  const settlement = await waitForCompletion({
+    clock,
+    watchDirs: ["/mock/dir1", "/mock/dir2"],
+    signal: ac.signal,
+    fsWatcher: () => ({
+      close: () => {
+        watcherCloseCount++;
+      },
+    }),
+    check: async () => {
+      ac.abort("abort-inside-check");
+      return { state: "pending" };
+    },
+  });
+
+  assert.equal(settlement.status, "aborted");
+  assert.equal(watcherCloseCount, 2);
+  assert.equal(timerCount(), 0);
+});
+
+

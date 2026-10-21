@@ -1,7 +1,7 @@
+import { createHash } from "node:crypto";
 import { open, lstat } from "node:fs/promises";
 import { hostname } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { selectTaskExecution } from "./task-read.js";
 import {
   runDirectory,
   runCheckpointPath,
@@ -10,7 +10,7 @@ import {
   type TaskJournalEvent,
   type TaskJournalEventKind,
 } from "./task-journal.js";
-import { listTaskRuns, type TaskRunRecord } from "./task-run.js";
+import { validateTaskRunText, taskRunPath, type TaskRunRecord } from "./task-run.js";
 import { isTaskContractId } from "./task-contract.js";
 import {
   waitForCompletion,
@@ -35,6 +35,7 @@ export interface TaskWaitOptions {
   readonly scope?: TaskWaitScope | undefined;
   readonly timeoutMs?: number | undefined;
   readonly signal?: AbortSignal | undefined;
+  readonly _onRunReadBarrier?: ((rawRunText: string) => Promise<void> | void) | undefined;
 }
 
 export interface TaskWaitResult {
@@ -55,6 +56,15 @@ export interface TaskWaitResult {
 
 const TERMINAL_RUN_STATUSES = new Set(["accepted", "rejected", "blocked", "stopped", "unknown"]);
 const TERMINAL_CHECKPOINT_STATUSES = new Set(["accepted", "rejected", "blocked", "stopped"]);
+const VALID_CHECKPOINT_STATUSES = new Set([
+  "pending",
+  "running",
+  "accepted",
+  "rejected",
+  "blocked",
+  "stopped",
+  "needs-input",
+]);
 const KNOWN_JOURNAL_EVENT_KINDS = new Set<TaskJournalEventKind>([
   "run_started",
   "attempt_started",
@@ -74,18 +84,75 @@ const KNOWN_JOURNAL_EVENT_KINDS = new Set<TaskJournalEventKind>([
   "needs_input",
 ]);
 
+const ZERO_INDEX_ALLOWED_EVENT_KINDS = new Set<TaskJournalEventKind>([
+  "run_started",
+  "process_cancelled",
+  "limit_exceeded",
+  "blocked",
+]);
+
+const RUN_LINK_EVENT_KINDS = new Set<TaskJournalEventKind>([
+  "attempt_started", "attempt_finished", "accepted", "rejected", "blocked",
+  "process_cancelled", "limit_exceeded",
+]);
+
 const CANONICAL_RUN_ID_REGEX = /^[0-9a-z]{8,}-[0-9a-f]{8}$/;
 const EXACT_64_HEX_REGEX = /^[0-9a-f]{64}$/;
+const VALID_HARNESSES = new Set(["claude", "codex", "antigravity", "pi", "hermes"]);
+
+const CHECKPOINT_ALLOWED_KEYS = new Set([
+  "schemaVersion",
+  "contractDigest",
+  "contractId",
+  "revision",
+  "status",
+  "attemptIndex",
+  "lastSequence",
+  "lastVerifiedHead",
+  "usage",
+  "stopReason",
+  "updatedAt",
+]);
+
+const CHECKPOINT_USAGE_ALLOWED_KEYS = new Set([
+  "cycles",
+  "wallTimeMs",
+  "tokens",
+  "costUsd",
+]);
+
+const CONTROLLER_LOCK_ALLOWED_KEYS = new Set([
+  "schemaVersion",
+  "harness",
+  "token",
+  "pid",
+  "host",
+  "startedAt",
+  "contractDigest",
+]);
+
+const JOURNAL_EVENT_ALLOWED_KEYS = new Set([
+  "sequence",
+  "timestamp",
+  "kind",
+  "contractDigest",
+  "attemptIndex",
+  "payload",
+]);
+
+const UTF8_FATAL_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 interface PinnedOwner {
   readonly token: string;
   readonly pid: number;
   readonly host: string;
   readonly startedAt: string;
+  readonly contractDigest: string;
+  readonly harness: string;
 }
 
 /**
- * Checks all directory ancestors and the target path itself for symlink/reparse points.
+ * Checks all directory ancestors for symlink/reparse points.
  * Fails closed if any component is a symbolic link.
  */
 async function verifyPathAncestorsNotSymlinks(filePath: string): Promise<void> {
@@ -108,33 +175,41 @@ async function verifyPathAncestorsNotSymlinks(filePath: string): Promise<void> {
     }
     curr = parent;
   }
-
-  try {
-    const fileStat = await lstat(resolved);
-    if (fileStat.isSymbolicLink()) {
-      throw new Error(`Path is a symlink or reparse point: ${resolved}`);
-    }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return;
-    }
-    throw error;
-  }
 }
 
 /**
- * Reads a regular file using bounded file handles with pre- and post-read ancestor checks.
- * Enforces a strict byte ceiling and rejects symlinks.
+ * Reads a regular file using bounded file handles with pre- and post-read ancestor and lstat checks.
+ * Enforces a strict byte ceiling, ties identities, uses fatal UTF-8 decoding, and rejects symlinks.
  */
 async function safeReadBoundedFile(
   filePath: string,
   maxBytes: number,
 ): Promise<string | null> {
-  await verifyPathAncestorsNotSymlinks(filePath);
+  const resolved = resolve(filePath);
+  await verifyPathAncestorsNotSymlinks(resolved);
+
+  let preStat;
+  try {
+    preStat = await lstat(resolved);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+    throw err;
+  }
+  if (preStat.isSymbolicLink()) {
+    throw new Error(`Path is a symlink or reparse point: ${resolved}`);
+  }
+  if (!preStat.isFile()) {
+    throw new Error(`Path is not a regular file: ${resolved}`);
+  }
+  if (preStat.size > maxBytes) {
+    throw new Error(`File size ${preStat.size} exceeds ceiling ${maxBytes}: ${resolved}`);
+  }
 
   let handle;
   try {
-    handle = await open(filePath, "r");
+    handle = await open(resolved, "r");
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       return null;
@@ -143,26 +218,272 @@ async function safeReadBoundedFile(
   }
 
   try {
-    const stat = await handle.stat();
-    if (!stat.isFile()) {
-      throw new Error(`Path is not a regular file: ${filePath}`);
+    const fstat = await handle.stat();
+    if (!fstat.isFile()) {
+      throw new Error(`Path is not a regular file: ${resolved}`);
     }
-    if (stat.size > maxBytes) {
-      throw new Error(`File size ${stat.size} exceeds ceiling ${maxBytes}: ${filePath}`);
+    if (fstat.size > maxBytes) {
+      throw new Error(`File size ${fstat.size} exceeds ceiling ${maxBytes}: ${resolved}`);
     }
+    if (preStat.ino !== 0 && fstat.ino !== 0) {
+      if (preStat.ino !== fstat.ino || preStat.dev !== fstat.dev) {
+        throw new Error(`File identity mismatch between lstat and fstat: ${resolved}`);
+      }
+    }
+
     const buf = Buffer.alloc(maxBytes + 1);
     const { bytesRead } = await handle.read(buf, 0, maxBytes + 1, 0);
     if (bytesRead > maxBytes) {
-      throw new Error(`Bytes read ${bytesRead} exceeds ceiling ${maxBytes}: ${filePath}`);
+      throw new Error(`Bytes read ${bytesRead} exceeds ceiling ${maxBytes}: ${resolved}`);
     }
 
-    // Recheck ancestors after read to detect symlink swap / reparse race
-    await verifyPathAncestorsNotSymlinks(filePath);
+    const extra = Buffer.alloc(1);
+    const { bytesRead: extraRead } = await handle.read(extra, 0, 1, bytesRead);
+    if (extraRead > 0) {
+      throw new Error(`File grew beyond bytes read or ceiling: ${resolved}`);
+    }
 
-    return buf.subarray(0, bytesRead).toString("utf8");
+    const postStat = await lstat(resolved);
+    if (postStat.isSymbolicLink()) {
+      throw new Error(`Path is a symlink or reparse point: ${resolved}`);
+    }
+    if (!postStat.isFile()) {
+      throw new Error(`Path is not a regular file: ${resolved}`);
+    }
+    if (fstat.ino !== 0 && postStat.ino !== 0) {
+      if (fstat.ino !== postStat.ino || fstat.dev !== postStat.dev) {
+        throw new Error(`File identity changed during read: ${resolved}`);
+      }
+    }
+    await verifyPathAncestorsNotSymlinks(resolved);
+
+    try {
+      return UTF8_FATAL_DECODER.decode(buf.subarray(0, bytesRead));
+    } catch (err) {
+      throw new Error(`Fatal UTF-8 decoding error: ${err instanceof Error ? err.message : String(err)}`);
+    }
   } finally {
     await handle.close();
   }
+}
+
+function validateCheckpointRecord(
+  raw: string,
+  expected: { contractDigest: string; contractId: string; revision: number },
+): { ok: true; value: TaskCheckpoint } | { ok: false; code: string; reason: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return {
+      ok: false,
+      code: "FORGED_CHECKPOINT",
+      reason: `Checkpoint parse error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint is not a JSON object" };
+  }
+
+  for (const key of Object.keys(parsed)) {
+    if (!CHECKPOINT_ALLOWED_KEYS.has(key)) {
+      return { ok: false, code: "FORGED_CHECKPOINT", reason: `Checkpoint has unknown property: ${key}` };
+    }
+  }
+
+  const cp = parsed as Record<string, unknown>;
+  if (cp.schemaVersion !== 1) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint schemaVersion must be 1" };
+  }
+  if (cp.contractDigest !== expected.contractDigest) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint contractDigest mismatch" };
+  }
+  if (cp.contractId !== expected.contractId) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint contractId mismatch" };
+  }
+  if (cp.revision !== expected.revision) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint revision mismatch" };
+  }
+  if (typeof cp.status !== "string" || !VALID_CHECKPOINT_STATUSES.has(cp.status as TaskCheckpoint["status"])) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: `Checkpoint status invalid: ${String(cp.status)}` };
+  }
+  if (typeof cp.attemptIndex !== "number" || !Number.isInteger(cp.attemptIndex) || cp.attemptIndex < 0) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint attemptIndex must be non-negative integer" };
+  }
+  if (cp.attemptIndex === 0 && (cp.status === "accepted" || cp.status === "rejected")) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: `Checkpoint ${cp.status} status requires positive attemptIndex` };
+  }
+  if (typeof cp.lastSequence !== "number" || !Number.isInteger(cp.lastSequence) || cp.lastSequence < 0) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint lastSequence must be non-negative integer" };
+  }
+  if (cp.lastVerifiedHead !== null && (typeof cp.lastVerifiedHead !== "string" || cp.lastVerifiedHead.length === 0)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint lastVerifiedHead must be non-empty string or null" };
+  }
+  if (cp.stopReason !== null && typeof cp.stopReason !== "string") {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint stopReason must be string or null" };
+  }
+  if (typeof cp.updatedAt !== "string" || cp.updatedAt.length === 0) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint updatedAt must be non-empty string" };
+  }
+
+  if (typeof cp.usage !== "object" || cp.usage === null || Array.isArray(cp.usage)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint usage must be a JSON object" };
+  }
+  for (const key of Object.keys(cp.usage)) {
+    if (!CHECKPOINT_USAGE_ALLOWED_KEYS.has(key)) {
+      return { ok: false, code: "FORGED_CHECKPOINT", reason: `Checkpoint usage has unknown property: ${key}` };
+    }
+  }
+  const usage = cp.usage as Record<string, unknown>;
+  if (typeof usage.cycles !== "number" || !Number.isInteger(usage.cycles) || usage.cycles < 0) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint usage cycles must be non-negative integer" };
+  }
+  if (typeof usage.wallTimeMs !== "number" || !Number.isFinite(usage.wallTimeMs) || usage.wallTimeMs < 0) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint usage wallTimeMs must be non-negative number" };
+  }
+  if (usage.tokens !== null && (typeof usage.tokens !== "number" || !Number.isInteger(usage.tokens) || usage.tokens < 0)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint usage tokens must be null or non-negative integer" };
+  }
+  if (usage.costUsd !== null && (typeof usage.costUsd !== "number" || !Number.isFinite(usage.costUsd) || usage.costUsd < 0)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint usage costUsd must be null or non-negative number" };
+  }
+
+  return { ok: true, value: parsed as TaskCheckpoint };
+}
+
+function validateControllerLeaseRecord(
+  raw: string,
+  expectedDigest: string,
+): { ok: true; value: ControllerLockRecord } | { ok: false; code: string; reason: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return {
+      ok: false,
+      code: "LEASE_CORRUPTED",
+      reason: `Controller lease JSON parse error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease is not a JSON object" };
+  }
+
+  for (const key of Object.keys(parsed)) {
+    if (!CONTROLLER_LOCK_ALLOWED_KEYS.has(key)) {
+      return { ok: false, code: "LEASE_CORRUPTED", reason: `Controller lease has unexpected property: ${key}` };
+    }
+  }
+
+  const rec = parsed as Record<string, unknown>;
+  if (rec.schemaVersion !== 1) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease schemaVersion must be 1" };
+  }
+  if (typeof rec.harness !== "string" || !VALID_HARNESSES.has(rec.harness)) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: `Controller lease harness is invalid: ${String(rec.harness)}` };
+  }
+  if (typeof rec.token !== "string" || rec.token.length === 0) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease token must be non-empty string" };
+  }
+  if (typeof rec.pid !== "number" || !Number.isInteger(rec.pid) || rec.pid <= 0) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease pid must be positive safe integer" };
+  }
+  if (typeof rec.host !== "string" || rec.host.length === 0) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease host must be non-empty string" };
+  }
+  if (typeof rec.startedAt !== "string" || rec.startedAt.length === 0) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease startedAt must be non-empty string" };
+  }
+  if (typeof rec.contractDigest !== "string" || rec.contractDigest !== expectedDigest) {
+    return { ok: false, code: "LEASE_CORRUPTED", reason: "Controller lease contractDigest mismatch" };
+  }
+
+  return { ok: true, value: parsed as ControllerLockRecord };
+}
+
+function validateJournalEvent(
+  raw: string,
+  expectedSeq: number,
+  expectedDigest: string,
+): { ok: true; value: TaskJournalEvent } | { ok: false; code: string; reason: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    return {
+      ok: false,
+      code: "CORRUPTED_JOURNAL",
+      reason: `Journal parse error: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal event is not a JSON object" };
+  }
+
+  for (const key of Object.keys(parsed)) {
+    if (!JOURNAL_EVENT_ALLOWED_KEYS.has(key)) {
+      return { ok: false, code: "CORRUPTED_JOURNAL", reason: `Journal event has unknown property: ${key}` };
+    }
+  }
+
+  const ev = parsed as Record<string, unknown>;
+  if (typeof ev.sequence !== "number" || !Number.isInteger(ev.sequence)) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal sequence must be integer" };
+  }
+  if (ev.sequence !== expectedSeq) {
+    return {
+      ok: false,
+      code: "REGRESSING_SEQUENCE",
+      reason: `Journal sequence gap or regression: expected ${expectedSeq}, got ${ev.sequence}`,
+    };
+  }
+  if (typeof ev.timestamp !== "string" || ev.timestamp.length === 0) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal timestamp must be non-empty string" };
+  }
+  if (typeof ev.kind !== "string" || !KNOWN_JOURNAL_EVENT_KINDS.has(ev.kind as TaskJournalEventKind)) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: `Journal kind unknown: ${String(ev.kind)}` };
+  }
+  if (ev.contractDigest !== expectedDigest) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: `Journal contractDigest mismatch: expected ${expectedDigest}, got ${String(ev.contractDigest)}` };
+  }
+  if (typeof ev.attemptIndex !== "number" || !Number.isInteger(ev.attemptIndex) || ev.attemptIndex < 0) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal attemptIndex must be non-negative integer" };
+  }
+  if (ev.attemptIndex === 0 && !ZERO_INDEX_ALLOWED_EVENT_KINDS.has(ev.kind as TaskJournalEventKind)) {
+    return {
+      ok: false,
+      code: "CORRUPTED_JOURNAL",
+      reason: `Journal attemptIndex must be positive integer for attempt-bound event: ${String(ev.kind)}`,
+    };
+  }
+  if (typeof ev.payload !== "object" || ev.payload === null || Array.isArray(ev.payload)) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal payload must be a JSON object" };
+  }
+
+  const payload = ev.payload as Record<string, unknown>;
+  if (payload.runId !== undefined && (typeof payload.runId !== "string" || !CANONICAL_RUN_ID_REGEX.test(payload.runId))) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal payload runId must be canonical run ID" };
+  }
+  if (
+    (ev.kind === "attempt_finished" || payload.verdict !== undefined) &&
+    (typeof payload.verdict !== "string" || !["accepted", "rejected", "blocked"].includes(payload.verdict))
+  ) {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal verdict must be accepted, rejected, or blocked" };
+  }
+  if (payload.stopReason !== undefined && payload.stopReason !== null && typeof payload.stopReason !== "string") {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal payload stopReason must be string or null" };
+  }
+  if (payload.reason !== undefined && payload.reason !== null && typeof payload.reason !== "string") {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal payload reason must be string or null" };
+  }
+  if (payload.stopCode !== undefined && payload.stopCode !== null && typeof payload.stopCode !== "string") {
+    return { ok: false, code: "CORRUPTED_JOURNAL", reason: "Journal payload stopCode must be string or null" };
+  }
+
+  return { ok: true, value: parsed as TaskJournalEvent };
 }
 
 /**
@@ -257,17 +578,52 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
 
   const projectRoot = options.projectRoot ?? process.cwd();
   const pkgRoot = options.packageRoot ?? defaultPackageRoot();
+  const runRecordPath = taskRunPath(stateRoot, contractId, runId);
+  const lockPath = join(projectRoot, ".alpha-aos", "controller.lock");
 
-  // 1. Initial resolution & pinning: must match exact identity
-  // selectTaskExecution's checkpoint fallback is NOT proof even when selectionRule exact-run-id.
-  // Reserved / checkpoint-only execution is refused.
-  let initialExecution;
+  // 1. Initial resolution & pinning: safe bounded read of exact run record
+  let initialRawRunText: string | null = null;
   try {
-    initialExecution = await selectTaskExecution({
-      stateRoot,
+    initialRawRunText = await safeReadBoundedFile(runRecordPath, 1024 * 1024);
+  } catch (err: unknown) {
+    return {
+      ok: false,
+      status: "refused",
+      scope,
       contractId,
       runId,
-      packageRoot: pkgRoot,
+      contractDigest,
+      revision,
+      reasonCode: "RUN_RECORD_INVALID",
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  if (initialRawRunText === null) {
+    return {
+      ok: false,
+      status: "refused",
+      scope,
+      contractId,
+      runId,
+      contractDigest,
+      revision,
+      reasonCode: "EXECUTION_NOT_FOUND",
+      reason: `Target execution has no canonical run record (checkpoint or reserved-only fallback is refused).`,
+    };
+  }
+
+  if (options._onRunReadBarrier) {
+    await options._onRunReadBarrier(initialRawRunText);
+  }
+
+  let initialRunRecord: TaskRunRecord;
+  try {
+    initialRunRecord = await validateTaskRunText({
+      text: initialRawRunText,
+      path: runRecordPath,
+      contractId,
+      root: pkgRoot,
     });
   } catch (err: unknown) {
     return {
@@ -279,19 +635,16 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
       contractDigest,
       revision,
       reasonCode: "EXECUTION_NOT_FOUND",
-      reason: err instanceof Error ? err.message : String(err),
+      reason: `Target execution has no canonical run record (checkpoint or reserved-only fallback is refused): ${err instanceof Error ? err.message : String(err)}.`,
     };
   }
 
   if (
-    !initialExecution ||
-    initialExecution.runRecord === null ||
-    initialExecution.isReserved ||
-    initialExecution.selectionRule !== "exact-run-id" ||
-    initialExecution.contractId !== contractId ||
-    initialExecution.runId !== runId ||
-    initialExecution.contractDigest !== contractDigest ||
-    initialExecution.revision !== revision
+    initialRunRecord.kind !== "task-run" ||
+    initialRunRecord.contractId !== contractId ||
+    initialRunRecord.runId !== runId ||
+    initialRunRecord.contractDigest !== contractDigest ||
+    initialRunRecord.revision !== revision
   ) {
     return {
       ok: false,
@@ -301,43 +654,94 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
       runId,
       contractDigest,
       revision,
-      reasonCode: initialExecution?.runRecord === null ? "EXECUTION_NOT_FOUND" : "IDENTITY_MISMATCH",
-      reason: initialExecution?.runRecord === null
-        ? `Target execution has no canonical run record (checkpoint or reserved-only fallback is refused).`
-        : `Target execution does not match pinned identity (run=${initialExecution?.runId}, digest=${initialExecution?.contractDigest}, revision=${initialExecution?.revision}).`,
+      reasonCode: "IDENTITY_MISMATCH",
+      reason: `Target execution does not match pinned identity (run=${initialRunRecord.runId}, digest=${initialRunRecord.contractDigest}, revision=${initialRunRecord.revision}).`,
     };
   }
 
-  // Pin initial owner lease fence if active
-  const lockPath = join(projectRoot, ".alpha-aos", "controller.lock");
+  // Pin initial owner lease fence if non-terminal
   let pinnedOwner: PinnedOwner | null = null;
-  try {
-    const rawLock = await safeReadBoundedFile(lockPath, 64 * 1024);
+  if (!TERMINAL_RUN_STATUSES.has(initialRunRecord.status)) {
+    let rawLock: string | null = null;
+    try {
+      rawLock = await safeReadBoundedFile(lockPath, 64 * 1024);
+    } catch (err: unknown) {
+      return {
+        ok: false,
+        status: "unresolved",
+        scope,
+        contractId,
+        runId,
+        contractDigest,
+        revision,
+        reasonCode: "LEASE_CORRUPTED",
+        reason: err instanceof Error ? err.message : String(err),
+      };
+    }
+
     if (rawLock !== null) {
-      const parsedLock = JSON.parse(rawLock) as ControllerLockRecord;
-      if (parsedLock.contractDigest === contractDigest) {
-        pinnedOwner = {
-          token: parsedLock.token,
-          pid: parsedLock.pid,
-          host: parsedLock.host,
-          startedAt: parsedLock.startedAt,
+      const lockValidation = validateControllerLeaseRecord(rawLock, contractDigest);
+      if (!lockValidation.ok) {
+        return {
+          ok: false,
+          status: "unresolved",
+          scope,
+          contractId,
+          runId,
+          contractDigest,
+          revision,
+          reasonCode: lockValidation.code,
+          reason: lockValidation.reason,
         };
       }
+
+      if (lockValidation.value.host !== hostname()) {
+        return {
+          ok: false,
+          status: "unresolved",
+          scope,
+          contractId,
+          runId,
+          contractDigest,
+          revision,
+          reasonCode: "FOREIGN_OWNER",
+          reason: `Owner host ${lockValidation.value.host} differs from local host ${hostname()}; process liveness cannot be verified.`,
+        };
+      }
+
+      if (!isProcessAlive(lockValidation.value.pid)) {
+        return {
+          ok: false,
+          status: "unresolved",
+          scope,
+          contractId,
+          runId,
+          contractDigest,
+          revision,
+          reasonCode: "OWNER_DEAD",
+          reason: `Owner process (pid=${lockValidation.value.pid}) is dead before attempt finished.`,
+        };
+      }
+
+      pinnedOwner = {
+        token: lockValidation.value.token,
+        pid: lockValidation.value.pid,
+        host: lockValidation.value.host,
+        startedAt: lockValidation.value.startedAt,
+        contractDigest: lockValidation.value.contractDigest,
+        harness: lockValidation.value.harness,
+      };
     }
-  } catch {
-    // Controller lock will be validated during periodic checks
   }
 
-  // Pinned attempt index: derive from initial run record or default to 1
-  const pinnedAttemptIndex = 1;
-
-  // Separate sequence watermarks: checkpoint lastSequence and journal tail MUST NOT be compared
+  // Watermarks
   let lastKnownCheckpointSequence = -1;
-  let lastKnownJournalSequences: number[] = [];
-  let lastKnownJournalEventCount = 0;
+  let lastKnownJournalPrefixHashes: string[] = [];
+  let pinnedAttemptIndex: number | null = null;
+  let isFirstCheck = true;
 
-  const check = async (): Promise<CompletionCheckResult<{ taskStatus: string; attemptIndex: number; stopReason: string | null }>> => {
-    // A. Read checkpoint with bounded handle, ancestor checks, and closed schema validation
+  const check = async (): Promise<CompletionCheckResult<{ taskStatus: string; attemptIndex?: number; stopReason: string | null }>> => {
+    // A. Read and validate Checkpoint
     const checkpointPath = runCheckpointPath(stateRoot, contractDigest);
     let checkpoint: TaskCheckpoint | null = null;
     let rawCheckpoint: string | null = null;
@@ -352,63 +756,26 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
     }
 
     if (rawCheckpoint !== null) {
-      let parsedCp: unknown;
-      try {
-        parsedCp = JSON.parse(rawCheckpoint);
-      } catch (err: unknown) {
+      const cpRes = validateCheckpointRecord(rawCheckpoint, { contractDigest, contractId, revision });
+      if (!cpRes.ok) {
         return {
           state: "refused",
-          code: "FORGED_CHECKPOINT",
-          reason: `Checkpoint parse error: ${err instanceof Error ? err.message : String(err)}`,
+          code: cpRes.code,
+          reason: cpRes.reason,
         };
       }
-
-      if (
-        typeof parsedCp !== "object" ||
-        parsedCp === null ||
-        (parsedCp as TaskCheckpoint).schemaVersion !== 1 ||
-        (parsedCp as TaskCheckpoint).contractDigest !== contractDigest ||
-        (parsedCp as TaskCheckpoint).contractId !== contractId ||
-        (parsedCp as TaskCheckpoint).revision !== revision ||
-        typeof (parsedCp as TaskCheckpoint).status !== "string" ||
-        !["pending", "running", "accepted", "rejected", "blocked", "stopped", "needs-input"].includes((parsedCp as TaskCheckpoint).status) ||
-        typeof (parsedCp as TaskCheckpoint).attemptIndex !== "number" ||
-        !Number.isInteger((parsedCp as TaskCheckpoint).attemptIndex) ||
-        (parsedCp as TaskCheckpoint).attemptIndex < 0 ||
-        typeof (parsedCp as TaskCheckpoint).lastSequence !== "number" ||
-        !Number.isInteger((parsedCp as TaskCheckpoint).lastSequence) ||
-        (parsedCp as TaskCheckpoint).lastSequence < 0 ||
-        typeof (parsedCp as TaskCheckpoint).updatedAt !== "string" ||
-        (parsedCp as TaskCheckpoint).updatedAt.length === 0 ||
-        typeof (parsedCp as TaskCheckpoint).usage !== "object" ||
-        (parsedCp as TaskCheckpoint).usage === null ||
-        typeof (parsedCp as TaskCheckpoint).usage.cycles !== "number" ||
-        !Number.isInteger((parsedCp as TaskCheckpoint).usage.cycles) ||
-        (parsedCp as TaskCheckpoint).usage.cycles < 0 ||
-        typeof (parsedCp as TaskCheckpoint).usage.wallTimeMs !== "number" ||
-        !Number.isFinite((parsedCp as TaskCheckpoint).usage.wallTimeMs) ||
-        (parsedCp as TaskCheckpoint).usage.wallTimeMs < 0
-      ) {
-        return {
-          state: "refused",
-          code: "FORGED_CHECKPOINT",
-          reason: `Checkpoint record fields drifted or failed closed schema validation.`,
-        };
-      }
-
-      const validatedCp = parsedCp as TaskCheckpoint;
-      if (validatedCp.lastSequence < lastKnownCheckpointSequence) {
+      if (cpRes.value.lastSequence < lastKnownCheckpointSequence) {
         return {
           state: "refused",
           code: "REGRESSING_SEQUENCE",
-          reason: `Checkpoint sequence regressed from ${lastKnownCheckpointSequence} to ${validatedCp.lastSequence}.`,
+          reason: `Checkpoint sequence regressed from ${lastKnownCheckpointSequence} to ${cpRes.value.lastSequence}.`,
         };
       }
-      lastKnownCheckpointSequence = validatedCp.lastSequence;
-      checkpoint = validatedCp;
+      lastKnownCheckpointSequence = cpRes.value.lastSequence;
+      checkpoint = cpRes.value;
     }
 
-    // B. Read journal events with bounded handle, ancestor checks, and sequence continuity
+    // B. Read and validate Journal
     const journalPath = runJournalPath(stateRoot, contractDigest);
     let rawJournal: string | null = null;
     try {
@@ -422,63 +789,44 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
     }
 
     const events: TaskJournalEvent[] = [];
-    if (rawJournal !== null) {
-      const lines = rawJournal.split(/\r?\n/u);
-      let prevSeq = 0;
-      for (let i = 0; i < lines.length; i++) {
-        const line = lines[i]!.trim();
-        if (line.length === 0) continue;
-        let parsedEvent: unknown;
-        try {
-          parsedEvent = JSON.parse(line);
-        } catch (err: unknown) {
-          return {
-            state: "refused",
-            code: "CORRUPTED_JOURNAL",
-            reason: `Journal line ${i + 1} corrupt: ${err instanceof Error ? err.message : String(err)}`,
-          };
-        }
-
-        const ev = parsedEvent as TaskJournalEvent;
-        if (
-          typeof ev !== "object" ||
-          ev === null ||
-          typeof ev.sequence !== "number" ||
-          !Number.isInteger(ev.sequence) ||
-          ev.sequence <= prevSeq ||
-          typeof ev.timestamp !== "string" ||
-          ev.timestamp.length === 0 ||
-          typeof ev.kind !== "string" ||
-          !KNOWN_JOURNAL_EVENT_KINDS.has(ev.kind) ||
-          ev.contractDigest !== contractDigest ||
-          typeof ev.attemptIndex !== "number" ||
-          !Number.isInteger(ev.attemptIndex) ||
-          ev.attemptIndex < 0 ||
-          typeof ev.payload !== "object" ||
-          ev.payload === null
-        ) {
-          return {
-            state: "refused",
-            code: ev && typeof ev.sequence === "number" && ev.sequence <= prevSeq
-              ? "REGRESSING_SEQUENCE"
-              : "CORRUPTED_JOURNAL",
-            reason: `Journal event at line ${i + 1} failed monotonic sequence or schema validation.`,
-          };
-        }
-        prevSeq = ev.sequence;
-        events.push(ev);
-      }
-
-      // Rollback / truncation validation on journal stream
-      if (events.length < lastKnownJournalEventCount) {
+    if (rawJournal === null) {
+      if (lastKnownJournalPrefixHashes.length > 0) {
         return {
           state: "refused",
           code: "REGRESSING_SEQUENCE",
-          reason: `Journal stream truncated: previously ${lastKnownJournalEventCount} events, now ${events.length}.`,
+          reason: "Journal file disappeared after events were observed.",
         };
       }
-      for (let i = 0; i < lastKnownJournalSequences.length; i++) {
-        if (events[i]!.sequence !== lastKnownJournalSequences[i]) {
+    } else {
+      const lines = rawJournal.split(/\r?\n/u);
+      const currentHashes: string[] = [];
+      let seq = 1;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!.trim();
+        if (line.length === 0) continue;
+        const evRes = validateJournalEvent(line, seq, contractDigest);
+        if (!evRes.ok) {
+          return {
+            state: "refused",
+            code: evRes.code,
+            reason: evRes.reason,
+          };
+        }
+        seq++;
+        events.push(evRes.value);
+        currentHashes.push(createHash("sha256").update(line).digest("hex"));
+      }
+
+      if (events.length < lastKnownJournalPrefixHashes.length) {
+        return {
+          state: "refused",
+          code: "REGRESSING_SEQUENCE",
+          reason: `Journal stream truncated: previously ${lastKnownJournalPrefixHashes.length} events, now ${events.length}.`,
+        };
+      }
+
+      for (let i = 0; i < lastKnownJournalPrefixHashes.length; i++) {
+        if (currentHashes[i] !== lastKnownJournalPrefixHashes[i]) {
           return {
             state: "refused",
             code: "REGRESSING_SEQUENCE",
@@ -486,32 +834,18 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
           };
         }
       }
-      lastKnownJournalSequences = events.map((e) => e.sequence);
-      lastKnownJournalEventCount = events.length;
+      lastKnownJournalPrefixHashes = currentHashes;
     }
 
-    // C. Read canonical task run record using canonical API (listTaskRuns) with safe path precheck
-    const runRecordPath = join(stateRoot, "tasks", contractId, "runs", `${runId}.json`);
+    // C. Read canonical task run record using bounded file reader and validate retained bytes
     let runRecord: TaskRunRecord | null = null;
     let rawRunText: string | null = null;
-    try {
-      rawRunText = await safeReadBoundedFile(runRecordPath, 1024 * 1024);
-    } catch (err: unknown) {
-      return {
-        state: "refused",
-        code: "RUN_RECORD_INVALID",
-        reason: err instanceof Error ? err.message : String(err),
-      };
-    }
-
-    if (rawRunText !== null) {
-      let runs: TaskRunRecord[];
+    if (isFirstCheck) {
+      isFirstCheck = false;
+      runRecord = initialRunRecord;
+    } else {
       try {
-        runs = await listTaskRuns({
-          stateRoot,
-          contractId,
-          packageRoot: pkgRoot,
-        });
+        rawRunText = await safeReadBoundedFile(runRecordPath, 1024 * 1024);
       } catch (err: unknown) {
         return {
           state: "refused",
@@ -520,28 +854,39 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
         };
       }
 
-      const match = runs.find((r) => r.runId === runId);
-      if (!match) {
-        return {
-          state: "refused",
-          code: "RUN_RECORD_INVALID",
-          reason: `Run record ${runId} was not found among validated runs.`,
-        };
+      if (rawRunText !== null) {
+        if (options._onRunReadBarrier) {
+          await options._onRunReadBarrier(rawRunText);
+        }
+        try {
+          runRecord = await validateTaskRunText({
+            text: rawRunText,
+            path: runRecordPath,
+            contractId,
+            root: pkgRoot,
+          });
+        } catch (err: unknown) {
+          return {
+            state: "refused",
+            code: "RUN_RECORD_INVALID",
+            reason: err instanceof Error ? err.message : String(err),
+          };
+        }
+
+        if (
+          runRecord.kind !== "task-run" ||
+          runRecord.contractId !== contractId ||
+          runRecord.runId !== runId ||
+          runRecord.contractDigest !== contractDigest ||
+          runRecord.revision !== revision
+        ) {
+          return {
+            state: "refused",
+            code: "RUN_RECORD_INVALID",
+            reason: "Run record failed identity validation.",
+          };
+        }
       }
-      if (
-        match.kind !== "task-run" ||
-        match.contractId !== contractId ||
-        match.runId !== runId ||
-        match.contractDigest !== contractDigest ||
-        match.revision !== revision
-      ) {
-        return {
-          state: "refused",
-          code: "RUN_RECORD_INVALID",
-          reason: `Run record failed identity validation.`,
-        };
-      }
-      runRecord = match;
     }
 
     // D. Controller lease check
@@ -558,89 +903,66 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
 
     let controllerLock: ControllerLockRecord | null = null;
     if (rawLockText !== null) {
-      try {
-        const parsed = JSON.parse(rawLockText);
-        if (
-          typeof parsed === "object" &&
-          parsed !== null &&
-          parsed.schemaVersion === 1 &&
-          typeof parsed.contractDigest === "string" &&
-          typeof parsed.contractId === "string" &&
-          typeof parsed.pid === "number" &&
-          Number.isInteger(parsed.pid) &&
-          parsed.pid > 0 &&
-          typeof parsed.host === "string" &&
-          typeof parsed.token === "string" &&
-          typeof parsed.startedAt === "string"
-        ) {
-          controllerLock = parsed as ControllerLockRecord;
-        } else {
-          return {
-            state: "unresolved",
-            code: "LEASE_CORRUPTED",
-            reason: `Controller lease record is malformed.`,
-          };
-        }
-      } catch (err: unknown) {
+      const lockRes = validateControllerLeaseRecord(rawLockText, contractDigest);
+      if (!lockRes.ok) {
         return {
           state: "unresolved",
-          code: "LEASE_CORRUPTED",
-          reason: `Controller lease JSON parse error: ${err instanceof Error ? err.message : String(err)}`,
+          code: lockRes.code,
+          reason: lockRes.reason,
+        };
+      }
+      controllerLock = lockRes.value;
+    }
+
+    // E. Attempt derivation
+    const linkingEvents = events.filter(
+      (e) => e.attemptIndex > 0 && RUN_LINK_EVENT_KINDS.has(e.kind) && e.payload.runId === runId,
+    );
+    let linkedAttemptIndex: number | null = null;
+    if (linkingEvents.length > 0) {
+      const firstAttempt = linkingEvents[0]!.attemptIndex;
+      for (const ev of linkingEvents) {
+        if (ev.attemptIndex !== firstAttempt) {
+          return {
+            state: "refused",
+            code: "CONFLICTING_ATTEMPT_LINK",
+            reason: `Conflicting attempt linkage for run ${runId}: attempt ${firstAttempt} vs ${ev.attemptIndex}`,
+          };
+        }
+      }
+      linkedAttemptIndex = firstAttempt;
+      if (pinnedAttemptIndex === null) {
+        pinnedAttemptIndex = linkedAttemptIndex;
+      } else if (pinnedAttemptIndex !== linkedAttemptIndex) {
+        return {
+          state: "refused",
+          code: "CONFLICTING_ATTEMPT_LINK",
+          reason: `Pinned attempt ${pinnedAttemptIndex} changed to ${linkedAttemptIndex}`,
         };
       }
     }
 
-    // E. Evaluation by scope
-
-    // Scope: "attempt"
-    // Pinned to exact canonical run ID. Exact run record terminal disposition is authority.
-    // Never switch to checkpoint's later attemptIndex and never default event status to completed.
-    if (scope === "attempt") {
-      // 1. If runRecord is terminal, it is the authority
-      if (runRecord !== null && TERMINAL_RUN_STATUSES.has(runRecord.status)) {
-        const linkingEvent = events.find((e) => e.payload && e.payload.runId === runId);
-        const resolvedAttemptIndex = linkingEvent ? linkingEvent.attemptIndex : pinnedAttemptIndex;
-        return {
-          state: "terminal",
-          value: {
-            taskStatus: runRecord.status,
-            attemptIndex: resolvedAttemptIndex,
-            stopReason: runRecord.stopReason ?? null,
-          },
-        };
-      }
-
-      // 2. Check if journal has an attempt_finished event specifically linking this run
-      const attemptFinished = events.find(
-        (e) => e.kind === "attempt_finished" && (e.payload.runId === runId || e.attemptIndex === pinnedAttemptIndex),
+    // F. Owner fence check
+    const isAttemptTerminal =
+      (runRecord !== null && TERMINAL_RUN_STATUSES.has(runRecord.status)) ||
+      events.some(
+        (e) =>
+          e.kind === "attempt_finished" &&
+          e.payload?.runId === runId &&
+          (e.payload.verdict === "accepted" || e.payload.verdict === "rejected" || e.payload.verdict === "blocked"),
       );
-      if (attemptFinished && attemptFinished.payload.runId === runId) {
-        const verdict = (attemptFinished.payload.verdict as string) ?? (attemptFinished.payload.status as string);
-        if (verdict === "accepted" || verdict === "rejected" || verdict === "blocked") {
-          return {
-            state: "terminal",
-            value: {
-              taskStatus: verdict,
-              attemptIndex: attemptFinished.attemptIndex,
-              stopReason: (attemptFinished.payload.stopReason as string) ?? null,
-            },
-          };
-        }
-      }
+    const isSupervisorTerminal = checkpoint !== null && TERMINAL_CHECKPOINT_STATUSES.has(checkpoint.status);
+    const isExecutionTerminal = scope === "supervisor" ? isSupervisorTerminal : isAttemptTerminal;
 
-      // 3. Nonterminal attempt: verify owner lock fence
-      if (pinnedOwner !== null) {
-        if (controllerLock === null) {
-          return {
-            state: "unresolved",
-            code: "OWNER_ABSENT",
-            reason: "Controller lease disappeared while attempt was nonterminal.",
-          };
-        }
+    if (pinnedOwner !== null) {
+      if (controllerLock !== null) {
         if (
           controllerLock.token !== pinnedOwner.token ||
           controllerLock.pid !== pinnedOwner.pid ||
-          controllerLock.host !== pinnedOwner.host
+          controllerLock.host !== pinnedOwner.host ||
+          controllerLock.startedAt !== pinnedOwner.startedAt ||
+          controllerLock.contractDigest !== pinnedOwner.contractDigest ||
+          controllerLock.harness !== pinnedOwner.harness
         ) {
           return {
             state: "refused",
@@ -648,7 +970,14 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
             reason: `Owner identity changed during execution (expected token=${pinnedOwner.token}, got ${controllerLock.token}).`,
           };
         }
-        if (pinnedOwner.host === hostname() && !isProcessAlive(pinnedOwner.pid)) {
+        if (controllerLock.host !== hostname()) {
+          return {
+            state: "unresolved",
+            code: "FOREIGN_OWNER",
+            reason: "Foreign host owner cannot be verified.",
+          };
+        }
+        if (!isProcessAlive(controllerLock.pid)) {
           return {
             state: "unresolved",
             code: "OWNER_DEAD",
@@ -656,21 +985,24 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
           };
         }
       } else {
-        if (controllerLock === null) {
+        if (!isExecutionTerminal) {
           return {
             state: "unresolved",
             code: "OWNER_ABSENT",
-            reason: "No active controller lock found for nonterminal execution.",
+            reason: "Controller lease disappeared while execution was nonterminal.",
           };
         }
-        if (controllerLock.contractDigest !== contractDigest) {
+      }
+    } else {
+      if (controllerLock !== null) {
+        if (controllerLock.host !== hostname()) {
           return {
             state: "unresolved",
-            code: "OWNER_ABSENT",
-            reason: "Active controller lock is for a different contract.",
+            code: "FOREIGN_OWNER",
+            reason: "Foreign host owner cannot be verified.",
           };
         }
-        if (controllerLock.host === hostname() && !isProcessAlive(controllerLock.pid)) {
+        if (!isProcessAlive(controllerLock.pid)) {
           return {
             state: "unresolved",
             code: "OWNER_DEAD",
@@ -682,15 +1014,52 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
           pid: controllerLock.pid,
           host: controllerLock.host,
           startedAt: controllerLock.startedAt,
+          contractDigest: controllerLock.contractDigest,
+          harness: controllerLock.harness,
         };
+      } else if (!isExecutionTerminal) {
+        return {
+          state: "unresolved",
+          code: "OWNER_ABSENT",
+          reason: "Nonterminal execution has no controller lease.",
+        };
+      }
+    }
+
+    // G. Scope Evaluation
+    if (scope === "attempt") {
+      if (runRecord !== null && TERMINAL_RUN_STATUSES.has(runRecord.status)) {
+        const attemptIdx = linkedAttemptIndex ?? undefined;
+        return {
+          state: "terminal",
+          value: {
+            taskStatus: runRecord.status,
+            ...(attemptIdx !== undefined ? { attemptIndex: attemptIdx } : {}),
+            stopReason: runRecord.stopReason ?? null,
+          },
+        };
+      }
+
+      const attemptFinished = events.find(
+        (e) => e.kind === "attempt_finished" && e.payload?.runId === runId,
+      );
+      if (attemptFinished) {
+        const verdict = attemptFinished.payload.verdict;
+        if (verdict === "accepted" || verdict === "rejected" || verdict === "blocked") {
+          return {
+            state: "terminal",
+            value: {
+              taskStatus: verdict,
+              attemptIndex: attemptFinished.attemptIndex,
+              stopReason: typeof attemptFinished.payload.stopReason === "string" ? attemptFinished.payload.stopReason : null,
+            },
+          };
+        }
       }
 
       return { state: "pending" };
     }
 
-    // Scope: "supervisor"
-    // Requires validated linked supervisor checkpoint/journal and requested canonical run,
-    // not a terminal checkpoint alone. Lone accepted checkpoint is refused.
     if (scope === "supervisor") {
       if (checkpoint !== null && TERMINAL_CHECKPOINT_STATUSES.has(checkpoint.status)) {
         if (events.length === 0) {
@@ -700,110 +1069,198 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
             reason: "Terminal checkpoint without journal events is refused.",
           };
         }
-        const terminalEvent = events.find((e) =>
-          ["accepted", "rejected", "blocked", "process_cancelled", "limit_exceeded"].includes(e.kind),
+
+        const attemptEvents = events.filter((e) => e.attemptIndex === checkpoint.attemptIndex);
+        const anyTerminalEvent = attemptEvents.find((e) =>
+          ["accepted", "rejected", "blocked", "process_cancelled", "limit_exceeded"].includes(e.kind) ||
+          (e.kind === "attempt_finished" && (e.payload.verdict === "rejected" || e.payload.verdict === "accepted")),
         );
-        if (!terminalEvent) {
+        if (!anyTerminalEvent) {
           return {
             state: "refused",
             code: "LONE_CHECKPOINT_REFUSED",
             reason: "Terminal checkpoint without corresponding terminal journal event is refused.",
           };
         }
-        if (runRecord === null) {
+
+        // Prove the exact run-to-terminal-attempt association before every disposition.
+        const dispositionEvent = attemptEvents.findLast((e) => {
+          if (checkpoint.status === "stopped") return e.kind === "limit_exceeded" || e.kind === "process_cancelled";
+          return e.kind === checkpoint.status ||
+            (e.kind === "attempt_finished" && e.payload.verdict === checkpoint.status);
+        });
+        if (!dispositionEvent) {
+          return { state: "refused", code: "CONTRADICTORY_TERMINAL_STATE", reason: "Terminal checkpoint has no matching disposition event." };
+        }
+        const attemptLinks = attemptEvents.filter(
+          (e) => RUN_LINK_EVENT_KINDS.has(e.kind) && e.payload.runId !== undefined,
+        );
+        if (attemptLinks.some((e) => e.payload.runId !== runId)) {
+          return { state: "refused", code: "UNLINKED_CHECKPOINT", reason: "Terminal attempt explicitly names a different run." };
+        }
+        const hasPriorRunStart = attemptEvents.some(
+          (e) => e.kind === "attempt_started" && e.payload.runId === runId && e.sequence < dispositionEvent.sequence,
+        );
+        if (
+          checkpoint.attemptIndex === 0 ||
+          linkedAttemptIndex !== checkpoint.attemptIndex ||
+          (dispositionEvent.payload.runId === undefined &&
+            (checkpoint.status === "accepted" || checkpoint.status === "rejected" || !hasPriorRunStart))
+        ) {
           return {
-            state: "refused",
-            code: "UNLINKED_CHECKPOINT",
-            reason: "Missing canonical run record for terminal supervisor state.",
+            state: "unresolved",
+            code: "UNSUPPORTED_SUPERVISOR_EVIDENCE",
+            reason: "Legacy supervisor evidence does not prove the exact run-to-terminal-attempt association.",
           };
         }
-        if (checkpoint.status === "accepted" && terminalEvent.kind === "accepted") {
+        if (runRecord === null) {
+          return { state: "refused", code: "UNLINKED_CHECKPOINT", reason: "Terminal supervisor evidence requires the exact canonical run." };
+        }
+        if (
+          ((checkpoint.status === "accepted" || checkpoint.status === "rejected") && runRecord.status !== checkpoint.status) ||
+          ((checkpoint.status === "blocked" || checkpoint.status === "stopped") && runRecord.status === "accepted")
+        ) {
+          return { state: "refused", code: "CONTRADICTORY_TERMINAL_STATE", reason: "Canonical run contradicts the terminal supervisor disposition." };
+        }
+        for (let a = 1; a < checkpoint.attemptIndex; a++) {
+          const prior = events.filter((e) => e.attemptIndex === a);
+          const started = prior.find((e) => e.kind === "attempt_started");
+          const finished = prior.findLast(
+            (e) => e.kind === "attempt_finished" || e.kind === "rejected" || e.kind === "blocked",
+          );
+          if (!started || !finished || started.sequence >= finished.sequence || finished.sequence >= dispositionEvent.sequence) {
+            return { state: "unresolved", code: "UNSUPPORTED_SUPERVISOR_EVIDENCE", reason: "Incomplete retry chain at attempt " + a };
+          }
+        }
+
+        if (checkpoint.status === "accepted") {
+          const terminalEvent = attemptEvents.find((e) => e.kind === "accepted");
+          if (!terminalEvent) {
+            return {
+              state: "refused",
+              code: "CONTRADICTORY_TERMINAL_STATE",
+              reason: "Checkpoint is accepted but no accepted event found for checkpoint attempt.",
+            };
+          }
+          if (terminalEvent.payload.runId !== runId) {
+            return {
+              state: "refused",
+              code: "UNLINKED_CHECKPOINT",
+              reason: `Terminal accepted event runId ${terminalEvent.payload.runId} does not match requested run ${runId}.`,
+            };
+          }
+          if (runRecord === null) {
+            return {
+              state: "refused",
+              code: "UNLINKED_CHECKPOINT",
+              reason: "Missing canonical run record for terminal supervisor state.",
+            };
+          }
+          if (runRecord.status !== "accepted") {
+            return {
+              state: "refused",
+              code: "CONTRADICTORY_TERMINAL_STATE",
+              reason: `Checkpoint is accepted but run record status is ${runRecord.status}.`,
+            };
+          }
+
+          return {
+            state: "terminal",
+            value: {
+              taskStatus: "accepted",
+              attemptIndex: checkpoint.attemptIndex,
+              stopReason: checkpoint.stopReason,
+            },
+          };
+        }
+
+        if (checkpoint.status === "rejected") {
+          const terminalEvent = attemptEvents.find(
+            (e) => e.kind === "rejected" || (e.kind === "attempt_finished" && e.payload.verdict === "rejected"),
+          );
+          if (!terminalEvent) {
+            return {
+              state: "refused",
+              code: "CONTRADICTORY_TERMINAL_STATE",
+              reason: "Checkpoint is rejected but no rejected event found for checkpoint attempt.",
+            };
+          }
           if (terminalEvent.payload.runId && terminalEvent.payload.runId !== runId) {
             return {
               state: "refused",
               code: "UNLINKED_CHECKPOINT",
-              reason: `Terminal event runId ${terminalEvent.payload.runId} does not match requested run ${runId}.`,
+              reason: `Terminal rejected event runId ${terminalEvent.payload.runId} does not match requested run ${runId}.`,
             };
           }
+          if (linkedAttemptIndex !== null && linkedAttemptIndex !== checkpoint.attemptIndex) {
+            return {
+              state: "unresolved",
+              code: "UNSUPPORTED_SUPERVISOR_EVIDENCE",
+              reason: "Current supervisor events cannot prove run-to-attempt linkage for retried attempt.",
+            };
+          }
+          return {
+            state: "terminal",
+            value: {
+              taskStatus: "rejected",
+              attemptIndex: checkpoint.attemptIndex,
+              stopReason: checkpoint.stopReason,
+            },
+          };
         }
-        return {
-          state: "terminal",
-          value: {
-            taskStatus: checkpoint.status,
-            attemptIndex: checkpoint.attemptIndex,
-            stopReason: checkpoint.stopReason,
-          },
-        };
+
+        if (checkpoint.status === "blocked") {
+          const terminalEvent = attemptEvents.find((e) => e.kind === "blocked");
+          if (!terminalEvent) {
+            return {
+              state: "refused",
+              code: "CONTRADICTORY_TERMINAL_STATE",
+              reason: "Checkpoint is blocked but no blocked event found for checkpoint attempt.",
+            };
+          }
+          return {
+            state: "terminal",
+            value: {
+              taskStatus: "blocked",
+              attemptIndex: checkpoint.attemptIndex,
+              stopReason: checkpoint.stopReason,
+            },
+          };
+        }
+
+        if (checkpoint.status === "stopped") {
+          const terminalEvent = attemptEvents.find((e) => e.kind === "limit_exceeded" || e.kind === "process_cancelled");
+          if (!terminalEvent) {
+            return {
+              state: "refused",
+              code: "CONTRADICTORY_TERMINAL_STATE",
+              reason: "Checkpoint is stopped but no stopped event found for checkpoint attempt.",
+            };
+          }
+          return {
+            state: "terminal",
+            value: {
+              taskStatus: "stopped",
+              attemptIndex: checkpoint.attemptIndex,
+              stopReason: checkpoint.stopReason,
+            },
+          };
+        }
       }
 
-      // Check owner fence while nonterminal
-      if (pinnedOwner !== null) {
-        if (controllerLock === null) {
-          return {
-            state: "unresolved",
-            code: "OWNER_ABSENT",
-            reason: "Supervisor controller lease disappeared before final disposition.",
-          };
-        }
-        if (
-          controllerLock.token !== pinnedOwner.token ||
-          controllerLock.pid !== pinnedOwner.pid ||
-          controllerLock.host !== pinnedOwner.host
-        ) {
-          return {
-            state: "refused",
-            code: "OWNER_MISMATCH",
-            reason: "Supervisor owner identity changed during execution.",
-          };
-        }
-        if (pinnedOwner.host === hostname() && !isProcessAlive(pinnedOwner.pid)) {
-          return {
-            state: "unresolved",
-            code: "OWNER_DEAD",
-            reason: `Supervisor controller process (pid=${pinnedOwner.pid}) died before final disposition.`,
-          };
-        }
-      } else {
-        if (controllerLock === null) {
-          return {
-            state: "unresolved",
-            code: "OWNER_ABSENT",
-            reason: "No active controller lock found for nonterminal supervisor.",
-          };
-        }
-        if (controllerLock.contractDigest !== contractDigest) {
-          return {
-            state: "unresolved",
-            code: "OWNER_ABSENT",
-            reason: "Active controller lock is for a different contract.",
-          };
-        }
-        if (controllerLock.host === hostname() && !isProcessAlive(controllerLock.pid)) {
-          return {
-            state: "unresolved",
-            code: "OWNER_DEAD",
-            reason: `Supervisor controller process (pid=${controllerLock.pid}) died before final disposition.`,
-          };
-        }
-        pinnedOwner = {
-          token: controllerLock.token,
-          pid: controllerLock.pid,
-          host: controllerLock.host,
-          startedAt: controllerLock.startedAt,
-        };
-      }
-
-      // Check retry linkage: if supervisor retried, producer must prove run-to-attempt linkage
-      if (checkpoint !== null && checkpoint.attemptIndex > pinnedAttemptIndex) {
-        const hasProvenLinkage = events.some(
-          (e) => e.attemptIndex === checkpoint.attemptIndex && e.payload && e.payload.runId === runId,
-        );
-        if (!hasProvenLinkage) {
-          return {
-            state: "unresolved",
-            code: "UNSUPPORTED_SUPERVISOR_EVIDENCE",
-            reason: "Current supervisor events cannot prove run-to-attempt linkage for retried attempt.",
-          };
+      // Non-terminal supervisor: check retry linkage
+      if (checkpoint !== null && checkpoint.attemptIndex > 1) {
+        if (linkedAttemptIndex === null || checkpoint.attemptIndex > linkedAttemptIndex) {
+          const hasProvenLinkage = events.some(
+            (e) => e.attemptIndex === checkpoint.attemptIndex && e.payload && e.payload.runId === runId,
+          );
+          if (!hasProvenLinkage) {
+            return {
+              state: "unresolved",
+              code: "UNSUPPORTED_SUPERVISOR_EVIDENCE",
+              reason: "Current supervisor events cannot prove run-to-attempt linkage for retried attempt.",
+            };
+          }
         }
       }
 
@@ -837,7 +1294,7 @@ export async function waitTask(options: TaskWaitOptions): Promise<TaskWaitResult
       contractDigest,
       revision,
       taskStatus: settlement.value.taskStatus,
-      attemptIndex: settlement.value.attemptIndex,
+      ...(settlement.value.attemptIndex !== undefined ? { attemptIndex: settlement.value.attemptIndex } : {}),
       stopReason: settlement.value.stopReason,
     };
   }

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -646,5 +646,73 @@ test("efficient-wait-cli: job wait on nonexistent job ID exits non-zero with dia
     assert.ok(typeof payload.reason === "string" && payload.reason.length > 0);
   } finally {
     await cleanup();
+  }
+});
+
+test("efficient-wait-cli: job start preview and apply refuse aliased CWD pointing into physical project containing stateRoot", async (context) => {
+  const base = join(tmpdir(), `test-cli-alias-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const project = join(base, "project");
+  await mkdir(join(project, ".git"), { recursive: true });
+  const alias = join(base, "alias-project");
+  try {
+    await symlink(project, alias, process.platform === "win32" ? "junction" : "dir");
+  } catch (error) {
+    if (["EPERM", "EACCES", "ENOSYS"].includes((error as NodeJS.ErrnoException).code ?? "")) {
+      context.skip("Directory alias setup unavailable on this filesystem.");
+      return;
+    }
+    throw error;
+  }
+
+  const stateRoot = join(project, "private-job-state", "missing-tail");
+  const markerFile = join(base, "child_cli_should_not_run.marker");
+
+  try {
+    // 1. CLI dry-run preview must refuse
+    const previewRes = await runCli(
+      [
+        "job",
+        "start",
+        "--cwd",
+        alias,
+        "--deadline-ms",
+        "5000",
+        "--json",
+        "--",
+        process.execPath,
+        "-e",
+        `require("node:fs").writeFileSync(${JSON.stringify(markerFile)}, "ran")`,
+      ],
+      stateRoot,
+      alias,
+    );
+    assert.notEqual(previewRes.exitCode, 0, "CLI preview with aliased CWD inside project must exit non-zero");
+    assert.equal(existsSync(stateRoot), false, "No state directory must exist after refused preview");
+    assert.equal(existsSync(markerFile), false, "No child marker must exist after refused preview");
+
+    // 2. CLI apply must refuse before creating state or spawning
+    const applyRes = await runCli(
+      [
+        "job",
+        "start",
+        "--cwd",
+        alias,
+        "--deadline-ms",
+        "5000",
+        "--apply",
+        "--json",
+        "--",
+        process.execPath,
+        "-e",
+        `require("node:fs").writeFileSync(${JSON.stringify(markerFile)}, "ran")`,
+      ],
+      stateRoot,
+      alias,
+    );
+    assert.notEqual(applyRes.exitCode, 0, "CLI apply with aliased CWD inside project must exit non-zero");
+    assert.equal(existsSync(stateRoot), false, "No state directory must exist after refused apply");
+    assert.equal(existsSync(markerFile), false, "No child marker must exist after refused apply");
+  } finally {
+    await rm(base, { recursive: true, force: true }).catch(() => undefined);
   }
 });

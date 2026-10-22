@@ -2520,6 +2520,7 @@ async function main(): Promise<void> {
       waitCommandJob,
       cancelCommandJob,
       assertStateRootNotInsideProject,
+      assertStateRootNotInsideProjectCanonical,
       assertNoCredentialsInArgs,
       DEFAULT_JOB_DEADLINE_MS,
       validateJobId,
@@ -2582,7 +2583,7 @@ async function main(): Promise<void> {
         if (!cwdStat.isDirectory()) {
           throw new Error(`Job working directory is not a directory: ${resolvedCwd}`);
         }
-        assertStateRootNotInsideProject(stateRoot, resolvedCwd);
+        await assertStateRootNotInsideProjectCanonical(stateRoot, resolvedCwd);
 
         const resolvedExecutable = resolveCommand(executable) ?? resolve(executable);
         let execStat;

@@ -213,3 +213,118 @@ test("command-job-paths: initial file collision cleanup never deletes an uncreat
     } finally { await f.cleanup(); }
   }
 });
+
+test("command-job-paths: programmatic start refuses CWD alias to project root with missing tail state inside physical project", async (context) => {
+  const base = await realpath(await mkdtemp(join(tmpdir(), "job-alias-root-")));
+  try {
+    const project = join(base, "project");
+    await mkdir(join(project, ".git"), { recursive: true });
+
+    const alias = join(base, "alias-project");
+    try {
+      await symlink(project, alias, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (!["EPERM", "EACCES", "ENOSYS"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+      context.skip("Directory alias setup unavailable on this filesystem.");
+      return;
+    }
+
+    const stateRoot = join(project, "private-job-state", "missing-tail");
+    const markerFile = join(base, "child_should_not_run.marker");
+
+    await assert.rejects(
+      startCommandJob({
+        stateRoot,
+        cwd: alias,
+        executable: process.execPath,
+        args: ["-e", `require("node:fs").writeFileSync(${JSON.stringify(markerFile)}, "ran")`],
+        deadlineMs: 5000,
+      }),
+      /External state root must not be inside working directory \/ project|discovered project root/,
+    );
+
+    assert.equal(existsSync(stateRoot), false, "No state directory must be created");
+    assert.equal(existsSync(markerFile), false, "No child process must be spawned");
+  } finally {
+    await rm(base, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("command-job-paths: programmatic start refuses CWD alias to nested directory concealing actual enclosing .git", async (context) => {
+  const base = await realpath(await mkdtemp(join(tmpdir(), "job-alias-nested-")));
+  try {
+    const project = join(base, "project");
+    await mkdir(join(project, ".git"), { recursive: true });
+    const nested = join(project, "nested", "deep");
+    await mkdir(nested, { recursive: true });
+
+    const alias = join(base, "alias-nested");
+    try {
+      await symlink(nested, alias, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (!["EPERM", "EACCES", "ENOSYS"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+      context.skip("Directory alias setup unavailable on this filesystem.");
+      return;
+    }
+
+    // stateRoot is in project, but outside nested directory. Lexically alias-nested does not see .git
+    const stateRoot = join(project, "private-job-state", "missing-tail");
+    const markerFile = join(base, "child_should_not_run.marker");
+
+    await assert.rejects(
+      startCommandJob({
+        stateRoot,
+        cwd: alias,
+        executable: process.execPath,
+        args: ["-e", `require("node:fs").writeFileSync(${JSON.stringify(markerFile)}, "ran")`],
+        deadlineMs: 5000,
+      }),
+      /External state root must not be inside discovered project root/,
+    );
+
+    assert.equal(existsSync(stateRoot), false, "No state directory must be created");
+    assert.equal(existsSync(markerFile), false, "No child process must be spawned");
+  } finally {
+    await rm(base, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("command-job-paths: programmatic start refuses when CWD has an ancestor alias", async (context) => {
+  const base = await realpath(await mkdtemp(join(tmpdir(), "job-alias-ancestor-")));
+  try {
+    const realContainer = join(base, "real-container");
+    const project = join(realContainer, "project");
+    await mkdir(join(project, ".git"), { recursive: true });
+    const cwdPhysical = join(project, "work");
+    await mkdir(cwdPhysical, { recursive: true });
+
+    const aliasContainer = join(base, "alias-container");
+    try {
+      await symlink(realContainer, aliasContainer, process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      if (!["EPERM", "EACCES", "ENOSYS"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+      context.skip("Directory alias setup unavailable on this filesystem.");
+      return;
+    }
+
+    const aliasedCwd = join(aliasContainer, "project", "work");
+    const stateRoot = join(project, "private-job-state", "missing-tail");
+    const markerFile = join(base, "child_should_not_run.marker");
+
+    await assert.rejects(
+      startCommandJob({
+        stateRoot,
+        cwd: aliasedCwd,
+        executable: process.execPath,
+        args: ["-e", `require("node:fs").writeFileSync(${JSON.stringify(markerFile)}, "ran")`],
+        deadlineMs: 5000,
+      }),
+      /External state root must not be inside discovered project root|working directory \/ project/,
+    );
+
+    assert.equal(existsSync(stateRoot), false, "No state directory must be created");
+    assert.equal(existsSync(markerFile), false, "No child process must be spawned");
+  } finally {
+    await rm(base, { recursive: true, force: true }).catch(() => undefined);
+  }
+});

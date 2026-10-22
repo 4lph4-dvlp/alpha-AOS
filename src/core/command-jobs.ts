@@ -21,7 +21,13 @@ import {
 } from "./process.js";
 import { packageRoot } from "./paths.js";
 import { validateAgainstSchema } from "./validation.js";
-import { assertPathProven, provePathBoundary, recheckPathProof, type PathProof } from "./path-boundary.js";
+import {
+  assertPathProven,
+  canonicalizeWithMissingTail,
+  provePathBoundary,
+  recheckPathProof,
+  type PathProof,
+} from "./path-boundary.js";
 
 export const DEFAULT_JOB_DEADLINE_MS = 20 * 60 * 1000; // 20 minutes
 export const MAX_JOB_DEADLINE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -418,6 +424,102 @@ export function assertStateRootNotInsideProject(stateRoot: string, cwd: string):
     }
   }
 }
+
+export async function assertStateRootNotInsideProjectCanonical(stateRoot: string, cwd: string): Promise<void> {
+  const normCwd = resolve(cwd);
+  const normStateRoot = resolve(stateRoot);
+
+  // 1. Run existing lexical guard to retain configured spelling protections
+  assertStateRootNotInsideProject(normStateRoot, normCwd);
+
+  // 2. Canonicalize BOTH stateRoot and cwd, failing closed on non-null reason
+  const cwdCanonicalRes = await canonicalizeWithMissingTail(normCwd);
+  if (cwdCanonicalRes.reason !== null) {
+    throw new Error(
+      `Cannot canonicalize working directory for boundary check: cwd=${normCwd} (${cwdCanonicalRes.reason})`,
+    );
+  }
+  const physicalCwd = cwdCanonicalRes.canonical;
+
+  const stateCanonicalRes = await canonicalizeWithMissingTail(normStateRoot);
+  if (stateCanonicalRes.reason !== null) {
+    throw new Error(
+      `Cannot canonicalize external state root for boundary check: stateRoot=${normStateRoot} (${stateCanonicalRes.reason})`,
+    );
+  }
+  const physicalStateRoot = stateCanonicalRes.canonical;
+
+  // 3. Guard canonical state against physical cwd
+  if (isPathSameOrInside(physicalCwd, physicalStateRoot) || isPathSameOrInside(physicalCwd, normStateRoot)) {
+    throw new Error(
+      `External state root must not be inside working directory / project: stateRoot=${physicalStateRoot}, cwd=${physicalCwd}`,
+    );
+  }
+
+  // Also ensure configured cwd doesn't contain canonical state root
+  if (isPathSameOrInside(normCwd, physicalStateRoot)) {
+    throw new Error(
+      `External state root must not be inside working directory / project: stateRoot=${physicalStateRoot}, cwd=${normCwd}`,
+    );
+  }
+
+  // 4. Guard canonical state against physical enclosing project/.git ancestry
+  const physicalProjectRoots = findEnclosingProjectRoots(physicalCwd);
+  for (const root of physicalProjectRoots) {
+    if (isPathSameOrInside(root, physicalStateRoot) || isPathSameOrInside(root, normStateRoot)) {
+      throw new Error(
+        `External state root must not be inside discovered project root: stateRoot=${physicalStateRoot}, projectRoot=${root}, cwd=${physicalCwd}`,
+      );
+    }
+  }
+
+  // Also check project roots discovered from configured cwd against canonical state root
+  const normProjectRoots = findEnclosingProjectRoots(normCwd);
+  for (const root of normProjectRoots) {
+    if (isPathSameOrInside(root, physicalStateRoot)) {
+      throw new Error(
+        `External state root must not be inside discovered project root: stateRoot=${physicalStateRoot}, projectRoot=${root}, cwd=${normCwd}`,
+      );
+    }
+  }
+
+  // 5. For any ancestor of physical cwd, stateRoot must not be a project-local .alpha-aos directory
+  const home = resolve(process.env.USERPROFILE ?? process.env.HOME ?? "");
+  let physicalCursor = physicalCwd;
+  while (true) {
+    const parent = dirname(physicalCursor);
+    if (parent === physicalCursor) break;
+    physicalCursor = parent;
+    if (home.length > 0 && comparablePath(physicalCursor) === comparablePath(home)) {
+      continue;
+    }
+    const dotAlphaAos = join(physicalCursor, ".alpha-aos");
+    if (isPathSameOrInside(dotAlphaAos, physicalStateRoot) || isPathSameOrInside(dotAlphaAos, normStateRoot)) {
+      throw new Error(
+        `External state root must not be inside project ancestor: stateRoot=${physicalStateRoot}, projectRoot=${physicalCursor}, cwd=${physicalCwd}`,
+      );
+    }
+  }
+
+  // Also check configured cwd ancestors against canonical state root
+  let normCursor = normCwd;
+  while (true) {
+    const parent = dirname(normCursor);
+    if (parent === normCursor) break;
+    normCursor = parent;
+    if (home.length > 0 && comparablePath(normCursor) === comparablePath(home)) {
+      continue;
+    }
+    const dotAlphaAos = join(normCursor, ".alpha-aos");
+    if (isPathSameOrInside(dotAlphaAos, physicalStateRoot)) {
+      throw new Error(
+        `External state root must not be inside project ancestor: stateRoot=${physicalStateRoot}, projectRoot=${normCursor}, cwd=${normCwd}`,
+      );
+    }
+  }
+}
+
+export const assertCanonicalStateRootNotInsideProject = assertStateRootNotInsideProjectCanonical;
 
 export async function assertNoSymlinksInAncestors(fullPath: string, stateRoot: string): Promise<void> {
   const normStateRoot = resolve(stateRoot);
@@ -1663,7 +1765,7 @@ export async function startCommandJob(
   }
 
   // 3. Validate external state root is not inside cwd or project
-  assertStateRootNotInsideProject(stateRoot, resolvedCwd);
+  await assertStateRootNotInsideProjectCanonical(stateRoot, resolvedCwd);
 
   // 4. Validate executable exists and is directly executable without an interpreter
   const resolvedExecutable = resolveCommand(executable) ?? resolve(executable);

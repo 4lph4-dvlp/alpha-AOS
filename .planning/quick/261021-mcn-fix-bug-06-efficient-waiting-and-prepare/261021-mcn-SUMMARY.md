@@ -67,3 +67,9 @@ Original D:/dev/alpha-AOS main remains54ecf5042a5cc969004716484f85c0b91b013505 w
 4. Evidence-only product documentation finalization, followed by affected fresh build/audit/pack/provenance/Stage1 checks without an unnecessary whole-suite repeat.
 5. Final execution summary before independent goal verification; canonical verification.status must be passed before the schema-backed Verified quick row.
 6. Preserve original input, fast-forward local main, retain identical verified covered bytes, rebuild/check in D, clean reviewed disposable files, and prepare local upload notes. No remote publication.
+
+## 2026-10-22 verified resumption
+
+The user identified BUG-06 and corrected a mistaken restart from the original D checkout. The existing workspace was located via retained native-session metadata and the approved contract. No new quick artifacts or product edits were created during the mistaken intake (init.quick only returned an unused identifier).
+
+Actual resume boundary: clean workspace HEAD 02c0222; final independent reviewer had hit quota immediately after starting, with no terminal report. Prior actual completion/safety/integration selections remain 7/17/4 required bodies passed. Resumed fresh independent GPT-6.1 Sol high final review; controller prepares the unchanged final release gate, preserving agy-only product edits, source/report input, and no-push/tag/publish boundary. No implementation, research or planning is being restarted.

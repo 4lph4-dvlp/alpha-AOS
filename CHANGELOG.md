@@ -2,6 +2,8 @@
 
 All notable changes to alpha-AOS are documented in this file. The format follows Keep a Changelog, and the project uses Semantic Versioning.
 
+## [Unreleased]
+
 ## [0.4.0] - 2026-10-21
 
 ### Added
@@ -25,7 +27,7 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 - **Snapshot `.planning` Read-Only Mirroring (`BUG-03`)**: `materializeTaskSnapshot` mirrors regular files under `<projectRoot>/.planning` (`ROADMAP.md`, `STATE.md`, etc.) into isolated snapshots without altering the artifact manifest hash, enabling criterion measurements and reviewers to read planning state.
 - **GSD Quick Retry Resilience (`BUG-04`)**: `verifyGsdEvidence` now accepts `allowExistingClaimedQuick` so contract retries and revisions > 1 can verify pre-existing claimed `.planning/quick/<id>` directories and their `docs(quick-<id>)` commits across git history.
 
-## [Unreleased]
+## [0.4.1] - 2026-10-22
 
 ### Changed
 

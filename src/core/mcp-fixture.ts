@@ -120,7 +120,7 @@ export async function discoverTools(
   const send = (value: unknown): void => { session.send(value); };
   const waitFor = async (id: number): Promise<Record<string, unknown>> => {
     try {
-      return await session.waitFor((message) => message.id === id, 150_000);
+      return await session.waitFor((message) => message.id === id, 180_000);
     } catch {
       // A wait ends only with a coded session outcome, so the failure is
       // described from exit metadata and stream fingerprints — never by

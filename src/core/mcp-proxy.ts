@@ -644,7 +644,19 @@ export interface McpProxyOptions {
    * against a tree that was already verified rather than resolved again.
    */
   upstream?: ProtocolProcessSpec;
+  /**
+   * Upstream protocol timeout for initialize, tools/list, and tools/call.
+   * Defaults to DEFAULT_MCP_PROXY_TIMEOUT_MS (180_000 ms).
+   */
+  requestTimeoutMs?: number;
 }
+
+/**
+ * Default timeout for MCP protocol operations through the proxy (connect, tools/list, tools/call).
+ * Set to 180_000 ms (3 minutes) to ensure cold npx downloads and startup on slow CI runners
+ * (specifically Windows VMs) complete reliably without tripping the SDK's 60s default timeout.
+ */
+export const DEFAULT_MCP_PROXY_TIMEOUT_MS = 180_000;
 
 /**
  * The refusal a denied tool produces.
@@ -706,9 +718,10 @@ export async function runMcpProxy(
   options: McpProxyOptions = {},
 ): Promise<void> {
   const allow = allowedMcpTools(serverId);
+  const requestTimeout = options.requestTimeoutMs ?? DEFAULT_MCP_PROXY_TIMEOUT_MS;
   const upstreamTransport = new BoundedStdioTransport(options.upstream ?? upstreamProcessSpec(serverId, locked));
   const client = new Client({ name: `alpha-aos-mcp-${options.mode ?? "filter"}`, version: "0.1.0" });
-  await client.connect(upstreamTransport);
+  await client.connect(upstreamTransport, { timeout: requestTimeout });
 
   const server = new Server(
     { name: `alpha-aos-${serverId}-${options.mode ?? "filter"}`, version: "0.1.0" },
@@ -720,7 +733,7 @@ export async function runMcpProxy(
     },
   );
   server.setRequestHandler(ListToolsRequestSchema, async (request) => {
-    const result = await client.listTools(request.params);
+    const result = await client.listTools(request.params, { timeout: requestTimeout });
     if (!allow) return result;
     return { ...result, tools: result.tools.filter((tool) => allow.has(tool.name)) };
   });
@@ -735,7 +748,7 @@ export async function runMcpProxy(
     }
     let result: unknown;
     try {
-      result = await client.callTool(request.params);
+      result = await client.callTool(request.params, undefined, { timeout: requestTimeout });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       observe(options, serverId, locked, tool, "transport-error", request.params.arguments, {
@@ -864,14 +877,14 @@ export async function openObservedUpstream(
 
   const transport = new BoundedStdioTransport(upstream ?? upstreamProcessSpec(serverId, locked));
   const client = new Client({ name: "alpha-aos-mcp-observe", version: "0.1.0" });
-  await client.connect(transport);
+  await client.connect(transport, { timeout: DEFAULT_MCP_PROXY_TIMEOUT_MS });
 
   return {
     client,
     transport,
     observations: () => recorded,
     listTools: async () => {
-      const result = await client.listTools();
+      const result = await client.listTools(undefined, { timeout: DEFAULT_MCP_PROXY_TIMEOUT_MS });
       if (!allow) return result;
       return { ...result, tools: result.tools.filter((tool) => allow.has(tool.name)) };
     },
@@ -883,7 +896,7 @@ export async function openObservedUpstream(
       }
       let result: unknown;
       try {
-        result = await client.callTool(params);
+        result = await client.callTool(params, undefined, { timeout: DEFAULT_MCP_PROXY_TIMEOUT_MS });
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
         observe(options, serverId, locked, params.name, "transport-error", params.arguments, {

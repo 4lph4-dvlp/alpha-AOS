@@ -29,6 +29,7 @@ import {
   probeLaunchVersion,
   remainingMilliseconds,
   reportedExecutable,
+  resolveHarnessRoleModel,
   resolveTaskAgentLaunch,
   TASK_AGENT_BASE_ENVIRONMENT_NAMES,
   uniqueNames,
@@ -87,6 +88,7 @@ export interface CodexAdapterOptions {
   packageRoot?: string;
   source?: NodeJS.ProcessEnv;
   now?: () => Date;
+  model?: string | undefined;
 }
 
 interface ExecutorResultDocument {
@@ -204,6 +206,7 @@ export function codexControllerArgs(paths: {
   outputSchemaPath: string;
   lastMessagePath: string;
   gitDirectory: string | null;
+  model?: string | undefined;
 }): string[] {
   return [
     "exec",
@@ -213,6 +216,7 @@ export function codexControllerArgs(paths: {
     ...(paths.gitDirectory === null ? ["--sandbox", "workspace-write"] : codexGitAuthorityOverrides(paths.gitDirectory)),
     "-C",
     paths.projectRoot,
+    ...(paths.model !== undefined && paths.model.trim().length > 0 ? ["-m", paths.model.trim()] : []),
     "--output-schema",
     paths.outputSchemaPath,
     "-o",
@@ -225,6 +229,7 @@ export function codexReviewerArgs(paths: {
   reviewRoot: string;
   outputSchemaPath: string;
   lastMessagePath: string;
+  model?: string | undefined;
 }): string[] {
   return [
     "exec",
@@ -235,6 +240,7 @@ export function codexReviewerArgs(paths: {
     "read-only",
     "-C",
     paths.reviewRoot,
+    ...(paths.model !== undefined && paths.model.trim().length > 0 ? ["-m", paths.model.trim()] : []),
     "--output-schema",
     paths.outputSchemaPath,
     "-o",
@@ -477,12 +483,26 @@ export async function runCodexController(
   // A final message left from anything earlier must never be read as this run's.
   await rm(lastMessagePath, { force: true });
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "codex",
+    role: "controller",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.projectRoot,
+  });
+
   let args: string[];
   let launchEnvironment = environment;
   try {
     args = [
       ...launch.argsPrefix,
-      ...codexControllerArgs({ projectRoot: request.projectRoot, outputSchemaPath, lastMessagePath, gitDirectory: request.gitDirectory }),
+      ...codexControllerArgs({
+        projectRoot: request.projectRoot,
+        outputSchemaPath,
+        lastMessagePath,
+        gitDirectory: request.gitDirectory,
+        model: resolvedModel,
+      }),
     ];
     if (request.gitDirectory !== null) {
       // git compares safe.directory with the real path it discovers, so the trust names the canonical root.
@@ -646,9 +666,22 @@ export async function runCodexReviewer(
   await writeFile(outputSchemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
   await rm(lastMessagePath, { force: true });
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "codex",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...codexReviewerArgs({ reviewRoot: request.reviewRoot, outputSchemaPath, lastMessagePath }),
+    ...codexReviewerArgs({
+      reviewRoot: request.reviewRoot,
+      outputSchemaPath,
+      lastMessagePath,
+      model: resolvedModel,
+    }),
   ];
 
   let result: ProcessResult;
@@ -732,6 +765,14 @@ export async function runCodexFinalReviewer(
   await writeFile(outputSchemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
   await rm(lastMessagePath, { force: true });
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "codex",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const result = await runner({
     executable: launch.executable,
     args: [
@@ -740,6 +781,7 @@ export async function runCodexFinalReviewer(
         reviewRoot: request.reviewRoot,
         outputSchemaPath,
         lastMessagePath,
+        model: resolvedModel,
       }),
     ],
     cwd: request.reviewRoot,

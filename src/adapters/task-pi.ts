@@ -26,6 +26,7 @@ import {
   probeLaunchVersion,
   remainingMilliseconds,
   reportedExecutable,
+  resolveHarnessRoleModel,
   resolveTaskAgentLaunch,
   TASK_AGENT_BASE_ENVIRONMENT_NAMES,
   uniqueNames,
@@ -51,13 +52,14 @@ export interface PiAdapterOptions {
   packageRoot?: string;
   source?: NodeJS.ProcessEnv;
   now?: () => Date;
+  model?: string | undefined;
 }
 
 export function piEnvironment(source: NodeJS.ProcessEnv = process.env): EnvironmentPolicy {
   return nameOnlyEnvironment(PI_TASK_ENVIRONMENT_NAMES, source);
 }
 
-export function piReviewerArgs(options: { schemaPath: string; prompt?: string }): string[] {
+export function piReviewerArgs(options: { schemaPath: string; prompt?: string; model?: string | undefined }): string[] {
   const args = [
     "-p",
     "--mode",
@@ -69,13 +71,16 @@ export function piReviewerArgs(options: { schemaPath: string; prompt?: string })
     "--json-schema",
     options.schemaPath,
   ];
+  if (options.model !== undefined && options.model.trim().length > 0) {
+    args.push("--model", options.model.trim());
+  }
   if (options.prompt !== undefined) {
     args.push(options.prompt);
   }
   return args;
 }
 
-export function piControllerArgs(options: { schemaPath: string; prompt?: string }): string[] {
+export function piControllerArgs(options: { schemaPath: string; prompt?: string; model?: string | undefined }): string[] {
   const args = [
     "-p",
     "--mode",
@@ -85,6 +90,9 @@ export function piControllerArgs(options: { schemaPath: string; prompt?: string 
     "--json-schema",
     options.schemaPath,
   ];
+  if (options.model !== undefined && options.model.trim().length > 0) {
+    args.push("--model", options.model.trim());
+  }
   if (options.prompt !== undefined) {
     args.push(options.prompt);
   }
@@ -191,9 +199,17 @@ export async function runPiController(
   const schema = await loadAgentSchema("task-executor-result.schema.json", options.packageRoot ?? defaultPackageRoot());
   await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "pi",
+    role: "controller",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.projectRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...piControllerArgs({ schemaPath }),
+    ...piControllerArgs({ schemaPath, model: resolvedModel }),
   ];
 
   let result: ProcessResult;
@@ -335,9 +351,17 @@ export async function runPiReviewer(
   const schema = await loadAgentSchema("task-review.schema.json", options.packageRoot ?? defaultPackageRoot());
   await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "pi",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...piReviewerArgs({ schemaPath }),
+    ...piReviewerArgs({ schemaPath, model: resolvedModel }),
   ];
 
   let result: ProcessResult;
@@ -438,9 +462,17 @@ export async function runPiFinalReviewer(
   const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
   await writeFile(schemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "pi",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
-    ...piReviewerArgs({ schemaPath }),
+    ...piReviewerArgs({ schemaPath, model: resolvedModel }),
   ];
 
   const result = await runner({

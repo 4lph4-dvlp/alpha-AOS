@@ -4,6 +4,20 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-10-26
+
+### Fixed
+
+- **Deterministic Cross-Harness Model Enforcement**:
+  - Full model CLI argument injection (`--model` / `-m`) across all 5 supported harnesses: `antigravity`, `claude`, `codex`, `pi`, and `hermes`.
+  - Universal role-model resolution engine (`resolveHarnessRoleModel` in `task-agent-launch.ts`) with strict precedence ladder: direct options > contract `agentPolicy` (`controllerModel`, `executorModel`, `reviewerModel`) > project `.planning/config.json`.
+  - `canonicalModelToAntigravityTier`: normalizes canonical model IDs (`gemini-4-argon-high`, `gemini-3.8-flash-high`, `claude-3-5-sonnet`, etc.) into native Antigravity subagent Model enums (`"pro"`, `"flash"`, `"flash_lite"`, `"inherit"`).
+  - Subagent dispatch guard (`validateAntigravitySubagentDispatch` / `assertAntigravitySubagentDispatch`): prevents silent parent-model inheritance downgrades when Antigravity `invoke_subagent` is invoked with `typeName: "self"`.
+  - `assertModelCompliance`: fail-closed guard throwing `MODEL_ENFORCEMENT_VIOLATION` on model mismatch or missing model.
+  - GSD lifecycle step model injection in `executeGsdStep`: automatically detects AI harness CLI commands and injects the contracted model for discuss/plan/execute/verify steps.
+  - Cross-harness delegation: guarantees that when Controller in Harness A delegates Review/Reasoning to Harness B, Harness B is invoked with its exact contracted model.
+  - Comprehensive test suite: `test/task-cross-harness-models.test.ts` covering precedence, sanitization, argument vectors, cross-delegation, and subagent dispatch guards.
+
 ## [0.4.0] - 2026-10-21
 
 ### Added

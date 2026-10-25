@@ -18,6 +18,8 @@ import {
 } from "./task-gsd-discovery.js";
 import { taskContractDigest, type TaskContract } from "./task-contract.js";
 import { userStateRoot } from "./paths.js";
+import type { HarnessId } from "../types.js";
+import { resolveHarnessRoleModel } from "../adapters/task-agent-launch.js";
 import {
   gateMilestoneFinalReview,
   type FinalReviewPort,
@@ -117,6 +119,16 @@ export interface MultiPhaseOptions {
   readonly sessionId?: string | undefined;
   readonly stateRoot?: string | undefined;
   readonly finalReviewPort?: FinalReviewPort | undefined;
+}
+
+function detectHarnessFromExecutable(name: string): HarnessId | null {
+  const base = name.toLowerCase().replace(/\.exe$/u, "").split(/[/\\]/u).pop() ?? "";
+  if (base === "agy" || base === "antigravity") return "antigravity";
+  if (base === "claude") return "claude";
+  if (base === "codex") return "codex";
+  if (base === "pi") return "pi";
+  if (base === "hermes") return "hermes";
+  return null;
 }
 
 /**
@@ -412,6 +424,29 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
   const resolvedExec = isAbsolute(executable)
     ? executable
     : (resolveCommand(executable) ?? executable);
+
+  const detectedHarness = detectHarnessFromExecutable(executable);
+  if (detectedHarness) {
+    const role: "controller" | "executor" | "reviewer" =
+      options.step === "execute" ? "executor" : "reviewer";
+    const resolvedModel = await resolveHarnessRoleModel({
+      harness: detectedHarness,
+      role,
+      agentPolicy: options.contract?.agentPolicy,
+      projectRoot: options.projectRoot,
+    });
+    if (resolvedModel) {
+      if (detectedHarness === "codex") {
+        if (!args.includes("-m") && !args.includes("--model")) {
+          args.push("-m", resolvedModel);
+        }
+      } else {
+        if (!args.includes("--model")) {
+          args.push("--model", resolvedModel);
+        }
+      }
+    }
+  }
 
   // 3. Isolated bounded child process execution via runProcess
   const startTime = Date.now();

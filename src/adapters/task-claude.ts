@@ -17,6 +17,7 @@ import {
   probeLaunchVersion,
   remainingMilliseconds,
   reportedExecutable,
+  resolveHarnessRoleModel,
   resolveTaskAgentLaunch,
   TASK_AGENT_BASE_ENVIRONMENT_NAMES,
   uniqueNames,
@@ -54,6 +55,7 @@ export interface ClaudeAdapterOptions {
   packageRoot?: string;
   source?: NodeJS.ProcessEnv;
   now?: () => Date;
+  model?: string | undefined;
 }
 
 export type ReviewPrompt =
@@ -76,8 +78,12 @@ export function claudeReviewEnvironment(source: NodeJS.ProcessEnv = process.env)
  * alpha-AOS, restricted to read-only file tools in the working directory, no
  * MCP servers beyond an explicit (empty) config, plan mode and no prompts.
  */
-export function claudeReviewerArgs(options: { sessionId: string; reviewSchemaJson: string }): string[] {
-  return [
+export function claudeReviewerArgs(options: {
+  sessionId: string;
+  reviewSchemaJson: string;
+  model?: string | undefined;
+}): string[] {
+  const args = [
     "-p",
     "--output-format",
     "json",
@@ -95,6 +101,10 @@ export function claudeReviewerArgs(options: { sessionId: string; reviewSchemaJso
     "--permission-prompts",
     "none",
   ];
+  if (options.model !== undefined && options.model.trim().length > 0) {
+    args.push("--model", options.model.trim());
+  }
+  return args;
 }
 
 function measurementLine(measurement: ReviewRequest["measurements"][number]): string {
@@ -281,13 +291,25 @@ export async function runClaudeReviewer(request: ReviewRequest, options: ClaudeA
   }
 
   const schema = await loadAgentSchema("task-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "claude",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   let result: ProcessResult;
   try {
     result = await runner({
       executable: launch.executable,
       args: [
         ...launch.argsPrefix,
-        ...claudeReviewerArgs({ sessionId: request.sessionId, reviewSchemaJson: JSON.stringify(agentFacingSchema(schema)) }),
+        ...claudeReviewerArgs({
+          sessionId: request.sessionId,
+          reviewSchemaJson: JSON.stringify(agentFacingSchema(schema)),
+          model: resolvedModel,
+        }),
       ],
       cwd: request.reviewRoot,
       stdin: prompt.prompt,
@@ -345,11 +367,23 @@ export async function runClaudeFinalReviewer(
   }
 
   const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "claude",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const result = await runner({
     executable: launch.executable,
     args: [
       ...launch.argsPrefix,
-      ...claudeReviewerArgs({ sessionId: request.sessionId, reviewSchemaJson: JSON.stringify(agentFacingSchema(schema)) }),
+      ...claudeReviewerArgs({
+        sessionId: request.sessionId,
+        reviewSchemaJson: JSON.stringify(agentFacingSchema(schema)),
+        model: resolvedModel,
+      }),
     ],
     cwd: request.reviewRoot,
     stdin: prompt.prompt,

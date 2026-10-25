@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "generatedAt": "2026-10-10T18:08:41.087Z",
+  "generatedAt": "2026-10-25T18:01:16.999Z",
   "components": {
     "gsd": {
       "package": "@opengsd/gsd-core",
-      "version": "1.16.0",
-      "integrity": "sha512-A3OgmNH8/M0eALNpKZp0bjP0L5puu6rne1keqdFaM+NvqybuYZ2kJOcUH+fCKu6FQBGV0fAUEUE1bs6xqRfF7Q==",
+      "version": "1.18.0",
+      "integrity": "sha512-00b29mvlQMmUcR8wkvJFf/okGDWRB1kiHR4Pg921N+Q8nFwXehRhHEGAusQn+oM/p7SMGM4sAdPAbiECGaozwg==",
       "profile": "standard"
     },
     "ecc": {
@@ -88,8 +88,8 @@
     "mcp": {
       "context7": {
         "package": "@upstash/context7-mcp",
-        "version": "4.3.0",
-        "integrity": "sha512-fuDt5nWjE5JkAPLjU0m+m0LlJphxyegAvAmcwHoA5jrzAhKo/rVV0RFA8TOwODGdDVdt/nPxNslkxeDIDp/rPA=="
+        "version": "4.4.4",
+        "integrity": "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA=="
       },
       "exa": {
         "package": "exa-mcp-server",
@@ -98,15 +98,15 @@
       },
       "firecrawl": {
         "package": "firecrawl-mcp",
-        "version": "3.29.1",
-        "integrity": "sha512-Y2B8/bNq4vE+kFTLFQbOR31hgvrmc07tuP+Ie+8wa0lgJAZVBKDGjKx+l+N6yyIgSkohtv6iRwuqZxqbTreoaQ=="
+        "version": "3.34.1",
+        "integrity": "sha512-ccQgYHk+NDw7bQRkITfwmiqU212HAE8Dll8A4PsIIx8UKBouj11Eu2o06eQoWCVznlqEtjEepQdyyazSyBK7Cg=="
       }
     },
     "mcpBridges": {
       "pi": {
         "package": "pi-mcp-adapter",
-        "version": "5.2.0",
-        "integrity": "sha512-I1J8jEtInPYlwxoOk0WyVzHsBnP2ahYwSNKOKPEsDgwL+8dvUaGCcD220lSxwbMhaLIgnar6DCbufjoU6caHpw=="
+        "version": "6.0.0",
+        "integrity": "sha512-pmCLEaxsvElxahdevTpocmaou6SVMRgNSc/L3b1xZIGtw9t6M56yZxP6SO21mdu9SZiUUeQR50aKmY54WflpKA=="
       }
     },
     "ownedSkills": {

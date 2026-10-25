@@ -17,6 +17,12 @@ All notable changes to alpha-AOS are documented in this file. The format follows
   - GSD lifecycle step model injection in `executeGsdStep`: automatically detects AI harness CLI commands and injects the contracted model for discuss/plan/execute/verify steps.
   - Cross-harness delegation: guarantees that when Controller in Harness A delegates Review/Reasoning to Harness B, Harness B is invoked with its exact contracted model.
   - Comprehensive test suite: `test/task-cross-harness-models.test.ts` covering precedence, sanitization, argument vectors, cross-delegation, and subagent dispatch guards.
+- **Promoted Upstream Tool Dependencies**:
+  - `@opengsd/gsd-core`: `1.16.0` -> `1.18.0`
+  - `@upstash/context7-mcp`: `4.3.0` -> `4.4.4`
+  - `firecrawl-mcp`: `3.29.1` -> `3.34.1`
+  - `pi-mcp-adapter`: `5.2.0` -> `6.0.0`
+  - Verified live SRI registry integrity and reconciled across all 5 harnesses.
 
 ## [0.4.0] - 2026-10-21
 

@@ -12,6 +12,9 @@ All notable changes to alpha-AOS are documented in this file. The format follows
   - `src/core/mcp-proxy.ts`: Passed explicit `DEFAULT_MCP_PROXY_TIMEOUT_MS = 180_000` (3 minutes) to `@modelcontextprotocol/sdk` `client.connect()`, `client.listTools()`, and `client.callTool()` calls. Prevents cold `npx` package downloads and initialization on slow Windows CI runners (`windows-latest`) from hitting the MCP SDK's default 60s timeout (`ErrorCode.RequestTimeout: Request timed out`, code `-32001`).
   - `src/core/mcp-fixture.ts`: Raised `discoverTools` awaited reply timeout from 150s to 180s to align with the proxy timeout ceiling.
   - Fixes Monday `dependency-candidate.yml` fixture failure and subsequent Wednesday `auto-promote.yml` aborts.
+- **Cross-Platform Path Containment for Computer-Use Audit Evidence**:
+  - `src/core/computer-use-audit.ts`: Allowed macOS system root symlinks (`/var`, `/tmp`, `/etc`) in `safeComputerPath`.
+  - Normalized both parent and child paths via `realpath` before relative path containment verification in `verifyComputerAudit`, preventing false-positive root escape errors caused by Windows 8.3 short paths (`RUNNER~1`) on CI runners.
 
 ### Fixed
 

@@ -8,6 +8,8 @@ import {
   executeGsdStep,
   runPhaseLifecycle,
   orchestrateMultiPhaseProgression,
+  buildGsdStepWorkflowPrompt,
+  resolveDefaultGsdHarnessCommand,
   type GsdStepKind,
 } from "../src/core/task-gsd-lifecycle.js";
 import { readHookReceipt } from "../src/core/task-hook-receipt.js";
@@ -536,4 +538,43 @@ test("orchestrateMultiPhaseProgression halts if phase fails capability verificat
 
   assert.equal(result.finalStatus, "failed");
   assert.equal(result.completedPhases.length, 0);
+});
+
+test("buildGsdStepWorkflowPrompt formats appropriate prompt for each step kind", () => {
+  const discussPrompt = buildGsdStepWorkflowPrompt("discuss", "01");
+  assert.ok(discussPrompt.includes("Phase 01 with arguments \"01 --auto\""));
+  assert.ok(discussPrompt.includes("discuss-phase.md"));
+
+  const planPrompt = buildGsdStepWorkflowPrompt("plan", "02");
+  assert.ok(planPrompt.includes("Phase 02 with arguments \"02 --no-reversibility-gates --text\""));
+  assert.ok(planPrompt.includes("plan-phase.md"));
+
+  const execPrompt = buildGsdStepWorkflowPrompt("execute", "03");
+  assert.ok(execPrompt.includes("Phase 03 with arguments \"03 --no-transition\""));
+  assert.ok(execPrompt.includes("execute-phase.md"));
+
+  const verifyPrompt = buildGsdStepWorkflowPrompt("verify", "04");
+  assert.ok(verifyPrompt.includes("Phase 04"));
+  assert.ok(verifyPrompt.includes("verify-work"));
+});
+
+test("resolveDefaultGsdHarnessCommand formats harness commands correctly", () => {
+  const agyCmd = resolveDefaultGsdHarnessCommand("antigravity", "discuss", "01");
+  assert.equal(agyCmd.executable, "agy");
+  assert.equal(agyCmd.args[0], "--mode");
+  assert.equal(agyCmd.args[1], "accept-edits");
+  assert.equal(agyCmd.args[2], "--dangerously-skip-permissions");
+  assert.equal(agyCmd.args[3], "-p");
+  assert.ok(agyCmd.args[4]?.includes("Phase 01"));
+
+  const claudeCmd = resolveDefaultGsdHarnessCommand("claude", "plan", "02");
+  assert.equal(claudeCmd.executable, "claude");
+  assert.equal(claudeCmd.args[0], "--dangerously-skip-permissions");
+  assert.equal(claudeCmd.args[1], "-p");
+  assert.ok(claudeCmd.args[2]?.includes("Phase 02"));
+
+  const codexCmd = resolveDefaultGsdHarnessCommand("codex", "execute", "03");
+  assert.equal(codexCmd.executable, "codex");
+  assert.equal(codexCmd.args[0], "exec");
+  assert.ok(codexCmd.args[1]?.includes("Phase 03"));
 });

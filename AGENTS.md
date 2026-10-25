@@ -286,6 +286,12 @@ During GSD research, planning, and execution, agents must actively invoke manage
 - **External Repositories & Web Docs**: Use Exa (`web_search_exa`) for discovery and Firecrawl (`firecrawl_scrape`) for content extraction.
 - **Libraries & APIs**: Use Context7 (`resolve-library-id`, `query-docs`) to ground code against up-to-date official documentation.
 - **Session & Harness Continuity**: Persist durable context into the ECC Unified Memory vault (`unified-memory` / `ecc memory`) across phase or harness boundaries.
+
+### 4. Autonomous Autopilot Execution Boundary (Fail-Closed Invariant)
+When a task contract specifies `mode: autopilot`, chat UI agents **MUST NOT** perform inline file modifications (`write_file`, `edit_file`, or running inline code generators) within the interactive session:
+- **Zero Inline Execution**: The chat agent is strictly forbidden from simulating or manually advancing autopilot tasks in the conversational thread.
+- **External Headless Runner Mandate**: Autopilot contracts must be executed exclusively via `alpha-aos task start` (or a dedicated runner process) using isolated child processes.
+- **Model Policy Integrity**: Inline chat execution binds model selection to the interactive UI dropdown (e.g. Gemini Flash) rather than the contract-specified model tiers (e.g. Gemini Argon / Claude Opus / GPT-4o). Delegating to the headless runner ensures exact `--model` injection and prevents model downgrade violations.
 <!-- GSD:workflow-end -->
 
 <!-- GSD:profile-start -->

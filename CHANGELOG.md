@@ -4,6 +4,25 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-10-26
+
+### Added
+
+- **Multi-Phase GSD Autopilot Engine in `alpha-aos task start`**:
+  - Integrated full multi-phase/multi-milestone progression (`startMultiPhaseTask`) directly into `alpha-aos task start` when `scope.workflow` is `"gsd-multi-phase"` or `"gsd"`.
+  - Added `buildGsdStepWorkflowPrompt` and `resolveDefaultGsdHarnessCommand` in `src/core/task-gsd-lifecycle.ts` to automatically construct default harness command vectors (`agy`, `claude`, `codex`, `pi`, `hermes`) for all GSD lifecycle steps without requiring ad-hoc project runner scripts.
+  - Automatically advances through `discuss`, `plan`, `execute`, and `verify` across all planned phases discovered in `.planning/ROADMAP.md` and generates final milestone review.
+
+### Fixed
+
+- **Autonomous Autopilot Inline Chat Execution Prevention (Fail-Closed Invariant)**:
+  - Formulated and enforced a strict governance invariant in `AGENTS.md` and `skills/alpha-aos-task/SKILL.md`: chat UI agents are strictly prohibited from performing inline file writes (`write_file`, `edit_file`) for tasks operating in `mode: autopilot`.
+  - Guarantees model policy integrity: inline chat execution binds model reasoning to whatever model the user has selected in the chat UI dropdown (e.g. Gemini Flash); running through the headless supervisor (`alpha-aos task start`) guarantees that contracted model flags (`--model`) are explicitly passed to isolated child processes.
+- **Harness Argument Positioning and Windows Spawn Safety**:
+  - Fixed argument ordering for `agy`: ensures `-p` / `--print` is placed immediately before the prompt string, and `--model` is inserted before `-p`.
+  - Corrected role mapping in `executeGsdStep`: `discuss` and `plan` steps are correctly assigned to `"controller"` (resolving `controllerModel` such as Gemini 4 Argon) while `execute` is `"executor"` and `verify` is `"reviewer"`.
+  - Fixed Windows child process spawning for `agy.exe` to avoid `cmd.exe` argument mangling.
+
 ## [0.4.3] - 2026-10-26
 
 ### Fixed

@@ -131,6 +131,54 @@ function detectHarnessFromExecutable(name: string): HarnessId | null {
   return null;
 }
 
+export function buildGsdStepWorkflowPrompt(step: GsdStepKind, phaseId: string): string {
+  switch (step) {
+    case "discuss":
+      return `Execute the GSD discuss-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/discuss-phase.md) for Phase ${phaseId} with arguments "${phaseId} --auto". Act as an autonomous engineering user proxy: analyze all gray areas for Phase ${phaseId}, select optimal recommended choices, log decisions into CONTEXT.md, and commit docs. Stop immediately after CONTEXT.md is written and committed.`;
+    case "plan":
+      return `Execute the GSD plan-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/plan-phase.md) for Phase ${phaseId} with arguments "${phaseId} --no-reversibility-gates --text". Run phase research, pattern mapping, detailed plan synthesis, and plan-checker verification loop until plans pass. Commit planning docs and stop before execute-phase.`;
+    case "execute":
+      return `Execute the GSD execute-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/execute-phase.md) for Phase ${phaseId} with arguments "${phaseId} --no-transition". Implement every task in all wave plans cleanly with full unit tests and atomic git commits.`;
+    case "verify":
+      return `Execute goal-backward phase verification and code review for Phase ${phaseId}: 1. Run verify-work workflow for Phase ${phaseId} to verify all requirements in codebase and produce VERIFICATION.md. 2. Fix any defects. 3. Ensure VERIFICATION.md has status: passed.`;
+  }
+}
+
+export function resolveDefaultGsdHarnessCommand(
+  harness: HarnessId,
+  step: GsdStepKind,
+  phaseId: string,
+): { executable: string; args: string[] } {
+  const prompt = buildGsdStepWorkflowPrompt(step, phaseId);
+  switch (harness) {
+    case "antigravity":
+      return {
+        executable: "agy",
+        args: ["--mode", "accept-edits", "--dangerously-skip-permissions", "-p", prompt],
+      };
+    case "claude":
+      return {
+        executable: "claude",
+        args: ["--dangerously-skip-permissions", "-p", prompt],
+      };
+    case "codex":
+      return {
+        executable: "codex",
+        args: ["exec", prompt],
+      };
+    case "pi":
+      return {
+        executable: "pi",
+        args: ["-p", prompt],
+      };
+    case "hermes":
+      return {
+        executable: "hermes",
+        args: ["exec", prompt],
+      };
+  }
+}
+
 /**
  * Detects whether stdout contains an interactive GSD prompt question.
  */
@@ -418,6 +466,14 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
         ];
       }
     }
+  } else if (options.contract?.agentPolicy?.controller) {
+    const defaultCmd = resolveDefaultGsdHarnessCommand(
+      options.contract.agentPolicy.controller,
+      options.step,
+      options.phaseId,
+    );
+    executable = defaultCmd.executable;
+    args = [...defaultCmd.args];
   }
 
   // Resolve executable if not absolute
@@ -428,7 +484,11 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
   const detectedHarness = detectHarnessFromExecutable(executable);
   if (detectedHarness) {
     const role: "controller" | "executor" | "reviewer" =
-      options.step === "execute" ? "executor" : "reviewer";
+      options.step === "execute"
+        ? "executor"
+        : options.step === "verify"
+          ? "reviewer"
+          : "controller";
     const resolvedModel = await resolveHarnessRoleModel({
       harness: detectedHarness,
       role,
@@ -438,11 +498,21 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     if (resolvedModel) {
       if (detectedHarness === "codex") {
         if (!args.includes("-m") && !args.includes("--model")) {
-          args.push("-m", resolvedModel);
+          const execIdx = args.findIndex((a) => a === "exec");
+          if (execIdx !== -1) {
+            args.splice(execIdx + 1, 0, "-m", resolvedModel);
+          } else {
+            args.push("-m", resolvedModel);
+          }
         }
       } else {
         if (!args.includes("--model")) {
-          args.push("--model", resolvedModel);
+          const pIndex = args.findIndex((a) => a === "-p" || a === "--print");
+          if (pIndex !== -1) {
+            args.splice(pIndex, 0, "--model", resolvedModel);
+          } else {
+            args.push("--model", resolvedModel);
+          }
         }
       }
     }

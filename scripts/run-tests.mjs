@@ -50,6 +50,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
+import { availableParallelism } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -145,7 +146,11 @@ if (named === null) {
 
 function runFiles(selected) {
   return new Promise((resolveRun) => {
-    const child = spawn(process.execPath, ["--test", ...flags, ...selected], {
+    // Default cap bounds file contention while keeping all tests.
+    const concurrencyFlags = flags.some((flag) => flag === "--test-concurrency" || flag.startsWith("--test-concurrency="))
+      ? []
+      : [`--test-concurrency=${Math.min(4, availableParallelism())}`];
+    const child = spawn(process.execPath, ["--test", ...concurrencyFlags, ...flags, ...selected], {
       cwd: repositoryRoot,
       stdio: "inherit",
       env: scrubbedEnvironment(process.env),

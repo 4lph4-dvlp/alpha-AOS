@@ -28,6 +28,7 @@ files_modified:
   - test/helpers/command-job-runtime.ts
   - test/verify-efficient-wait-integrity.test.ts
   - test/efficient-wait-cli.test.ts
+  - scripts/run-tests.mjs
   - scripts/build-artifact.mjs
   - test/job-cli-bootstrap.test.ts
   - test/build-artifact-integrity.test.ts
@@ -282,3 +283,7 @@ Exact added files are src/core/task-gsd-lifecycle.ts, test/task-gsd-lifecycle.te
 
 ### Power-loss failure correction scope (same task)
 Actual targeted045 completed191tests178pass12fail1skip beforepowerloss. Minimal serial4 subsequently2pass2fail; remaining8serial8pass0fail0skip, so scheduling alone is not established as cause. New required correction files: existing src/cli.ts moves existing job/worker branches verbatim ahead of unused installer catalog loads; scripts/build-artifact.mjs verifies every input/output hash with bounded8 reads and original diagnostic order; new actual-script fixture regressions test/job-cli-bootstrap.test.ts and test/build-artifact-integrity.test.ts cover invalid installer catalog independence and >8 batch boundary hashes/missing entries. No handshake5000ms, buildcheck5000ms, verifier25000ms, source/process/output/authority bounds or assertions change. Gemini alone applies all product/test changes. Priorreview0findings remains historical; new correction requires affected build/checks and narrow independent review before full release.
+
+
+### Actual full-gate scheduling correction
+Source7940081 fullgate1807total1790pass6fail11skip exit1,17m12.180s; no package/provenance/Stage1success. Samebehavioralcases passedserial. Addexactowned scripts/run-tests.mjs defaultmin(4,availableParallelism)fileconcurrency; preserveexplicitflags, allenumerated/namedfiles, packedlifecycleordering andassertions. No product/runtime/testdeadlines/skip changes. Gemini alone implements; affected6cases/default+explicitconcurrency behavior andfreshindependentreview required beforeonejustifiednewfullattempt. Keep allpriorfailedlogs; no blindretry.

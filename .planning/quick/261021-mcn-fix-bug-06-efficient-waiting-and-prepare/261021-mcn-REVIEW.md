@@ -224,3 +224,17 @@ Current SHA-256:
 Follow-up result: 0 open static findings, 0 product-code findings. No tests or builds run by this reviewer. Runtime acceptance remains pending the controller-owned actual build/selected-case results; this static resolution does not turn the earlier failing gate green or credit separately saved reproduction checkpoints as criterion passes.
 
 Controller actual resolution evidence: fixture-build045 exit0; exact4selectedcases4pass0fail0skip33189.514ms (newcopiedCLIbootstrap,realproducer,completion,safety). Prior36case33pass2fail1skip retained; bootstrapP1 and observedproducerfailure now pass without alteredoracles/deadlines. Productandtestbyteidentities covered by the new source commit below; finalfullrelease stillpending.
+
+# Independent runner concurrency-cap review
+
+- Scope: static review of the uncommitted concurrency-cap diff in `scripts/run-tests.mjs` against HEAD `79400816adf87ea971ddb74bd95fa6885edfd6fa`.
+- Reviewed source SHA256: `87D55C68EED9D95392113ABDB90575FB81331D5C6FB3FEEEB5E9F9A716642295`.
+- Findings: **0 open findings**.
+
+The change adds a default Node test file concurrency argument capped at four and available host parallelism. It does not change file enumeration, named-file validation, selected paths, assertion execution, forwarded flags, environment scrubbing, inherited stdio, exit handling, or the existing packed lifecycle ordering. Both explicit argument forms (`--test-concurrency VALUE` and `--test-concurrency=VALUE`) suppress the injected default, leaving Node to validate and honor the original arguments. The selected files are still appended unchanged to the child invocation; the cap limits simultaneous file execution rather than selecting fewer files.
+
+The diff does not broaden mutation authority or declare any test result successful. Lower concurrency can change resource contention and timing, as intended, but this static review cannot establish that the previously failed cases or the full suite now pass. The controller must retain the actual failed full-run evidence and report subsequent runtime results separately.
+
+Limits: no tests, builds, network calls, or product/GSD edits were performed for this review. Runtime proofs and targeted reruns belong to the controller and were not duplicated. This review covers only the source hash above and the added default cap, not unrelated runner behavior or other modified files.
+
+Controller actual runner proof:8bodiesexecutedineachdefault/equal/separateflagmode; observedpeaks4/1/1, all exit0. Exact6previousfailedcases6pass0fail0skip23489.152ms. No productdeadline/oracle/skipchanges. Fullrelease retry requiresnewcommittedsource+freshgates.

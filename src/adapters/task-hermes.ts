@@ -26,6 +26,7 @@ import {
   probeLaunchVersion,
   remainingMilliseconds,
   reportedExecutable,
+  resolveHarnessRoleModel,
   resolveTaskAgentLaunch,
   TASK_AGENT_BASE_ENVIRONMENT_NAMES,
   uniqueNames,
@@ -51,6 +52,7 @@ export interface HermesAdapterOptions {
   packageRoot?: string;
   source?: NodeJS.ProcessEnv;
   now?: () => Date;
+  model?: string | undefined;
 }
 
 export function hermesEnvironment(source: NodeJS.ProcessEnv = process.env): EnvironmentPolicy {
@@ -61,12 +63,14 @@ export function hermesControllerArgs(options: {
   prompt: string;
   usageFile: string;
   projectRoot: string;
+  model?: string | undefined;
 }): string[] {
   return [
     "-z",
     options.prompt,
     "--usage-file",
     options.usageFile,
+    ...(options.model !== undefined && options.model.trim().length > 0 ? ["--model", options.model.trim()] : []),
     "--toolsets",
     "file,git,terminal",
     "--ignore-rules",
@@ -79,12 +83,14 @@ export function hermesReviewerArgs(options: {
   prompt: string;
   usageFile: string;
   reviewRoot: string;
+  model?: string | undefined;
 }): string[] {
   return [
     "-z",
     options.prompt,
     "--usage-file",
     options.usageFile,
+    ...(options.model !== undefined && options.model.trim().length > 0 ? ["--model", options.model.trim()] : []),
     "--toolsets",
     "file",
     "--ignore-rules",
@@ -178,12 +184,21 @@ export async function runHermesController(
   await rm(usageFilePath, { force: true });
 
   const schema = await loadAgentSchema("task-executor-result.schema.json", options.packageRoot ?? defaultPackageRoot());
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "hermes",
+    role: "controller",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.projectRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
     ...hermesControllerArgs({
       prompt: request.prompt,
       usageFile: usageFilePath,
       projectRoot: request.projectRoot,
+      model: resolvedModel,
     }),
   ];
 
@@ -326,12 +341,21 @@ export async function runHermesReviewer(
   await rm(usageFilePath, { force: true });
 
   const schema = await loadAgentSchema("task-review.schema.json", options.packageRoot ?? defaultPackageRoot());
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "hermes",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
     ...hermesReviewerArgs({
       prompt: prompt.prompt,
       usageFile: usageFilePath,
       reviewRoot: request.reviewRoot,
+      model: resolvedModel,
     }),
   ];
 
@@ -430,12 +454,21 @@ export async function runHermesFinalReviewer(
   await mkdir(workDirectory, { recursive: true });
   const usageFile = join(workDirectory, "final-usage.json");
 
+  const resolvedModel = await resolveHarnessRoleModel({
+    harness: "hermes",
+    role: "reviewer",
+    adapterModel: options.model,
+    agentPolicy: request.contract.agentPolicy,
+    projectRoot: request.reviewRoot,
+  });
+
   const args = [
     ...launch.argsPrefix,
     ...hermesReviewerArgs({
       prompt: prompt.prompt,
       usageFile,
       reviewRoot: request.reviewRoot,
+      model: resolvedModel,
     }),
   ];
 

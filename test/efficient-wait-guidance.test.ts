@@ -107,26 +107,27 @@ test("guidance contract: docs/efficient-wait.md covers five harnesses, truthful 
   );
 });
 
-test("guidance contract: package.json and package-lock.json root versions are 0.4.1", async () => {
+test("guidance contract: package.json and package-lock.json root versions are 0.4.5", async () => {
   const pkgPath = join(repositoryRoot, "package.json");
   const lockPath = join(repositoryRoot, "package-lock.json");
 
   const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
   assert.equal(
     pkg.version,
-    "0.4.1",
-    `package.json root version must be 0.4.1 for waiting release`,
+    "0.4.5",
+    `package.json root version must be 0.4.5 for waiting release`,
   );
 
   const lock = JSON.parse(await readFile(lockPath, "utf8"));
   assert.equal(
     lock.version,
-    "0.4.1",
-    `package-lock.json root version must be 0.4.1 for waiting release`,
+    "0.4.5",
+    `package-lock.json root version must be 0.4.5 for waiting release`,
   );
+  assert.equal(lock.packages[""].version, "0.4.5", "package-lock root package must match the 0.4.5 candidate");
 });
 
-test("guidance contract: BOTH READMEs mention 0.4.0 computer use, 0.4.1 waiting, and unrun platform status", async () => {
+test("guidance contract: BOTH READMEs mention 0.4.0 computer use, 0.4.5 waiting, and unrun platform status", async () => {
   const enReadmePath = join(repositoryRoot, "README.md");
   const koReadmePath = join(repositoryRoot, "README.ko.md");
 
@@ -149,8 +150,8 @@ test("guidance contract: BOTH READMEs mention 0.4.0 computer use, 0.4.1 waiting,
     );
     assert.match(
       content,
-      /0\.4\.1/u,
-      `${name} must mention 0.4.1 waiting release`,
+      /0\.4\.5/u,
+      `${name} must mention 0.4.5 waiting release`,
     );
     assert.match(
       content,

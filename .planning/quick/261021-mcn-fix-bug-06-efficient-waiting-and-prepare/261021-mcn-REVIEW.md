@@ -135,3 +135,92 @@ The four source/test SHA-256 identities reviewed before the controller's correct
 | `test/efficient-wait-cli.test.ts` | `072493329f830f028f732862c5ceb798ddcad3f6ae15f8b3ddf4fceb8b0062cc` |
 
 Remaining limits: this is a Windows re-review of this specific correction; POSIX branches and the full release gate remain for their required controller/platform checks. It does not establish protection against arbitrary same-user filesystem renames after a successful preflight or a new OS sandbox. The historical retained fixture/cleanup-policy note above remains unchanged. No product or GSD mutation was made by the reviewer.
+
+
+# BUG-06 correction: independent code/security review
+
+Date: 2026-10-27. Reviewer: independent GPT-6.1 Sol high lane.
+
+**Disposition: no actionable defects confirmed; 0 open findings.** This is a bounded source review of the actual correction and merged integration, not release approval or independent goal verification.
+
+## Scope and identity
+
+Reviewed the working-tree correction in `src/core/process.ts`, `test/process.test.ts`, `src/core/task-gsd-lifecycle.ts`, and `test/task-gsd-lifecycle.test.ts`, plus the `src/core/task-run.ts` integration against main `29619abaa10b250d745c1c4df2896cadd682aa53`. Workspace HEAD was `03be82c0f2d6b9f2e25cbda64b12ebe1a104e123`; MERGE_HEAD and origin/main were both the stated main commit. Read only the final 30 lines of the prior GSD REVIEW.md as historical context; CR-01 was already resolved and was not reopened without evidence.
+
+## Findings and reasoning
+
+No Critical, Warning, or other actionable finding was confirmed in this scope.
+
+- **Exact phase argv:** both custom-command branches at `src/core/task-gsd-lifecycle.ts:445` and `:459` now recognize only an argument equal to the requested phase. A script path containing `02` can no longer suppress the appended `02` phase and applicable `--auto`. The regression at `test/task-gsd-lifecycle.test.ts:582` covers stepCommand and commandMap, explicit and absent phase arguments, and discuss/plan/execute/verify. Its real child rejects missing/duplicate exact phase and incorrect auto behavior, writes the actual step artifact, and the parent checks exit status, next step, artifact paths/content, and recorded exact argv. Reverting either equality correction would fail the corresponding absent-phase case before artifact creation. Explicit-phase cases also exercise preservation without duplication. The test does not merely assert a mocked command construction.
+- **Parseable onSpawn evidence:** the two tests at `test/process.test.ts:906` and `:930` opt into the existing 64 KiB parseable excerpt budget. They additionally assert uncapped stdout, stderr, and aggregate output before parsing the child JSON and checking argv. This fixes accidental default excerpt truncation without changing the production default or relaxing the assertions to accept incomplete output.
+- **Exited Windows parent:** the helper at `src/core/process.ts:553` uses the actual spawned ChildProcess exitCode/signalCode to skip taskkill after that parent has exited. Cancellation, timeout, and output-cap paths all call it. POSIX group termination and live-Windows tree termination retain their prior paths. The held-pipe cancellation regression adds a Windows `already-gone` assertion while retaining the proven parent-exit/descendant-live barrier, unconfirmed-close assertion, sub-900 ms post-abort bound, clean-abort confirmed-close case, and descendant self-exit check. The corresponding deadline test retains its readiness barrier, unconfirmed close and sub-900 ms post-deadline bound. These bounds concern an exited direct parent holding inherited pipes through a surviving descendant; they do not establish a universal taskkill timing bound for live Windows trees. `already-gone` is termination-delivery metadata, not a claim that the descendant was killed.
+- **Merged integration:** relative to the exact main commit, task-gsd-lifecycle differs only in the two equality expressions. The native default harness command generation, role-model resolution/injection, and multiphase orchestration remain main's code. Task-run's differences are the run-path exports and extraction of the existing strict run-record validation into validateTaskRunText; readRunRecord still reads the file and delegates to that same validation. Its approval/start checks and multiphase route remain main's implementation. The new validator retains schema, credential, record-kind, contract-id, filename/run-id and embedded-review validation.
+- **Newer-main preservation checks:** no differences from main were present in the six task adapter files inspected. The catalog-lock diff is confined to the alpha-aos-task source/target hashes; package-lock differs only in root package version 0.4.4 to 0.4.5, preserving promoted dependencies. The root historical incident report is exactly main's bytes (`git diff --exit-code` returned 0).
+
+## Reviewed SHA-256 identities
+
+| File | SHA-256 |
+| --- | --- |
+| src/core/process.ts | 1ec3e307a66cf9ea50dc10e5c56e99de326f31b6dab6d0d57c8f7a68b76ded5e |
+| test/process.test.ts | 459acce9658c941193ff92eacf4b221708fe7377cbe68bc99cf8a19817cea5d1 |
+| src/core/task-gsd-lifecycle.ts | c60d13929004fee463424257af91af5af77ab7b0211c87ff16ca93c9674084ad |
+| test/task-gsd-lifecycle.test.ts | 13c1b14f875051723115d1fd1b8726a37614e48e340aad6985e957e47795deb8 |
+| src/core/task-run.ts | 532b15fe3b75478f20fe70b887fbf7d53e127ef3b6a3576a479e97d70b0b2c01 |
+| catalog/stack.lock.json | 38aa712ad6d274ee9bbc042d4eeed5b6057b05db51c310509eb1245c36beed99 |
+| package-lock.json | 12f5d76b70d683a95c2f5a209d10c6f4a5b80dda556b47633f937e4855cfb63b |
+| package.json | 0442a07cba01aeaec48d1c433c14eb455fb349d8b14c8de47fcd6974370a83aa |
+| CRITICAL_BUG_REPORT_AUTOPILOT_ANTIGRAVITY_ROUTING_AND_SNAPSHOT_DEFECTS.md | 15073b7d80d99d0fbda30abd2268ac750ae0f6298f81aee8c5635655f292cedb |
+
+## Verification limits
+
+No tests, builds, full suite, release verifier, runtime reproduction, nested agents, GUI, network or global mutation were run by this reviewer. Regression strength above is source inspection, not a claim of execution success. The controller owns targeted checks and release evidence; those results were not assumed. This review does not independently demonstrate macOS/Linux behavior, deliberate PID-recycling races before Node observes process exit, universal tree-closure proof, or the final release/goal criteria. No product, planning or repository file was changed; only this external report was written.
+
+# Independent startup correction review
+
+Reviewed 2026-10-27 against HEAD 03be82c0f2d6b9f2e25cbda64b12ebe1a104e123. Scope: the new job bootstrap dispatch relocation, bounded artifact hashing, and their two new tests only. Static code/security review; no tests, builds, network access, agents, product edits, or planning edits performed.
+
+## Finding: P1 - bootstrap regression fixture passes unsupported job start flag
+
+Location: test/job-cli-bootstrap.test.ts:31 (environment setup at line 28).
+
+The preview invokes `job start --state-root <stateRoot> ...`, but src/cli.ts:761 permits only `--cwd` and `--deadline-ms` as value flags. parseClosedFlags rejects this invocation with `Unknown option: --state-root`; therefore the expected successful preview at line 32 fails and neither worker alias assertion is reached. Job start uses userStateRoot(), which reads ALPHA_AOS_STATE_DIR rather than this flag.
+
+Correct the fixture by supplying the isolated state root through ALPHA_AOS_STATE_DIR in its child environment and omitting --state-root from the job start argv. Retain the worker aliases' supported --state-root flags. This also binds the preview's no-state-write assertion to the actual selected state directory. Implementation corrections must use the existing authorized source workflow.
+
+## Other static conclusions
+
+- Verified the entire relocated job-worker/job dispatch block is text-identical after LF normalization to the index baseline: 12,920 characters, one old occurrence and one new occurrence. Removing the block from each CLI makes the remaining source identical. Existing dispatch validation, approval/default/worker protections are preserved.
+- Dispatch now precedes packageRoot/loadCatalog/loadLock after computer-use/help/version returns; installer catalog parsing is no longer a prerequisite for job operations. This is intentional scope decoupling, with no additional product bypass found in this change.
+- Artifact checking retains every manifest entry, at most eight active read/hash workers, and original manifest diagnostic order through indexed results. No memoization or skipped hash verification found. Missing and changed files remain rejected.
+- Artifact fixture spans 34 entries and checks positive verification plus five ordered drift/missing diagnostics. Runtime success is unverified here.
+
+## Reviewed SHA-256
+
+| File | SHA-256 |
+| --- | --- |
+| src/cli.ts | C0EFA33DC11FA9B0AF306A12C5FCEE87ACFE724D53C8074355D8FDC6BB676E73 |
+| scripts/build-artifact.mjs | 52F7B380C13B39BBC7012FB99F4043F62E8F55238F1BB5689903C6B5CD3F5109 |
+| test/job-cli-bootstrap.test.ts | 689D4CC887F596E14C97635C3346956FCFF831D9EAF5DDB34C0829E9848CE7D3 |
+| test/build-artifact-integrity.test.ts | AC666312795E16124BF84142C3B0F8CAE9A4F12B50E4695814418D67884BE51F |
+
+Result: 1 finding, blocking a clean regression gate. No additional product-code findings. This review does not establish startup latency, a CPU root cause, runtime test success, or acceptance of unrelated prior corrections/merged work. Controller-owned affected-file testing and final gates remain required.
+
+## Narrow correction re-review (2026-10-27)
+
+The initial P1 and RED status above are preserved as historical findings for the prior fixture hash. The corrected fixture statically resolves that P1: it computes the probe environment once, retains the entire policy and existing literal values, supplies literal ALPHA_AOS_STATE_DIR=stateRoot, and removes --state-root only from the job start preview. Both worker invocations and the malformed-worker check retain their supported explicit state-root flags. The preview now selects the directory checked by its no-write assertion and uses only accepted start flags.
+
+The only test/task-wait.test.ts change adds JSON.stringify(result.checkpoint) as the diagnostic argument of the existing assert.equal(result.status, "accepted"). The expected status and equality oracle are unchanged. No product changes were included in this narrow follow-up; the CLI and artifact checker hashes remain identical to the initial review.
+
+Current SHA-256:
+
+| File | SHA-256 |
+| --- | --- |
+| test/job-cli-bootstrap.test.ts | 6EE45F4DB6A97859336EFBB9B8D56495F6D2302E087487A8F7B934FA57F09841 |
+| test/task-wait.test.ts | 43BB05CB3A3E5928AA3DBEFC823CED95E76699C9D9615512364F3A3215634163 |
+| src/cli.ts | C0EFA33DC11FA9B0AF306A12C5FCEE87ACFE724D53C8074355D8FDC6BB676E73 |
+| scripts/build-artifact.mjs | 52F7B380C13B39BBC7012FB99F4043F62E8F55238F1BB5689903C6B5CD3F5109 |
+| test/build-artifact-integrity.test.ts | AC666312795E16124BF84142C3B0F8CAE9A4F12B50E4695814418D67884BE51F |
+
+Follow-up result: 0 open static findings, 0 product-code findings. No tests or builds run by this reviewer. Runtime acceptance remains pending the controller-owned actual build/selected-case results; this static resolution does not turn the earlier failing gate green or credit separately saved reproduction checkpoints as criterion passes.
+
+Controller actual resolution evidence: fixture-build045 exit0; exact4selectedcases4pass0fail0skip33189.514ms (newcopiedCLIbootstrap,realproducer,completion,safety). Prior36case33pass2fail1skip retained; bootstrapP1 and observedproducerfailure now pass without alteredoracles/deadlines. Productandtestbyteidentities covered by the new source commit below; finalfullrelease stillpending.

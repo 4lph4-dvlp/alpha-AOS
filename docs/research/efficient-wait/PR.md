@@ -1,8 +1,8 @@
-# Pull Request: v0.4.1 Efficient Wait & Reactive Completion Runtime
+# Pull Request: v0.4.5 Efficient Wait & Reactive Completion Runtime
 
 **Target Branch**: `main`
 
-**Task Base**: `54ecf5042a5cc969004716484f85c0b91b013505` (local v0.4.0); remote `origin/main` last seen at `3a4e632` is v0.3.1 (does not contain v0.4.0). No current v0.4.1 final implementation hash known yet.
+**Task Base**: `54ecf5042a5cc969004716484f85c0b91b013505` (local v0.4.0); remote `origin/main` last seen at `3a4e632` is v0.3.1 (does not contain v0.4.0). No current v0.4.5 final implementation hash known yet.
 
 **Type**: Feature / Architecture & Guidance Fix (BUG-06)
 
@@ -43,3 +43,5 @@
 - **Billing / Savings**: No measured token billing or cost savings claims are asserted; runtime avoids model-driven polling on its path, but cannot promise preventing host rate-limit exhaustion or quantify savings.
 - **Independent Review Gate**: PENDING active worker repairs and re-review.
 - **Release Verification Gate**: PENDING controller verification packet.
+
+Historical scope: the approved plan targeted 0.4.1 from 54ecf50. Current integration includes original main 0.4.4 (29619ab) and prepares candidate 0.4.5; final verification is pending. The committed original user report from 02c2bf7 is retained as input.

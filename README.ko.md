@@ -1,6 +1,6 @@
 # alpha-AOS
 
-**0.4.1**에는 이벤트 기반 [효율적 대기 및 반응형 완료 런타임](docs/efficient-wait.md)(`alpha-aos job` 및 `alpha-aos task wait`)이 추가되었습니다.
+**0.4.5**에는 이벤트 기반 [효율적 대기 및 반응형 완료 런타임](docs/efficient-wait.md)(`alpha-aos job` 및 `alpha-aos task wait`)이 추가되었습니다.
 모델 경로에서의 반복적인 sleep/status 폴링 루프를 회피하고 분리된 프로세스 생명주기 관리와 단일 유한 관찰을 제공합니다(호스트 레이트 리밋 고갈 방지 보장이나 측정된 토큰 절감액은 주장하지 않음).
 `alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs`로 백그라운드 잡을 시작하고, `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`으로 단일 대기를 수행합니다.
 macOS/Linux GUI 실기 동작 및 3OS CI는 요청에 따라 미실행(unrun) 상태로 유지됩니다. 커밋 `0320c27`의 기존 대상 슬라이스에서 67/67 테스트 통과가 수립되었으나, 확장 케이스(총 69건 중 63 통과, 6 실패) 및 독립 리뷰 지적 사항(5개 블로커, 2개 경고)에 대한 수리가 진행 중이며 최종 릴리스 검증은 보류(PENDING) 상태입니다.

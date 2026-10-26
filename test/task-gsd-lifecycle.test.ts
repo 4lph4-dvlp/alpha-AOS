@@ -8,6 +8,8 @@ import {
   executeGsdStep,
   runPhaseLifecycle,
   orchestrateMultiPhaseProgression,
+  buildGsdStepWorkflowPrompt,
+  resolveDefaultGsdHarnessCommand,
   type GsdStepKind,
 } from "../src/core/task-gsd-lifecycle.js";
 import { readHookReceipt } from "../src/core/task-hook-receipt.js";
@@ -536,4 +538,98 @@ test("orchestrateMultiPhaseProgression halts if phase fails capability verificat
 
   assert.equal(result.finalStatus, "failed");
   assert.equal(result.completedPhases.length, 0);
+});
+
+test("buildGsdStepWorkflowPrompt formats appropriate prompt for each step kind", () => {
+  const discussPrompt = buildGsdStepWorkflowPrompt("discuss", "01");
+  assert.ok(discussPrompt.includes("Phase 01 with arguments \"01 --auto\""));
+  assert.ok(discussPrompt.includes("discuss-phase.md"));
+
+  const planPrompt = buildGsdStepWorkflowPrompt("plan", "02");
+  assert.ok(planPrompt.includes("Phase 02 with arguments \"02 --no-reversibility-gates --text\""));
+  assert.ok(planPrompt.includes("plan-phase.md"));
+
+  const execPrompt = buildGsdStepWorkflowPrompt("execute", "03");
+  assert.ok(execPrompt.includes("Phase 03 with arguments \"03 --no-transition\""));
+  assert.ok(execPrompt.includes("execute-phase.md"));
+
+  const verifyPrompt = buildGsdStepWorkflowPrompt("verify", "04");
+  assert.ok(verifyPrompt.includes("Phase 04"));
+  assert.ok(verifyPrompt.includes("verify-work"));
+});
+
+test("resolveDefaultGsdHarnessCommand formats harness commands correctly", () => {
+  const agyCmd = resolveDefaultGsdHarnessCommand("antigravity", "discuss", "01");
+  assert.equal(agyCmd.executable, "agy");
+  assert.equal(agyCmd.args[0], "--mode");
+  assert.equal(agyCmd.args[1], "accept-edits");
+  assert.equal(agyCmd.args[2], "--dangerously-skip-permissions");
+  assert.equal(agyCmd.args[3], "-p");
+  assert.ok(agyCmd.args[4]?.includes("Phase 01"));
+
+  const claudeCmd = resolveDefaultGsdHarnessCommand("claude", "plan", "02");
+  assert.equal(claudeCmd.executable, "claude");
+  assert.equal(claudeCmd.args[0], "--dangerously-skip-permissions");
+  assert.equal(claudeCmd.args[1], "-p");
+  assert.ok(claudeCmd.args[2]?.includes("Phase 02"));
+
+  const codexCmd = resolveDefaultGsdHarnessCommand("codex", "execute", "03");
+  assert.equal(codexCmd.executable, "codex");
+  assert.equal(codexCmd.args[0], "exec");
+  assert.ok(codexCmd.args[1]?.includes("Phase 03"));
+});
+
+test("executeGsdStep passes exact phase argv despite 02 in custom script paths for both command branches", async (context) => {
+  for (const branch of ["stepCommand", "commandMap"] as const) {
+    for (const explicitPhase of [false, true]) {
+      const projectRoot = await scratch(context, `collision-${branch}-${explicitPhase}`);
+      const scriptDir = join(projectRoot, "contains-02-unrelated");
+      await mkdir(scriptDir, { recursive: true });
+      const mockScriptPath = join(scriptDir, "runner-02.cjs");
+      const logFile = join(projectRoot, "argv.jsonl");
+      const phaseDir = join(projectRoot, ".planning", "phases", "02");
+      await writeFile(mockScriptPath, `
+        const fs = require("node:fs");
+        const path = require("node:path");
+        const argv = process.argv.slice(2);
+        const stepArg = argv.find(a => a.startsWith("--step="));
+        const step = stepArg.slice("--step=".length);
+        const actual = argv.filter(a => !a.startsWith("--step="));
+        fs.appendFileSync(${JSON.stringify(logFile)}, JSON.stringify({ step, argv: actual }) + "\\n");
+        if (actual.filter(a => a === "02").length !== 1) process.exit(23);
+        if (actual.includes("--auto") !== (step !== "verify")) process.exit(24);
+        const names = { discuss: "02-CONTEXT.md", plan: "02-01-PLAN.md", execute: "02-01-SUMMARY.md", verify: "02-VERIFICATION.md" };
+        fs.mkdirSync(${JSON.stringify(phaseDir)}, { recursive: true });
+        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), "# " + step);
+      `, "utf8");
+      const steps: GsdStepKind[] = ["discuss", "plan", "execute", "verify"];
+      const names = ["02-CONTEXT.md", "02-01-PLAN.md", "02-01-SUMMARY.md", "02-VERIFICATION.md"];
+      const next = ["plan", "execute", "verify", "complete"];
+      for (const [index, step] of steps.entries()) {
+        const command = {
+          executable: process.execPath,
+          args: [mockScriptPath, `--step=${step}`, ...(explicitPhase ? ["02", ...(step === "verify" ? [] : ["--auto"])] : [])],
+        };
+        const result = await executeGsdStep({
+          projectRoot,
+          phaseId: "02",
+          step,
+          contract: createMockContract(projectRoot),
+          targetRevisionSha: "a".repeat(40),
+          workingTreeDigest: "b".repeat(64),
+          receiptsRoot: join(projectRoot, "receipts"),
+          ...(branch === "stepCommand" ? { stepCommand: command } : { commandMap: { [step]: command } }),
+        });
+        assert.equal(result.exitCode, 0, `${branch}/${step} must receive the actual phase`);
+        assert.equal(result.nextStep, next[index]);
+        assert.deepEqual(result.artifactsProduced, [`.planning/phases/02/${names[index]}`]);
+        assert.equal(await readFile(join(phaseDir, names[index]!), "utf8"), "# " + step);
+      }
+      const entries = (await readFile(logFile, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { step: string; argv: string[] });
+      assert.equal(entries.length, 4);
+      for (const entry of entries) {
+        assert.deepEqual(entry.argv, entry.step === "verify" ? ["02"] : ["02", "--auto"]);
+      }
+    }
+  }
 });

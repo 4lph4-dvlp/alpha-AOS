@@ -107,14 +107,22 @@ async function check() {
     return 3;
   }
 
-  const problems = [];
-  for (const group of ["inputs", "outputs"]) {
-    for (const [name, expected] of Object.entries(manifest[group])) {
+  const entries = ["inputs", "outputs"].flatMap((group) =>
+    Object.entries(manifest[group]).map(([name, expected]) => ({ group, name, expected })),
+  );
+  const results = new Array(entries.length);
+  let nextIndex = 0;
+  // Bound I/O while retaining every check and the manifest's diagnostic order.
+  await Promise.all(Array.from({ length: Math.min(8, entries.length) }, async () => {
+    while (nextIndex < entries.length) {
+      const index = nextIndex++;
+      const { group, name, expected } = entries[index];
       const absolute = join(repositoryRoot, name);
-      if (!existsSync(absolute)) problems.push(`missing ${group.slice(0, -1)}: ${name}`);
-      else if (await hash(absolute) !== expected) problems.push(`changed ${group.slice(0, -1)}: ${name}`);
+      if (!existsSync(absolute)) results[index] = `missing ${group.slice(0, -1)}: ${name}`;
+      else if (await hash(absolute) !== expected) results[index] = `changed ${group.slice(0, -1)}: ${name}`;
     }
-  }
+  }));
+  const problems = results.filter((problem) => problem !== undefined);
   if (problems.length > 0) {
     process.stderr.write(`alpha-aos: the build artifact does not match its manifest (${problems.length} difference(s)).\n`);
     // Bounded: enough to act on, not a dump of the whole tree.

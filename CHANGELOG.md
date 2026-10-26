@@ -2,7 +2,9 @@
 
 All notable changes to alpha-AOS are documented in this file. The format follows Keep a Changelog, and the project uses Semantic Versioning.
 
-## [0.4.1] - 2026-10-22
+## [Unreleased]
+
+## [0.4.5] - 2026-10-27
 
 ### Added
 
@@ -13,12 +15,61 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ### Fixed
 
-- **Long-Running Process Polling Defect (`BUG-06`) (In-Progress Mitigation)**: Implemented event-driven detached command jobs and canonical task wait to avoid model-driven polling loops on runtime paths (without claiming host rate-limit prevention or measured token savings); active repairs addressing independent review findings (5 blockers, 2 warnings) and final release verification remain pending.
+- **Long-Running Process Polling Defect (`BUG-06`)**: Implemented event-driven detached command jobs and canonical task wait to avoid model-driven polling loops on runtime paths (without claiming host rate-limit prevention or measured token savings); previous release recorded 1791 total (1753 pass, 27 fail, 11 skip), and latest corrective integration and verification are pending.
 - **Task Lifetime Documentation Correction**: Clarified that `alpha-aos task start --apply` is foreground and awaited by default; detached independent process lifetimes are managed via `alpha-aos job start --apply`.
 
 ### Security
 
 - Command jobs enforce a restricted environment allowlist (stripping provider credentials and `NODE_OPTIONS`), reject secret-bearing argument arrays, isolate state to `~/.alpha-aos/jobs/`, enforce owner fencing on cancel, and preserve exact argv arrays without shell concatenation.
+
+## [0.4.4] - 2026-10-26
+
+### Added
+
+- **Multi-Phase GSD Autopilot Engine in `alpha-aos task start`**:
+  - Integrated full multi-phase/multi-milestone progression (`startMultiPhaseTask`) directly into `alpha-aos task start` when `scope.workflow` is `"gsd-multi-phase"` or `"gsd"`.
+  - Added `buildGsdStepWorkflowPrompt` and `resolveDefaultGsdHarnessCommand` in `src/core/task-gsd-lifecycle.ts` to automatically construct default harness command vectors (`agy`, `claude`, `codex`, `pi`, `hermes`) for all GSD lifecycle steps without requiring ad-hoc project runner scripts.
+  - Automatically advances through `discuss`, `plan`, `execute`, and `verify` across all planned phases discovered in `.planning/ROADMAP.md` and generates final milestone review.
+
+### Fixed
+
+- **Autonomous Autopilot Inline Chat Execution Prevention (Fail-Closed Invariant)**:
+  - Formulated and enforced a strict governance invariant in `AGENTS.md` and `skills/alpha-aos-task/SKILL.md`: chat UI agents are strictly prohibited from performing inline file writes (`write_file`, `edit_file`) for tasks operating in `mode: autopilot`.
+  - Guarantees model policy integrity: inline chat execution binds model reasoning to whatever model the user has selected in the chat UI dropdown (e.g. Gemini Flash); running through the headless supervisor (`alpha-aos task start`) guarantees that contracted model flags (`--model`) are explicitly passed to isolated child processes.
+- **Harness Argument Positioning and Windows Spawn Safety**:
+  - Fixed argument ordering for `agy`: ensures `-p` / `--print` is placed immediately before the prompt string, and `--model` is inserted before `-p`.
+  - Corrected role mapping in `executeGsdStep`: `discuss` and `plan` steps are correctly assigned to `"controller"` (resolving `controllerModel` such as Gemini 4 Argon) while `execute` is `"executor"` and `verify` is `"reviewer"`.
+  - Fixed Windows child process spawning for `agy.exe` to avoid `cmd.exe` argument mangling.
+
+## [0.4.3] - 2026-10-26
+
+### Fixed
+
+- **Weekly Automated Dependency Promotion on Windows CI Runners**:
+  - `src/core/mcp-proxy.ts`: Passed explicit `DEFAULT_MCP_PROXY_TIMEOUT_MS = 180_000` (3 minutes) to `@modelcontextprotocol/sdk` `client.connect()`, `client.listTools()`, and `client.callTool()` calls. Prevents cold `npx` package downloads and initialization on slow Windows CI runners (`windows-latest`) from hitting the MCP SDK's default 60s timeout (`ErrorCode.RequestTimeout: Request timed out`, code `-32001`).
+  - `src/core/mcp-fixture.ts`: Raised `discoverTools` awaited reply timeout from 150s to 180s to align with the proxy timeout ceiling.
+  - Fixes Monday `dependency-candidate.yml` fixture failure and subsequent Wednesday `auto-promote.yml` aborts.
+- **Cross-Platform Path Containment for Computer-Use Audit Evidence**:
+  - `src/core/computer-use-audit.ts`: Allowed macOS system root symlinks (`/var`, `/tmp`, `/etc`) in `safeComputerPath`.
+  - Normalized both parent and child paths via `realpath` before relative path containment verification in `verifyComputerAudit`, preventing false-positive root escape errors caused by Windows 8.3 short paths (`RUNNER~1`) on CI runners.
+
+### Fixed
+
+- **Deterministic Cross-Harness Model Enforcement**:
+  - Full model CLI argument injection (`--model` / `-m`) across all 5 supported harnesses: `antigravity`, `claude`, `codex`, `pi`, and `hermes`.
+  - Universal role-model resolution engine (`resolveHarnessRoleModel` in `task-agent-launch.ts`) with strict precedence ladder: direct options > contract `agentPolicy` (`controllerModel`, `executorModel`, `reviewerModel`) > project `.planning/config.json`.
+  - `canonicalModelToAntigravityTier`: normalizes canonical model IDs (`gemini-4-argon-high`, `gemini-3.8-flash-high`, `claude-3-5-sonnet`, etc.) into native Antigravity subagent Model enums (`"pro"`, `"flash"`, `"flash_lite"`, `"inherit"`).
+  - Subagent dispatch guard (`validateAntigravitySubagentDispatch` / `assertAntigravitySubagentDispatch`): prevents silent parent-model inheritance downgrades when Antigravity `invoke_subagent` is invoked with `typeName: "self"`.
+  - `assertModelCompliance`: fail-closed guard throwing `MODEL_ENFORCEMENT_VIOLATION` on model mismatch or missing model.
+  - GSD lifecycle step model injection in `executeGsdStep`: automatically detects AI harness CLI commands and injects the contracted model for discuss/plan/execute/verify steps.
+  - Cross-harness delegation: guarantees that when Controller in Harness A delegates Review/Reasoning to Harness B, Harness B is invoked with its exact contracted model.
+  - Comprehensive test suite: `test/task-cross-harness-models.test.ts` covering precedence, sanitization, argument vectors, cross-delegation, and subagent dispatch guards.
+- **Promoted Upstream Tool Dependencies**:
+  - `@opengsd/gsd-core`: `1.16.0` -> `1.18.0`
+  - `@upstash/context7-mcp`: `4.3.0` -> `4.4.4`
+  - `firecrawl-mcp`: `3.29.1` -> `3.34.1`
+  - `pi-mcp-adapter`: `5.2.0` -> `6.0.0`
+  - Verified live SRI registry integrity and reconciled across all 5 harnesses.
 
 ## [0.4.0] - 2026-10-21
 
@@ -43,7 +94,7 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 - **Snapshot `.planning` Read-Only Mirroring (`BUG-03`)**: `materializeTaskSnapshot` mirrors regular files under `<projectRoot>/.planning` (`ROADMAP.md`, `STATE.md`, etc.) into isolated snapshots without altering the artifact manifest hash, enabling criterion measurements and reviewers to read planning state.
 - **GSD Quick Retry Resilience (`BUG-04`)**: `verifyGsdEvidence` now accepts `allowExistingClaimedQuick` so contract retries and revisions > 1 can verify pre-existing claimed `.planning/quick/<id>` directories and their `docs(quick-<id>)` commits across git history.
 
-## [Unreleased]
+## [0.4.1] - 2026-10-22
 
 ### Changed
 

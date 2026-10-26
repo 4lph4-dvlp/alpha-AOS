@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstat, mkdir, open, readFile, realpath, unlink } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
-import { dirname, join, parse, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, parse, relative, resolve, sep } from "node:path";
 import { inflateSync } from "node:zlib";
 import { canonicalComputerJson, computerHash } from "./computer-use-policy.js";
 
@@ -15,6 +15,9 @@ export async function safeComputerPath(path: string): Promise<string> {
   let current = root;
   for (const part of absolute.slice(root.length).split(sep).filter(Boolean)) {
     current = join(current, part);
+    if (process.platform === "darwin" && (current === "/var" || current === "/tmp" || current === "/etc")) {
+      continue;
+    }
     const stat = await lstat(current).catch((error: NodeJS.ErrnoException) => { if (error.code === "ENOENT") return null; throw error; });
     if (stat?.isSymbolicLink()) throw new Error("Computer evidence symlink path refused");
   }
@@ -117,7 +120,10 @@ export class ComputerAudit {
 }
 export async function verifyComputerAudit(root: string, runId: string, anchor: ComputerAnchor): Promise<{ events: ComputerAuditEvent[]; pending: number[]; expired: string[] }> {
   runName(runId); const directory = await safeComputerPath(join(root, runId));
-  if (relative(await realpath(dirname(directory)), directory).startsWith("..")) throw new Error("Computer evidence root escape");
+  const realDir = await realpath(directory).catch(() => directory);
+  const realParent = await realpath(dirname(directory)).catch(() => dirname(directory));
+  const rel = relative(realParent, realDir);
+  if (rel.startsWith("..") || isAbsolute(rel)) throw new Error("Computer evidence root escape");
   const journal = await safeComputerPath(join(directory, "events.jsonl"));
   const stat = await lstat(journal); if (!stat.isFile() || stat.size > 16 * 1024 * 1024) throw new Error("Computer audit file budget");
   const bytes = await readFile(journal, "utf8"); if (bytes && !bytes.endsWith("\n")) throw new Error("Computer audit truncated record");

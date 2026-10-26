@@ -21,13 +21,17 @@ import { parseFinalReviewJson } from "./task-claude.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
 import {
   agentFacingSchema,
+  assertModelCompliance,
   boundedSentence,
+  canonicalModelToAntigravityTier,
   loadAgentSchema,
   nameOnlyEnvironment,
   probeLaunchVersion,
   remainingMilliseconds,
   reportedExecutable,
+  resolveHarnessRoleModel,
   resolveTaskAgentLaunch,
+  SAFE_MODEL_ID,
   TASK_AGENT_BASE_ENVIRONMENT_NAMES,
   uniqueNames,
   type HarnessVersionProbe,
@@ -37,11 +41,17 @@ import {
 } from "./task-agent-launch.js";
 import { buildReviewPrompt } from "./task-claude.js";
 
+export {
+  assertModelCompliance,
+  canonicalModelToAntigravityTier,
+  resolveHarnessRoleModel,
+  SAFE_MODEL_ID,
+};
+
 export const ANTIGRAVITY_TASK_TIMEOUT_MS = 30 * 60 * 1000;
 export const ANTIGRAVITY_TASK_OUTPUT_BYTES = 4 * 1024 * 1024;
 const DETAIL_LIMIT = 400;
 const ISSUE_LIMIT = 400;
-const SAFE_MODEL_ID = /^[A-Za-z0-9._:/-]+$/u;
 
 export const ANTIGRAVITY_TASK_ENVIRONMENT_NAMES: readonly string[] = uniqueNames([
   ...TASK_AGENT_BASE_ENVIRONMENT_NAMES,
@@ -117,72 +127,13 @@ export async function resolveAntigravityRoleModel(options: {
   agentPolicy?: TaskAgentPolicy | undefined;
   projectRoot?: string | undefined;
 }): Promise<string | undefined> {
-  const sanitize = (candidate: unknown): string | undefined => {
-    if (typeof candidate !== "string") return undefined;
-    const trimmed = candidate.trim();
-    return trimmed.length > 0 && SAFE_MODEL_ID.test(trimmed) ? trimmed : undefined;
-  };
-
-  const direct = sanitize(options.adapterModel);
-  if (direct !== undefined) return direct;
-
-  const policy = options.agentPolicy;
-  if (policy !== undefined) {
-    if (options.role === "controller") {
-      const ctrl = sanitize(policy.controllerModel) ?? (policy.controller === policy.executor ? sanitize(policy.executorModel) : undefined);
-      if (ctrl !== undefined) return ctrl;
-    } else if (options.role === "executor") {
-      const exec = sanitize(policy.executorModel) ?? (policy.executor === policy.controller ? sanitize(policy.controllerModel) : undefined);
-      if (exec !== undefined) return exec;
-    } else if (options.role === "reviewer") {
-      const rev = sanitize(policy.reviewerModel);
-      if (rev !== undefined) return rev;
-    }
-  }
-
-  if (options.projectRoot) {
-    try {
-      const configPath = join(options.projectRoot, ".planning", "config.json");
-      const raw = await readFile(configPath, "utf8");
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
-      const overrides = parsed.model_profile_overrides;
-      if (typeof overrides === "object" && overrides !== null && !Array.isArray(overrides)) {
-        const record = overrides as Record<string, unknown>;
-        const agyNested = record.antigravity;
-        if (typeof agyNested === "object" && agyNested !== null && !Array.isArray(agyNested)) {
-          const nestedRole =
-            sanitize((agyNested as Record<string, unknown>)[options.role]) ??
-            (options.role === "reviewer" ? sanitize((agyNested as Record<string, unknown>).verifier) : undefined);
-          if (nestedRole !== undefined) return nestedRole;
-        }
-        const roleOverride =
-          sanitize(record[options.role]) ??
-          (options.role === "reviewer" ? sanitize(record.verifier) : undefined);
-        if (roleOverride !== undefined) return roleOverride;
-        if (options.role === "controller") {
-          const execFallback = sanitize(record.executor);
-          if (execFallback !== undefined) return execFallback;
-        }
-        const defaultOverride = sanitize(record.default);
-        if (defaultOverride !== undefined) return defaultOverride;
-      }
-      const crossAiCmd =
-        typeof parsed.cross_ai_command === "string"
-          ? parsed.cross_ai_command
-          : typeof parsed.review === "object" && parsed.review !== null && typeof (parsed.review as Record<string, unknown>).cross_ai_command === "string"
-            ? ((parsed.review as Record<string, unknown>).cross_ai_command as string)
-            : undefined;
-      if (crossAiCmd) {
-        const match = crossAiCmd.match(/--model(?:\s+|=)([A-Za-z0-9._:/-]+)/u);
-        const extracted = sanitize(match?.[1]);
-        if (extracted !== undefined) return extracted;
-      }
-    } catch {
-      // Optional .planning/config.json not present or unreadable
-    }
-  }
-
-  return undefined;
+  return resolveHarnessRoleModel({
+    harness: "antigravity",
+    role: options.role,
+    adapterModel: options.adapterModel,
+    agentPolicy: options.agentPolicy,
+    projectRoot: options.projectRoot,
+  });
 }
 
 export function antigravityEnvironment(source: NodeJS.ProcessEnv = process.env): EnvironmentPolicy {

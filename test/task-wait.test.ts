@@ -2098,7 +2098,7 @@ test("task-wait: real superviseTask journal including index zero settles exact a
     }),
     gsd: { configRoot: fixture.gsdConfigRoot },
   });
-  assert.equal(result.status, "accepted");
+  assert.equal(result.status, "accepted", JSON.stringify(result.checkpoint));
   const events = await readJournalEvents(fixture.stateRoot, digest);
   assert.equal(events[0]?.kind, "run_started");
   assert.equal(events[0]?.attemptIndex, 0);

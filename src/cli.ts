@@ -704,6 +704,329 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "job-worker") {
+    const stateRoot = optionValue(args, "--state-root") ?? userStateRoot();
+    const jobId = optionValue(args, "--job-id");
+    const ownerToken = optionValue(args, "--owner-token");
+    if (!jobId || !ownerToken) {
+      process.stderr.write("job-worker requires --job-id and --owner-token\n");
+      process.exitCode = 1;
+      return;
+    }
+    const { runJobWorker } = await import("./core/command-job-worker.js");
+    await runJobWorker({ stateRoot, jobId, ownerToken });
+    return;
+  }
+
+  if (command === "job") {
+    const subcommand = args[1] ?? "";
+    if (!["start", "status", "wait", "cancel", "worker"].includes(subcommand)) {
+      throw new Error(`Unknown job command: ${subcommand || "(none)"}. Use one of: start, status, wait, cancel.`);
+    }
+
+    if (subcommand === "worker") {
+      const stateRoot = optionValue(args, "--state-root") ?? userStateRoot();
+      const jobId = optionValue(args, "--job-id");
+      const ownerToken = optionValue(args, "--owner-token");
+      if (!jobId || !ownerToken) {
+        throw new Error("job worker requires --job-id and --owner-token");
+      }
+      const { runJobWorker } = await import("./core/command-job-worker.js");
+      await runJobWorker({ stateRoot, jobId, ownerToken });
+      return;
+    }
+
+    const {
+      startCommandJob,
+      getCommandJobStatus,
+      waitCommandJob,
+      cancelCommandJob,
+      assertStateRootNotInsideProject,
+      assertStateRootNotInsideProjectCanonical,
+      assertNoCredentialsInArgs,
+      DEFAULT_JOB_DEADLINE_MS,
+      validateJobId,
+    } = await import("./core/command-jobs.js");
+    const stateRoot = userStateRoot();
+    const context = observableContext();
+
+    if (subcommand === "start") {
+      const delimiterIndex = rawArgs.indexOf("--");
+      if (delimiterIndex === -1 || delimiterIndex === rawArgs.length - 1) {
+        throw new Error("job start requires '-- <executable> [args...]': alpha-aos job start --cwd <dir> [--deadline-ms <ms>] [--apply] [--json] -- <executable> [args...]");
+      }
+      const beforeDelimiter = rawArgs.slice(2, delimiterIndex);
+      const childArgs = rawArgs.slice(delimiterIndex + 1);
+
+      const parsed = parseClosedFlags(beforeDelimiter, {
+        valueFlags: ["--cwd", "--deadline-ms"],
+        booleanFlags: ["--apply", "--json", "--help", "-h"],
+      });
+
+      if (parsed.operands.length > 0) {
+        throw new Error(`job start does not accept positional operands before '--': surplus operand '${parsed.operands[0]}'. Command arguments must be placed after '--'.`);
+      }
+
+      const cwdOpt = parsed.options.get("--cwd") as string | undefined;
+      if (!cwdOpt) {
+        throw new Error("job start requires --cwd <existing-directory>");
+      }
+
+      const deadlineStr = parsed.options.get("--deadline-ms") as string | undefined;
+      let deadlineMs: number | undefined;
+      if (deadlineStr !== undefined) {
+        if (!/^\d+$/.test(deadlineStr)) {
+          throw new Error(`Invalid --deadline-ms: must be a decimal integer between 1 and 86400000, got ${deadlineStr}`);
+        }
+        const parsedDeadline = Number(deadlineStr);
+        if (!Number.isSafeInteger(parsedDeadline) || parsedDeadline < 1 || parsedDeadline > 86400000) {
+          throw new Error(`Invalid --deadline-ms: must be a positive integer between 1 and 86400000, got ${deadlineStr}`);
+        }
+        deadlineMs = parsedDeadline;
+      }
+
+      const apply = parsed.options.has("--apply");
+      const executable = childArgs[0]!;
+      if (!executable || executable.trim() === "") {
+        throw new Error("job start requires an executable after '--'");
+      }
+      const cmdArgv = childArgs.slice(1);
+
+      if (!apply) {
+        // Read-only dry-run preview: validate safe cwd/executable/deadline/argv read-only
+        // Create/write/spawn NOTHING!
+        const resolvedCwd = resolve(cwdOpt);
+        let cwdStat;
+        try {
+          cwdStat = await stat(resolvedCwd);
+        } catch {
+          throw new Error(`Job working directory is not a directory: ${resolvedCwd}`);
+        }
+        if (!cwdStat.isDirectory()) {
+          throw new Error(`Job working directory is not a directory: ${resolvedCwd}`);
+        }
+        await assertStateRootNotInsideProjectCanonical(stateRoot, resolvedCwd);
+
+        const resolvedExecutable = resolveCommand(executable) ?? resolve(executable);
+        let execStat;
+        try {
+          execStat = await stat(resolvedExecutable);
+        } catch (err: unknown) {
+          throw new Error(`Cannot locate executable: ${resolvedExecutable} (${(err as Error).message})`);
+        }
+        if (!execStat.isFile()) {
+          throw new Error(`Executable is not a regular file: ${resolvedExecutable}`);
+        }
+        if (!isDirectlyExecutable(resolvedExecutable)) {
+          throw new Error(`Running interpreted scripts without a native binary is not permitted: ${resolvedExecutable}`);
+        }
+        assertNoCredentialsInArgs(resolvedExecutable, cmdArgv, process.env);
+
+        const commandName = basename(resolvedExecutable);
+        const effectiveDeadline = deadlineMs ?? DEFAULT_JOB_DEADLINE_MS;
+        const preview = {
+          applied: false,
+          command: commandName,
+          executable: resolvedExecutable,
+          args: cmdArgv,
+          cwd: resolvedCwd,
+          deadlineMs: effectiveDeadline,
+        };
+
+        const humanOutput = [
+          `Job start preview (dry-run):`,
+          `Command:     ${commandName}`,
+          `Executable:  ${resolvedExecutable}`,
+          `CWD:         ${resolvedCwd}`,
+          `Deadline:    ${effectiveDeadline}ms`,
+          `Arguments:   ${JSON.stringify(cmdArgv)}`,
+          `Pass --apply to start this job.`,
+        ].join("\n");
+
+        print(preview, json, humanOutput, context);
+        return;
+      }
+
+      const result = await startCommandJob({
+        stateRoot,
+        cwd: cwdOpt,
+        executable,
+        args: cmdArgv,
+        ...(deadlineMs !== undefined ? { deadlineMs } : {}),
+      });
+
+      const humanOutput = [
+        `Started command job ${result.jobId}`,
+        `Command:  ${result.command}`,
+        `CWD:      ${result.cwd}`,
+        `Deadline: ${result.deadlineMs}ms`,
+        `Status:   ${result.status}`,
+      ].join("\n");
+
+      print(result, json, humanOutput, context);
+      return;
+    }
+
+    if (subcommand === "status") {
+      const parsed = parseClosedFlags(rawArgs.slice(2), {
+        valueFlags: [],
+        booleanFlags: ["--apply", "--json", "--help", "-h"],
+      });
+      if (parsed.options.has("--apply")) {
+        throw new Error("`job status` has no --apply: it reads and persists nothing.");
+      }
+      if (parsed.operands.length === 0) {
+        throw new Error("job status requires a job ID: alpha-aos job status <job-id>");
+      }
+      if (parsed.operands.length > 1) {
+        throw new Error(`Unexpected operand: ${parsed.operands[1]}. job status accepts only a single job ID.`);
+      }
+      const jobId = parsed.operands[0]!;
+      validateJobId(jobId);
+
+      const record = await getCommandJobStatus(stateRoot, jobId);
+      const humanOutput = [
+        `Job ID:   ${record.jobId}`,
+        `Command:  ${record.command}`,
+        `Status:   ${record.status}`,
+        `Exit:     ${record.exitCode ?? "(none)"}`,
+        ...(record.error ? [`Error:    [${record.error.code}] ${record.error.message}`] : []),
+        ...(record.output?.stdout ? [`\n--- stdout ---\n${record.output.stdout}`] : []),
+        ...(record.output?.stderr ? [`\n--- stderr ---\n${record.output.stderr}`] : []),
+      ].join("\n");
+      print(record, json, humanOutput, context);
+      if (record.status === "failed" || record.status === "orphaned" || record.status === "timed_out" || (record.status === "completed" && record.exitCode !== 0)) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+
+    if (subcommand === "wait") {
+      const parsed = parseClosedFlags(rawArgs.slice(2), {
+        valueFlags: ["--timeout-ms"],
+        booleanFlags: ["--apply", "--json", "--help", "-h"],
+      });
+      if (parsed.options.has("--apply")) {
+        throw new Error("`job wait` has no --apply: it reads and observes without mutations.");
+      }
+      if (parsed.operands.length === 0) {
+        throw new Error("job wait requires a job ID: alpha-aos job wait <job-id> [--timeout-ms <ms>] [--json]");
+      }
+      if (parsed.operands.length > 1) {
+        throw new Error(`Unexpected operand: ${parsed.operands[1]}. job wait accepts only a single job ID.`);
+      }
+      const jobId = parsed.operands[0]!;
+      validateJobId(jobId);
+
+      const timeoutStr = parsed.options.get("--timeout-ms") as string | undefined;
+      let timeoutMs: number | undefined;
+      if (timeoutStr !== undefined) {
+        if (!/^\d+$/.test(timeoutStr)) {
+          throw new Error(`Invalid --timeout-ms: must be a decimal integer between 1 and 86400000, got ${timeoutStr}`);
+        }
+        const parsedTimeout = Number(timeoutStr);
+        if (!Number.isSafeInteger(parsedTimeout) || parsedTimeout < 1 || parsedTimeout > 86400000) {
+          throw new Error(`Invalid --timeout-ms: must be a positive integer between 1 and 86400000, got ${timeoutStr}`);
+        }
+        timeoutMs = parsedTimeout;
+      }
+
+      const settlement = await waitCommandJob({
+        stateRoot,
+        jobId,
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      });
+      if (settlement.status === "completed") {
+        const record = settlement.value;
+        const humanOutput = [
+          `Job ${record.jobId} completed with status: ${record.status}`,
+          `Exit:     ${record.exitCode ?? "(none)"}`,
+          ...(record.output?.stdout ? [`\n--- stdout ---\n${record.output.stdout}`] : []),
+          ...(record.output?.stderr ? [`\n--- stderr ---\n${record.output.stderr}`] : []),
+        ].join("\n");
+        print(record, json, humanOutput, context);
+        if (record.status === "completed" && record.exitCode === 0) {
+          process.exitCode = 0;
+        } else {
+          process.exitCode = 1;
+        }
+        return;
+      }
+
+      const payload = {
+        jobId,
+        status: settlement.status,
+        reason: settlement.status === "timeout" ? `Timed out after ${settlement.elapsedMs}ms` : (settlement as any).reason,
+      };
+      print(payload, json, `Job wait ${settlement.status}: ${(settlement as any).reason ?? ""}`, context);
+      process.exitCode = 1;
+      return;
+    }
+
+    if (subcommand === "cancel") {
+      const parsed = parseClosedFlags(rawArgs.slice(2), {
+        valueFlags: ["--timeout-ms"],
+        booleanFlags: ["--apply", "--json", "--help", "-h"],
+      });
+      if (parsed.operands.length === 0) {
+        throw new Error("job cancel requires a job ID: alpha-aos job cancel <job-id> [--timeout-ms <ms>] [--apply] [--json]");
+      }
+      if (parsed.operands.length > 1) {
+        throw new Error(`Unexpected operand: ${parsed.operands[1]}. job cancel accepts only a single job ID.`);
+      }
+      const jobId = parsed.operands[0]!;
+      validateJobId(jobId);
+
+      const timeoutStr = parsed.options.get("--timeout-ms") as string | undefined;
+      let timeoutMs: number | undefined;
+      if (timeoutStr !== undefined) {
+        if (!/^\d+$/.test(timeoutStr)) {
+          throw new Error(`Invalid --timeout-ms: must be a decimal integer between 1 and 86400000, got ${timeoutStr}`);
+        }
+        const parsedTimeout = Number(timeoutStr);
+        if (!Number.isSafeInteger(parsedTimeout) || parsedTimeout < 1 || parsedTimeout > 86400000) {
+          throw new Error(`Invalid --timeout-ms: must be a positive integer between 1 and 86400000, got ${timeoutStr}`);
+        }
+        timeoutMs = parsedTimeout;
+      }
+
+      const apply = parsed.options.has("--apply");
+      if (!apply) {
+        const record = await getCommandJobStatus(stateRoot, jobId);
+        const preview = {
+          applied: false,
+          jobId: record.jobId,
+          command: record.command,
+          status: record.status,
+          requestIntent: "cancel",
+          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        };
+        const humanOutput = [
+          `Job ${record.jobId} cancel preview (dry-run):`,
+          `Command:  ${record.command}`,
+          `Status:   ${record.status}`,
+          `Intent:   cancel`,
+          `Pass --apply to cancel this job.`,
+        ].join("\n");
+        print(preview, json, humanOutput, context);
+        return;
+      }
+
+      const record = await cancelCommandJob({
+        stateRoot,
+        jobId,
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+      });
+      const humanOutput = [
+        `Job ${record.jobId} cancellation requested.`,
+        `Status: ${record.status}`,
+        ...(record.exitCode !== null ? [`Exit:   ${record.exitCode}`] : []),
+      ].join("\n");
+      print(record, json, humanOutput, context);
+      return;
+    }
+  }
+
   const root = packageRoot();
   const catalog = await loadCatalog(root);
   const lock = await loadLock(root);
@@ -2480,329 +2803,6 @@ async function main(): Promise<void> {
       context,
     );
     return;
-  }
-
-  if (command === "job-worker") {
-    const stateRoot = optionValue(args, "--state-root") ?? userStateRoot();
-    const jobId = optionValue(args, "--job-id");
-    const ownerToken = optionValue(args, "--owner-token");
-    if (!jobId || !ownerToken) {
-      process.stderr.write("job-worker requires --job-id and --owner-token\n");
-      process.exitCode = 1;
-      return;
-    }
-    const { runJobWorker } = await import("./core/command-job-worker.js");
-    await runJobWorker({ stateRoot, jobId, ownerToken });
-    return;
-  }
-
-  if (command === "job") {
-    const subcommand = args[1] ?? "";
-    if (!["start", "status", "wait", "cancel", "worker"].includes(subcommand)) {
-      throw new Error(`Unknown job command: ${subcommand || "(none)"}. Use one of: start, status, wait, cancel.`);
-    }
-
-    if (subcommand === "worker") {
-      const stateRoot = optionValue(args, "--state-root") ?? userStateRoot();
-      const jobId = optionValue(args, "--job-id");
-      const ownerToken = optionValue(args, "--owner-token");
-      if (!jobId || !ownerToken) {
-        throw new Error("job worker requires --job-id and --owner-token");
-      }
-      const { runJobWorker } = await import("./core/command-job-worker.js");
-      await runJobWorker({ stateRoot, jobId, ownerToken });
-      return;
-    }
-
-    const {
-      startCommandJob,
-      getCommandJobStatus,
-      waitCommandJob,
-      cancelCommandJob,
-      assertStateRootNotInsideProject,
-      assertStateRootNotInsideProjectCanonical,
-      assertNoCredentialsInArgs,
-      DEFAULT_JOB_DEADLINE_MS,
-      validateJobId,
-    } = await import("./core/command-jobs.js");
-    const stateRoot = userStateRoot();
-    const context = observableContext();
-
-    if (subcommand === "start") {
-      const delimiterIndex = rawArgs.indexOf("--");
-      if (delimiterIndex === -1 || delimiterIndex === rawArgs.length - 1) {
-        throw new Error("job start requires '-- <executable> [args...]': alpha-aos job start --cwd <dir> [--deadline-ms <ms>] [--apply] [--json] -- <executable> [args...]");
-      }
-      const beforeDelimiter = rawArgs.slice(2, delimiterIndex);
-      const childArgs = rawArgs.slice(delimiterIndex + 1);
-
-      const parsed = parseClosedFlags(beforeDelimiter, {
-        valueFlags: ["--cwd", "--deadline-ms"],
-        booleanFlags: ["--apply", "--json", "--help", "-h"],
-      });
-
-      if (parsed.operands.length > 0) {
-        throw new Error(`job start does not accept positional operands before '--': surplus operand '${parsed.operands[0]}'. Command arguments must be placed after '--'.`);
-      }
-
-      const cwdOpt = parsed.options.get("--cwd") as string | undefined;
-      if (!cwdOpt) {
-        throw new Error("job start requires --cwd <existing-directory>");
-      }
-
-      const deadlineStr = parsed.options.get("--deadline-ms") as string | undefined;
-      let deadlineMs: number | undefined;
-      if (deadlineStr !== undefined) {
-        if (!/^\d+$/.test(deadlineStr)) {
-          throw new Error(`Invalid --deadline-ms: must be a decimal integer between 1 and 86400000, got ${deadlineStr}`);
-        }
-        const parsedDeadline = Number(deadlineStr);
-        if (!Number.isSafeInteger(parsedDeadline) || parsedDeadline < 1 || parsedDeadline > 86400000) {
-          throw new Error(`Invalid --deadline-ms: must be a positive integer between 1 and 86400000, got ${deadlineStr}`);
-        }
-        deadlineMs = parsedDeadline;
-      }
-
-      const apply = parsed.options.has("--apply");
-      const executable = childArgs[0]!;
-      if (!executable || executable.trim() === "") {
-        throw new Error("job start requires an executable after '--'");
-      }
-      const cmdArgv = childArgs.slice(1);
-
-      if (!apply) {
-        // Read-only dry-run preview: validate safe cwd/executable/deadline/argv read-only
-        // Create/write/spawn NOTHING!
-        const resolvedCwd = resolve(cwdOpt);
-        let cwdStat;
-        try {
-          cwdStat = await stat(resolvedCwd);
-        } catch {
-          throw new Error(`Job working directory is not a directory: ${resolvedCwd}`);
-        }
-        if (!cwdStat.isDirectory()) {
-          throw new Error(`Job working directory is not a directory: ${resolvedCwd}`);
-        }
-        await assertStateRootNotInsideProjectCanonical(stateRoot, resolvedCwd);
-
-        const resolvedExecutable = resolveCommand(executable) ?? resolve(executable);
-        let execStat;
-        try {
-          execStat = await stat(resolvedExecutable);
-        } catch (err: unknown) {
-          throw new Error(`Cannot locate executable: ${resolvedExecutable} (${(err as Error).message})`);
-        }
-        if (!execStat.isFile()) {
-          throw new Error(`Executable is not a regular file: ${resolvedExecutable}`);
-        }
-        if (!isDirectlyExecutable(resolvedExecutable)) {
-          throw new Error(`Running interpreted scripts without a native binary is not permitted: ${resolvedExecutable}`);
-        }
-        assertNoCredentialsInArgs(resolvedExecutable, cmdArgv, process.env);
-
-        const commandName = basename(resolvedExecutable);
-        const effectiveDeadline = deadlineMs ?? DEFAULT_JOB_DEADLINE_MS;
-        const preview = {
-          applied: false,
-          command: commandName,
-          executable: resolvedExecutable,
-          args: cmdArgv,
-          cwd: resolvedCwd,
-          deadlineMs: effectiveDeadline,
-        };
-
-        const humanOutput = [
-          `Job start preview (dry-run):`,
-          `Command:     ${commandName}`,
-          `Executable:  ${resolvedExecutable}`,
-          `CWD:         ${resolvedCwd}`,
-          `Deadline:    ${effectiveDeadline}ms`,
-          `Arguments:   ${JSON.stringify(cmdArgv)}`,
-          `Pass --apply to start this job.`,
-        ].join("\n");
-
-        print(preview, json, humanOutput, context);
-        return;
-      }
-
-      const result = await startCommandJob({
-        stateRoot,
-        cwd: cwdOpt,
-        executable,
-        args: cmdArgv,
-        ...(deadlineMs !== undefined ? { deadlineMs } : {}),
-      });
-
-      const humanOutput = [
-        `Started command job ${result.jobId}`,
-        `Command:  ${result.command}`,
-        `CWD:      ${result.cwd}`,
-        `Deadline: ${result.deadlineMs}ms`,
-        `Status:   ${result.status}`,
-      ].join("\n");
-
-      print(result, json, humanOutput, context);
-      return;
-    }
-
-    if (subcommand === "status") {
-      const parsed = parseClosedFlags(rawArgs.slice(2), {
-        valueFlags: [],
-        booleanFlags: ["--apply", "--json", "--help", "-h"],
-      });
-      if (parsed.options.has("--apply")) {
-        throw new Error("`job status` has no --apply: it reads and persists nothing.");
-      }
-      if (parsed.operands.length === 0) {
-        throw new Error("job status requires a job ID: alpha-aos job status <job-id>");
-      }
-      if (parsed.operands.length > 1) {
-        throw new Error(`Unexpected operand: ${parsed.operands[1]}. job status accepts only a single job ID.`);
-      }
-      const jobId = parsed.operands[0]!;
-      validateJobId(jobId);
-
-      const record = await getCommandJobStatus(stateRoot, jobId);
-      const humanOutput = [
-        `Job ID:   ${record.jobId}`,
-        `Command:  ${record.command}`,
-        `Status:   ${record.status}`,
-        `Exit:     ${record.exitCode ?? "(none)"}`,
-        ...(record.error ? [`Error:    [${record.error.code}] ${record.error.message}`] : []),
-        ...(record.output?.stdout ? [`\n--- stdout ---\n${record.output.stdout}`] : []),
-        ...(record.output?.stderr ? [`\n--- stderr ---\n${record.output.stderr}`] : []),
-      ].join("\n");
-      print(record, json, humanOutput, context);
-      if (record.status === "failed" || record.status === "orphaned" || record.status === "timed_out" || (record.status === "completed" && record.exitCode !== 0)) {
-        process.exitCode = 1;
-      }
-      return;
-    }
-
-    if (subcommand === "wait") {
-      const parsed = parseClosedFlags(rawArgs.slice(2), {
-        valueFlags: ["--timeout-ms"],
-        booleanFlags: ["--apply", "--json", "--help", "-h"],
-      });
-      if (parsed.options.has("--apply")) {
-        throw new Error("`job wait` has no --apply: it reads and observes without mutations.");
-      }
-      if (parsed.operands.length === 0) {
-        throw new Error("job wait requires a job ID: alpha-aos job wait <job-id> [--timeout-ms <ms>] [--json]");
-      }
-      if (parsed.operands.length > 1) {
-        throw new Error(`Unexpected operand: ${parsed.operands[1]}. job wait accepts only a single job ID.`);
-      }
-      const jobId = parsed.operands[0]!;
-      validateJobId(jobId);
-
-      const timeoutStr = parsed.options.get("--timeout-ms") as string | undefined;
-      let timeoutMs: number | undefined;
-      if (timeoutStr !== undefined) {
-        if (!/^\d+$/.test(timeoutStr)) {
-          throw new Error(`Invalid --timeout-ms: must be a decimal integer between 1 and 86400000, got ${timeoutStr}`);
-        }
-        const parsedTimeout = Number(timeoutStr);
-        if (!Number.isSafeInteger(parsedTimeout) || parsedTimeout < 1 || parsedTimeout > 86400000) {
-          throw new Error(`Invalid --timeout-ms: must be a positive integer between 1 and 86400000, got ${timeoutStr}`);
-        }
-        timeoutMs = parsedTimeout;
-      }
-
-      const settlement = await waitCommandJob({
-        stateRoot,
-        jobId,
-        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      });
-      if (settlement.status === "completed") {
-        const record = settlement.value;
-        const humanOutput = [
-          `Job ${record.jobId} completed with status: ${record.status}`,
-          `Exit:     ${record.exitCode ?? "(none)"}`,
-          ...(record.output?.stdout ? [`\n--- stdout ---\n${record.output.stdout}`] : []),
-          ...(record.output?.stderr ? [`\n--- stderr ---\n${record.output.stderr}`] : []),
-        ].join("\n");
-        print(record, json, humanOutput, context);
-        if (record.status === "completed" && record.exitCode === 0) {
-          process.exitCode = 0;
-        } else {
-          process.exitCode = 1;
-        }
-        return;
-      }
-
-      const payload = {
-        jobId,
-        status: settlement.status,
-        reason: settlement.status === "timeout" ? `Timed out after ${settlement.elapsedMs}ms` : (settlement as any).reason,
-      };
-      print(payload, json, `Job wait ${settlement.status}: ${(settlement as any).reason ?? ""}`, context);
-      process.exitCode = 1;
-      return;
-    }
-
-    if (subcommand === "cancel") {
-      const parsed = parseClosedFlags(rawArgs.slice(2), {
-        valueFlags: ["--timeout-ms"],
-        booleanFlags: ["--apply", "--json", "--help", "-h"],
-      });
-      if (parsed.operands.length === 0) {
-        throw new Error("job cancel requires a job ID: alpha-aos job cancel <job-id> [--timeout-ms <ms>] [--apply] [--json]");
-      }
-      if (parsed.operands.length > 1) {
-        throw new Error(`Unexpected operand: ${parsed.operands[1]}. job cancel accepts only a single job ID.`);
-      }
-      const jobId = parsed.operands[0]!;
-      validateJobId(jobId);
-
-      const timeoutStr = parsed.options.get("--timeout-ms") as string | undefined;
-      let timeoutMs: number | undefined;
-      if (timeoutStr !== undefined) {
-        if (!/^\d+$/.test(timeoutStr)) {
-          throw new Error(`Invalid --timeout-ms: must be a decimal integer between 1 and 86400000, got ${timeoutStr}`);
-        }
-        const parsedTimeout = Number(timeoutStr);
-        if (!Number.isSafeInteger(parsedTimeout) || parsedTimeout < 1 || parsedTimeout > 86400000) {
-          throw new Error(`Invalid --timeout-ms: must be a positive integer between 1 and 86400000, got ${timeoutStr}`);
-        }
-        timeoutMs = parsedTimeout;
-      }
-
-      const apply = parsed.options.has("--apply");
-      if (!apply) {
-        const record = await getCommandJobStatus(stateRoot, jobId);
-        const preview = {
-          applied: false,
-          jobId: record.jobId,
-          command: record.command,
-          status: record.status,
-          requestIntent: "cancel",
-          ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-        };
-        const humanOutput = [
-          `Job ${record.jobId} cancel preview (dry-run):`,
-          `Command:  ${record.command}`,
-          `Status:   ${record.status}`,
-          `Intent:   cancel`,
-          `Pass --apply to cancel this job.`,
-        ].join("\n");
-        print(preview, json, humanOutput, context);
-        return;
-      }
-
-      const record = await cancelCommandJob({
-        stateRoot,
-        jobId,
-        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
-      });
-      const humanOutput = [
-        `Job ${record.jobId} cancellation requested.`,
-        `Status: ${record.status}`,
-        ...(record.exitCode !== null ? [`Exit:   ${record.exitCode}`] : []),
-      ].join("\n");
-      print(record, json, humanOutput, context);
-      return;
-    }
   }
 
   if (command === "tree") {

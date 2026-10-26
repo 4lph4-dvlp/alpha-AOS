@@ -1,6 +1,6 @@
 # Efficient Wait & Reactive Completion Guide
 
-alpha-AOS v0.4.1 introduces declarative, event-driven process lifetime and completion tracking (`alpha-aos job` and `alpha-aos task wait`) across all five supported AI agent harnesses. This guide provides runnable commands, architecture principles, and security invariants for eliminating repetitive model `sleep` or polling loops.
+alpha-AOS v0.4.5 introduces declarative, event-driven process lifetime and completion tracking (`alpha-aos job` and `alpha-aos task wait`) across all five supported AI agent harnesses. This guide provides runnable commands, architecture principles, and security invariants for eliminating repetitive model `sleep` or polling loops.
 
 ---
 
@@ -138,3 +138,5 @@ Shared alpha-AOS wait guidance and CLI commands are portable across all supporte
   - Non-interactive terminal events: [https://learn.chatgpt.com/docs/non-interactive-mode](https://learn.chatgpt.com/docs/non-interactive-mode)
   - Lifecycle hooks: [https://learn.chatgpt.com/docs/hooks](https://learn.chatgpt.com/docs/hooks) (confirms background hooks do not trigger new model turns).
 - **Authentication & Isolation**: The same host-user credentials are required for all harness operations. Sandbox authentication issues cannot be resolved by weakening security boundaries or sandbox isolation.
+
+The approved BUG-06 plan originally targeted 0.4.1. Integration preserves original main 0.4.4 (29619ab) and prepares candidate 0.4.5; historical computer-use 0.4.0 evidence is unchanged.

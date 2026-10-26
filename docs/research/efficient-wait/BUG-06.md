@@ -66,3 +66,5 @@ Investigation revealed that the system defect was not an inability of Node.js to
 ### Remaining Verification Gates
 - **Pending Independent Review Resolution**: Active repairs by Workers D and E addressing the 5 blockers and 2 warnings from `task-wait-resolution-review.md`.
 - **Final Release Gate & Verifier Suites**: PENDING (to be executed by controller in a later evidence-only packet after actual gates).
+
+Historical scope: the approved plan targeted 0.4.1 from 54ecf50. Current integration includes original main 0.4.4 (29619ab) and prepares candidate 0.4.5; final verification is pending. The committed original user report from 02c2bf7 is retained as input.

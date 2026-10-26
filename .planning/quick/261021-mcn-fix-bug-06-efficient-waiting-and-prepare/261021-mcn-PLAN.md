@@ -11,6 +11,10 @@ files_modified:
   - src/core/command-jobs.ts
   - src/core/command-job-worker.ts
   - src/core/process.ts
+  - src/core/task-gsd-lifecycle.ts
+  - test/task-gsd-lifecycle.test.ts
+  - test/task-cli.test.ts
+  - catalog/stack.lock.json
   - test/process.test.ts
   - src/cli.ts
   - schemas/command-job.schema.json
@@ -24,6 +28,9 @@ files_modified:
   - test/helpers/command-job-runtime.ts
   - test/verify-efficient-wait-integrity.test.ts
   - test/efficient-wait-cli.test.ts
+  - scripts/build-artifact.mjs
+  - test/job-cli-bootstrap.test.ts
+  - test/build-artifact-integrity.test.ts
   - scripts/verify-efficient-wait.mjs
   - test/verify-efficient-wait.test.ts
   - test/efficient-wait-guidance.test.ts
@@ -266,3 +273,12 @@ All must-have truths are demonstrated with behavioral tests and real CLI executi
 <output>
 The controller creates .planning/quick/261021-mcn-fix-bug-06-efficient-waiting-and-prepare/261021-mcn-SUMMARY.md and required verification/state records through GSD after reviewing actual results. Implementation agents never edit .planning/.
 </output>
+
+## 2026-10-27 authorized integration amendment
+
+The0.4.1 references above preserve the historical approved plan. Actual final candidate versions/assertions/docs are0.4.5 because original main has advanced to0.4.4 (29619abaa10b250d745c1c4df2896cadd682aa53). Merge all newer original main work before correction/gates; preserve its promoted stable external locks, deterministic model binding, CI fixes, multi-phase behavior, governance and committed user report02c2bf7. No dependency promotion or version downgrade. Preserve historical computer-use0.4.0.
+
+Exact added files are src/core/task-gsd-lifecycle.ts, test/task-gsd-lifecycle.test.ts (exact phase argv collision fix in both custom branches plus behavior), test/task-cli.test.ts (actual wait diagnostic), catalog/stack.lock.json (owned merged task guide hashes only, retaining newer stable pins). Existing owned process tests opt into existing64KiB parseable excerpt for two JSON fixtures and assert uncapped output. Existing process runtime guards Windows taskkill using actual child.exitCode/signalCode proof; do not signal a recycled dead parent, widen defaults, weaken900ms timing, skip tests or change POSIX/live-tree semantics. All product/conflict edits remain required Gemini/high only. Refresh targeted checks, fresh independent review, execute:post/verify:pre/strict gates, one justified final release retry (includes sole fullsuite), then actual JSON criteria, evidence-only finalization and independent goal verification before Verified/state/integration. Prior failed release evidence remains historical and must not be overwritten. Local merge integration intoD only after final gates and live original-head recheck.
+
+### Power-loss failure correction scope (same task)
+Actual targeted045 completed191tests178pass12fail1skip beforepowerloss. Minimal serial4 subsequently2pass2fail; remaining8serial8pass0fail0skip, so scheduling alone is not established as cause. New required correction files: existing src/cli.ts moves existing job/worker branches verbatim ahead of unused installer catalog loads; scripts/build-artifact.mjs verifies every input/output hash with bounded8 reads and original diagnostic order; new actual-script fixture regressions test/job-cli-bootstrap.test.ts and test/build-artifact-integrity.test.ts cover invalid installer catalog independence and >8 batch boundary hashes/missing entries. No handshake5000ms, buildcheck5000ms, verifier25000ms, source/process/output/authority bounds or assertions change. Gemini alone applies all product/test changes. Priorreview0findings remains historical; new correction requires affected build/checks and narrow independent review before full release.

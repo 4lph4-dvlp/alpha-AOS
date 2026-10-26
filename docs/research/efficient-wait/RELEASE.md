@@ -1,8 +1,8 @@
-# Release Notes: alpha-AOS v0.4.1 (Local Pre-Release Documentation)
+# Release Notes: alpha-AOS v0.4.5 (Local Pre-Release Documentation)
 
-**Version**: `0.4.1`
+**Version**: `0.4.5`
 
-**Task Base**: `54ecf5042a5cc969004716484f85c0b91b013505` (local v0.4.0); remote `origin/main` last seen at `3a4e632` is v0.3.1 (does not contain v0.4.0). No current v0.4.1 final implementation hash known yet.
+**Task Base**: `54ecf5042a5cc969004716484f85c0b91b013505` (local v0.4.0); remote `origin/main` last seen at `3a4e632` is v0.3.1 (does not contain v0.4.0). No current v0.4.5 final implementation hash known yet.
 
 **Release Scope**: Local build and documentation pre-release. No remote git push, tagging, or npm registry publication performed.
 
@@ -36,3 +36,5 @@
 | **Model Ready (Host Context)** | `MODEL_READY` | **VERIFIED** | Host-user context functional; native sandbox auth remains blocked |
 | **Independent Re-Review Gate** | Architecture/Code | **PENDING** | Awaiting completion of worker repairs and final independent re-review |
 | **Verifier Release Gate** | `verify-efficient-wait` | **PENDING** | To be executed by controller in subsequent packet |
+
+Historical scope: the approved plan targeted 0.4.1 from 54ecf50. Current integration includes original main 0.4.4 (29619ab) and prepares candidate 0.4.5; final verification is pending. The committed original user report from 02c2bf7 is retained as input.

@@ -550,10 +550,20 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
       });
     };
 
+    const terminateOwnedTree = (): KillDelivery => {
+      if (child.pid === undefined) return "not-required";
+      // An exited Windows parent cannot identify its surviving descendants and
+      // its PID can already have been recycled. POSIX still needs the group kill.
+      if (process.platform === "win32" && (child.exitCode !== null || child.signalCode !== null)) {
+        return "already-gone";
+      }
+      return terminateProcessTree(child.pid, "SIGKILL");
+    };
+
     const triggerCancellation = (): void => {
       cancelled = true;
       if (child.pid !== undefined) {
-        treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
+        treeDelivery = terminateOwnedTree();
         cancelFallbackTimer = setTimeout(() => {
           cleanupPipes();
           finish("cancelled", null, null, false);
@@ -578,7 +588,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
     deadline = setTimeout(() => {
       timedOut = true;
       if (child.pid !== undefined) {
-        treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
+        treeDelivery = terminateOwnedTree();
       }
       timeoutFallbackTimer = setTimeout(() => {
         cleanupPipes();
@@ -595,7 +605,7 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
         // allowed to exhaust memory, unless the caller opt into drain.
         if (spec.overflowPolicy !== "drain" && sink.totalBytes > limit * 8 && !cappedKill) {
           cappedKill = true;
-          if (child.pid !== undefined) treeDelivery = terminateProcessTree(child.pid, "SIGKILL");
+          if (child.pid !== undefined) treeDelivery = terminateOwnedTree();
         }
       });
     };

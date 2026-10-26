@@ -150,6 +150,11 @@ alpha-AOS provides an integrated capability suite across all supported harnesses
 4. **Ordering Invariant**: The workflow MUST strictly follow:
    `Path Selection → Read-Only Preview → Exact Digest Approval → Separate Start → Status/Report Tracking`.
    No step may be skipped or reordered.
+5. **No Inline Chat Execution in Autopilot Mode (Fail-Closed Invariant)**:
+   - When a task operates in `mode: autopilot`, the conversational chat agent is strictly forbidden from executing task steps inline via chat tool calls (`write_file`, `edit_file`, or running inline code generators).
+   - Inline execution binds model selection to the interactive UI dropdown (e.g. Gemini Flash) rather than the contractually approved model tiers (e.g. Gemini Argon / Claude Opus / GPT-4o).
+   - Autopilot tasks MUST execute exclusively via headless, isolated child processes dispatched by the background supervisor or runner script with explicit CLI model flags (`--model`).
+   - If an agent is in an interactive chat session and an autopilot task is approved, execution belongs to the separate external supervisor rather than inline repo writes in the chat conversation.
 
 ## GUI verification orchestration
 

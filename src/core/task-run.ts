@@ -88,6 +88,7 @@ import {
   type GsdQuickOutline,
 } from "./task-gsd.js";
 import { grantedGitDirectory, resolveTaskGitDirectory, snapshotGitControl } from "./task-git.js";
+import { orchestrateMultiPhaseProgression } from "./task-gsd-lifecycle.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 
@@ -1301,6 +1302,99 @@ async function startGeneralTask(params: {
   }
 }
 
+async function startMultiPhaseTask(params: {
+  contract: TaskContract;
+  digest: string;
+  approval: TaskApprovalRecord;
+  options: StartTaskOptions;
+  baseline: { baseCommit: string };
+  clock: () => Date;
+}): Promise<{ run: TaskRunRecord; recordPath: string }> {
+  const { contract, digest, approval, options, baseline, clock } = params;
+  const projectRoot = resolve(contract.scope.projectRoot);
+  const started = clock();
+  const runId = options.runId ?? `${started.getTime().toString(36).padStart(8, "0")}-${randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  const minutes = contract.resourcePolicy.maxWallTimeMinutes;
+  const deadlineAt = minutes === undefined ? null : new Date(started.getTime() + minutes * 60_000).toISOString();
+  const gitDirectory = contract.allowedEffects.includes("local-commit") ? approval.gitDirectory ?? null : null;
+
+  const executing: TaskRunRecord = {
+    schemaVersion: 1,
+    kind: "task-run",
+    runId,
+    contractId: contract.id,
+    revision: contract.revision,
+    contractDigest: digest,
+    status: "executing",
+    startedAt: started.toISOString(),
+    finishedAt: null,
+    artifact: null,
+    executor: null,
+    reviewer: null,
+    verdict: null,
+    stopReason: null,
+    nextAction: null,
+    decisions: [],
+    decisionLog: null,
+    baseCommit: baseline.baseCommit,
+    deadlineAt,
+    gsd: null,
+    effects: null,
+    gitDirectory,
+  };
+  const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
+
+  const multiPhaseResult = await orchestrateMultiPhaseProgression({
+    projectRoot,
+    contract,
+    baseCommit: baseline.baseCommit,
+    targetRevisionSha: baseline.baseCommit,
+    timeoutMs: minutes === undefined ? undefined : minutes * 60_000,
+    receiptsRoot: join(options.stateRoot, "receipts"),
+    packageRoot: options.packageRoot,
+    stateRoot: options.stateRoot,
+    runId,
+  });
+
+  const isSuccess = multiPhaseResult.finalStatus === "completed";
+  const changes = await readTaskChanges({ projectRoot, baseCommit: baseline.baseCommit });
+  const audit = await auditTaskEffects({ contract, runId, changes, projectRoot, baseCommit: baseline.baseCommit });
+
+  const finishedRecord: TaskRunRecord = {
+    ...executing,
+    status: isSuccess ? "accepted" : "rejected",
+    finishedAt: clock().toISOString(),
+    verdict: {
+      overall: isSuccess ? "accepted" : "rejected",
+      refusal: null,
+      rows: [],
+      preconditions: [],
+    },
+    stopReason: isSuccess ? "completed" : multiPhaseResult.finalStatus,
+    nextAction: isSuccess
+      ? "All roadmap phases and final review completed successfully."
+      : "Inspect phase progression and resume.",
+    gsd: {
+      status: isSuccess ? "verified" : "missing",
+      quickId: null,
+      planPath: null,
+      summaryPath: null,
+      stateRow: true,
+      commits: changes.commits,
+      missing: isSuccess ? [] : ["phase-progression-incomplete"],
+      workflowSha256: null,
+    },
+    effects: {
+      ...audit,
+      packCheckpoint: audit.dependencyChanged
+        ? await runPackCheckpoint({ projectRoot, packageRoot: options.packageRoot, stateRoot: options.stateRoot })
+        : null,
+    },
+  };
+  await writeRunRecord(options.stateRoot, options.packageRoot, finishedRecord);
+  return { run: finishedRecord, recordPath };
+}
+
 /**
  * Starts one run of an approved contract. The first record written consumes
  * the approval, so one approval authorizes exactly one run (D-02, AUTO-03).
@@ -1350,6 +1444,17 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       "dirty-baseline",
       `Task ${contract.id} cannot start in ${projectRoot}: ${detail}. Commit or remove them and start again; the approval is still usable.`,
     );
+  }
+
+  if (contract.scope.workflow === "gsd-multi-phase" || contract.scope.workflow === "gsd") {
+    return await startMultiPhaseTask({
+      contract,
+      digest,
+      approval,
+      options,
+      baseline,
+      clock,
+    });
   }
 
   // The controller must be able to run the installed GSD quick workflow here.

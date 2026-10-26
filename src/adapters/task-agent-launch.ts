@@ -13,7 +13,7 @@ import {
 } from "../core/process.js";
 import { resolveDirectLaunch } from "./capability-oracle.js";
 import type { HarnessId } from "../types.js";
-import type { TaskContract } from "../core/task-contract.js";
+import type { TaskContract, TaskAgentPolicy } from "../core/task-contract.js";
 
 export function taskComputerUseRoute(harness: HarnessId, contract: Pick<TaskContract, "computerUse">): { command: string; args: string[]; granted: boolean; instruction: string } {
   if (!["claude", "codex", "antigravity", "pi", "hermes"].includes(harness)) throw new Error("Unsupported computer-use harness");
@@ -181,4 +181,145 @@ export async function loadAgentSchema(fileName: string, root: string): Promise<R
   const schema = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
   schemaCache.set(path, schema);
   return schema;
+}
+
+export const SAFE_MODEL_ID = /^[A-Za-z0-9._:/-]+$/u;
+
+/**
+ * Resolves the explicit model identifier for a harness role from:
+ * 1. direct adapter option
+ * 2. contract agentPolicy (controllerModel, executorModel, reviewerModel)
+ * 3. project .planning/config.json (model_profile_overrides, model_overrides, cross_ai_command)
+ */
+export async function resolveHarnessRoleModel(options: {
+  harness: HarnessId;
+  role: "controller" | "executor" | "reviewer";
+  adapterModel?: string | undefined;
+  agentPolicy?: TaskAgentPolicy | undefined;
+  projectRoot?: string | undefined;
+}): Promise<string | undefined> {
+  const sanitize = (candidate: unknown): string | undefined => {
+    if (typeof candidate !== "string") return undefined;
+    const trimmed = candidate.trim();
+    return trimmed.length > 0 && SAFE_MODEL_ID.test(trimmed) ? trimmed : undefined;
+  };
+
+  const direct = sanitize(options.adapterModel);
+  if (direct !== undefined) return direct;
+
+  const policy = options.agentPolicy;
+  if (policy !== undefined) {
+    if (options.role === "controller") {
+      const ctrl = sanitize(policy.controllerModel) ?? (policy.controller === policy.executor ? sanitize(policy.executorModel) : undefined);
+      if (ctrl !== undefined) return ctrl;
+    } else if (options.role === "executor") {
+      const exec = sanitize(policy.executorModel) ?? (policy.executor === policy.controller ? sanitize(policy.controllerModel) : undefined);
+      if (exec !== undefined) return exec;
+    } else if (options.role === "reviewer") {
+      const rev = sanitize(policy.reviewerModel);
+      if (rev !== undefined) return rev;
+    }
+  }
+
+  if (options.projectRoot) {
+    try {
+      const configPath = join(options.projectRoot, ".planning", "config.json");
+      const raw = await readFile(configPath, "utf8");
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const overrides = parsed.model_profile_overrides;
+      if (typeof overrides === "object" && overrides !== null && !Array.isArray(overrides)) {
+        const record = overrides as Record<string, unknown>;
+        const harnessNested = record[options.harness];
+        if (typeof harnessNested === "object" && harnessNested !== null && !Array.isArray(harnessNested)) {
+          const nestedRole =
+            sanitize((harnessNested as Record<string, unknown>)[options.role]) ??
+            (options.role === "reviewer" ? sanitize((harnessNested as Record<string, unknown>).verifier) : undefined);
+          if (nestedRole !== undefined) return nestedRole;
+        }
+        const roleOverride =
+          sanitize(record[options.role]) ??
+          (options.role === "reviewer" ? sanitize(record.verifier) : undefined);
+        if (roleOverride !== undefined) return roleOverride;
+        if (options.role === "controller") {
+          const execFallback = sanitize(record.executor);
+          if (execFallback !== undefined) return execFallback;
+        }
+        const defaultOverride = sanitize(record.default);
+        if (defaultOverride !== undefined) return defaultOverride;
+      }
+      const modelOverrides = parsed.model_overrides;
+      if (typeof modelOverrides === "object" && modelOverrides !== null && !Array.isArray(modelOverrides)) {
+        const record = modelOverrides as Record<string, unknown>;
+        if (options.role === "reviewer") {
+          const revOverride = sanitize(record["gsd-verifier"]) ?? sanitize(record["gsd-code-reviewer"]);
+          if (revOverride !== undefined) return revOverride;
+        } else if (options.role === "controller") {
+          const ctrlOverride = sanitize(record["gsd-planner"]) ?? sanitize(record["gsd-roadmapper"]);
+          if (ctrlOverride !== undefined) return ctrlOverride;
+        } else if (options.role === "executor") {
+          const execOverride = sanitize(record["gsd-executor"]) ?? sanitize(record["gsd-code-fixer"]);
+          if (execOverride !== undefined) return execOverride;
+        }
+      }
+      const crossAiCmd =
+        typeof parsed.cross_ai_command === "string"
+          ? parsed.cross_ai_command
+          : typeof parsed.review === "object" && parsed.review !== null && typeof (parsed.review as Record<string, unknown>).cross_ai_command === "string"
+            ? ((parsed.review as Record<string, unknown>).cross_ai_command as string)
+            : undefined;
+      if (crossAiCmd) {
+        const match = crossAiCmd.match(/--model(?:\s+|=)([A-Za-z0-9._:/-]+)/u);
+        const extracted = sanitize(match?.[1]);
+        if (extracted !== undefined) return extracted;
+      }
+    } catch {
+      // Optional .planning/config.json not present or unreadable
+    }
+  }
+
+  return undefined;
+}
+
+/**
+ * Normalizes a canonical model identifier to Antigravity's subagent Model enum.
+ */
+export function canonicalModelToAntigravityTier(model?: string | undefined): "pro" | "flash" | "flash_lite" | "inherit" {
+  if (typeof model !== "string") return "pro";
+  const m = model.toLowerCase().trim();
+  if (m === "inherit" || m === "pro" || m === "flash" || m === "flash_lite") {
+    return m as "pro" | "flash" | "flash_lite" | "inherit";
+  }
+  if (m.includes("flash-low") || m.includes("flash-lite") || m.includes("lite") || m.includes("haiku")) {
+    return "flash_lite";
+  }
+  if (m.includes("flash") || m.includes("sonnet") || m.includes("gpt-4o-mini") || m.includes("gpt-4o")) {
+    return "flash";
+  }
+  if (m.includes("argon") || m.includes("pro") || m.includes("opus") || m.includes("high") || m.includes("o1") || m.includes("o3")) {
+    return "pro";
+  }
+  return "pro";
+}
+
+/**
+ * Verifies that the actually dispatched model conforms to the contracted model policy.
+ * Throws a ModelComplianceError if a silent downgrade or mismatch occurs.
+ */
+export function assertModelCompliance(options: {
+  step: string;
+  expectedModel: string | undefined;
+  actualModel: string | undefined;
+  harness: HarnessId;
+}): void {
+  if (!options.expectedModel) return;
+  if (!options.actualModel) {
+    throw new Error(
+      `MODEL_ENFORCEMENT_VIOLATION: Contract requires model '${options.expectedModel}' for step '${options.step}' on harness '${options.harness}', but no model was dispatched.`,
+    );
+  }
+  if (options.expectedModel.trim().toLowerCase() !== options.actualModel.trim().toLowerCase()) {
+    throw new Error(
+      `MODEL_ENFORCEMENT_VIOLATION: Contract requires model '${options.expectedModel}' for step '${options.step}', but received '${options.actualModel}'. Fail-closed to prevent silent model downgrade.`,
+    );
+  }
 }

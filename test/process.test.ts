@@ -911,6 +911,7 @@ test("onSpawn hook receives concrete PID with handlers ready on successful spawn
     executable: process.execPath,
     args: [fixture.echoScript, "hello-spawn"],
     cwd: fixture.root,
+    excerptBytes: PARSEABLE_PROCESS_OUTPUT_BYTES,
     onSpawn: (info) => {
       spawnedPid = info.pid;
     },
@@ -919,6 +920,9 @@ test("onSpawn hook receives concrete PID with handlers ready on successful spawn
   assert.equal(result.code, "ok");
   assert.equal(typeof spawnedPid, "number");
   assert.ok(spawnedPid! > 0, "onSpawn must receive a concrete positive integer PID");
+  assert.equal(result.stdout.capped, false);
+  assert.equal(result.stderr.capped, false);
+  assert.equal(result.outputCapped, false);
   const parsed = JSON.parse(result.stdout.excerpt) as { argv: string[] };
   assert.deepEqual(parsed.argv, ["hello-spawn"]);
 });
@@ -931,6 +935,7 @@ test("onSpawn hook exceptions do not crash runProcess or abort child execution",
     executable: process.execPath,
     args: [fixture.echoScript, "after-throwing-hook"],
     cwd: fixture.root,
+    excerptBytes: PARSEABLE_PROCESS_OUTPUT_BYTES,
     onSpawn: () => {
       hookThrew = true;
       throw new Error("simulated onSpawn hook failure");
@@ -939,6 +944,9 @@ test("onSpawn hook exceptions do not crash runProcess or abort child execution",
 
   assert.equal(result.code, "ok");
   assert.equal(hookThrew, true);
+  assert.equal(result.stdout.capped, false);
+  assert.equal(result.stderr.capped, false);
+  assert.equal(result.outputCapped, false);
   const parsed = JSON.parse(result.stdout.excerpt) as { argv: string[] };
   assert.deepEqual(parsed.argv, ["after-throwing-hook"]);
 });
@@ -1318,6 +1326,9 @@ test("abort with descendant holding inherited pipes yields unconfirmed cancellat
 
   assert.equal(unconfirmedResult.code, "cancelled");
   assert.equal(unconfirmedResult.closeConfirmed, false, "cancellation with surviving pipe-holder must be unconfirmed");
+  if (process.platform === "win32") {
+    assert.equal(unconfirmedResult.treeTermination, "already-gone", "an exited Windows parent must not be signalled again");
+  }
   assert.ok(abortElapsed < 900, `unconfirmed cancellation (${abortElapsed}ms) must resolve within cleanup grace (< 900ms)`);
 
   // Part B: Clean abort on normal child -> closeConfirmed true

@@ -2,7 +2,7 @@
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
-Release **0.4.1** adds event-driven [efficient waiting and reactive completion](docs/efficient-wait.md) (`alpha-aos job` and `alpha-aos task wait`):
+Release **0.4.5** adds event-driven [efficient waiting and reactive completion](docs/efficient-wait.md) (`alpha-aos job` and `alpha-aos task wait`):
 aims to eliminate model-driven polling loops on its execution path with detached command jobs, single finite observations, and canonical run tracking (without promising host rate-limit prevention or measured token savings).
 Start a background job with `alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs` and wait via `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`.
 macOS/Linux GUI actions and 3OS CI remain unrun as requested. Historical targeted slice established 67/67 test pass at commit `0320c27`; broader cases (69 total: 63 pass, 6 fail) and independent review findings (5 blockers, 2 warnings) are under active repair with final release verification pending.

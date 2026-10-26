@@ -120,6 +120,8 @@ Output: Runtime and CLI behavior, adversarial regressions, executable verifier, 
 </context>
 
 <execution_contract>
+2026-10-27 bounded priority checkpoint: user requires Codex consumption guidance and one real native start/wait probe before remaining release work. Follow CONTEXT's latest bounded-stage section; no new lifecycle, no full suite/release rerun in this stage, no runner/deadline redesign, no original D checkout mutation. Controller owns records, strong review, checks and local commit; authenticated Gemini exact source-only edits own the allowed product guidance and six owned-task-skill hashes. Existing final gates remain pending and unwaived.
+
 This is an approved quick --full --auto, with one plan and three sequential ownership packets. Recommended routine defaults are preapproved. There is no ROADMAP phase requirement mapping or phase-state mutation. The sole controller owns GSD records, local commits, check orchestration and recovery; implementation workers never write .planning/ or commit. Preserve other agents' changes.
 
 Security repair clarifications (after the independent Packet A interim review): reuse the existing process runner with opt-in output drain/spawn observation, retaining its default policy. CLI job start/cancel are dry-run previews unless explicit --apply is supplied, consistent with project governance; read-only wait/status reject --apply. This refines the prototype command spellings below without expanding authority. Programmatic start/cancel remain explicit calls. Correct terminal exit metadata must not become a green CLI result merely because observation completed. Unsupported legacy supervisor linkage remains explicitly unresolved rather than guessed.

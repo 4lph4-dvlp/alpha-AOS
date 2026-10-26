@@ -9,6 +9,12 @@ In dogfooding long-running workflows under the Codex CLI and Antigravity harness
 
 ---
 
+### 2026-10-27 measured Codex baseline and scope
+
+External `codex-consumption-baseline-20261027.json` records one historical Codex thread, deduplicated by response_id: 175 responses, 31 wait calls, 126 exec calls, 547482 retained tool-output characters; cumulative input33050982 (cached32456192), output178670 (including reasoning125256), per-request input27833 to356832. All three historical review subagents used fork_turns none. The record shows large accumulated context and repeated observations; it does not isolate waste, wait-only usage, quota causes or subscription billing. Cached input is not equivalent to uncached cost. There is no matched cross-harness baseline or measured savings.
+
+User prioritizes Codex consumption before release work. Guidance now forbids unchanged status rereads, model babysitters around active controllers and full old transcripts solely for monitoring; runtime owns finite waiting and external logs bound returned evidence. A short native start/wait probe can establish pending-to-terminal behavior, not long transport behavior or token reduction. Current source0a04c96 ordinary group1807total/1796pass/0fail/11skip preceded a packed lifecycle exceeding the enclosing npm-test child20-minute limit: the whole release FAILED. Package/provenance, Stage1/Stage3 criteria, final GSD verification and integration remain pending. Historical evidence below is not a current active-worker or release-success claim.
+
 ## 2. Actual Root Cause Analysis
 
 Investigation revealed that the system defect was not an inability of Node.js to handle asynchronous processes, but a **layer mismatch and prompt/guidance flaw**:

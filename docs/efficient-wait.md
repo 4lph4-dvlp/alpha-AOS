@@ -24,6 +24,12 @@ In user dogfooding reports, agents using iterative `sleep` or status checks to w
 
 ---
 
+### Codex controller discipline
+
+Prefer a native completion handle; let runtime own one finite wait and its timers, with no LLM inside timers. Do not repeatedly reread unchanged status files, wrap an active controller in a model-driven babysitter, or carry a full old transcript into a fresh bounded stage solely to monitor work. Save verbose logs externally and return bounded terminal evidence. A local progress display may render changing state, but must deduplicate unchanged state without model inference.
+
+A transport yield is not task completion. If the host forces yields or offers no native completion callback, disclose that limit and preserve the exact durable handle and a bounded reconnect/handoff. Do not endlessly retry or claim zero model wakeups. This guidance changes neither the current model nor GSD gates, approvals, allowed roots or sandbox rules.
+
 ## 2. Command Jobs (`alpha-aos job`)
 
 Command jobs decouple long-running processes from the interactive terminal session while keeping state and logs outside the target repository.

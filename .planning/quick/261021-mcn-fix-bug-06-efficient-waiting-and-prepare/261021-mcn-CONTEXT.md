@@ -22,6 +22,16 @@
 
 - GUI permission changes; a general service/daemon platform; unmeasured token-cost guarantees; suppressing host-generated model wakeups; remote publication.
 
+## 2026-10-27 bounded Codex consumption priority
+
+Continue this approved quick, without a new intake. User prioritizes unusually high Codex consumption before packaging/release. Fresh dedicated headless GPT-6.1 Sol high controller; no old transcript, nested agents, extra Codex model, remote actions, original D checkout mutation, global configuration or model changes. All product edits remain authenticated agy gemini-3.8-flash-high/high, source-only, restricted to waiting guidance and the owned-task-skill six hashes. Preserve every existing deadline, assertion and GSD gate.
+
+Read external codex-consumption-baseline-20261027.json only: 175 unique responses (response_id deduplicated), 31 wait calls, 126 exec calls, 547482 retained tool-output characters; cumulative input33050982 including cached32456192; output178670 including reasoning125256; per-request input27833 to356832. All three historical review subagents used fork_turns none. This is one historical Codex thread, not matched cross-harness measurement, wasted-token attribution, billing or savings evidence.
+
+Current source0a04c96, candidate0.4.5. Ordinary test group1807total/1796pass/0fail/11skip preceded packed lifecycle exceeding the enclosing npm-test child20-minute limit; whole release FAILED. No full-suite/release rerun or runner redesign in this stage. Packaging/provenance, Stage1 and Stage3 criteria, final GSD verification and integration remain pending. Earlier progress files and recalled memories are historical context, not current authority.
+
+This stage: minimal guidance against unchanged status rereads, model babysitters and old-transcript monitoring; native handle/runtime finite wait, bounded external logs, deduplicated local display and honest transport handoff. Demonstrate one real built-CLI job start and exact-job wait once with multiple progress writes, pending-to-terminal/exit0 evidence, 25-second observer, external fixture/state. Short native evidence cannot establish long transport behavior or token reduction. Run affected existing checks only, strong-role review, local commit if passing, then append SUMMARY/REVIEW and ECC handoff. Parent decides remaining release work.
+
 ## Intake Evidence
 
 These defaults were preapproved in the controlling task packet for GSD quick `--full --auto`; the sole GSD controller is `/root`. BUG-06 is the current external defect report. Its token arithmetic is a reported hypothesis, not measured acceptance evidence.

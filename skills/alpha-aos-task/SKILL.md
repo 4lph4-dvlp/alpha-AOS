@@ -87,7 +87,7 @@ Upon start, the command outputs durable, reproducible identifiers and commands f
 ## Chat-Termination, Process Lifetime & Operator Control (D-10, D-11, D-12)
 
 1. **Foreground / Awaited Task Execution Truth**:
-   The standard `alpha-aos task start --apply` command is foreground and awaited by default. It does not spawn a detached background supervisor on its own.
+   The explicitly approved start command (`--apply`) is foreground and awaited by default. It does not spawn a detached background supervisor on its own.
    To obtain an independent process lifetime, an explicit command job wrapper (`alpha-aos job start --cwd <dir> --deadline-ms <ms> --apply -- <argv...>`) supplies independent process lifetime under the EXACT SAME user and sandbox identity. The job wrapper does not escape security boundaries or transfer credentials.
 2. Even across chat session termination or disconnection:
    Any new shell or terminal process can inspect, stop, or resume an execution using the standard CLI:

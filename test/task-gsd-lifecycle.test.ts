@@ -600,8 +600,7 @@ test("executeGsdStep passes exact phase argv despite 02 in custom script paths f
         if (actual.includes("--auto") !== (step !== "verify")) process.exit(24);
         const names = { discuss: "02-CONTEXT.md", plan: "02-01-PLAN.md", execute: "02-01-SUMMARY.md", verify: "02-VERIFICATION.md" };
         fs.mkdirSync(${JSON.stringify(phaseDir)}, { recursive: true });
-        const content = step === "verify" ? "---\\nstatus: passed\\n---\\n# verify" : "# " + step;
-        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), content);
+        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), "# " + step);
       `, "utf8");
       const steps: GsdStepKind[] = ["discuss", "plan", "execute", "verify"];
       const names = ["02-CONTEXT.md", "02-01-PLAN.md", "02-01-SUMMARY.md", "02-VERIFICATION.md"];

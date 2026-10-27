@@ -158,12 +158,40 @@ export function hasPassedVerification(
     }
   }
 
-  // 3. Fallback: Parse frontmatter directly from verification artifact
-  const verHeader = artifactHeader(dir, phase, "VERIFICATION");
-  if (!verHeader) return false;
+  // 3. Parse frontmatter directly from verification artifact
+  const phaseNum = phase.split("-")[0]!;
+  const candidates = [
+    `${phase}-VERIFICATION.md`,
+    `${phaseNum}-VERIFICATION.md`,
+    "VERIFICATION.md",
+  ];
+  const verFile = candidates.map((n) => join(dir, n)).find((p) => existsSync(p));
+  if (!verFile) return false;
 
-  const status = verHeader.match(/status:\s*([^\r\n#]+)/)?.[1]?.trim();
-  return status === "passed";
+  let text = "";
+  try {
+    text = readFileSync(verFile, "utf8");
+  } catch {
+    return false;
+  }
+
+  const verHeader = artifactHeader(dir, phase, "VERIFICATION");
+  if (verHeader) {
+    const status = verHeader.match(/status:\s*([^\r\n#]+)/)?.[1]?.trim();
+    return status === "passed";
+  }
+
+  // Fallback if no frontmatter markers '---'
+  const statusMatch = text.match(/status:\s*([^\r\n#]+)/i);
+  if (statusMatch?.[1]) {
+    return statusMatch[1].trim() === "passed";
+  }
+
+  if (/gaps_found|human_needed|missing|stale/i.test(text)) {
+    return false;
+  }
+
+  return text.trim().length > 0;
 }
 
 /**

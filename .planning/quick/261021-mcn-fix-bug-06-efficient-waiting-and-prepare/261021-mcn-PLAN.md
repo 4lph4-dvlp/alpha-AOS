@@ -83,8 +83,8 @@ must_haves:
       to: src/core/process.ts
       via: Existing shell-free environment-allowlisted bounded process runner and close settlement
     - from: src/core/task-wait.ts
-      to: src/core/task-read.ts
-      via: Resolve once, pin identity, validate canonical durable task records on every reread
+      to: src/core/task-run.ts and src/core/task-journal.ts
+      via: Resolve once, pin identity, validate canonical durable run bytes and journal linkage on every reread
     - from: src/core/task-wait.ts and src/core/command-jobs.ts
       to: src/core/completion-wait.ts
       via: Watch parent directories, register/recheck, serialize reconciliation and dispose

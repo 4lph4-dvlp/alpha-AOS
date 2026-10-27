@@ -4,6 +4,16 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-10-27
+
+### Fixed
+
+- **Autopilot Lifecycle Stage Gates (`BUG-07`)**:
+  - Implemented strict 1:1 plan-to-summary execution gate (`hasExecutionSummaries`) preventing planning-summary collisions (`*-PLANNING-SUMMARY.md`) from prematurely skipping phase execution.
+  - Enforced frontmatter verification status checking (`hasPassedVerification`) to fail closed on `status: gaps_found`, `human_needed`, `stale`, or `issues_found` in review, preventing failed or incomplete verification from advancing to subsequent phases.
+  - Implemented strict validation gate (`hasNyquistValidation`) rejecting draft validations (`status: draft` or `nyquist_compliant: false`).
+  - Integrated stage gates into `task-gsd-lifecycle.ts` and `task-gsd-discovery.ts` to prevent premature autopilot progression.
+
 ## [0.4.5] - 2026-10-27
 
 ### Added

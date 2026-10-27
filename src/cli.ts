@@ -1,155 +1,28 @@
 #!/usr/bin/env node
-import { applyCodexPolicy, planCodexPolicy } from "./core/codex-policy.js";
-import { readGsdContext } from "./core/gsd-context.js";
-import { loadCatalog, loadLock } from "./core/catalog.js";
-import { runDoctor } from "./core/doctor.js";
-import { collectInventory } from "./core/inventory.js";
-import { evaluateReleaseSupportMatrix, evaluateSupportMatrix } from "./core/support-matrix.js";
+import { isTaskContractId } from "./core/task-id.js";
+
 import { packageRoot } from "./core/paths.js";
-import { createInstallPlan } from "./core/plan.js";
-import { applyOwnedSkillSync, planOwnedSkillSync } from "./core/owned-skills.js";
-import {
-  applyPackRemoval,
-  approvalCommand,
-  approveProjectPlan,
-  classifyAdapterSupport,
-  ledgerHostEvidence,
-  planOneShotOffer,
-  planPackRemoval,
-  planProjectCapabilities,
-  reconcileProjectState,
-  revalidateProjectPlan,
-  shellQuote,
-  type RemovalPlan,
-} from "./core/project-plan.js";
-import { applyProjectPackSync, describeProjectProvenance } from "./core/project-pack-sync.js";
-import {
-  applyIsolationManifest,
-  cleanIsolationRuntime,
-  createIsolationPlan,
-  doctorIsolation,
-  isolationProjectId,
-  renderIsolationManifest,
-  selectIsolationLaunch,
-  syncIsolationRuntime,
-} from "./core/isolation.js";
+
+import type { RemovalPlan } from "./core/project-plan.js";
+
 import { isDirectlyExecutable, materializeEnvironment, probeCommand, resolveCommand, runCommandInteractive } from "./core/process.js";
-import { createGsdFixtureSpec, runGsdFixture, type GsdFixtureHarness } from "./core/gsd-fixture.js";
-import { applyCodexGsdHookCompatibility, planCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } from "./core/gsd-compat.js";
-import { runEccFixture } from "./core/ecc-fixture.js";
-import { applyEccSkillSync, planEccSkillSync } from "./core/ecc-skills.js";
-import { runMcpFixture } from "./core/mcp-fixture.js";
-import { applyMcpSync, mcpServerIds, planMcpSync } from "./core/mcp.js";
-import { applyClaudeSkillPolicy, planClaudeSkillPolicy } from "./core/skill-policy.js";
-import { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } from "./core/mcp-proxy.js";
-import { hasVersionChanges, resolveCandidate, writeCandidate } from "./core/update.js";
-import { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } from "./core/install.js";
-import { getOfflineStatus } from "./core/status.js";
-import { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } from "./core/transaction.js";
+import type { GsdFixtureHarness } from "./core/gsd-fixture.js";
+
 import { userStateRoot } from "./core/paths.js";
-import {
-  approveTaskContract,
-  assertTaskStartable,
-  loadTaskContract,
-  previewTaskContract,
-  readTaskApprovals,
-  reservedRunIdForApproval,
-  taskApproveCommand,
-  taskStatusCommand,
-  taskStopCommand,
-  taskResumeCommand,
-  isTaskContractId,
-  TaskContractError,
-  type DigestableTaskContract,
-  type LoadedTaskContract,
-  type TaskContractPreview,
-} from "./core/task-contract.js";
-import { requestTaskStop, readTaskStopState } from "./core/task-control.js";
-import { normalizeTaskRunForReport, readTaskStatusModel, selectTaskExecution } from "./core/task-read.js";
-import { listTaskRuns, readTaskReport, startTask, TaskRunError, type TaskStartReadiness } from "./core/task-run.js";
-import { probeGsdQuickReadiness, resolveInstalledGsdTools } from "./core/task-gsd.js";
-import { readTaskBaseline, createEffectLedger } from "./core/task-effects.js";
-import { createNativeFinalReviewPort, nativeTaskPorts, probeTaskAgentPair } from "./adapters/task-agents.js";
-import {
-  gateMilestoneFinalReview,
-  inspectFinalReviewReadiness,
-  taskFinalReviewCommand,
-} from "./core/task-final-review.js";
-import { loadTaskReviewSuggestions, suggestionsFilePath } from "./core/task-review-suggestions.js";
-import { collectTaskArtifact } from "./core/task-check.js";
-import { checkCostMeterReadiness, HARNESS_TELEMETRY_CAPABILITIES } from "./core/task-telemetry.js";
-import {
-  buildTaskDoctorReport,
-  formatDoctorTable,
-  diagnoseGsdLifecycleStatus,
-  formatGsdDoctorReport,
-  diagnoseTargetedTask,
-  formatTaskTargetedDoctorReport,
-  type GsdLifecycleDiagnostics,
-} from "./core/task-doctor.js";
-import {
-  inspectTaskResumeReadiness,
-  readEffectLedger,
-  resumeTask,
-} from "./core/task-supervisor.js";
-import {
-  appendJournalEvent,
-  readCheckpoint,
-  readJournalEvents,
-  writeCheckpoint,
-  type TaskCheckpoint,
-} from "./core/task-journal.js";
+import type { DigestableTaskContract, LoadedTaskContract, TaskContractPreview } from "./core/task-contract.js";
+
+import type { TaskStartReadiness } from "./core/task-run.js";
+
+import type { GsdLifecycleDiagnostics } from "./core/task-doctor.js";
+
+import type { TaskCheckpoint } from "./core/task-journal.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve, basename } from "node:path";
-import {
-  canaryProof,
-  canaryRow,
-  createCanaryObservationSink,
-  createCanaryRuntime,
-  disposeCanaryRuntime,
-  discoveryRow,
-  EMPTY_BOUND_INPUTS,
-  handoffRow,
-  HARNESS_COMMANDS,
-  loadCanaryCatalog,
-  resolveCapabilityFilter,
-  runCanary,
-  runCanarySweep,
-  runDiscoverySweep,
-  runHandoffCanary,
-  selectCanaries,
-  skippedCanaryRow,
-  SWEEP_HARNESSES,
-  type CapabilityReportRow,
-  type DiscoverySweep,
-  type HandoffPair,
-} from "./core/canary.js";
-import {
-  CAPABILITY_LEDGER_SCHEMA_VERSION,
-  capabilityLedgerPath,
-  harnessMinorKey,
-  readCapabilityLedger,
-  upsertProof,
-  writeCapabilityLedger,
-  type CapabilityProof,
-  type HarnessVersion,
-  type LedgerHarness,
-} from "./core/capability-ledger.js";
-import { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatReleaseSupportMatrixTable, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } from "./format.js";
-import { buildTaskCapabilityReport } from "./core/task-capability-inventory.js";
-import { applyCrashRepair, planCrashRepair } from "./core/repair.js";
-import { applyUninstall, planUninstall, SemanticPruneDriftError } from "./core/uninstall.js";
-import {
-  classifyGitRootOrFallback,
-  findEnclosingGitRoot,
-  listTreePolicies,
-  previewTreePolicy,
-  removeTreePolicy,
-  setTreePolicy,
-} from "./core/tree-policy.js";
-import { assertSealedModeRefusal, inspectTreeSurface } from "./core/surface-inspector.js";
+import type { CapabilityReportRow, DiscoverySweep, HandoffPair } from "./core/canary.js";
+import type { CapabilityProof, HarnessVersion, LedgerHarness } from "./core/capability-ledger.js";
+
 import {
   createRedactionContext,
   describeOverBudgetEnvelope,
@@ -158,25 +31,10 @@ import {
   serializeObservable,
 } from "./core/redaction.js";
 import { createPathAliases } from "./core/paths.js";
-import { applyWriterRepair, inspectWriterState, planWriterRepair } from "./core/writer-lock.js";
-import { applySupportBundle, collectSupportSources, planSupportBundleOperation } from "./core/support-bundle.js";
-import { applyBootstrapOperation, createBootstrapOperationPlan, type BootstrapKind } from "./core/bootstrap.js";
+
+import type { BootstrapKind } from "./core/bootstrap.js";
 import { existsSync, readFileSync } from "node:fs";
-import {
-  evaluateRiskObligations,
-  executeGateCheck,
-  resolvePhaseGitDiff,
-  selectGateEngine,
-} from "./core/gate.js";
-import {
-  computeRiskSurfaceDigest,
-  createGateReceipt,
-  writeGateReceipt,
-} from "./core/gate-receipt.js";
-import {
-  evaluateLifecycleGates,
-  formatGateBlockingFeedback,
-} from "./core/gate-lifecycle.js";
+
 import type { GateObligationType, HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext, UninstallScope } from "./types.js";
 
 const HELP = `alpha-aos
@@ -459,7 +317,9 @@ function observableContext(): RedactionContext {
  * version: `harnessMinorKey` keeps the raw string so a human can see exactly
  * what could not be parsed.
  */
-function probedHarnessVersions(): Record<LedgerHarness, HarnessVersion> {
+async function probedHarnessVersions(): Promise<Record<LedgerHarness, HarnessVersion>> {
+  const { HARNESS_COMMANDS, SWEEP_HARNESSES } = await import("./core/canary.js");
+  const { harnessMinorKey } = await import("./core/capability-ledger.js");
   const versions = {} as Record<LedgerHarness, HarnessVersion>;
   for (const harness of SWEEP_HARNESSES) {
     versions[harness] = harnessMinorKey(probeCommand(HARNESS_COMMANDS[harness]).version ?? "");
@@ -483,7 +343,8 @@ function packSkillSourceHash(sources: readonly PackSource[]): string {
 }
 
 /** The narrowed harness set a ledger row may name, or null for "every one". */
-function ledgerHarness(value: string | null): LedgerHarness | null {
+async function ledgerHarness(value: string | null): Promise<LedgerHarness | null> {
+  const { SWEEP_HARNESSES } = await import("./core/canary.js");
   if (value === null) return null;
   const found = SWEEP_HARNESSES.find((harness) => harness === value);
   if (found === undefined) {
@@ -516,6 +377,7 @@ async function appendCapabilityProofs(
   stateRoot: string,
   proofs: readonly CapabilityProof[],
 ): Promise<{ status: string; recorded: number; replaced: number; path: string }> {
+  const { CAPABILITY_LEDGER_SCHEMA_VERSION, capabilityLedgerPath, readCapabilityLedger, upsertProof, writeCapabilityLedger } = await import("./core/capability-ledger.js");
   const path = capabilityLedgerPath(stateRoot);
   if (proofs.length === 0) return { status: "nothing-to-record", recorded: 0, replaced: 0, path };
 
@@ -550,7 +412,8 @@ async function appendCapabilityProofs(
 }
 
 /** The exact runnable line that starts one approved contract digest. */
-function taskStartCommand(contractPath: string, digest: string): string {
+async function taskStartCommand(contractPath: string, digest: string): Promise<string> {
+  const { shellQuote } = await import("./core/project-plan.js");
   return `alpha-aos task start ${shellQuote(contractPath)} --contract-digest ${digest} --apply`;
 }
 
@@ -568,6 +431,12 @@ async function readTaskStartReadiness(
   stateRoot: string,
   options?: { reprobeOnDrift?: boolean; probeMissing?: boolean },
 ): Promise<{ readiness: TaskStartReadiness; command: string }> {
+  const { assertTaskStartable, loadTaskContract, previewTaskContract } = await import("./core/task-contract.js");
+  const { listTaskRuns } = await import("./core/task-run.js");
+  const { probeGsdQuickReadiness, resolveInstalledGsdTools } = await import("./core/task-gsd.js");
+  const { readTaskBaseline } = await import("./core/task-effects.js");
+  const { probeTaskAgentPair } = await import("./adapters/task-agents.js");
+  const { checkCostMeterReadiness } = await import("./core/task-telemetry.js");
   let loaded: LoadedTaskContract;
   let approved: boolean;
   if (supplied !== null) {
@@ -619,15 +488,16 @@ async function readTaskStartReadiness(
     baseline,
     ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean" && meterCheck.ready,
   };
-  return { readiness, command: taskStartCommand(loaded.sourcePath, digest) };
+  return { readiness, command: await taskStartCommand(loaded.sourcePath, digest) };
 }
-
 
 async function findLatestTaskCheckpoint(
   stateRoot: string,
   identifier: string,
   runId?: string | null,
 ): Promise<{ checkpoint: TaskCheckpoint; contractDigest: string } | null> {
+  const { loadTaskContract } = await import("./core/task-contract.js");
+  const { readCheckpoint, readJournalEvents } = await import("./core/task-journal.js");
   let targetId = identifier;
   let targetDigest: string | null = null;
   if (identifier.endsWith(".json")) {
@@ -1028,6 +898,58 @@ async function main(): Promise<void> {
   }
 
   const root = packageRoot();
+  const { applyCodexPolicy, planCodexPolicy } = await import("./core/codex-policy.js");
+  const { readGsdContext } = await import("./core/gsd-context.js");
+  const { loadCatalog, loadLock } = await import("./core/catalog.js");
+  const { runDoctor } = await import("./core/doctor.js");
+  const { collectInventory } = await import("./core/inventory.js");
+  const { evaluateReleaseSupportMatrix, evaluateSupportMatrix } = await import("./core/support-matrix.js");
+  const { createInstallPlan } = await import("./core/plan.js");
+  const { applyOwnedSkillSync, planOwnedSkillSync } = await import("./core/owned-skills.js");
+  const { applyPackRemoval, approvalCommand, approveProjectPlan, classifyAdapterSupport, ledgerHostEvidence, planOneShotOffer, planPackRemoval, planProjectCapabilities, reconcileProjectState, revalidateProjectPlan, shellQuote } = await import("./core/project-plan.js");
+  const { applyProjectPackSync, describeProjectProvenance } = await import("./core/project-pack-sync.js");
+  const { applyIsolationManifest, cleanIsolationRuntime, createIsolationPlan, doctorIsolation, isolationProjectId, renderIsolationManifest, selectIsolationLaunch, syncIsolationRuntime } = await import("./core/isolation.js");
+  const { createGsdFixtureSpec, runGsdFixture } = await import("./core/gsd-fixture.js");
+  const { applyCodexGsdHookCompatibility, planCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } = await import("./core/gsd-compat.js");
+  const { runEccFixture } = await import("./core/ecc-fixture.js");
+  const { applyEccSkillSync, planEccSkillSync } = await import("./core/ecc-skills.js");
+  const { runMcpFixture } = await import("./core/mcp-fixture.js");
+  const { applyMcpSync, mcpServerIds, planMcpSync } = await import("./core/mcp.js");
+  const { applyClaudeSkillPolicy, planClaudeSkillPolicy } = await import("./core/skill-policy.js");
+  const { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } = await import("./core/mcp-proxy.js");
+  const { hasVersionChanges, resolveCandidate, writeCandidate } = await import("./core/update.js");
+  const { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } = await import("./core/install.js");
+  const { getOfflineStatus } = await import("./core/status.js");
+  const { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } = await import("./core/transaction.js");
+  const { approveTaskContract, assertTaskStartable, loadTaskContract, previewTaskContract, readTaskApprovals, reservedRunIdForApproval, taskApproveCommand, taskStatusCommand, taskStopCommand, taskResumeCommand, isTaskContractId, TaskContractError } = await import("./core/task-contract.js");
+  const { requestTaskStop, readTaskStopState } = await import("./core/task-control.js");
+  const { normalizeTaskRunForReport, readTaskStatusModel, selectTaskExecution } = await import("./core/task-read.js");
+  const { listTaskRuns, readTaskReport, startTask, TaskRunError } = await import("./core/task-run.js");
+  const { probeGsdQuickReadiness, resolveInstalledGsdTools } = await import("./core/task-gsd.js");
+  const { readTaskBaseline, createEffectLedger } = await import("./core/task-effects.js");
+  const { createNativeFinalReviewPort, nativeTaskPorts, probeTaskAgentPair } = await import("./adapters/task-agents.js");
+  const { gateMilestoneFinalReview, inspectFinalReviewReadiness, taskFinalReviewCommand } = await import("./core/task-final-review.js");
+  const { loadTaskReviewSuggestions, suggestionsFilePath } = await import("./core/task-review-suggestions.js");
+  const { collectTaskArtifact } = await import("./core/task-check.js");
+  const { checkCostMeterReadiness, HARNESS_TELEMETRY_CAPABILITIES } = await import("./core/task-telemetry.js");
+  const { buildTaskDoctorReport, formatDoctorTable, diagnoseGsdLifecycleStatus, formatGsdDoctorReport, diagnoseTargetedTask, formatTaskTargetedDoctorReport } = await import("./core/task-doctor.js");
+  const { inspectTaskResumeReadiness, readEffectLedger, resumeTask } = await import("./core/task-supervisor.js");
+  const { appendJournalEvent, readCheckpoint, readJournalEvents, writeCheckpoint } = await import("./core/task-journal.js");
+  const { canaryProof, canaryRow, createCanaryObservationSink, createCanaryRuntime, disposeCanaryRuntime, discoveryRow, EMPTY_BOUND_INPUTS, handoffRow, HARNESS_COMMANDS, loadCanaryCatalog, resolveCapabilityFilter, runCanary, runCanarySweep, runDiscoverySweep, runHandoffCanary, selectCanaries, skippedCanaryRow, SWEEP_HARNESSES } = await import("./core/canary.js");
+  const { CAPABILITY_LEDGER_SCHEMA_VERSION, capabilityLedgerPath, harnessMinorKey, readCapabilityLedger, upsertProof, writeCapabilityLedger } = await import("./core/capability-ledger.js");
+  const { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatReleaseSupportMatrixTable, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } = await import("./format.js");
+  const { buildTaskCapabilityReport } = await import("./core/task-capability-inventory.js");
+  const { applyCrashRepair, planCrashRepair } = await import("./core/repair.js");
+  const { applyUninstall, planUninstall, SemanticPruneDriftError } = await import("./core/uninstall.js");
+  const { classifyGitRootOrFallback, findEnclosingGitRoot, listTreePolicies, previewTreePolicy, removeTreePolicy, setTreePolicy } = await import("./core/tree-policy.js");
+  const { assertSealedModeRefusal, inspectTreeSurface } = await import("./core/surface-inspector.js");
+  const { applyWriterRepair, inspectWriterState, planWriterRepair } = await import("./core/writer-lock.js");
+  const { applySupportBundle, collectSupportSources, planSupportBundleOperation } = await import("./core/support-bundle.js");
+  const { applyBootstrapOperation, createBootstrapOperationPlan } = await import("./core/bootstrap.js");
+  const { evaluateRiskObligations, executeGateCheck, resolvePhaseGitDiff, selectGateEngine } = await import("./core/gate.js");
+  const { computeRiskSurfaceDigest, createGateReceipt, writeGateReceipt } = await import("./core/gate-receipt.js");
+  const { evaluateLifecycleGates, formatGateBlockingFeedback } = await import("./core/gate-lifecycle.js");
+
   const catalog = await loadCatalog(root);
   const lock = await loadLock(root);
 
@@ -1407,7 +1329,7 @@ async function main(): Promise<void> {
       // ancestry and refuses to take a negative from a contaminated control.
       const controlRoot = await mkdtemp(join(tmpdir(), "alpha-aos-control-"));
       try {
-        const versions = probedHarnessVersions();
+        const versions = await probedHarnessVersions();
         const sweeps: DiscoverySweep[] = [];
         const rows: CapabilityReportRow[] = [];
         for (const packId of plan.applicable) {
@@ -1454,7 +1376,7 @@ async function main(): Promise<void> {
     // it refuses with the readiness report rather than running and failing.
     if (hasFlag(args, "--canary")) {
       const target = targetPath(args, 1, ["--harness", "--capability", "--project"]);
-      const harnessFilter = ledgerHarness(optionValue(args, "--harness"));
+      const harnessFilter = await ledgerHarness(optionValue(args, "--harness"));
       // Through the DECLARED alias table, so `--capability handoff` resolves to
       // a capability a reader can look up rather than to a string matched here.
       const capabilityFilter = resolveCapabilityFilter(optionValue(args, "--capability"));
@@ -1470,7 +1392,7 @@ async function main(): Promise<void> {
       const stateRoot = userStateRoot();
       const retained: string[] = [];
       const proofs: CapabilityProof[] = [];
-      const versions = probedHarnessVersions();
+      const versions = await probedHarnessVersions();
 
       const sweep = await runCanarySweep({
         catalog: canaryCatalog,
@@ -2671,7 +2593,7 @@ async function main(): Promise<void> {
         if (supplied === null) {
           const preview = await previewTaskContract({ contractPath: operand, stateRoot });
           throw new Error(
-            `task start --apply requires the approved digest. The current contract digest is ${preview.digest}${preview.approved ? "" : ", which is not approved yet"}. Run: ${taskStartCommand(preview.sourcePath, preview.digest)}`,
+            `task start --apply requires the approved digest. The current contract digest is ${preview.digest}${preview.approved ? "" : ", which is not approved yet"}. Run: ${await taskStartCommand(preview.sourcePath, preview.digest)}`,
           );
         }
         const loaded = await loadTaskContract(operand);
@@ -2780,7 +2702,7 @@ async function main(): Promise<void> {
       throw new Error(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
     }
     const result = await approveTaskContract({ contractPath: operand, expectedDigest: reviewed, stateRoot });
-    const start = taskStartCommand(resolve(operand), result.contractDigest);
+    const start = await taskStartCommand(resolve(operand), result.contractDigest);
     const statusCmd = taskStatusCommand(result.contractId, result.reservedRunId);
     const stopCmd = taskStopCommand(result.contractId, result.reservedRunId);
     const resumeCmd = taskResumeCommand(resolve(operand), result.contractDigest);
@@ -2935,11 +2857,13 @@ export interface CliErrorEnvelope {
 const RUN_ID_REGEX = /^[0-9a-z]{8,}-[0-9a-f]{8}$/iu;
 const DIGEST_REGEX = /^[0-9a-f]{64}$/iu;
 
-function serializeCliError(
+async function serializeCliError(
   error: unknown,
   args: string[],
   context: RedactionContext,
-): CliErrorEnvelope {
+): Promise<CliErrorEnvelope> {
+  const TaskContractError = args[0] === "task" ? (await import("./core/task-contract.js")).TaskContractError : undefined;
+  const TaskRunError = args[0] === "task" ? (await import("./core/task-run.js")).TaskRunError : undefined;
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = redactString(rawMessage, context);
 
@@ -2947,7 +2871,7 @@ function serializeCliError(
   let reasonCode = "COMMAND_FAILED";
   let nextAction = "Inspect the error message and retry with valid arguments.";
 
-  if (error instanceof TaskContractError) {
+  if (TaskContractError && error instanceof TaskContractError) {
     switch (error.code) {
       case "contract-drift":
         status = "blocked";
@@ -2999,7 +2923,7 @@ function serializeCliError(
         reasonCode = "CONTRACT_ERROR";
         nextAction = "Review contract structure and state.";
     }
-  } else if (error instanceof TaskRunError) {
+  } else if (TaskRunError && error instanceof TaskRunError) {
     switch (error.code) {
       case "approval-consumed":
         status = "blocked";
@@ -3176,7 +3100,7 @@ function serializeCliError(
   };
 }
 
-main().catch((error: unknown) => {
+main().catch(async (error: unknown) => {
   const context = observableContext();
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = redactString(rawMessage, context);
@@ -3188,7 +3112,7 @@ main().catch((error: unknown) => {
 
   if (json && (command === "task" || command === "job") && !rawMessage.includes("Refusing to print a JSON envelope over the observable byte budget")) {
     try {
-      const errorPayload = serializeCliError(error, args, context);
+      const errorPayload = await serializeCliError(error, args, context);
       const envelope = serializeObservable(errorPayload, context);
       process.stdout.write(`${envelope.text}\n`);
     } catch {

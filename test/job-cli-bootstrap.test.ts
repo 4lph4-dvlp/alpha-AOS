@@ -22,6 +22,7 @@ test("job bootstrap: actual job and both worker aliases do not load unused insta
   await symlink(join(repositoryRoot, "node_modules"), join(packageRoot, "node_modules"), process.platform === "win32" ? "junction" : "dir");
   await writeFile(join(packageRoot, "catalog", "stack.yaml"), "BROKEN_INSTALLER_CATALOG: [\n", "utf8");
   await writeFile(join(packageRoot, "catalog", "stack.lock.json"), "{ BROKEN_INSTALLER_LOCK", "utf8");
+  await rm(join(packageRoot, "dist", "src", "core", "mcp-proxy.js"));
   const cli = join(packageRoot, "dist", "src", "cli.js");
   const probe = commandProbeEnvironment({ source: process.env });
   const invoke = (args: string[]) => runProcess({
@@ -47,4 +48,20 @@ test("job bootstrap: actual job and both worker aliases do not load unused insta
   const malformed = await invoke(["job-worker", "--state-root", stateRoot]);
   assert.equal(malformed.exitCode, 1);
   assert.equal(malformed.stderr.excerpt.trim(), "job-worker requires --job-id and --owner-token");
+  const invalid = await invoke(["job", "start", "--json"]);
+  assert.equal(invalid.exitCode, 2);
+  assert.equal(JSON.parse(invalid.stdout.excerpt).reasonCode, "COMMAND_FAILED");
+  assert.match(invalid.stderr.excerpt, /job start requires '-- <executable>/u);
+  assert.doesNotMatch(invalid.stderr.excerpt, /ERR_MODULE_NOT_FOUND|mcp-proxy/u);
+  const started = await invoke(["job", "start", "--cwd", projectRoot, "--deadline-ms", "5000", "--apply", "--json", "--", process.execPath, "-e", "console.log('BOOTSTRAP_REAL_JOB')"]);
+  assert.equal(started.exitCode, 0, started.stderr.excerpt);
+  const job = JSON.parse(started.stdout.excerpt) as { jobId: string };
+  assert.match(job.jobId, /^job-[0-9a-f]{16}$/u);
+  const waited = await invoke(["job", "wait", job.jobId, "--timeout-ms", "5000", "--json"]);
+  assert.equal(waited.exitCode, 0, waited.stderr.excerpt);
+  const terminal = JSON.parse(waited.stdout.excerpt) as { jobId: string; status: string; exitCode: number; output: { stdout: string } };
+  assert.equal(terminal.jobId, job.jobId);
+  assert.equal(terminal.status, "completed");
+  assert.equal(terminal.exitCode, 0);
+  assert.match(terminal.output.stdout, /BOOTSTRAP_REAL_JOB/u);
 });

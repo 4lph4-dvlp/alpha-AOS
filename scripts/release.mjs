@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -136,6 +136,24 @@ function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
+export function runReleaseTests(checkout, env) {
+  const files = readdirSync(join(checkout, "dist", "test"), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".test.js"))
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+  const packed = files.filter((name) => name === "tarball-fixture.test.js");
+  const ordinary = files.filter((name) => name !== "tarball-fixture.test.js");
+  if (ordinary.length === 0 || packed.length !== 1) {
+    throw new Error("Release requires nonempty ordinary and packed lifecycle compiled test groups");
+  }
+  for (const [label, group] of [["ordinary", ordinary], ["packed", packed]]) {
+    run(process.execPath, [
+      join(checkout, "scripts", "run-tests.mjs"), "--files",
+      ...group.map((name) => join("dist", "test", name)),
+    ], { cwd: checkout, env, label: label + " test group" });
+  }
+}
+
 export function runRelease(options) {
   assertReleaseCheckout(options);
   const staging = createReleaseStagingRoot();
@@ -150,7 +168,7 @@ export function runRelease(options) {
 
     npmRun("check");
     npmRun("build");
-    npmRun("test");
+    runReleaseTests(staging.checkout, env);
     run(process.execPath, [join(staging.checkout, "scripts", "audit-tarball.mjs"), "--prepack"], {
       cwd: staging.checkout,
       env,

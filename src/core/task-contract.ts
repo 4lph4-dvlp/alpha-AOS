@@ -1,3 +1,5 @@
+import { isTaskContractId } from "./task-id.js";
+export { isTaskContractId } from "./task-id.js";
 import { existsSync } from "node:fs";
 import { open, readdir, readFile, stat } from "node:fs/promises";
 import { isAbsolute, join, resolve } from "node:path";
@@ -276,7 +278,6 @@ export interface ReservedTaskRunResult {
 
 export type TaskSchemaName = "task-contract" | "task-receipt" | "task-review";
 
-const CONTRACT_ID = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 
 /** Mirrors CREDENTIAL_NAME_PATTERN in src/cli.ts: the names whose values are treated as credentials. */
@@ -296,11 +297,6 @@ export async function taskSchema(name: TaskSchemaName, root: string = packageRoo
   const schema = JSON.parse(await readFile(path, "utf8")) as Record<string, unknown>;
   schemaCache.set(path, schema);
   return schema;
-}
-
-/** Whether a value can name a task — and so a directory under the state root. */
-export function isTaskContractId(value: string): boolean {
-  return CONTRACT_ID.test(value);
 }
 
 /** Names a validation issue by code and document path only, never by value. */

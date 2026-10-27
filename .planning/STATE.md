@@ -420,7 +420,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 261011-2iz | Repair weekly dependency promotion and add administrator override | 2026-10-11 | aecfe45 | Verified | [261011-2iz](./quick/261011-2iz-repair-weekly-dependency-promotion-failu/) |
 | 261021-677 | Cross-platform computer use, action evidence and automatic GUI verification (v0.4.0) | 2026-10-21 | 822a383 | Verified | [261021-677-research-implement-and-verify-cross-plat](./quick/261021-677-research-implement-and-verify-cross-plat/) |
 | 261021-mcn | BUG-06 efficient waiting: 0.4.5 runtime, release evidence and verified original local delivery | 2026-10-27 | 8d102d7 | Verified | [261021-mcn-fix-bug-06-efficient-waiting-and-prepare](./quick/261021-mcn-fix-bug-06-efficient-waiting-and-prepare/) |
-| 261027-gat | Fix autopilot lifecycle stage gates, planning-summary collisions, and verification gaps | 2026-10-27 | pending | Verified | [261027-gat-fix-autopilot-lifecycle-stage-gates](./quick/261027-gat-fix-autopilot-lifecycle-stage-gates/) |
+| 261027-gat | Fix autopilot lifecycle stage gates, planning-summary collisions, and verification gaps | 2026-10-27 | 098b2b9 | Verified | [261027-gat-fix-autopilot-lifecycle-stage-gates](./quick/261027-gat-fix-autopilot-lifecycle-stage-gates/) |
 
 ## Session Continuity
 

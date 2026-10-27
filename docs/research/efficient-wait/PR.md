@@ -1,47 +1,36 @@
-# Pull Request: v0.4.5 Efficient Wait & Reactive Completion Runtime
+# Local PR draft — 0.4.5 efficient waiting (BUG-06)
 
-**Target Branch**: `main`
+Long builds and delegated work encouraged repeated model sleep/status turns. Exact task observation and detached command jobs now provide bounded local completion tracking with truthful foreground task lifetime, reconnectable handles, fenced ownership and separate observation/deadline/cancellation outcomes.
 
-**Task Base**: `54ecf5042a5cc969004716484f85c0b91b013505` (local v0.4.0); remote `origin/main` last seen at `3a4e632` is v0.3.1 (does not contain v0.4.0). No current v0.4.5 final implementation hash known yet.
+Version **0.4.5** preserves original main **0.4.4** (`29619abaa10b250d745c1c4df2896cadd682aa53`), including deterministic model binding, promoted stable external locks, multi-phase behavior and safety fixes. The approved plan's 0.4.1 target from `54ecf50` remains historical; computer-use 0.4.0 evidence is retained. No external dependency promotion occurred in this task.
 
-**Type**: Feature / Architecture & Guidance Fix (BUG-06)
+Implementation: `4dfe32182082c6dddcf66c3c0f933313dc470210`. The actual clean-main release invocation used `f5af5abe5d042ce73900f37a918cf3f51930c568`; its delta from the implementation is two GSD records only. These final documents change evidence text only. The final documentation package receives a separate source-bound build/audit/pack/provenance/Stage 1 receipt in GSD and the external Stage C audit; its checksum is not embedded in itself.
 
-**Status**: LOCAL REVIEW ONLY (No remote push, tag, or publish actions performed)
+The change preserves newer main's deterministic models, stable locks, multi-phase behavior and safety fixes. Five-harness guidance covers ordinary conversational GSD, quick and explicitly approved autopilot. An observation does not grant authority or task acceptance.
 
----
+## Validation
 
-## Summary of Changes
+| Check | Actual result |
+| --- | --- |
+| `node scripts/release.mjs --dry-run` | Exit 0; `Release preview PASSED without publishing.`; 17 actual child starts and ends, all exit 0 |
+| Ordinary group | 144 files; 1,810 total / 1,799 pass / 0 fail / 11 skip; child elapsed 629,171 ms |
+| Packed group | Exact `tarball-fixture.test.js`; 10 total / 10 pass / 0 fail / 0 skip; child elapsed 480,117 ms |
+| Combined disjoint groups | 1,820 total, 1,809 passed, 0 failed, 11 skipped; all 145 regular compiled test files exactly once, no cancelled/todo tests |
+| Fresh JSON criteria | `completion` 7/7; `safety` 17/17; `integration` 4/4 actual named leaves; each real exit 0 and exact success stdout |
+| Required gates | `execute:post`, `verify:pre`, strict status all passed at release source; refreshed after final docs in Stage C |
+| Package | Prepack audit, `npm pack --ignore-scripts --json`, provenance write and verification, local tarball Stage 1 all exit 0 |
+| Source reviews | CR-01/corrections and Stage B scoped independent review/re-review: no open actionable findings; unchanged runtime is not rereviewed for these docs |
 
-1. **Detached Command Jobs (`alpha-aos job`)**:
-   - Implemented `job start`, `job wait`, `job status`, and `job cancel` CLI commands.
-   - Assigned exact ID format `job-` followed by 16 lowercase hex characters (not UUID).
-   - Enforced combined retained child output ceiling of 64 KiB (`MAX_COMBINED_OUTPUT_BYTES`), distinct from larger record/envelope bounds and total process memory.
-   - Decoupled process lifetimes under the same caller identity without escaping OS/sandbox boundaries.
-   - Argument preservation without shell string concatenation; dry-run preview when `--apply` is omitted.
-   - Observer timeout semantics: observer timeout does not cancel running jobs (`observer expiry != cancellation`).
+Full-release tarball: `alpha-aos-0.4.5.tgz`, 1,300,773 bytes, SHA-256 `33830b5e81c58c2d6ffdcf9cf96c93dd97d1bce23bfa3f2e6efa4d8f8ecb7a12`. The `.sha256` bundle verifies tarball, `dist/build-artifact.json` and `catalog/stack.lock.json` bytes; it does not encode Git HEAD. The source commit is bound separately by the actual command/driver audit. Build manifest: 283 inputs, 552 outputs. The ordinary and packed runs are one release invocation, not separately selected passing fragments. Each group retains the existing 20-minute child bound and normal runner environment scrubbing; packed lifecycle retains its 15-minute oracle. No assertion, skip, timeout or environment boundary was weakened.
 
-2. **Autonomous Task Wait (`alpha-aos task wait`)**:
-   - Observes canonical task runs by exact contract ID, run ID, digest, and revision.
-   - Anti-forgery check ensures tasks cannot succeed based on orphaned checkpoints alone; unsupported legacy supervisor linkage remains explicitly unresolved.
+Release audit and raw output: `D:/alpha-aos-verify-20261027/development-final-release-20261027` (`release-exit.json`, `commands.jsonl`, `11-stdout.log`, `12-stdout.log`, `15-stdout.log`, `16-stdout.log`, `17-stdout.log`, tarball and bundle). Stage C independently parsed the raw groups and bundle in `stage-c-audit/release-facts.json`. Fresh criteria authority: `D:/alpha-aos-verify-20261027/stage-c-criteria-v2/results.json` plus per-selection raw stdout/stderr and exact durable handles. Each criterion uses one direct built-candidate CLI start, one finite wait and zero status queries; the existing 5-second stdin, 20-second test and 25-second total verifier bounds remain unchanged. An initial external driver launch refused a state root inside its CWD before executing any tests; the corrected sibling-state fixture is separately retained.
 
-3. **Prompt & Skill Guidance (Eliminating Polling Loops)**:
-   - Updated `buildGsdControllerPrompt` in `src/core/task-gsd.ts` to instruct models against repetitive `sleep` or busy-wait loops.
-   - Updated `skills/alpha-aos-task/SKILL.md` to correct the false detached supervisor claim and explain truthful foreground awaiting vs. `alpha-aos job`.
-   - Updated `docs/codex-execution-policy.md` and added `docs/efficient-wait.md` comprehensive runnable guide.
+## Scope and limits
 
-4. **Fixture Path Corrections**:
-   - Corrected `repositoryRoot` path resolution in `test/efficient-wait-guidance.test.ts` and `test/verify-efficient-wait.test.ts` to reference the compiled package root properly.
+No new Windows GUI run, macOS/Linux live GUI run, three-OS CI, public-registry Stage 2, remote PR, push, tag, publication, global install/configuration/sync, or external dependency promotion was performed. Historical computer-use 0.4.0 Windows evidence remains six actions, twenty audit events and ten validated captures. Portable fixtures and native CLI observations do not establish unrun platform parity.
 
----
+The historical autopilot contract/run `7c176c2f5feeda16-8b4be419` remains authentication-blocked. This is the already authorized ordinary conversational GSD recovery; no native acceptance was forged. All product source/test/script/schema/docs changes used authenticated `agy.exe --model gemini-3.8-flash-high --effort high`. GPT-6.1 Sol high owns control, strong review, verification, GSD and commits. Final original-repository delivery and canonical goal verification are recorded in GSD after their actual checks.
 
-## Validation & Verification Status
+Task-local TEMP/TMP, affinity 255 (eight available logical CPUs) and a resource guard were recorded for the successful full release. Minimum sampled available memory was about 2,415 MiB over 235 samples, with no resource abort. These controls do not prove a Windows kernel issue fixed, prevent a crash, or bound all processes/RAM. The previously denied `bug06-final-cwd-alias-vE9z2m` cleanup is retained without an alternate deletion attempt.
 
-- **Historical Targeted Slice**: 67/67 passed, 0 failures, 0 skips at implementation commit `0320c27`.
-- **Broader Test Suite**: 69 total cases evaluated (63 pass, 6 fail) across broader coverage.
-- **Independent GPT-6.1 Review**: Subsequent independent review in `task-wait-resolution-review.md` found 5 blockers and 2 warnings; active repairs are underway by Worker D (job/verifier/tests) and Worker E (task-observer/tests). No final closure or verified fix yet.
-- **v0.4.0 Retained Evidence**: Windows live computer-use evidence (6 actions, 20 audit events, 10 captures) retained. macOS/Linux GUI actions and 3-OS CI remain unrun as requested.
-- **Billing / Savings**: No measured token billing or cost savings claims are asserted; runtime avoids model-driven polling on its path, but cannot promise preventing host rate-limit exhaustion or quantify savings.
-- **Independent Review Gate**: PENDING active worker repairs and re-review.
-- **Release Verification Gate**: PENDING controller verification packet.
-
-Historical scope: the approved plan targeted 0.4.1 from 54ecf50. Current integration includes original main 0.4.4 (29619ab) and prepares candidate 0.4.5; final verification is pending. The committed original user report from 02c2bf7 is retained as input.
+This is a local draft; no remote PR was created. [BUG-06](BUG-06.md) retains failures and the scoped native Codex comparison; no general cost or subscription savings claim is made.

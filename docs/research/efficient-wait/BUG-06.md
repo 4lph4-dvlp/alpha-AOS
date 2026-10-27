@@ -1,76 +1,57 @@
-# BUG-06 Root Cause Analysis & Resolution Architecture
+# BUG-06 — efficient waiting: verified local runtime and release audit
 
-## 1. Overview & Reported Incident
+Status: **runtime and local release audit passed; unpublished**. Final local delivery is tracked by the same GSD quick `261021-mcn`.
 
-In dogfooding long-running workflows under the Codex CLI and Antigravity harnesses, repetitive model polling (`sleep(45000)` and `wait_agent`) was observed during test runs and builds. A user dogfooding report recorded 52 `sleep` calls and 13 `wait_agent` calls during a single task run, leading to estimated context ballooning (~200k–300k+ tokens retransmitted each turn) and two consecutive 5-hour rate limit exhaustions.
+Version **0.4.5** preserves original main **0.4.4** (`29619abaa10b250d745c1c4df2896cadd682aa53`), including deterministic model binding, promoted stable external locks, multi-phase behavior and safety fixes. The approved plan's 0.4.1 target from `54ecf50` remains historical; computer-use 0.4.0 evidence is retained. No external dependency promotion occurred in this task.
 
-> [!NOTE]
-> Reported turn counts, 200k–300k+ token volume estimates, and provider rate limit exhaustions from user dogfooding are documented as user-reported unmeasured estimates and motivating context, not established provider billing or host behavior. The alpha-AOS runtime can eliminate model-driven polling on its execution path; it cannot promise to prevent host rate-limit exhaustion or quantify token/cost savings.
+Implementation: `4dfe32182082c6dddcf66c3c0f933313dc470210`. The actual clean-main release invocation used `f5af5abe5d042ce73900f37a918cf3f51930c568`; its delta from the implementation is two GSD records only. These final documents change evidence text only. The final documentation package receives a separate source-bound build/audit/pack/provenance/Stage 1 receipt in GSD and the external Stage C audit; its checksum is not embedded in itself.
 
----
+## Problem and resulting behavior
 
-### 2026-10-27 measured Codex baseline and scope
+The original dogfooding report described repeated model sleep/status turns, growing context and rate-limit exhaustion. Its reported turn counts and 200k–300k context estimates motivate the fix; they are not measured billing or proof of a quota cause. The existing low-level process runner was event-driven. Missing completion primitives and controller guidance encouraged model-level polling, while task-start documentation overstated independent supervisor lifetime.
 
-External `codex-consumption-baseline-20261027.json` records one historical Codex thread, deduplicated by response_id: 175 responses, 31 wait calls, 126 exec calls, 547482 retained tool-output characters; cumulative input33050982 (cached32456192), output178670 (including reasoning125256), per-request input27833 to356832. All three historical review subagents used fork_turns none. The record shows large accumulated context and repeated observations; it does not isolate waste, wait-only usage, quota causes or subscription billing. Cached input is not equivalent to uncached cost. There is no matched cross-harness baseline or measured savings.
+`alpha-aos job start/status/wait/cancel` provides exact durable job handles (`job-` plus sixteen lowercase hex characters), reconnect from another CLI process, explicit mutation previews, fenced ownership and private external state. Arguments remain an array without shell concatenation. Combined retained child output is bounded to 64 KiB; total process memory is not claimed to be 64 KiB. Credential/injection environment filtering, root checks and cancellation authentication remain enforced. CWD does not broaden caller OS or sandbox authority.
 
-User prioritizes Codex consumption before release work. Guidance now forbids unchanged status rereads, model babysitters around active controllers and full old transcripts solely for monitoring; runtime owns finite waiting and external logs bound returned evidence. A short native start/wait probe can establish pending-to-terminal behavior, not long transport behavior or token reduction. Current source0a04c96 ordinary group1807total/1796pass/0fail/11skip preceded a packed lifecycle exceeding the enclosing npm-test child20-minute limit: the whole release FAILED. Package/provenance, Stage1/Stage3 criteria, final GSD verification and integration remain pending. Historical evidence below is not a current active-worker or release-success claim.
+`alpha-aos task wait` pins contract/run/digest/revision and validates canonical records. Attempt scope stays pinned; explicit supervisor scope follows only proven journal/ownership links. Legacy records missing required proof remain unresolved/refused. Observer expiry leaves the child alive; process deadline, cancel request, confirmed close and orphan/unconfirmed close remain distinct. Completion does not grant GSD acceptance. `task start --apply` remains foreground and awaited; an explicit job wrapper provides detached lifetime.
 
-## 2. Actual Root Cause Analysis
+The shared [operator guide](../../efficient-wait.md), generated task controller prompt and owned task skill use one finite runtime observation, exact IDs and bounded external logs. Waiting grants no process, delegation/model, project or GUI authority. A transport yield is not completion; reconnect to the same durable handle without a model-managed status loop.
 
-Investigation revealed that the system defect was not an inability of Node.js to handle asynchronous processes, but a **layer mismatch and prompt/guidance flaw**:
+## Actual verification
 
-1. **Process Runner Was Already Event-Driven**:
-   The low-level execution layer in alpha-AOS (`src/core/process.ts`) already utilized Node.js event-driven APIs (`child_process.spawn`, stream events, and exit callbacks).
-2. **Model Guidance & Skill Layer Encouraged Polling**:
-   The generated controller prompt, owned task skill (`alpha-aos-task`), and Codex execution policy lacked explicit directives against busy-waiting. LLMs defaulted to iterative `sleep` loops to observe progress.
-3. **Foreground / Background Lifetime Mismatch**:
-   The skill claimed autonomous autopilot ran as an "independent background supervisor", whereas `alpha-aos task start --apply` was actually synchronous/foreground and awaited. No first-class detached job primitive existed for running external scripts (such as repository test suites) with an independent process lifetime under the same user identity.
+| Check | Actual result |
+| --- | --- |
+| `node scripts/release.mjs --dry-run` | Exit 0; `Release preview PASSED without publishing.`; 17 actual child starts and ends, all exit 0 |
+| Ordinary group | 144 files; 1,810 total / 1,799 pass / 0 fail / 11 skip; child elapsed 629,171 ms |
+| Packed group | Exact `tarball-fixture.test.js`; 10 total / 10 pass / 0 fail / 0 skip; child elapsed 480,117 ms |
+| Combined disjoint groups | 1,820 total, 1,809 passed, 0 failed, 11 skipped; all 145 regular compiled test files exactly once, no cancelled/todo tests |
+| Fresh JSON criteria | `completion` 7/7; `safety` 17/17; `integration` 4/4 actual named leaves; each real exit 0 and exact success stdout |
+| Required gates | `execute:post`, `verify:pre`, strict status all passed at release source; refreshed after final docs in Stage C |
+| Package | Prepack audit, `npm pack --ignore-scripts --json`, provenance write and verification, local tarball Stage 1 all exit 0 |
+| Source reviews | CR-01/corrections and Stage B scoped independent review/re-review: no open actionable findings; unchanged runtime is not rereviewed for these docs |
 
----
+Full-release tarball: `alpha-aos-0.4.5.tgz`, 1,300,773 bytes, SHA-256 `33830b5e81c58c2d6ffdcf9cf96c93dd97d1bce23bfa3f2e6efa4d8f8ecb7a12`. The `.sha256` bundle verifies tarball, `dist/build-artifact.json` and `catalog/stack.lock.json` bytes; it does not encode Git HEAD. The source commit is bound separately by the actual command/driver audit. Build manifest: 283 inputs, 552 outputs. The ordinary and packed runs are one release invocation, not separately selected passing fragments. Each group retains the existing 20-minute child bound and normal runner environment scrubbing; packed lifecycle retains its 15-minute oracle. No assertion, skip, timeout or environment boundary was weakened.
 
-## 3. Implemented Architecture & Runtime
+Release audit and raw output: `D:/alpha-aos-verify-20261027/development-final-release-20261027` (`release-exit.json`, `commands.jsonl`, `11-stdout.log`, `12-stdout.log`, `15-stdout.log`, `16-stdout.log`, `17-stdout.log`, tarball and bundle). Stage C independently parsed the raw groups and bundle in `stage-c-audit/release-facts.json`. Fresh criteria authority: `D:/alpha-aos-verify-20261027/stage-c-criteria-v2/results.json` plus per-selection raw stdout/stderr and exact durable handles. Each criterion uses one direct built-candidate CLI start, one finite wait and zero status queries; the existing 5-second stdin, 20-second test and 25-second total verifier bounds remain unchanged. An initial external driver launch refused a state root inside its CWD before executing any tests; the corrected sibling-state fixture is separately retained.
 
-### A. Detached Command Jobs (`alpha-aos job`)
-- `job start`: Detaches long-running commands, assigning an exact `jobId` (format `job-` followed by 16 lowercase hex characters, not UUID). Arguments after `--` are preserved verbatim as an argument array without shell concatenation.
-- `job wait`: Attaches a single observation with an explicit finite timeout covering expected work. Exits 0 on success or non-zero on failure/timeout.
-- `job status`: Non-mutating status queries.
-- `job cancel`: Cancellation requires `--apply` and writes an authenticated `cancel.request` rather than killing arbitrary PIDs.
-- Observer expiry (`--timeout-ms`) disconnects the observer without terminating the job (`observer expiry != cancellation`).
+## Native Codex evidence and limits
 
-### B. Canonical Autonomous Task Observation (`alpha-aos task wait`)
-- Observes running task runs via exact coordinates: `--run <run-id>`, `--contract-digest <digest>`, `--revision <rev>`.
-- Fails closed if canonical run records do not exist on disk, preventing forged checkpoint attacks. Manual task wait linkage for unsupported legacy supervisor records remains explicitly unresolved.
+The managed Codex task adapter invokes a fresh ephemeral native execution with an explicit model/effort and consumes the generated GSD controller prompt. The project-local owned AGENTS block matches the candidate policy; original global npm links still resolve to original D until final verified local integration and rebuild. Candidate criteria use the direct built CLI, not an assumed updated global installation.
 
-### C. Prompt & Skill Enforcement
-- Updated `src/core/task-gsd.ts` (`buildGsdControllerPrompt`), `skills/alpha-aos-task/SKILL.md`, and `docs/codex-execution-policy.md`.
-- Models are explicitly instructed to avoid repetitive sleep/status loops, use ONE runtime observation with a finite timeout, and use exact IDs.
+Historical matched short pair: fresh same-model/high Codex sessions, same 12-second child and sixty progress records, both real child exit 0. An explicit three-status-query baseline recorded six responses, input 125,572 and cached input 96,512; one runtime start/wait with zero status queries recorded two responses, input 38,265 and cached input 26,112. This single short comparison establishes those recorded counts only. Prompt/cache/scheduling differ; no broad cost, subscription/quota, long-transport or cross-harness savings rate follows. Audit: `C:/Users/alpha/AppData/Local/Temp/alpha-aos-041/codex-wait-ab-20261027/comparison.json`.
 
----
+A historical 175-response session grew per-request input from 27,833 to 356,832; this does not isolate wasted input. Stage A's real delegated review and criteria used one start/one wait/zero status queries per job, but the host forced continuation of the same native handle. Actual transport evidence therefore provides no universal zero-wakeup or zero-token guarantee. Stage A completion 7/7 and safety 17/17, and Stage B integration 4/4, remain separate historical receipts, not substitutes for the three fresh Stage C criteria above.
 
-## 4. Security & Isolation Fixes
+## Preserved failure history
 
-1. **Restricted Environment Allowlist**: Strips provider API keys (`OPENAI_API_KEY`, etc.) and injection hooks (`NODE_OPTIONS`).
-2. **Credential Argv Filtering**: Rejects arguments containing secret patterns before spawn.
-3. **External State Root**: State and logs reside in `~/.alpha-aos/jobs/`, preventing repository pollution.
-4. **Owner Fencing**: Only the job owner/process can request cancellation.
-5. **Bounded Output Ceiling**: Combined retained child output ceiling is 64 KiB (`src/core/command-jobs.ts` `MAX_COMBINED_OUTPUT_BYTES`), sanitizing and truncating large child stdout/stderr output excerpts. This is distinct from larger record/envelope limits, and total runtime process memory is not claimed to be 64 KiB.
-6. **CWD Boundary Clarification**: `--cwd` sets working directory only; jobs retain caller OS/sandbox permissions and cannot escape isolation boundaries.
+Historical targeted 67/67 at `0320c27` preceded broader 69 total/63 pass/6 fail and independent review blockers. Those findings were corrected and rereviewed; no worker is currently claimed to be repairing them. Earlier full gates at `56adf7c` (1,791 total/1,753 pass/27 fail/11 skip) and `7940081` (1,807/1,790/6/11) failed. The later `0a04c96` ordinary group passed 1,807/1,796/0/11 before packed work exceeded its enclosing child bound: the whole release failed. Prior Stage B release `job-e905b4a5b2964087` passed ordinary 1,810/1,799/0/11 but failed packed 10/9/1/0 with a real Windows UNKNOWN file-open error; it is not the successful release root. Logs and other targeted failed receipts remain retained in GSD/external audits. They are not summed into current passing results or overwritten.
 
----
+The final verified runtime includes reviewed startup/import and fixture corrections, exhaustive ordinary/packed release orchestration and deterministic default file concurrency capped at four. Explicit concurrency flags, every enumerated file and all assertions remain intact. No further full suite is repeated for evidence-only docs; their final package gets affected build, audit, pack, provenance and Stage 1 checks.
 
-## 5. Current Test Evidence & Pending Gates
+## Authority, platform and delivery limits
 
-### Established Evidence
-- **Historical Targeted Slice**: 67/67 tests passed with 0 failures and 0 skips at implementation commit `0320c27`.
-- **Broader Test Suite**: 69 total cases evaluated (63 pass, 6 fail) across broader coverage.
-- **Independent GPT-6.1 Review**: Subsequent independent review recorded in `task-wait-resolution-review.md` identified 5 blockers and 2 warnings.
-- **Active Worker Repairs**: Repairs are actively in progress by Worker D (job/verifier/tests) and Worker E (task-observer/tests); no final closure or verified fix has occurred yet.
-- **Interim History**: Prior narrow packets addressed historical partial fixes, but no final claim of "all 9 blockers repaired/verified" or "BUG-06 fixed" is valid prior to full completion and gating.
-- **Model Execution Context**: Native sandbox run `7c176c2f5feeda16-8b4be419` remains honestly blocked by agy sandbox auth; host-user context is verified and functional (`MODEL_READY`).
-- **Platform Scope**: Windows live computer-use evidence from v0.4.0 is retained. macOS/Linux real GUI actions and 3-OS CI remain unrun as requested. No token savings or billing claims are made.
+No new Windows GUI run, macOS/Linux live GUI run, three-OS CI, public-registry Stage 2, remote PR, push, tag, publication, global install/configuration/sync, or external dependency promotion was performed. Historical computer-use 0.4.0 Windows evidence remains six actions, twenty audit events and ten validated captures. Portable fixtures and native CLI observations do not establish unrun platform parity.
 
-### Remaining Verification Gates
-- **Pending Independent Review Resolution**: Active repairs by Workers D and E addressing the 5 blockers and 2 warnings from `task-wait-resolution-review.md`.
-- **Final Release Gate & Verifier Suites**: PENDING (to be executed by controller in a later evidence-only packet after actual gates).
+The historical autopilot contract/run `7c176c2f5feeda16-8b4be419` remains authentication-blocked. This is the already authorized ordinary conversational GSD recovery; no native acceptance was forged. All product source/test/script/schema/docs changes used authenticated `agy.exe --model gemini-3.8-flash-high --effort high`. GPT-6.1 Sol high owns control, strong review, verification, GSD and commits. Final original-repository delivery and canonical goal verification are recorded in GSD after their actual checks.
 
-Historical scope: the approved plan targeted 0.4.1 from 54ecf50. Current integration includes original main 0.4.4 (29619ab) and prepares candidate 0.4.5; final verification is pending. The committed original user report from 02c2bf7 is retained as input.
+Task-local TEMP/TMP, affinity 255 (eight available logical CPUs) and a resource guard were recorded for the successful full release. Minimum sampled available memory was about 2,415 MiB over 235 samples, with no resource abort. These controls do not prove a Windows kernel issue fixed, prevent a crash, or bound all processes/RAM. The previously denied `bug06-final-cwd-alias-vE9z2m` cleanup is retained without an alternate deletion attempt.
+

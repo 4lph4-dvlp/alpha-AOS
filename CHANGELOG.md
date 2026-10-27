@@ -15,7 +15,8 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ### Fixed
 
-- **Long-Running Process Polling Defect (`BUG-06`)**: Implemented event-driven detached command jobs and canonical task wait to avoid model-driven polling loops on runtime paths (without claiming host rate-limit prevention or measured token savings); previous release recorded 1791 total (1753 pass, 27 fail, 11 skip), and latest corrective integration and verification are pending.
+- **Long-Running Process Polling Defect (`BUG-06`)**: Detached jobs and exact task observation replace model-driven polling on the runtime path. Local release audit at `f5af5ab` passed (1,820 total, 1,809 passed, 0 failed, 11 skipped; ordinary 1,810 and packed 10). Completion/safety/integration criteria passed 7/17/4 named tests; provenance and Stage 1 passed. Host wakeups, subscription savings and quota remediation are not guaranteed.
+- Job startup defers unrelated installer imports. Release verification exhaustively partitions compiled tests into ordinary and packed groups with separate existing 20-minute child bounds; runner environment scrubbing and assertions remain intact. The historical 0.4.1 plan is delivered as 0.4.5 above original main 0.4.4.
 - **Task Lifetime Documentation Correction**: Clarified that `alpha-aos task start --apply` is foreground and awaited by default; detached independent process lifetimes are managed via `alpha-aos job start --apply`.
 
 ### Security

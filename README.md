@@ -5,7 +5,7 @@
 Release **0.4.5** adds event-driven [efficient waiting and reactive completion](docs/efficient-wait.md) (`alpha-aos job` and `alpha-aos task wait`):
 aims to eliminate model-driven polling loops on its execution path with detached command jobs, single finite observations, and canonical run tracking (without promising host rate-limit prevention or measured token savings).
 Start a background job with `alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs` and wait via `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`.
-macOS/Linux GUI actions and 3OS CI remain unrun as requested. Historical targeted slice established 67/67 test pass at commit `0320c27`; broader cases (69 total: 63 pass, 6 fail) and independent review findings (5 blockers, 2 warnings) are under active repair with final release verification pending.
+Local release verification at `f5af5ab` passed: 1,820 total, 1,809 passed, 0 failed, 11 skipped (ordinary 1,810; packed 10), exact completion/safety/integration criteria (7/17/4 named tests), provenance and Stage 1. macOS/Linux live GUI and 3OS CI remain unrun. A historical short Codex comparison is scoped in [BUG-06](docs/research/efficient-wait/BUG-06.md); host wakeups, subscription savings and quota remediation are not guaranteed.
 
 Release **0.4.0** adds optional [task-bound computer use](docs/computer-use.md):
 bounded GUI authority, stop, immutable screenshot/action evidence and read-only

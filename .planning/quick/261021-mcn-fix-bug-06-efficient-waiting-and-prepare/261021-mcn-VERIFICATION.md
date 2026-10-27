@@ -1,6 +1,6 @@
 ---
 phase: quick-261021-mcn
-verified: 2026-10-27T06:55:56Z
+verified: 2026-10-27T07:04:09Z
 status: passed
 score: 6/6 must-haves verified
 covered_files:
@@ -57,10 +57,13 @@ covered_files:
   - test/task-wait.test.ts
   - test/verify-efficient-wait-integrity.test.ts
   - test/verify-efficient-wait.test.ts
-covered_digest: "v3:sha256:c0758cc115387d270d2ba273d4813e48040f410eebd9e5373fa70e882544d1aa"
+covered_digest: "v3:sha256:0b1eb8a68077309dace0c81c3c5929ea0bd5da562fe68477833bca9890351c92"
 behavior_unverified: 0
 overrides_applied: 0
-delivery_acceptance: pending
+delivery_acceptance: passed
+delivered_records_commit: 8d102d738271a66dca2fcd441100d6980f292166
+packaged_source_commit: c4b1abbcb5f06053922dd9e0a49a0f44e0b79fef
+final_registry_record_commit: pending
 re_verification:
   previous_status: gaps_found
   previous_score: 6/6
@@ -82,12 +85,12 @@ human_verification: []
 # Quick 261021-mcn: BUG-06 Stage C Verification Report
 
 **Goal:** Resolve BUG-06 through bounded runtime completion observation, exact task observation and detached ordinary command jobs; prepare the verified local release. PLAN's historical 0.4.1 target is explicitly amended to **0.4.5**, retaining original main 0.4.4.
-**Verified:** 2026-10-27T06:55:56Z
+**Verified:** 2026-10-27T07:04:09Z
 **Status:** passed — six candidate behavioral/documentation truths and six declared links verified.
 **Re-verification:** Yes — narrow closure of the sole initial PLAN annotation gap. Initial inspection found no prior VERIFICATION.md; the initial gaps_found report is preserved at `D:/alpha-aos-verify-20261027/stage-c-audit/initial-goal-verification-gaps.md` (controller-provided SHA-256 `fb16852f89e182d32513ff92626859160c0227eff6446e8a38ffc69cf1cedfe6`).
 **Candidate:** clean main `b3631534f80ecd94568fddb853893a4c2b229b68` at inspection entry. Runtime implementation `4dfe32182082c6dddcf66c3c0f933313dc470210`; successful full-release source `f5af5abe5d042ce73900f37a918cf3f51930c568`; final documentation-package source `c4b1abbcb5f06053922dd9e0a49a0f44e0b79fef`.
 
-This is candidate verification, **not final original-repository delivery acceptance or quick completion**. Original `D:/dev/alpha-AOS` delivery/rebuild/read-only checks remain pending with the controller. SUMMARY/STATE were not advanced, and no commit was made.
+Candidate verification and original-repository delivery acceptance have now passed. The limited delivery addendum below records actual original `D:/dev/alpha-AOS` integration/rebuild/read-only checks at `8d102d738271a66dca2fcd441100d6980f292166`. The package remains bound to `c4b1abbcb5f06053922dd9e0a49a0f44e0b79fef`. Final schema-backed quick registry advancement, final records commit and record-only delivery remain controller-owned and pending at this report refresh; no final commit hash is imagined. This verifier did not modify SUMMARY/STATE or commit.
 
 ## Goal Achievement
 
@@ -136,7 +139,7 @@ Initial `query verify.key-links` returned 1/6 mechanically. Manual tracing resol
 
 ### Advisory (New Scope, Unevidenced)
 
-None. Re-verification inspected only the exact PLAN/SUMMARY diff and refreshed this report/fingerprint. Previously corroborated source and behavioral evidence was reused; no broad source review or executable gate was repeated.
+None. Annotation re-verification inspected only the exact PLAN/SUMMARY diff. The later limited delivery addendum inspected the delivery receipt and relevant raw logs. Previously corroborated source and behavioral evidence was reused; no broad source review or executable gate was repeated by this verifier.
 
 ### Data-Flow Trace (Level 4)
 
@@ -208,13 +211,36 @@ Prior CR-01/f26/Stage B source reviews and repair re-reviews are reused only aft
 
 ## Human Verification Required
 
-None for the scoped candidate truths: behavioral evidence exists and the explicit end-of-task documentation comparison is complete. **Delivery acceptance is pending**, not waived: controller must check live original-head/cleanliness, perform authorized clean-ancestor integration and original build/read-only delivery checks, append actual SUMMARY receipts, then request a limited report addendum/fingerprint refresh. This report does not mark the quick Verified/complete.
+None for the scoped truths: behavioral evidence exists, the explicit end-of-task documentation comparison is complete, and **original delivery acceptance passed** through the actual receipts below. Final schema-backed Verified registry and final records commit/record-only integration are controller-owned next steps; this verifier does not perform them or claim their not-yet-known commit identity.
 
 Unrun scope remains explicit: no new Windows GUI or macOS/Linux live GUI, three-OS CI, public-registry Stage 2, remote PR/push/tag/publish, global configuration/sync, or dependency promotion. Historical autopilot `7c176c2f5feeda16-8b4be419` remains authentication-blocked. The short 12s Codex pair establishes only its measured response/input/cache counts, not general billing/subscription/quota/long-transport/cross-harness savings or zero host wakeups. Resource controls do not prove a kernel fix.
 
 ## Gaps Summary
 
-**No candidate gaps remain.** All six must-have truths have implementation plus actual behavioral/documentation evidence. The sole initial gap was closed by correcting the existing PLAN annotation to the already implemented strict task-run/task-journal path. Exact PLAN/SUMMARY diff inspection confirms no behavioral relaxation, new plan or override. Final original-repository delivery remains outstanding independently; candidate passed is not quick completion or delivery acceptance.
+**No verification gaps remain.** All six must-have truths have implementation plus actual behavioral/documentation evidence. The sole initial gap was closed by correcting the existing PLAN annotation to the already implemented strict task-run/task-journal path. Exact PLAN/SUMMARY diff inspection confirms no behavioral relaxation, new plan or override. Original delivery acceptance subsequently passed; final registry/records advancement remains with the controller.
+
+## Limited Original-Delivery Addendum
+
+Authority: `D:/alpha-aos-verify-20261027/stage-c-delivery/result.json` and its per-command raw logs. This addendum reused all candidate checks; it did not rerun source review, tests, build or release commands.
+
+| Delivery check | Actual receipt / raw evidence | Verdict |
+|---|---|---|
+| Original preconditions | Original clean main `29619abaa10b250d745c1c4df2896cadd682aa53` checked before and after local fetch; ancestry checks exit 0 | PASSED |
+| Local integration | Filesystem-only `fetch --no-tags --no-write-fetch-head` and `merge --ff-only 8d102d738271a66dca2fcd441100d6980f292166`; actual resulting original HEAD matches | PASSED |
+| Original rebuild | Actual original npm build and build:check exit 0; raw build-check output **283 inputs, 556 outputs** | PASSED |
+| Direct built CLI | Version raw output `0.4.5`; help includes job commands/task wait; plan preview/inventory/status exit 0; before/after status `needsRepair:false` | PASSED |
+| Dry-run job preview | Corrected sibling-state fixture exits 0, `applied:false`, no state created; original state-inside-CWD refusal remains in failure.json and is not credited as success | PASSED |
+| Existing linked CLI | Existing junction exactly `D:/dev/alpha-AOS`; actual existing PowerShell shim version `0.4.5` and help exposes job wait | PASSED |
+| Project guidance | Receipt proves one exact 1950-character owned Codex block, with original user/GSD bytes preserved outside it | PASSED |
+| Delivery cleanliness | Both trees clean at delivered records commit `8d102d738271a66dca2fcd441100d6980f292166`; raw clean outputs empty | PASSED |
+
+All successful receipt commands have exit 0/signal null/no launch error; relevant head/version/help/build-check/clean/preview/status raw outputs were independently inspected. The first external preview-fixture failure is preserved separately; only that fixture was corrected, without repeating successful delivery checks.
+
+The original build's **556 output** count is the actual delivery-host build receipt. It is distinct from the final packaged manifest's **552 outputs**, which remains tied to package source `c4b1abbcb5f06053922dd9e0a49a0f44e0b79fef`, 1,304,217-byte tarball SHA-256 `4067732db6e44f14e271c93a62251eccbdbde8393fbe27aafe016383f1586c1e`. No claim of byte identity between that package and the local original build is made. Subsequent delivered `8d102d7` changes are GSD records only, as recorded by the controller.
+
+Final narrow metadata refresh confirmed SUMMARY now records original delivery **283/556**, retaining package **283/552**. The canonical fingerprint was refreshed over the same covered files after this factual correction; STATE remains excluded. No behavioral checks were repeated.
+
+No global install/link/sync/configuration/permission mutation or full-suite repeat occurred. ECC candidate handoff `mem_20261027_56963d23b9994a1c9b18` and doctor result (14 memories, no issues) remain continuity evidence, not the lifecycle authority. All earlier platform, native-autopilot authentication, publication and savings limits remain in force. Final registry/records commit and its record-only original fast-forward are pending controller actions and are not assigned a speculative final hash here.
 
 ## Verification Metadata
 
@@ -226,5 +252,5 @@ Unrun scope remains explicit: no new Windows GUI or macOS/Linux live GUI, three-
 - Commit: none. Controller retains GSD lifecycle, delivery and commit ownership.
 
 ---
-*Verified: 2026-10-27T06:55:56Z*
+*Verified: 2026-10-27T07:04:09Z*
 *Verifier: independent gsd-verifier (GPT-6.1 Sol high)*

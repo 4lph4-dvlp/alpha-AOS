@@ -1,15 +1,15 @@
 ---
 quick_id: 261021-mcn
-status: in-progress
-completed: false
+status: complete
+completed: true
 updated: 2026-10-27
 resume_task: 3
-blocker: candidate gates passed; independent goal verification and original local delivery pending
+blocker: none
 ---
 
 # BUG-06 efficient waiting — execution boundary
 
-The approved three-task GSD quick plan is implemented and its final runtime release audit passed in the alpha-aos-041 workspace. Stage C independently validated actual release evidence, reran all three criteria, finalized evidence-only docs through exact Gemini/high, and passed the affected final package and mandatory gates. This task is not yet marked complete/Verified: fresh independent goal verification and original D local delivery are the remaining acceptance steps. Historical failures below remain historical.
+The approved three-task GSD quick plan is complete: final runtime release audit, all three fresh criteria, evidence-only Gemini documentation, final package/provenance/Stage 1 and mandatory gates passed. Fresh independent GPT-6.1 Sol high candidate verification passed6/6 truths6/6 links after factual PLAN metadata correction. Original D was independently rechecked clean at29619ab, locally fast-forwarded, rebuilt and passed read-only delivery checks, including linked CLI0.4.5 and exact project-owned Codex policy. Final delivery report/fingerprint and schema-backed Verified registry are recorded in the completion gate; historical failed attempts remain historical.
 
 ## Implemented behavior
 
@@ -203,3 +203,16 @@ FINAL documentation package source `c4b1abbcb5f06053922dd9e0a49a0f44e0b79fef`, t
 Fresh current execute:post/verify:pre/strict all exit0 passed:true using explicit base29619ab at final docs source; actual args/results/raw logs D:/alpha-aos-verify-20261027/stage-c-gates. Installed GSD shim identity @opengsd/gsd-core1.18.0 verified. execute-phase outline/preamble/verification and existing quick verification/update/commit gates read in bounded slices. execute:post render-hooks has no active hooks. Source CR01/f26/StageB reviews remain valid unchanged runtime; final fresh independent goal-backward verifier is NEXT, covering PLAN must_haves plus only unreviewed docs/evidence, not broad duplicate runtime review/tests. Candidate goal verification may precede delivery, but task remains unverified/in-progress until original delivery checks pass.
 
 Native Codex evidence remains scoped: managed fresh ephemeral adapter wired to generated prompt, exact project owned AGENTS policy. Candidate criteria used direct builtCLI while existing global npm junction still points originalD until verified integration/rebuild. Historical short12s comparison baseline6responses/input125572/cache96512 vs efficient2/input38265/cache26112 with one explicit3status baseline; no broad cost/quota/longtransport/crossharness claim. Historical175responses/input27833->356832 does not isolate waste; StageA same-handle host continuation rules out zero-wakeup guarantees. No new GUI/macOS/Linux GUI/3OSCI/registryStage2/external promotion or remote operation. Denied cleanup fixture C:/Users/alpha/AppData/Local/Temp/bug06-final-cwd-alias-vE9z2m was confirmed present and retained, no alternate deletion. Useful audit roots retained.
+
+
+## 2026-10-27 Stage C original delivery and completion
+
+Fresh independent verifier initial6/6truths with one literal key-link metadata gap is preserved at D:/alpha-aos-verify-20261027/stage-c-audit/initial-goal-verification-gaps.md (SHAfb16852f89e182d32513ff92626859160c0227eff6446e8a38ffc69cf1cedfe6). Existing PLAN annotation corrected only to actual canonical task-run/task-journal validation; same fresh verifier's narrow re-verification returned6/6truths6/6links and canonical query `passed` exit0. No source correction, new plan, override, broad re-review or duplicate tests. Candidate verified records committed8d102d738271a66dca2fcd441100d6980f292166. Candidate ECC handoffmem_20261027_56963d23b9994a1c9b18 saved and doctor ok=true14memories0invalid/duplicate/broken/skipped, no truncation. Memory is unreviewed context; GSD owns completion.
+
+Immediately before integration, independently checked BOTH trees clean and original live main29619abaa10b250d745c1c4df2896cadd682aa53, exact expected baseline; workspace original-ancestor and canonical candidatepassed checked. Local filesystem-only fetch `git fetch --no-tags --no-write-fetch-head <workspace> <exactcommit>` copied candidate objects; original HEAD/status rechecked unchanged clean after fetch, ancestor proved again, `git merge --ff-only 8d102d7` succeeded. No force/reset/overwrite/remote mutation. All original0.4.4 changes, deterministic models, stable dependencies and multi-phase/safety work remain in ancestry.
+
+OriginalD actual npm run build and build:check both exit0; latter283inputs556outputs. Direct original builtCLI version0.4.5/help (job start/wait/status/cancel + task wait), plan preview, inventory and offline status all exit0. Before/after offline status needsRepair=false, writerfree,0incomplete/corrupt journals. Corrected job dry-run previewexit0 and created NO state; initial external delivery fixture wrongly located state inside cwd, correctly refused before mutation and retained as failure.json. Only that read-only fixture was corrected to sibling state; successful build/other checks were not repeated. Existing global npm junction resolved exactlyD:/dev/alpha-AOS; actual existing PowerShell shim `alpha-aos --version` returned0.4.5 and help exposes all runtime job commands. No npm link/install/global sync/configuration/permission mutation. Actual project AGENTS has one exact1950-char candidate owned block; all old original user/GSD AGENTS bytes preserved exactly outside newly appended owned block.
+
+Actual delivery receipt D:/alpha-aos-verify-20261027/stage-c-delivery/result.json plus raw per-command logs. Both trees clean after these delivery checks at integrated8d102d7. Final evidence package remains bound to sourcec4b1abbcb5f06053922dd9e0a49a0f44e0b79fef/SHA4067732db6e44f14e271c93a62251eccbdbde8393fbe27aafe016383f1586c1e; later GSD-only records do not change packaged source identity or justify another build/fullsuite. Original runtime build is a real delivery check, not a relabelled package build. No publication/registryStage2/3OSCI/newGUI/dependencypromotion, and no Windows kernel/subscription quota fix claim. Historical autopilot auth block persists. Denied fixture confirmed present and retained without alternate deletion; useful audit roots retained, no unrelated cleanup.
+
+This delivery passed before SUMMARY complete or quick Verified advancement. Same independent verifier now receives ONLY actual delivery evidence and this SUMMARY update for final report addendum/canonical fingerprint refresh. After canonicalpassed, the controller records schema-backed quick-tasks-append --status Verified and the final records commit, then locally fast-forwards only those records into originalD after fresh clean/head checks. Terminal stage-c-final-result.json binds actual final commits/cleanliness and ECC finalhandoff; no speculative self-referential commit identity is embedded here.

@@ -95,7 +95,7 @@ test("executeGsdStep runs discuss, plan, execute with --auto and verify without 
     if (step === 'discuss') fs.writeFileSync(path.join(phaseDir, '17-CONTEXT.md'), '# Context');
     if (step === 'plan') fs.writeFileSync(path.join(phaseDir, '17-01-PLAN.md'), '# Plan');
     if (step === 'execute') fs.writeFileSync(path.join(phaseDir, '17-01-SUMMARY.md'), '# Summary');
-    if (step === 'verify') fs.writeFileSync(path.join(phaseDir, '17-VERIFICATION.md'), '# Verification');
+    if (step === 'verify') fs.writeFileSync(path.join(phaseDir, '17-VERIFICATION.md'), '---\\nstatus: passed\\n---\\n# Verification');
   `;
   await writeFile(mockScriptPath, scriptContent, "utf8");
 
@@ -424,7 +424,7 @@ test("runPhaseLifecycle allows D-09 reuse between discuss and execute, but rejec
     if (step === 'discuss') fs.writeFileSync(path.join(phaseDir, '18-CONTEXT.md'), '# Context');
     if (step === 'plan') fs.writeFileSync(path.join(phaseDir, '18-01-PLAN.md'), '# Plan');
     if (step === 'execute') fs.writeFileSync(path.join(phaseDir, '18-01-SUMMARY.md'), '# Summary');
-    if (step === 'verify') fs.writeFileSync(path.join(phaseDir, '18-VERIFICATION.md'), '# Verification');
+    if (step === 'verify') fs.writeFileSync(path.join(phaseDir, '18-VERIFICATION.md'), '---\\nstatus: passed\\n---\\n# Verification');
     process.exit(0);
   `;
   await writeFile(mockScriptPath, scriptContent, "utf8");
@@ -600,7 +600,8 @@ test("executeGsdStep passes exact phase argv despite 02 in custom script paths f
         if (actual.includes("--auto") !== (step !== "verify")) process.exit(24);
         const names = { discuss: "02-CONTEXT.md", plan: "02-01-PLAN.md", execute: "02-01-SUMMARY.md", verify: "02-VERIFICATION.md" };
         fs.mkdirSync(${JSON.stringify(phaseDir)}, { recursive: true });
-        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), "# " + step);
+        const content = step === "verify" ? "---\\nstatus: passed\\n---\\n# verify" : "# " + step;
+        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), content);
       `, "utf8");
       const steps: GsdStepKind[] = ["discuss", "plan", "execute", "verify"];
       const names = ["02-CONTEXT.md", "02-01-PLAN.md", "02-01-SUMMARY.md", "02-VERIFICATION.md"];

@@ -145,7 +145,7 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
       execSync('git commit -m "docs(' + phaseId + '-01): complete plan summary"', { cwd: ${JSON.stringify(projectRoot)} });
     } else if (!hasVerification) {
       // Step: verify
-      fs.writeFileSync(path.join(phaseDir, phaseId + '-VERIFICATION.md'), '# Phase ' + phaseId + ' Verification\\n');
+      fs.writeFileSync(path.join(phaseDir, phaseId + '-VERIFICATION.md'), '---\\nstatus: passed\\n---\\n# Phase ' + phaseId + ' Verification\\n');
     }
     process.exit(0);
   `;

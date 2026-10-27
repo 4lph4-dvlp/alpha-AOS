@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { runGitRead } from "./task-gsd.js";
+import { hasPassedVerification } from "./task-gsd-gates.js";
 
 export interface PlanCompletionProof {
   readonly planId: string;
@@ -211,6 +212,16 @@ export async function discoverPhaseProgression(options: {
         }
       }
     } catch {}
+
+    // Stage Gate: Phase is NOT complete if verification artifact reports gaps or fails
+    if (isPhaseComplete && phaseDir) {
+      const verFile = [`${phaseId}-VERIFICATION.md`, "VERIFICATION.md"]
+        .map((name) => join(phaseDir, name))
+        .find((p) => existsSync(p));
+      if (verFile && !hasPassedVerification(phaseDir, phaseId, { projectRoot })) {
+        isPhaseComplete = false;
+      }
+    }
   }
 
   return {

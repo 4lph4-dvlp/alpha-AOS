@@ -16,6 +16,10 @@ import {
   discoverPhaseProgression,
   resolvePhaseDirectory,
 } from "./task-gsd-discovery.js";
+import {
+  hasExecutionSummaries,
+  hasPassedVerification,
+} from "./task-gsd-gates.js";
 import { taskContractDigest, type TaskContract } from "./task-contract.js";
 import { userStateRoot } from "./paths.js";
 import type { HarnessId } from "../types.js";
@@ -234,7 +238,13 @@ async function enumerateProducedArtifacts(
         matched = files.filter((f) => f.endsWith("-PLAN.md"));
         break;
       case "execute":
-        matched = files.filter((f) => f.endsWith("-SUMMARY.md"));
+        matched = files.filter(
+          (f) =>
+            f.endsWith("-SUMMARY.md") &&
+            !f.endsWith("-PLANNING-SUMMARY.md") &&
+            !f.startsWith("PLANNING-") &&
+            f !== "PLANNING-SUMMARY.md",
+        );
         break;
       case "verify":
         matched = files.filter(
@@ -595,6 +605,42 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     options.phaseId,
     options.step,
   );
+
+  // 8. Stage Gate Enforcement: Fail-closed on missing execution summaries or verification gaps
+  const phaseDir = await resolvePhaseDirectory(options.projectRoot, options.phaseId);
+  if (phaseDir && options.step === "execute") {
+    if (!hasExecutionSummaries(phaseDir, options.phaseId)) {
+      return {
+        step: options.step,
+        phaseId: options.phaseId,
+        exitCode: 1,
+        stdoutSha256: processResult.stdout.sha256,
+        stderrSha256: processResult.stderr.sha256,
+        durationMs,
+        artifactsProduced,
+        nextStep: "failed",
+        receipts,
+        obligations,
+        capabilityReceipts,
+      };
+    }
+  } else if (phaseDir && options.step === "verify") {
+    if (!hasPassedVerification(phaseDir, options.phaseId, { projectRoot: options.projectRoot })) {
+      return {
+        step: options.step,
+        phaseId: options.phaseId,
+        exitCode: 1,
+        stdoutSha256: processResult.stdout.sha256,
+        stderrSha256: processResult.stderr.sha256,
+        durationMs,
+        artifactsProduced,
+        nextStep: "failed",
+        receipts,
+        obligations,
+        capabilityReceipts,
+      };
+    }
+  }
 
   const stepSequence: Record<GsdStepKind, GsdStepKind | "complete"> = {
     discuss: "plan",

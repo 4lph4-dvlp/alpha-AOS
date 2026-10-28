@@ -1,4 +1,14 @@
 #!/bin/sh
 set -eu
+# Main must already have a green matrix on this exact commit from a review branch.
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = refs/heads/main ] && [ "$local_sha" != 0000000000000000000000000000000000000000 ]; then
+    green=$(gh run list --workflow ci.yml --commit "$local_sha" --limit 50 --json status,conclusion --jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length')
+    if [ "$green" -eq 0 ]; then
+      echo "Refusing main push: verify this exact commit with the three-OS CI on a review branch first." >&2
+      exit 1
+    fi
+  fi
+done
 npm run build
 npm run verify:push

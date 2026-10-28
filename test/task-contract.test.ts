@@ -70,6 +70,34 @@ async function approveOriginal(fixture: TaskFixture, contract: TaskContract = in
 // Task 1: canonical digest, drift explanation and revision reuse (CON-03, D-04)
 // ---------------------------------------------------------------------------
 
+test("full GSD workflows load with stable distinct canonical digests", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const digests = new Set<string>();
+  for (const workflow of ["gsd-quick", "gsd-multi-phase", "gsd"]) {
+    const contract = inventorySummaryContract(fixture.projectRoot);
+    contract.scope.workflow = workflow;
+    await writeTaskContract(fixture.contractPath, contract);
+    const first = await loadTaskContract(fixture.contractPath);
+    await writeTaskContract(fixture.contractPath, reverseKeys(contract));
+    const second = await loadTaskContract(fixture.contractPath);
+    assert.equal(first.digest, second.digest, workflow);
+    assert.equal(first.digest, taskContractDigest(contract), workflow);
+    assert.match(first.digest, /^[0-9a-f]{64}$/u);
+    digests.add(first.digest);
+  }
+  assert.equal(digests.size, 3);
+});
+
+test("unsupported workflow is rejected by the contract loader", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.scope.workflow = "gsd-unknown";
+  await writeTaskContract(fixture.contractPath, contract);
+  await assert.rejects(loadTaskContract(fixture.contractPath), isCode("contract-invalid", (message) => {
+    assert.ok(message.includes("/scope/workflow"), message);
+  }));
+});
+
 test("permuting key, criterion, allowedRoots and allowedEffects order keeps the digest", async (context) => {
   const fixture = await createTaskFixture(context);
   const original = inventorySummaryContract(fixture.projectRoot);

@@ -116,7 +116,7 @@
       "additionalProperties": false,
       "properties": {
         "projectRoot": { "type": "string", "minLength": 1, "maxLength": 1024 },
-        "workflow": { "type": "string", "enum": ["gsd-quick", "generic-connector"] },
+        "workflow": { "type": "string", "enum": ["gsd-quick", "gsd-multi-phase", "gsd", "generic-connector"] },
         "summary": { "type": "string", "minLength": 1, "maxLength": 2000 }
       }
     },

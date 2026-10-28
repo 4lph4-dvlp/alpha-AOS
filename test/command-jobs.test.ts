@@ -25,6 +25,7 @@ import {
   truncateToUtf8Bytes,
   assertNoCredentialsInArgs,
   assertStateRootNotInsideProject,
+  findEnclosingProjectRoots,
   validatePrivateLaunchSpec,
   validateCancelRequest,
   validateJobRecord,
@@ -1158,6 +1159,35 @@ test("command-jobs CR-03: remote worker is reported as unresolved rather than PI
 // ============================================================================
 // CR-04: Path proofs & canonical real project root
 // ============================================================================
+
+test("command-jobs: a physical home alias is not mistaken for an enclosing project", async (context) => {
+  const { stateRoot: base, cleanup } = await createJobTestState();
+  const home = join(base, "physical-home");
+  const alias = join(base, "home-alias");
+  const cwd = join(home, "temp", "project");
+  await mkdir(join(home, ".alpha-aos"), { recursive: true });
+  await mkdir(cwd, { recursive: true });
+  try {
+    try { await symlink(home, alias, process.platform === "win32" ? "junction" : "dir"); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EPERM") throw error;
+      context.skip("Home alias creation requires filesystem support");
+      return;
+    }
+    const oldProfile = process.env.USERPROFILE;
+    const oldHome = process.env.HOME;
+    try {
+      process.env.USERPROFILE = alias;
+      process.env.HOME = alias;
+      assert.equal(findEnclosingProjectRoots(cwd).includes(home), false);
+      await mkdir(join(cwd, ".alpha-aos"));
+      assert.ok(findEnclosingProjectRoots(cwd).includes(cwd), "Real project markers remain authoritative");
+    } finally {
+      if (oldProfile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = oldProfile;
+      if (oldHome === undefined) delete process.env.HOME; else process.env.HOME = oldHome;
+    }
+  } finally { await cleanup(); }
+});
 
 test("command-jobs CR-04: assertStateRootNotInsideProject rejects nested cwd with project-local state", async () => {
   assert.throws(

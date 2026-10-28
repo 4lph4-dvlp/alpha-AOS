@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { constants, existsSync } from "node:fs";
+import { constants, existsSync, statSync } from "node:fs";
 import { link, lstat, mkdir, open, rename, rmdir, stat, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
@@ -320,6 +320,18 @@ export function comparablePath(value: string): string {
   return isCaseInsensitiveHost ? resolved.toLowerCase() : resolved;
 }
 
+function isSameHomeDirectory(candidate: string, home: string): boolean {
+  if (comparablePath(candidate) === comparablePath(home)) return true;
+  // Windows TEMP can use RUNNER~1 while USERPROFILE uses runneradmin.
+  // Exclude the same physical home, never another ancestor with similar text.
+  try {
+    const left = statSync(candidate, { bigint: true });
+    const right = statSync(home, { bigint: true });
+    return left.isDirectory() && right.isDirectory() && left.ino !== 0n &&
+      left.dev === right.dev && left.ino === right.ino;
+  } catch { return false; }
+}
+
 export function isPathSameOrInside(parent: string, candidate: string): boolean {
   const compParent = comparablePath(parent);
   const compCandidate = comparablePath(candidate);
@@ -334,7 +346,7 @@ export function findEnclosingProjectRoots(startDir: string): string[] {
   const home = resolve(process.env.USERPROFILE ?? process.env.HOME ?? "");
 
   while (true) {
-    if (home.length > 0 && comparablePath(cursor) === comparablePath(home)) {
+    if (home.length > 0 && isSameHomeDirectory(cursor, home)) {
       const parent = dirname(cursor);
       if (parent === cursor) break;
       cursor = parent;
@@ -413,7 +425,7 @@ export function assertStateRootNotInsideProject(stateRoot: string, cwd: string):
     const parent = dirname(cursor);
     if (parent === cursor) break;
     cursor = parent;
-    if (home.length > 0 && comparablePath(cursor) === comparablePath(home)) {
+    if (home.length > 0 && isSameHomeDirectory(cursor, home)) {
       continue;
     }
     const dotAlphaAos = join(cursor, ".alpha-aos");
@@ -490,7 +502,7 @@ export async function assertStateRootNotInsideProjectCanonical(stateRoot: string
     const parent = dirname(physicalCursor);
     if (parent === physicalCursor) break;
     physicalCursor = parent;
-    if (home.length > 0 && comparablePath(physicalCursor) === comparablePath(home)) {
+    if (home.length > 0 && isSameHomeDirectory(physicalCursor, home)) {
       continue;
     }
     const dotAlphaAos = join(physicalCursor, ".alpha-aos");
@@ -507,7 +519,7 @@ export async function assertStateRootNotInsideProjectCanonical(stateRoot: string
     const parent = dirname(normCursor);
     if (parent === normCursor) break;
     normCursor = parent;
-    if (home.length > 0 && comparablePath(normCursor) === comparablePath(home)) {
+    if (home.length > 0 && isSameHomeDirectory(normCursor, home)) {
       continue;
     }
     const dotAlphaAos = join(normCursor, ".alpha-aos");

@@ -7,7 +7,7 @@ description: "Natural-language task entry and autonomous workflow coordinator fo
 
 ## Objective
 
-Serve as the natural-language task coordination interface for alpha-AOS across all supported harnesses (Claude Code, Codex, Antigravity, Pi Agent, Hermes Agent). Guide user task requests to either ordinary conversational GSD (default) or explicitly requested per-task autonomous autopilot. Enforce strict authorization boundaries: a conversational prompt or mode switch is never an authorization to execute mutations.
+Serve as the natural-language task coordination interface for alpha-AOS across all supported harnesses (Claude Code, Codex, Antigravity, Pi Agent, Hermes Agent). Guide user task requests to either ordinary conversational GSD (default) or explicitly requested per-task autonomous autopilot. The initiating conversation owns contract review and tool-mediated launch; the existing runner owns isolated task execution. A mode switch alone never authorizes mutations, but explicit approval and a start instruction for the displayed exact contract may be given in this conversation.
 
 ---
 
@@ -61,21 +61,28 @@ The preview presents:
 - Computed 64-character SHA-256 Contract Digest.
 
 ### Step 2: Exact-Digest Approval (D-09)
-Contract approval requires an explicit, separate CLI invocation specifying the exact 64-character hex digest and the `--apply` flag:
+Show the concrete preview and its exact digest to the user. After the user explicitly approves that displayed revision, invoke the following command using the session's process tool, specifying the exact 64-character hex digest and the `--apply` flag:
 ```bash
 alpha-aos task approve <contract.json> --contract-digest <64-char-digest> --apply
 ```
 - A preview without `--apply` writes nothing.
 - An approval without the matching `--contract-digest` is refused (contract drift protection).
 - Approval grants permission for a single run of that exact revision. Modifying the contract requires a new revision and fresh approval.
+- The user may approve the displayed contract in natural language; the agent carries its exact digest into the CLI. Do not require the user to copy commands or retype the digest. Ambiguous approval, changed scope, or an undisplayed revision is not consent.
 
 ### Step 3: Separate Execution Start Command (D-09, D-10)
-Initiating execution is a distinct, separate manual command following approval (the skill must never trigger execution directly):
+After approval succeeds, and only when the user has explicitly requested start of that displayed contract, the agent MUST invoke the separate start command through the current session's process tool. The user may say "approve this contract and start" in one response to the preview; still invoke approval and start sequentially as distinct commands, and never start after a failed approval. Approval alone does not authorize start.
 ```bash
-# Executed manually by the user in a terminal:
-alpha-aos task \
-  start <contract.json> --contract-digest <64-char-digest> --apply
+alpha-aos task start <contract.json> --contract-digest <64-char-digest> --apply
 ```
+Do not hand a list of Node/CLI commands back to the user as the default execution path. Manual terminal execution remains an option if the user prefers it. If the host lacks process tools or denies launch, report the exact limitation and preserve the contract/digest; do not claim execution or silently bypass the host boundary.
+
+### Session and Worker Model Routing
+- The initiating session (A/model1) remains the user's coordination surface. It does not have to be the contract's worker/controller model.
+- Encode the user's approved reasoning/orchestration, implementation and independent review assignments in `agentPolicy.controller`/`controllerModel`, `executor`/`executorModel`, and `reviewer`/`reviewerModel`. For example, B/model2 may control reasoning while A/model3 implements. Display all three assignments before approval; clarify any missing assignment that cannot be resolved from existing explicit user choices.
+- Launch the existing runner, which dispatches the approved harnesses/models through native adapters. Do not replace it with handwritten Node orchestration, inline implementation, or assumed UI model switching. Unsupported models, missing authentication, missing native capability proof and sandbox refusals remain explicit blockers; never silently downgrade or substitute a model.
+- Retain the native completion handle and exact contract/run IDs, then follow the finite wait guidance below. A transport yield is not completion. Report outcomes from runner evidence; terminal process exit alone is not GSD acceptance.
+
 Upon start, the command outputs durable, reproducible identifiers and commands for post-chat tracking:
 - **Contract ID** & **Run ID**
 - Exact status command: `alpha-aos task status <contract-id> --run <run-id>`
@@ -154,7 +161,7 @@ alpha-AOS provides an integrated capability suite across all supported harnesses
    - When a task operates in `mode: autopilot`, the conversational chat agent is strictly forbidden from executing task steps inline via chat tool calls (`write_file`, `edit_file`, or running inline code generators).
    - Inline execution binds model selection to the interactive UI dropdown (e.g. Gemini Flash) rather than the contractually approved model tiers (e.g. Gemini Argon / Claude Opus / GPT-4o).
    - Autopilot tasks MUST execute exclusively via headless, isolated child processes dispatched by the background supervisor or runner script with explicit CLI model flags (`--model`).
-   - If an agent is in an interactive chat session and an autopilot task is approved, execution belongs to the separate external supervisor rather than inline repo writes in the chat conversation.
+   - If an agent is in an interactive chat session and an autopilot task is approved, task implementation belongs to the separate runner rather than inline repo writes in the chat conversation. Invoking preview, approved `task approve`, authorized `task start`, and status/report/stop tools from that conversation is permitted orchestration, not inline task implementation.
 
 ## GUI verification orchestration
 

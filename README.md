@@ -1,5 +1,7 @@
 # alpha-AOS
 
+Autopilot can be launched from the initiating agent conversation. Describe the task and role-specific harness/model choices, review the contract and digest, then explicitly approve and request start. The agent invokes `task approve` and the separate `task start` command for you; the existing runner dispatches the contracted workers. Approval alone does not start work. Your chat model remains the coordination surface while reasoning, implementation and review can use different approved harnesses/models. Manual terminal execution is optional. Missing process tools, authentication, model support or native capability proof are reported as blockers.
+
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
 Release **0.4.5** adds event-driven [efficient waiting and reactive completion](docs/efficient-wait.md) (`alpha-aos job` and `alpha-aos task wait`):

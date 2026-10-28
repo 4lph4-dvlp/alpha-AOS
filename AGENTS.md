@@ -291,6 +291,7 @@ During GSD research, planning, and execution, agents must actively invoke manage
 When a task contract specifies `mode: autopilot`, chat UI agents **MUST NOT** perform inline file modifications (`write_file`, `edit_file`, or running inline code generators) within the interactive session:
 - **Zero Inline Execution**: The chat agent is strictly forbidden from simulating or manually advancing autopilot tasks in the conversational thread.
 - **External Headless Runner Mandate**: Autopilot contracts must be executed exclusively via `alpha-aos task start` (or a dedicated runner process) using isolated child processes.
+- **Session Launch**: After showing the exact contract and receiving explicit approval and start authorization, the conversational agent invokes `task approve` and then the separate `task start` command through its process tool. This orchestration is allowed; inline task implementation remains forbidden. Approval alone does not authorize start, and a failed approval must prevent start. Users need not copy commands or digests into a terminal.
 - **Model Policy Integrity**: Inline chat execution binds model selection to the interactive UI dropdown (e.g. Gemini Flash) rather than the contract-specified model tiers (e.g. Gemini Argon / Claude Opus / GPT-4o). Delegating to the headless runner ensures exact `--model` injection and prevents model downgrade violations.
 <!-- GSD:workflow-end -->
 

@@ -393,7 +393,7 @@ async function filesUnder(root: string, keep: (path: string) => boolean): Promis
   return entries.map((entry) => entry.replaceAll("\\", "/")).filter(keep).sort();
 }
 
-test("startTask is called only by the task start branch and no shipped skill starts a task", async () => {
+test("startTask is limited to the runner and only the task skill describes session launch", async () => {
   const callers: string[] = [];
   for (const file of await filesUnder(join(repositoryRoot, "src"), (path) => path.endsWith(".ts"))) {
     if ((await readFile(join(repositoryRoot, "src", file), "utf8")).includes("startTask(")) callers.push(`src/${file}`);
@@ -403,7 +403,13 @@ test("startTask is called only by the task start branch and no shipped skill sta
   const skills = await filesUnder(join(repositoryRoot, "skills"), (path) => path.endsWith("SKILL.md"));
   assert.ok(skills.length > 0);
   for (const skill of skills) {
-    assert.ok(!(await readFile(join(repositoryRoot, "skills", skill), "utf8")).includes("task start"), `skills/${skill} mentions task start`);
+    const content = await readFile(join(repositoryRoot, "skills", skill), "utf8");
+    if (skill === "alpha-aos-task/SKILL.md") {
+      assert.ok(content.includes("Approval alone does not authorize start"));
+      assert.ok(content.includes("never start after a failed approval"));
+    } else {
+      assert.ok(!content.includes("task start"), `skills/${skill} mentions task start`);
+    }
   }
 });
 

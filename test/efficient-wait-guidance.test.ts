@@ -107,24 +107,24 @@ test("guidance contract: docs/efficient-wait.md covers five harnesses, truthful 
   );
 });
 
-test("guidance contract: package.json and package-lock.json root versions are 0.4.5", async () => {
+test("guidance contract: package and lock root versions match", async () => {
   const pkgPath = join(repositoryRoot, "package.json");
   const lockPath = join(repositoryRoot, "package-lock.json");
 
   const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
   assert.equal(
     pkg.version,
-    "0.4.5",
-    `package.json root version must be 0.4.5 for waiting release`,
+    "0.4.7",
+    `package.json root version must match the current release`,
   );
 
   const lock = JSON.parse(await readFile(lockPath, "utf8"));
   assert.equal(
     lock.version,
-    "0.4.5",
-    `package-lock.json root version must be 0.4.5 for waiting release`,
+    pkg.version,
+    `package-lock.json root version must match package.json`,
   );
-  assert.equal(lock.packages[""].version, "0.4.5", "package-lock root package must match the 0.4.5 candidate");
+  assert.equal(lock.packages[""].version, pkg.version, "package-lock root package must match package.json");
 });
 
 test("guidance contract: BOTH READMEs mention 0.4.0 computer use, 0.4.5 waiting, and unrun platform status", async () => {

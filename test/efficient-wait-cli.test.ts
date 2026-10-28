@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
@@ -36,7 +37,7 @@ async function createCliTestFixture(): Promise<{
   recordJob: (jobId: string) => void;
   cleanup: () => Promise<void>;
 }> {
-  const base = join(tmpdir(), `test-eff-cli-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const base = join(canonicalFixturePath(tmpdir()), `test-eff-cli-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const stateRoot = join(base, "state");
   const projectRoot = join(base, "project");
   await mkdir(stateRoot, { recursive: true });
@@ -97,7 +98,7 @@ test("efficient-wait-cli: detached job start returns real handle before completi
       projectRoot,
     );
 
-    assert.equal(startRes.code, "ok");
+    assert.equal(startRes.code, "ok", startRes.stderr.excerpt);
     assert.equal(startRes.exitCode, 0);
     const startPayload = JSON.parse(startRes.stdout.excerpt);
     assert.ok(startPayload.jobId.startsWith("job-"));
@@ -163,7 +164,7 @@ test("efficient-wait-cli: dry-run start and cancel create no side effects", asyn
       stateRoot,
       projectRoot,
     );
-    assert.equal(startPreviewRes.exitCode, 0);
+    assert.equal(startPreviewRes.exitCode, 0, startPreviewRes.stderr.excerpt);
     const startPreview = JSON.parse(startPreviewRes.stdout.excerpt);
     assert.equal(startPreview.applied, false);
     assert.ok(startPreview.cwd === projectRoot || startPreview.cwd === "<project>");
@@ -650,7 +651,7 @@ test("efficient-wait-cli: job wait on nonexistent job ID exits non-zero with dia
 });
 
 test("efficient-wait-cli: job start preview and apply refuse aliased CWD pointing into physical project containing stateRoot", async (context) => {
-  const base = join(tmpdir(), `test-cli-alias-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const base = join(canonicalFixturePath(tmpdir()), `test-cli-alias-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const project = join(base, "project");
   await mkdir(join(project, ".git"), { recursive: true });
   const alias = join(base, "alias-project");

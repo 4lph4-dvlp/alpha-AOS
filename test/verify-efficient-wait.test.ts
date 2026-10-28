@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
@@ -30,7 +31,7 @@ function runVerifier(
 }
 
 async function createScratchWorkspace() {
-  const scratch = await mkdtemp(join(tmpdir(), "alpha-aos-verif-"));
+  const scratch = await mkdtemp(join(canonicalFixturePath(tmpdir()), "alpha-aos-verif-"));
   await mkdir(join(scratch, "scripts"), { recursive: true });
   await mkdir(join(scratch, "dist", "test"), { recursive: true });
 
@@ -377,7 +378,7 @@ test("guidance contract: docs/efficient-wait.md covers five harnesses, truthful 
 
 test("verify-efficient-wait: CR-01 regression - external import suffix collision with outside test files cannot satisfy required identity", async () => {
   const ws = await createScratchWorkspace();
-  const outsideDir = await mkdtemp(join(tmpdir(), "alpha-aos-outside-"));
+  const outsideDir = await mkdtemp(join(canonicalFixturePath(tmpdir()), "alpha-aos-outside-"));
   try {
     await mkdir(join(outsideDir, "dist", "test"), { recursive: true });
 
@@ -441,7 +442,7 @@ test("completion-wait: other unrelated test", () => {});
 
 test("verify-efficient-wait: CR-01 regression - outside symlink alias is refused", async (context) => {
   const ws = await createScratchWorkspace();
-  const outsideDir = await mkdtemp(join(tmpdir(), "alpha-aos-symlink-"));
+  const outsideDir = await mkdtemp(join(canonicalFixturePath(tmpdir()), "alpha-aos-symlink-"));
   try {
     await mkdir(join(outsideDir, "dist", "test"), { recursive: true });
     const outsideComp = `import test from "node:test";
@@ -599,7 +600,7 @@ test("verify-efficient-wait: real successful selection passes for safety", () =>
 for (const component of ["dist/test", "dist"]) {
   test(`verify-efficient-wait: outside ${component} directory alias is refused before any body executes`, async (context) => {
     const ws = await createScratchWorkspace();
-    const outside = await mkdtemp(join(tmpdir(), "alpha-verifier-alias-"));
+    const outside = await mkdtemp(join(canonicalFixturePath(tmpdir()), "alpha-verifier-alias-"));
     const marker = join(outside, "executed.marker");
     const alias = join(ws.scratch, component);
     try {

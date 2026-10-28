@@ -63,5 +63,5 @@ jobs:
         shell: bash
         run: |
           for server in context7 exa firecrawl; do
-            node dist/src/cli.js fixture mcp "$server" pi --apply
+            node scripts/verify-mcp-fixture.mjs "$server"
           done

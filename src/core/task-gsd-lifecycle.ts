@@ -625,7 +625,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
       };
     }
   } else if (phaseDir && options.step === "verify") {
-    if (!hasPassedVerification(phaseDir, options.phaseId, { projectRoot: options.projectRoot })) {
+    if (!await hasPassedVerification(phaseDir, options.phaseId, { projectRoot: options.projectRoot })) {
       return {
         step: options.step,
         phaseId: options.phaseId,

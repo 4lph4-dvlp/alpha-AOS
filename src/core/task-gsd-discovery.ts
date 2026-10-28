@@ -218,7 +218,7 @@ export async function discoverPhaseProgression(options: {
       const verFile = [`${phaseId}-VERIFICATION.md`, "VERIFICATION.md"]
         .map((name) => join(phaseDir, name))
         .find((p) => existsSync(p));
-      if (verFile && !hasPassedVerification(phaseDir, phaseId, { projectRoot })) {
+      if (verFile && !await hasPassedVerification(phaseDir, phaseId, { projectRoot })) {
         isPhaseComplete = false;
       }
     }

@@ -51,37 +51,37 @@ test("hasExecutionSummaries rejects empty phases and directories masquerading as
   assert.equal(hasExecutionSummaries(f.dir, "03"), false);
 });
 
-test("hasPassedVerification checks frontmatter status and rejects gaps, stale, or missing reports", (context) => {
+test("hasPassedVerification checks frontmatter status and rejects gaps, stale, or missing reports", async (context) => {
   const f = createFixture(context, "verify-status");
   f.write("03-01-PLAN.md", "# Plan 1");
   f.write("03-01-SUMMARY.md", "# Summary 1");
 
   // Missing verification artifact
-  assert.equal(hasPassedVerification(f.dir, "03"), false);
+  assert.equal(await hasPassedVerification(f.dir, "03"), false);
 
   // Verification artifact with gaps_found
   f.write("03-VERIFICATION.md", "---\nstatus: gaps_found\n---\n# Gaps found\n");
-  assert.equal(hasPassedVerification(f.dir, "03"), false);
+  assert.equal(await hasPassedVerification(f.dir, "03"), false);
 
   // Verification artifact with human_needed
   f.write("03-VERIFICATION.md", "---\nstatus: human_needed\n---\n# Human needed\n");
-  assert.equal(hasPassedVerification(f.dir, "03"), false);
+  assert.equal(await hasPassedVerification(f.dir, "03"), false);
 
   // Verification artifact with stale
   f.write("03-VERIFICATION.md", "---\nstatus: stale\n---\n# Stale\n");
-  assert.equal(hasPassedVerification(f.dir, "03"), false);
+  assert.equal(await hasPassedVerification(f.dir, "03"), false);
 
   // Verification artifact with passed
   f.write("03-VERIFICATION.md", "---\nstatus: passed\n---\n# Verified\n");
-  assert.equal(hasPassedVerification(f.dir, "03"), true);
+  assert.equal(await hasPassedVerification(f.dir, "03"), true);
 
   // Review status is issues_found -> must reject
   f.write("03-REVIEW.md", "---\nstatus: issues_found\n---\n");
-  assert.equal(hasPassedVerification(f.dir, "03"), false);
+  assert.equal(await hasPassedVerification(f.dir, "03"), false);
 
   // Review status is clean -> must pass
   f.write("03-REVIEW.md", "---\nstatus: clean\n---\n");
-  assert.equal(hasPassedVerification(f.dir, "03"), true);
+  assert.equal(await hasPassedVerification(f.dir, "03"), true);
 });
 
 test("hasNyquistValidation requires validated status and nyquist_compliant true", (context) => {

@@ -37,6 +37,7 @@
     "audit-tarball": "node scripts/audit-tarball.mjs",
     "build": "tsc -p tsconfig.json && node scripts/build-artifact.mjs write",
     "build:check": "node scripts/build-artifact.mjs check",
+    "verify:push": "node scripts/verify-push.mjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run build && node scripts/audit-tarball.mjs --prepack",
     "test": "npm run build && node scripts/run-tests.mjs",

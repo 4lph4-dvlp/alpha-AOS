@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { commandProbeEnvironment, runProcess } from "./process.js";
 
 /**
  * Finds repository root directory containing .git or package.json starting from given directory.
@@ -119,11 +119,11 @@ export function hasExecutionSummaries(dir: string | null | undefined, phase: str
  * Fails closed on gaps_found, human_needed, stale, missing, issues_found in review,
  * or failure of gsd-tools verification.status.
  */
-export function hasPassedVerification(
+export async function hasPassedVerification(
   dir: string | null | undefined,
   phase: string,
   options?: { projectRoot?: string },
-): boolean {
+): Promise<boolean> {
   if (!dir || !existsSync(dir)) return false;
 
   // 1. Review status check: if review exists, must be clean
@@ -140,16 +140,14 @@ export function hasPassedVerification(
   const tool = join(repoRoot, "gsd-core", "bin", "gsd-tools.cjs");
   if (existsSync(tool)) {
     try {
-      const result = spawnSync(
-        process.execPath,
-        [tool, "verification.status", dir, "--pick", "status"],
-        {
-          cwd: repoRoot,
-          encoding: "utf8",
-          timeout: 30_000,
-        },
-      );
-      if (result.status === 0 && result.stdout?.trim() === "passed") {
+      const result = await runProcess({
+        executable: process.execPath,
+        args: [tool, "verification.status", dir, "--pick", "status"],
+        cwd: repoRoot,
+        timeoutMs: 30_000,
+        environment: commandProbeEnvironment({ source: process.env }),
+      });
+      if (result.code === "ok" && result.stdout.excerpt.trim() === "passed") {
         return true;
       }
       return false;
@@ -216,17 +214,7 @@ export function hasNyquistValidation(dir: string | null | undefined, phase: stri
  * Verifies milestone review status via external process invocation.
  */
 export function passesMilestoneReview(contractPath: string, reviewer: string, projectRoot: string): boolean {
-  try {
-    const res = spawnSync(
-      process.execPath,
-      ["-e", `process.exit(0)`],
-      {
-        cwd: projectRoot,
-        timeout: 60_000,
-      },
-    );
-    return res.status === 0;
-  } catch {
-    return false;
-  }
+  // A successful no-op child is not evidence of an independent milestone review.
+  // The lifecycle uses gateMilestoneFinalReview with a real review port instead.
+  return false;
 }

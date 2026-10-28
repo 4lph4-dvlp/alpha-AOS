@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
@@ -25,7 +26,7 @@ import {
 } from "../src/core/command-job-worker.js";
 
 async function createWorkerTestState(): Promise<{ stateRoot: string; cleanup: () => Promise<void> }> {
-  const dir = join(tmpdir(), `test-job-worker-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(canonicalFixturePath(tmpdir()), `test-job-worker-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   return {
     stateRoot: dir,

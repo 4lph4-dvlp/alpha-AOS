@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -14,7 +15,7 @@ type Mutation = "none" | "same-path-replacement" | "product-output" | "product-a
 // Copied-script parser/integrity mechanics, not substitutes for the controller's
 // actual completion/safety/integration production selections.
 async function runIntegrityFixture(mutation: Mutation) {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-verifier-integrity-"));
+  const root = await mkdtemp(join(canonicalFixturePath(tmpdir()), "alpha-aos-verifier-integrity-"));
   const marker = join(root, "executed-bodies.txt");
   try {
     await mkdir(join(root, "scripts"), { recursive: true });

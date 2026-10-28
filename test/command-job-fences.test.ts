@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
@@ -7,7 +8,7 @@ import test from "node:test";
 import { assertJobIdentityMatch, cancelCommandJob, cancelRequestPath, createJobRecord, jobRecordPath, readJobRecord, updateJobRecord, waitCommandJob, type CommandJobRecord } from "../src/core/command-jobs.js";
 
 async function fixture() {
-  const root = await mkdtemp(join(tmpdir(), "alpha-job-fences-"));
+  const root = await mkdtemp(join(canonicalFixturePath(tmpdir()), "alpha-job-fences-"));
   const record: CommandJobRecord = {
     schemaVersion: 1, kind: "command-job", jobId: "job-0123456789abcdef", ownerToken: "storage-owner",
     specDigest: "d".repeat(64), status: "pending", createdAt: new Date().toISOString(),

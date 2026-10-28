@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
@@ -39,7 +40,7 @@ import {
 } from "../src/core/command-jobs.js";
 
 async function createJobTestState(): Promise<{ stateRoot: string; cleanup: () => Promise<void> }> {
-  const dir = join(tmpdir(), `test-cmd-jobs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const dir = join(canonicalFixturePath(tmpdir()), `test-cmd-jobs-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   await mkdir(dir, { recursive: true });
   return {
     stateRoot: dir,
@@ -613,7 +614,7 @@ test("command-jobs storage: orphan diagnosis is strictly read-only", async () =>
 test("command-jobs: symlink in state root or job path is refused", async (t) => {
   const { stateRoot, cleanup } = await createJobTestState();
   try {
-    const symlinkDir = join(tmpdir(), `test-symlink-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    const symlinkDir = join(canonicalFixturePath(tmpdir()), `test-symlink-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     try {
       await symlink(stateRoot, symlinkDir, "junction");
     } catch {
@@ -1161,12 +1162,12 @@ test("command-jobs CR-03: remote worker is reported as unresolved rather than PI
 test("command-jobs CR-04: assertStateRootNotInsideProject rejects nested cwd with project-local state", async () => {
   assert.throws(
     () => {
-      assertStateRootNotInsideProject("C:/review-project/.alpha-aos", "C:/review-project/packages/one");
+      assertStateRootNotInsideProject(join(canonicalFixturePath(tmpdir()), "review-project", ".alpha-aos"), join(canonicalFixturePath(tmpdir()), "review-project", "packages", "one"));
     },
     /External state root must not be inside/,
   );
 
-  assert.throws(
+  if (process.platform === "win32") assert.throws(
     () => {
       assertStateRootNotInsideProject("c:/review-project/.alpha-aos", "C:/REVIEW-PROJECT/packages/one");
     },
@@ -1174,7 +1175,7 @@ test("command-jobs CR-04: assertStateRootNotInsideProject rejects nested cwd wit
   );
 
   assert.doesNotThrow(() => {
-    assertStateRootNotInsideProject("C:/Users/alpha/.alpha-aos", "C:/review-project/packages/one");
+    assertStateRootNotInsideProject(join(canonicalFixturePath(tmpdir()), "external-state"), join(canonicalFixturePath(tmpdir()), "review-project", "packages", "one"));
   });
 });
 

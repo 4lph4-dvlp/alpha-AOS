@@ -712,7 +712,23 @@ async function startPinnedServer(
   server: McpServerId,
   source: NodeJS.ProcessEnv = process.env,
 ): Promise<StartupProbe> {
+  for (let attempt = 0; ; attempt++) {
+    try { return await startPinnedServerAttempt(fixture, server, source); }
+    catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (attempt !== 0 || !/Request timed out|ETIMEDOUT|ECONNRESET|EAI_AGAIN/u.test(message)) throw error;
+      process.stderr.write(`Transient ${server} startup transport failure; retrying once within the test deadline.\n`);
+    }
+  }
+}
+
+async function startPinnedServerAttempt(
+  fixture: ProxyFixture,
+  server: McpServerId,
+  source: NodeJS.ProcessEnv = process.env,
+): Promise<StartupProbe> {
   const locked = await lockedMcpPackage(server);
+  const deadline = Date.now() + 120_000;
   // The product's own spec, so a launch this test proves is the launch the
   // proxy actually performs. Only cwd and the environment source are the
   // fixture's — the executable, the pinned package and every bound are not.
@@ -728,8 +744,10 @@ async function startPinnedServer(
   try {
     // A cold npx cache downloads the package before the server can answer, so
     // the handshake budget is the download budget, not the protocol's.
-    await client.connect(transport, { timeout: STARTUP_BUDGET_MS });
-    const listed = await client.listTools(undefined, { timeout: STARTUP_BUDGET_MS });
+    // Two attempts each share a two-minute connect/list budget, leaving
+    // one minute of the outer test budget for cleanup and assertions.
+    await client.connect(transport, { timeout: Math.max(1, deadline - Date.now()) });
+    const listed = await client.listTools(undefined, { timeout: Math.max(1, deadline - Date.now()) });
     return { tools: listed.tools.map((tool) => tool.name).sort(), unsupportedReason: null };
   } catch (error) {
     let stderr = "";

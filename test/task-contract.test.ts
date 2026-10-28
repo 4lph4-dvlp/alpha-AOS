@@ -98,6 +98,19 @@ test("unsupported workflow is rejected by the contract loader", async (context) 
   }));
 });
 
+test("every GSD workflow requires explicit local commit authority", async (context) => {
+  const fixture = await createTaskFixture(context);
+  for (const workflow of ["gsd-quick", "gsd-multi-phase", "gsd"]) {
+    const contract = inventorySummaryContract(fixture.projectRoot);
+    contract.scope.workflow = workflow;
+    contract.allowedEffects = contract.allowedEffects.filter((effect) => effect !== "local-commit");
+    await writeTaskContract(fixture.contractPath, contract);
+    await assert.rejects(loadTaskContract(fixture.contractPath), isCode("contract-invalid", (message) => {
+      assert.ok(message.includes("/allowedEffects"), message);
+    }));
+  }
+});
+
 test("permuting key, criterion, allowedRoots and allowedEffects order keeps the digest", async (context) => {
   const fixture = await createTaskFixture(context);
   const original = inventorySummaryContract(fixture.projectRoot);

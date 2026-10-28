@@ -112,10 +112,10 @@ test("guidance contract: package and lock root versions match", async () => {
   const lockPath = join(repositoryRoot, "package-lock.json");
 
   const pkg = JSON.parse(await readFile(pkgPath, "utf8"));
-  assert.equal(
+  assert.match(
     pkg.version,
-    "0.4.7",
-    `package.json root version must match the current release`,
+    /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/u,
+    "package.json must declare a valid release version",
   );
 
   const lock = JSON.parse(await readFile(lockPath, "utf8"));

@@ -9,11 +9,13 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 ### Fixed
 
 - Contract validation now accepts the existing `gsd-multi-phase` and `gsd` runtime routes while rejecting unsupported workflows and preserving canonical digest validation.
+- All three GSD routes require explicit local-commit authority, including the newly reachable full-workflow contracts.
 - Job state reads tolerate bounded atomic record replacement under retained ancestor proofs, then revalidate schema, ownership and revision. Generic file reads still reject replacement.
 - User home detection recognizes Windows short/long path aliases by physical directory identity. Strict job/task test fixtures use canonical temporary paths on macOS and portable paths across platforms.
 - GSD verification uses the bounded process adapter and canonical query. The unused placeholder milestone reviewer refuses to certify a no-op.
 - Weekly MCP fixtures retry transient protocol failures once. Live startup tests share a bounded connect/list deadline and retry transient handshakes once; integrity and compatibility failures remain blocking.
 - Windows bootstrap fixture cleanup retries transient directory locks without suppressing persistent errors.
+- Release consistency tests validate package/lock agreement and version syntax without pinning every future release to 0.4.7.
 - Local release verification uses a private alpha-AOS state root so another session's job updates cannot invalidate the host-write boundary audit.
 
 ### Security

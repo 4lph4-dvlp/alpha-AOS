@@ -481,8 +481,8 @@ function assertContractAuthority(contract: TaskContract, label: string): void {
     }
   }
   if (contract.category === "development") {
-    if (contract.scope.workflow === "gsd-quick" && !contract.allowedEffects.includes("local-commit")) {
-      throw refuse("GSD quick records its work as local commits, so add local-commit to allowedEffects", "/allowedEffects");
+    if (["gsd-quick", "gsd-multi-phase", "gsd"].includes(contract.scope.workflow ?? "") && !contract.allowedEffects.includes("local-commit")) {
+      throw refuse("GSD workflows record their work as local commits, so add local-commit to allowedEffects", "/allowedEffects");
     }
   } else if (contract.category === "general") {
     if (!contract.connectorId || contract.connectorId.trim().length === 0) {

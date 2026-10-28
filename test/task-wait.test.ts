@@ -1,3 +1,4 @@
+import { realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
@@ -18,7 +19,7 @@ import {
 } from "./helpers/task-fixture.js";
 
 async function createTestState(): Promise<{ stateRoot: string; projectRoot: string; cleanup: () => Promise<void> }> {
-  const base = join(tmpdir(), `test-task-wait-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const base = join(canonicalFixturePath(tmpdir()), `test-task-wait-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const stateRoot = join(base, "state");
   const projectRoot = join(base, "project");
   await mkdir(stateRoot, { recursive: true });

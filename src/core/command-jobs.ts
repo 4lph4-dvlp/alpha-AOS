@@ -573,7 +573,7 @@ async function assertJobFileIdentity(path: string, expected: JobFileIdentity): P
   const current = await lstat(path);
   const identity = jobFileIdentity(current);
   if (!current.isFile() || current.isSymbolicLink() || identity.dev !== expected.dev || identity.ino !== expected.ino) {
-    throw new Error("Job file identity changed: code=JOB_PATH_CHANGED");
+    throw Object.assign(new Error("Job file identity changed: code=JOB_PATH_CHANGED"), { code: "JOB_LEAF_CHANGED" });
   }
 }
 
@@ -603,6 +603,7 @@ export async function readBoundedFile(
   stateRoot: string,
   maxBytes: number,
   _testBarrier?: CommandJobPathBarrier,
+  allowAtomicReplacement = false,
 ): Promise<string> {
   const normFilePath = resolve(filePath);
   const normStateRoot = resolve(stateRoot);
@@ -643,7 +644,7 @@ export async function readBoundedFile(
           fstats.ino !== 0 &&
           (lstatsBefore.dev !== fstats.dev || lstatsBefore.ino !== fstats.ino)
         ) {
-          throw new Error(`Descriptor file identity mismatch for ${normFilePath} (possible race or file swap)`);
+          throw Object.assign(new Error(`Descriptor file identity mismatch for ${normFilePath} (possible race or file swap)`), { code: "JOB_LEAF_CHANGED" });
         }
 
         const postOpenLstat = await lstat(normFilePath);
@@ -655,7 +656,7 @@ export async function readBoundedFile(
           postOpenLstat.ino !== 0 &&
           (postOpenLstat.dev !== fstats.dev || postOpenLstat.ino !== fstats.ino)
         ) {
-          throw new Error(`Post-open lstat identity mismatch for ${normFilePath}`);
+          throw Object.assign(new Error(`Post-open lstat identity mismatch for ${normFilePath}`), { code: "JOB_LEAF_CHANGED" });
         }
 
         await _testBarrier?.("read:before-bytes", normFilePath);
@@ -697,14 +698,14 @@ export async function readBoundedFile(
           throw new Error(`Symlink race detected on ${normFilePath} after read`);
         }
         if (postReadLstat.size !== totalBytesRead) {
-          throw new Error(`File size changed after read: expected ${totalBytesRead}, got ${postReadLstat.size}`);
+          throw Object.assign(new Error(`File size changed after read: expected ${totalBytesRead}, got ${postReadLstat.size}`), { code: "JOB_LEAF_CHANGED" });
         }
         if (
           fstats.ino !== 0 &&
           postReadLstat.ino !== 0 &&
           (postReadLstat.dev !== fstats.dev || postReadLstat.ino !== fstats.ino)
         ) {
-          throw new Error(`Post-read lstat identity mismatch for ${normFilePath}`);
+          throw Object.assign(new Error(`Post-read lstat identity mismatch for ${normFilePath}`), { code: "JOB_LEAF_CHANGED" });
         }
 
         await assertJobDescriptor(handle, normFilePath);
@@ -720,6 +721,14 @@ export async function readBoundedFile(
     } catch (err: unknown) {
       lastErr = err;
       const code = (err as NodeJS.ErrnoException).code;
+      // State records are atomically renamed by their owner. Never decode the
+      // superseded descriptor; retry a fresh descriptor under the SAME parent
+      // proof. The record schema and the observer's pinned semantic identity
+      // are checked by readJobRecord/waitCommandJob after a stable read.
+      if (allowAtomicReplacement && attempt < 3 && code === "JOB_LEAF_CHANGED") {
+        await recheckJobPath(parentProof);
+        continue;
+      }
       if (attempt < 3 && (code === "ENOENT" || code === "EBUSY" || code === "EPERM")) {
         await new Promise((r) => setTimeout(r, 25 * (attempt + 1)));
         continue;
@@ -1704,7 +1713,7 @@ export async function readJobRecord(
 ): Promise<CommandJobRecord> {
   validateJobId(jobId);
   const target = jobRecordPath(stateRoot, jobId);
-  const rawText = await readBoundedFile(target, stateRoot, MAX_RECORD_BYTES);
+  const rawText = await readBoundedFile(target, stateRoot, MAX_RECORD_BYTES, undefined, true);
   const parsed = JSON.parse(rawText) as CommandJobRecord;
 
   const schema = await getCommandJobSchema(pkgRoot);

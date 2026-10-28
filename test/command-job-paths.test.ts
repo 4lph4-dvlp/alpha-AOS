@@ -68,6 +68,30 @@ test("command-job-paths: retained reader proof rejects outside ancestor alias be
   } finally { await f.cleanup(); }
 });
 
+test("command-job-paths: atomic record retry reads only a stable replacement under retained ancestors", async () => {
+  const f = await fixture();
+  try {
+    const file = join(f.parent, "job.json");
+    await writeFile(file, "original");
+    let replaced = false;
+    const result = await readBoundedFile(file, f.stateRoot, 1024, async (phase) => {
+      if (phase === "read:before-bytes" && !replaced) {
+        replaced = true;
+        await rename(file, file + ".original");
+        await writeFile(file, "replacement");
+      }
+    }, true);
+    assert.equal(result, "replacement");
+    await assert.rejects(readBoundedFile(file, f.stateRoot, 1024, async (phase) => {
+      if (phase === "read:before-open") {
+        await rename(f.parent, f.parent + "-original");
+        await mkdir(f.parent);
+        await writeFile(file, "foreign");
+      }
+    }, true), /JOB_PATH_CHANGED/);
+  } finally { await f.cleanup(); }
+});
+
 test("command-job-paths: descriptor refuses a replacement leaf before reading payload", async () => {
   const f = await fixture();
   try {

@@ -1,7 +1,7 @@
 ---
 phase: quick
 plan: 261028-mmk
-status: verification-pending
+status: complete
 ---
 
 # Quick 261028-mmk: Full GSD contract workflow repair
@@ -29,3 +29,8 @@ The parent owns final verification and GSD state bookkeeping. The schema repair 
 ## Self-Check
 
 Schema and test changes were committed; this summary exists. Final suite and artifact-check results remain pending, so completion is not claimed.
+
+
+## Final integrated verification
+
+Contract repair accepted in release0.4.8, product9fae6cf. Original job927acc9961894ba8 failed on Windows cleanup EBUSY; it was not treated as green. The integrated release fixes cleanup, validates explicit commit authority for all GSD routes, and passes the entire local gate plus three-OS main CI40656143000 and candidate40654132927. Five local harness integrations are current. This closes the schema-repair verification, not the separate native multi-phase resume/final-review gaps. See the 261028-nac summary.

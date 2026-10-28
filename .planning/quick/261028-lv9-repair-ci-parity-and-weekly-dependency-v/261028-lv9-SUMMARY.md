@@ -1,5 +1,5 @@
 ---
-status: incomplete
+status: complete
 ---
 # CI parity and weekly dependency verification
 
@@ -30,3 +30,8 @@ Native CI handle: 16901; exact run 40649620949; watcher log OS TEMP/alpha-aos-ci
 Native weekly candidate handle: 68985; exact run 40649624517; watcher log OS TEMP/alpha-aos-weekly-df8edf9.log.
 
 These are running processes, not completed verification. No main push, hook activation, task-complete transition, or test-branch deletion has occurred. Reconnect using these handles or gh run view with the exact IDs; do not restart completed waves or poll unchanged status in a model loop. Once all terminal evidence is green, fast-forward remote main without overwriting concurrent work, enable core.hooksPath=.githooks in the original clone, archive/delete only this task's temporary branches with exact leases, finish verification/summary and the GSD quick record. A changed remote main requires integration and re-verification, not force-push. Preserve the original valid main candidate 40295004410 until its role is resolved.
+
+
+## Final acceptance
+
+Closed by integrated release 261028-nac at verified product 9fae6cf, main CI40656143000 and weekly candidate40654132927. Complete local release gate and all five harness deployments passed. Earlier pending handles above are historical, superseded evidence. See ../261028-nac-integrate-contract-and-ci-fixes-verify-r/261028-nac-SUMMARY.md for final results.

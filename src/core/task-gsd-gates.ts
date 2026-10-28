@@ -142,7 +142,7 @@ export async function hasPassedVerification(
     try {
       const result = await runProcess({
         executable: process.execPath,
-        args: [tool, "verification.status", dir, "--pick", "status"],
+        args: [tool, "query", "verification.status", dir, "--pick", "status"],
         cwd: repoRoot,
         timeoutMs: 30_000,
         environment: commandProbeEnvironment({ source: process.env }),

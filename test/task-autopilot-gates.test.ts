@@ -112,6 +112,22 @@ test("hasNyquistValidation requires validated status and nyquist_compliant true"
   assert.equal(hasNyquistValidation(f.dir, "03"), true);
 });
 
+test("GSD verification uses the canonical query through the bounded process adapter", async (context) => {
+  const f = createFixture(context, "native-query");
+  const bin = join(f.root, "gsd-core", "bin");
+  mkdirSync(bin, { recursive: true });
+  const tool = join(bin, "gsd-tools.cjs");
+  writeFileSync(tool, `
+    const expected = ["query", "verification.status", ${JSON.stringify(f.dir)}, "--pick", "status"];
+    if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(expected)) process.exit(2);
+    process.stdout.write("passed\\n");
+  `);
+  assert.equal(await hasPassedVerification(f.dir, "03", { projectRoot: f.root }), true);
+  writeFileSync(tool, 'process.stdout.write("passed\\n"); process.exitCode = 1;');
+  assert.equal(await hasPassedVerification(f.dir, "03", { projectRoot: f.root }), false);
+  assert.equal(passesMilestoneReview("contract.json", "reviewer", f.root), false);
+});
+
 test("discoverPhaseProgression rejects isPhaseComplete when verification artifact has gaps_found", async (context) => {
   const f = createFixture(context, "progression-gaps");
   f.write("03-01-PLAN.md", "# Plan 01\n");

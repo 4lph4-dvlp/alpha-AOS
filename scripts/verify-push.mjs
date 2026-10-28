@@ -13,7 +13,11 @@ const tarball = join(scratch, `alpha-aos-${version}.tgz`);
 function run(executable, args, environment = {}) {
   const result = spawnSync(executable, args, {
     stdio: "inherit", windowsHide: true,
-    env: { ...process.env, ...environment, ALPHA_AOS_REQUIRE_UPSTREAM_MCP: "1" },
+    env: {
+      ...process.env, ...environment,
+      ALPHA_AOS_STATE_DIR: join(scratch, "state"),
+      ALPHA_AOS_REQUIRE_UPSTREAM_MCP: "1",
+    },
   });
   if (result.error || result.status !== 0) throw new Error(`Push verification failed (exit ${result.status}): ${args.join(" ")}`);
 }

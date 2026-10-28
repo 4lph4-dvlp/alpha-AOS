@@ -10,7 +10,9 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 
 test("job bootstrap: actual job and both worker aliases do not load unused installer catalogs", async (context) => {
   const base = await realpath(await mkdtemp(join(tmpdir(), "alpha-job-bootstrap-")));
-  context.after(() => rm(base, { recursive: true, force: true }));
+  // A terminal job receipt can precede the worker releasing its Windows cwd
+  // handle. Retry cleanup briefly; a persistent lock still fails the test.
+  context.after(() => rm(base, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }));
   const packageRoot = join(base, "package"), projectRoot = join(base, "project"), stateRoot = join(base, "state");
   await mkdir(join(packageRoot, "dist"), { recursive: true });
   await mkdir(join(packageRoot, "catalog"));

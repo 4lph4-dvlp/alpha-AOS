@@ -1,6 +1,6 @@
 {
   "name": "alpha-aos",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Declarative installer and updater for the alpha-AOS agent workflow stack",
   "license": "Apache-2.0",
   "repository": {
@@ -48,11 +48,11 @@
     "npm": ">=10.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.30.0",
+    "@modelcontextprotocol/sdk": "1.32.2",
     "ajv": "8.20.0",
     "ignore": "7.0.5",
     "jsonc-parser": "3.3.1",
-    "smol-toml": "1.8.0",
+    "smol-toml": "1.9.1",
     "yaml": "2.9.0"
   },
   "devDependencies": {

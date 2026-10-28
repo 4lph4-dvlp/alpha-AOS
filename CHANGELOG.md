@@ -4,6 +4,26 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-10-28
+
+### Fixed
+
+- Contract validation now accepts the existing `gsd-multi-phase` and `gsd` runtime routes while rejecting unsupported workflows and preserving canonical digest validation.
+- Job state reads tolerate bounded atomic record replacement under retained ancestor proofs, then revalidate schema, ownership and revision. Generic file reads still reject replacement.
+- User home detection recognizes Windows short/long path aliases by physical directory identity. Strict job/task test fixtures use canonical temporary paths on macOS and portable paths across platforms.
+- GSD verification uses the bounded process adapter and canonical query. The unused placeholder milestone reviewer refuses to certify a no-op.
+- Weekly MCP fixtures retry transient protocol failures once. Live startup tests share a bounded connect/list deadline and retry transient handshakes once; integrity and compatibility failures remain blocking.
+- Windows bootstrap fixture cleanup retries transient directory locks without suppressing persistent errors.
+- Local release verification uses a private alpha-AOS state root so another session's job updates cannot invalidate the host-write boundary audit.
+
+### Security
+
+- Updated the MCP TypeScript SDK to 1.32.2 and smol-toml to 1.9.1 with patched transitive dependencies; npm audit reports zero known vulnerabilities for this lock.
+
+### Added
+
+- Full local push verification against a real release package, mandatory MCP/ECC integration, computer-use checks and build provenance. The optional Git hook refuses main pushes without a successful three-OS CI run for the exact commit.
+
 ## [0.4.6] - 2026-10-27
 
 ### Fixed

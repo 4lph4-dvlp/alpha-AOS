@@ -507,3 +507,13 @@ Plans:
 For each phase, use `$gsd-discuss-phase N` (or approved `--auto` defaults), `$gsd-plan-phase N` with research and plan-check verification, `$gsd-review N` when the plan has cross-harness or safety impact, `$gsd-execute-phase N`, `$gsd-code-review`, and `$gsd-verify-work N`. Resolve `human_needed` with observed evidence or a real user test, never an invented pass. Use `$gsd-progress` to route incomplete work and `$gsd-audit-milestone` at closeout if surfaced; missing GSD skills are read through the installed GSD workflow and run inline only where the runtime contract permits it. The installed GSD Core remains the state authority.
 
 **Release rule:** Phase summaries, automated tests, support receipts and reviewed completion criteria must agree. A green gate with no actual reviewer invocation is a failure. Candidate dependency changes remain in the candidate channel until their existing promotion gates pass.
+
+### Phase 25: Runtime Usage and Recovery Controls
+
+**Goal:** [To be planned]
+**Requirements**: TBD
+**Depends on:** Phase 24
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run $gsd-plan-phase 25 to break down)

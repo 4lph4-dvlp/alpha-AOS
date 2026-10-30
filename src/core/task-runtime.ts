@@ -116,8 +116,8 @@ export async function reconcileTaskRuntime(stateRoot: string, digest: string): P
   const root = runtimeRoot(stateRoot, digest);
   const records = await readTaskDispatches(stateRoot, digest);
   const interrupted = records.filter((record) => record.status === "interrupted");
-  if (records.some((record) => record.status === "running") || interrupted.some((record) => record.host !== hostname() ||
-    (record.childPid !== null && isProcessAlive(record.childPid)))) throw new TaskResourceError("runtime_dispatch_unresolved");
+  if (records.some((record) => record.status === "running") || interrupted.some((record) =>
+    record.closeConfirmed !== true || record.host !== hostname())) throw new TaskResourceError("runtime_dispatch_unresolved");
   const lockPath = join(root, "dispatch.lock");
   let lockText: string | null = null;
   try { await lstat(lockPath); lockText = await readBoundedFile(lockPath, stateRoot, 4096); }
@@ -131,7 +131,6 @@ export async function reconcileTaskRuntime(stateRoot: string, digest: string): P
   }
   for (const record of interrupted) {
     await recoverNativeUsage(record);
-    record.closeConfirmed = true;
     record.status = "failed";
     record.finishedAt ??= new Date().toISOString();
     await writeAtomicPrivateFile(join(root, `${record.dispatchId}.json`), `${JSON.stringify(record)}\n`, 64 * 1024, stateRoot);
@@ -237,20 +236,26 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
     await spawnWrite;
     if (writeError !== null) throw writeError;
     const detail = result.detail ?? result.issues?.join("; ") ?? "";
-    const nativeSessionId = "nativeSessionId" in result ? result.nativeSessionId ?? null
-      : result.telemetry?.nativeSessionId ?? record.telemetry.nativeSessionId ?? result.sessionId;
+    const nativeSessionId = result.nativeSessionId ?? result.telemetry?.nativeSessionId ?? record.telemetry.nativeSessionId
+      ?? record.sessionId ?? null;
     const processCode = result.processCode ?? record.processCode ?? null;
     const exitCode = result.exitCode ?? record.exitCode ?? null;
     const terminal = result.terminal ?? record.terminal ?? null;
     const processFailed = (processCode !== null && processCode !== "ok") ||
       (exitCode !== null && exitCode !== 0) || (terminal !== null && terminal !== "completed");
+    // A protocol/report session ID alone is not native process evidence. A
+    // streamed/explicit native handle is, even when no PID could be retained.
+    const processObserved = record.childPid !== null || (processCode !== null && ![
+      "spawn-failed", "unsupported-executable", "environment-conflict", "missing-required-environment",
+    ].includes(processCode));
+    const nativeObserved = processObserved || nativeSessionId !== null;
     const confirmed = result.closeConfirmed ?? record.closeConfirmed ??
-      (result.exitCode !== undefined && result.exitCode !== null ? true : record.childPid === null ? null : false);
+      (exitCode !== null ? true : nativeObserved ? false : null);
     const unresolved = confirmed === false;
     record = { ...record, sessionId: nativeSessionId, protocolSessionId: result.sessionId,
       processCode, exitCode, terminal,
       closeConfirmed: confirmed,
-      launchState: nativeSessionId !== null ? "native-session" : record.childPid !== null ? "process-only" : "not-spawned",
+      launchState: nativeSessionId !== null ? "native-session" : processObserved ? "process-only" : "not-spawned",
       finishedAt: clock().toISOString(), status: unresolved ? "interrupted" : processFailed ? "failed" : "completed",
       reason: detectQuotaExhaustion(detail) ? "quota_exhausted" : unresolved ? "process_close_unconfirmed"
         : processFailed ? (processCode !== null && processCode !== "ok" ? `process_${processCode}`
@@ -268,9 +273,11 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
   } catch (error) {
     await spawnWrite;
     if (record !== null) {
-      record = { ...record, status: record.childPid === null || record.closeConfirmed === true ? "failed" : "interrupted", finishedAt: clock().toISOString(), reason: error instanceof TaskResourceError
+      const unresolved = record.closeConfirmed !== true && (record.childPid !== null || record.closeConfirmed === false ||
+        record.sessionId !== null || record.telemetry.nativeSessionId != null);
+      record = { ...record, status: unresolved ? "interrupted" : "failed", finishedAt: clock().toISOString(), reason: error instanceof TaskResourceError
         ? error.stopCode : detectQuotaExhaustion(String(error)) ? "quota_exhausted" : "dispatch_failed" };
-      if (record.childPid !== null && record.closeConfirmed !== true) record.closeConfirmed = false;
+      if (unresolved) record.closeConfirmed = false;
       await recoverNativeUsage(record, clock());
       await persist();
     }

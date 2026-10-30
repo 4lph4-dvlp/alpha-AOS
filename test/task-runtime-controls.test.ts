@@ -3,11 +3,13 @@ import test from "node:test";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { mkdir, writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
 import { join } from "node:path";
 import { parseCodexEvents } from "../src/adapters/task-codex.js";
 import { checkCostMeterReadiness, evaluateResourceLimits } from "../src/core/task-contract.js";
 import { aggregateTaskUsage, normalizeHarnessTelemetry, type TaskUsageObservation } from "../src/core/task-telemetry.js";
-import { meteredTaskDispatch, readTaskDispatches, dispatchUsage } from "../src/core/task-runtime.js";
+import { meteredTaskDispatch, readTaskDispatches, dispatchUsage, reconcileTaskRuntime } from "../src/core/task-runtime.js";
+import { runProcess } from "../src/core/process.js";
 import { createTaskFixture, inventorySummaryContract } from "./helpers/task-fixture.js";
 
 test("resource limits fail closed for missing requested telemetry", () => {
@@ -138,10 +140,10 @@ test("ordinary native failure and argv rejection remain distinct from runtime co
     const fixture = await createTaskFixture(t);
     const digest = (evidence.sessionId === null ? "3" : "4").repeat(64);
     await meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract: inventorySummaryContract(fixture.projectRoot), digest,
-      runId: "failed", role: "controller", invoke: async () => ({ ...evidence, closeConfirmed: true }) });
+      runId: "failed", role: "controller", invoke: async () => ({ ...evidence, nativeSessionId: evidence.sessionId, closeConfirmed: true }) });
     const [record] = await readTaskDispatches(fixture.stateRoot, digest);
     assert.equal(record?.status, "failed");
-    assert.equal(record?.launchState, evidence.sessionId === null ? "not-spawned" : "native-session");
+    assert.equal(record?.launchState, evidence.sessionId === null ? "process-only" : "native-session");
     assert.equal(record?.telemetry.observedModelCalls ?? null, null);
   }
 });
@@ -185,4 +187,82 @@ test("exception before final usage recovers the correlated local parent and chil
   assert.equal(dispatchUsage(records).tokens, 77);
   assert.equal(dispatchUsage([...records, ...records]).tokens, 77);
   assert.equal(records[0]?.reason, "quota_exhausted");
+});
+
+test("reconciliation cannot invent closure when a child PID is unavailable", async (t) => {
+  for (const throws of [false, true]) {
+    const fixture = await createTaskFixture(t);
+    const digest = (throws ? "8" : "7").repeat(64);
+    const dispatch = meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract: inventorySummaryContract(fixture.projectRoot),
+      digest, runId: "unknown-closure", role: "controller", invoke: async ({ onProcess }) => {
+        const evidence = { nativeSessionId: null, processCode: "timeout", exitCode: null, terminal: "failed", closeConfirmed: false };
+        onProcess(evidence);
+        if (throws) throw new Error("transport failed after unconfirmed process closure");
+        return { ...evidence, sessionId: null };
+      } });
+    if (throws) await assert.rejects(dispatch, /transport failed/); else await dispatch;
+    await assert.rejects(reconcileTaskRuntime(fixture.stateRoot, digest), /runtime_dispatch_unresolved/);
+    const [record] = await readTaskDispatches(fixture.stateRoot, digest);
+    assert.equal(record?.childPid, null);
+    assert.equal(record?.closeConfirmed, false);
+    assert.equal(record?.status, "interrupted");
+    let calls = 0;
+    await assert.rejects(meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract: inventorySummaryContract(fixture.projectRoot),
+      digest, runId: "forbidden", role: "controller", invoke: async () => { calls++; return { sessionId: null }; } }), /runtime_dispatch_unresolved/);
+    assert.equal(calls, 0);
+  }
+});
+
+test("reconciliation permits recovery after positively observed owned process closure", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const digest = "9".repeat(64), contract = inventorySummaryContract(fixture.projectRoot);
+  await meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract, digest, runId: "closed", role: "controller",
+    invoke: async ({ onSpawn, onProcess }) => {
+      const result = await runProcess({ executable: process.execPath, args: ["-e", ""], cwd: fixture.projectRoot, onSpawn });
+      assert.equal(result.closeConfirmed, true);
+      onProcess({ nativeSessionId: null, processCode: result.code, exitCode: result.exitCode, terminal: "completed", closeConfirmed: true });
+      return { sessionId: null, processCode: result.code, exitCode: result.exitCode, terminal: "completed", closeConfirmed: true };
+    } });
+  const [closed] = await readTaskDispatches(fixture.stateRoot, digest);
+  assert.ok(closed);
+  const root = join(fixture.stateRoot, "runs", digest, "dispatches");
+  // Crash point: the actual close callback persisted, but final owner bookkeeping
+  // did not. A missing owner PID is only safe because closure was already proved.
+  await writeFile(join(root, `${closed.dispatchId}.json`), JSON.stringify({ ...closed, ownerPid: 2147483647, status: "running", finishedAt: null }));
+  await writeFile(join(root, "dispatch.lock"), JSON.stringify({ host: hostname(), pid: 2147483647, digest, token: "fixture-closed-owner", ownerSettled: true }));
+  await reconcileTaskRuntime(fixture.stateRoot, digest);
+  const [recovered] = await readTaskDispatches(fixture.stateRoot, digest);
+  assert.equal(recovered?.status, "failed");
+  assert.equal(recovered?.closeConfirmed, true);
+  let calls = 0;
+  await meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract, digest, runId: "remaining", role: "controller",
+    invoke: async () => { calls++; return { sessionId: null }; } });
+  assert.equal(calls, 1);
+});
+
+test("an observed native handle without a PID cannot imply successful closure", async (t) => {
+  for (const source of ["telemetry", "result", "callback", "process-only"] as const) {
+    const fixture = await createTaskFixture(t);
+    const digest = (source === "telemetry" ? "a" : "b").repeat(64);
+    const contract = inventorySummaryContract(fixture.projectRoot);
+    const nativeSessionId = `observed-native-${source}`;
+    await meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract, digest, runId: "handle-only", role: "controller",
+      invoke: async ({ onTelemetry, onProcess }) => {
+        if (source === "telemetry") onTelemetry({ ...normalizeHarnessTelemetry("codex", { usage: { input_tokens: 20, output_tokens: 2 } }), nativeSessionId });
+        if (source === "callback") onProcess({ nativeSessionId, processCode: "ok", exitCode: null, terminal: "missing", closeConfirmed: false });
+        return { sessionId: "protocol-reply", processCode: source === "process-only" ? "timeout" : "ok", exitCode: null,
+          ...(source === "result" ? { nativeSessionId } : source === "callback" ? { nativeSessionId: null } : {}) };
+      } });
+    const [record] = await readTaskDispatches(fixture.stateRoot, digest);
+    assert.equal(record?.status, "interrupted");
+    assert.equal(record?.closeConfirmed, false);
+    assert.equal(record?.sessionId, source === "process-only" ? null : nativeSessionId);
+    assert.equal(record?.protocolSessionId, "protocol-reply");
+    if (source === "telemetry") assert.equal(record.telemetry.totalTokens, 22);
+    await assert.rejects(reconcileTaskRuntime(fixture.stateRoot, digest), /runtime_dispatch_unresolved/);
+    let calls = 0;
+    await assert.rejects(meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract, digest, runId: "forbidden", role: "controller",
+      invoke: async () => { calls++; return { sessionId: null }; } }), /runtime_dispatch_unresolved/);
+    assert.equal(calls, 0);
+  }
 });

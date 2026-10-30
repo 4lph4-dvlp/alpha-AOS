@@ -98,6 +98,11 @@ A resume spec may name `resumeSessionId` only for a settled session already boun
 to the same approved role/run. Independent reviewers always use fresh sessions.
 Live/unconfirmed descendants prevent duplicate dispatch. Process existence is
 reported conservatively; a PID alone is never authority to kill another process.
+Reconciliation never upgrades missing or explicitly unconfirmed closure merely
+because a PID is absent. An interrupted launch without a positive owned-process
+close observation stays fenced and needs inspection; retrying resume cannot
+manufacture that evidence. A recorded close callback can permit recovery even
+after the owner exits, without treating a recycled numeric PID as the old child.
 
 ## Review and recovery
 

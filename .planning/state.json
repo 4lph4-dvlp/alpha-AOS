@@ -57,12 +57,17 @@
       "number": "24",
       "name": "Autopilot Antigravity Routing and Snapshot Resilience",
       "status": "complete"
+    },
+    {
+      "number": "25",
+      "name": "Runtime Usage and Recovery Controls",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "$gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 12 of 12 · 92% · ready to verify"
+    "command": "$gsd-new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-10-30T10:13:56.245Z"
+  "updated_at": "2026-10-30T10:30:12.710Z"
 }

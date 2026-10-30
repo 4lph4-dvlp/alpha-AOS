@@ -3,20 +3,19 @@ gsd_state_version: "1.0"
 milestone: v0.2.0
 milestone_name: Universal Autonomous Work
 current_phase: 25
-current_phase_name: Runtime Usage and Recovery Controls
-current_plan: 1
-status: verifying
-stopped_at: Phase 25 source 77cf6d1 reviewed; final full-acceptance session 49739 pending
-last_updated: "2026-10-30T10:13:56.078Z"
+current_plan: Not started
+status: completed
+stopped_at: Phase 25 complete — all phases complete
+last_updated: "2026-10-30T10:30:12.611Z"
 last_activity: 2026-10-30
-last_activity_desc: Phase 25 runtime accounting, process truth and GSD recovery repair in progress
-state_head: 684ad5d454ce7cabcfc72752fd6c01e61580c7f0
+last_activity_desc: Phase 25 complete
+state_head: c8720da627c4f03ae05c0cd95cad6a01557f925a
 progress:
   total_phases: 12
-  completed_phases: 11
+  completed_phases: 12
   total_plans: 67
   completed_plans: 67
-  percent: 92
+  percent: 100
 ---
 
 # Project State
@@ -26,21 +25,22 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 25 — Runtime Usage and Recovery Controls (Executing)
+**Current focus:** Phase 25 — Runtime Usage and Recovery Controls (Complete)
 
 ## Current Position
 
-Current Plan: 1
+Progress: [██████████] 100% (67/67 plans)
+Current Plan: Not started
 Total Plans in Phase: 1
-Phase: 25 (Runtime Usage and Recovery Controls) — EXECUTING
-Status: Phase complete — ready for verification
-Last activity: 2026-10-27 - Completed quick task 261021-mcn: BUG-06 0.4.5 runtime, release evidence and verified original local delivery
+Phase: 25
+Status: All phases complete
+Last activity: 2026-10-30 — Phase 25 complete
 
 ## Performance Metrics
 
 **Velocity:**
 
-- Total plans completed: 88
+- Total plans completed: 89
 - Average duration: -
 - Total execution time: 0 hours
 
@@ -58,6 +58,7 @@ Last activity: 2026-10-27 - Completed quick task 261021-mcn: BUG-06 0.4.5 runtim
 | 16 | 6 | - | - |
 | 17 | 6 | 49 min | 8 min |
 | 18 | 8 | - | - |
+| 25 | 1 | - | - |
 
 **Recent Trend:**
 
@@ -431,12 +432,12 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-10-30T07:01:08.496Z
-Stopped at: Phase 25 source 77cf6d1 reviewed; final full-acceptance session 49739 pending
-Resume file: .planning/phases/25-runtime-usage-and-recovery-controls/25-VALIDATION.md
+Last session: 2026-10-30T10:24:50.894Z
+Stopped at: Phase 25 complete — all phases complete
+Resume file: None
 
 ## Operator Next Steps
 
-- Run `$gsd-execute-phase 21`, beginning with the Wave 1 native task-skill tracer in `21-01-PLAN.md`.
-- Phase 21 completion requires meaningful native task-skill discovery and read-only preview invocation receipts in all five supported harnesses; missing live evidence remains `human_needed/unverified`.
-- Phase 22 owns the separate three-OS release and exact-version support matrix.
+- Phase 25 source repair and fixture verification are complete; see its VERIFICATION and final native test receipt.
+- Global installation/release and migration of the original dedicated runner remain separate authorized actions.
+- Oh-My-Circuit remains paused; this repair did not restart or modify it.

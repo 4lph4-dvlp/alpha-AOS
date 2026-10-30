@@ -22,6 +22,8 @@
 - [x] **Phase 23: Capability Governance and Active Tool Orchestration** - Top-priority intake hierarchy across harnesses and enforced active invocation of Exa, Firecrawl, Context7, and Unified Memory (completed 2026-10-11)
 - [x] **Phase 24: Autopilot Antigravity Routing and Snapshot Resilience** - Explicit Antigravity `--model` routing, subagent inheritance guardrails, automated receipt drift re-probing, snapshot `.planning` read-only mirroring, and `verifyGsdEvidence` retry resilience (completed 2026-10-18)
 
+- [x] **Phase 25: Runtime Usage and Recovery Controls** - Native usage budgets, durable process truth, review reuse and approved GSD recovery (completed 2026-10-30)
+
 ## Phase Map
 
 | Phase | Goal | Requirements | Depends on |
@@ -37,6 +39,7 @@
 | 22 | Cross-platform, packed-release and live support proof | VER-01..04 | 14–21 |
 | 23 | Top-priority intake governance and active tool orchestration | GOV-01..03, ORCH-01..03 | 18, 21, 22 |
 | 24 | Autopilot Antigravity routing, receipt drift recovery, snapshot `.planning` mirroring, and GSD quick retry resilience | AUTO-FIX-01..05 | 14, 16, 17, 19 |
+| 25 | Native usage, resource guards, process truth and GSD recovery | RUNTIME-01..08 | 24 |
 
 Every requirement maps to exactly one phase. Subsequent phases can reuse a previous capability but must not claim its requirement complete without the owning phase's verification. Each phase starts with the existing GSD discuss → plan → plan check workflow; execute and verify when its plan passes. One production-quality end-to-end tracer leads each plan unless the phase planner documents a specific reason to vary it.
 
@@ -513,7 +516,7 @@ For each phase, use `$gsd-discuss-phase N` (or approved `--auto` defaults), `$gs
 **Goal:** Connect observed native usage, resource guards and durable process truth across supported generic/dedicated execution while preserving GSD verification and final independent acceptance.
 **Requirements**: RUNTIME-01, RUNTIME-02, RUNTIME-03, RUNTIME-04, RUNTIME-05, RUNTIME-06, RUNTIME-07, RUNTIME-08
 **Depends on:** Phase 24
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 25-01-PLAN.md — Runtime usage, approved native bridge, process reconciliation, review convergence and reduced GSD recovery fixtures
+- [x] 25-01-PLAN.md — Runtime usage, approved native bridge, process reconciliation, review convergence and reduced GSD recovery fixtures

@@ -111,15 +111,54 @@ These eight repair requirements supplement the original 41 milestone requirement
 
 | Requirement IDs | Phase | Status |
 |---|---:|---|
-| CON-01..03, AUTO-01..03, RUN-01, REV-01 | 14 | Complete |
-| RUN-02..05, TOOL-03 | 15 | Complete |
-| ROL-01..05 | 16 | Complete |
-| GSD-01..04 | 17 | Complete |
-| CAP-01..05 | 18 | Complete |
-| REV-02..05 | 19 | Complete |
-| TOOL-01..02, TOOL-04 | 20 | Complete |
-| UX-01..03 | 21 | Complete |
-| VER-01..04 | 22 | Complete |
-| RUNTIME-01..08 (handoff R1–R8) | 25 | In Progress |
+| CON-01 | 14 | Complete |
+| CON-02 | 14 | Complete |
+| CON-03 | 14 | Complete |
+| AUTO-01 | 14 | Complete |
+| AUTO-02 | 14 | Complete |
+| AUTO-03 | 14 | Complete |
+| RUN-01 | 14 | Complete |
+| REV-01 | 14 | Complete |
+| RUN-02 | 15 | Complete |
+| RUN-03 | 15 | Complete |
+| RUN-04 | 15 | Complete |
+| RUN-05 | 15 | Complete |
+| TOOL-03 | 15 | Complete |
+| ROL-01 | 16 | Complete |
+| ROL-02 | 16 | Complete |
+| ROL-03 | 16 | Complete |
+| ROL-04 | 16 | Complete |
+| ROL-05 | 16 | Complete |
+| GSD-01 | 17 | Complete |
+| GSD-02 | 17 | Complete |
+| GSD-03 | 17 | Complete |
+| GSD-04 | 17 | Complete |
+| CAP-01 | 18 | Complete |
+| CAP-02 | 18 | Complete |
+| CAP-03 | 18 | Complete |
+| CAP-04 | 18 | Complete |
+| CAP-05 | 18 | Complete |
+| REV-02 | 19 | Complete |
+| REV-03 | 19 | Complete |
+| REV-04 | 19 | Complete |
+| REV-05 | 19 | Complete |
+| TOOL-01 | 20 | Complete |
+| TOOL-02 | 20 | Complete |
+| TOOL-04 | 20 | Complete |
+| UX-01 | 21 | Complete |
+| UX-02 | 21 | Complete |
+| UX-03 | 21 | Complete |
+| VER-01 | 22 | Complete |
+| VER-02 | 22 | Complete |
+| VER-03 | 22 | Complete |
+| VER-04 | 22 | Complete |
+| RUNTIME-01 | 25 | Complete |
+| RUNTIME-02 | 25 | Complete |
+| RUNTIME-03 | 25 | Complete |
+| RUNTIME-04 | 25 | Complete |
+| RUNTIME-05 | 25 | Complete |
+| RUNTIME-06 | 25 | Complete |
+| RUNTIME-07 | 25 | Complete |
+| RUNTIME-08 | 25 | Complete |
 
-**Coverage:** 41 requirements; 41 mapped exactly once; 0 unmapped. Phase 14 is the opt-in vertical tracer; later phases deepen each seam without reassigning a requirement.
+**Coverage:** 49 requirements (41 original milestone requirements plus 8 runtime repair requirements); 49 mapped exactly once; 0 unmapped. Existing assignments and completion evidence are preserved.

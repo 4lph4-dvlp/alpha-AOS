@@ -1,11 +1,16 @@
 ---
 phase: 25
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 ---
 
 # Validation map
+
+Final gate: source `77cf6d156df66a023a4e5c93dcba82a3738dc367`, exit 0.
+1857 tests: 1846 passed, 11 skipped, zero failures, eight runner groups including
+all ten packed lifecycle cases. See `25-FINAL-TESTS.json` for the native completion
+handle, observation time and complete log hash. RUNTIME-01..08 map to R1..R8 below.
 
 | Requirement | Credential-free evidence |
 |---|---|
@@ -20,10 +25,11 @@ wave_0_complete: false
 
 Initial RED: 4/4 new resource/telemetry reproductions failed before source repair.
 Earlier targeted regressions: 42/42, then 118/118; later GSD/review subset 38/38.
-Integrated current run, full regression and independent review remain required.
+Earlier runs below are historical failure/repair evidence; the final current-source
+gate and independent review have now passed.
 No paid native canary or global installation modification is authorized/performed.
 
-## Open final gate
+## Historical failure and repair gates
 
 The initial full regression found 10 failures (1834 total, 1813 passed, 11
 skipped). Its failures are retained in `full-regression.log`; this is not a
@@ -65,4 +71,37 @@ parent-owned; a passing review is not a passing regression or phase acceptance.
   and actual ChildProcess closure replace invalid PID uniqueness assumptions.
 - Latest build passed. `full-final.log` is the current final `npm test --
   --test-reporter=tap` gate with `ALPHA_AOS_LIVE_CANARY=0`; host session 41645 is
-  still pending. No phase completion or full-suite pass is asserted yet.
+  completed with 1843 tests: 1827 passed, five failed, 11 skipped. It is not a
+  passing gate. Three pre-existing adversarial fixtures lacked declared
+  requirements; two Windows tree-termination cases suffered concurrent host
+  contention. The original process deadlines and assertions remain unchanged.
+
+## Final regression reconnect (source 04fab20)
+
+- `process-isolated.log`: both previously failing native tree cases pass with
+  unchanged 1500ms timeout and original elapsed/liveness checks. Windows tree
+  delivery and nonce-matched descendant termination are observed, not inferred.
+- `targeted-final-gates.log`: 6/6 pass. Adversarial fixtures declare the exact
+  requirement already present in their reports. A separate runner fixture proves
+  every registered file executes once, native suites do not overlap on Windows,
+  and the packed gate runs last.
+- `25-REVIEW-RUNNER.md`: clean independent focused review; no dropped coverage,
+  masked failure or weakened assertion. Product timeouts were not increased.
+- `full-verified.log`: source 04fab20 full npm test passed, exit 0: 1854 total,
+  1843 pass, 11 skipped, zero failures, including all ten packed lifecycle cases.
+  Its recorded source does not include the later R2 reconciliation repair.
+
+## Current final gate (source 77cf6d1)
+
+- `unknown-closure-red.log` reproduces invented positive closure during resume.
+- `targeted-closure-accepted.log`: 30/30 pass across runtime/native/public GSD
+  resume/supervisor recovery. Missing PID, explicit false, returned/streamed native
+  handles, null final placeholders and process-only timeout outcomes keep fences;
+  an actual owned Node close callback still permits recovery after owner loss.
+- `25-REVIEW-CLOSURE.md`: clean focused independent review, exact hashes. Native
+  and protocol/report identities stay separate; unknown closure cannot become true
+  merely because the PID is absent. No source changes followed this review.
+- `full-acceptance.log`: final npm test with live canaries disabled, native handle
+  49739 completed with exit 0. 1857 tests: 1846 passed, 11 skipped, zero failures.
+  Source remained unchanged throughout the gate; structured receipt:
+  `25-FINAL-TESTS.json`. No original-project restart/global install occurred.

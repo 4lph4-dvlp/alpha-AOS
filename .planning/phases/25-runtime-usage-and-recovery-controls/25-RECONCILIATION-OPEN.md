@@ -1,4 +1,4 @@
-# R2 reconciliation counterexample — repaired, final regression pending
+# R2 reconciliation counterexample — closed
 
 The original counterexample below is retained as RED evidence. The repair now
 requires a positive owned-process close observation before removing an interrupted
@@ -9,8 +9,9 @@ Actual observed closure still permits recovery after an owner bookkeeping crash.
 
 `targeted-closure-accepted.log` passed 30/30 related runtime/native/supervisor/public
 resume cases. `25-REVIEW-CLOSURE.md` records clean independent focused review.
-The pre-repair full gate passed 1854 tests (1843 pass, 11 skipped), but final
-acceptance still requires the repaired-source full gate.
+The repaired source 77cf6d1 passed the final full gate: 1857 tests, 1846 passed,
+11 skipped, zero failures, exit 0. See 25-FINAL-TESTS.json. The RED reproduction
+below is historical and does not describe the delivered source.
 
 `unknown-closure-red.log` reproduces this without paid calls or source mutation:
 an observation with missing child PID and `closeConfirmed: false` becomes

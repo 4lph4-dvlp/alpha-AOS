@@ -4,7 +4,10 @@ This packet records the original pre-fix review scope. Session 64309 ended with
 10 failures; it is no longer active. Current source is committed as 17718a3.
 Review findings and focused closure are retained in 25-REVIEW.md,
 25-REVIEW-DELTA.md, 25-REVIEW-FINAL.md and 25-REVIEW-FIXTURES.md. The current
-final full regression is session 41645 / full-final.log. See 25-VALIDATION.md
+final full regression is completed session 49739 / full-acceptance.log. Source
+77cf6d1 passed with 1857 tests, zero failures; see 25-FINAL-TESTS.json. Final
+reconciliation closure is recorded in 25-REVIEW-CLOSURE.md; runner-only review is
+25-REVIEW-RUNNER.md. See 25-VALIDATION.md
 for current evidence; the historical counts/handles below are not current gates.
 
 Scope base: `952a179`; current changes are Phase 25 only. Original project is

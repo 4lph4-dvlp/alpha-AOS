@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "77cf6d156df66a023a4e5c93dcba82a3738dc367",
+  "command": "ALPHA_AOS_LIVE_CANARY=0 npm test -- --test-reporter=tap",
+  "nativeSessionId": 49739,
+  "observedExitCode": 0,
+  "status": "passed",
+  "groups": 8,
+  "totals": {
+    "tests": 1857,
+    "pass": 1846,
+    "fail": 0,
+    "skipped": 11
+  },
+  "logSha256": "80b30ca3bf7428f4d5930be5b7aaf39ba5d01be9b1eed2761bf64a146bbad721",
+  "observedAt": "2026-10-30T07:24:50.192Z"
+}

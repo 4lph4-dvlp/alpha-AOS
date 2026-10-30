@@ -90,6 +90,18 @@ These eight repair requirements supplement the original 41 milestone requirement
 - [x] **RUNTIME-07**: Windows typed argv preserves delimiter, executable, multilingual prompt and resume identity (R7).
 - [x] **RUNTIME-08**: Public approved resume preserves partial commits and dirty WIP through verify, Nyquist and final acceptance (R8).
 
+## 2026-10-30 Session progress requirements
+
+Requested for all supported hosts: Antigravity, Claude Code, Codex, Pi and Hermes.
+Feasibility research is not implementation or verified end-user delivery.
+
+- [ ] **SESSION-01**: Automatically report actual generic quick and supported full/dedicated lifecycle transitions, models, recorded decision reasons and outcomes.
+- [ ] **SESSION-02**: Bind progress to the exact originating session and approved run, with bounded cursor replay, deduplication and explicit delivery failures; no model polling.
+- [ ] **SESSION-03**: Verify each host's native delivery capability and UI semantics; do not represent CLI output, history injection or an untested adapter as equivalent same-session chat delivery.
+- [ ] **SESSION-04**: Support bounded evidence-based Q&A and durable steering, with safe-boundary acknowledgement, GSD ownership and contract approval preservation.
+- [ ] **SESSION-05**: Preserve detached mode and enforce redaction, bounded payloads, finite waits and cancellation/backpressure handling.
+- [ ] **SESSION-06**: Validate with paid-call-free fixtures, related regressions, final full regression and actual independent review; retain unverified UI gaps honestly.
+
 ## Future Requirements
 
 - Additional first-party connectors beyond CoursePilot after the connector protocol has a release proof.
@@ -160,5 +172,11 @@ These eight repair requirements supplement the original 41 milestone requirement
 | RUNTIME-06 | 25 | Complete |
 | RUNTIME-07 | 25 | Complete |
 | RUNTIME-08 | 25 | Complete |
+| SESSION-01 | 26 | Pending feasibility scope |
+| SESSION-02 | 26 | Pending feasibility scope |
+| SESSION-03 | 26 | Research complete; implementation pending |
+| SESSION-04 | 26 | Pending feasibility scope |
+| SESSION-05 | 26 | Pending feasibility scope |
+| SESSION-06 | 26 | Pending feasibility scope |
 
-**Coverage:** 49 requirements (41 original milestone requirements plus 8 runtime repair requirements); 49 mapped exactly once; 0 unmapped. Existing assignments and completion evidence are preserved.
+**Coverage:** 55 requirements (41 original milestone requirements, 8 runtime repair requirements and 6 pending session-progress requirements); 55 mapped exactly once; 0 unmapped. Existing assignments and completion evidence are preserved.

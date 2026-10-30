@@ -22,6 +22,10 @@ R1 quota/crash terminal evidence; R2 surviving children; R3 usage replay/resume;
 R4 budget blocks next dispatch; R5 wait has no model calls; R6 review evidence reuse;
 R7 Windows typed argv; R8 partial GSD resume, Nyquist and actual final acceptance.
 
+GSD tracking uses RUNTIME-01 through RUNTIME-08, mapped one-to-one to the
+handoff's R1 through R8 in that order. These are stable tooling identifiers for
+the same eight criteria, not additional scope or changed acceptance thresholds.
+
 ## Exclusions
 
 The recorded incident used a dedicated job/PowerShell runner. A generic supervisor

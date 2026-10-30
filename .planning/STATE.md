@@ -5,17 +5,17 @@ milestone_name: Universal Autonomous Work
 current_phase: 25
 current_phase_name: Runtime Usage and Recovery Controls
 status: executing
-stopped_at: "Quick 261028-nac: alpha-AOS 0.4.8 published and all five local harnesses verified"
-last_updated: "2026-10-29T22:41:50.482Z"
-last_activity: 2026-10-28
-last_activity_desc: Quick 261028-nac integrated CI and contract repairs; release 0.4.8 and five-harness deployment verified
-state_head: 952a17996f4b4c5f3a65ab89194089647f8b563c
+stopped_at: Phase 25 source 17718a3 reviewed; full-final regression session 41645 pending
+last_updated: "2026-10-30T05:53:05.786Z"
+last_activity: 2026-10-30
+last_activity_desc: Phase 25 runtime accounting, process truth and GSD recovery repair in progress
+state_head: 17718a37cfda6f0fb12b56d2a0fb4b1af51a1cbe
 progress:
-  total_phases: 11
+  total_phases: 12
   completed_phases: 11
-  total_plans: 66
+  total_plans: 67
   completed_plans: 66
-  percent: 100
+  percent: 92
 ---
 
 # Project State
@@ -25,11 +25,11 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 24 — Autopilot Antigravity Routing and Snapshot Resilience (Completed)
+**Current focus:** Phase 25 — Runtime Usage and Recovery Controls (Executing)
 
 ## Current Position
 
-Phase: 24 (Autopilot Antigravity Routing and Snapshot Resilience) — COMPLETED
+Phase: 25 (Runtime Usage and Recovery Controls) — EXECUTING
 Status: executing
 Last activity: 2026-10-27 - Completed quick task 261021-mcn: BUG-06 0.4.5 runtime, release evidence and verified original local delivery
 
@@ -427,9 +427,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-10-28
-Stopped at: Quick 261028-nac complete: remote release0.4.8, full local gate, three-OS main/candidate CI, five local harnesses verified
-Resume file: .planning/quick/261028-nac-integrate-contract-and-ci-fixes-verify-r/261028-nac-SUMMARY.md
+Last session: 2026-10-30T05:53:02.352Z
+Stopped at: Phase 25 source 17718a3 reviewed; full-final regression session 41645 pending
+Resume file: .planning/phases/25-runtime-usage-and-recovery-controls/25-VALIDATION.md
 
 ## Operator Next Steps
 

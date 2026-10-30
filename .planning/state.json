@@ -47,12 +47,22 @@
       "number": "22",
       "name": "Release Proof",
       "status": "complete"
+    },
+    {
+      "number": "23",
+      "name": "Capability Governance and Active Tool Orchestration",
+      "status": "complete"
+    },
+    {
+      "number": "24",
+      "name": "Autopilot Antigravity Routing and Snapshot Resilience",
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "complete-milestone",
-    "label": "Milestone v0.2.0 audit passed",
-    "reason": "All 41 requirements satisfied across 9 phases; audit report generated"
+    "command": "$gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-10-10T15:50:00.000Z"
+  "updated_at": "2026-10-29T22:39:24.627Z"
 }

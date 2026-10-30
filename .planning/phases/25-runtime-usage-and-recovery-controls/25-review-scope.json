@@ -1,0 +1,135 @@
+{
+  "base": "952a179",
+  "head": "2cdc70d9edb09e48f8bdf9f85c976d2dbe58af7a",
+  "files": [
+    {
+      "path": "docs/task-runtime-controls.md",
+      "sha256": "0e02fe044d1ac1ac1e71a5af486f99060a6171fe306e7e07ab9cbe41afb6f32e"
+    },
+    {
+      "path": "schemas/command-job-launch.schema.json",
+      "sha256": "7a588f4555b8170f7023fa0576d4522f831a8d76055553c65d60037d5926d038"
+    },
+    {
+      "path": "schemas/task-contract.schema.json",
+      "sha256": "31b1df118b02f309be34ffcd9bca29555c2182471fe8c9eabab2778f58e6d31e"
+    },
+    {
+      "path": "schemas/task-receipt.schema.json",
+      "sha256": "95cea8ed0444e491e448fb9399a3d4767997962ac26fc7cd4d470b83fcb4a542"
+    },
+    {
+      "path": "src/adapters/task-agent-launch.ts",
+      "sha256": "079e17120a170b8f233dfb9690f03a4f1f2502852ccada59a2d2115ee6b15529"
+    },
+    {
+      "path": "src/adapters/task-agents.ts",
+      "sha256": "0da0f52fa2a3b4038033b37a2cad93259466510dba52e1a722e0c40890f11e03"
+    },
+    {
+      "path": "src/adapters/task-codex.ts",
+      "sha256": "5dde195bb223e2f417d88ddedd75086069c56c45aa2dca588bdd31d941e63f72"
+    },
+    {
+      "path": "src/cli.ts",
+      "sha256": "816cdcc8110c78b12225129d698f5f9c904137a83cffd460bce2c197b79ff0aa"
+    },
+    {
+      "path": "src/core/command-job-worker.ts",
+      "sha256": "b89e5ce890db5ba5a6fd2a87126f1020e433d5ad0f4054ddbb2c260839112545"
+    },
+    {
+      "path": "src/core/command-jobs.ts",
+      "sha256": "4c92073d6617885d051c825303802e00d0f094ee21e9489bb3142321706463ae"
+    },
+    {
+      "path": "src/core/process.ts",
+      "sha256": "66e760bdce617e0b1a6064c49db2278d059a5b4002b2de18c74ce4c969ea8d61"
+    },
+    {
+      "path": "src/core/task-contract.ts",
+      "sha256": "4fcc7d6fdb33f685ef372250fd860d7d2568a314244a752193971d085a837d79"
+    },
+    {
+      "path": "src/core/task-final-review.ts",
+      "sha256": "a463e130d86d8cbe30641cb5432c62f227d51cee059d76c40d61f37a9379edb0"
+    },
+    {
+      "path": "src/core/task-gsd-discovery.ts",
+      "sha256": "d7f63073d983313c76d97a75e8670ae799b9c8a6351cf0b6179d37f79ffabc09"
+    },
+    {
+      "path": "src/core/task-gsd-gates.ts",
+      "sha256": "7ce45115c4de5c22b66b0db17c83a352ea8ef728aa8de104d01d151d32128c47"
+    },
+    {
+      "path": "src/core/task-gsd-lifecycle.ts",
+      "sha256": "d594911e8d9520a2814f997a7265297f894296d425647f089b7d07c89efc2004"
+    },
+    {
+      "path": "src/core/task-journal.ts",
+      "sha256": "17051443543265bbcdd3513803ecb88d7b42e1246ae00899cee3701a6f36db05"
+    },
+    {
+      "path": "src/core/task-native-job.ts",
+      "sha256": "9da50cf2dfc97b92b4a63096401b135b9963eb780a5ff957a8a37882ebdb191d"
+    },
+    {
+      "path": "src/core/task-native-sessions.ts",
+      "sha256": "74b7b20d6d2ed638e68500285a9c3cb09e52d00bf6a8daa7d601d0c0bdb987b0"
+    },
+    {
+      "path": "src/core/task-native-usage.ts",
+      "sha256": "3d60dc17891801eb11cf840bd35ba448d7eb90d805037276ed13246002ffa027"
+    },
+    {
+      "path": "src/core/task-read.ts",
+      "sha256": "831c0928fac7ef4656e54818a36584f69fbfd7eeebdf96f3ba671dd8cad7a01d"
+    },
+    {
+      "path": "src/core/task-review-basis.ts",
+      "sha256": "22e069ad820301448e467969d0cd9b1db306160f3785b8b9e3502b4a891fa5c7"
+    },
+    {
+      "path": "src/core/task-run.ts",
+      "sha256": "04682f768974cf53aee3106f8815efc159d9b00480d906d133b9453763ecae7a"
+    },
+    {
+      "path": "src/core/task-runtime.ts",
+      "sha256": "e319d16898cd3e6e0fc323b72ea607f333d2b46f9d54d7bfa3552879b6f6ba5f"
+    },
+    {
+      "path": "src/core/task-supervisor.ts",
+      "sha256": "b7d8342e558356f9b024049da748432b1a70bccfd09cab176428551450e394d4"
+    },
+    {
+      "path": "src/core/task-telemetry.ts",
+      "sha256": "09c3ed83395237905c3e5380cf81f24f53e0b6f4f0acb5af3a3b7b621eaea6f5"
+    },
+    {
+      "path": "test/task-final-review.test.ts",
+      "sha256": "60f5fa60f59076ca36cd3751590bf9ac9ddfa8c59e3c581a1e4145c2909bd383"
+    },
+    {
+      "path": "test/task-gsd-discovery.test.ts",
+      "sha256": "246d8cad639151c83cf6281eefc521c11efe79cae36e83b0ac95172d8a90dbef"
+    },
+    {
+      "path": "test/task-gsd-multi-phase.test.ts",
+      "sha256": "68463aa4de03d221294730191d0c3a06d002b3093990bf1ac18afddede32c2a7"
+    },
+    {
+      "path": "test/task-limits.test.ts",
+      "sha256": "694a52fb500291b1d533bb93803bcbc4163f7819af8748ae216b57275fa70f0b"
+    },
+    {
+      "path": "test/task-native-job.test.ts",
+      "sha256": "8b63465ad9974c32a1c122e4534181aefe526b5f9ca730133f2d4d7f527c058c"
+    },
+    {
+      "path": "test/task-runtime-controls.test.ts",
+      "sha256": "1b790a55d78cd4da4a6d96cb85d809cd4fba6de72d0bf4133c9500b04670de1e"
+    }
+  ],
+  "scopeDigest": "ec758d8fec8f8301235eeda2660d22cdea27b7fe2ade8509f7028b87ec788337"
+}

@@ -510,10 +510,10 @@ For each phase, use `$gsd-discuss-phase N` (or approved `--auto` defaults), `$gs
 
 ### Phase 25: Runtime Usage and Recovery Controls
 
-**Goal:** [To be planned]
-**Requirements**: TBD
+**Goal:** Connect observed native usage, resource guards and durable process truth across supported generic/dedicated execution while preserving GSD verification and final independent acceptance.
+**Requirements**: RUNTIME-01, RUNTIME-02, RUNTIME-03, RUNTIME-04, RUNTIME-05, RUNTIME-06, RUNTIME-07, RUNTIME-08
 **Depends on:** Phase 24
-**Plans:** 0 plans
+**Plans:** 1 plan
 
 Plans:
-- [ ] TBD (run $gsd-plan-phase 25 to break down)
+- [ ] 25-01-PLAN.md — Runtime usage, approved native bridge, process reconciliation, review convergence and reduced GSD recovery fixtures

@@ -76,6 +76,20 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 - [x] **VER-03**: A user can verify a packed install/doctor/uninstall lifecycle that leaves unrelated real-host paths unchanged after the new capability is distributed.
 - [x] **VER-04**: A user can run development and CoursePilot end-to-end cases with applicable global/project ECC skills, MCPs and packs automatically invoked through GSD, and see every required criterion, capability receipt and remaining limitation reported honestly.
 
+## 2026-10-30 Runtime repair requirements
+
+The approved Oh-My-Circuit handoff's R1–R8 are tracked one-to-one below.
+These eight repair requirements supplement the original 41 milestone requirements.
+
+- [ ] **RUNTIME-01**: Quota/crash termination remains observable without final controller bookkeeping (R1).
+- [ ] **RUNTIME-02**: A surviving or unconfirmed child prevents duplicate dispatch (R2).
+- [ ] **RUNTIME-03**: Failed, missing-final, replayed, resumed and child usage is retained and counted once (R3).
+- [ ] **RUNTIME-04**: Observed aggregate limits block the next dispatch; required unavailable meters refuse launch (R4).
+- [ ] **RUNTIME-05**: Finite waits, process observations and bookkeeping require no model calls (R5).
+- [ ] **RUNTIME-06**: Unchanged review evidence is reused while mandatory independent acceptance remains required (R6).
+- [ ] **RUNTIME-07**: Windows typed argv preserves delimiter, executable, multilingual prompt and resume identity (R7).
+- [ ] **RUNTIME-08**: Public approved resume preserves partial commits and dirty WIP through verify, Nyquist and final acceptance (R8).
+
 ## Future Requirements
 
 - Additional first-party connectors beyond CoursePilot after the connector protocol has a release proof.
@@ -106,5 +120,6 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 | TOOL-01..02, TOOL-04 | 20 | Complete |
 | UX-01..03 | 21 | Complete |
 | VER-01..04 | 22 | Complete |
+| RUNTIME-01..08 (handoff R1–R8) | 25 | In Progress |
 
 **Coverage:** 41 requirements; 41 mapped exactly once; 0 unmapped. Phase 14 is the opt-in vertical tracer; later phases deepen each seam without reassigning a requirement.

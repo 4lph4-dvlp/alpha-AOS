@@ -81,14 +81,14 @@ Every requirement below is a user-visible capability. `Supported` means an exact
 The approved Oh-My-Circuit handoff's R1–R8 are tracked one-to-one below.
 These eight repair requirements supplement the original 41 milestone requirements.
 
-- [ ] **RUNTIME-01**: Quota/crash termination remains observable without final controller bookkeeping (R1).
-- [ ] **RUNTIME-02**: A surviving or unconfirmed child prevents duplicate dispatch (R2).
-- [ ] **RUNTIME-03**: Failed, missing-final, replayed, resumed and child usage is retained and counted once (R3).
-- [ ] **RUNTIME-04**: Observed aggregate limits block the next dispatch; required unavailable meters refuse launch (R4).
-- [ ] **RUNTIME-05**: Finite waits, process observations and bookkeeping require no model calls (R5).
-- [ ] **RUNTIME-06**: Unchanged review evidence is reused while mandatory independent acceptance remains required (R6).
-- [ ] **RUNTIME-07**: Windows typed argv preserves delimiter, executable, multilingual prompt and resume identity (R7).
-- [ ] **RUNTIME-08**: Public approved resume preserves partial commits and dirty WIP through verify, Nyquist and final acceptance (R8).
+- [x] **RUNTIME-01**: Quota/crash termination remains observable without final controller bookkeeping (R1).
+- [x] **RUNTIME-02**: A surviving or unconfirmed child prevents duplicate dispatch (R2).
+- [x] **RUNTIME-03**: Failed, missing-final, replayed, resumed and child usage is retained and counted once (R3).
+- [x] **RUNTIME-04**: Observed aggregate limits block the next dispatch; required unavailable meters refuse launch (R4).
+- [x] **RUNTIME-05**: Finite waits, process observations and bookkeeping require no model calls (R5).
+- [x] **RUNTIME-06**: Unchanged review evidence is reused while mandatory independent acceptance remains required (R6).
+- [x] **RUNTIME-07**: Windows typed argv preserves delimiter, executable, multilingual prompt and resume identity (R7).
+- [x] **RUNTIME-08**: Public approved resume preserves partial commits and dirty WIP through verify, Nyquist and final acceptance (R8).
 
 ## Future Requirements
 

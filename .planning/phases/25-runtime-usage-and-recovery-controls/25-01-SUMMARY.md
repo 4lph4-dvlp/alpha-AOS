@@ -27,42 +27,66 @@ coverage:
   - id: D1
     description: Quota and interrupted native execution remain observable.
     requirement: RUNTIME-01
-    verification: [{kind: integration, ref: "test/task-runtime-controls.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-runtime-controls.test.ts"
+        status: pass
     human_judgment: false
   - id: D2
     description: Surviving or unconfirmed native work cannot be relaunched.
     requirement: RUNTIME-02
-    verification: [{kind: integration, ref: "test/task-native-job.test.ts; test/task-runtime-controls.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-native-job.test.ts; test/task-runtime-controls.test.ts"
+        status: pass
     human_judgment: false
   - id: D3
     description: Partial cumulative and descendant usage survives replay and resume once.
     requirement: RUNTIME-03
-    verification: [{kind: integration, ref: "test/task-runtime-controls.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-runtime-controls.test.ts"
+        status: pass
     human_judgment: false
   - id: D4
     description: Aggregate limits and missing required meters prevent another dispatch.
     requirement: RUNTIME-04
-    verification: [{kind: integration, ref: "test/task-native-job.test.ts; test/task-limits.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-native-job.test.ts; test/task-limits.test.ts"
+        status: pass
     human_judgment: false
   - id: D5
     description: Runtime timers and completion handles own bookkeeping and waits.
     requirement: RUNTIME-05
-    verification: [{kind: integration, ref: "test/efficient-wait-cli.test.ts; test/task-wait.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/efficient-wait-cli.test.ts; test/task-wait.test.ts"
+        status: pass
     human_judgment: false
   - id: D6
     description: Review reuse preserves exact evidence and mandatory independent final review.
     requirement: RUNTIME-06
-    verification: [{kind: integration, ref: "test/task-final-review.test.ts; test/task-final-review-adapters.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-final-review.test.ts; test/task-final-review-adapters.test.ts"
+        status: pass
     human_judgment: false
   - id: D7
     description: Windows typed argv preserves delimiters, Unicode and resume identity.
     requirement: RUNTIME-07
-    verification: [{kind: integration, ref: "test/task-native-job.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-native-job.test.ts"
+        status: pass
     human_judgment: false
   - id: D8
     description: Approved public resume preserves partial commits and WIP through final acceptance.
     requirement: RUNTIME-08
-    verification: [{kind: integration, ref: "test/task-gsd-multi-phase.test.ts", status: pass}]
+    verification:
+      - kind: integration
+        ref: "test/task-gsd-multi-phase.test.ts"
+        status: pass
     human_judgment: false
 duration: 523min wall elapsed, including waits and handoffs
 completed: 2026-10-30
@@ -92,7 +116,7 @@ process truth without replacing GSD acceptance or changing approved models.
 - `04fab20`: preserved full coverage while isolating Windows host process fixtures.
 - `77cf6d1`: positive closure proof, native/protocol identity and recovery counterexamples.
 
-## Verification
+## Test Evidence
 
 `npm run build` and final `ALPHA_AOS_LIVE_CANARY=0 npm test -- --test-reporter=tap`
 passed. Final result: **1857 tests, 1846 passed, 11 skipped, zero failures**, exit 0,

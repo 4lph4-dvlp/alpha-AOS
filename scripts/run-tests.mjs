@@ -51,7 +51,7 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { availableParallelism } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -171,6 +171,22 @@ function runFiles(selected) {
 // The packed lifecycle fingerprints real host paths. Run it after the other
 // files so another suite cannot write to those paths during its snapshot.
 const packed = named === null ? files.filter((file) => file.endsWith("tarball-fixture.test.js")) : [];
-const concurrent = named === null ? files.filter((file) => !file.endsWith("tarball-fixture.test.js")) : files;
-const first = concurrent.length > 0 ? await runFiles(concurrent) : 0;
-process.exitCode = first === 0 && packed.length > 0 ? await runFiles(packed) : first;
+// Windows taskkill /T inspects the shared host process tree. Concurrent forced
+// termination fixtures can exhaust each other's unchanged native deadlines.
+// Keep their real liveness/heartbeat assertions and execute every file once,
+// separately from the ordinary concurrent group. Explicit --files stays literal.
+const nativeNames = new Set(process.platform === "win32" ? [
+  "process.test.js", "protocol-session.test.js", "command-jobs.test.js",
+  "command-job-worker.test.js", "efficient-wait-cli.test.js", "verify-efficient-wait.test.js",
+] : []);
+const isolated = named === null ? files.filter((file) => nativeNames.has(basename(file))) : [];
+const separate = new Set([...packed, ...isolated]);
+const concurrent = files.filter((file) => !separate.has(file));
+let result = concurrent.length > 0 ? await runFiles(concurrent) : 0;
+if (isolated.length > 0) process.stdout.write(`# isolated Windows native process suites: ${isolated.map((file) => basename(file)).join(", ")}\n`);
+for (const file of isolated) {
+  if (result !== 0) break;
+  result = await runFiles([file]);
+}
+if (result === 0 && packed.length > 0) result = await runFiles(packed);
+process.exitCode = result;

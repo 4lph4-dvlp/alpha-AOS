@@ -106,8 +106,15 @@ function baseValidReport(options: {
   };
 }
 
-test("D-09, REV-05: missing feature and architecture violation sharing root cause are unified in GSD gap routing", async () => {
+async function adversarialRoot(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-adversarial-"));
+  await mkdir(join(dir, ".planning"));
+  await writeFile(join(dir, ".planning", "REQUIREMENTS.md"), "- [ ] **REQ-01**: Primary feature requirement\n");
+  return dir;
+}
+
+test("D-09, REV-05: missing feature and architecture violation sharing root cause are unified in GSD gap routing", async () => {
+  const dir = await adversarialRoot();
   try {
     const contract = sampleAdversarialContract();
     const cDigest = taskContractDigest(contract);
@@ -187,7 +194,7 @@ test("D-09, REV-05: missing feature and architecture violation sharing root caus
 });
 
 test("D-08, REV-03: out-of-scope style suggestion is isolated to deferred suggestions without blocking milestone", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-adversarial-"));
+  const dir = await adversarialRoot();
   try {
     const contract = sampleAdversarialContract();
     const cDigest = taskContractDigest(contract);
@@ -257,7 +264,7 @@ test("D-08, REV-03: out-of-scope style suggestion is isolated to deferred sugges
 });
 
 test("REV-03: stale revision SHA is strictly rejected", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-adversarial-"));
+  const dir = await adversarialRoot();
   try {
     const contract = sampleAdversarialContract();
     const cDigest = taskContractDigest(contract);

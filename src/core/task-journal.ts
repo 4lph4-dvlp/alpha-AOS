@@ -55,6 +55,7 @@ export interface TaskCheckpointUsage {
 }
 
 export interface TaskCheckpoint {
+  baseCommit?: string | null;
   schemaVersion: 1;
   contractDigest: string;
   contractId: string;

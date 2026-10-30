@@ -212,6 +212,10 @@ test("discoverPhaseProgression returns isPhaseComplete: true and next plan null 
   gitCommand(projectRoot, ["add", "-A"]);
   gitCommand(projectRoot, ["commit", "-m", "docs(17-01): complete plan 01"]);
 
+  assert.equal((await discoverPhaseProgression({ projectRoot, phaseId: "17" })).isPhaseComplete, false,
+    "Completed summaries do not substitute for verification");
+  await writeFile(join(phaseDir, "17-VERIFICATION.md"), "---\nstatus: passed\n---\nObserved verification evidence.\n");
+
   const progression = await discoverPhaseProgression({
     projectRoot,
     phaseId: "17",

@@ -75,6 +75,18 @@ export function parseFrontmatter(frontmatter: string): Record<string, string> {
  * Rejects planning-summary collisions (*-PLANNING-SUMMARY.md), partial executions,
  * directories masquerading as summaries, and empty phases.
  */
+export function isExecutionSummaryComplete(path: string): boolean {
+  try {
+    const info = statSync(path);
+    if (!info.isFile() || info.size === 0 || info.size > 1024 * 1024) return false;
+    const text = readFileSync(path, "utf8");
+    const header = text.match(/^---\r?\n([\s\S]*?)\r?\n---/u)?.[1] ?? "";
+    const fields = parseFrontmatter(header);
+    if (fields.status && !["complete", "completed", "passed"].includes(fields.status)) return false;
+    return fields.partial !== "true" && fields.complete !== "false" && fields.plan_complete !== "false" && text.trim().length > 0;
+  } catch { return false; }
+}
+
 export function hasExecutionSummaries(dir: string | null | undefined, phase: string): boolean {
   if (!dir || !existsSync(dir)) return false;
 
@@ -104,7 +116,7 @@ export function hasExecutionSummaries(dir: string | null | undefined, phase: str
       if (!files.includes(summaryName)) return false;
       try {
         const s = statSync(summaryPath);
-        return s.isFile();
+        return s.isFile() && isExecutionSummaryComplete(summaryPath);
       } catch {
         return false;
       }
@@ -189,7 +201,7 @@ export async function hasPassedVerification(
     return false;
   }
 
-  return text.trim().length > 0;
+  return false;
 }
 
 /**

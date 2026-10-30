@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import { packageRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
@@ -17,9 +18,13 @@ import {
   type ReconcileCandidateFinding,
 } from "./task-review-findings.js";
 import { readTaskBaseline } from "./task-effects.js";
-import { collectTaskArtifact } from "./task-check.js";
+import { collectTaskArtifact, materializeTaskSnapshot } from "./task-check.js";
+import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guard.js";
+import { runGitRead } from "./task-gsd.js";
+import { checkCostMeterReadiness } from "./task-telemetry.js";
 import { loadTaskReviewSuggestions, recordReviewSuggestions, suggestionsFilePath } from "./task-review-suggestions.js";
 import type { HarnessId } from "../types.js";
+import { taskReviewBasis } from "./task-review-basis.js";
 
 export type FinalReviewVerdict = "accepted" | "rejected" | "unknown";
 
@@ -99,6 +104,9 @@ export interface TaskFinalReviewReport {
 }
 
 export interface FinalReviewWitnessReceipt {
+  readonly validationVersion?: 2;
+  readonly requirementIds?: readonly string[];
+  readonly basisDigest?: string;
   readonly schemaVersion: 1;
   readonly kind: "final-review-witness-receipt";
   readonly requestId: string;
@@ -116,6 +124,9 @@ export interface FinalReviewWitnessReceipt {
 }
 
 export interface FinalReviewRequest {
+  readonly onProcess?: ((evidence: import("./task-runtime.js").TaskProcessEvidence) => void) | undefined;
+  readonly onTelemetry?: ((meter: import("./task-telemetry.js").NormalizedTelemetry) => void) | undefined;
+  readonly onSpawn?: ((child: { pid: number }) => void) | undefined;
   readonly requestId: string;
   readonly sessionId: string;
   readonly contract: TaskContract;
@@ -176,7 +187,11 @@ export function buildFinalReviewPrompt(request: FinalReviewRequest): {
 }
 
 export interface FinalReviewPort {
+  isolation?: "native-read-only";
   evaluateMilestoneFinal(options: {
+    onProcess?: ((evidence: import("./task-runtime.js").TaskProcessEvidence) => void) | undefined;
+    onTelemetry?: ((meter: import("./task-telemetry.js").NormalizedTelemetry) => void) | undefined;
+    onSpawn?: ((child: { pid: number }) => void) | undefined;
     contract: TaskContract;
     targetRevisionSha: string;
     artifactDigest: string;
@@ -338,6 +353,8 @@ export async function readFinalReviewWitness(
 }
 
 export interface GateMilestoneFinalReviewOptions {
+  readonly nativeSessionRoot?: string | undefined;
+  readonly runId?: string | undefined;
   readonly projectRoot: string;
   readonly stateRoot: string;
   readonly contract: TaskContract;
@@ -395,21 +412,82 @@ export async function gateMilestoneFinalReview(
 
   // 2. Discover milestone requirements
   const requirements = await parseRequirementsFromMarkdown(projectRoot);
+  const requirementIds = requirements.map((requirement) => requirement.id).sort();
+  if (requirementIds.length === 0 || new Set(requirementIds).size !== requirementIds.length) {
+    return { status: "unknown", reason: "Mandatory requirement declarations are missing or duplicated; no final reviewer was dispatched." };
+  }
+  const basisDigest = await taskReviewBasis({ projectRoot, contractDigest, targetRevisionSha, artifactDigest: workingTreeDigest });
+  const priorWitness = await readFinalReviewWitness(stateRoot, contract.id);
+  if (priorWitness?.contractDigest === contractDigest && priorWitness.basisDigest === basisDigest && priorWitness.overallVerdict === "accepted" &&
+    priorWitness.validationVersion === 2 && JSON.stringify(priorWitness.requirementIds) === JSON.stringify(requirementIds)) {
+    if (finalReviewPort.isolation === "native-read-only") {
+      const current = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
+      const head = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+      if (current.status !== "ok" || current.digest !== workingTreeDigest || head !== targetRevisionSha) {
+        return { status: "unknown", reason: "Current source does not match the cached independent witness." };
+      }
+    }
+    return { status: "accepted", reason: "Reused independent final review for unchanged revision, requirements and dependencies.", witnessReceipt: priorWitness };
+  }
 
   // 3. Invoke independent final review port
   let rawReport: TaskFinalReviewReport;
+  let scratchRoot: string | null = null;
+  const nativeIsolation = finalReviewPort.isolation === "native-read-only";
+  const sourceBefore = nativeIsolation ? await captureTreeSnapshot(projectRoot, contract.allowedRoots) : null;
   try {
-    rawReport = await finalReviewPort.evaluateMilestoneFinal({
-      contract,
-      targetRevisionSha,
-      artifactDigest: workingTreeDigest,
-      requirements,
-    });
+    let reviewRoot: string | undefined;
+    if (nativeIsolation) {
+      const artifact = await collectTaskArtifact({ projectRoot, allowedRoots: contract.allowedRoots });
+      const head = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+      if (artifact.status !== "ok" || artifact.digest !== workingTreeDigest || head !== targetRevisionSha) {
+        return { status: "unknown", reason: "Final review source changed before snapshot creation." };
+      }
+      scratchRoot = await mkdtemp(join(tmpdir(), "alpha-aos-final-review-"));
+      reviewRoot = await materializeTaskSnapshot({ manifest: artifact, projectRoot, destination: join(scratchRoot, "project") });
+    }
+    const { meteredTaskDispatch, dispatchUsage, readTaskDispatches } = await import("./task-runtime.js");
+    const { reservedRunIdForApproval } = await import("./task-contract.js");
+    const dispatched = await meteredTaskDispatch({ stateRoot, contract, digest: contractDigest,
+      nativeSessionRoot: options.nativeSessionRoot,
+      runId: options.runId ?? reservedRunIdForApproval({ contractDigest }), role: "reviewer",
+      invoke: async ({ onSpawn, onTelemetry, onProcess, deadlineAt }) => {
+        let telemetry: import("./task-telemetry.js").NormalizedTelemetry | undefined;
+        let evidence: import("./task-runtime.js").TaskProcessEvidence | undefined;
+        const report = await finalReviewPort.evaluateMilestoneFinal({ contract, targetRevisionSha,
+          artifactDigest: workingTreeDigest, requirements, onSpawn,
+          ...(reviewRoot === undefined ? {} : { reviewRoot }),
+          onTelemetry: (meter) => { telemetry = meter; onTelemetry(meter); },
+          onProcess: (value) => { evidence = value; onProcess(value); },
+          ...(deadlineAt === null ? {} : { deadlineAt: new Date(deadlineAt) }),
+        });
+        if (evidence && evidence.terminal !== "completed") throw new Error("Native final reviewer did not complete its turn");
+        return { sessionId: report.sessionId, report, ...(telemetry ? { telemetry } : {}), ...evidence,
+          nativeSessionId: evidence?.nativeSessionId ?? telemetry?.nativeSessionId ?? null };
+      } });
+    rawReport = dispatched.report;
+    const metered = dispatchUsage(await readTaskDispatches(stateRoot, contractDigest));
+    if ((contract.resourcePolicy.maxTokens !== undefined && metered.tokens === null) ||
+      (contract.resourcePolicy.maxCostUsd !== undefined && metered.costUsd === null)) {
+      return { status: "unknown", reason: "Required final-review usage remains unmeasured; budget acceptance cannot be inferred." };
+    }
+    if (sourceBefore !== null) {
+      const mutation = evaluateTreeMutations(sourceBefore, await captureTreeSnapshot(projectRoot, contract.allowedRoots));
+      const head = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+      if (mutation.mutated || head !== targetRevisionSha ||
+        await taskReviewBasis({ projectRoot, contractDigest, targetRevisionSha, artifactDigest: workingTreeDigest }) !== basisDigest) {
+        return { status: "unknown", reason: "Final reviewer source/evidence changed during independent review; acceptance refused." };
+      }
+    }
   } catch (err) {
     return {
       status: "unknown",
       reason: `Final review port execution failed: ${err instanceof Error ? err.message : String(err)}`,
     };
+  } finally {
+    if (scratchRoot !== null && dirname(resolve(scratchRoot)) === resolve(tmpdir()) && basename(scratchRoot).startsWith("alpha-aos-final-review-")) {
+      await rm(scratchRoot, { recursive: true, force: true });
+    }
   }
 
   // 4. Validate report schema and revision bindings
@@ -509,6 +587,10 @@ export async function gateMilestoneFinalReview(
   }
 
   // 6. Check that all evaluated requirements are verified (D-14)
+  const reportedIds = report.requirements.map((requirement) => requirement.requirementId).sort();
+  if (JSON.stringify(reportedIds) !== JSON.stringify(requirementIds)) {
+    return { status: "unknown", reason: "Final review requirement coverage is missing, duplicated or contains unknown IDs.", report };
+  }
   const unverifiedReqs = report.requirements.filter((r) => r.status !== "verified");
   if (unverifiedReqs.length > 0) {
     return {
@@ -548,6 +630,9 @@ export async function gateMilestoneFinalReview(
   const receiptPayload = {
     schemaVersion: 1 as const,
     kind: "final-review-witness-receipt" as const,
+    validationVersion: 2 as const,
+    requirementIds,
+    basisDigest,
     requestId: report.requestId,
     contractId: contract.id,
     contractDigest,
@@ -613,6 +698,8 @@ export async function inspectFinalReviewReadiness(options: {
   const reasons: string[] = [];
   const loaded = await loadTaskContract(options.contractPath);
   const contract = loaded.contract;
+  const meters = checkCostMeterReadiness(contract.agentPolicy, contract.resourcePolicy);
+  if (!meters.ready) reasons.push(...meters.missingMeters);
   const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: contract.id });
   const approved = approvals.some((a: TaskApprovalRecord) => a.contractDigest === loaded.digest);
 

@@ -205,6 +205,10 @@ export async function resolveHarnessRoleModel(options: {
   };
 
   const direct = sanitize(options.adapterModel);
+  const approved = options.agentPolicy === undefined ? undefined : sanitize(options.agentPolicy[`${options.role}Model`]);
+  if (direct !== undefined && approved !== undefined && direct !== approved) {
+    throw new Error("Adapter model differs from the approved role model");
+  }
   if (direct !== undefined) return direct;
 
   const policy = options.agentPolicy;

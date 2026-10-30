@@ -246,6 +246,7 @@ export function createDynamicTaskPorts(
 
   return {
     controller: controllerMap[policy.controller],
+    finalReview: createDynamicFinalReviewPort(policy, options),
     reviewer: reviewerMap[policy.reviewer],
     assess: (p) => probeTaskAgentPair(p, options),
   };
@@ -254,6 +255,7 @@ export function createDynamicTaskPorts(
 /** The default task ports using dynamic port dispatch based on contract policy. */
 export function nativeTaskPorts(options: NativeTaskPortOptions = {}): TaskPorts {
   return {
+    finalReview: { isolation: "native-read-only", evaluateMilestoneFinal: (request) => createDynamicFinalReviewPort(request.contract.agentPolicy, options).evaluateMilestoneFinal(request) },
     controller: {
       dispatch: (request) => {
         const ports = createDynamicTaskPorts(request.contract.agentPolicy, options);
@@ -278,6 +280,7 @@ export function createNativeFinalReviewPort(
   options: DynamicTaskPortOptions = {},
 ): FinalReviewPort {
   return {
+    isolation: "native-read-only",
     async evaluateMilestoneFinal(evalOptions) {
       const requestId = randomUUID();
       const sessionId = randomUUID();
@@ -285,6 +288,9 @@ export function createNativeFinalReviewPort(
       const reviewRoot = evalOptions.reviewRoot ?? evalOptions.contract.scope.projectRoot;
 
       const request: FinalReviewRequest = {
+        onProcess: evalOptions.onProcess,
+        onSpawn: evalOptions.onSpawn,
+        onTelemetry: evalOptions.onTelemetry,
         requestId,
         sessionId,
         contract: evalOptions.contract,

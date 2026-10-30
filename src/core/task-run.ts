@@ -6,6 +6,7 @@ import type { HarnessId } from "../types.js";
 import { taskComputerUseRoute } from "../adapters/task-agent-launch.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
 import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
+import { taskReviewBasis } from "./task-review-basis.js";
 import { captureTreeSnapshot, evaluateTreeMutations } from "./tree-mutation-guard.js";
 import {
   connectorArtifactDigest,
@@ -129,6 +130,9 @@ export interface ExecutorClaim {
 }
 
 export interface ControllerDispatchRequest {
+  onProcess?: ((evidence: import("./task-runtime.js").TaskProcessEvidence) => void) | undefined;
+  onTelemetry?: ((meter: import("./task-telemetry.js").NormalizedTelemetry) => void) | undefined;
+  onSpawn?: ((child: { pid: number }) => void) | undefined;
   runId: string;
   contract: TaskContract;
   contractDigest: string;
@@ -142,6 +146,8 @@ export interface ControllerDispatchRequest {
 }
 
 export interface ControllerDispatchResult {
+  closeConfirmed?: boolean;
+  telemetry?: import("./task-telemetry.js").NormalizedTelemetry;
   harness: string;
   version: string | null;
   executable: string | null;
@@ -181,6 +187,9 @@ export type {
 } from "./task-review-evidence.js";
 
 export interface ReviewRequest {
+  onProcess?: ((evidence: import("./task-runtime.js").TaskProcessEvidence) => void) | undefined;
+  onTelemetry?: ((meter: import("./task-telemetry.js").NormalizedTelemetry) => void) | undefined;
+  onSpawn?: ((child: { pid: number }) => void) | undefined;
   runId: string;
   requestId: string;
   sessionId: string;
@@ -196,6 +205,8 @@ export interface ReviewRequest {
 }
 
 export interface ReviewDispatchResult {
+  closeConfirmed?: boolean;
+  telemetry?: import("./task-telemetry.js").NormalizedTelemetry;
   harness: string;
   version: string | null;
   executable: string | null;
@@ -222,6 +233,7 @@ export interface TaskPortAssessment {
 }
 
 export interface TaskPorts {
+  finalReview?: import("./task-final-review.js").FinalReviewPort | undefined;
   controller: ControllerPort;
   reviewer: ReviewerPort;
   assess(policy: TaskAgentPolicy): Promise<TaskPortAssessment>;
@@ -304,6 +316,8 @@ export interface TaskRunEffects {
 }
 
 export interface TaskRunRecord {
+  reviewBasisDigest?: string;
+  reusedReviewFrom?: string;
   schemaVersion: 1;
   kind: "task-run";
   runId: string;
@@ -385,7 +399,9 @@ export interface StartTaskOptions {
   ports: TaskPorts;
   now?: () => Date;
   /** Where the controller harness's GSD Core is installed; defaults to the Codex config root. */
-  gsd?: { configRoot?: string };
+  gsd?: { configRoot?: string;
+    lifecycle?: Pick<import("./task-gsd-lifecycle.js").MultiPhaseOptions, "commandMap" | "hookCommand" | "hookArgs">;
+  };
   promptInjection?: string;
   allowPriorRun?: boolean;
   receiptsRoot?: string;
@@ -397,6 +413,12 @@ export interface StartTaskOptions {
 
 const REPORT_TEXT_LIMIT = 4096;
 const REPORT_LIST_LIMIT = 64;
+
+function earlierDeadline(a: string | null, b: string | null): string | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return Date.parse(a) <= Date.parse(b) ? a : b;
+}
 
 function bounded(text: string, limit: number): string {
   const single = text.replace(/\s+/gu, " ").trim();
@@ -1302,7 +1324,14 @@ async function startGeneralTask(params: {
   }
 }
 
-async function startMultiPhaseTask(params: {
+async function startMultiPhaseTask(params: Parameters<typeof executeMultiPhaseTask>[0]): Promise<{ run: TaskRunRecord; recordPath: string }> {
+  const lease = await acquireControllerLease({ projectRoot: resolve(params.contract.scope.projectRoot),
+    harness: params.contract.agentPolicy.controller, contractDigest: params.digest });
+  try { return await executeMultiPhaseTask(params); }
+  finally { await lease.release(); }
+}
+
+async function executeMultiPhaseTask(params: {
   contract: TaskContract;
   digest: string;
   approval: TaskApprovalRecord;
@@ -1344,7 +1373,13 @@ async function startMultiPhaseTask(params: {
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
 
-  const multiPhaseResult = await orchestrateMultiPhaseProgression({
+  let multiPhaseResult: Awaited<ReturnType<typeof orchestrateMultiPhaseProgression>>;
+  try { multiPhaseResult = await orchestrateMultiPhaseProgression({
+    gitDirectory,
+    ...(options.gsd?.lifecycle?.commandMap ? { commandMap: options.gsd.lifecycle.commandMap } : {}),
+    ...(options.gsd?.lifecycle?.hookCommand ? { hookCommand: options.gsd.lifecycle.hookCommand } : {}),
+    ...(options.gsd?.lifecycle?.hookArgs ? { hookArgs: options.gsd.lifecycle.hookArgs } : {}),
+    finalReviewPort: options.ports.finalReview,
     projectRoot,
     contract,
     baseCommit: baseline.baseCommit,
@@ -1354,11 +1389,17 @@ async function startMultiPhaseTask(params: {
     packageRoot: options.packageRoot,
     stateRoot: options.stateRoot,
     runId,
-  });
+  }); } catch (error) {
+    const failed: TaskRunRecord = { ...executing, status: "stopped", finishedAt: clock().toISOString(),
+      stopReason: bounded(error instanceof Error ? error.message : String(error), 300),
+      nextAction: "Inspect runtime observations and remaining GSD work before resume." };
+    await writeRunRecord(options.stateRoot, options.packageRoot, failed);
+    return { run: failed, recordPath };
+  }
 
-  const isSuccess = multiPhaseResult.finalStatus === "completed";
   const changes = await readTaskChanges({ projectRoot, baseCommit: baseline.baseCommit });
   const audit = await auditTaskEffects({ contract, runId, changes, projectRoot, baseCommit: baseline.baseCommit });
+  const isSuccess = multiPhaseResult.finalStatus === "completed" && audit.violations.length === 0;
 
   const finishedRecord: TaskRunRecord = {
     ...executing,
@@ -1406,6 +1447,21 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   const { loaded, approval } = await assertTaskStartable(options);
   const { contract, digest } = loaded;
 
+  const nativePorts = options.ports;
+  const { meteredTaskDispatch } = await import("./task-runtime.js");
+  options = { ...options, ports: { ...nativePorts,
+    controller: { dispatch: (request) => meteredTaskDispatch({
+      stateRoot: options.stateRoot, contract, digest, runId: request.runId, role: "controller", now: options.now,
+      invoke: ({ onSpawn, onTelemetry, onProcess, deadlineAt }) => nativePorts.controller.dispatch({ ...request, onSpawn, onTelemetry, onProcess,
+        deadlineAt: earlierDeadline(request.deadlineAt, deadlineAt) }),
+    }) },
+    reviewer: { review: (request) => meteredTaskDispatch({
+      stateRoot: options.stateRoot, contract, digest, runId: request.runId, role: "reviewer", now: options.now,
+      invoke: ({ onSpawn, onTelemetry, onProcess, deadlineAt }) => nativePorts.reviewer.review({ ...request, onSpawn, onTelemetry, onProcess,
+        deadlineAt: earlierDeadline(request.deadlineAt, deadlineAt) }),
+    }) },
+  } };
+
   const prior = await listTaskRuns({ stateRoot: options.stateRoot, contractId: contract.id, packageRoot: options.packageRoot });
   const consumed = prior.find((run) => run.contractDigest === digest);
   if (consumed !== undefined && !options.allowPriorRun) {
@@ -1435,7 +1491,18 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   // Every changed path is judged against one recorded clean commit (T-14-37).
   const projectRoot = resolve(contract.scope.projectRoot);
   const baseline = await readTaskBaseline({ projectRoot });
-  if (baseline.status !== "clean") {
+  let recoveredBaseline: { baseCommit: string } | null = null;
+  if (baseline.status === "dirty" && options.allowPriorRun && ["gsd", "gsd-multi-phase"].includes(contract.scope.workflow ?? "")) {
+    const { readCheckpoint } = await import("./task-journal.js");
+    const checkpoint = await readCheckpoint(options.stateRoot, digest);
+    const currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
+    if (checkpoint?.baseCommit && checkpoint.lastVerifiedHead === currentHead) {
+      const changes = await readTaskChanges({ projectRoot, baseCommit: checkpoint.baseCommit });
+      const audit = await auditTaskEffects({ contract, runId: options.runId ?? "resume-baseline", changes, projectRoot, baseCommit: checkpoint.baseCommit });
+      if (audit.violations.length === 0) recoveredBaseline = { baseCommit: checkpoint.baseCommit };
+    }
+  }
+  if (baseline.status !== "clean" && recoveredBaseline === null) {
     const detail =
       baseline.status === "dirty"
         ? `the working tree has uncommitted or untracked paths: ${baseline.paths.slice(0, 20).join(", ")}${baseline.paths.length > 20 ? `, and ${baseline.paths.length - 20} more` : ""}`
@@ -1452,12 +1519,13 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       digest,
       approval,
       options,
-      baseline,
+      baseline: recoveredBaseline ?? baseline as { baseCommit: string },
       clock,
     });
   }
 
   // The controller must be able to run the installed GSD quick workflow here.
+  if (baseline.status !== "clean") throw new TaskRunError("dirty-baseline", "Only approved multi-phase recovery can preserve a dirty baseline");
   const configRoot = options.gsd?.configRoot ?? codexConfigRoot();
   const readiness = await probeGsdQuickReadiness({ projectRoot, gsdToolsPath: resolveInstalledGsdTools(configRoot) });
   if (!readiness.ready) {
@@ -1844,7 +1912,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       targetRevisionSha = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
     } catch {}
 
-    const request: ReviewRequest = {
+    let request: ReviewRequest = {
       runId,
       requestId: randomUUID(),
       sessionId: randomUUID(),
@@ -1861,7 +1929,13 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     // Capture pre-review tree snapshot for TreeMutationGuard (ROL-04, D-11)
     const preReviewTree = await captureTreeSnapshot(projectRoot, contract.allowedRoots);
 
-    const reviewed = await options.ports.reviewer.review(request);
+    const reviewBasisDigest = await taskReviewBasis({ projectRoot, contractDigest: digest, targetRevisionSha, artifactDigest: artifact.digest });
+    const reusable = prior.findLast((candidate) => candidate.contractDigest === digest && candidate.reviewBasisDigest === reviewBasisDigest &&
+      candidate.reviewer?.report?.schemaVersion === 2 && candidate.reviewer.report.targetRevisionSha === targetRevisionSha && candidate.reviewer.sessionId !== null);
+    if (reusable?.reviewer) request = { ...request, requestId: reusable.reviewer.requestId, sessionId: reusable.reviewer.requestedSessionId };
+    const reviewed: ReviewDispatchResult = reusable?.reviewer ? { ...reusable.reviewer, exitCode: 0, processCode: "reused-evidence", issues: [] }
+      : await options.ports.reviewer.review(request);
+    record = { ...record, reviewBasisDigest, ...(reusable ? { reusedReviewFrom: reusable.runId } : {}) };
 
     // Capture post-review tree snapshot and evaluate mutations (ROL-04, D-11)
     const postReviewTree = await captureTreeSnapshot(projectRoot, contract.allowedRoots);

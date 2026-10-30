@@ -14,6 +14,8 @@ import {
 } from "./task-capability-inventory.js";
 import { diagnoseGsdLifecycleStatus, type GsdLifecycleDiagnostics } from "./task-doctor.js";
 import { loadTaskReviewSuggestions, suggestionsFilePath } from "./task-review-suggestions.js";
+import { dispatchUsage, readTaskDispatches, type TaskDispatchObservation } from "./task-runtime.js";
+import type { TaskUsageTotals } from "./task-telemetry.js";
 
 export type TaskReadVerdict =
   | "accepted"
@@ -36,6 +38,7 @@ export interface TaskSelectedExecution {
 }
 
 export interface TaskReadModel {
+  readonly runtime?: { dispatches: readonly TaskDispatchObservation[]; usage: TaskUsageTotals; notification: "durable-only" };
   readonly contractId: string;
   readonly selectedRunId: string;
   readonly selectedStartedAt: string | null;
@@ -398,6 +401,27 @@ export async function readTaskStatusModel(options: {
     }
   }
 
+  const dispatches = await readTaskDispatches(stateRoot, selected.contractDigest);
+  const observed = dispatches.filter((entry) => entry.runId === selected.runId);
+  const latest = [...observed].sort((a, b) => Date.parse(b.startedAt) - Date.parse(a.startedAt))[0];
+  const interrupted = observed.find((entry) => entry.status === "interrupted")
+    ?? (latest?.status === "failed" ? latest : undefined);
+  const usage = dispatchUsage(dispatches);
+  if (dispatches.length > 0) checkpoint = { ...checkpoint, usage: { ...checkpoint.usage, tokens: usage.tokens, costUsd: usage.costUsd } };
+  if ((verdict === "running" || verdict === "reserved") && interrupted) {
+    verdict = "stopped";
+    status = "stopped";
+    reasonCode = interrupted.reason === "quota_exhausted" ? "QUOTA_EXHAUSTED"
+      : interrupted.status === "failed" ? "NATIVE_PROCESS_FAILED" : "RUNTIME_INTERRUPTED";
+    reason = interrupted.reason ?? "Native runtime interrupted before final bookkeeping";
+    nextAction = "Inspect retained native handles and surviving children; resume only the remaining GSD work.";
+  } else if (verdict === "reserved" && observed.length > 0) {
+    verdict = observed.some((entry) => entry.status === "running") ? "running" : "stopped";
+    status = verdict;
+    reasonCode = verdict === "running" ? "NATIVE_JOB_RUNNING" : "GSD_ACCEPTANCE_PENDING";
+    reason = verdict === "running" ? "Registered native job is running." : "Native jobs ended; GSD acceptance is still required.";
+    nextAction = "Inspect the exact job handle and GSD verification/final review gates.";
+  }
   return {
     contractId,
     selectedRunId: selected.runId,
@@ -415,6 +439,7 @@ export async function readTaskStatusModel(options: {
     ledger,
     eventsCount: events.length,
     stopState,
+    ...(dispatches.length > 0 ? { runtime: { dispatches: observed, usage, notification: "durable-only" as const } } : {}),
     ...(gsdDiagnostics ? { gsdDiagnostics } : {}),
     capabilities: capabilityReport.summary,
     capabilityReport,

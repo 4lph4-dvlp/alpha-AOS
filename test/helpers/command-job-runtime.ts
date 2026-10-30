@@ -71,7 +71,15 @@ export async function realOwnedCancellation(context: TestContext): Promise<void>
   await waitForRuntimeFile(ready);
   const running = await readJobRecord(f.stateRoot, handle.jobId);
   assert.equal(running.status, "running");
-  const result = await cancelCommandJob({ stateRoot: f.stateRoot, jobId: handle.jobId, timeoutMs: 5000 });
+  let result: CommandJobRecord;
+  try {
+    result = await cancelCommandJob({ stateRoot: f.stateRoot, jobId: handle.jobId, timeoutMs: 5000 });
+  } catch (error) {
+    if (!String(error).includes("CANCEL_OBSERVATION_TIMEOUT")) throw error;
+    // The finite observer may expire before Windows tree termination finishes.
+    // Reconnect to this same durable job; never substitute timeout for closure.
+    result = await f.finish(handle.jobId);
+  }
   assert.equal(result.status, "cancelled");
   assert.equal(result.childPid, running.childPid);
   assert.equal(result.workerPid, running.workerPid);

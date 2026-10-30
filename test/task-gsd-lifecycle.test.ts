@@ -84,6 +84,7 @@ test("executeGsdStep runs discuss, plan, execute with --auto and verify without 
     const cleanArgv = process.argv.slice(2).filter(a => !a.startsWith('--step='));
     const logEntry = {
       pid: process.pid,
+      processStartedAt: require('node:perf_hooks').performance.timeOrigin,
       step: step,
       argv: cleanArgv,
     };
@@ -140,9 +141,10 @@ test("executeGsdStep runs discuss, plan, execute with --auto and verify without 
   // Verify verify step does NOT have --auto
   assert.deepEqual(loggedLines[3].argv, ["17-gsd-lifecycle-bridge"]);
 
-  // Verify distinct child process PIDs (independent processes)
-  const distinctPids = new Set(loggedLines.map((l: { pid: number }) => l.pid));
-  assert.equal(distinctPids.size, 4);
+  // Windows may recycle a PID after each sequential child exits. Bind it to
+  // the native process start time instead of assuming global PID uniqueness.
+  const processInstances = new Set(loggedLines.map((l: { pid: number; processStartedAt: number }) => `${l.pid}:${l.processStartedAt}`));
+  assert.equal(processInstances.size, 4);
 
   // Verify hooks were recorded
   const discussPreReceipt = await readHookReceipt({
@@ -600,7 +602,7 @@ test("executeGsdStep passes exact phase argv despite 02 in custom script paths f
         if (actual.includes("--auto") !== (step !== "verify")) process.exit(24);
         const names = { discuss: "02-CONTEXT.md", plan: "02-01-PLAN.md", execute: "02-01-SUMMARY.md", verify: "02-VERIFICATION.md" };
         fs.mkdirSync(${JSON.stringify(phaseDir)}, { recursive: true });
-        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), "# " + step);
+        fs.writeFileSync(path.join(${JSON.stringify(phaseDir)}, names[step]), step === "verify" ? "---\\nstatus: passed\\n---\\nObserved fixture verification" : "# " + step);
       `, "utf8");
       const steps: GsdStepKind[] = ["discuss", "plan", "execute", "verify"];
       const names = ["02-CONTEXT.md", "02-01-PLAN.md", "02-01-SUMMARY.md", "02-VERIFICATION.md"];
@@ -623,7 +625,7 @@ test("executeGsdStep passes exact phase argv despite 02 in custom script paths f
         assert.equal(result.exitCode, 0, `${branch}/${step} must receive the actual phase`);
         assert.equal(result.nextStep, next[index]);
         assert.deepEqual(result.artifactsProduced, [`.planning/phases/02/${names[index]}`]);
-        assert.equal(await readFile(join(phaseDir, names[index]!), "utf8"), "# " + step);
+        assert.equal(await readFile(join(phaseDir, names[index]!), "utf8"), step === "verify" ? "---\nstatus: passed\n---\nObserved fixture verification" : "# " + step);
       }
       const entries = (await readFile(logFile, "utf8")).trim().split("\n").map((line) => JSON.parse(line) as { step: string; argv: string[] });
       assert.equal(entries.length, 4);

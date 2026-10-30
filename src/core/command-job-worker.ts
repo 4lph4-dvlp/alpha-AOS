@@ -21,7 +21,7 @@ import {
   type PrivateLaunchSpec,
   MAX_COMBINED_OUTPUT_BYTES,
 } from "./command-jobs.js";
-import { runProcess } from "./process.js";
+import { runProcess, type ProcessResult, type ProcessSpec } from "./process.js";
 
 export interface JobWorkerTestSeams {
   readonly onBeforeAck?: (child: { pid: number }) => Promise<void> | void;
@@ -32,6 +32,7 @@ export interface JobWorkerTestSeams {
   }) => Promise<void> | void;
   readonly onBeforeCancelDelivery?: () => Promise<void> | void;
   readonly onProcessSettled?: () => void;
+  readonly onProcessOutcome?: (result: ProcessResult) => void;
 }
 
 export interface RunJobWorkerOptions {
@@ -302,9 +303,12 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
   schedulePoll();
 
   const startedAt = Date.now();
-  let childResult;
+  let childResult: ProcessResult & { taskStopCode?: string };
+  const executeProcess = async (processSpec: ProcessSpec): Promise<ProcessResult & { taskStopCode?: string }> => spec.task
+    ? (await import("./task-native-job.js")).runApprovedTaskJobProcess({ stateRoot, launch: spec, processSpec })
+    : runProcess(processSpec);
   try {
-    childResult = await runProcess({
+    childResult = await executeProcess({
       executable: spec.executable,
       args: spec.args,
       cwd: spec.cwd,
@@ -378,6 +382,8 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
     }
   }
 
+  _testSeams?.onProcessOutcome?.(childResult);
+
   // Ensure running acknowledgement write finishes before terminal write
   const acknowledged = await runningWritePromise;
 
@@ -424,7 +430,10 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
   let finalStatus: CommandJobRecord["status"];
   let jobError: CommandJobRecord["error"] = null;
 
-  if (acknowledgementFailed) {
+  if (childResult.taskStopCode) {
+    finalStatus = "failed";
+    jobError = { code: childResult.taskStopCode === "quota_exhausted" ? "QUOTA_EXHAUSTED" : "TASK_RESOURCE_BLOCKED", message: childResult.taskStopCode };
+  } else if (acknowledgementFailed) {
     finalStatus = "orphaned";
     const ackError = acknowledgementError as Error | null;
     const ackMessage = ackError?.message ?? "unknown error";

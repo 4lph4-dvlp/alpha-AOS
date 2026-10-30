@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   createDynamicFinalReviewPort,
@@ -17,6 +17,11 @@ import type {
 } from "../src/core/task-final-review.js";
 import type { ProcessCode, ProcessResult, ProcessSpec } from "../src/core/process.js";
 import type { HarnessId } from "../src/types.js";
+import { gateMilestoneFinalReview } from "../src/core/task-final-review.js";
+import { collectTaskArtifact } from "../src/core/task-check.js";
+import { dispatchUsage, readTaskDispatches } from "../src/core/task-runtime.js";
+import { createTaskFixture } from "./helpers/task-fixture.js";
+import { gitCommand } from "./helpers/git-fixture.js";
 
 function sampleContract(reviewer: HarnessId = "claude"): TaskContract {
   return {
@@ -180,8 +185,8 @@ test("Task 1: All 5 native harnesses successfully execute final review with stru
           return processResult(claudeJson);
         } else if (harness === "codex") {
           // Codex can write to last-message.json or stdout
-          const lastMsgPath = join(scratchDir, ".alpha-aos-review", "final-last-message.json");
-          await mkdir(join(scratchDir, ".alpha-aos-review"), { recursive: true });
+          const lastMsgPath = spec.args[spec.args.indexOf("-o") + 1]!;
+          await mkdir(dirname(lastMsgPath), { recursive: true });
           await writeFile(lastMsgPath, JSON.stringify(report), "utf8");
           return processResult(JSON.stringify(report));
         } else {
@@ -235,6 +240,61 @@ test("Task 1: All 5 native harnesses successfully execute final review with stru
       await rm(scratchDir, { recursive: true, force: true }).catch(() => undefined);
     }
   }
+});
+
+test("native final gate isolates source and accounts the actual thread family rather than report identity", async (t) => {
+  const fixture = await createTaskFixture(t);
+  await mkdir(join(fixture.projectRoot, "src"), { recursive: true });
+  await writeFile(join(fixture.projectRoot, "src", "final-fixture.ts"), "export const value = 1;\n");
+  await writeFile(join(fixture.projectRoot, ".planning", "REQUIREMENTS.md"), "- **REV-03**: Independent milestone review\n");
+  const contract = { ...sampleContract("codex"), scope: { projectRoot: fixture.projectRoot, workflow: "gsd-multi-phase", summary: "native fixture" },
+    allowedRoots: ["src"], resourcePolicy: { maxTokens: 10000 } };
+  const contractDigest = taskContractDigest(contract);
+  const targetRevisionSha = gitCommand(fixture.projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+  const artifact = await collectTaskArtifact({ projectRoot: fixture.projectRoot, allowedRoots: contract.allowedRoots });
+  assert.equal(artifact.status, "ok");
+  if (artifact.status !== "ok") return;
+  const before = gitCommand(fixture.projectRoot, ["status", "--porcelain=v1", "--untracked-files=all"]).stdout;
+  const nativeSessionRoot = join(fixture.scratch, "native-family");
+  const directory = join(nativeSessionRoot, ...new Date().toISOString().slice(0, 10).split("-"));
+  await mkdir(directory, { recursive: true });
+  const nativeId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", childId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  let protocolId = "", observedRoot = "";
+  const port = createNativeFinalReviewPort("codex", { resolve: () => process.execPath,
+    runner: async (spec) => {
+      observedRoot = spec.cwd;
+      const sessionId = /sessionId ([0-9a-f-]{36})/iu.exec(spec.stdin ?? "")?.[1];
+      const requestId = /requestId ([0-9a-f-]{36})/iu.exec(spec.stdin ?? "")?.[1];
+      assert.ok(sessionId && requestId);
+      protocolId = sessionId;
+      assert.notEqual(spec.cwd, fixture.projectRoot);
+      assert.equal(await readFile(join(spec.cwd, "src", "final-fixture.ts"), "utf8"), "export const value = 1;\n");
+      const report = buildValidFinalReport({ requestId, sessionId, contractId: contract.id, contractDigest,
+        targetRevisionSha, artifactDigest: artifact.digest, reviewerHarness: "codex" });
+      await writeFile(spec.args[spec.args.indexOf("-o") + 1]!, JSON.stringify(report));
+      for (const [id, parent, input, output] of [[nativeId, null, 100, 10], [childId, nativeId, 20, 2]] as const) {
+        await writeFile(join(directory, `${id}.jsonl`), [
+          { type: "session_meta", payload: { id, cwd: spec.cwd, parent_thread_id: parent } },
+          { type: "event_msg", payload: { type: "token_count", info: { total_token_usage: { input_tokens: input, output_tokens: output } } } },
+        ].map((event) => JSON.stringify(event)).join("\n") + "\n");
+      }
+      const events = [{ type: "thread.started", thread_id: nativeId },
+        { type: "turn.completed", usage: { input_tokens: 100, output_tokens: 10 } }].map((event) => JSON.stringify(event)).join("\n") + "\n";
+      spec.onStdoutChunk?.(Buffer.from(events));
+      return { ...processResult(events), closeConfirmed: true };
+    } });
+  const gate = await gateMilestoneFinalReview({ projectRoot: fixture.projectRoot, stateRoot: fixture.stateRoot, contract,
+    contractDigest, targetRevisionSha, workingTreeDigest: artifact.digest, finalReviewPort: port, nativeSessionRoot });
+  assert.equal(gate.status, "accepted", gate.reason);
+  assert.notEqual(protocolId, nativeId);
+  const records = await readTaskDispatches(fixture.stateRoot, contractDigest);
+  assert.equal(records[0]?.sessionId, nativeId);
+  assert.equal(records[0]?.nativeCwd, observedRoot);
+  assert.equal(records[0]?.nativeCoverage, "family");
+  assert.equal(dispatchUsage(records).tokens, 132);
+  assert.equal(dispatchUsage(records).costUsd, null);
+  assert.equal(gitCommand(fixture.projectRoot, ["status", "--porcelain=v1", "--untracked-files=all"]).stdout, before);
+  assert.equal((await readdir(fixture.projectRoot)).includes(".alpha-aos-review"), false);
 });
 
 test("createDynamicFinalReviewPort dispatches according to agentPolicy.reviewer", async () => {

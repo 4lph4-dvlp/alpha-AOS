@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { runGitRead } from "./task-gsd.js";
-import { hasPassedVerification } from "./task-gsd-gates.js";
+import { hasPassedVerification, hasNyquistValidation, isExecutionSummaryComplete } from "./task-gsd-gates.js";
 
 export interface PlanCompletionProof {
   readonly planId: string;
@@ -73,7 +73,7 @@ export async function verifyPlanTripleCorrelation(options: {
       if (existsSync(cand)) {
         try {
           const s = await stat(cand);
-          if (s.isFile()) {
+          if (s.isFile() && isExecutionSummaryComplete(cand)) {
             hasSummary = true;
             summaryPath = cand;
             break;
@@ -218,8 +218,14 @@ export async function discoverPhaseProgression(options: {
       const verFile = [`${phaseId}-VERIFICATION.md`, "VERIFICATION.md"]
         .map((name) => join(phaseDir, name))
         .find((p) => existsSync(p));
-      if (verFile && !await hasPassedVerification(phaseDir, phaseId, { projectRoot })) {
+      if (!verFile || !await hasPassedVerification(phaseDir, phaseId, { projectRoot })) {
         isPhaseComplete = false;
+      }
+      try {
+        const config = JSON.parse(await readFile(join(projectRoot, ".planning", "config.json"), "utf8"));
+        if (config.workflow?.nyquist_validation === true && !hasNyquistValidation(phaseDir, phaseId)) isPhaseComplete = false;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") isPhaseComplete = false;
       }
     }
   }

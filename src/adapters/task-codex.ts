@@ -1,6 +1,6 @@
-import { lstat, mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { lstat, mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { canonicalizeWithMissingTail } from "../core/path-boundary.js";
 import { packageRoot as defaultPackageRoot } from "../core/paths.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
@@ -19,6 +19,8 @@ import {
   type TaskFinalReviewReport,
 } from "../core/task-final-review.js";
 import { rejectRawCredentials, validateManagedDocument } from "../core/validation.js";
+import { normalizeHarnessTelemetry } from "../core/task-telemetry.js";
+import { CodexUsageCollector } from "../core/task-native-usage.js";
 import type { RedactedExcerpt } from "../types.js";
 import { buildReviewPrompt, parseFinalReviewJson } from "./task-claude.js";
 import {
@@ -40,6 +42,12 @@ import {
 
 /** The ceiling on one controller run; a contract deadline can only shorten it. */
 export const CODEX_TASK_TIMEOUT_MS = 60 * 60 * 1000;
+
+export function codexEffortArgs(effort?: string): string[] {
+  if (effort === undefined) return [];
+  if (!["minimal", "low", "medium", "high", "xhigh", "max"].includes(effort)) throw new Error("Unsupported approved Codex effort");
+  return ["-c", `model_reasoning_effort=${JSON.stringify(effort)}`];
+}
 
 /**
  * How much of the JSONL event stream is retained for parsing. A GSD quick task
@@ -113,6 +121,21 @@ export function codexTaskEnvironment(
   const policy = nameOnlyEnvironment(CODEX_TASK_ENVIRONMENT_NAMES, source);
   if (options.gitConfigGlobal === undefined) return policy;
   return { ...policy, literal: { GIT_CONFIG_GLOBAL: options.gitConfigGlobal } };
+}
+
+/** The same approved git trust used by the controller, scoped to one native
+ * invocation. Ordinary command jobs never load this adapter. */
+export async function withCodexTaskEnvironment<T>(options: {
+  projectRoot: string; gitDirectory: string | null; source?: NodeJS.ProcessEnv;
+}, invoke: (environment: EnvironmentPolicy) => Promise<T>): Promise<T> {
+  if (options.gitDirectory === null) return invoke(codexTaskEnvironment(options.source));
+  const scratch = await mkdtemp(join(tmpdir(), "alpha-aos-codex-git-"));
+  try {
+    const gitConfigGlobal = await writeCodexRunGitConfig({ workDirectory: scratch, projectRoot: options.projectRoot });
+    return await invoke(codexTaskEnvironment(options.source, { gitConfigGlobal }));
+  } finally {
+    if (dirname(resolve(scratch)) === resolve(tmpdir()) && basename(scratch).startsWith("alpha-aos-codex-git-")) await rm(scratch, { recursive: true, force: true });
+  }
 }
 
 /** The alpha-AOS permission profile a controller with a granted git directory runs under. */
@@ -202,21 +225,24 @@ export async function writeCodexRunGitConfig(options: {
  * arrives on stdin (`-`), never in the argument vector.
  */
 export function codexControllerArgs(paths: {
+  durable?: boolean | undefined;
   projectRoot: string;
   outputSchemaPath: string;
   lastMessagePath: string;
   gitDirectory: string | null;
   model?: string | undefined;
+  effort?: string | undefined;
 }): string[] {
   return [
     "exec",
     "--json",
-    "--ephemeral",
+    ...(paths.durable ? [] : ["--ephemeral"]),
     "--ignore-rules",
     ...(paths.gitDirectory === null ? ["--sandbox", "workspace-write"] : codexGitAuthorityOverrides(paths.gitDirectory)),
     "-C",
     paths.projectRoot,
     ...(paths.model !== undefined && paths.model.trim().length > 0 ? ["-m", paths.model.trim()] : []),
+    ...codexEffortArgs(paths.effort),
     "--output-schema",
     paths.outputSchemaPath,
     "-o",
@@ -226,21 +252,24 @@ export function codexControllerArgs(paths: {
 }
 
 export function codexReviewerArgs(paths: {
+  durable?: boolean | undefined;
   reviewRoot: string;
   outputSchemaPath: string;
   lastMessagePath: string;
   model?: string | undefined;
+  effort?: string | undefined;
 }): string[] {
   return [
     "exec",
     "--json",
-    "--ephemeral",
+    ...(paths.durable ? [] : ["--ephemeral"]),
     "--ignore-rules",
     "--sandbox",
     "read-only",
     "-C",
     paths.reviewRoot,
     ...(paths.model !== undefined && paths.model.trim().length > 0 ? ["-m", paths.model.trim()] : []),
+    ...codexEffortArgs(paths.effort),
     "--output-schema",
     paths.outputSchemaPath,
     "-o",
@@ -286,6 +315,8 @@ function eventMessage(event: Record<string, unknown>): string | null {
 export function parseCodexEvents(stdout: RedactedExcerpt, outputCapped: boolean): CodexEvents {
   let sessionId: string | null = null;
   let usage: Record<string, number> | null = null;
+  let cumulativeUsage: Record<string, number> | null = null;
+  const completedIds = new Set<string>();
   let turnTerminal: "completed" | "failed" | null = null;
   let turnMessage: string | null = null;
   let errorMessage: string | null = null;
@@ -310,13 +341,26 @@ export function parseCodexEvents(stdout: RedactedExcerpt, outputCapped: boolean)
     eventCount += 1;
     const event = parsed as Record<string, unknown>;
     switch (event.type) {
+      case "event_msg": {
+        const payload = event.payload as { type?: string; info?: { total_token_usage?: unknown } } | undefined;
+        if (payload?.type === "token_count") cumulativeUsage = numericFields(payload.info?.total_token_usage) ?? cumulativeUsage;
+        break;
+      }
       case "thread.started":
         if (typeof event.thread_id === "string" && sessionId === null) sessionId = boundedSentence(event.thread_id, 200);
         break;
       case "turn.completed":
+        if (typeof event.turn_id === "string" && completedIds.has(event.turn_id)) break;
+        if (typeof event.turn_id === "string") completedIds.add(event.turn_id);
         turnTerminal = "completed";
         turnMessage = null;
-        usage = numericFields(event.usage);
+        {
+          const next = numericFields(event.usage);
+          if (next !== null) {
+            usage ??= {};
+            for (const [key, value] of Object.entries(next)) usage[key] = (usage[key] ?? 0) + value;
+          }
+        }
         break;
       case "turn.failed":
         turnTerminal = "failed";
@@ -331,7 +375,7 @@ export function parseCodexEvents(stdout: RedactedExcerpt, outputCapped: boolean)
     }
   }
 
-  const base = { sessionId, usage, eventCount, unparsedLines };
+  const base = { sessionId, usage: cumulativeUsage ?? usage, eventCount, unparsedLines };
   if (outputCapped || stdout.capped) return { ...base, terminal: "not-retained", message: "the event stream exceeded its retained bound" };
   if (turnTerminal === "completed") return { ...base, terminal: "completed", message: null };
   if (turnTerminal === "failed") return { ...base, terminal: "failed", message: turnMessage ?? errorMessage };
@@ -497,11 +541,13 @@ export async function runCodexController(
     args = [
       ...launch.argsPrefix,
       ...codexControllerArgs({
+        durable: request.onTelemetry !== undefined,
         projectRoot: request.projectRoot,
         outputSchemaPath,
         lastMessagePath,
         gitDirectory: request.gitDirectory,
         model: resolvedModel,
+        effort: request.contract.agentPolicy.controllerEffort,
       }),
     ];
     if (request.gitDirectory !== null) {
@@ -519,6 +565,7 @@ export async function runCodexController(
   }
 
   let result: ProcessResult;
+  const usageCollector = new CodexUsageCollector(request.onTelemetry);
   try {
     result = await runner({
       executable: launch.executable,
@@ -529,6 +576,8 @@ export async function runCodexController(
       timeoutMs: remaining === null ? CODEX_TASK_TIMEOUT_MS : Math.min(CODEX_TASK_TIMEOUT_MS, remaining),
       maxOutputBytes: CODEX_TASK_OUTPUT_BYTES,
       excerptBytes: CODEX_TASK_OUTPUT_BYTES,
+      ...(request.onSpawn ? { onSpawn: request.onSpawn } : {}),
+      onStdoutChunk: (chunk) => usageCollector.push(chunk),
     });
   } catch (error) {
     const code = error instanceof ProcessPolicyError ? error.code : "spawn-failed";
@@ -536,17 +585,23 @@ export async function runCodexController(
   }
 
   const events = parseCodexEvents(result.stdout, result.outputCapped);
+  const streamedUsage = usageCollector.finish();
+  const telemetry = streamedUsage.status === "measured" ? streamedUsage : normalizeHarnessTelemetry("codex", { usage: events.usage });
+  request.onProcess?.({ cwd: request.projectRoot, nativeSessionId: events.sessionId, processCode: result.code, exitCode: result.exitCode,
+    terminal: events.terminal, closeConfirmed: result.closeConfirmed ?? result.exitCode !== null });
   const read = await readCodexClaim(lastMessagePath, schema);
   const hasValidClaim = read.claim !== null;
   // Standard exit status interpretation (D-12, SC6):
   // If Codex produced a valid, schema-conforming claim in lastMessagePath, accept the claim
   // even if exitCode was non-zero, logging detail advisory rather than treating as fatal failure.
-  if (result.code !== "ok" && hasValidClaim) {
+  if (result.code !== "ok" && hasValidClaim && events.terminal === "completed") {
     return {
       harness: "codex",
       version,
       executable,
       sessionId: events.sessionId,
+      telemetry,
+      closeConfirmed: result.closeConfirmed ?? result.exitCode !== null,
       exitCode: result.exitCode,
       processCode: result.code,
       terminal: "completed",
@@ -560,6 +615,8 @@ export async function runCodexController(
     version,
     executable,
     sessionId: events.sessionId,
+    telemetry,
+    closeConfirmed: result.closeConfirmed ?? result.exitCode !== null,
     exitCode: result.exitCode,
     processCode: result.code,
     terminal: events.terminal,
@@ -677,14 +734,17 @@ export async function runCodexReviewer(
   const args = [
     ...launch.argsPrefix,
     ...codexReviewerArgs({
+      durable: request.onTelemetry !== undefined,
       reviewRoot: request.reviewRoot,
       outputSchemaPath,
       lastMessagePath,
       model: resolvedModel,
+      effort: request.contract.agentPolicy.reviewerEffort,
     }),
   ];
 
   let result: ProcessResult;
+  const usageCollector = new CodexUsageCollector(request.onTelemetry);
   try {
     result = await runner({
       executable: launch.executable,
@@ -695,6 +755,8 @@ export async function runCodexReviewer(
       timeoutMs: remaining === null ? CODEX_TASK_TIMEOUT_MS : Math.min(CODEX_TASK_TIMEOUT_MS, remaining),
       maxOutputBytes: CODEX_TASK_OUTPUT_BYTES,
       excerptBytes: CODEX_TASK_OUTPUT_BYTES,
+      ...(request.onSpawn ? { onSpawn: request.onSpawn } : {}),
+      onStdoutChunk: (chunk) => usageCollector.push(chunk),
     });
   } catch (error) {
     const code = error instanceof ProcessPolicyError ? error.code : "spawn-failed";
@@ -711,9 +773,12 @@ export async function runCodexReviewer(
   }
 
   const events = parseCodexEvents(result.stdout, result.outputCapped);
+  const streamedUsage = usageCollector.finish();
+  request.onProcess?.({ cwd: request.reviewRoot, nativeSessionId: events.sessionId, processCode: result.code, exitCode: result.exitCode,
+    terminal: events.terminal, closeConfirmed: result.closeConfirmed ?? result.exitCode !== null });
   const read = await readCodexReviewReport(lastMessagePath, schema);
   const hasValidReport = read.report !== null;
-  const clean = (result.code === "ok" && result.exitCode === 0) || (hasValidReport && (result.exitCode === 0 || result.exitCode === 1));
+  const clean = events.terminal === "completed" && ((result.code === "ok" && result.exitCode === 0) || (hasValidReport && (result.exitCode === 0 || result.exitCode === 1)));
 
   const issues: string[] = [];
   if (read.issue !== null) issues.push(read.issue);
@@ -726,6 +791,8 @@ export async function runCodexReviewer(
     version,
     executable,
     sessionId: events.sessionId ?? request.sessionId,
+    telemetry: streamedUsage.status === "measured" ? streamedUsage : normalizeHarnessTelemetry("codex", { usage: events.usage }),
+    closeConfirmed: result.closeConfirmed ?? result.exitCode !== null,
     exitCode: result.exitCode,
     processCode: result.code,
     report: clean ? read.report : null,
@@ -758,8 +825,8 @@ export async function runCodexFinalReviewer(
   }
 
   const schema = await loadAgentSchema("task-final-review.schema.json", options.packageRoot ?? defaultPackageRoot());
-  const workDirectory = join(request.reviewRoot, ".alpha-aos-review");
-  await mkdir(workDirectory, { recursive: true });
+  const workDirectory = await mkdtemp(join(tmpdir(), "alpha-aos-codex-final-"));
+  try {
   const outputSchemaPath = join(workDirectory, "final-review.schema.json");
   const lastMessagePath = join(workDirectory, "final-last-message.json");
   await writeFile(outputSchemaPath, `${JSON.stringify(agentFacingSchema(schema), null, 2)}\n`, "utf8");
@@ -773,15 +840,18 @@ export async function runCodexFinalReviewer(
     projectRoot: request.reviewRoot,
   });
 
+  const finalUsage = new CodexUsageCollector(request.onTelemetry);
   const result = await runner({
     executable: launch.executable,
     args: [
       ...launch.argsPrefix,
       ...codexReviewerArgs({
+        durable: request.onTelemetry !== undefined,
         reviewRoot: request.reviewRoot,
         outputSchemaPath,
         lastMessagePath,
         model: resolvedModel,
+        effort: request.contract.agentPolicy.reviewerEffort,
       }),
     ],
     cwd: request.reviewRoot,
@@ -790,8 +860,17 @@ export async function runCodexFinalReviewer(
     timeoutMs: remaining === null ? CODEX_TASK_TIMEOUT_MS : Math.min(CODEX_TASK_TIMEOUT_MS, remaining),
     maxOutputBytes: CODEX_TASK_OUTPUT_BYTES,
     excerptBytes: CODEX_TASK_OUTPUT_BYTES,
+    ...(request.onSpawn ? { onSpawn: request.onSpawn } : {}),
+    onStdoutChunk: (chunk) => finalUsage.push(chunk),
   });
 
+  const finalTelemetry = finalUsage.finish();
+  const events = parseCodexEvents(result.stdout, result.outputCapped);
+  request.onProcess?.({ cwd: request.reviewRoot, nativeSessionId: finalUsage.sessionId ?? events.sessionId, processCode: result.code,
+    exitCode: result.exitCode, terminal: events.terminal, closeConfirmed: result.closeConfirmed ?? result.exitCode !== null });
+  if (finalTelemetry.status !== "measured") {
+    request.onTelemetry?.({ ...normalizeHarnessTelemetry("codex", { usage: events.usage }), nativeSessionId: events.sessionId });
+  }
   if (result.code !== "ok" || (result.exitCode !== 0 && result.exitCode !== 1)) {
     throw new Error(`codex final review process failed with ${result.code} (exit ${String(result.exitCode)})`);
   }
@@ -818,4 +897,9 @@ export async function runCodexFinalReviewer(
   }
 
   return validated.report;
+  } finally {
+    if (dirname(resolve(workDirectory)) === resolve(tmpdir()) && basename(workDirectory).startsWith("alpha-aos-codex-final-")) {
+      await rm(workDirectory, { recursive: true, force: true });
+    }
+  }
 }

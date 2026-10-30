@@ -575,7 +575,7 @@ test("task status prints checkpoint and effect summary", async (context) => {
   assert.equal(human.exitCode, 0, human.stderr.excerpt);
   assert.ok(human.stdout.excerpt.includes("Task: inventory-summary"));
   assert.ok(human.stdout.excerpt.includes("Status: running"));
-  assert.ok(human.stdout.excerpt.includes("Cycle: 2"));
+  assert.ok(human.stdout.excerpt.includes("Logical cycles: 2"));
   assert.ok(human.stdout.excerpt.includes("Attempt: 2"));
 
   const machine = await cli(fixture, ["status", "inventory-summary", "--json"]);
@@ -866,7 +866,7 @@ test("task status presents verdict, reason, and next action before progress deta
 
   // Unmetered usage displayed as unmetered, not fake zeros
   assert.ok(out.includes("Tokens: (unmetered)"));
-  assert.ok(out.includes("Cost (USD): (unmetered)"));
+  assert.ok(out.includes("Reported cost (USD): (unavailable)"));
 });
 
 test("task status on reserved runId reports reserved status without phantom run record (UX-02, UX-03)", async (context) => {

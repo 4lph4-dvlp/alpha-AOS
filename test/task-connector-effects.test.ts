@@ -512,8 +512,7 @@ test("resumeTask on general contract demotes missing applied files to planned an
     resourcePolicy: {
       maxCycles: 5,
       maxWallTimeMinutes: 60,
-      maxTokens: 100000,
-      maxCostUsd: 10,
+      // This connector recovery fixture requests no unsupported Codex USD meter.
     },
     criterion: [
       {
@@ -741,8 +740,7 @@ test("resumeTask halts and records blocked checkpoint when unknown connector eff
     resourcePolicy: {
       maxCycles: 5,
       maxWallTimeMinutes: 60,
-      maxTokens: 100000,
-      maxCostUsd: 10,
+      // This connector recovery fixture requests no unsupported Codex USD meter.
     },
     criterion: [
       {

@@ -17,6 +17,19 @@
   ],
   "additionalProperties": false,
   "properties": {
+    "task": {
+      "type": "object", "additionalProperties": false,
+      "required": ["route", "contractPath", "contractDigest", "runId", "role", "prompt"],
+      "properties": {
+        "route": { "const": "codex-json-v1" },
+        "contractPath": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "contractDigest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "runId": { "type": "string", "pattern": "^[a-z0-9]{8,}-[a-f0-9]{8}$" },
+        "role": { "enum": ["controller", "executor", "reviewer"] },
+        "prompt": { "type": "string", "minLength": 1, "maxLength": 16384 },
+        "resumeSessionId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$" }
+      }
+    },
     "schemaVersion": { "type": "integer", "enum": [1] },
     "kind": { "type": "string", "enum": ["command-job-launch"] },
     "jobId": { "type": "string", "pattern": "^job-[0-9a-f]{16}$", "maxLength": 64 },

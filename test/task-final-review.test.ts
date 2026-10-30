@@ -13,6 +13,7 @@ import {
 } from "../src/core/task-final-review.js";
 import { orchestrateMultiPhaseProgression } from "../src/core/task-gsd-lifecycle.js";
 import { taskContractDigest, type TaskContract } from "../src/core/task-contract.js";
+import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
 
 function sampleContract(): TaskContract {
   return {
@@ -123,6 +124,11 @@ function buildValidFinalReport(options: {
   };
 }
 
+async function writeFinalRequirements(root: string): Promise<void> {
+  await mkdir(join(root, ".planning"), { recursive: true });
+  await writeFile(join(root, ".planning", "REQUIREMENTS.md"), "# Requirements\n- **REV-01**: Review report contracts\n- **REV-02**: Structured reviewer report\n");
+}
+
 test("parseRequirementsFromMarkdown extracts requirement IDs and descriptions", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
@@ -185,6 +191,7 @@ test("validateFinalReviewReport validates schema and detects revision/digest dri
 test("D-13: gateMilestoneFinalReview returns unknown when port is absent", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
+    await writeFinalRequirements(dir);
     const contract = sampleContract();
     const cDigest = taskContractDigest(contract);
 
@@ -208,37 +215,17 @@ test("D-13: gateMilestoneFinalReview returns unknown when port is absent", async
 test("D-14: gateMilestoneFinalReview returns unknown when required evidence is missing or unverified", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
+    await writeFinalRequirements(dir);
     const contract = sampleContract();
     const cDigest = taskContractDigest(contract);
     const targetSha = "1111111111111111111111111111111111111111";
     const artDigest = "a".repeat(64);
 
-    const unverifiedReport: TaskFinalReviewReport = {
-      ...buildValidFinalReport({
-        contractId: contract.id,
-        contractDigest: cDigest,
-        targetRevisionSha: targetSha,
-        artifactDigest: artDigest,
-      }),
-      requirements: [
-        {
-          requirementId: "REV-01",
-          description: "Review contract",
-          status: "unverified", // Missing verified status!
-          implementationLocation: {
-            path: "src/core/task-run.ts",
-            digest: "c".repeat(64),
-          },
-          checkReceiptRef: {
-            receiptId: "chk-01",
-            digest: "d".repeat(64),
-            status: "unknown",
-          },
-          reviewEvidenceRef: {
-            reportDigest: "e".repeat(64),
-          },
-        },
-      ],
+    const completeReport = buildValidFinalReport({ contractId: contract.id, contractDigest: cDigest,
+      targetRevisionSha: targetSha, artifactDigest: artDigest });
+    const unverifiedReport: TaskFinalReviewReport = { ...completeReport,
+      requirements: completeReport.requirements.map((row) => row.requirementId === "REV-01"
+        ? { ...row, status: "unverified", checkReceiptRef: { ...row.checkReceiptRef, status: "unknown" } } : row),
     };
 
     const port: FinalReviewPort = {
@@ -265,6 +252,7 @@ test("D-14: gateMilestoneFinalReview returns unknown when required evidence is m
 test("D-15: gateMilestoneFinalReview rejects when cross-phase core constraints fail", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
+    await writeFinalRequirements(dir);
     const contract = sampleContract();
     const cDigest = taskContractDigest(contract);
     const targetSha = "1111111111111111111111111111111111111111";
@@ -309,6 +297,7 @@ test("D-15: gateMilestoneFinalReview rejects when cross-phase core constraints f
 test("REV-03, Task 2: missing feature or architecture violation blocks milestone and routes to GSD repair", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
+    await writeFinalRequirements(dir);
     const contract = sampleContract();
     const cDigest = taskContractDigest(contract);
     const targetSha = "1111111111111111111111111111111111111111";
@@ -377,6 +366,7 @@ test("REV-03, Task 2: missing feature or architecture violation blocks milestone
 test("D-13, REV-03: successful final review yields accepted and writes immutable witness receipt", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
+    await writeFinalRequirements(dir);
     const contract = sampleContract();
     const cDigest = taskContractDigest(contract);
     const targetSha = "1111111111111111111111111111111111111111";
@@ -417,65 +407,86 @@ test("D-13, REV-03: successful final review yields accepted and writes immutable
   }
 });
 
-test("orchestrateMultiPhaseProgression invokes finalReviewPort and gates completion", async () => {
+test("orchestrateMultiPhaseProgression requires real GSD evidence and final independent acceptance", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
   try {
-    await mkdir(join(dir, ".planning"), { recursive: true });
-    await writeFile(join(dir, ".planning", "ROADMAP.md"), "### Phase 01: Scaffolding\n", "utf8");
-    await writeFile(join(dir, ".planning", "STATE.md"), "status: executing\n", "utf8");
+    const repository = await createOrdinaryRepository(dir, "project");
+    assert.equal(repository.ok, true);
+    if (!repository.ok) return;
+    const projectRoot = repository.fixture.path;
+    const stateRoot = join(dir, "runtime");
+    const planning = join(projectRoot, ".planning");
+    const phaseDir = join(planning, "phases", "01-fixture");
+    await mkdir(planning, { recursive: true });
+    await writeFile(join(planning, "ROADMAP.md"), "### Phase 01: Fixture\n");
+    await writeFile(join(planning, "STATE.md"), "status: executing\n");
+    await writeFinalRequirements(projectRoot);
+    const contract = { ...sampleContract(), scope: { projectRoot, workflow: "gsd-multi-phase", summary: "fixture" }, allowedRoots: ["src"] };
+    const baseCommit = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+    const noOp = { executable: process.execPath, args: ["-e", "process.exit(0)"] };
+    const options = { projectRoot, stateRoot, contract, baseCommit, phases: ["01"],
+      commandMap: { discuss: noOp, plan: noOp, execute: noOp, verify: noOp },
+      hookCommand: process.execPath, hookArgs: ["-e", "process.exit(0)"] };
+    assert.equal((await orchestrateMultiPhaseProgression(options)).finalStatus, "failed",
+      "Exit zero without GSD evidence cannot reach acceptance");
+    await mkdir(phaseDir, { recursive: true });
+    await writeFile(join(phaseDir, "01-01-PLAN.md"), "# Plan\n");
+    await writeFile(join(phaseDir, "01-01-SUMMARY.md"), "# Completed fixture\n");
+    await writeFile(join(phaseDir, "01-VERIFICATION.md"), "---\nstatus: passed\n---\nObserved fixture verification.\n");
+    await writeFile(join(planning, "STATE.md"), "Phase: 01 COMPLETE\n| 01 | 01-01 | complete |\n");
+    gitCommand(projectRoot, ["add", "-A"]);
+    assert.equal(gitCommand(projectRoot, ["commit", "-m", "docs(01-01): complete fixture"]).ok, true);
+    assert.equal((await orchestrateMultiPhaseProgression(options)).finalStatus, "needs-input");
+    let reviews = 0;
+    const finalReviewPort: FinalReviewPort = { evaluateMilestoneFinal: async (request) => {
+      reviews++;
+      return buildValidFinalReport({ contractId: contract.id, contractDigest: taskContractDigest(contract),
+        targetRevisionSha: request.targetRevisionSha, artifactDigest: request.artifactDigest });
+    } };
+    assert.equal((await orchestrateMultiPhaseProgression({ ...options, finalReviewPort })).finalStatus, "completed");
+    assert.equal(reviews, 1);
+    assert.equal((await orchestrateMultiPhaseProgression({ ...options, finalReviewPort })).finalStatus, "completed");
+    assert.equal(reviews, 1, "Unchanged basis reuses the actual independent witness");
+    await writeFile(join(planning, "REQUIREMENTS.md"), "- **REV-01**: Changed requirement basis.\n- **REV-02**: Structured reviewer report\n");
+    assert.equal((await orchestrateMultiPhaseProgression({ ...options, finalReviewPort })).finalStatus, "completed");
+    assert.equal(reviews, 2, "A requirement change invalidates the prior witness");
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
-    const contract = sampleContract();
-    const cDigest = taskContractDigest(contract);
-    const targetSha = "1111111111111111111111111111111111111111";
-    const artDigest = "a".repeat(64);
+test("fresh final review cannot dispatch with an unavailable Codex USD meter", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-meter-"));
+  try {
+    await writeFinalRequirements(dir);
+    const base = sampleContract();
+    const contract = { ...base, agentPolicy: { ...base.agentPolicy, controller: "codex" as const, executor: "codex" as const,
+      reviewer: "codex" as const }, resourcePolicy: { maxCostUsd: 1 } };
+    let calls = 0;
+    const gate = await gateMilestoneFinalReview({ projectRoot: dir, stateRoot: dir, contract, contractDigest: taskContractDigest(contract),
+      targetRevisionSha: "1".repeat(40), workingTreeDigest: "2".repeat(64), finalReviewPort: { evaluateMilestoneFinal: async () => {
+        calls++; throw new Error("Unsupported paid invocation must not occur");
+      } } });
+    assert.equal(gate.status, "unknown");
+    assert.equal(calls, 0);
+    assert.match(gate.reason, /telemetry_unavailable/);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
 
-    const stepCommand = { executable: process.execPath, args: ["-e", "process.exit(0)"] };
-    const commandMap = {
-      discuss: stepCommand,
-      plan: stepCommand,
-      execute: stepCommand,
-      verify: stepCommand,
-    };
-
-    // 1. Without finalReviewPort -> returns needs-input (port absent)
-    const resNoPort = await orchestrateMultiPhaseProgression({
-      projectRoot: dir,
-      stateRoot: dir,
-      contract,
-      baseCommit: targetSha,
-      phases: ["01"],
-      commandMap,
-      hookCommand: process.execPath,
-      hookArgs: ["-e", "process.exit(0)"],
-    });
-    assert.equal(resNoPort.finalStatus, "needs-input");
-
-    // 2. With passing finalReviewPort -> returns completed
-    const validReport = buildValidFinalReport({
-      contractId: contract.id,
-      contractDigest: cDigest,
-      targetRevisionSha: targetSha,
-      artifactDigest: artDigest,
-    });
-    const port: FinalReviewPort = {
-      evaluateMilestoneFinal: async () => validReport,
-    };
-
-    const resWithPort = await orchestrateMultiPhaseProgression({
-      projectRoot: dir,
-      stateRoot: dir,
-      contract,
-      baseCommit: targetSha,
-      workingTreeDigest: artDigest,
-      phases: ["01"],
-      commandMap,
-      finalReviewPort: port,
-      hookCommand: process.execPath,
-      hookArgs: ["-e", "process.exit(0)"],
-    });
-    assert.equal(resWithPort.finalStatus, "completed");
-    assert.equal(resWithPort.finalReviewGate?.status, "accepted");
-  } finally {
-    await rm(dir, { recursive: true, force: true });
+test("final requirement coverage rejects omitted, duplicate and unknown schema-valid rows", async () => {
+  for (const kind of ["omitted", "duplicate", "unknown"] as const) {
+    const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-coverage-"));
+    try {
+      await writeFinalRequirements(dir);
+      const contract = sampleContract(), contractDigest = taskContractDigest(contract);
+      const report = buildValidFinalReport({ contractId: contract.id, contractDigest, targetRevisionSha: "1".repeat(40), artifactDigest: "2".repeat(64) });
+      const rows = kind === "omitted" ? report.requirements.slice(0, 1) : kind === "duplicate"
+        ? [report.requirements[0]!, report.requirements[0]!]
+        : [report.requirements[0]!, { ...report.requirements[1]!, requirementId: "REV-99" }];
+      const gate = await gateMilestoneFinalReview({ projectRoot: dir, stateRoot: dir, contract, contractDigest,
+        targetRevisionSha: report.targetRevisionSha, workingTreeDigest: report.artifactDigest,
+        finalReviewPort: { evaluateMilestoneFinal: async () => ({ ...report, requirements: rows }) } });
+      assert.equal(gate.status, "unknown");
+      assert.match(gate.reason, /coverage/);
+      assert.equal(await readFinalReviewWitness(dir, contract.id), null);
+    } finally { await rm(dir, { recursive: true, force: true }); }
   }
 });

@@ -107,7 +107,7 @@ function sampleContract(projectRoot: string, policyOverrides?: Partial<TaskAgent
   };
 }
 
-test("resolveHarnessRoleModel respects precedence: direct option > agentPolicy > .planning/config.json", async (t) => {
+test("resolveHarnessRoleModel preserves approved policy and refuses contradictory adapter options", async (t) => {
   const root = await scratch(t, "precedence");
   await mkdir(join(root, ".planning"), { recursive: true });
 
@@ -123,15 +123,14 @@ test("resolveHarnessRoleModel respects precedence: direct option > agentPolicy >
     "utf8",
   );
 
-  // 1. Direct adapterModel takes highest priority
-  const directModel = await resolveHarnessRoleModel({
-    harness: "antigravity",
-    role: "reviewer",
-    adapterModel: "gemini-4-argon-direct",
-    agentPolicy: { controller: "antigravity", executor: "antigravity", reviewer: "antigravity", reviewerSession: "fresh-read-only", reviewerModel: "gemini-4-argon-contract" },
-    projectRoot: root,
-  });
-  assert.equal(directModel, "gemini-4-argon-direct");
+  // An explicit adapter option cannot replace an approved role model.
+  await assert.rejects(resolveHarnessRoleModel({
+    harness: "antigravity", role: "reviewer", adapterModel: "gemini-4-argon-direct",
+    agentPolicy: { controller: "antigravity", executor: "antigravity", reviewer: "antigravity",
+      reviewerSession: "fresh-read-only", reviewerModel: "gemini-4-argon-contract" }, projectRoot: root,
+  }), /differs from the approved role/);
+  assert.equal(await resolveHarnessRoleModel({ harness: "antigravity", role: "reviewer",
+    adapterModel: "gemini-4-argon-direct", projectRoot: root }), "gemini-4-argon-direct");
 
   // 2. In absence of direct option, contract agentPolicy takes priority
   const policyModel = await resolveHarnessRoleModel({

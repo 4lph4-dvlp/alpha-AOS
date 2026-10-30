@@ -80,6 +80,8 @@ export interface ProcessSpec {
    * Errors thrown by onSpawn are caught and ignored so they cannot crash runProcess.
    */
   onSpawn?: (child: { pid: number }) => void;
+  /** Internal telemetry consumer; raw chunks must never enter receipts. */
+  onStdoutChunk?: (chunk: Buffer) => void;
   /**
    * Bounded post-deadline / post-cancellation grace period in ms before unconfirmed
    * exit is resolved with closeConfirmed = false and streams are destroyed.
@@ -601,6 +603,9 @@ export async function runProcess(spec: ProcessSpec): Promise<ProcessResult> {
     const watch = (stream: NodeJS.ReadableStream | null, sink: BoundedStream): void => {
       stream?.on("data", (chunk: Buffer) => {
         sink.push(chunk);
+        if (stream === child.stdout && spec.onStdoutChunk) {
+          try { spec.onStdoutChunk(chunk); } catch { triggerCancellation(); }
+        }
         // A child that keeps writing past the budget is terminated rather than
         // allowed to exhaust memory, unless the caller opt into drain.
         if (spec.overflowPolicy !== "drain" && sink.totalBytes > limit * 8 && !cappedKill) {

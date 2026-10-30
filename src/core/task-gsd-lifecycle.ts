@@ -19,11 +19,19 @@ import {
 import {
   hasExecutionSummaries,
   hasPassedVerification,
+  hasNyquistValidation,
 } from "./task-gsd-gates.js";
 import { taskContractDigest, type TaskContract } from "./task-contract.js";
 import { userStateRoot } from "./paths.js";
 import type { HarnessId } from "../types.js";
-import { resolveHarnessRoleModel } from "../adapters/task-agent-launch.js";
+import { resolveHarnessRoleModel, resolveTaskAgentLaunch } from "../adapters/task-agent-launch.js";
+import { meteredTaskDispatch, TaskResourceError } from "./task-runtime.js";
+import { CodexUsageCollector } from "./task-native-usage.js";
+import { normalizeHarnessTelemetry } from "./task-telemetry.js";
+import { codexEffortArgs, codexGitAuthorityOverrides, withCodexTaskEnvironment } from "../adapters/task-codex.js";
+import { dispatchUsage, readTaskDispatches } from "./task-runtime.js";
+import { runGitRead } from "./task-gsd.js";
+import { collectTaskArtifact } from "./task-check.js";
 import {
   gateMilestoneFinalReview,
   type FinalReviewPort,
@@ -62,6 +70,7 @@ export interface GsdStepResult {
 }
 
 export interface ExecuteStepOptions {
+  readonly gitDirectory?: string | null | undefined;
   readonly projectRoot: string;
   readonly phaseId: string;
   readonly step: GsdStepKind;
@@ -87,6 +96,7 @@ export interface ExecuteStepOptions {
 }
 
 export interface RunPhaseOptions {
+  readonly gitDirectory?: string | null | undefined;
   readonly projectRoot: string;
   readonly phaseId: string;
   readonly contract: TaskContract;
@@ -106,6 +116,7 @@ export interface RunPhaseOptions {
 }
 
 export interface MultiPhaseOptions {
+  readonly gitDirectory?: string | null | undefined;
   readonly projectRoot: string;
   readonly contract: TaskContract;
   readonly baseCommit: string;
@@ -144,7 +155,7 @@ export function buildGsdStepWorkflowPrompt(step: GsdStepKind, phaseId: string): 
     case "execute":
       return `Execute the GSD execute-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/execute-phase.md) for Phase ${phaseId} with arguments "${phaseId} --no-transition". Implement every task in all wave plans cleanly with full unit tests and atomic git commits.`;
     case "verify":
-      return `Execute goal-backward phase verification and code review for Phase ${phaseId}: 1. Run verify-work workflow for Phase ${phaseId} to verify all requirements in codebase and produce VERIFICATION.md. 2. Fix any defects. 3. Ensure VERIFICATION.md has status: passed.`;
+      return `Execute goal-backward verification and independent code review for Phase ${phaseId}. Read current SHA, changed diff, requirements and prior findings; verify changes and related regressions first. Reuse still-valid evidence. Run verify-work and required Nyquist validate-phase gates. Record actual results in VERIFICATION.md and VALIDATION.md, including gaps or human_needed. Never force a passing status. Preserve mandatory final independent review.`;
   }
 }
 
@@ -478,16 +489,26 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     }
   } else if (options.contract?.agentPolicy?.controller) {
     const defaultCmd = resolveDefaultGsdHarnessCommand(
-      options.contract.agentPolicy.controller,
+      options.contract.agentPolicy[options.step === "execute" ? "executor" : options.step === "verify" ? "reviewer" : "controller"],
       options.step,
       options.phaseId,
     );
     executable = defaultCmd.executable;
     args = [...defaultCmd.args];
+    const records = options.stateRoot ? await readTaskDispatches(options.stateRoot, taskContractDigest(options.contract)) : [];
+    const progress = await discoverPhaseProgression({ projectRoot: options.projectRoot, phaseId: options.phaseId });
+    const packet = JSON.stringify({ contractDigest: taskContractDigest(options.contract), runId: options.runId ?? null,
+      phaseId: options.phaseId, step: options.step, currentSha: options.targetRevisionSha, artifactDigest: options.workingTreeDigest,
+      allowedRoots: options.contract.allowedRoots, allowedEffects: options.contract.allowedEffects,
+      agentPolicy: options.contract.agentPolicy, resourcePolicy: options.contract.resourcePolicy,
+      usage: dispatchUsage(records), pendingPlans: progress.pendingPlans, completedPlans: progress.completedPlans.map((plan) => plan.planId),
+      previousFailure: records.findLast((record) => record.status === "failed" || record.status === "interrupted")?.reason ?? null });
+    if (Buffer.byteLength(packet) > 8192) throw new Error("Native GSD task packet exceeds its 8 KiB bound");
+    args[args.length - 1] += `\nApproved bounded runtime packet: ${packet}\nPreserve partial summaries and dirty WIP; execute only remaining GSD slices. Do not plan a later phase while this phase is blocked. Required GSD reads/gates still apply.`;
   }
 
   // Resolve executable if not absolute
-  const resolvedExec = isAbsolute(executable)
+  let resolvedExec = isAbsolute(executable)
     ? executable
     : (resolveCommand(executable) ?? executable);
 
@@ -506,6 +527,8 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
       projectRoot: options.projectRoot,
     });
     if (resolvedModel) {
+      const modelFlag = args.findIndex((value) => value === "-m" || value === "--model");
+      if (modelFlag !== -1 && args[modelFlag + 1] !== resolvedModel) throw new Error("GSD argv model differs from the approved role model");
       if (detectedHarness === "codex") {
         if (!args.includes("-m") && !args.includes("--model")) {
           const execIdx = args.findIndex((a) => a === "exec");
@@ -528,16 +551,49 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     }
   }
 
+  if (detectedHarness === "codex") {
+    const role = options.step === "execute" ? "executor" : options.step === "verify" ? "reviewer" : "controller";
+    args.splice(1, 0, "--json", ...(options.gitDirectory ? codexGitAuthorityOverrides(options.gitDirectory) : ["--sandbox", "workspace-write"]),
+      ...codexEffortArgs(options.contract.agentPolicy[`${role}Effort`]));
+  }
+  if (detectedHarness !== null && (!options.stateRoot || !options.runId)) throw new Error("Native GSD steps require an exact run and external state root");
+  if (detectedHarness !== null) {
+    const launch = resolveTaskAgentLaunch(executable);
+    if (launch.status !== "ok") throw new Error(launch.reason);
+    resolvedExec = launch.executable;
+    args = [...launch.argsPrefix, ...args];
+  }
   // 3. Isolated bounded child process execution via runProcess
   const startTime = Date.now();
-  const processResult = await runProcess({
+  const processSpec = {
     executable: resolvedExec,
     args,
     cwd: options.projectRoot,
     timeoutMs: options.timeoutMs ?? 60_000,
     ...(options.stdin !== undefined ? { stdin: options.stdin } : {}),
     environment: { literal: scrubEnvironmentForOffTree(process.env).env },
-  });
+  };
+  const role = options.step === "execute" ? "executor" : options.step === "verify" ? "reviewer" : "controller";
+  const processResult = detectedHarness === null ? await runProcess(processSpec) : (await meteredTaskDispatch({
+    stateRoot: options.stateRoot ?? userStateRoot(), contract: options.contract,
+    digest: taskContractDigest(options.contract), runId: options.runId ?? "unbound-gsd-step", role,
+    invoke: async ({ onSpawn, onTelemetry, deadlineAt }) => {
+      if (!options.runId || !options.stateRoot) throw new Error("Native GSD steps require an exact run and external state root");
+      const collector = detectedHarness === "codex" ? new CodexUsageCollector(onTelemetry) : null;
+      const remaining = deadlineAt === null ? processSpec.timeoutMs : Date.parse(deadlineAt) - Date.now();
+      if (remaining <= 0) throw new TaskResourceError("wall_time_exceeded");
+      const invoke = (environment: import("./process.js").EnvironmentPolicy) => runProcess({ ...processSpec, environment,
+        timeoutMs: Math.min(processSpec.timeoutMs, remaining), onSpawn,
+        ...(collector ? { onStdoutChunk: (chunk: Buffer) => collector.push(chunk) } : {}) });
+      const result = detectedHarness === "codex" ? await withCodexTaskEnvironment({ projectRoot: options.projectRoot,
+        gitDirectory: options.gitDirectory ?? null }, invoke) : await invoke(processSpec.environment);
+      return { sessionId: collector?.sessionId ?? null, result,
+        processCode: result.code, exitCode: result.exitCode, closeConfirmed: result.closeConfirmed ?? result.exitCode !== null,
+        terminal: collector?.terminal ?? (result.code === "ok" ? "completed" : "failed"),
+        telemetry: collector?.finish() ?? normalizeHarnessTelemetry(detectedHarness, null),
+        detail: `${collector?.failureMessage ?? ""} ${result.stderr.excerpt}` };
+    },
+  })).result;
   const durationMs = Math.max(0, Date.now() - startTime);
 
   // 4. Interactive prompt detection and classifier evaluation (D-01, D-02)
@@ -625,7 +681,11 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
       };
     }
   } else if (phaseDir && options.step === "verify") {
-    if (!await hasPassedVerification(phaseDir, options.phaseId, { projectRoot: options.projectRoot })) {
+    let nyquistRequired = false;
+    try { nyquistRequired = JSON.parse(await readFile(join(options.projectRoot, ".planning", "config.json"), "utf8")).workflow?.nyquist_validation === true; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    if (!await hasPassedVerification(phaseDir, options.phaseId, { projectRoot: options.projectRoot }) ||
+      (nyquistRequired && !hasNyquistValidation(phaseDir, options.phaseId))) {
       return {
         step: options.step,
         phaseId: options.phaseId,
@@ -672,7 +732,15 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
   finalStep: string;
   receipts: readonly string[];
 }> {
-  const steps: readonly GsdStepKind[] = ["discuss", "plan", "execute", "verify"];
+  const phaseDir = await resolvePhaseDirectory(options.projectRoot, options.phaseId);
+  const files = phaseDir ? await readdir(phaseDir) : [];
+  const steps: GsdStepKind[] = [];
+  if (!files.some((name) => name.endsWith("CONTEXT.md"))) steps.push("discuss");
+  if (!files.some((name) => name.endsWith("-PLAN.md"))) steps.push("plan");
+  if (!hasExecutionSummaries(phaseDir, options.phaseId)) steps.push("execute");
+  // Verification observes current source and Nyquist; never skip it merely
+  // because a SUMMARY exists or a prior phase was marked ready.
+  steps.push("verify");
   const receipts: string[] = [];
   const accumulatedCapabilityReceipts: TaskCapabilityReceipt[] = [
     ...(options.priorReceipts ?? []),
@@ -687,8 +755,13 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
   }
 
   for (const step of steps) {
+    const currentHead = (await runGitRead(options.projectRoot, ["rev-parse", "HEAD"]).catch(() => options.targetRevisionSha)).trim();
+    const currentArtifact = await collectTaskArtifact({ projectRoot: options.projectRoot, allowedRoots: options.contract.allowedRoots });
+    if (currentArtifact.status !== "ok") return { success: false, finalStep: "artifact-unavailable", receipts };
     const result = await executeGsdStep({
       ...options,
+      targetRevisionSha: currentHead,
+      workingTreeDigest: currentArtifact.digest,
       step,
       priorReceipts: accumulatedCapabilityReceipts,
     });
@@ -796,6 +869,7 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
 
     // 2. Invoke GSD phase lifecycle for the pending phase
     const lifecycleResult = await runPhaseLifecycle({
+      gitDirectory: options.gitDirectory,
       projectRoot: options.projectRoot,
       phaseId,
       contract: options.contract,
@@ -820,6 +894,9 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       };
     }
 
+    const completed = await discoverPhaseProgression({ projectRoot: options.projectRoot, phaseId, baseCommit: options.baseCommit });
+    if (!completed.isPhaseComplete) return { completedPhases, finalStatus: "failed" };
+
     completedPhases.push(phaseId);
 
     // 3. Observe updated STATE.md and ROADMAP.md natively without writing any supervisor shadow state (D-09, D-12)
@@ -839,13 +916,17 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
   const stateRoot = options.stateRoot ?? userStateRoot();
   const cDigest = taskContractDigest(options.contract);
 
+  const finalHead = (await runGitRead(options.projectRoot, ["rev-parse", "HEAD"])).trim();
+  const finalArtifact = await collectTaskArtifact({ projectRoot: options.projectRoot, allowedRoots: options.contract.allowedRoots });
+  if (finalArtifact.status !== "ok") return { completedPhases, finalStatus: "failed" };
   const finalReviewGate = await gateMilestoneFinalReview({
+    runId: options.runId,
     projectRoot: options.projectRoot,
     stateRoot,
     contract: options.contract,
     contractDigest: cDigest,
-    targetRevisionSha: targetSha,
-    workingTreeDigest: treeDigest,
+    targetRevisionSha: finalHead,
+    workingTreeDigest: finalArtifact.digest,
     finalReviewPort: options.finalReviewPort,
     packageRoot: options.packageRoot,
   });

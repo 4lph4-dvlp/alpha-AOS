@@ -150,6 +150,9 @@
         "controllerModel": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:/-]+$" },
         "executorModel": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:/-]+$" },
         "reviewerModel": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9._:/-]+$" },
+        "controllerEffort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max"] },
+        "executorEffort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max"] },
+        "reviewerEffort": { "enum": ["minimal", "low", "medium", "high", "xhigh", "max"] },
         "reviewerSession": { "const": "fresh-read-only" },
         "differentReviewerPolicy": {
           "type": "string",

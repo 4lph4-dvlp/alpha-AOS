@@ -232,7 +232,8 @@ export async function auditTaskEffects(options: {
   const violations: TaskEffectViolation[] = [];
 
   for (const path of sortedUnique(changes.paths)) {
-    if (contract.scope.workflow === "gsd-quick" && (underRoot(path, ".planning") || GSD_RUNTIME_STATE_PATHS.includes(path))) {
+    if (["gsd-quick", "gsd-multi-phase", "gsd"].includes(contract.scope.workflow ?? "") &&
+      (underRoot(path, ".planning") || GSD_RUNTIME_STATE_PATHS.includes(path))) {
       planningPaths.push(path);
     } else if (path === decisionLog || ALPHA_AOS_RUNTIME_STATE_PATHS.includes(path)) {
       continue;

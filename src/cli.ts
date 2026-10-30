@@ -2127,7 +2127,7 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait"].includes(subcommand)) {
+    if (!["plan", "preview", "approve", "start", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait"].includes(subcommand)) {
       throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
@@ -2155,6 +2155,24 @@ async function main(): Promise<void> {
     }
     const context = observableContext();
     const stateRoot = userStateRoot();
+    if (subcommand === "dispatch") {
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: [], booleanFlags: ["--apply", "--json"] });
+      if (parsed.operands.length !== 1) throw new Error("task dispatch requires one structured task-job spec JSON path");
+      const specPath = resolve(parsed.operands[0]!);
+      const info = await stat(specPath);
+      if (!info.isFile() || info.size > 32 * 1024) throw new Error("Task job spec must be a bounded regular JSON file");
+      const { validateTaskJobBinding, previewApprovedTaskJob, startApprovedTaskJob } = await import("./core/task-native-job.js");
+      const binding = validateTaskJobBinding(JSON.parse(await readFile(specPath, "utf8")));
+      const preview = await previewApprovedTaskJob(binding, stateRoot);
+      if (!parsed.options.has("--apply")) {
+        print(preview, json, JSON.stringify(preview, null, 2), context);
+        return;
+      }
+      const result = await startApprovedTaskJob({ binding, stateRoot });
+      print({ ...result, contractDigest: binding.contractDigest, runId: binding.runId }, json,
+        `Native job ${result.jobId}: ${result.status}. Observe with alpha-aos job wait ${result.jobId}. GSD acceptance remains required.`, context);
+      return;
+    }
     const parts = positional(args.slice(2), [
       "--contract-digest",
       "--run",

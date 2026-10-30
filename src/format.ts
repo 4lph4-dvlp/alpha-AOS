@@ -1552,6 +1552,7 @@ export function formatTaskStatus(statusModel: {
   detail?: boolean | undefined;
   pendingSuggestionsCount?: number | undefined;
   suggestionsPath?: string | undefined;
+  runtime?: { dispatches: readonly unknown[]; usage: { observedModelCalls: number | null; sessions: number } } | undefined;
 }): string {
   const {
     checkpoint,
@@ -1588,11 +1589,16 @@ export function formatTaskStatus(statusModel: {
     ...(nextAction ? [`Next action: ${nextAction}`] : []),
     "",
     "Progress & Execution:",
-    `  Cycle: ${checkpoint.usage.cycles}`,
+    `  Logical cycles: ${checkpoint.usage.cycles}`,
+    ...(statusModel.runtime ? [
+      `  Native dispatches (selected run): ${statusModel.runtime.dispatches.length}`,
+      `  Observed model calls (contract): ${statusModel.runtime.usage.observedModelCalls ?? "(unavailable)"}`,
+      `  Native sessions (contract): ${statusModel.runtime.usage.sessions}`,
+    ] : []),
     `  Attempt: ${checkpoint.attemptIndex}`,
     `  Wall time: ${Math.round(checkpoint.usage.wallTimeMs / 1000)}s`,
     `  Tokens: ${checkpoint.usage.tokens !== null ? checkpoint.usage.tokens : "(unmetered)"}`,
-    `  Cost (USD): ${checkpoint.usage.costUsd !== null ? `$${checkpoint.usage.costUsd.toFixed(2)}` : "(unmetered)"}`,
+    `  Reported cost (USD): ${checkpoint.usage.costUsd !== null ? `$${checkpoint.usage.costUsd.toFixed(2)}` : "(unavailable)"}`,
     `  Last verified HEAD: ${checkpoint.lastVerifiedHead ?? "none"}`,
     `  Stop reason: ${checkpoint.stopReason ?? "none"}`,
     `  Effect summary: ${appliedCount} applied, ${pendingCount} pending`,

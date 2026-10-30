@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { validateTaskJobBinding } from "./task-job-binding.js";
 import { constants, existsSync, statSync } from "node:fs";
 import { link, lstat, mkdir, open, rename, rmdir, stat, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
@@ -127,6 +128,7 @@ export interface CommandJobRecord {
 }
 
 export interface PrivateLaunchSpec {
+  readonly task?: import("./task-native-job.js").TaskJobBinding;
   readonly schemaVersion: 1;
   readonly kind: "command-job-launch";
   readonly jobId: string;
@@ -243,6 +245,7 @@ export interface JobFence {
 }
 
 export interface StartCommandJobOptions {
+  readonly task?: import("./task-native-job.js").TaskJobBinding | undefined;
   readonly stateRoot: string;
   readonly cwd: string;
   readonly executable: string;
@@ -298,6 +301,7 @@ export function validateJobId(jobId: string): void {
 }
 
 export function computeSpecDigest(params: {
+  task?: import("./task-native-job.js").TaskJobBinding | undefined;
   executable: string;
   args: readonly string[];
   cwd: string;
@@ -310,6 +314,7 @@ export function computeSpecDigest(params: {
         args: params.args,
         cwd: params.cwd,
         deadlineMs: params.deadlineMs,
+        ...(params.task ? { task: params.task } : {}),
       }),
     )
     .digest("hex");
@@ -1140,6 +1145,7 @@ export function validatePrivateLaunchSpec(
 
   const spec = value as Record<string, unknown>;
   const allowedKeys = new Set([
+    "task",
     "schemaVersion",
     "kind",
     "jobId",
@@ -1233,11 +1239,13 @@ export function validatePrivateLaunchSpec(
   assertNoCredentialsInArgs(spec.executable, spec.args as string[], process.env);
 
   // Compute spec digest
+  if (spec.task !== undefined) validateTaskJobBinding(spec.task);
   const computedDigest = computeSpecDigest({
     executable: spec.executable,
     args: spec.args as string[],
     cwd: spec.cwd,
     deadlineMs: spec.deadlineMs,
+    ...(spec.task ? { task: spec.task as import("./task-native-job.js").TaskJobBinding } : {}),
   });
 
   // Check serialized size bound <= 64 KiB
@@ -1819,6 +1827,7 @@ export async function startCommandJob(
 
   // 8. Validate private launch spec BEFORE state creation
   const launchSpec = validatePrivateLaunchSpec({
+    ...(options.task ? { task: options.task } : {}),
     schemaVersion: 1,
     kind: "command-job-launch",
     jobId,
@@ -1831,6 +1840,7 @@ export async function startCommandJob(
   });
 
   const specDigest = computeSpecDigest({
+    ...(options.task ? { task: options.task } : {}),
     executable: resolvedExecutable,
     args,
     cwd: resolvedCwd,
@@ -2035,17 +2045,30 @@ export async function startCommandJob(
         // ignore
       }
 
-      await cleanupOwnedLaunch();
-
-      if (reconciled && reconciled.workerPid !== null && isProcessAlive(reconciled.workerPid)) {
-        throw new Error(
-          `Worker handshake timed out for job ${jobId}; worker process ${reconciled.workerPid} is active but unacknowledged (status: ${reconciled.status})`,
-        );
+      // The last bounded read can observe an acknowledgement published after
+      // the loop condition. Validate the full pinned identity before accepting
+      // that evidence; elapsed observer time does not invalidate a real claim.
+      if (reconciled && ["running", "completed", "failed", "cancelled", "timed_out"].includes(reconciled.status) &&
+        reconciled.acknowledgedAt !== null && reconciled.startedAt !== null && reconciled.childPid !== null &&
+        reconciled.stateRevision >= 1) {
+        assertJobIdentityMatch(reconciled, { ...identityOfJob(initialRecord),
+          workerPid: workerHandle?.pid ?? -1, workerHost: hostname() }, "handshake");
+        runningRecord = { ...reconciled, status: reconciled.status as StartCommandJobResult["status"] };
       }
 
-      throw new Error(
-        `Worker handshake failed: detached worker for job ${jobId} failed to start within ${HANDSHAKE_TIMEOUT_MS}ms`,
-      );
+      if (runningRecord === null) {
+        await cleanupOwnedLaunch();
+
+        if (reconciled && reconciled.workerPid !== null && isProcessAlive(reconciled.workerPid)) {
+          throw new Error(
+            `Worker handshake timed out for job ${jobId}; worker process ${reconciled.workerPid} is active but unacknowledged (status: ${reconciled.status})`,
+          );
+        }
+
+        throw new Error(
+          `Worker handshake failed: detached worker for job ${jobId} failed to start within ${HANDSHAKE_TIMEOUT_MS}ms`,
+        );
+      }
     }
   } catch (err: unknown) {
     await cleanupOwnedLaunch();
@@ -2201,6 +2224,11 @@ export async function cancelCommandJob(options: {
   }
   if (settlement.status === "refused" || settlement.status === "unresolved") {
     throw new Error(`Cancellation observation refused: code=${settlement.code}; ${settlement.reason}`);
+  }
+  if (settlement.status === "timeout") {
+    const final = await readJobRecord(stateRoot, jobId);
+    assertJobIdentityMatch(final, expected, "cancel");
+    if (TERMINAL_STATUSES.has(final.status)) return final;
   }
   throw new Error(`Cancellation confirmation was not observed: code=${settlement.status === "timeout" ? "CANCEL_OBSERVATION_TIMEOUT" : "CANCEL_OBSERVATION_ABORTED"}`);
 }

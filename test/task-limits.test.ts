@@ -185,24 +185,23 @@ test("evaluateResourceLimits accurately reports unmetered fields", () => {
 });
 
 test("checkCostMeterReadiness enforces fail-closed behavior for unmetered harnesses", async () => {
-  // Codex has telemetry
+  // Codex measures tokens, but has no USD meter.
   const codex = await checkCostMeterReadiness({
     controller: "codex",
     executor: "codex",
     reviewer: "codex",
     reviewerSession: "fresh-read-only",
   });
-  assert.equal(codex.supported, true);
+  assert.equal(codex.supported, false);
 
-  // Claude CLI has no telemetry
+  // Claude supports native measured cost.
   const claude = await checkCostMeterReadiness({
     controller: "claude",
     executor: "claude",
     reviewer: "claude",
     reviewerSession: "fresh-read-only",
   });
-  assert.equal(claude.supported, false);
-  assert.ok(claude.reason);
+  assert.equal(claude.supported, true);
 });
 
 test("detectQuotaExhaustion identifies HTTP 429 and provider balance messages", () => {

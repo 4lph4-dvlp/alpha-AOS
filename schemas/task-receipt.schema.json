@@ -373,6 +373,8 @@
         "reviewClassification": {
           "anyOf": [{ "type": "object" }, { "type": "null" }]
         },
+        "reviewBasisDigest": { "$ref": "#/$defs/sha256" },
+        "reusedReviewFrom": { "type": "string", "minLength": 1 },
         "generalReport": {
           "anyOf": [{ "type": "object" }, { "type": "null" }]
         }

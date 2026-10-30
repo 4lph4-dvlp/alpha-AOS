@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { dispatchUsage, readTaskDispatches, reconcileTaskRuntime } from "./task-runtime.js";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
@@ -64,7 +65,7 @@ export interface SuperviseTaskOptions {
   ports: TaskPorts;
   signal?: AbortSignal;
   now?: () => Date;
-  gsd?: { configRoot?: string; phaseId?: string };
+  gsd?: StartTaskOptions["gsd"] & { phaseId?: string };
 }
 
 export interface SupervisorResult {
@@ -305,6 +306,7 @@ export async function superviseTask(options: SuperviseTaskOptions): Promise<Supe
       attemptIndex: 0,
       lastSequence: 0,
       lastVerifiedHead: currentHead,
+      baseCommit: currentHead,
       usage: { cycles: 0, wallTimeMs: 0, tokens: null, costUsd: null },
       stopReason: null,
       updatedAt: (options.now ?? (() => new Date()))().toISOString(),
@@ -341,6 +343,7 @@ export async function resumeTask(options: SuperviseTaskOptions): Promise<Supervi
   if (checkpoint.status === "accepted") {
     throw new Error(`Cannot resume task: task r${contract.revision} is already accepted.`);
   }
+  await reconcileTaskRuntime(options.stateRoot, digest);
 
   const stopState = await readTaskStopState({
     stateRoot: options.stateRoot,
@@ -521,6 +524,10 @@ async function runSupervisorLoop(
     }
 
     // 2. Evaluate resource limits
+    const dispatches = await readTaskDispatches(options.stateRoot, digest);
+    const aggregate = dispatchUsage(dispatches);
+    checkpoint.usage.tokens = aggregate.tokens;
+    checkpoint.usage.costUsd = aggregate.costUsd;
     const limitCheck = evaluateResourceLimits(contract.resourcePolicy, checkpoint.usage);
     if (limitCheck.exceeded) {
       checkpoint.status = "stopped";
@@ -616,6 +623,9 @@ async function runSupervisorLoop(
     const duration = Date.now() - attemptStart;
     checkpoint.usage.cycles += 1;
     checkpoint.usage.wallTimeMs += duration;
+    const observedUsage = dispatchUsage(await readTaskDispatches(options.stateRoot, digest));
+    checkpoint.usage.tokens = observedUsage.tokens;
+    checkpoint.usage.costUsd = observedUsage.costUsd;
     if (contract.category !== "general") {
       checkpoint.lastVerifiedHead =
         (await runGitRead(projectRoot, ["rev-parse", "HEAD"]).catch(() => null))?.trim() ??
@@ -625,7 +635,9 @@ async function runSupervisorLoop(
     const errorMsg = attemptError instanceof Error ? attemptError.message : String(attemptError ?? "");
 
     // Check for quota exhaustion
-    if (attemptError && detectQuotaExhaustion(errorMsg)) {
+    const quotaObserved = (await readTaskDispatches(options.stateRoot, digest)).some((entry) =>
+      entry.runId === attemptResult?.run.runId && entry.reason === "quota_exhausted");
+    if ((attemptError && detectQuotaExhaustion(errorMsg)) || quotaObserved) {
       checkpoint.status = "stopped";
       checkpoint.stopReason = "quota_exhausted";
       checkpoint.updatedAt = (options.now ?? (() => new Date()))().toISOString();

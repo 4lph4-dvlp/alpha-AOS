@@ -140,8 +140,12 @@ test("worker fixture 1: ack write failure after child spawn -> owned child reape
 
     let spawnedPid: number | null = null;
     let foreignBytes: string | null = null;
+    let observedClosure = false;
 
     const _testSeams: JobWorkerTestSeams = {
+      onProcessOutcome: (result) => {
+        observedClosure = result.closeConfirmed === true && (result.exitCode !== null || result.signal !== null);
+      },
       onBeforeAck: async (child) => {
         spawnedPid = child.pid;
         // Rogue entity overwrites the record with foreign bytes before ack write
@@ -169,7 +173,7 @@ test("worker fixture 1: ack write failure after child spawn -> owned child reape
 
     assert.equal(process.exitCode, 1);
     assert.ok(typeof spawnedPid === "number" && (spawnedPid as number) > 0);
-    assert.throws(() => process.kill(spawnedPid as number, 0), (err: unknown) => (err as NodeJS.ErrnoException).code === "ESRCH", "acknowledgement failure must reap the actual owned child");
+    assert.equal(observedClosure, true, "the owned ChildProcess must confirm closure; a recycled PID is not process identity");
 
     // Foreign record bytes on disk must be completely untouched
     const currentBytes = await readFile(jobRecordPath(stateRoot, jobId), "utf8");

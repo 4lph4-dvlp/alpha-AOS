@@ -31,6 +31,19 @@ async function runCli(args: readonly string[], stateRoot: string, cwd = process.
   });
 }
 
+async function observeCancellation(result: ProcessResult, jobId: string, stateRoot: string, cwd = process.cwd()) {
+  if (result.exitCode === 0) return JSON.parse(result.stdout.excerpt);
+  assert.match(result.stderr.excerpt + result.stdout.excerpt, /CANCEL_OBSERVATION_TIMEOUT/);
+  const completion = await runCli(["job", "wait", jobId, "--timeout-ms", "10000", "--json"], stateRoot, cwd);
+  const terminal = JSON.parse(completion.stdout.excerpt);
+  assert.equal(terminal.jobId, jobId);
+  assert.equal(terminal.status, "cancelled");
+  // job wait reserves exit 0 for successful commands. Confirmed cancellation
+  // is terminal, but deliberately remains a non-successful command result.
+  assert.equal(completion.exitCode, 1, completion.stderr.excerpt + "\n" + completion.stdout.excerpt);
+  return terminal;
+}
+
 async function createCliTestFixture(): Promise<{
   stateRoot: string;
   projectRoot: string;
@@ -99,7 +112,7 @@ test("efficient-wait-cli: detached job start returns real handle before completi
     );
 
     assert.equal(startRes.code, "ok", startRes.stderr.excerpt);
-    assert.equal(startRes.exitCode, 0);
+    assert.equal(startRes.exitCode, 0, startRes.stderr.excerpt + "\n" + startRes.stdout.excerpt);
     const startPayload = JSON.parse(startRes.stdout.excerpt);
     assert.ok(startPayload.jobId.startsWith("job-"));
     assert.equal(startPayload.status, "running");
@@ -195,7 +208,7 @@ test("efficient-wait-cli: dry-run start and cancel create no side effects", asyn
       stateRoot,
       projectRoot,
     );
-    assert.equal(startRes.exitCode, 0);
+    assert.equal(startRes.exitCode, 0, startRes.stderr.excerpt + "\n" + startRes.stdout.excerpt);
     const startPayload = JSON.parse(startRes.stdout.excerpt);
     const jobId = startPayload.jobId;
     recordJob(jobId);
@@ -222,8 +235,7 @@ test("efficient-wait-cli: dry-run start and cancel create no side effects", asyn
       stateRoot,
       projectRoot,
     );
-    assert.equal(cancelRes.exitCode, 0);
-    const cancelPayload = JSON.parse(cancelRes.stdout.excerpt);
+    const cancelPayload = await observeCancellation(cancelRes, jobId, stateRoot, projectRoot);
     assert.equal(cancelPayload.status, "cancelled");
   } finally {
     await cleanup();
@@ -261,7 +273,7 @@ test("efficient-wait-cli: job start preserves argument array, child --help and -
       projectRoot,
     );
 
-    assert.equal(startRes.exitCode, 0);
+    assert.equal(startRes.exitCode, 0, startRes.stderr.excerpt + "\n" + startRes.stdout.excerpt);
     const startPayload = JSON.parse(startRes.stdout.excerpt);
     const jobId = startPayload.jobId;
     recordJob(jobId);
@@ -421,7 +433,7 @@ test("efficient-wait-cli: terminal failure preserves exit code and readable stde
       stateRoot,
       projectRoot,
     );
-    assert.equal(startRes.exitCode, 0);
+    assert.equal(startRes.exitCode, 0, startRes.stderr.excerpt + "\n" + startRes.stdout.excerpt);
     const jobId = JSON.parse(startRes.stdout.excerpt).jobId;
     recordJob(jobId);
 
@@ -585,7 +597,7 @@ test("efficient-wait-cli: job cancel dry-run preview does not mutate job state",
       ],
       stateRoot,
     );
-    assert.equal(startRes.exitCode, 0);
+    assert.equal(startRes.exitCode, 0, startRes.stderr.excerpt + "\n" + startRes.stdout.excerpt);
     const startPayload = JSON.parse(startRes.stdout.excerpt);
     const jobId = startPayload.jobId as string;
     assert.ok(jobId);
@@ -620,7 +632,8 @@ test("efficient-wait-cli: job cancel dry-run preview does not mutate job state",
       ],
       stateRoot,
     );
-    assert.equal(realCancelRes.exitCode, 0);
+    const realCancel = await observeCancellation(realCancelRes, jobId, stateRoot);
+    assert.equal(realCancel.status, "cancelled");
   } finally {
     await cleanup();
   }

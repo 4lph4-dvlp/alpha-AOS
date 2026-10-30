@@ -9,8 +9,12 @@ import {
 } from "../src/core/task-gsd-lifecycle.js";
 import { discoverPhaseProgression } from "../src/core/task-gsd-discovery.js";
 import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
-import { taskContractDigest, type TaskContract } from "../src/core/task-contract.js";
+import { approveTaskContract, loadTaskContract, taskContractDigest, type TaskContract } from "../src/core/task-contract.js";
 import type { FinalReviewPort } from "../src/core/task-final-review.js";
+import { resumeTask } from "../src/core/task-supervisor.js";
+import { readJournalEvents, writeCheckpoint } from "../src/core/task-journal.js";
+import { packageRoot } from "../src/core/paths.js";
+import type { TaskPorts } from "../src/core/task-run.js";
 
 async function scratch(context: TestContext, name: string): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), `alpha-aos-gsd-multiphase-${name}-`));
@@ -28,10 +32,10 @@ function createMockContract(projectRoot: string): TaskContract {
     goal: "Multi-phase autonomous progression",
     scope: {
       projectRoot,
-      workflow: "gsd-quick",
+      workflow: "gsd-multi-phase",
       summary: "Multi-phase test",
     },
-    allowedRoots: [projectRoot],
+    allowedRoots: ["preserved-wip.txt", "README.md", "package.json", "test.mjs"],
     allowedEffects: ["workspace-write", "local-commit"],
     criterion: [
       {
@@ -41,16 +45,18 @@ function createMockContract(projectRoot: string): TaskContract {
         mandatory: true,
         measurement: {
           kind: "cli-json",
-          entry: "node test.js",
+          entry: "test.mjs",
           inputText: "",
-          expect: { exitCode: 0, stdoutJson: null, stderrJson: null },
+          expect: { exitCode: 0, stdoutEmpty: true },
         },
       },
     ],
     agentPolicy: {
-      controller: "antigravity",
-      executor: "claude",
+      controller: "codex",
+      executor: "codex",
       reviewer: "codex",
+      controllerModel: "gpt-6.1-sol", executorModel: "gpt-6.1-terra", reviewerModel: "gpt-6.1-sol",
+      controllerEffort: "high", executorEffort: "high", reviewerEffort: "high",
       reviewerSession: "fresh-read-only",
     },
     resourcePolicy: {
@@ -67,7 +73,7 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
   assert.equal(repoRes.ok, true);
   if (!repoRes.ok) return;
   const projectRoot = repoRes.fixture.path;
-  const receiptsRoot = join(projectRoot, "receipts");
+  const receiptsRoot = join(stateRoot, "receipts");
 
   // 1. Set up GSD structure with 2 phases in ROADMAP.md
   const planningDir = join(projectRoot, ".planning");
@@ -100,18 +106,33 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
   ].join("\n");
   await writeFile(join(planningDir, "STATE.md"), initialState, "utf8");
 
+  await writeFile(join(planningDir, "config.json"), JSON.stringify({ workflow: { nyquist_validation: true } }));
+
+  await writeFile(join(planningDir, "REQUIREMENTS.md"), "- **REQ-01**: Default requirement\n");
+
+  await writeFile(join(projectRoot, "test.mjs"), "process.exit(0);\n");
+
   // Initial git commit
   gitCommand(projectRoot, ["add", "-A"]);
   const commitRes = gitCommand(projectRoot, ["commit", "-m", "chore: initialize planning state"]);
   assert.equal(commitRes.ok, true);
   const baseCommit = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
 
+  // Safe-resume fixture: partial production commit, incomplete summary and dirty WIP.
+  await writeFile(join(phase1Dir, "01-CONTEXT.md"), "# Locked original decisions\n");
+  await writeFile(join(phase1Dir, "01-01-PLAN.md"), "# Remaining execution slice\n");
+  await writeFile(join(phase1Dir, "01-01-SUMMARY.md"), "---\nstatus: partial\n---\nIncomplete execution.\n");
+  gitCommand(projectRoot, ["add", ".planning"]);
+  assert.equal(gitCommand(projectRoot, ["commit", "-m", "feat(01-01): partial fixture work"]).ok, true);
+  const wipPath = join(projectRoot, "preserved-wip.txt");
+  await writeFile(wipPath, "USER_WIP_MUST_REMAIN_DIRTY\n");
+
   // 2. Create mock GSD runner script that simulates native GSD workflow executions
-  const mockScriptPath = join(projectRoot, "mock-gsd-tool.cjs");
+  const mockScriptPath = join(parent, "mock-gsd-tool.cjs");
   const scriptContent = `
     const fs = require('fs');
     const path = require('path');
-    const { execSync } = require('child_process');
+    const { execFileSync } = require('child_process');
 
     const phaseArg = process.argv[2] || '01';
     const isPhase1 = phaseArg === '01' || phaseArg.includes('01');
@@ -122,7 +143,8 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
     // Determine current step based on artifacts in phaseDir
     const hasContext = fs.existsSync(path.join(phaseDir, phaseId + '-CONTEXT.md'));
     const hasPlan = fs.existsSync(path.join(phaseDir, phaseId + '-01-PLAN.md'));
-    const hasSummary = fs.existsSync(path.join(phaseDir, phaseId + '-01-SUMMARY.md'));
+    const summaryPath = path.join(phaseDir, phaseId + '-01-SUMMARY.md');
+    const hasSummary = fs.existsSync(summaryPath) && !fs.readFileSync(summaryPath, 'utf8').includes('status: partial');
     const hasVerification = fs.existsSync(path.join(phaseDir, phaseId + '-VERIFICATION.md'));
 
     if (!hasContext) {
@@ -141,11 +163,14 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
       fs.writeFileSync(statePath, state, 'utf8');
 
       // Commit as docs(<phase>-01):
-      execSync('git add -A', { cwd: ${JSON.stringify(projectRoot)} });
-      execSync('git commit -m "docs(' + phaseId + '-01): complete plan summary"', { cwd: ${JSON.stringify(projectRoot)} });
+      execFileSync('git', ['add', phaseDir, statePath], { cwd: ${JSON.stringify(projectRoot)} });
+      execFileSync('git', ['commit', '-m', 'docs(' + phaseId + '-01): complete plan summary'], { cwd: ${JSON.stringify(projectRoot)} });
     } else if (!hasVerification) {
       // Step: verify
       fs.writeFileSync(path.join(phaseDir, phaseId + '-VERIFICATION.md'), '---\\nstatus: passed\\n---\\n# Phase ' + phaseId + ' Verification\\n');
+    }
+    if (fs.existsSync(path.join(phaseDir, phaseId + '-VERIFICATION.md'))) {
+      fs.writeFileSync(path.join(phaseDir, phaseId + '-VALIDATION.md'), '---\\nstatus: validated\\nnyquist_compliant: true\\nwave_0_complete: true\\n---\\nObserved fixture validation.\\n');
     }
     process.exit(0);
   `;
@@ -160,8 +185,10 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
 
   const contract = createMockContract(projectRoot);
 
+  let finalReviews = 0;
   const mockFinalReviewPort: FinalReviewPort = {
     evaluateMilestoneFinal: async (req) => {
+      finalReviews++;
       const cDigest = taskContractDigest(req.contract);
       const items = req.requirements.length > 0
         ? req.requirements
@@ -174,7 +201,7 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
         targetRevisionSha: req.targetRevisionSha,
         artifactDigest: req.artifactDigest,
         sessionId: "sess-final-01",
-        reviewerHarness: "claude",
+        reviewerHarness: req.contract.agentPolicy.reviewer,
         reviewerVersion: "1.0.0",
         evaluatedAt: new Date().toISOString(),
         overallVerdict: "accepted",
@@ -206,6 +233,30 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
       };
     },
   };
+
+  // Enter through the public approved resume boundary, not only the lifecycle helper.
+  const contractPath = join(parent, "resume.contract.json");
+  await writeFile(contractPath, JSON.stringify(contract));
+  const loaded = await loadTaskContract(contractPath);
+  await approveTaskContract({ contractPath, expectedDigest: loaded.digest, stateRoot });
+  await writeCheckpoint(stateRoot, { schemaVersion: 1, contractDigest: loaded.digest, contractId: contract.id,
+    revision: contract.revision, status: "stopped", attemptIndex: 0, lastSequence: 0,
+    lastVerifiedHead: gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim(), baseCommit,
+    usage: { cycles: 0, wallTimeMs: 0, tokens: null, costUsd: null }, stopReason: "fixture_interruption",
+    updatedAt: new Date().toISOString() });
+  const ports: TaskPorts = {
+    controller: { dispatch: async () => { throw new Error("Quick controller must not run during multi-phase recovery"); } },
+    reviewer: { review: async () => { throw new Error("Criterion-only review cannot replace the milestone final gate"); } },
+    finalReview: mockFinalReviewPort,
+    assess: async () => ({ supported: true,
+      controller: { harness: "codex", version: "fixture", executable: process.execPath },
+      reviewer: { harness: "codex", version: "fixture", executable: process.execPath }, missingProof: [] }),
+  };
+  const resumed = await resumeTask({ contractPath, expectedDigest: loaded.digest, stateRoot, packageRoot: packageRoot(), ports,
+    gsd: { lifecycle: { commandMap, hookCommand: process.execPath, hookArgs: ["-e", "process.exit(0)"] } } });
+  assert.equal(resumed.status, "accepted", JSON.stringify({ checkpoint: resumed.checkpoint,
+    rejected: (await readJournalEvents(stateRoot, loaded.digest)).filter((entry) => entry.kind === "rejected").map((entry) => entry.payload).slice(-4) }));
+  assert.equal(finalReviews, 1);
 
   // 3. Execute multi-phase progression orchestrator
   const result = await orchestrateMultiPhaseProgression({
@@ -246,7 +297,12 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
 
   // Assertion 4: Verify no supervisor-owned shadow state was written to .planning/
   const planningEntries = await readdir(planningDir);
-  assert.deepEqual(planningEntries.sort(), ["ROADMAP.md", "STATE.md", "phases"].sort());
+  assert.deepEqual(planningEntries.sort(), ["ROADMAP.md", "STATE.md", "REQUIREMENTS.md", "config.json", "phases"].sort());
+
+  assert.equal(await readFile(wipPath, "utf8"), "USER_WIP_MUST_REMAIN_DIRTY\n");
+  assert.match(gitCommand(projectRoot, ["status", "--porcelain"]).stdout, /preserved-wip.txt/);
+  assert.equal(await readFile(join(phase1Dir, "01-CONTEXT.md"), "utf8"), "# Locked original decisions\n");
+  assert.match(await readFile(join(phase1Dir, "01-VALIDATION.md"), "utf8"), /nyquist_compliant: true/);
 
   // Assertion 5: Re-running on already-completed repo finishes without re-executing
   const rerunResult = await orchestrateMultiPhaseProgression({
@@ -259,5 +315,6 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
     finalReviewPort: mockFinalReviewPort,
   });
   assert.equal(rerunResult.finalStatus, "completed");
+  assert.equal(finalReviews, 1, "The same final evidence must not launch another independent review");
   assert.deepEqual(rerunResult.completedPhases, ["01", "02"]);
 });

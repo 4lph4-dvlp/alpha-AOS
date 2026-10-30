@@ -13,6 +13,7 @@ import { applyFileTransaction } from "./transaction.js";
 import { rejectRawCredentials, validateManagedDocument, type ValidationIssue } from "./validation.js";
 import { assertControllerRole, WorkerAuthorityError } from "./worker-authority.js";
 import type { TaskReapprovalPreview } from "../adapters/coursepilot-task.js";
+import { checkCostMeterReadiness as checkTelemetryReadiness } from "./task-telemetry.js";
 
 /** The domain separator every task contract digest is bound under. */
 export const TASK_CONTRACT_DIGEST_KIND = "task-contract";
@@ -67,6 +68,9 @@ export interface TaskAgentPolicy {
   controllerModel?: string | undefined;
   executorModel?: string | undefined;
   reviewerModel?: string | undefined;
+  controllerEffort?: string | undefined;
+  executorEffort?: string | undefined;
+  reviewerEffort?: string | undefined;
   reviewerSession: "fresh-read-only";
   differentReviewerPolicy?: DifferentReviewerPolicy | undefined;
 }
@@ -625,6 +629,10 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       ...(contract.agentPolicy.reviewerModel !== undefined
         ? { reviewerModel: contract.agentPolicy.reviewerModel.normalize("NFC") }
         : {}),
+      ...(contract.agentPolicy.controllerEffort !== undefined ? { controllerEffort: contract.agentPolicy.controllerEffort } : {}),
+      ...(contract.agentPolicy.executorEffort !== undefined ? { executorEffort: contract.agentPolicy.executorEffort } : {}),
+      ...(contract.agentPolicy.reviewerEffort !== undefined ? { reviewerEffort: contract.agentPolicy.reviewerEffort } : {}),
+      ...(contract.agentPolicy.differentReviewerPolicy !== undefined ? { differentReviewerPolicy: contract.agentPolicy.differentReviewerPolicy } : {}),
       reviewerSession: contract.agentPolicy.reviewerSession,
     },
     resourcePolicy: {
@@ -680,6 +688,10 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("agentPolicy.controllerModel", before.agentPolicy.controllerModel ?? null, after.agentPolicy.controllerModel ?? null);
   compare("agentPolicy.executorModel", before.agentPolicy.executorModel ?? null, after.agentPolicy.executorModel ?? null);
   compare("agentPolicy.reviewerModel", before.agentPolicy.reviewerModel ?? null, after.agentPolicy.reviewerModel ?? null);
+  compare("agentPolicy.controllerEffort", before.agentPolicy.controllerEffort ?? null, after.agentPolicy.controllerEffort ?? null);
+  compare("agentPolicy.executorEffort", before.agentPolicy.executorEffort ?? null, after.agentPolicy.executorEffort ?? null);
+  compare("agentPolicy.reviewerEffort", before.agentPolicy.reviewerEffort ?? null, after.agentPolicy.reviewerEffort ?? null);
+  compare("agentPolicy.differentReviewerPolicy", before.agentPolicy.differentReviewerPolicy ?? null, after.agentPolicy.differentReviewerPolicy ?? null);
   compare("agentPolicy.reviewerSession", before.agentPolicy.reviewerSession, after.agentPolicy.reviewerSession);
   compare("resourcePolicy.maxCostUsd", before.resourcePolicy.maxCostUsd, after.resourcePolicy.maxCostUsd);
   compare("resourcePolicy.maxCycles", before.resourcePolicy.maxCycles, after.resourcePolicy.maxCycles);
@@ -1130,6 +1142,8 @@ export async function assertTaskStartable(options: {
       );
     }
   }
+  const telemetry = checkTelemetryReadiness(loaded.contract.agentPolicy, loaded.contract.resourcePolicy);
+  if (!telemetry.ready) throw new TaskContractError("cost-meter-unavailable", telemetry.missingMeters.join("; "));
   return { loaded, approval };
 }
 
@@ -1141,6 +1155,8 @@ export type StandardStopCode =
   | "cycle_limit_exceeded"
   | "wall_time_exceeded"
   | "cost_limit_exceeded"
+  | "token_limit_exceeded"
+  | "telemetry_unavailable"
   | "no_progress_exhausted"
   | "quota_exhausted";
 
@@ -1190,8 +1206,13 @@ export function evaluateResourceLimits(
     usage.tokens >= policy.maxTokens
   ) {
     exceeded = true;
-    stopCode = "cost_limit_exceeded";
+    stopCode = "token_limit_exceeded";
     nextAction = "Review model token consumption or raise maxTokens in contract resourcePolicy";
+  } else if ((policy.maxTokens !== undefined && (usage.tokens === null || !Number.isFinite(usage.tokens))) ||
+    (policy.maxCostUsd !== undefined && (usage.costUsd === null || !Number.isFinite(usage.costUsd)))) {
+    exceeded = true;
+    stopCode = "telemetry_unavailable";
+    nextAction = "Required usage is unmeasured; restore verified telemetry before dispatching another model call";
   }
 
   const usageBreakdown: TaskUsageBreakdown = {
@@ -1210,34 +1231,19 @@ export async function checkCostMeterReadiness(
   policy: TaskAgentPolicy,
   ports?: unknown,
 ): Promise<{ supported: boolean; reason?: string }> {
-  // If external test double ports provide explicit metering flag:
+  // Compatibility wrapper: capability support is not evidence of measured usage.
   if (ports && typeof (ports as any).metered === "boolean") {
     if ((ports as any).metered) return { supported: true };
     return { supported: false, reason: "Task ports double explicitly declares cost metering unavailable" };
   }
 
-  // Codex provides structured event-based token and cost telemetry
-  if (policy.controller === "codex") {
-    return { supported: true };
-  }
-
-  // Claude CLI in autonomous mode currently lacks discrete cost telemetry
-  if (policy.controller === "claude") {
-    return {
-      supported: false,
-      reason: "Claude Code CLI does not provide reliable structured cost telemetry in autonomous mode",
-    };
-  }
-
-  return {
-    supported: false,
-    reason: `Controller harness "${policy.controller}" does not provide verified cost telemetry`,
-  };
+  const readiness = checkTelemetryReadiness(policy, { maxCostUsd: 1 });
+  return readiness.ready ? { supported: true } : { supported: false, reason: readiness.missingMeters.join("; ") };
 }
 
 export function detectQuotaExhaustion(output: string, exitCode?: number | null): boolean {
   if (exitCode === 429) return true;
   const pattern =
-    /(?:429|rate_limit_exceeded|insufficient_quota|usage limit exceeded|quota[_\s-]?exhausted|credit balance is too low|exceeded your current quota)/iu;
+    /(?:429|rate_limit_exceeded|insufficient_quota|usage limit exceeded|hit your usage limit|quota[_\s-]?exhausted|credit balance is too low|exceeded your current quota)/iu;
   return pattern.test(output);
 }

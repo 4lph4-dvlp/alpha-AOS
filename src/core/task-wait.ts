@@ -113,6 +113,7 @@ const CHECKPOINT_ALLOWED_KEYS = new Set([
   "attemptIndex",
   "lastSequence",
   "lastVerifiedHead",
+  "baseCommit",
   "usage",
   "stopReason",
   "updatedAt",
@@ -323,6 +324,10 @@ function validateCheckpointRecord(
   }
   if (cp.lastVerifiedHead !== null && (typeof cp.lastVerifiedHead !== "string" || cp.lastVerifiedHead.length === 0)) {
     return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint lastVerifiedHead must be non-empty string or null" };
+  }
+  if (cp.baseCommit !== undefined && cp.baseCommit !== null &&
+    (typeof cp.baseCommit !== "string" || !/^[a-f0-9]{40}(?:[a-f0-9]{24})?$/u.test(cp.baseCommit))) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint baseCommit must be an exact commit SHA or null" };
   }
   if (cp.stopReason !== null && typeof cp.stopReason !== "string") {
     return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint stopReason must be string or null" };

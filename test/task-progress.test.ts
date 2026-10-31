@@ -31,3 +31,29 @@ test("phase26 progress records final acceptance only from the run", async (t) =>
   const events = (await readTaskSessionEvents(fixture.stateRoot, binding)).events;
   assert.equal(events.filter((event) => event.kind === "run-outcome" && event.outcome === "accepted").length, 1);
 });
+
+test("phase26 progress preserves recorded decision reasons", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { dirname, join } = await import("node:path");
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: digest, revision: 1,
+    runId: "12345678-abcdef12", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const base = referenceControllerPort("correct");
+  const controller: typeof base = { async dispatch(request) {
+    const path = join(request.projectRoot, request.decisionLogPath);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify({ id: "choice-1", at: "2026-10-31T00:00:00.000Z", category: "implementation",
+      choice: "Use a bounded parser", rationale: "Input length is limited", criterionIds: [], substitute: null }) + "\n");
+    return base.dispatch(request);
+  } };
+  const { run } = await startFixtureTask(fixture, { expectedDigest: digest, runId: binding.runId,
+    ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }) });
+  assert.equal(run.decisions[0]?.rationale, "Input length is limited");
+  const events = (await readTaskSessionEvents(fixture.stateRoot, binding)).events;
+  assert.equal(events.find((event) => event.kind === "decision")?.recordedReason, "Input length is limited");
+});

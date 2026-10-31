@@ -26,9 +26,11 @@ test("phase26 receipt is not application: durable and idempotent", async (t) => 
   assert.equal(receipt.state, "received");
   assert.deepEqual(await submitTaskSteering({ stateRoot: fixture.stateRoot, proposal }), receipt);
   await assert.rejects(submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { ...proposal, text: "Different content" } }));
-  assert.deepEqual(await readTaskSteering({ stateRoot: fixture.stateRoot, binding }), [receipt]);
+  const receivedFacts = await readTaskSteering({ stateRoot: fixture.stateRoot, binding });
+  assert.deepEqual(receivedFacts[0], receipt);
+  assert.ok(receivedFacts.some((fact) => fact.state === "deferred" && fact.reason?.includes("no-safe-boundary")));
   const { readTaskSessionPacket } = await import("../src/core/task-read.js");
-  assert.deepEqual((await readTaskSessionPacket({ stateRoot: fixture.stateRoot, binding, limit: 10 })).proposalDispositions, [receipt]);
+  assert.deepEqual((await readTaskSessionPacket({ stateRoot: fixture.stateRoot, binding, limit: 10 })).proposalDispositions, receivedFacts);
   await assert.rejects(readTaskSteering({ stateRoot: fixture.stateRoot, binding: { ...binding, originatingSessionId: "another-session" } }));
   await assert.rejects(submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { ...proposal, requestId: "big", text: "x".repeat(8193) } }));
   await assert.rejects(submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { ...proposal, requestId: "secret", text: "token=private-value" } }));

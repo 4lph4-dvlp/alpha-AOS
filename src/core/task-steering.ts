@@ -14,7 +14,7 @@ export interface TaskSteeringProposal {
   evidenceIds?: string[];
 }
 type Receipt = { state: "received"; digest: string; requestId: string; binding: TaskSessionBinding; submittedAt: string; actor: "user"; sequence: number | null };
-type BoundaryFact = { state: "delivered" | "assessed" | "applied" | "rejected" | "deferred"; digest: string; requestId: string; binding: TaskSessionBinding; actor: "controller"; boundary: string; recordedAt: string; reason: string | null };
+type BoundaryFact = { state: "delivered" | "assessed" | "applied" | "rejected" | "deferred"; digest: string; requestId: string; binding: TaskSessionBinding; actor: "controller" | "system"; boundary: string; recordedAt: string; reason: string | null };
 const id = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 function normalize(value: TaskSteeringProposal): TaskSteeringProposal {
@@ -34,6 +34,23 @@ async function validateRun(stateRoot: string, binding: TaskSessionBinding): Prom
   const { exactRun } = await import("./task-progress-launch.js");
   await exactRun(stateRoot, binding);
   await readTaskSessionEvents(stateRoot, binding);
+}
+export async function previewTaskSteering(options: { stateRoot: string; proposal: TaskSteeringProposal }) {
+  const proposal = normalize(options.proposal);
+  await validateRun(options.stateRoot, proposal.binding);
+  if (proposal.evidenceIds?.length) {
+    const replay = await readTaskSessionEvents(options.stateRoot, proposal.binding);
+    const known = new Set(replay.events.flatMap((event) => event.evidenceRefs));
+    if (proposal.evidenceIds.some((ref) => !known.has(ref))) throw new Error("Unknown task steering evidence reference");
+  }
+  const digest = hash(JSON.stringify(proposal));
+  const facts = await readTaskSteering({ stateRoot: options.stateRoot, binding: proposal.binding });
+  const existing = facts.find((entry) => entry.state === "received" && entry.requestId === proposal.requestId);
+  if (existing && existing.digest !== digest) throw new Error("Conflicting task steering request");
+  const run = await (await import("./task-progress-launch.js")).exactRun(options.stateRoot, proposal.binding);
+  return { schemaVersion: 1 as const, binding: proposal.binding, requestId: proposal.requestId, proposalDigest: digest,
+    existing: Boolean(existing), deliveryAvailability: run.dedicated || ["accepted", "rejected", "blocked", "stopped"].includes(run.run.status) ? "no-safe-boundary" : "unknown",
+    authority: "proposal-only; revised approval is required for expanded authority" };
 }
 export async function hasExactTaskStop(options: { stateRoot: string; binding: TaskSessionBinding; projectRoot: string }): Promise<boolean> {
   const { readTaskStopState, taskStopRecordPath } = await import("./task-control.js");
@@ -63,17 +80,17 @@ export async function submitTaskSteering(options: { stateRoot: string; proposal:
   const dir = directory(options.stateRoot, proposal.binding), content = JSON.stringify(proposal);
   // Exclusive immutable slots bound concurrent producers without a recoverable lock.
   const start = Number.parseInt(hash(proposal.requestId).slice(0, 8), 16) % 100;
-  let stored = false;
+  let stored = false, storedPath = "";
   for (let offset = 0; offset < 100; offset++) {
     const path = slotFor(dir, (start + offset) % 100);
-    try { await writeAtomicPrivateFile(path, content, 16 * 1024, options.stateRoot, { exclusive: true }); stored = true; break; }
+    try { await writeAtomicPrivateFile(path, content, 16 * 1024, options.stateRoot, { exclusive: true }); stored = true; storedPath = path; break; }
     catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
       const previous = await readProposal(path, options.stateRoot);
       if (JSON.stringify(previous.binding) !== JSON.stringify(proposal.binding)) throw new Error("Task steering binding mismatch");
       if (previous.requestId === proposal.requestId) {
         if (JSON.stringify(previous) !== content) throw new Error("Conflicting task steering request");
-        stored = true; break;
+        stored = true; storedPath = path; break;
       }
     }
   }
@@ -82,6 +99,20 @@ export async function submitTaskSteering(options: { stateRoot: string; proposal:
   const event = await appendTaskSessionEvent(options.stateRoot, proposal.binding, { sourceEventId: `steering:${digest}`, observedAt: proposal.submittedAt,
     kind: "steering-received", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
     observedEffort: null, outcome: "received", processState: null, recordedReason: null, evidenceRefs: [] });
+  const run = await (await import("./task-progress-launch.js")).exactRun(options.stateRoot, proposal.binding);
+  if (run.dedicated || ["accepted", "rejected", "blocked", "stopped"].includes(run.run.status)) {
+    const facts = await readTaskSteering({ stateRoot: options.stateRoot, binding: proposal.binding });
+    const finalFact = facts.find((fact) => fact.digest === digest && ["deferred", "rejected", "applied"].includes(fact.state));
+    if (!finalFact || (finalFact.state === "deferred" && finalFact.actor === "system")) {
+      let fact: BoundaryFact = { state: "deferred", digest, requestId: proposal.requestId, binding: proposal.binding, actor: "system", boundary: "no-safe-boundary", recordedAt: new Date().toISOString(), reason: "no-safe-boundary: no eligible controller dispatch" };
+      const factPath = storedPath.replace(/\.json$/u, ".deferred.json");
+      try { await writeAtomicPrivateFile(factPath, JSON.stringify(fact), 4096, options.stateRoot, { exclusive: true }); }
+      catch (error) { if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error; fact = JSON.parse(await readBoundedFile(factPath, options.stateRoot, 4096)) as BoundaryFact; }
+      if (fact.actor === "system") await appendTaskSessionEvent(options.stateRoot, proposal.binding, { sourceEventId: `steering:${hash(`${digest}:deferred`)}`, observedAt: fact.recordedAt,
+        kind: "steering-deferred", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
+        observedEffort: null, outcome: "deferred", processState: null, recordedReason: fact.reason, evidenceRefs: [] });
+    }
+  }
   return { state: "received", digest, requestId: proposal.requestId, binding: proposal.binding, submittedAt: proposal.submittedAt, actor: "user", sequence: event.sequence };
 }
 export async function readTaskSteering(options: { stateRoot: string; binding: TaskSessionBinding }): Promise<(Receipt | BoundaryFact)[]> {
@@ -113,7 +144,7 @@ export async function readTaskSteering(options: { stateRoot: string; binding: Ta
       const factName = `${name.slice(0, 3)}.${state}.json`;
       if (!allNames.includes(factName)) continue;
       const fact = JSON.parse(await readBoundedFile(join(dir, factName), options.stateRoot, 4096)) as BoundaryFact;
-      if (Object.keys(fact).sort().join(",") !== "actor,binding,boundary,digest,reason,recordedAt,requestId,state" || fact.state !== state || fact.actor !== "controller" || fact.digest !== digest || fact.requestId !== proposal.requestId || JSON.stringify(fact.binding) !== JSON.stringify(binding) || !id.test(fact.boundary) || !Number.isFinite(Date.parse(fact.recordedAt)) || (fact.reason !== null && (typeof fact.reason !== "string" || fact.reason.length > 512))) throw new Error("Invalid task steering fact");
+      if (Object.keys(fact).sort().join(",") !== "actor,binding,boundary,digest,reason,recordedAt,requestId,state" || fact.state !== state || (fact.actor !== "controller" && !(fact.actor === "system" && fact.state === "deferred" && fact.boundary === "no-safe-boundary")) || fact.digest !== digest || fact.requestId !== proposal.requestId || JSON.stringify(fact.binding) !== JSON.stringify(binding) || !id.test(fact.boundary) || !Number.isFinite(Date.parse(fact.recordedAt)) || (fact.reason !== null && (typeof fact.reason !== "string" || fact.reason.length > 512))) throw new Error("Invalid task steering fact");
       receipts.push(fact);
     }
   }

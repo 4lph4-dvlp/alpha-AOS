@@ -19,7 +19,7 @@ import type { TaskCheckpoint } from "./core/task-journal.js";
 import { createHash } from "node:crypto";
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, dirname } from "node:path";
 import type { CapabilityReportRow, DiscoverySweep, HandoffPair } from "./core/canary.js";
 import type { CapabilityProof, HarnessVersion, LedgerHarness } from "./core/capability-ledger.js";
 
@@ -71,6 +71,8 @@ Usage:
   alpha-aos task wait <contract-id> --run <run-id> --contract-digest <digest> --revision <revision> [--scope attempt|supervisor] [--timeout-ms <ms>] [--json]
   alpha-aos task stop <contract-id> [--reason <reason>] [--json]
   alpha-aos task answer <answer> [--run <digest>] [--json]
+  alpha-aos task context|steering <contract-id> --run <run-id> --contract-digest <digest> --revision <n> --origin-host <host> --origin-session <id> [--json]
+  alpha-aos task steer <proposal.json> [--apply] [--json]
   alpha-aos task doctor [--json]
   alpha-aos job start --cwd <dir> [--deadline-ms <ms>] [--apply] [--json] -- <executable> [args...]
   alpha-aos job status <job-id> [--json]
@@ -2127,7 +2129,7 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait"].includes(subcommand)) {
+    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering"].includes(subcommand)) {
       throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
@@ -2155,6 +2157,40 @@ async function main(): Promise<void> {
     }
     const context = observableContext();
     const stateRoot = userStateRoot();
+    if (subcommand === "context" || subcommand === "steering") {
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--run", "--contract-digest", "--revision", "--origin-host", "--origin-session", ...(subcommand === "context" ? ["--after-sequence", "--limit"] : [])], booleanFlags: ["--json"] });
+      if (parsed.operands.length !== 1) throw new Error(`task ${subcommand} requires exactly one contract id`);
+      const value = (key: string): string => { const item = parsed.options.get(key); if (typeof item !== "string" || !item) throw new Error(`task ${subcommand} requires ${key}`); return item; };
+      const { validateTaskSessionBinding } = await import("./core/task-session.js");
+      const revision = value("--revision");
+      if (!/^[1-9]\d*$/u.test(revision)) throw new Error("Invalid revision");
+      const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: parsed.operands[0], contractDigest: value("--contract-digest"), revision: Number(revision),
+        runId: value("--run"), host: value("--origin-host"), originatingSessionId: value("--origin-session") });
+      if (subcommand === "steering") {
+        const { readTaskSteering } = await import("./core/task-steering.js");
+        const facts = await readTaskSteering({ stateRoot, binding });
+        const packet = { binding, facts: facts.slice(-50), truncated: facts.length > 50 };
+        print(packet, json, JSON.stringify(packet, null, 2), context);
+      } else {
+        const parseNumber = (key: string, fallback: number): number => { const raw = parsed.options.get(key); if (raw === undefined) return fallback; if (typeof raw !== "string" || !/^\d+$/u.test(raw) || !Number.isSafeInteger(Number(raw))) throw new Error(`Invalid ${key}`); return Number(raw); };
+        const { readTaskSessionPacket } = await import("./core/task-read.js");
+        const packet = await readTaskSessionPacket({ stateRoot, binding, afterSequence: parseNumber("--after-sequence", 0), limit: parseNumber("--limit", 50) });
+        print(packet, json, JSON.stringify(packet, null, 2), context);
+      }
+      return;
+    }
+    if (subcommand === "steer") {
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: [], booleanFlags: ["--apply", "--json"] });
+      if (parsed.operands.length !== 1) throw new Error("task steer requires one proposal JSON file");
+      const path = resolve(parsed.operands[0]!);
+      const { readBoundedFile } = await import("./core/command-jobs.js");
+      const proposal = JSON.parse(await readBoundedFile(path, dirname(path), 16 * 1024)) as import("./core/task-steering.js").TaskSteeringProposal;
+      const { previewTaskSteering, submitTaskSteering } = await import("./core/task-steering.js");
+      const preview = await previewTaskSteering({ stateRoot, proposal });
+      const result = parsed.options.has("--apply") ? { ...preview, submitted: true, receipt: await submitTaskSteering({ stateRoot, proposal }) } : { ...preview, submitted: false };
+      print(result, json, JSON.stringify(result, null, 2), context);
+      return;
+    }
     if (subcommand === "panel-serve") {
       const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--launch-id", "--state-root"], booleanFlags: [] });
       const id = parsed.options.get("--launch-id");

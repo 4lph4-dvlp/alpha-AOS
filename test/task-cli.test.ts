@@ -189,6 +189,63 @@ async function contractFixture(context: Parameters<typeof createTaskFixture>[0])
   return { fixture, digest };
 }
 
+async function phase26SessionFixture(context: Parameters<typeof createTaskFixture>[0]) {
+  const { fixture, digest } = await contractFixture(context);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const { run } = await startFixtureTask(fixture, { ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }), expectedDigest: digest });
+  const binding = { schemaVersion: 1 as const, contractId: run.contractId, contractDigest: digest, revision: run.revision, runId: run.runId,
+    host: "codex" as const, originatingSessionId: "cli-session" };
+  await (await import("../src/core/task-session.js")).createTaskSession(fixture.stateRoot, binding);
+  const flags = [run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "cli-session", "--json"];
+  const proposalPath = join(fixture.scratch, "proposal.json");
+  await writeFile(proposalPath, JSON.stringify({ schemaVersion: 1, binding, requestId: "cli-1", submittedAt: "2026-11-01T00:00:00Z", text: "Reuse the approved layout." }));
+  return { fixture, binding, flags, proposalPath };
+}
+
+test("phase26 context and steer require exact origin", async (t) => {
+  const { fixture, flags } = await phase26SessionFixture(t);
+  assert.equal((await cli(fixture, ["context", ...flags])).exitCode, 0);
+  const missing = [...flags]; missing.splice(missing.indexOf("--origin-session"), 2);
+  assert.notEqual((await cli(fixture, ["context", ...missing])).exitCode, 0);
+  const wrong = [...flags]; wrong[wrong.indexOf("--origin-session") + 1] = "different";
+  assert.notEqual((await cli(fixture, ["steering", ...wrong])).exitCode, 0);
+  assert.notEqual((await cli(fixture, ["context", ...flags, "--bogus"])).exitCode, 0);
+});
+
+test("phase26 CLI steering is explicit and idempotent", async (t) => {
+  const { fixture, flags, proposalPath } = await phase26SessionFixture(t);
+  const preview = await cli(fixture, ["steer", proposalPath, "--json"]);
+  assert.equal(preview.exitCode, 0, preview.stderr.excerpt);
+  assert.equal((JSON.parse(preview.stdout.excerpt) as { submitted: boolean }).submitted, false);
+  const first = await cli(fixture, ["steer", proposalPath, "--apply", "--json"]);
+  assert.equal(first.exitCode, 0, first.stderr.excerpt);
+  const retry = await cli(fixture, ["steer", proposalPath, "--apply", "--json"]);
+  assert.equal(retry.exitCode, 0, retry.stderr.excerpt);
+  const result = await cli(fixture, ["steering", ...flags]);
+  assert.equal(result.exitCode, 0, result.stderr.excerpt);
+  const facts = (JSON.parse(result.stdout.excerpt) as { facts: { state: string; reason?: string }[] }).facts;
+  assert.equal(facts.filter((fact) => fact.state === "received").length, 1);
+  assert.ok(facts.some((fact) => fact.state === "deferred" && fact.reason?.includes("no-safe-boundary")));
+  const proposal = JSON.parse(await readFile(proposalPath, "utf8")) as { text: string };
+  proposal.text = "A conflicting retry.";
+  await writeFile(proposalPath, JSON.stringify(proposal));
+  assert.notEqual((await cli(fixture, ["steer", proposalPath, "--apply"])).exitCode, 0);
+  await writeFile(proposalPath, "x".repeat(16385));
+  assert.notEqual((await cli(fixture, ["steer", proposalPath])).exitCode, 0);
+  assert.notEqual((await cli(fixture, ["steer", fixture.scratch])).exitCode, 0);
+});
+
+test("phase26 Q and A does not wake a worker", async (t) => {
+  const { fixture, flags } = await phase26SessionFixture(t);
+  const before = await listing(fixture.stateRoot);
+  const result = await cli(fixture, ["context", ...flags, "--limit", "2"]);
+  assert.equal(result.exitCode, 0, result.stderr.excerpt);
+  const packet = JSON.parse(result.stdout.excerpt) as { events: unknown[]; nativeDelivery: string };
+  assert.ok(packet.events.length <= 2);
+  assert.equal(packet.nativeDelivery, "unknown");
+  assert.deepEqual(await listing(fixture.stateRoot), before);
+});
+
 test("task preview prints the reviewable contract and writes nothing", async (context) => {
   const { fixture, digest } = await contractFixture(context);
   const before = await listing(fixture.stateRoot);

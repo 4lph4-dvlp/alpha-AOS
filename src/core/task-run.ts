@@ -668,7 +668,7 @@ function parseDecision(value: unknown): { decision: TaskDecision } | { problem: 
   if (typeof value.category !== "string" || !DECISION_CATEGORIES.includes(value.category as TaskDecisionCategory)) {
     return { problem: "category is not a recorded decision category" };
   }
-  if (!boundedText(value.choice, 500)) return { problem: "choice must be a string of 1 to 500 characters" };
+  if (!boundedText(value.choice, 2048)) return { problem: "choice must be a string of 1 to 2048 characters" };
   if (!boundedText(value.rationale, 1000)) return { problem: "rationale must be a string of 1 to 1000 characters" };
   const ids = value.criterionIds;
   if (!Array.isArray(ids) || ids.length > 32 || !ids.every((id) => typeof id === "string" && CRITERION_ID_PATTERN.test(id))) {

@@ -66,3 +66,20 @@ test("phase26 phase projection preserves the multi-phase workflow", async () => 
   assert.equal(event.step, "26: verify");
   assert.equal(event.outcome, "completed");
 });
+
+test("phase26 progress preserves configured and observed model separately", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.agentPolicy.controllerModel = "configured-model";
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: contract.id, contractDigest: "b".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const { normalizeHarnessTelemetry } = await import("../src/core/task-telemetry.js");
+  await meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract, digest: binding.contractDigest, runId: binding.runId, role: "controller",
+    invoke: async () => ({ sessionId: null, processCode: "ok", exitCode: 0, terminal: "completed", closeConfirmed: true,
+      telemetry: { ...normalizeHarnessTelemetry(contract.agentPolicy.controller, null), modelId: "observed-model" } }) });
+  const end = (await readTaskSessionEvents(fixture.stateRoot, binding)).events.at(-1)!;
+  assert.equal(end.configuredModel, "configured-model");
+  assert.equal(end.observedModel, "observed-model");
+  assert.equal(end.observedEffort, null);
+});

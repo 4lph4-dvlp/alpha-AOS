@@ -57,9 +57,17 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   const deadlineAt = panelDeadline(run, options.timeoutMs);
   // Refuse a different origin binding before creating a detached observer.
   await createTaskSession(options.stateRoot, binding);
-  if (dedicated) {
-    const { projectTaskProgress } = await import("./task-progress.js");
-    const event = projectTaskProgress(dedicated.dispatch, dedicated.workflow);
+  const { projectTaskProgress, projectRecordedDecisions, projectRunOutcome } = await import("./task-progress.js");
+  const { readTaskDispatches } = await import("./task-runtime.js");
+  const dispatches = dedicated ? [dedicated.dispatch] : await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
+  const outcome = dedicated ? null : projectRunOutcome(run);
+  const events = [...dispatches.map((dispatch) => projectTaskProgress(dispatch, dedicated?.workflow)),
+    ...(dedicated ? [] : projectRecordedDecisions(run)), ...(outcome ? [outcome] : [])].sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
+  // Earlier lifecycle events are not reconstructible from the bounded run records.
+  if (dispatches.length || outcome) events.unshift({ sourceEventId: `history-gap:${binding.runId}`, observedAt: events[0]!.observedAt,
+    kind: "history-gap", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
+    observedEffort: null, outcome: null, processState: null, recordedReason: "Earlier activity unavailable", evidenceRefs: [] });
+  for (const event of events) {
     const alreadyPublished = async () => (await readTaskSessionEvents(options.stateRoot, binding)).events.some((entry) => entry.sourceEventId === event.sourceEventId);
     if (!await alreadyPublished()) {
       try { await appendTaskSessionEvent(options.stateRoot, binding, event); }

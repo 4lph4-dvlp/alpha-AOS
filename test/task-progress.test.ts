@@ -51,6 +51,31 @@ test("phase26 progress records final acceptance only from the run", async (t) =>
   assert.equal(events.filter((event) => event.kind === "run-outcome" && event.outcome === "accepted").length, 1);
 });
 
+test("phase26 late attach reconstructs authoritative detached run history", { timeout: 30000 }, async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const { run } = await startFixtureTask(fixture, { expectedDigest: digest,
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }) });
+  assert.equal(run.status, "accepted");
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision,
+    runId: run.runId, host: "codex", originatingSessionId: "late-attach" });
+  const { launchTaskProgressPanel } = await import("../src/core/task-progress-launch.js");
+  const panel = await launchTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, timeoutMs: 15000 });
+  try {
+    const replay = await readTaskSessionEvents(fixture.stateRoot, binding);
+    assert.ok(replay.events.some((event) => event.kind === "dispatch-end"));
+    assert.equal(replay.events.find((event) => event.kind === "run-outcome")?.outcome, "accepted");
+    assert.equal(replay.events.find((event) => event.kind === "run-outcome")?.observedAt, run.finishedAt);
+    assert.equal(replay.gap, true);
+  } finally {
+    const { cancelCommandJob } = await import("../src/core/command-jobs.js");
+    await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: panel.jobId, timeoutMs: 10000 });
+  }
+});
+
 test("phase26 progress preserves recorded decision reasons", async (t) => {
   const fixture = await createTaskFixture(t);
   const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");

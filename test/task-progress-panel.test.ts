@@ -189,3 +189,27 @@ test("phase26 SSE retains consecutive commits while observation is active", { ti
   assert.deepEqual([...frames.matchAll(/"sequence":(\d+)/gu)].map((match) => Number(match[1])), [1, 2, 3]);
   await reader.cancel();
 });
+
+test("phase26 bootstrap and bearer expire without extending observation", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "9".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const now = Date.now();
+  const first = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: now + 180000 });
+  t.after(() => first.dispose());
+  const url = new URL(first.url);
+  const second = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: now + 180000 });
+  t.after(() => second.dispose());
+  const other = new URL(second.url);
+  const exchanged = await fetch(`${other.origin}/session`, { method: "POST", headers: { Origin: other.origin, Authorization: `Bearer ${other.hash.slice(1)}` } });
+  const { token } = await exchanged.json() as { token: string };
+  const original = Date.now;
+  try {
+    Date.now = () => now + 121000;
+    assert.equal((await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } })).status, 401);
+    assert.equal((await fetch(`${other.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).status, 200);
+    Date.now = () => now + 181000;
+    assert.equal((await fetch(`${other.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).status, 401);
+  } finally { Date.now = original; }
+});

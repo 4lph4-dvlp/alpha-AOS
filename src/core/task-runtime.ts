@@ -160,6 +160,10 @@ export function dispatchUsage(records: readonly TaskDispatchObservation[]) {
   return totals;
 }
 
+async function publishObservation(stateRoot: string, record: TaskDispatchObservation, contract: TaskContract): Promise<void> {
+  try { const { publishTaskSessionDispatch } = await import("./task-session.js"); await publishTaskSessionDispatch(stateRoot, record, contract); }
+  catch { process.emitWarning("Task progress delivery failed; dispatch remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
+}
 export class TaskResourceError extends Error {
   constructor(readonly stopCode: string) { super(`Task resource guard: ${stopCode}`); }
 }
@@ -219,6 +223,7 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
     record.effort = options.contract.agentPolicy[`${options.role}Effort`] ?? null;
     if (options.cycleBoundary) record.cycleBoundary = true;
     await persist();
+    await publishObservation(options.stateRoot, record, options.contract);
     let writeError: unknown = null;
     const queuePersist = () => { spawnWrite = spawnWrite.then(persist).catch((error: unknown) => { writeError = error; }); };
     const result = await options.invoke({ deadlineAt, onTelemetry: (telemetry) => {
@@ -264,6 +269,7 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
     if (record.reason === "quota_exhausted" && !unresolved) record.status = "failed";
     await recoverNativeUsage(record, clock());
     await persist();
+    await publishObservation(options.stateRoot, record, options.contract);
     const observed = dispatchUsage([...prior, record]);
     if (record.status === "completed" && ((options.contract.resourcePolicy.maxTokens !== undefined && observed.tokens === null) ||
       (options.contract.resourcePolicy.maxCostUsd !== undefined && observed.costUsd === null))) {
@@ -280,6 +286,7 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
       if (unresolved) record.closeConfirmed = false;
       await recoverNativeUsage(record, clock());
       await persist();
+      await publishObservation(options.stateRoot, record, options.contract);
     }
     throw error;
   } finally {
@@ -296,3 +303,5 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
     }
   }
 }
+
+

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 import {
@@ -755,9 +756,19 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
   }
 
   for (const step of steps) {
+    const attemptId = randomUUID();
     const currentHead = (await runGitRead(options.projectRoot, ["rev-parse", "HEAD"]).catch(() => options.targetRevisionSha)).trim();
     const currentArtifact = await collectTaskArtifact({ projectRoot: options.projectRoot, allowedRoots: options.contract.allowedRoots });
     if (currentArtifact.status !== "ok") return { success: false, finalStep: "artifact-unavailable", receipts };
+    const publishStep = async (outcome: "running" | "completed" | "failed" | "needs-input", evidenceRefs: readonly string[]) => {
+      if (!options.stateRoot || !options.runId) return;
+      try {
+        const [{ publishTaskSessionEvent }, { projectGsdStep }] = await Promise.all([import("./task-session.js"), import("./task-progress.js")]);
+        await publishTaskSessionEvent(options.stateRoot, { contractDigest: taskContractDigest(options.contract), runId: options.runId,
+          contractId: options.contract.id, revision: options.contract.revision }, projectGsdStep({ phaseId: options.phaseId, attemptId, step, at: new Date().toISOString(), outcome, evidenceRefs }));
+      } catch { process.emitWarning("Task progress delivery failed; lifecycle remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
+    };
+    await publishStep("running", []);
     const result = await executeGsdStep({
       ...options,
       targetRevisionSha: currentHead,
@@ -765,6 +776,8 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
       step,
       priorReceipts: accumulatedCapabilityReceipts,
     });
+    await publishStep(result.nextStep === "needs-input" ? "needs-input" : result.nextStep === "failed" || result.exitCode !== 0 ? "failed" : "completed",
+      result.receipts.map((receipt) => receipt.receiptDigest));
 
     for (const r of result.receipts) {
       receipts.push(r.receiptDigest);

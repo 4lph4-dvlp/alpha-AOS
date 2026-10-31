@@ -176,9 +176,9 @@ export async function readTaskSessionEvents(stateRoot: string, binding: TaskSess
     return { binding: validateTaskSessionBinding(binding), events, cursor: last, gap: cursor < (events[0]?.sequence ?? last + 1) - 1 };
   });
 }
-export async function publishTaskSessionDispatch(stateRoot: string, record: import("./task-runtime.js").TaskDispatchObservation, contract: import("./task-contract.js").TaskContract): Promise<void> {
-  if (!/^[a-f0-9]{64}$/u.test(record.contractDigest) || !id.test(record.runId)) throw new Error("Invalid task session run identity");
-  const root = join(stateRoot, "runs", record.contractDigest, "sessions", createHash("sha256").update(record.runId).digest("hex"));
+export async function publishTaskSessionEvent(stateRoot: string, identity: { contractDigest: string; runId: string; contractId: string; revision: number }, event: TaskSessionEventInput): Promise<void> {
+  if (!/^[a-f0-9]{64}$/u.test(identity.contractDigest) || !id.test(identity.runId)) throw new Error("Invalid task session run identity");
+  const root = join(stateRoot, "runs", identity.contractDigest, "sessions", createHash("sha256").update(identity.runId).digest("hex"));
   const path = join(root, "events.sqlite");
   await assertNoSymlinksInPathAndAncestors(path);
   try { await lstat(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
@@ -193,9 +193,12 @@ export async function publishTaskSessionDispatch(stateRoot: string, record: impo
     binding = validateTaskSessionBinding(JSON.parse(String(row?.value)));
     checkIdentity(before, await identities(root, path));
   } finally { db.close(); }
-  if (binding.contractDigest !== record.contractDigest || binding.runId !== record.runId || binding.contractId !== contract.id || binding.revision !== contract.revision) throw new Error("Task run session binding mismatch");
+  if (binding.contractDigest !== identity.contractDigest || binding.runId !== identity.runId || binding.contractId !== identity.contractId || binding.revision !== identity.revision) throw new Error("Task run session binding mismatch");
+  await appendTaskSessionEvent(stateRoot, binding, event);
+}
+export async function publishTaskSessionDispatch(stateRoot: string, record: import("./task-runtime.js").TaskDispatchObservation, contract: import("./task-contract.js").TaskContract): Promise<void> {
   const { projectTaskProgress } = await import("./task-progress.js");
-  await appendTaskSessionEvent(stateRoot, binding, projectTaskProgress(record, contract.scope.workflow));
+  await publishTaskSessionEvent(stateRoot, { contractDigest: record.contractDigest, runId: record.runId, contractId: contract.id, revision: contract.revision }, projectTaskProgress(record, contract.scope.workflow));
 }
 
 

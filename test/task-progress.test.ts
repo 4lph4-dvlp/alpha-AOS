@@ -144,3 +144,28 @@ test("phase26 dead owner is not live progress", async (t) => {
   assert.equal(snapshot.processObservations?.[0]?.state, "unresolved");
   assert.equal(snapshot.events.length, 0);
 });
+
+test("phase26 run-ready hook sees the durable actual run before dispatch", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+  const { startTask } = await import("../src/core/task-run.js");
+  const { packageRoot } = await import("../src/core/paths.js");
+  const { readFile } = await import("node:fs/promises");
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let readyCount = 0, durable = false, readyBeforeDispatch = false;
+  const base = referenceControllerPort("correct");
+  const controller: typeof base = { async dispatch(request) { readyBeforeDispatch = readyCount === 1; return base.dispatch(request); } };
+  const options = { contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }), gsd: { configRoot: fixture.gsdConfigRoot },
+    onRunReady: async (run: import("../src/core/task-run.js").TaskRunRecord, path: string) => {
+      readyCount++;
+      const persisted = JSON.parse(await readFile(path, "utf8")) as typeof run;
+      durable = persisted.runId === run.runId && persisted.contractDigest === digest && persisted.status === "executing";
+    } };
+  await startTask(options);
+  assert.equal(readyCount, 1);
+  assert.equal(durable, true);
+  assert.equal(readyBeforeDispatch, true);
+});

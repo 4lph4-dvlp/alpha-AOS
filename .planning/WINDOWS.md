@@ -1,10 +1,10 @@
 ---
 schema_version: 1
-open_count: 33
+open_count: 34
 waived_count: 2
 fixed_count: 19
-total_count: 54
-last_updated: 2026-09-30T10:20:55.336Z
+total_count: 55
+last_updated: 2026-10-31T15:06:14.282Z
 ---
 
 # Broken Windows Ledger
@@ -69,6 +69,7 @@ last_updated: 2026-09-30T10:20:55.336Z
 | 52 | 11 | stub | .planning/milestones/v0.1.0-phases/06-managed-lifecycle-uninstall-and-recovery/06-VERIFICATION.md |  | 06-VERIFICATION.md skeleton: every section except the LIFE-01 Codex rows reads TO-BE-COMPILED until plan 11-07 compiles it | open |  | 2026-09-23T12:10:37.005Z |  |
 | 53 | 14 | unrun-verify | test/task-tracer.integration.ts |  | 14-06-02 live accept tracer NOT PROVEN on this host: run munx7h9w-b9ec114f blocked (Codex workspace-write keeps .git read-only, GSD quick cannot commit); deferred by user decision D to Phase 16/17 or a sealed adapter | open |  | 2026-09-30T10:20:53.913Z |  |
 | 54 | 14 | unrun-verify | test/task-tracer.integration.ts |  | 14-06-03 seeded-defect rejection and stale-review substitution live tests not written or run (Task 3 precondition unmet); seededDefectContract in test/helpers/task-fixture.ts is ready but unused | open |  | 2026-09-30T10:20:55.336Z |  |
+| 55 | 26 | skipped-test | test/task-session.test.ts |  | Windows file-symlink EPERM prevented hostile sqlite sidecar symlink fixture. | open |  | 2026-10-31T15:06:14.282Z |  |
 
 ````json
 [
@@ -719,6 +720,19 @@ last_updated: 2026-09-30T10:20:55.336Z
     "status": "open",
     "reason": "",
     "recorded_at": "2026-09-30T10:20:55.336Z",
+    "resolved_at": null,
+    "milestone": "v0.2.0"
+  },
+  {
+    "id": 55,
+    "kind": "skipped-test",
+    "phase": "26",
+    "file": "test/task-session.test.ts",
+    "line": null,
+    "description": "Windows file-symlink EPERM prevented hostile sqlite sidecar symlink fixture.",
+    "status": "open",
+    "reason": "",
+    "recorded_at": "2026-10-31T15:06:14.282Z",
     "resolved_at": null,
     "milestone": "v0.2.0"
   }

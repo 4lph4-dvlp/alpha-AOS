@@ -45,3 +45,32 @@ test("phase26 steering receipt is durable and idempotent", async (t) => {
   await assert.rejects(readTaskSteering({ stateRoot: fixture.stateRoot, binding }));
   await assert.rejects(readTaskSessionPacket({ stateRoot: fixture.stateRoot, binding, limit: 10 }));
 });
+
+test("phase26 steering tracer uses the existing controller", async (t) => {
+  const fixture = await createTaskFixture(t);
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const base = referenceControllerPort("correct");
+  let calls = 0, prompt = "", binding: TaskSessionBinding | undefined;
+  const controller: typeof base = { async dispatch(request) { calls++; prompt = request.prompt; return base.dispatch(request); } };
+  await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }), gsd: { configRoot: fixture.gsdConfigRoot },
+    onRunReady: async (run) => {
+      binding = { schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision, runId: run.runId,
+        host: "codex", originatingSessionId: "quick-tracer" };
+      await createTaskSession(fixture.stateRoot, binding);
+      await submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { schemaVersion: 1, binding, requestId: "quick-1",
+        submittedAt: "2026-11-01T00:00:00Z", text: "Please follow the approved contract." } });
+    } });
+  assert.equal(calls, 1);
+  assert.match(prompt, /Please follow the approved contract\./u);
+  assert.match(prompt, /UNTRUSTED/u);
+  assert.ok(binding);
+  const { readTaskSessionPacket } = await import("../src/core/task-read.js");
+  const packet = await readTaskSessionPacket({ stateRoot: fixture.stateRoot, binding, limit: 50 });
+  const dispositions: { state: string }[] = packet.proposalDispositions;
+  assert.ok(dispositions.some((entry) => entry.state === "delivered"));
+  assert.ok(dispositions.some((entry) => entry.state === "deferred"));
+  assert.ok(!dispositions.some((entry) => entry.state === "applied"));
+});

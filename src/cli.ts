@@ -2127,7 +2127,7 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait"].includes(subcommand)) {
+    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait"].includes(subcommand)) {
       throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
@@ -2155,6 +2155,27 @@ async function main(): Promise<void> {
     }
     const context = observableContext();
     const stateRoot = userStateRoot();
+    if (subcommand === "panel-serve") {
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--launch-id"], booleanFlags: [] });
+      const id = parsed.options.get("--launch-id");
+      if (parsed.operands.length !== 0 || typeof id !== "string") throw new Error("Invalid internal panel launch");
+      const { serveTaskProgressPanel } = await import("./core/task-progress-launch.js");
+      await serveTaskProgressPanel(stateRoot, id);
+      return;
+    }
+    if (subcommand === "attach") {
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--run", "--contract-digest", "--revision", "--origin-host", "--origin-session", "--observer-timeout-ms"], booleanFlags: ["--json"] });
+      const value = (key: string): string => { const item = parsed.options.get(key); if (typeof item !== "string") throw new Error(`task attach requires ${key}`); return item; };
+      if (parsed.operands.length !== 1) throw new Error("task attach requires exactly one contract id");
+      const { validateTaskSessionBinding } = await import("./core/task-session.js");
+      const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: parsed.operands[0], contractDigest: value("--contract-digest"),
+        revision: Number(value("--revision")), runId: value("--run"), host: value("--origin-host"), originatingSessionId: value("--origin-session") });
+      const timeout = parsed.options.get("--observer-timeout-ms");
+      const { launchTaskProgressPanel } = await import("./core/task-progress-launch.js");
+      const result = await launchTaskProgressPanel({ stateRoot, binding, ...(typeof timeout === "string" ? { timeoutMs: Number(timeout) } : {}) });
+      process.stdout.write(json ? `${JSON.stringify({ type: "panel-launch", ...result })}\n` : `Panel URL (contains a temporary secret): ${result.url}\nObserver job: ${result.jobId}\n`);
+      return;
+    }
     if (subcommand === "dispatch") {
       const parsed = parseClosedFlags(args.slice(2), { valueFlags: [], booleanFlags: ["--apply", "--json"] });
       if (parsed.operands.length !== 1) throw new Error("task dispatch requires one structured task-job spec JSON path");
@@ -2185,6 +2206,10 @@ async function main(): Promise<void> {
       "--revision",
       "--scope",
       "--timeout-ms",
+      "--progress",
+      "--origin-host",
+      "--origin-session",
+      "--observer-timeout-ms",
     ]);
     const operand = parts[0];
 
@@ -2605,6 +2630,12 @@ async function main(): Promise<void> {
     }
 
     if (subcommand === "start") {
+      const parsedStart = parseClosedFlags(args.slice(2), { valueFlags: ["--contract-digest", "--progress", "--origin-host", "--origin-session", "--observer-timeout-ms"], booleanFlags: ["--apply", "--json", "--probe"] });
+      if (parsedStart.operands.length !== 1) throw new Error("task start requires exactly one contract file");
+      const progress = parsedStart.options.get("--progress"), host = parsedStart.options.get("--origin-host"), originSession = parsedStart.options.get("--origin-session"), timeout = parsedStart.options.get("--observer-timeout-ms");
+      if (progress !== undefined && progress !== "panel") throw new Error("Invalid progress mode");
+      if ((progress === "panel" && (typeof host !== "string" || typeof originSession !== "string")) || (progress === undefined && (host !== undefined || originSession !== undefined || timeout !== undefined))) throw new Error("Panel progress requires an origin host and logical session");
+      if (typeof timeout === "string" && (!Number.isSafeInteger(Number(timeout)) || Number(timeout) < 1 || Number(timeout) > 24 * 60 * 60_000)) throw new Error("Invalid observer timeout");
       const supplied = optionValue(args, "--contract-digest");
       const probe = hasFlag(args, "--probe");
       if (hasFlag(args, "--apply")) {
@@ -2629,6 +2660,14 @@ async function main(): Promise<void> {
           packageRoot: packageRoot(),
           ports: nativeTaskPorts({ receiptsRoot: join(stateRoot, "receipts"), reprobeOnDrift: true, probeMissing: probe }),
           runId: reservedRunId,
+          ...(progress === "panel" ? { onRunReady: async (actual: import("./core/task-run.js").TaskRunRecord) => {
+            const { validateTaskSessionBinding } = await import("./core/task-session.js");
+            const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: actual.contractId, contractDigest: actual.contractDigest,
+              revision: actual.revision, runId: actual.runId, host, originatingSessionId: originSession });
+            const { launchTaskProgressPanel } = await import("./core/task-progress-launch.js");
+            const result = await launchTaskProgressPanel({ stateRoot, binding, ...(typeof timeout === "string" ? { timeoutMs: Number(timeout) } : {}) });
+            process.stdout.write(json ? `${JSON.stringify({ type: "panel-launch", ...result })}\n` : `Panel URL (contains a temporary secret): ${result.url}\nObserver job: ${result.jobId}\n`);
+          } } : {}),
         });
         const statusCmd = taskStatusCommand(run.contractId, run.runId);
         const stopCmd = taskStopCommand(run.contractId, run.runId);

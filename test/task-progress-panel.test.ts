@@ -213,3 +213,68 @@ test("phase26 bootstrap and bearer expire without extending observation", async 
     assert.equal((await fetch(`${other.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).status, 401);
   } finally { Date.now = original; }
 });
+
+test("phase26 SSE rechecks commits received during a blocked flush", { timeout: 30000 }, async (t) => {
+  const { fixture, binding, origin, session } = await setup(t);
+  const { appendTaskSessionEvent } = await import("../src/core/task-session.js");
+  const { ServerResponse } = await import("node:http");
+  const originalWrite = ServerResponse.prototype.write;
+  let unblock!: () => void, reportBlocked!: () => void;
+  const blocked = new Promise<void>((resolve) => { reportBlocked = resolve; });
+  let intercepted = false;
+  ServerResponse.prototype.write = function (this: import("node:http").ServerResponse, chunk: unknown, ...args: unknown[]) {
+    const result = (originalWrite as (...args: unknown[]) => boolean).call(this, chunk, ...args);
+    if (!intercepted && typeof chunk === "string" && chunk.startsWith("data: ")) {
+      intercepted = true;
+      unblock = () => this.emit("drain");
+      reportBlocked();
+      return false;
+    }
+    return result;
+  } as typeof ServerResponse.prototype.write;
+  t.after(() => { ServerResponse.prototype.write = originalWrite; });
+  const response = await fetch(`${origin}/events?cursor=0`, { headers: { Authorization: `Bearer ${session}` }, signal: AbortSignal.timeout(20000) });
+  const reader = response.body!.getReader();
+  const event = { observedAt: "2026-10-31T00:00:00.000Z", kind: "dispatch-start", workflow: null, step: null,
+    role: "controller", configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null,
+    outcome: "running", processState: null, recordedReason: null, evidenceRefs: [] } as const;
+  await appendTaskSessionEvent(fixture.stateRoot, binding, { ...event, sourceEventId: "flush:1" });
+  await blocked;
+  await appendTaskSessionEvent(fixture.stateRoot, binding, { ...event, sourceEventId: "flush:2" });
+  await appendTaskSessionEvent(fixture.stateRoot, binding, { ...event, sourceEventId: "flush:3" });
+  unblock();
+  let frames = "";
+  while (!frames.includes('"sequence":3')) {
+    const part = await reader.read();
+    if (part.done) break;
+    frames += new TextDecoder().decode(part.value);
+  }
+  assert.deepEqual([...frames.matchAll(/"sequence":(\d+)/gu)].map((match) => Number(match[1])), [1, 2, 3]);
+  await reader.cancel();
+});
+
+test("phase26 stalled SSE drain disconnects within the finite bound", { timeout: 15000 }, async (t) => {
+  const { fixture, binding, origin, session } = await setup(t);
+  const { appendTaskSessionEvent } = await import("../src/core/task-session.js");
+  const { ServerResponse } = await import("node:http");
+  const originalWrite = ServerResponse.prototype.write;
+  let intercepted = false;
+  ServerResponse.prototype.write = function (this: import("node:http").ServerResponse, chunk: unknown, ...args: unknown[]) {
+    const result = (originalWrite as (...args: unknown[]) => boolean).call(this, chunk, ...args);
+    if (!intercepted && typeof chunk === "string" && chunk.startsWith("data: ")) { intercepted = true; return false; }
+    return result;
+  } as typeof ServerResponse.prototype.write;
+  t.after(() => { ServerResponse.prototype.write = originalWrite; });
+  const response = await fetch(`${origin}/events?cursor=0`, { headers: { Authorization: `Bearer ${session}` }, signal: AbortSignal.timeout(10000) });
+  const reader = response.body!.getReader();
+  await appendTaskSessionEvent(fixture.stateRoot, binding, { sourceEventId: "stall:1", observedAt: "2026-10-31T00:00:00.000Z",
+    kind: "dispatch-start", workflow: null, step: null, role: "controller", configuredModel: null, configuredEffort: null,
+    observedModel: null, observedEffort: null, outcome: "running", processState: null, recordedReason: null, evidenceRefs: [] });
+  const started = Date.now();
+  let closed = false;
+  try { while (!(await reader.read()).done) { /* consume until the server closes the stalled stream */ } closed = true; }
+  catch { closed = true; }
+  assert.equal(intercepted, true);
+  assert.equal(closed, true);
+  assert.ok(Date.now() - started < 8000);
+});

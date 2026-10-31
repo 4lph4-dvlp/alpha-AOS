@@ -72,7 +72,7 @@ function runtimeRoot(stateRoot: string, digest: string): string {
   return join(stateRoot, "runs", digest, "dispatches");
 }
 
-export async function readTaskDispatches(stateRoot: string, digest: string): Promise<TaskDispatchObservation[]> {
+export async function readTaskDispatches(stateRoot: string, digest: string, options?: { runId?: string; maxRecords?: number }): Promise<TaskDispatchObservation[]> {
   const root = runtimeRoot(stateRoot, digest);
   await assertNoSymlinksInPathAndAncestors(root);
   let names: string[];
@@ -81,7 +81,9 @@ export async function readTaskDispatches(stateRoot: string, digest: string): Pro
     throw error;
   }
   const records: TaskDispatchObservation[] = [];
-  for (const name of names.filter((value) => /^[a-f0-9]{64}\.json$/u.test(value)).sort()) {
+  const dispatchNames = names.filter((value) => /^[a-f0-9]{64}\.json$/u.test(value)).sort();
+  if (options?.maxRecords !== undefined && dispatchNames.length > options.maxRecords) throw new Error("Too many runtime dispatch observations");
+  for (const name of dispatchNames) {
     const text = await readBoundedFile(join(root, name), stateRoot, 64 * 1024, undefined, true);
     const record = JSON.parse(text) as TaskDispatchObservation;
     if (record.schemaVersion !== 1 || record.contractDigest !== digest ||
@@ -89,6 +91,7 @@ export async function readTaskDispatches(stateRoot: string, digest: string): Pro
       record.ownerPid <= 0 || !Number.isFinite(Date.parse(record.startedAt)) ||
       (record.finishedAt !== null && !Number.isFinite(Date.parse(record.finishedAt))) ||
       !["running", "completed", "failed", "interrupted"].includes(record.status)) throw new Error("Invalid runtime dispatch observation");
+    if (options?.runId !== undefined && record.runId !== options.runId) continue;
     if (record.sessionId === null && record.telemetry.nativeSessionId) record.sessionId = record.telemetry.nativeSessionId;
     if (record.jobId && (record.status === "running" || record.status === "completed")) {
       const { getCommandJobStatus } = await import("./command-jobs.js");

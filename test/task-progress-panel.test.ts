@@ -120,3 +120,14 @@ test("phase26 observer abort closes only its listener", async (t) => {
   const { readTaskSessionEvents } = await import("../src/core/task-session.js");
   assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).cursor, 0);
 });
+
+test("phase26 panel accepts finite multi-hour observation and rejects over 24 hours", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "9".repeat(64), revision: 1,
+    runId: "run-one", host: "claude", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const panel = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 4 * 60 * 60_000 }).catch(() => null);
+  assert.ok(panel, "a four-hour observation deadline must be accepted");
+  await panel.dispose();
+  await assert.rejects(startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 25 * 60 * 60_000 }), /deadline/);
+});

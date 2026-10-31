@@ -111,43 +111,98 @@ test("phase26 session refuses a replaced session directory", async (t) => {
   await assert.rejects(readTaskSessionEvents(fixture.stateRoot, binding));
 });
 
-test("phase26 session recovers a durable pending event exactly once", async (t) => {
+test("phase26 native transaction crash recovers and retry preserves committed identity", async (t) => {
   const fixture = await createTaskFixture(t);
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "8".repeat(64), revision: 1,
     runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
   await createTaskSession(fixture.stateRoot, binding);
-  const first = { sourceEventId: "event-one", observedAt: "2026-10-31T00:00:00.000Z", kind: "decision", workflow: null, step: null,
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  const { join } = await import("node:path");
+  const { spawn } = await import("node:child_process");
+  const path = join(taskSessionRoot(fixture.stateRoot, binding), "events.sqlite");
+  const child = spawn(process.execPath, ["-e", "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1]);db.exec('BEGIN IMMEDIATE');db.prepare('INSERT INTO events(sequence,source,input) VALUES(1,?,?)').run('uncommitted','{}');console.log('ready');setInterval(()=>{},1000)", path], { stdio: ["ignore", "pipe", "pipe"] });
+  await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", () => reject(new Error("child exited before ready"))); });
+  child.kill();
+  await new Promise<void>((resolve) => child.once("close", () => resolve()));
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).events.length, 0);
+  const event = { sourceEventId: "event-one", observedAt: "2026-10-31T00:00:00.000Z", kind: "decision", workflow: null, step: null,
     role: null, configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null,
     outcome: null, processState: null, recordedReason: "recorded", evidenceRefs: [] } as const;
-  const { taskSessionRoot } = await import("../src/core/task-session.js");
-  const { writeAtomicPrivateFile } = await import("../src/core/command-jobs.js");
-  const { join } = await import("node:path");
-  await writeAtomicPrivateFile(join(taskSessionRoot(fixture.stateRoot, binding), "pending.json"), JSON.stringify({ ...first, binding, sequence: 1 }), 16384, fixture.stateRoot);
-  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).events[0]?.sourceEventId, "event-one");
-  await appendTaskSessionEvent(fixture.stateRoot, binding, { ...first, sourceEventId: "event-two" });
-  const replay = await readTaskSessionEvents(fixture.stateRoot, binding);
-  assert.deepEqual(replay.events.map((event) => event.sourceEventId), ["event-one", "event-two"]);
-  assert.equal((await appendTaskSessionEvent(fixture.stateRoot, binding, first)).sequence, 1);
-  await assert.rejects(appendTaskSessionEvent(fixture.stateRoot, binding, { ...first, recordedReason: "conflict" }), /conflict/i);
+  assert.equal((await appendTaskSessionEvent(fixture.stateRoot, binding, event)).sequence, 1);
+  assert.equal((await appendTaskSessionEvent(fixture.stateRoot, binding, event)).sequence, 1);
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).events.length, 1);
+  const committed = { ...event, sourceEventId: "committed-before-return" };
+  const committedChild = spawn(process.execPath, ["-e", "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1]);db.exec('BEGIN IMMEDIATE');db.prepare('INSERT INTO events(sequence,source,input) VALUES(2,?,?)').run('committed-before-return',process.argv[2]);db.exec('COMMIT');console.log('ready');setInterval(()=>{},1000)", path, JSON.stringify(committed)], { stdio: ["ignore", "pipe", "pipe"] });
+  await new Promise<void>((resolve, reject) => { committedChild.stdout.once("data", () => resolve()); committedChild.once("error", reject); committedChild.once("exit", () => reject(new Error("child exited before commit"))); });
+  committedChild.kill();
+  await new Promise<void>((resolve) => committedChild.once("close", () => resolve()));
+  assert.equal((await appendTaskSessionEvent(fixture.stateRoot, binding, committed)).sequence, 2);
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).events.length, 2);
 });
 
-test("phase26 session preserves live and unresolved publisher fences", async (t) => {
+test("phase26 refuses hostile sqlite sidecar without touching target", async (t) => {
   const fixture = await createTaskFixture(t);
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "7".repeat(64), revision: 1,
     runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
   await createTaskSession(fixture.stateRoot, binding);
   const { taskSessionRoot } = await import("../src/core/task-session.js");
-  const { hostname } = await import("node:os");
-  const { writeFile, unlink } = await import("node:fs/promises");
+  const { writeFile, readFile, symlink } = await import("node:fs/promises");
   const { join } = await import("node:path");
-  const lock = join(taskSessionRoot(fixture.stateRoot, binding), "events.lock");
-  const event = { sourceEventId: "event-one", observedAt: "2026-10-31T00:00:00.000Z", kind: "decision", workflow: null, step: null,
+  const target = join(fixture.stateRoot, "sentinel");
+  await writeFile(target, "untouched");
+  try { await symlink(target, join(taskSessionRoot(fixture.stateRoot, binding), "events.sqlite-journal"), "file"); }
+  catch (error) { if (process.platform === "win32" && (error as NodeJS.ErrnoException).code === "EPERM") { t.skip("file symlinks unavailable"); return; } throw error; }
+  await assert.rejects(readTaskSessionEvents(fixture.stateRoot, binding));
+  assert.equal(await readFile(target, "utf8"), "untouched");
+});
+
+test("phase26 sqlite refuses a non-file sidecar and reports finite contention", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "6".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  const { mkdir, rmdir } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { spawn } = await import("node:child_process");
+  const path = join(taskSessionRoot(fixture.stateRoot, binding), "events.sqlite");
+  await mkdir(path + "-journal");
+  await assert.rejects(readTaskSessionEvents(fixture.stateRoot, binding));
+  await rmdir(path + "-journal");
+  const child = spawn(process.execPath, ["-e", "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1]);db.exec('BEGIN EXCLUSIVE');console.log('ready');setInterval(()=>{},1000)", path], { stdio: ["ignore", "pipe", "pipe"] });
+  await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", () => reject(new Error("child exited before ready"))); });
+  try {
+    const started = Date.now();
+    await assert.rejects(readTaskSessionEvents(fixture.stateRoot, binding));
+    assert.ok(Date.now() - started < 5000);
+  } finally {
+    child.kill();
+    await new Promise<void>((resolve) => child.once("close", () => resolve()));
+  }
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).cursor, 0);
+});
+
+test("phase26 separate publishers serialize duplicate and conflicting identities", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "5".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const event = { sourceEventId: "same", observedAt: "2026-10-31T00:00:00.000Z", kind: "decision", workflow: null, step: null,
     role: null, configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null,
-    outcome: null, processState: null, recordedReason: null, evidenceRefs: [] } as const;
-  await writeFile(lock, JSON.stringify({ host: hostname(), pid: process.pid, token: "live-owner" }));
-  await assert.rejects(appendTaskSessionEvent(fixture.stateRoot, binding, event), /fence/i);
-  await unlink(lock);
-  await writeFile(lock, JSON.stringify({ host: hostname(), pid: 2147483647, token: "dead-owner" }));
-  await assert.rejects(appendTaskSessionEvent(fixture.stateRoot, binding, event), /fence/i);
+    outcome: null, processState: null, recordedReason: "recorded", evidenceRefs: [] } as const;
+  const { spawn } = await import("node:child_process");
+  const moduleUrl = new URL("../src/core/task-session.js", import.meta.url).href;
+  const script = "import(process.argv[1]).then(m=>m.appendTaskSessionEvent(process.argv[2],JSON.parse(process.argv[3]),JSON.parse(process.argv[4]))).then(x=>console.log(x.sequence)).catch(e=>{console.error(e.message);process.exitCode=1})";
+  const run = (value: import("../src/core/task-session.js").TaskSessionEventInput) => new Promise<{ code: number | null; output: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, ["-e", script, moduleUrl, fixture.stateRoot, JSON.stringify(binding), JSON.stringify(value)], { stdio: ["ignore", "pipe", "pipe"] });
+    let output = ""; child.stdout.on("data", (part) => { output += String(part); }); child.stderr.on("data", (part) => { output += String(part); });
+    child.once("error", reject); child.once("close", (code) => resolve({ code, output }));
+  });
+  const results = await Promise.all([run(event), run(event)]);
+  assert.deepEqual(results.map((result) => result.code), [0, 0]);
+  assert.ok(results.every((result) => /1/.test(result.output)));
+  assert.equal((await run({ ...event, recordedReason: "different" })).code, 1);
+  assert.equal((await run({ ...event, recordedReason: "recorded" })).code, 0);
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).events.length, 1);
 });
 

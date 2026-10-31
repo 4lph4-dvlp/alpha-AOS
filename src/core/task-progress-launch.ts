@@ -3,7 +3,7 @@ import { mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readTaskApprovals, reservedRunIdForApproval } from "./task-contract.js";
-import { readTaskReport, type TaskRunRecord } from "./task-run.js";
+import type { TaskRunRecord } from "./task-run.js";
 import { appendTaskSessionEvent, createTaskSession, readTaskSessionEvents, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
 import { getCommandJobStatus, readBoundedFile, startCommandJob, writeAtomicPrivateFile } from "./command-jobs.js";
 import { waitForCompletion } from "./completion-wait.js";
@@ -25,7 +25,8 @@ export function panelDeadline(run: TaskRunRecord, explicitMs?: number, now = Dat
   const runDeadline = run.status === "executing" && run.deadlineAt ? Date.parse(run.deadlineAt) : NaN;
   return Number.isFinite(runDeadline) && runDeadline > now ? Math.min(now + MAX_OBSERVER_MS, runDeadline + 60_000) : now + 30 * 60_000;
 }
-async function exactRun(stateRoot: string, binding: TaskSessionBinding): Promise<{ run: TaskRunRecord; projectRoot: string; dedicated?: { dispatch: import("./task-runtime.js").TaskDispatchObservation; workflow: string | undefined } }> {
+export async function exactRun(stateRoot: string, binding: TaskSessionBinding): Promise<{ run: TaskRunRecord; projectRoot: string; dedicated?: { dispatch: import("./task-runtime.js").TaskDispatchObservation; workflow: string | undefined } }> {
+  const { readTaskReport } = await import("./task-run.js");
   const run = await readTaskReport({ stateRoot, contractId: binding.contractId, runId: binding.runId });
   const approvals = await readTaskApprovals({ stateRoot, contractId: binding.contractId });
   const approval = approvals.find((value) => value.contractDigest === binding.contractDigest && value.revision === binding.revision);

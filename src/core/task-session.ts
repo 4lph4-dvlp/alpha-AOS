@@ -105,13 +105,19 @@ async function withStore<T>(stateRoot: string, binding: TaskSessionBinding, crea
   await assertNoSymlinksInPathAndAncestors(root);
   if (create) {
     await mkdir(root, { recursive: true, mode: 0o700 });
-    const names = await readdir(root);
-    if (names.some((name) => !["events.sqlite", "events.sqlite-journal", "events.sqlite-wal", "events.sqlite-shm"].includes(name))) throw new Error("Unsupported legacy task session store");
     const handle = await open(path, "wx", 0o600).catch((error: NodeJS.ErrnoException) => {
       if (error.code === "EEXIST") return null;
       throw error;
     });
     if (handle) { created = true; await handle.close(); }
+  }
+  const names = await readdir(root);
+  if (names.some((name) => !["events.sqlite", "events.sqlite-journal", "events.sqlite-wal", "events.sqlite-shm", "steering"].includes(name))) throw new Error("Unsupported legacy task session store");
+  if (names.includes("steering")) {
+    const child = join(root, "steering");
+    await assertNoSymlinksInPathAndAncestors(child);
+    const stat = await lstat(child);
+    if (!stat.isDirectory() || (process.platform !== "win32" && (stat.mode & 0o077) !== 0)) throw new Error("Unsafe task steering directory");
   }
   const before = await identities(root, path);
   if (!before[0] || !before[1]) throw new Error("Task session store does not exist");

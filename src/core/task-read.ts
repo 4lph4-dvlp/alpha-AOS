@@ -16,6 +16,35 @@ import { diagnoseGsdLifecycleStatus, type GsdLifecycleDiagnostics } from "./task
 import { loadTaskReviewSuggestions, suggestionsFilePath } from "./task-review-suggestions.js";
 import { dispatchUsage, readTaskDispatches, type TaskDispatchObservation } from "./task-runtime.js";
 import type { TaskUsageTotals } from "./task-telemetry.js";
+import { readTaskSessionEvents, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
+
+/** A bounded view of one explicitly bound run. This never starts an observer or worker. */
+export async function readTaskSessionPacket(options: { stateRoot: string; binding: TaskSessionBinding; afterSequence?: number; limit: number }) {
+  const binding = validateTaskSessionBinding(options.binding);
+  if (!Number.isSafeInteger(options.limit) || options.limit < 1 || options.limit > 50) throw new Error("Invalid session packet limit");
+  const cursor = options.afterSequence ?? 0;
+  const { exactRun } = await import("./task-progress-launch.js");
+  const proof = await exactRun(options.stateRoot, binding);
+  const replay = await readTaskSessionEvents(options.stateRoot, binding, cursor);
+  const { readTaskSteering } = await import("./task-steering.js");
+  const dispositions = await readTaskSteering({ stateRoot: options.stateRoot, binding });
+  const selected = replay.events.slice(-options.limit);
+  const result = {
+    schemaVersion: 1 as const, binding, observedAt: new Date().toISOString(),
+    lastMeaningfulActivityAt: selected.at(-1)?.observedAt ?? null,
+    sourceCursor: replay.cursor, gap: replay.gap || (selected[0]?.sequence ?? replay.cursor + 1) > cursor + 1,
+    truncated: selected.length < replay.events.length || replay.gap,
+    workflow: selected.at(-1)?.workflow ?? proof.dedicated?.workflow ?? null,
+    runStatus: proof.run.status ?? "unknown", processState: selected.at(-1)?.processState ?? "unknown",
+    events: selected, evidenceSummaries: null, proposalDispositions: dispositions,
+    nativeDelivery: "unknown" as const,
+  };
+  while (Buffer.byteLength(JSON.stringify(result)) > 64 * 1024 && result.events.length) {
+    result.events.shift(); result.truncated = true; result.gap = true;
+  }
+  if (Buffer.byteLength(JSON.stringify(result)) > 64 * 1024) throw new Error("Session packet exceeds limit");
+  return result;
+}
 
 export type TaskReadVerdict =
   | "accepted"

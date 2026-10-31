@@ -199,16 +199,24 @@ test("phase26 question packet is bounded and isolated", async (t) => {
   const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
   await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
   let ready = false;
+  let binding: import("../src/core/task-session.js").TaskSessionBinding | undefined;
   await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
     ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
     gsd: { configRoot: fixture.gsdConfigRoot }, onRunReady: async (run) => {
-      const binding = { schemaVersion: 1 as const, contractId: run.contractId, contractDigest: digest, revision: run.revision,
+      binding = { schemaVersion: 1 as const, contractId: run.contractId, contractDigest: digest, revision: run.revision,
         runId: run.runId, host: "codex" as const, originatingSessionId: "question-session" };
       await createTaskSession(fixture.stateRoot, binding);
       ready = true;
     } });
   assert.equal(ready, true);
   assert.equal(typeof reader.readTaskSessionPacket, "function", "the exact run must have a bounded question packet reader");
+  assert.ok(binding);
+  const read = reader.readTaskSessionPacket as typeof import("../src/core/task-read.js").readTaskSessionPacket;
+  const packet = await read({ stateRoot: fixture.stateRoot, binding, limit: 2 });
+  assert.deepEqual(packet.binding, binding);
+  assert.ok(packet.events.length <= 2);
+  assert.ok(Buffer.byteLength(JSON.stringify(packet)) <= 64 * 1024);
+  await assert.rejects(read({ stateRoot: fixture.stateRoot, binding: { ...binding, originatingSessionId: "other-session" }, limit: 2 }));
 });
 
 test("phase26 multi-phase run-ready hook follows durable executing record", { timeout: 20000 }, async (t) => {

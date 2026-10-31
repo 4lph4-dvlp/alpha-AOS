@@ -1,5 +1,6 @@
 import type { TaskDispatchObservation } from "./task-runtime.js";
 import type { TaskSessionEventInput } from "./task-session.js";
+import type { TaskRunRecord } from "./task-run.js";
 import { createHash } from "node:crypto";
 
 /** Project recorded dispatch evidence without deriving lifecycle acceptance. */
@@ -20,4 +21,11 @@ export function projectGsdStep(input: { phaseId: string; attemptId: string; step
     step: `${input.phaseId.slice(0, 100)}: ${input.step}`, role: null, configuredModel: null, configuredEffort: null,
     observedModel: null, observedEffort: null, outcome: input.outcome, processState: null, recordedReason: null,
     evidenceRefs: input.evidenceRefs.slice(0, 16) };
+}
+
+export function projectRunOutcome(record: TaskRunRecord): TaskSessionEventInput | null {
+  if (record.status === "executing" || record.finishedAt === null) return null;
+  return { sourceEventId: `run:${record.runId}:${record.status}`, observedAt: record.finishedAt, kind: "run-outcome", workflow: null,
+    step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null,
+    outcome: record.status, processState: null, recordedReason: record.stopReason, evidenceRefs: [record.runId] };
 }

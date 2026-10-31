@@ -532,6 +532,12 @@ async function writeRunRecord(stateRoot: string, root: string, record: TaskRunRe
     allowedRoots: [join(stateRoot, "tasks")],
     operations: [{ target, content: Buffer.from(text, "utf8") }],
   });
+  try {
+    const [{ projectRunOutcome }, { publishTaskSessionEvent }] = await Promise.all([import("./task-progress.js"), import("./task-session.js")]);
+    const event = projectRunOutcome(record);
+    if (event) await publishTaskSessionEvent(stateRoot, { contractDigest: record.contractDigest, runId: record.runId,
+      contractId: record.contractId, revision: record.revision }, event);
+  } catch { process.emitWarning("Task progress delivery failed; run record remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
   return target;
 }
 

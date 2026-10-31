@@ -204,5 +204,96 @@ test("phase26 separate publishers serialize duplicate and conflicting identities
   assert.equal((await run({ ...event, recordedReason: "different" })).code, 1);
   assert.equal((await run({ ...event, recordedReason: "recorded" })).code, 0);
   assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).events.length, 1);
+  const distinct = await Promise.all([run({ ...event, sourceEventId: "distinct-one" }), run({ ...event, sourceEventId: "distinct-two" })]);
+  assert.deepEqual(distinct.map((result) => result.code), [0, 0]);
+  assert.deepEqual((await readTaskSessionEvents(fixture.stateRoot, binding)).events.map((item) => item.sequence), [1, 2, 3]);
+  const foreign = spawn(process.execPath, ["-e", script, moduleUrl, fixture.stateRoot, JSON.stringify({ ...binding, revision: 2 }), JSON.stringify({ ...event, sourceEventId: "foreign" })], { stdio: ["ignore", "pipe", "pipe"] });
+  const code = await new Promise<number | null>((resolve, reject) => { foreign.once("error", reject); foreign.once("close", resolve); });
+  assert.equal(code, 1);
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).cursor, 3);
+});
+
+test("phase26 observed persistent path substitutions refuse unvalidated results", async (t) => {
+  const { spawn } = await import("node:child_process");
+  const { readFile, rmdir, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  for (const phase of ["1", "2", "3", "4"]) {
+    const fixture = await createTaskFixture(t);
+    const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: phase.repeat(64), revision: 1,
+      runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+    await createTaskSession(fixture.stateRoot, binding);
+    const root = taskSessionRoot(fixture.stateRoot, binding);
+    const sentinel = join(fixture.stateRoot, "sentinel");
+    await writeFile(sentinel, "untouched");
+    const child = spawn(process.execPath, [fileURLToPath(new URL("./helpers/task-session-race-fixture.js", import.meta.url)),
+      fixture.stateRoot, JSON.stringify(binding), phase], { stdio: ["ignore", "pipe", "pipe"] });
+    let output = "";
+    child.stdout.on("data", (part) => { output += String(part); });
+    child.stderr.on("data", (part) => { output += String(part); });
+    const code = await new Promise<number | null>((resolve, reject) => { child.once("error", reject); child.once("close", resolve); });
+    assert.equal(code, 0, output);
+    assert.match(output, /"injected":true/);
+    assert.equal(await readFile(sentinel, "utf8"), "untouched");
+    if (phase === "2" || phase === "3") {
+      // A failed postcheck withholds the result; it does not claim earlier SQLite I/O never happened.
+      await rmdir(join(root, "events.sqlite-journal"));
+      const replay = await readTaskSessionEvents(fixture.stateRoot, binding);
+      assert.equal(replay.cursor, phase === "3" ? 1 : 0);
+    }
+  }
+});
+
+test("phase26 native artifacts have supported private-file treatment", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "4".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  const { lstat } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { spawn, execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const root = taskSessionRoot(fixture.stateRoot, binding);
+  const db = join(root, "events.sqlite"), journal = db + "-journal";
+  const child = spawn(process.execPath, ["-e", "const {DatabaseSync}=require('node:sqlite');const db=new DatabaseSync(process.argv[1]);db.exec('BEGIN IMMEDIATE');db.prepare('INSERT INTO events(sequence,source,input) VALUES(1,?,?)').run('private-fixture','{}');console.log('ready');setInterval(()=>{},1000)", db], { stdio: ["ignore", "pipe", "pipe"] });
+  await new Promise<void>((resolve, reject) => { child.stdout.once("data", () => resolve()); child.once("error", reject); child.once("exit", () => reject(new Error("child exited before ready"))); });
+  try {
+    const stats = await Promise.all([lstat(root), lstat(db), lstat(journal)]);
+    assert.ok(stats[0]?.isDirectory());
+    assert.ok(stats[1]?.isFile() && stats[2]?.isFile());
+    if (process.platform !== "win32") {
+      assert.ok(stats.every((stat) => (stat.mode & 0o077) === 0));
+    } else {
+      for (const path of [root, db, journal]) {
+        const result = await promisify(execFile)("icacls.exe", [path]);
+        assert.ok(result.stdout.includes(path));
+      }
+      t.diagnostic("Windows ACLs were readable; Node mode bits do not establish restrictive Windows ACLs.");
+    }
+  } finally {
+    child.kill();
+    await new Promise<void>((resolve) => child.once("close", () => resolve()));
+  }
+  assert.equal((await readTaskSessionEvents(fixture.stateRoot, binding)).cursor, 0);
+});
+
+test("phase26 refuses non-file and corrupt database paths", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "3".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  const { mkdir, rename, rmdir, writeFile, readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const db = join(taskSessionRoot(fixture.stateRoot, binding), "events.sqlite");
+  await rename(db, db + "-original");
+  await mkdir(db);
+  await assert.rejects(readTaskSessionEvents(fixture.stateRoot, binding));
+  await rmdir(db);
+  await writeFile(db, "unknown corrupt data");
+  await assert.rejects(createTaskSession(fixture.stateRoot, binding));
+  assert.equal(await readFile(db, "utf8"), "unknown corrupt data");
 });
 

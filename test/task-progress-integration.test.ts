@@ -43,6 +43,35 @@ test("phase26 proposal received during final review is settled after terminal re
   assert.deepEqual(after.filter((fact) => fact.requestId === proposal.requestId).map((fact) => fact.state), ["received", "deferred"]);
   assert.ok(after.every((fact) => fact.state !== "applied" && fact.state !== "assessed"));
 });
+test("phase26 stop after steering delivery settles without controller assessment", async (t) => {
+  const fixture = await createTaskFixture(t);
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let binding: TaskSessionBinding | undefined;
+  const base = referenceControllerPort("correct");
+  const controller: typeof base = { async dispatch(request) {
+    assert.ok(binding);
+    const { taskStopRecordDir, taskStopRecordPath } = await import("../src/core/task-control.js");
+    await mkdir(taskStopRecordDir(fixture.stateRoot, binding.contractId), { recursive: true });
+    await writeFile(taskStopRecordPath(fixture.stateRoot, binding.contractId, binding.runId), JSON.stringify({ schemaVersion: 1,
+      contractId: binding.contractId, contractDigest: digest, runId: binding.runId, requestedAt: new Date().toISOString(), reason: "fixture-stop",
+      caller: "fixture", confirmedAt: null, terminationEvidence: null, controllerPid: null, leaseToken: null, status: "pending" }));
+    return base.dispatch(request);
+  } };
+  const { run } = await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }), gsd: { configRoot: fixture.gsdConfigRoot },
+    onRunReady: async (record) => { binding = { schemaVersion: 1, contractId: record.contractId, contractDigest: digest, revision: record.revision,
+      runId: record.runId, host: "codex", originatingSessionId: "stop-race" }; await createTaskSession(fixture.stateRoot, binding);
+      await submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { schemaVersion: 1, binding, requestId: "stop-race",
+        submittedAt: "2026-11-01T00:00:00Z", text: "Consider the existing output." } }); } });
+  assert.equal(run.status, "unknown");
+  assert.ok(binding);
+  const { readTaskSteering } = await import("../src/core/task-steering.js");
+  const facts = await readTaskSteering({ stateRoot: fixture.stateRoot, binding });
+  assert.deepEqual(facts.map((fact) => fact.state), ["received", "delivered", "deferred"]);
+  assert.equal(facts[2]?.actor, "system");
+});
 for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
 test(`phase26 five host integration ${host} public start hands off while fixture controller is held`, { timeout: 60000, skip: process.platform !== "win32" }, async (t) => {
   const fixture = await createTaskFixture(t);

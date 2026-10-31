@@ -97,7 +97,7 @@ Feasibility research is not implementation or verified end-user delivery.
 
 - [ ] **SESSION-01**: Automatically report actual generic quick and supported full/dedicated lifecycle transitions, models, recorded decision reasons and outcomes.
 - [ ] **SESSION-02**: Bind progress to the exact originating session and approved run, with bounded cursor replay, deduplication and explicit delivery failures; no model polling.
-- [ ] **SESSION-03**: Verify each host's native delivery capability and UI semantics; do not represent CLI output, history injection or an untested adapter as equivalent same-session chat delivery.
+- [ ] **SESSION-03**: Provide the approved common panel for all five hosts and report each host's native delivery capability honestly; do not represent CLI output, history injection or an untested adapter as equivalent same-session chat delivery.
 - [ ] **SESSION-04**: Support bounded evidence-based Q&A and durable steering, with safe-boundary acknowledgement, GSD ownership and contract approval preservation.
 - [ ] **SESSION-05**: Preserve detached mode and enforce redaction, bounded payloads, finite waits and cancellation/backpressure handling.
 - [ ] **SESSION-06**: Validate with paid-call-free fixtures, related regressions, final full regression and actual independent review; retain unverified UI gaps honestly.
@@ -172,11 +172,11 @@ Feasibility research is not implementation or verified end-user delivery.
 | RUNTIME-06 | 25 | Complete |
 | RUNTIME-07 | 25 | Complete |
 | RUNTIME-08 | 25 | Complete |
-| SESSION-01 | 26 | Pending feasibility scope |
-| SESSION-02 | 26 | Pending feasibility scope |
-| SESSION-03 | 26 | Research complete; implementation pending |
-| SESSION-04 | 26 | Pending feasibility scope |
-| SESSION-05 | 26 | Pending feasibility scope |
-| SESSION-06 | 26 | Pending feasibility scope |
+| SESSION-01 | 26 | Planned scope approved |
+| SESSION-02 | 26 | Planned scope approved |
+| SESSION-03 | 26 | Common panel approved; native limits recorded |
+| SESSION-04 | 26 | Planned scope approved |
+| SESSION-05 | 26 | Planned scope approved |
+| SESSION-06 | 26 | Implementation/verification pending |
 
 **Coverage:** 55 requirements (41 original milestone requirements, 8 runtime repair requirements and 6 pending session-progress requirements); 55 mapped exactly once; 0 unmapped. Existing assignments and completion evidence are preserved.

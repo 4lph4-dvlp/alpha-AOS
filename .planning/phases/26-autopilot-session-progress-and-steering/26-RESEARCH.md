@@ -54,8 +54,21 @@ Option B: require all reports inside the original host's conversation only. This
 must retain unsupported/unverified states until each host provides a validated
 transport. A universal completed feature cannot currently be promised.
 
-Neither option has been selected. No source implementation, host installation,
-original-project restart or paid model canary was performed during this research.
+On 2026-10-31 the user selected Option A: the common progress panel is approved.
+This resolves the product scope gate. The five-host native capability limits
+remain accurate. No host installation, original-project restart or paid model
+canary was performed during research.
+
+## Validation Architecture
+
+Nyquist remains enabled. [26-VALIDATION.md](26-VALIDATION.md) maps the six
+requirements to the three execution plans, concrete Node fixtures and threat
+controls. Wave 0 creates new fixture files with their owning implementation
+slice; missing files are not existing passing evidence. Relevant checks run per
+slice, followed by actual independent review, accepted fixes, one final full
+regression, fixture-only browser rendering and GSD goal verification. Browser
+rendering does not prove native host message delivery. No paid native inference
+or original-project restart is needed for these checks.
 
 ## Fixture evidence and housekeeping
 

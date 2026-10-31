@@ -11,6 +11,12 @@ This repair proceeds as ordinary conversational GSD, not an autopilot contract.
 
 ## Locked decisions
 
+- On 2026-10-31 the user approved the common progress panel alongside originating
+  conversation Q&A/control. Native session alerts are optional and only enabled
+  where verified; universal native transcript delivery is not an acceptance claim.
+- The user also authorized deletion of the exact research fixture temporary
+  folder; the 2026-10-31 cleanup attempt was still rejected by automatic tool
+  policy with `blocked by policy`. Do not bypass that rejection.
 - Preserve detached operation for multiple tasks. Add an explicit opt-in session
   reporting mode; do not silently attach to the latest task or arbitrary chat.
 - Emit actual lifecycle transitions, role/model/effort, outcomes and brief recorded
@@ -57,8 +63,8 @@ This repair proceeds as ordinary conversational GSD, not an autopilot contract.
 
 Do not claim universal originating-session push from a durable status file or
 stdout stream. Research each host's actual supported transport before planning
-implementation. If a host lacks such a transport, report the specific limitation
-and resolve the product scope with the user rather than silently weakening it.
+implementation. The user resolved the delivery scope on 2026-10-31 by accepting
+the shared panel. Preserve the specific native limitations in capability output.
 
 ## Deferred decisions
 

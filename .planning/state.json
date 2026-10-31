@@ -62,12 +62,17 @@
       "number": "25",
       "name": "Runtime Usage and Recovery Controls",
       "status": "complete"
+    },
+    {
+      "number": "26",
+      "name": "Autopilot Session Progress and Steering",
+      "status": "in_progress"
     }
   ],
   "next": {
-    "command": "$gsd-progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "$gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 13 of 13 · 38% · executing"
   },
-  "updated_at": "2026-10-30T11:12:46.433Z"
+  "updated_at": "2026-10-31T04:31:33.632Z"
 }

@@ -525,10 +525,17 @@ Plans:
 
 ### Phase 26: Autopilot Session Progress and Steering
 
-**Goal:** Provide evidence-based automatic autopilot progress and safe same-session questions/steering, subject to verified delivery capabilities of all five supported hosts. Resolve any originating-session UI limitation explicitly before implementation.
+**Goal:** Provide a shared live autopilot progress panel for all five supported hosts and safe originating-session questions/steering, with evidence-based events and honest native-notification capabilities. Shared panel approved 2026-10-31.
 **Requirements**: SESSION-01, SESSION-02, SESSION-03, SESSION-04, SESSION-05, SESSION-06
 **Depends on:** Phase 25
-**Plans:** 0 plans — feasibility research; delivery scope decision pending
+**Plans:** 3 plans
 
 Plans:
-- [ ] TBD — review five-host feasibility and resolve delivery scope before planning
+**Wave 1**
+- [ ] 26-01-PLAN.md — Exact session-bound automatic progress, authenticated passive panel and opt-in early URL launch/attach
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 26-02-PLAN.md — Bounded originating-conversation Q&A and durable GSD safe-boundary steering
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 26-03-PLAN.md — Five-host integration, owned skill/hash parity and independent final verification gates

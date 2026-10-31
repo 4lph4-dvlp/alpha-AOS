@@ -1,18 +1,23 @@
 # Phase 26 Codex Session Delivery Feasibility
 
 **Researched:** 2026-10-30  
+**Decision refresh:** 2026-10-31; documentation-only reconciliation, with no new probes or external research.
 **Scope:** Installed Codex CLI 0.165.0; stock CLI rendering, app-server ownership, non-inference delivery, and steering boundaries. Other harnesses are outside this supplement.  
 **Confidence:** MEDIUM overall. The installed protocol fixture succeeded; real originating-terminal rendering is source-traced, not visually tested. Desktop app parity remains unverified.
 
 ## User Constraints
 
-The delegated task requires automatic stage-transition reports in the originating chat while the user can ask questions and steer. It prohibits LLM polling, paid inference canaries, writes to existing chats during research, and claiming a durable status file or CLI status command satisfies chat delivery. Research authorization covers isolated non-inference fixtures only. [VERIFIED: delegated task and parent steering received this session]
+On 2026-10-31 the user approved the common passive progress panel, with Q&A and control remaining in the originating conversation. Native session alerts are optional only where verified; universal native transcript delivery is not an acceptance claim. No LLM polling, paid inference canaries, or status-command substitution is authorized. The unsandboxed Codex shell route is not needed or approved as delivery for this decision. [VERIFIED: 26-CONTEXT.md, Locked decisions; parent refresh task]
 
-No phase CONTEXT.md was present when the phase directory was inspected. This document is a Codex feasibility supplement for the phase planner, not a replacement for phase-wide decisions. [VERIFIED: phase-directory inspection this session]
+No phase CONTEXT.md was present at the original 2026-10-30 inspection. The current 26-CONTEXT.md and 26-RESEARCH.md were read for the 2026-10-31 refresh and now govern the product scope. This document remains a Codex feasibility supplement, not a replacement for those phase-wide decisions. [VERIFIED: original phase-directory inspection and refresh reads]
 
 ## Verdict
 
-**Strict passive reporting into an arbitrary existing Codex chat is not established.** The concrete alternative, if the user approves its narrower UI and execution contract, is an explicitly bound, daemon-owned Codex CLI thread with a tiny audited report command through `thread/shellCommand`, rendered as a native command-result item. This route does not start model inference, but it executes a shell command and is **not** an assistant message bubble. The installed binary emitted the required item events in an isolated fixture; the matching release's TUI explicitly routes those events to transcript rendering. Do not lock or implement this alternative before resolving that product-scope decision. [VERIFIED: isolated installed-0.165.0 fixture below] [CITED: https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/tui/src/chatwidget/protocol.rs#L644-L684] [CITED: https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/tui/src/chatwidget/command_lifecycle.rs#L419-L450] [ASSUMED: shell-result alternative requires user scope acceptance]
+**Implement the approved shared passive progress panel; keep originating-conversation Q&A/control and enable native alerts only where verified.** The product-scope gate is resolved. Strict passive reporting into an arbitrary existing Codex chat remains unestablished, and the unsandboxed `thread/shellCommand` route is neither required nor approved for delivery. Its historical fixture/source findings below remain accurate evidence, not the selected implementation. [VERIFIED: 26-CONTEXT.md, Locked decisions and Feasibility gate; 26-RESEARCH.md, Product scope decision; parent refresh task]
+
+### Product decision — resolved 2026-10-31
+
+The common panel is the accepted automatic progress surface across hosts. Native Codex UI delivery remains unverified and optional; do not make shell execution or native transcript parity a prerequisite for the panel. The shell-command examples, candidate architecture and native validation cases below document the earlier investigation only and do not grant implementation or execution authority. [VERIFIED: 26-CONTEXT.md, Locked decisions and Acceptance cases; parent refresh task]
 
 **Do not use `thread/inject_items` as the visible-delivery implementation.** Its documented contract is model-visible history; the TUI explicitly ignores raw-response completion notifications. The isolated fixture accepted injection but emitted no corresponding item event before the shell request. [CITED: https://learn.chatgpt.com/docs/app-server] [CITED: https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/tui/src/chatwidget/protocol.rs#L362-L403] [VERIFIED: isolated installed-0.165.0 fixture below]
 
@@ -25,7 +30,7 @@ No phase CONTEXT.md was present when the phase directory was inspected. This doc
 | Task transitions and approval checkpoints | Existing GSD/task runtime | Report transitions already committed by that owner; reporting never advances lifecycle state. |
 | Event durability, deduplication and bounded retries | Deterministic local runtime | Event-driven transport; no LLM timer, status loop, or monitor agent. |
 | Origin identification | Launch/session binding adapter | Bind exact harness, backend endpoint, thread identifier, run and approved capability. Never select the latest thread or infer the origin from a working directory. |
-| Visible Codex CLI report | Same-backend app-server plus stock TUI | Use audited shell-result delivery only after explicit capability consent and a supported binding. |
+| Approved visible progress | Shared passive panel | Keep native Codex alerts optional and disabled until verified; no unsandboxed shell delivery is approved. |
 | User Q&A | Existing interactive conversation | User messages retain native chat handling. Q&A model requests are distinct from reporting. |
 | Control changes to autopilot | Task control port | Route explicit user controls to the existing task runtime with task identity and authority; do not equate chat history injection with runner steering. |
 
@@ -95,7 +100,7 @@ The empty provider-request list describes this isolated idle-report fixture only
 
 **Important shell side effect:** Despite isolated HOME/USERPROFILE, the shell loaded the OS PowerShell profile, and profile diagnostics appeared alongside the marker. The release code deliberately derives execution with login-shell mode enabled. A fixed emitter does not eliminate profile execution. [VERIFIED: local fixture output] [CITED: https://github.com/openai/codex/blob/rust-v0.165.0/codex-rs/core/src/tasks/user_shell.rs#L143-L147]
 
-**Cleanup limitation:** The fixture server was terminated; the enclosing exec session exited with code 1 because temporary-directory cleanup encountered EBUSY. A bounded cleanup attempt with a literal resolved temp-root check was then rejected by automatic approval review with `blocked by policy`. The remaining temporary directory is `C:/Users/alpha/AppData/Local/Temp/aos-codex-no-inference-7dAGfz`. No deletion workaround was attempted. [VERIFIED: this session's process and cleanup tool outputs]
+**Cleanup limitation:** The fixture server was terminated; the enclosing exec session exited with code 1 because temporary-directory cleanup encountered EBUSY. A bounded cleanup attempt with a literal resolved temp-root check was then rejected by automatic approval review with `blocked by policy`. On 2026-10-31 the user authorized deleting this exact fixture, but the parent's cleanup retry was again rejected with `blocked by policy`; cleanup remains incomplete. The remaining temporary directory is `C:/Users/alpha/AppData/Local/Temp/aos-codex-no-inference-7dAGfz`. No deletion workaround is authorized or attempted in this refresh. [VERIFIED: original process and cleanup tool outputs; 26-CONTEXT.md, Locked decisions; parent refresh task]
 
 ## Protocol Contract and Code Examples
 
@@ -115,7 +120,9 @@ Local CLI help exposes `app-server proxy --sock <SOCKET_PATH>` for stdio-to-runn
 
 The initialize response includes `codexHome`, `platformFamily`, `platformOs`, and `userAgent`; do not invent a serverVersion field. Record the actual negotiated server identity and compare against the tested compatibility policy. No live daemon-version command was executed during this research because that would connect to an existing socket. [VERIFIED: locally opened generated InitializeResponse schema and this session's invocations]
 
-## Smallest Viable Implementation
+## Historical Shell-Delivery Candidate — Not Selected
+
+The following candidate was documented before the common panel was approved. Preserve it as research evidence only; do not implement it under the current panel decision. [VERIFIED: 26-CONTEXT.md, Locked decisions; parent refresh task]
 
 1. Capture an explicit origin binding at task launch. Require the same backend that owns the live origin thread. Prove that the exact thread is already loaded on that backend through a read-only bounded query; never resume it on a new backend merely to make a capability check pass.
 2. Keep task progress as deterministic events from the existing task runner. Commit each event before delivery, with task/run/event identity and a monotonic sequence. Trigger one finite delivery attempt when a stage changes; deduplicate unchanged state in code.
@@ -189,8 +196,8 @@ No existing production chat injection or GUI action was performed. [VERIFIED: th
 |---|---|---|
 | C1 | Desktop app can expose a compatible writable backend and render command events in the origin chat. [ASSUMED] | Keep unsupported until dedicated proof; CLI evidence does not cover the app. |
 | C2 | Existing embedded CLI exposes no usable external attach path. [ASSUMED] | Adapter can fail closed on lack of a proven endpoint without claiming vendor-wide impossibility. |
-| C3 | Users accept native shell-result reports rather than assistant bubbles. [ASSUMED] | Present that exact UI contract before locking implementation. |
-| C4 | Users approve the unsandboxed shell/login-profile capability for the audited emitter. [ASSUMED] | Explicit opt-in required; otherwise host extension/custom UI is needed. |
+| C3 | Resolved: the user approved the common passive progress panel with originating-conversation Q&A/control; native alerts are optional only where verified. [VERIFIED: 26-CONTEXT.md, Locked decisions] | Plan against the panel; native shell-result acceptance is not required or implied. |
+| C4 | Resolved for current scope: unsandboxed Codex shell/login-profile delivery is not needed and is not approved. [VERIFIED: parent refresh task; 26-CONTEXT.md, Locked decisions] | Do not implement or execute the historical shell-delivery candidate. |
 | C5 | Proposed runtime event/binding/control-port architecture and five-second timeout suit the project. [ASSUMED] | Planner selects concrete policy without weakening task authority or reporting semantics. |
 | C6 | Same-daemon second-client delivery renders correctly on an attached TUI with concurrent Q&A. [ASSUMED: source-supported but not locally rendered] | Required end-to-end non-paid fixture and native acceptance check. |
 
@@ -201,4 +208,4 @@ No existing production chat injection or GUI action was performed. [VERIFIED: th
 - Parent's required Exa/Firecrawl/Context7 work: parent reported official README extraction and `/openai/codex` documentation lookup; this child did independent pinned source tracing and an installed-binary isolated fixture. [VERIFIED: parent messages this session]
 - Confidence seam calls returned MEDIUM for Context7 (including `--verified`) and Firecrawl `--verified`; generic `webfetch`/`official` provider IDs returned LOW and were not used to manufacture a higher confidence tier. This supplement uses official-source `[CITED]` claims and distinct local-fixture `[VERIFIED]` claims. [VERIFIED: local classify-confidence outputs]
 
-**Remaining prerequisite for a complete feasibility claim:** A second-client, same-daemon, attached CLI rendering fixture with exact origin binding, followed separately by a desktop-app-specific capability investigation. No paid inference canary is needed to validate idle command-item reporting. [ASSUMED: recommended validation sequence] [VERIFIED: zero-provider-request idle fixture]
+**Optional native-delivery evidence gap:** Same-daemon attached CLI rendering and desktop-app-specific delivery remain unverified. These gaps do not block the approved shared panel, and no further native shell probes are authorized by this refresh. The original zero-provider-request idle fixture remains evidence only for that isolated protocol test. [VERIFIED: original idle fixture; 26-CONTEXT.md, Locked decisions; parent refresh task]

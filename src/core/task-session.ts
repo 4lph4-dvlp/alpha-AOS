@@ -176,7 +176,7 @@ export async function readTaskSessionEvents(stateRoot: string, binding: TaskSess
     return { binding: validateTaskSessionBinding(binding), events, cursor: last, gap: cursor < (events[0]?.sequence ?? last + 1) - 1 };
   });
 }
-export async function publishTaskSessionDispatch(stateRoot: string, record: import("./task-runtime.js").TaskDispatchObservation, contract: { id: string; revision: number }): Promise<void> {
+export async function publishTaskSessionDispatch(stateRoot: string, record: import("./task-runtime.js").TaskDispatchObservation, contract: import("./task-contract.js").TaskContract): Promise<void> {
   if (!/^[a-f0-9]{64}$/u.test(record.contractDigest) || !id.test(record.runId)) throw new Error("Invalid task session run identity");
   const root = join(stateRoot, "runs", record.contractDigest, "sessions", createHash("sha256").update(record.runId).digest("hex"));
   const path = join(root, "events.sqlite");
@@ -194,11 +194,8 @@ export async function publishTaskSessionDispatch(stateRoot: string, record: impo
     checkIdentity(before, await identities(root, path));
   } finally { db.close(); }
   if (binding.contractDigest !== record.contractDigest || binding.runId !== record.runId || binding.contractId !== contract.id || binding.revision !== contract.revision) throw new Error("Task run session binding mismatch");
-  await appendTaskSessionEvent(stateRoot, binding, { sourceEventId: `${record.dispatchId}:${record.finishedAt === null ? "start" : "end"}`,
-    observedAt: record.finishedAt ?? record.startedAt, kind: record.finishedAt === null ? "dispatch-start" : "dispatch-end",
-    workflow: null, step: null, role: record.role, configuredModel: record.model, configuredEffort: record.effort ?? null,
-    observedModel: null, observedEffort: null, outcome: record.status, processState: record.closeConfirmed === true ? "confirmed-closed" : record.closeConfirmed === false ? "unconfirmed" : "unknown", recordedReason: record.reason,
-    evidenceRefs: [record.dispatchId] });
+  const { projectTaskProgress } = await import("./task-progress.js");
+  await appendTaskSessionEvent(stateRoot, binding, projectTaskProgress(record, contract.scope.workflow));
 }
 
 

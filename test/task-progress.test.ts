@@ -4,7 +4,7 @@ import { createTaskFixture, inventorySummaryContract } from "./helpers/task-fixt
 import { createTaskSession, readTaskSessionEvents, validateTaskSessionBinding } from "../src/core/task-session.js";
 import { meteredTaskDispatch } from "../src/core/task-runtime.js";
 
-test("phase26 progress covers quick full and dedicated", async (t) => {
+test("phase26 progress projects the actual quick workflow", async (t) => {
   const fixture = await createTaskFixture(t);
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: "a".repeat(64), revision: 1,
     runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });

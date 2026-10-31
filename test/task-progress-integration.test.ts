@@ -14,6 +14,35 @@ import { createTaskSession, type TaskSessionBinding } from "../src/core/task-ses
 import { submitTaskSteering } from "../src/core/task-steering.js";
 const invoke = promisify(execFile);
 const cliEntry = join(resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."), "dist", "src", "cli.js");
+test("phase26 proposal received during final review is settled after terminal record", async (t) => {
+  const fixture = await createTaskFixture(t);
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let binding: TaskSessionBinding | undefined;
+  const base = staticReviewerPort(passingReview);
+  const reviewer: typeof base = { async review(request) {
+    assert.ok(binding);
+    await submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { schemaVersion: 1, binding, requestId: "late-review",
+      submittedAt: "2026-11-01T00:00:00Z", text: "Consider this adjustment." } });
+    return base.review(request);
+  } };
+  const { run } = await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer }), gsd: { configRoot: fixture.gsdConfigRoot },
+    onRunReady: async (record) => { binding = { schemaVersion: 1, contractId: record.contractId, contractDigest: digest, revision: record.revision,
+      runId: record.runId, host: "codex", originatingSessionId: "review-race" }; await createTaskSession(fixture.stateRoot, binding); } });
+  assert.equal(run.status, "accepted");
+  assert.ok(binding);
+  const { readTaskSteering } = await import("../src/core/task-steering.js");
+  const facts = await readTaskSteering({ stateRoot: fixture.stateRoot, binding });
+  assert.deepEqual(facts.map((fact) => fact.state), ["received", "deferred"]);
+  assert.equal(facts[1]?.actor, "system");
+  const proposal = { schemaVersion: 1 as const, binding, requestId: "after-terminal", submittedAt: "2026-11-01T00:00:00Z", text: "Another adjustment." };
+  await Promise.all([submitTaskSteering({ stateRoot: fixture.stateRoot, proposal }), submitTaskSteering({ stateRoot: fixture.stateRoot, proposal })]);
+  const after = await readTaskSteering({ stateRoot: fixture.stateRoot, binding });
+  assert.deepEqual(after.filter((fact) => fact.requestId === proposal.requestId).map((fact) => fact.state), ["received", "deferred"]);
+  assert.ok(after.every((fact) => fact.state !== "applied" && fact.state !== "assessed"));
+});
 for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
 test(`phase26 five host integration ${host} public start hands off while fixture controller is held`, { timeout: 60000, skip: process.platform !== "win32" }, async (t) => {
   const fixture = await createTaskFixture(t);

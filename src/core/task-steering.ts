@@ -100,7 +100,7 @@ export async function submitTaskSteering(options: { stateRoot: string; proposal:
     kind: "steering-received", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
     observedEffort: null, outcome: "received", processState: null, recordedReason: null, evidenceRefs: [] });
   const run = await (await import("./task-progress-launch.js")).exactRun(options.stateRoot, proposal.binding);
-  if (run.dedicated || ["accepted", "rejected", "blocked", "stopped"].includes(run.run.status)) {
+  if (run.dedicated || run.run.status !== "executing") {
     const facts = await readTaskSteering({ stateRoot: options.stateRoot, binding: proposal.binding });
     const finalFact = facts.find((fact) => fact.digest === digest && ["deferred", "rejected", "applied"].includes(fact.state));
     if (!finalFact || (finalFact.state === "deferred" && finalFact.actor === "system")) {
@@ -114,6 +114,33 @@ export async function submitTaskSteering(options: { stateRoot: string; proposal:
     }
   }
   return { state: "received", digest, requestId: proposal.requestId, binding: proposal.binding, submittedAt: proposal.submittedAt, actor: "user", sequence: event.sequence };
+}
+/** Settle only after an exact authoritative run has ended. Submitters recheck
+ * the same fact after writing their receipt, closing the terminal-write race. */
+export async function settleTerminalTaskSteering(options: { stateRoot: string; binding: TaskSessionBinding }): Promise<void> {
+  const binding = validateTaskSessionBinding(options.binding);
+  const run = await (await import("./task-progress-launch.js")).exactRun(options.stateRoot, binding);
+  if (!run.dedicated && (run.run.status === "executing" || !run.run.finishedAt)) throw new Error("Task run is not terminal");
+  const facts = await readTaskSteering({ stateRoot: options.stateRoot, binding });
+  const dir = directory(options.stateRoot, binding);
+  let names: string[];
+  try { names = await readdir(dir); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  for (const name of names.filter((entry) => /^0\d\d\.json$/u.test(entry))) {
+    const proposal = await readProposal(join(dir, name), options.stateRoot);
+    const digest = hash(JSON.stringify(proposal));
+    if (facts.some((fact) => fact.digest === digest && ["deferred", "rejected", "applied"].includes(fact.state))) continue;
+    let fact: BoundaryFact = { state: "deferred", digest, requestId: proposal.requestId, binding, actor: "system", boundary: "no-safe-boundary",
+      recordedAt: new Date().toISOString(), reason: "no-safe-boundary: no eligible controller dispatch" };
+    const path = join(dir, name.replace(/\.json$/u, ".deferred.json"));
+    try { await writeAtomicPrivateFile(path, JSON.stringify(fact), 4096, options.stateRoot, { exclusive: true }); }
+    catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      fact = JSON.parse(await readBoundedFile(path, options.stateRoot, 4096)) as BoundaryFact;
+    }
+    if (fact.actor === "system") await appendTaskSessionEvent(options.stateRoot, binding, { sourceEventId: `steering:${hash(`${digest}:deferred`)}`,
+      observedAt: fact.recordedAt, kind: "steering-deferred", workflow: null, step: null, role: null, configuredModel: null,
+      configuredEffort: null, observedModel: null, observedEffort: null, outcome: "deferred", processState: null, recordedReason: fact.reason, evidenceRefs: [] });
+  }
 }
 export async function readTaskSteering(options: { stateRoot: string; binding: TaskSessionBinding }): Promise<(Receipt | (BoundaryFact & { sequence: number | null }))[]> {
   const binding = validateTaskSessionBinding(options.binding);

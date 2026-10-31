@@ -551,6 +551,14 @@ async function writeRunRecord(stateRoot: string, root: string, record: TaskRunRe
       catch { process.emitWarning("Task progress delivery failed; run record remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
     }
   } catch { process.emitWarning("Task progress delivery failed; run record remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
+  if (record.status !== "executing" && record.finishedAt) {
+    try {
+      const { readTaskSessionBindingForRun } = await import("./task-session.js");
+      const binding = await readTaskSessionBindingForRun(stateRoot, { contractDigest: record.contractDigest, runId: record.runId,
+        contractId: record.contractId, revision: record.revision });
+      if (binding) await (await import("./task-steering.js")).settleTerminalTaskSteering({ stateRoot, binding });
+    } catch { process.emitWarning("Terminal steering settlement failed; run record remains authoritative", { code: "AOS_STEERING_SETTLEMENT" }); }
+  }
   return target;
 }
 

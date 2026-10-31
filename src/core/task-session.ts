@@ -182,12 +182,12 @@ export async function readTaskSessionEvents(stateRoot: string, binding: TaskSess
     return { binding: validateTaskSessionBinding(binding), events, cursor: last, gap: cursor < (events[0]?.sequence ?? last + 1) - 1 };
   });
 }
-export async function publishTaskSessionEvent(stateRoot: string, identity: { contractDigest: string; runId: string; contractId: string; revision: number }, event: TaskSessionEventInput): Promise<void> {
+export async function readTaskSessionBindingForRun(stateRoot: string, identity: { contractDigest: string; runId: string; contractId: string; revision: number }): Promise<TaskSessionBinding | null> {
   if (!/^[a-f0-9]{64}$/u.test(identity.contractDigest) || !id.test(identity.runId)) throw new Error("Invalid task session run identity");
   const root = join(stateRoot, "runs", identity.contractDigest, "sessions", createHash("sha256").update(identity.runId).digest("hex"));
   const path = join(root, "events.sqlite");
   await assertNoSymlinksInPathAndAncestors(path);
-  try { await lstat(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+  try { await lstat(path); } catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return null; throw error; }
   const before = await identities(root, path);
   let DatabaseSync: typeof import("node:sqlite").DatabaseSync;
   try { ({ DatabaseSync } = await import("node:sqlite")); } catch { throw new Error("Task session observer requires Node SQLite support"); }
@@ -200,6 +200,12 @@ export async function publishTaskSessionEvent(stateRoot: string, identity: { con
     checkIdentity(before, await identities(root, path));
   } finally { db.close(); }
   if (binding.contractDigest !== identity.contractDigest || binding.runId !== identity.runId || binding.contractId !== identity.contractId || binding.revision !== identity.revision) throw new Error("Task run session binding mismatch");
+  await withStore(stateRoot, binding, false, () => undefined);
+  return binding;
+}
+export async function publishTaskSessionEvent(stateRoot: string, identity: { contractDigest: string; runId: string; contractId: string; revision: number }, event: TaskSessionEventInput): Promise<void> {
+  const binding = await readTaskSessionBindingForRun(stateRoot, identity);
+  if (!binding) return;
   await appendTaskSessionEvent(stateRoot, binding, event);
 }
 export async function publishTaskSessionDispatch(stateRoot: string, record: import("./task-runtime.js").TaskDispatchObservation, contract: import("./task-contract.js").TaskContract): Promise<void> {

@@ -1469,12 +1469,33 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   const { contract, digest } = loaded;
 
   const nativePorts = options.ports;
+  let quickBoundary: { binding: import("./task-session.js").TaskSessionBinding; contract: TaskContract; lease: ControllerLease; projectRoot: string; boundary: string } | null = null;
+  const pendingSteering: { current: Awaited<ReturnType<typeof import("./task-steering.js").consumeTaskSteeringAtBoundary>> } = { current: null };
   const { meteredTaskDispatch } = await import("./task-runtime.js");
   options = { ...options, ports: { ...nativePorts,
     controller: { dispatch: (request) => meteredTaskDispatch({
       stateRoot: options.stateRoot, contract, digest, runId: request.runId, role: "controller", now: options.now,
-      invoke: ({ onSpawn, onTelemetry, onProcess, deadlineAt }) => nativePorts.controller.dispatch({ ...request, onSpawn, onTelemetry, onProcess,
-        deadlineAt: earlierDeadline(request.deadlineAt, deadlineAt) }),
+      invoke: async ({ onSpawn, onTelemetry, onProcess, deadlineAt }) => {
+        const boundary = quickBoundary;
+        const { consumeTaskSteeringAtBoundary, hasExactTaskStop } = await import("./task-steering.js");
+        const steering = boundary ? await consumeTaskSteeringAtBoundary({ ...boundary, stateRoot: options.stateRoot }) : null;
+        if (boundary && await hasExactTaskStop({ stateRoot: options.stateRoot, binding: boundary.binding, projectRoot: boundary.projectRoot })) {
+          await steering?.complete(false);
+          throw new Error("Task stop requested before controller dispatch");
+        }
+        let delivered = false;
+        try { const result = await nativePorts.controller.dispatch({ ...request, prompt: [request.prompt, steering?.text].filter(Boolean).join("\n"), onSpawn, onTelemetry, onProcess,
+          deadlineAt: earlierDeadline(request.deadlineAt, deadlineAt) });
+          delivered = !["spawn-failed", "unsupported-executable", "environment-conflict", "missing-required-environment"].includes(result.processCode);
+          return result; }
+        finally {
+          try {
+            if (delivered) { await steering?.delivered(); pendingSteering.current = steering; }
+            else await steering?.complete(false);
+            if (boundary) await consumeTaskSteeringAtBoundary({ ...boundary, stateRoot: options.stateRoot, allowDelivery: false });
+          } catch { process.emitWarning("Steering disposition could not be recorded; its outcome is unknown", { code: "AOS_STEERING_DISPOSITION" }); }
+        }
+      },
     }) },
     reviewer: { review: (request) => meteredTaskDispatch({
       stateRoot: options.stateRoot, contract, digest, runId: request.runId, role: "reviewer", now: options.now,
@@ -1631,6 +1652,12 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     const planningBefore = await snapshotPlanningState(projectRoot);
     const gitControlBefore = await snapshotGitControl({ projectRoot, gitDirectory: gitDirectoryForSnapshot });
 
+    const { readTaskSessionBindingForRun } = await import("./task-session.js");
+    const binding = await readTaskSessionBindingForRun(options.stateRoot, { contractDigest: digest, runId, contractId: contract.id, revision: contract.revision });
+    const { hasExactTaskStop } = await import("./task-steering.js");
+    if (wallTimeElapsed()) return await stopForWallTime();
+    if (binding && await hasExactTaskStop({ stateRoot: options.stateRoot, binding, projectRoot })) return await finish({ ...record, status: "stopped", finishedAt: clock().toISOString(), stopReason: "stop-requested", nextAction: "Inspect the recorded stop request." });
+    quickBoundary = binding ? { binding, contract, lease, projectRoot, boundary: `quick:${runId}` } : null;
     const dispatched = await options.ports.controller.dispatch({
       runId,
       contract,
@@ -1691,6 +1718,14 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
         path: "",
         detail: `the base commit ${baseline.baseCommit.slice(0, 12)} is no longer reachable from HEAD (history rewritten)`,
       });
+    }
+
+    if (pendingSteering.current) {
+      const steering = pendingSteering.current;
+      pendingSteering.current = null;
+      const disposition = await steering.complete(true, { baseCommit: baseline.baseCommit, planningPaths: audit.planningPaths, violations: audit.violations });
+      if (disposition === "revision-required") return await finish({ ...record, status: "blocked", finishedAt: clock().toISOString(),
+        stopReason: "new-authority-required: steering", nextAction: `Revise, preview and approve contract revision ${contract.revision + 1}.` });
     }
 
     let effects: TaskRunEffects = { ...audit, packCheckpoint: null };
@@ -2283,6 +2318,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     }
     return { run: failed, recordPath };
   } finally {
+    if (pendingSteering.current) await pendingSteering.current.complete(true).catch(() => undefined);
     await lease.release().catch(() => undefined);
     if (scratchRoot !== null) await rm(scratchRoot, { recursive: true, force: true }).catch(() => undefined);
   }

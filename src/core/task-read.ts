@@ -29,18 +29,30 @@ export async function readTaskSessionPacket(options: { stateRoot: string; bindin
   const { readTaskSteering } = await import("./task-steering.js");
   const dispositions = await readTaskSteering({ stateRoot: options.stateRoot, binding });
   const selected = replay.events.slice(-options.limit);
+  const work = replay.events.filter((event) => !event.kind.startsWith("steering-"));
+  const current = work.at(-1);
+  const { taskPanelCapabilities } = await import("./task-progress-panel.js");
+  const refs = [...new Set(work.flatMap((event) => event.evidenceRefs))].slice(-20);
   const result = {
     schemaVersion: 1 as const, binding, observedAt: new Date().toISOString(),
-    lastMeaningfulActivityAt: selected.at(-1)?.observedAt ?? null,
+    lastMeaningfulActivityAt: current?.observedAt ?? null,
     sourceCursor: replay.cursor, gap: replay.gap || (selected[0]?.sequence ?? replay.cursor + 1) > cursor + 1,
     truncated: selected.length < replay.events.length || replay.gap,
-    workflow: selected.at(-1)?.workflow ?? proof.dedicated?.workflow ?? null,
-    runStatus: proof.run.status ?? "unknown", processState: selected.at(-1)?.processState ?? "unknown",
-    events: selected, evidenceSummaries: null, proposalDispositions: dispositions,
-    nativeDelivery: "unknown" as const,
+    workflow: work.findLast((event) => event.workflow !== null)?.workflow ?? proof.dedicated?.workflow ?? null,
+    currentStep: work.findLast((event) => event.step !== null)?.step ?? null,
+    runStatus: proof.run.status ?? "unknown", processState: work.findLast((event) => event.processState !== null)?.processState ?? "unknown",
+    processObservedAt: work.findLast((event) => event.processState !== null)?.observedAt ?? null,
+    events: selected, evidenceSummaries: refs.map((id) => {
+      const event = work.findLast((entry) => entry.evidenceRefs.includes(id));
+      return { id, summary: event ? { kind: event.kind, outcome: event.outcome, recordedReason: event.recordedReason } : null };
+    }), proposalDispositions: dispositions.slice(-50), dispositionsTruncated: dispositions.length > 50,
+    capabilities: taskPanelCapabilities(binding.host), nativeDelivery: "unknown" as const,
   };
   while (Buffer.byteLength(JSON.stringify(result)) > 64 * 1024 && result.events.length) {
     result.events.shift(); result.truncated = true; result.gap = true;
+  }
+  while (Buffer.byteLength(JSON.stringify(result)) > 64 * 1024 && result.proposalDispositions.length) {
+    result.proposalDispositions.shift(); result.dispositionsTruncated = true; result.truncated = true;
   }
   if (Buffer.byteLength(JSON.stringify(result)) > 64 * 1024) throw new Error("Session packet exceeds limit");
   return result;

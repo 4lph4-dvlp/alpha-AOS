@@ -206,6 +206,11 @@ test("phase26 question packet is bounded and isolated", async (t) => {
       binding = { schemaVersion: 1 as const, contractId: run.contractId, contractDigest: digest, revision: run.revision,
         runId: run.runId, host: "codex" as const, originatingSessionId: "question-session" };
       await createTaskSession(fixture.stateRoot, binding);
+      const { appendTaskSessionEvent } = await import("../src/core/task-session.js");
+      await appendTaskSessionEvent(fixture.stateRoot, binding, { sourceEventId: "packet-summary", observedAt: "2026-11-01T00:00:00Z",
+        kind: "verification", workflow: "gsd-quick", step: "verify", role: "controller", configuredModel: null,
+        configuredEffort: null, observedModel: null, observedEffort: null, outcome: "passed", processState: null,
+        recordedReason: "Recorded check passed", evidenceRefs: ["check-1"] });
       ready = true;
     } });
   assert.equal(ready, true);
@@ -215,6 +220,8 @@ test("phase26 question packet is bounded and isolated", async (t) => {
   const packet = await read({ stateRoot: fixture.stateRoot, binding, limit: 2 });
   assert.deepEqual(packet.binding, binding);
   assert.ok(packet.events.length <= 2);
+  assert.deepEqual(packet.evidenceSummaries.find((entry) => entry.id === "check-1")?.summary,
+    { kind: "verification", outcome: "passed", recordedReason: "Recorded check passed" });
   assert.ok(Buffer.byteLength(JSON.stringify(packet)) <= 64 * 1024);
   await assert.rejects(read({ stateRoot: fixture.stateRoot, binding: { ...binding, originatingSessionId: "other-session" }, limit: 2 }));
 });

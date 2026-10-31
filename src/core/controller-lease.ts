@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir, open, readFile, rm } from "node:fs/promises";
 import { hostname } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { isProcessAlive, syncDirectory } from "./writer-lock.js";
 
@@ -35,6 +35,11 @@ export interface ControllerLease {
   readonly token: string;
   readonly record: ControllerLockRecord;
   release: () => Promise<void>;
+}
+const activeLeases = new WeakMap<ControllerLease, { projectRoot: string; digest: string }>();
+export function isHeldControllerLease(lease: ControllerLease, projectRoot: string, digest: string): boolean {
+  const owned = activeLeases.get(lease);
+  return owned?.projectRoot === resolve(projectRoot) && owned.digest === digest;
 }
 
 /**
@@ -136,10 +141,11 @@ export async function acquireControllerLease(options: {
   }
   await syncDirectory(lockDir);
 
-  return {
+  const lease: ControllerLease = {
     token: record.token,
     record,
     release: async () => {
+      activeLeases.delete(lease);
       try {
         const currentText = await readFile(lockPath, "utf8").catch(() => null);
         if (currentText) {
@@ -154,4 +160,6 @@ export async function acquireControllerLease(options: {
       }
     },
   };
+  activeLeases.set(lease, { projectRoot: resolve(options.projectRoot), digest: options.contractDigest });
+  return lease;
 }

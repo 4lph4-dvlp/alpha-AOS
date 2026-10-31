@@ -48,7 +48,7 @@ export async function startTaskProgressPanel(options: { stateRoot: string; bindi
       let next: typeof processObservations;
       try {
         const { readTaskDispatches } = await import("./task-runtime.js");
-        const records = await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000 });
+        const records = await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
         next = records.slice(-32).map((record) => ({ dispatchId: record.dispatchId,
           state: record.closeConfirmed === true ? "confirmed-closed" : record.status === "interrupted" ? "unresolved" :
             record.status === "running" && record.host === hostname() ? "owner-alive" : "unknown" }));

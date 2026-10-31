@@ -133,8 +133,11 @@ test("phase26 dead owner is not live progress", async (t) => {
   await mkdir(root, { recursive: true });
   await writeFile(join(root, `${dispatchId}.json`), JSON.stringify({ schemaVersion: 1, dispatchId, contractDigest: binding.contractDigest,
     runId: binding.runId, role: "controller", harness: "codex", model: null, startedAt: "2026-10-31T00:00:00.000Z", finishedAt: null,
-    host: hostname(), ownerPid: 2147483647, childPid: null, sessionId: null, status: "running", reason: null,
+    host: hostname(), ownerPid: 2147483647, childPid: null, sessionId: "fixture-thread", status: "running", reason: null, nativeCoverage: "family",
     telemetry: normalizeHarnessTelemetry("codex", null) }));
+  const { readTaskDispatches } = await import("../src/core/task-runtime.js");
+  const thin = await readTaskDispatches(fixture.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
+  assert.equal(thin[0]?.nativeCoverage, "family");
   const panel = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 30000 });
   t.after(() => panel.dispose());
   const url = new URL(panel.url);

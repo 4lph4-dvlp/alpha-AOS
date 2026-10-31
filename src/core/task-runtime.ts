@@ -72,7 +72,7 @@ function runtimeRoot(stateRoot: string, digest: string): string {
   return join(stateRoot, "runs", digest, "dispatches");
 }
 
-export async function readTaskDispatches(stateRoot: string, digest: string, options?: { runId?: string; maxRecords?: number }): Promise<TaskDispatchObservation[]> {
+export async function readTaskDispatches(stateRoot: string, digest: string, options?: { runId?: string; maxRecords?: number; processOnly?: boolean }): Promise<TaskDispatchObservation[]> {
   const root = runtimeRoot(stateRoot, digest);
   await assertNoSymlinksInPathAndAncestors(root);
   let names: string[];
@@ -107,7 +107,7 @@ export async function readTaskDispatches(stateRoot: string, digest: string, opti
       record.reason = record.childPid !== null && isProcessAlive(record.childPid)
         ? "parent_exited_child_may_be_alive: inspect native handle before resume" : "parent_exited: completion unobserved";
     }
-    if (record.status === "interrupted" || record.nativeCoverage === "unknown") await recoverNativeUsage(record);
+    if (!options?.processOnly && (record.status === "interrupted" || record.nativeCoverage === "unknown")) await recoverNativeUsage(record);
     records.push(record);
   }
   return records;

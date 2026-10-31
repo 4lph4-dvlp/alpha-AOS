@@ -3,10 +3,12 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { approveTaskContract, loadTaskContract } from "../src/core/task-contract.js";
 import { createTaskFixture, inventorySummaryContract, writeTaskContract } from "./helpers/task-fixture.js";
+const invoke = promisify(execFile);
 const cliEntry = join(resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."), "dist", "src", "cli.js");
 for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
 test(`phase26 five host integration ${host} public start hands off while fixture controller is held`, { timeout: 60000, skip: process.platform !== "win32" }, async (t) => {
@@ -27,11 +29,11 @@ test(`phase26 five host integration ${host} public start hands off while fixture
   let stderr = "", buffer = "";
   child.stderr.setEncoding("utf8"); child.stderr.on("data", (chunk: string) => { stderr += chunk; });
   const ended = new Promise<void>((resolve) => child.once("close", () => resolve()));
-  const handoff = new Promise<{ url: string; jobId: string }>((resolve, reject) => {
-    child.stdout.setEncoding("utf8"); child.stdout.on("data", (chunk: string) => { buffer += chunk; const index = buffer.indexOf("\n"); if (index >= 0) { try { const value = JSON.parse(buffer.slice(0, index)) as { type: string; url: string; jobId: string }; if (value.type === "panel-launch") resolve(value); } catch (error) { reject(error); } } });
+  const handoff = new Promise<{ url: string; jobId: string; binding: { contractId: string; contractDigest: string; revision: number; runId: string; host: string; originatingSessionId: string } }>((resolve, reject) => {
+    child.stdout.setEncoding("utf8"); child.stdout.on("data", (chunk: string) => { buffer += chunk; const index = buffer.indexOf("\n"); if (index >= 0) { try { const value = JSON.parse(buffer.slice(0, index)) as { type: string; url: string; jobId: string; binding: { contractId: string; contractDigest: string; revision: number; runId: string; host: string; originatingSessionId: string } }; if (value.type === "panel-launch") resolve(value); } catch (error) { reject(error); } } });
     child.once("error", reject); child.once("close", () => reject(new Error(`CLI exited before panel handoff: ${stderr}`)));
   });
-  let launch: { url: string; jobId: string } | undefined;
+  let launch: { url: string; jobId: string; binding: { contractId: string; contractDigest: string; revision: number; runId: string; host: string; originatingSessionId: string } } | undefined;
   try {
     launch = await handoff;
     const { waitForCompletion } = await import("../src/core/completion-wait.js");
@@ -41,6 +43,23 @@ test(`phase26 five host integration ${host} public start hands off while fixture
     const url = new URL(launch.url);
     const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
     assert.equal(exchange.status, 200);
+    const { token } = await exchange.json() as { token: string };
+    const snapshot = await fetch(`${url.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } });
+    assert.equal(snapshot.status, 200);
+    const observed = await snapshot.json() as { binding: typeof launch.binding; cursor: number };
+    assert.deepEqual(observed.binding, launch.binding);
+    const stream = await fetch(`${url.origin}/events?cursor=0`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(5000) });
+    assert.equal(stream.status, 200);
+    await stream.body!.cancel();
+    const binding = launch.binding;
+    const exact = [binding.contractId, "--run", binding.runId, "--contract-digest", binding.contractDigest, "--revision", String(binding.revision), "--origin-host", host, "--origin-session", binding.originatingSessionId];
+    const options = { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } };
+    const packet = await invoke(process.execPath, [cliEntry, "task", "context", ...exact, "--limit", "10", "--json"], options);
+    assert.deepEqual((JSON.parse(packet.stdout) as { binding: typeof binding }).binding, binding);
+    const proposal = join(fixture.scratch, "proposal.json");
+    await writeFile(proposal, JSON.stringify({ schemaVersion: 1, binding, requestId: `request-${host}`, submittedAt: new Date().toISOString(), text: "Please review the output format." }));
+    const receipt = await invoke(process.execPath, [cliEntry, "task", "steer", proposal, "--apply", "--json"], options);
+    assert.equal((JSON.parse(receipt.stdout) as { receipt: { state: string } }).receipt.state, "received");
   } finally {
     await writeFile(release, "release");
     await ended;

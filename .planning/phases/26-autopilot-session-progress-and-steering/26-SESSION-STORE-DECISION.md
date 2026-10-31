@@ -44,6 +44,14 @@ capability error, not substitute a model or break the original task.
 - Retain private-file creation and path/identity guards. Validate fixed database
   and native journal/sidecar paths against symlink/junction substitutions. Do not
   weaken shared command-job helpers to improve projection performance.
+  As calibrated in the scoped review, this means static unsafe-path refusal and
+  supported observed pre/post identity checks with deterministic persistent-race
+  detection, consistent with existing command-job helpers. It is not an OS
+  sandbox against arbitrary same-user swap-back, whole-namespace replacement or
+  races entirely inside SQLite's native open/recovery. A postcheck detects a
+  change; it cannot prove that no earlier native I/O occurred. Do not require a
+  no-follow/file-descriptor DatabaseSync constructor that Node does not expose,
+  and do not advertise that stronger guarantee.
 - Native transactional recovery may restore its own journal after a confirmed
   fixture process crash; no PID-only deletion or takeover of alpha-AOS fences is
   permitted. Live writers remain protected by native transactions. Failure to

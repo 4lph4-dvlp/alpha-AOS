@@ -2,11 +2,11 @@
 
 Date: 2026-10-31. Reviewed `26-SESSION-STORE-DECISION.md` against the existing 26-01 interface/actions and the previously reviewed phase boundaries. No source implementation, whole-plan re-review, new external investigation, benchmark or browser test was performed.
 
-## ISSUES FOUND
+## VERIFICATION PASSED — scoped store direction and boundary
 
 **Architecture decision:** Valid forward continuation within 26-01.  
-**Before executor handoff:** One narrow plan-contract clarification is required.  
-**Issues:** 1 blocker (documentation alignment), 0 warnings, 0 info.
+**Before executor handoff:** Carry the calibrated observed-identity boundary below into the continuation packet.  
+**Current issues:** 0 blockers, 0 warnings, 0 info. The original plan-contract mismatch is resolved in the current 26-01 interface.
 
 Using lazy Node built-in SQLite for the new projection alone is within the approved common-panel implementation scope. It preserves the exported APIs, exact binding, authority, read-only HTTP surface and existing resource limits; it adds no package/global setup or native host/model operation. No phase split, wider redesign or renewed task-scope approval is required for this internal substitution. This accepts the design direction, not its implementation or filesystem/performance proof.
 
@@ -18,11 +18,31 @@ The recorded Node v24.13.1 in-memory probe proves API availability only. The exp
 
 The identity refinement is sound: one store selected by the validated digest/run identity must compare the entire approved binding inside its transaction. A supplied different host/origin/revision cannot obtain another accepted store merely by producing a different binding hash. Logical origin remains distinct from an unknown native vendor session ID.
 
-## Required executable-plan clarification
+## Executable-plan clarification — resolved
 
-26-01's current interface still says artifacts live under `stateRoot/runs/<digest>/sessions/<validated-binding-hash>/` and publication uses a short custom event-store write fence. The decision instead requires a digest/run-selected database, full-binding rejection and native transactions with no PID-based lock takeover. Both instructions cannot remain authoritative at executor handoff.
+The original interface selected `stateRoot/runs/<digest>/sessions/<validated-binding-hash>/` and a short custom event-store write fence. The current 26-01 interface now selects `<validated-run-hash>`, compares the entire binding transactionally and explicitly supersedes that prototype fence with the reviewed SQLite correction. The original documentation blocker is resolved; no additional architecture preflight is required on that issue.
 
-The narrow update must identify the run-selected guarded location/schema, transaction/index identity semantics and the removal of this projection-specific custom fence. Reference this decision and the focused checks in the relevant 26-01 action/verification content so the executor receives them through normal GSD inputs. Existing lifecycle/controller/dispatch fences remain intact. The precise spelling of the internal path or SQL schema is an implementation choice; the invariant is stable run selection plus transactional full-binding validation, not a second origin-selected identity.
+Existing lifecycle/controller/dispatch fences remain intact. The precise spelling of the internal path or SQL schema is an implementation choice; the invariant is stable run selection plus transactional full-binding validation, not a second origin-selected identity.
+
+## Native-path boundary calibration — authoritative clarification
+
+The earlier Native file boundary row was too strong if interpreted as requiring atomic namespace isolation against every arbitrary same-user replacement while SQLite opens or recovers a pathname. That stronger guarantee is not the project's existing filesystem boundary and is not required for this projection continuation. This clarification supersedes that interpretation; it does not waive observed identity checks or claim they provide descriptor-bound native opens.
+
+Evidence: `src/core/command-jobs.ts:1080` states, “Observed identity fences are not an OS sandbox against arbitrary same-user renames.” AGENTS requires root-bounded managed operations and preservation of existing safety checks, not a new OS sandbox. THREAT-MODEL TM-06 specifies fixed paths, existing root/symlink/bounded-read helpers and refusal of traversal/symlink escape. Its Local hostile sites/processes row addresses HTTP authority/origin/bearer checks; its residual-risk section explicitly does not promise OS isolation from a compromised same-user environment.
+
+The acceptable implementation boundary is therefore **private, fixed, run-selected paths with static refusal and observed pre/post identity validation**. Reuse existing supported path/identity guards; do not weaken their existing consumers. Check ancestors, database and the selected journal mode's fixed sidecar names before native access, around transaction/recovery boundaries where observable, and after native operations. Reject observed unsafe types, path drift or unexpected replacement; stop using the connection, return an explicit observer error and withhold unvalidated event results. SQLite's normal documented journal creation/removal is an allowed lifecycle, not an identity mismatch by itself. Bound and test those observations instead of requiring a persistent journal inode across its legitimate deletion.
+
+**Explicit limits of proof:** `DatabaseSync` accepts a pathname. These checks do not prove no-follow/open-by-handle semantics for its internal database/journal opens. A same-user attacker can potentially replace and restore names wholly between checks, replace an entire namespace, or race an indivisible native call. Such attacks are outside this observed-identity proof. A detected post-operation mismatch proves refusal of the resulting observation; it does **not** prove SQLite performed no earlier I/O to a substituted path. Do not label this race-free isolation or claim all substitutions are detected. The implementation must never deliberately accept arbitrary client paths or bypass a mismatch it actually observes. No platform-specific ACL/native addon/OS isolation project is required merely to exclude these already-disclaimed adversarial races.
+
+Concrete focused fixtures for this boundary:
+
+1. Static symlink/junction or non-regular database, ancestor and applicable journal/sidecar paths are refused before the instrumented native-open/recovery operation. Use outside-root sentinel data to confirm this static refusal does not touch its target. Where the test host cannot construct a link type, record that limitation instead of claiming coverage.
+2. Deterministic barriers immediately before open/transaction checks substitute a parent or database and leave it changed. The next observed check refuses it; no event result is accepted. These are persistent, observed-race fixtures, not claims about every possible timing.
+3. A persistent replacement between a native operation and its postcheck is detected; the operation returns an observer error, publishes no unvalidated result and does not delete/repair the replacement or touch runtime/controller fences. Do not assert that this postcheck prevented all preceding native I/O.
+4. For the chosen journal mode, test a pre-existing unsafe sidecar, normal journal creation/removal, a real interrupted transaction's regular private journal and a persistent sidecar/parent substitution at an available observation barrier. Avoid treating legitimate concurrent journal lifecycle as an attack or promising an unobservable native-internal race hook.
+5. Verify private creation/access treatment for database and extant native artifacts using the project's supported platform checks. Confirm exact binding after native recovery, finite busy/error cleanup and refusal of legacy/corrupt schema. Continue the already-required real child crash, retry, contention, replay and 251-event fixtures.
+
+These fixtures give Terra a concrete implementation route using the approved built-in API. Lack of a descriptor-taking SQLite constructor alone is not an observer-capability blocker. Actual observed-path failures, unavailable API or failed fixtures remain honest errors; do not substitute a model, silently reset data or invent a filesystem pass.
 
 ## Essential acceptance evidence
 
@@ -35,7 +55,7 @@ These conditions belong to the existing tracer/security/crash/performance verifi
 | Commit before return | Crash after native commit but before caller acknowledgement, then retry the same source ID. The committed event replays once and retry returns its identity; no second effect/event is fabricated. |
 | Concurrent publication | Separate processes contend on the same run with distinct and duplicate source IDs. Sequences remain unique/ordered, duplicate versus conflicting content stays deterministic, and a live writer cannot be bypassed. |
 | Finite contention and errors | Explicit short finite busy timeout; rollback/close paths release connection resources. No model/network/user wait occurs inside a held transaction. Busy/corrupt/unavailable/unsafe-path outcomes remain explicit reporting errors and never clear execution locks, start work or manufacture lifecycle acceptance. |
-| Native file boundary | Choose/document the journal mode and account for every native-created journal/sidecar it uses. Guard the database, directory ancestors and applicable sidecars against symlink/junction/file replacement, including recovery/reopen paths. Fixtures exercise pre-existing hostile paths and substitution during access. A pathname precheck or in-memory SQLite test alone is insufficient proof of the native open/recovery boundary. If safe identity cannot be established with this API, fail the observer explicitly; do not weaken shared helpers or advertise this as proven filesystem isolation. |
+| Native file boundary | Apply the calibrated boundary and five fixtures above: fixed private run-selected paths; static parent/database/sidecar symlink/type refusal; observed pre/post identity checks and persistent-race detection; explicit refusal on detected drift. Document journal mode and legitimate sidecar lifecycle. Do not require descriptor-bound native opens or claim prevention/detection of arbitrary same-user swap-back, whole-namespace or native-internal races. In-memory API success alone proves none of these checks. |
 | Private native artifacts | Newly created database and journal/sidecar files receive the required private access treatment, not only the eventual main database. Explicit close and cleanup are tested without deleting durable evidence or taking over a live native transaction. |
 | Bounded replay and retention | Prepared parameterized/indexed operations retain immutable event evidence, return bounded rows/bytes and explicit gaps, and preserve snapshot-to-cursor continuity. Observer ring eviction does not delete source evidence; existing retention policy remains authoritative. No full-history scan/rewrite is introduced per append. |
 | Legacy/corrupt data | Unsupported prototype or schema formats are refused explicitly. Rebuildable projection does not authorize silent reset, deletion or overwrite of unknown data. Old prototype evidence is retained. |
@@ -51,19 +71,12 @@ No requirement here demands a power-loss/disk-failure guarantee from a process-c
 - Root's independent fixture browser QA can proceed on the preserved prototype while this decision is reviewed. It neither authorizes source changes outside GSD nor proves the corrected store.
 - Keep actual independent review, accepted fixes, targeted affected checks, one settled final full regression, visual evidence and GSD goal verification. Do not repeat the full suite per storage edit or mark the phase complete from this decision.
 
-## Structured issue
+## Structured issues
 
 ```yaml
-issues:
-  - plan: "26-01"
-    task: 1
-    dimension: key_links_planned
-    severity: blocker
-    required_property: "The executable plan and selected session-store decision specify one consistent storage identity and publication/recovery mechanism before executor handoff."
-    description: "The current interface_contract still selects a sessions/<validated-binding-hash> location and custom event-store write fence. The reviewed decision requires one digest/run-selected database with transactional full-binding rejection and native recovery without that projection fence. An executor following the unchanged plan can retain the failed fence or accept a second origin-selected store."
-    fix_hint: "Narrowly supersede the old path/fence paragraph and reference the reviewed run-bound transaction and focused acceptance conditions in the existing tracer action/verification. Preserve public APIs, all task authority and unrelated runtime/GSD fences."
+issues: []
 ```
 
 ## Recommendation
 
-Approve the internal backend direction. Resolve the narrow plan-contract mismatch, then resume 26-01 through the existing GSD execution lane with the listed focused evidence pending. No architectural rejection or broader replanning is warranted; no implementation, crash-safety, performance or phase-completion pass is issued.
+Proceed with the approved internal backend correction through the existing GSD execution lane. The plan-contract mismatch is resolved. Root should carry this calibrated observed-identity boundary and concrete fixtures into the fresh continuation packet; another architecture-research loop or OS-sandbox preflight is not required. Implementation, actual crash/recovery, path-check, performance and feature acceptance remain pending. This scoped design pass is not a phase-completion pass.

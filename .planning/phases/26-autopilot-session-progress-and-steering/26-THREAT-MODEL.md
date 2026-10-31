@@ -24,6 +24,14 @@ This document is an implementation/verification contract, not an assertion that 
 
 ## Data Flow
 
+Filesystem calibration (2026-10-31 scoped store review): existing observed path
+and identity fences remain required for the private projection, including static
+parent/database/journal refusal and persistent-substitution fixtures. They are
+not an OS sandbox against arbitrary same-user swap-back, whole-namespace or
+native-interior races. Post-operation detection must never be represented as
+proof that no earlier native I/O occurred. This does not change execution fences,
+HTTP origin/authentication, redaction or private-artifact requirements.
+
 1. An explicitly requested observer is created by the existing conversation/CLI path with the full exact tuple and a finite deadline. Do not discover the latest task or silently attach to a chat. Detached task behavior stays available.
 2. Read existing bounded GSD/runtime receipts through an allowlisted projector. Persist ordered replayable nonsecret event evidence in the existing external task state, with contract/revision/run/session binding. The observer does not update task lifecycle state.
 3. Bind built-in HTTP explicitly to `127.0.0.1`, port 0. Use the actual assigned port to form one canonical origin. No wildcard or LAN listen, reverse proxy, tunnel, remote hostname or localhost-name alias.

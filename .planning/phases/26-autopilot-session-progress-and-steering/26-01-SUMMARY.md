@@ -23,7 +23,9 @@ key-decisions:
   - "Keep bootstrap fragments in private handoff and direct launch output; redact them from retained process output."
 requirements-completed: []
 actuals:
-  tokens: 50682
+  tokens: null
+  token_measurement: unavailable
+  agent_reported_tokens_unverified: 50682
   tasks: 3
   commits: 39
 plan_head_before: 88683538d5a7b9a4883078b7b2ad8c08ad8dba8a

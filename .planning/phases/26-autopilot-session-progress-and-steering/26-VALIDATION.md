@@ -47,9 +47,16 @@ keeps each task's checks focused. No negative text/count gates are used.
 | Wave | Owner | Targeted compiled fixtures after build | Status |
 |---|---|---|---|
 | 1 | 26-01 executor | `task-session`, `task-progress`, `task-progress-panel`, phase26 cases in `task-gsd-lifecycle`/`task-cli`; related `task-runtime-controls`, `task-native-job`, `completion-wait`, `task-wait` | pending |
-| 2 | 26-02 executor | `task-steering`, phase26 packet/CLI/session/lifecycle cases; related `task-gsd-lifecycle`, `task-supervisor-recovery`, `task-controller-lease`, `task-cli` | pending |
+| 2 | 26-02 executor | `task-steering`, phase26 packet/CLI/session/lifecycle cases; related `task-gsd-lifecycle`, `task-supervisor-recovery`, `task-controller-lease`, `task-cli` | focused checks passed; independent review pending; TDD deviation below |
 | 3 | 26-03 executor | `task-progress-integration`, `task-progress-panel`, `owned-skills`, `task-skill`, `catalog` | pending |
 | Final | root | Actual independent Sol high review -> Terra high fixes plus affected targeted checks -> `npm run check` -> ONE `npm test` -> actual local browser evidence or unverified gap -> GSD goal verifier | pending |
+
+**26-02 TDD process deviation:** The applied-action tracer's assertion failure was
+captured from the real test and classified `RED_EVIDENCE_OK`, but was not committed
+separately before implementation because it shared existing WIP. Tasks 02 and 03
+received focused behavior fixtures after implementation, without preceding valid
+RED evidence. Functional fixture results do not establish TDD process compliance;
+the final independent review must assess these slices. No historical RED is inferred.
 
 Related fixture basenames above resolve to `dist/test/<basename>.test.js`. Keep
 original verification semantics. Log the native durable handle, full log location,

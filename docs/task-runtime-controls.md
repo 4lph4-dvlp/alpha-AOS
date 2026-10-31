@@ -131,3 +131,20 @@ global installation change, release, or Oh-My-Circuit restart is part of this
 repair. Source validation and installation remain separate actions. The legacy R6
 runner and stale project-specific control JSON are read-only incident evidence;
 they are not silently promoted into a supported runtime route.
+
+## Optional shared progress panel
+
+The tracked alpha-aos-task source provides the same opt-in panel instructions for Claude, Codex, Antigravity, Pi and Hermes. Source and rendered hashes prove repository packaging, not installation or native delivery. All five native UI and chat delivery routes remain unverified and disabled; a logical origin is not a verified vendor session ID.
+
+After the approved separate start, the initiating conversation may invoke:
+
+```text
+alpha-aos task start <contract.json> --contract-digest <digest> --apply --progress panel --origin-host <host> --origin-session <logical-id> --json
+alpha-aos task attach <contract-id> --run <run-id> --contract-digest <digest> --revision <n> --origin-host <host> --origin-session <logical-id> --json
+alpha-aos task context <contract-id> --run <run-id> --contract-digest <digest> --revision <n> --origin-host <host> --origin-session <logical-id> --limit 50 --json
+alpha-aos task steer <proposal.json> --json
+alpha-aos task steer <proposal.json> --apply --json
+alpha-aos task steering <contract-id> --run <run-id> --contract-digest <digest> --revision <n> --origin-host <host> --origin-session <logical-id> --json
+```
+
+The panel URL is a short-lived secret and should be handed to the initiating user before awaiting work. Its bearer is kept in sessionStorage for the exact origin, binding and finite observation deadline; a fresh exact attach renews observation without launching the task again. Viewer closure does not stop the task. The panel permits local observation and copying, not browser-side steering. A proposal receipt does not prove application; safe-boundary assessment and any new authority approval remain required. Transport disconnection is not a task outcome. Preserve the exact process/job handle and use one finite wait or a bounded handoff; no repeated model polling is needed.

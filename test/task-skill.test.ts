@@ -280,7 +280,7 @@ test("edge probe: consecutive tasks require separate consent (non-continuation)"
 // Five Target Native Discovery and Read-Only Invocation Canary (UX-01)
 // ---------------------------------------------------------------------------
 
-test("five target native discovery and read-only invocation canary", async (context) => {
+test("phase26 owned skill parity across five temporary homes", async (context) => {
   const fixture = await createTaskFixture(context);
   await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
   const root = packageRoot();
@@ -309,6 +309,7 @@ test("five target native discovery and read-only invocation canary", async (cont
 
     assert.ok(existsSync(plan.destination), `Skill file must exist at native destination for ${target}`);
     assert.equal(sha256(await readFile(plan.destination)), plan.expectedHash);
+    for (const operation of ["--progress panel", "task attach", "task context", "task steer", "task steering"]) assert.ok(rendered.includes(operation), `${target}: ${operation}`);
 
     // Read-only invocation canary: run task preview in each target's environment
     const harnessEnv: Record<string, string> = {

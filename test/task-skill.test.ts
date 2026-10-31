@@ -324,3 +324,12 @@ test("five target native discovery and read-only invocation canary", async (cont
     assert.ok(canary.stdout.excerpt.includes("Contract digest:"), `Canary for ${target} must output digest`);
   }
 });
+
+test("phase26 guidance preserves authority", async () => {
+  const source = await readFile(join(repositoryRoot, "skills/alpha-aos-task/SKILL.md"), "utf8");
+  for (const phrase of ["--progress panel", "--origin-host", "--origin-session", "task attach", "task context", "task steer", "task steering", "sessionStorage"]) {
+    assert.ok(source.includes(phrase), `missing launch/control guidance: ${phrase}`);
+  }
+  assert.match(source, /receipt.*(?:not|never).*applied/iu);
+  assert.match(source, /native.*unverified/iu);
+});

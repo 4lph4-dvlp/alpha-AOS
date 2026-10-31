@@ -27,7 +27,7 @@ function matches(value: string | undefined, target: Buffer): boolean {
 export async function startTaskProgressPanel(options: { stateRoot: string; binding: TaskSessionBinding; deadlineAt: number; signal?: AbortSignal }): Promise<{ url: string; dispose: () => Promise<void> }> {
   const binding = validateTaskSessionBinding(options.binding);
   const deadline = options.deadlineAt;
-  if (!Number.isSafeInteger(deadline) || deadline <= Date.now() || deadline > Date.now() + 30 * 60_000) throw new Error("Invalid panel deadline");
+  if (!Number.isSafeInteger(deadline) || deadline <= Date.now() || deadline > Date.now() + 24 * 60 * 60_000) throw new Error("Invalid panel deadline");
   await readTaskSessionEvents(options.stateRoot, binding);
   if (options.signal?.aborted) throw new Error("Panel aborted");
   const bootstrap = randomBytes(32).toString("base64url"), bootstrapHash = digest(bootstrap), bootstrapDeadline = Math.min(deadline, Date.now() + 120_000);

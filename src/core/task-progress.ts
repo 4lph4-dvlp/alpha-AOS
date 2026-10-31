@@ -9,7 +9,7 @@ export function projectTaskProgress(record: TaskDispatchObservation, workflow: s
   return { sourceEventId: `${record.dispatchId}:${record.finishedAt === null ? "start" : "end"}`,
     observedAt: record.finishedAt ?? record.startedAt, kind: record.finishedAt === null ? "dispatch-start" : "dispatch-end",
     workflow: actualWorkflow, step: null, role: record.role, configuredModel: record.model, configuredEffort: record.effort ?? null,
-    observedModel: null, observedEffort: null, outcome: record.status,
+    observedModel: record.telemetry.modelId, observedEffort: null, outcome: record.status,
     processState: record.closeConfirmed === true ? "confirmed-closed" : record.closeConfirmed === false ? "unconfirmed" : "unknown",
     recordedReason: record.reason, evidenceRefs: [record.dispatchId] };
 }

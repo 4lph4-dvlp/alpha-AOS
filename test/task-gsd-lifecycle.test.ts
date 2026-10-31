@@ -203,6 +203,28 @@ test("runPhaseLifecycle executes full 4-step sequence and halts on failure (D-04
   assert.ok(outcome.receipts.length >= 4);
 });
 
+test("phase26 GSD progress records actual phase and failed step", async (context) => {
+  const projectRoot = await scratch(context, "progress-gsd-project");
+  const stateRoot = await scratch(context, "progress-gsd-state");
+  const contract = createMockContract(projectRoot, { scope: { projectRoot, workflow: "gsd", summary: "Lifecycle testing" } });
+  const { taskContractDigest } = await import("../src/core/task-contract.js");
+  const { createTaskSession, readTaskSessionEvents, validateTaskSessionBinding } = await import("../src/core/task-session.js");
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: contract.id, contractDigest: taskContractDigest(contract), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(stateRoot, binding);
+  const script = join(projectRoot, "fail.cjs");
+  await writeFile(script, "process.exit(1);", "utf8");
+  const outcome = await runPhaseLifecycle({ projectRoot, phaseId: "17-gsd-lifecycle-bridge", contract,
+    targetRevisionSha: "a".repeat(40), workingTreeDigest: "b".repeat(64), stateRoot, runId: binding.runId,
+    receiptsRoot: join(projectRoot, "receipts"), commandMap: { discuss: { executable: process.execPath, args: [script] } } });
+  assert.equal(outcome.success, false);
+  const events = (await readTaskSessionEvents(stateRoot, binding)).events;
+  const steps = events.filter((event) => event.kind === "gsd-step-end");
+  assert.equal(steps.length, 1);
+  assert.match(steps[0]!.step!, /17-gsd-lifecycle-bridge.*discuss/u);
+  assert.equal(steps[0]!.outcome, "failed");
+});
+
 test("executeGsdStep pauses with needs-input when child output contains unauthorized prompt (D-02)", async (context) => {
   const projectRoot = await scratch(context, "prompt-needs-input");
   const receiptsRoot = join(projectRoot, "receipts");

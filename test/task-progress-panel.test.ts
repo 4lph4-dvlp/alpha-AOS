@@ -131,3 +131,21 @@ test("phase26 panel accepts finite multi-hour observation and rejects over 24 ho
   await panel.dispose();
   await assert.rejects(startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 25 * 60 * 60_000 }), /deadline/);
 });
+
+test("phase26 failed observer publication does not interrupt a dispatch", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: "c".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const { mkdir } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  await mkdir(join(taskSessionRoot(fixture.stateRoot, binding), "events.sqlite-journal"));
+  let invoked = false;
+  const result = await meteredTaskDispatch({ stateRoot: fixture.stateRoot, contract: inventorySummaryContract(fixture.projectRoot), digest: binding.contractDigest,
+    runId: binding.runId, role: "controller", invoke: async () => { invoked = true; return { sessionId: null, processCode: "ok", exitCode: 0, terminal: "completed", closeConfirmed: true }; } });
+  assert.equal(invoked, true);
+  assert.equal(result.terminal, "completed");
+  const { readTaskDispatches } = await import("../src/core/task-runtime.js");
+  assert.equal((await readTaskDispatches(fixture.stateRoot, binding.contractDigest))[0]?.status, "completed");
+});

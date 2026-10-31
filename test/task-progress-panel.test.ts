@@ -309,6 +309,29 @@ test("phase26 UI states remain truthful and inert: focused history within 200 ro
   assert.match(nodes.get("notice")!.textContent, /200/u);
 });
 
+test("phase26 steering receipts preserve the last work action on replay", async (t) => {
+  const { origin } = await setup(t);
+  const script = await (await fetch(`${origin}/panel.js`)).text();
+  const { runInNewContext } = await import("node:vm");
+  class Element {
+    children: Element[] = []; textContent = ""; hidden = false;
+    append(...items: Element[]) { this.children.push(...items); }
+    appendChild(item: Element) { this.append(item); }
+    contains() { return false; }
+    addEventListener() {}
+  }
+  for (const outcome of ["needs-input", "failed"]) {
+    const nodes = new Map<string, Element>();
+    const document = { activeElement: null, getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id)!; }, createElement() { return new Element(); } };
+    const context = { document, location: { hash: "", pathname: "/" }, history: { replaceState() {} }, sessionStorage: { getItem() { return null; }, removeItem() {} }, Intl, Date, JSON, Map, Error };
+    runInNewContext(`${script}\nconst events=[{sequence:1,observedAt:"2026-01-01",kind:"gsd-step-end",outcome:${JSON.stringify(outcome)},recordedReason:"Need approval"},...['received','delivered','deferred'].map((x,i)=>({sequence:i+2,observedAt:"2026-01-02",kind:'steering-'+x,outcome:x}))]; events.forEach(display); events.forEach(display);`, context);
+    assert.match(nodes.get("current")!.textContent, /Need approval/u);
+    assert.equal(nodes.get("action")!.hidden, false);
+    assert.match(nodes.get("action-text")!.textContent, /Need approval/u);
+    assert.equal(nodes.get("events")!.children.length, 4);
+  }
+});
+
 test("phase26 reload reconnect and stale owner", async (t) => {
   const { origin } = await setup(t);
   const script = await (await fetch(`${origin}/panel.js`)).text();

@@ -83,3 +83,37 @@ test("phase26 progress preserves configured and observed model separately", asyn
   assert.equal(end.observedModel, "observed-model");
   assert.equal(end.observedEffort, null);
 });
+
+test("phase26 registered dedicated dispatch publishes configured evidence", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const contract = inventorySummaryContract(fixture.projectRoot, { agentPolicy: { controller: "codex", executor: "codex", reviewer: "codex",
+    reviewerSession: "fresh-read-only", controllerModel: "fixture-model", controllerEffort: "high" } });
+  await writeTaskContract(fixture.contractPath, contract);
+  const { approveTaskContract, loadTaskContract, readTaskApprovals, reservedRunIdForApproval } = await import("../src/core/task-contract.js");
+  const { approvedCodexJobArgs, runApprovedTaskJobProcess } = await import("../src/core/task-native-job.js");
+  const { digest } = await loadTaskContract(fixture.contractPath);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const jobBinding = { route: "codex-json-v1" as const, contractPath: fixture.contractPath, contractDigest: digest,
+    runId: reservedRunIdForApproval({ contractDigest: digest }), role: "controller" as const, prompt: "fixture" };
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: contract.id, contractDigest: digest, revision: contract.revision,
+    runId: jobBinding.runId, host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const [approval] = await readTaskApprovals({ stateRoot: fixture.stateRoot, contractId: contract.id });
+  const launch = { schemaVersion: 1 as const, kind: "command-job-launch" as const, task: jobBinding, jobId: "job-1234567890abcdef",
+    ownerToken: "fixture-owner", executable: process.execPath, args: approvedCodexJobArgs(contract, jobBinding, approval?.gitDirectory ?? null),
+    cwd: fixture.projectRoot, deadlineMs: 1000, createdAt: new Date().toISOString() };
+  const output = { excerpt: "", totalBytes: 0, capped: false, sha256: "0".repeat(64) };
+  let calls = 0;
+  await runApprovedTaskJobProcess({ stateRoot: fixture.stateRoot, launch, resolve: () => process.execPath,
+    processSpec: { executable: process.execPath, args: launch.args, cwd: fixture.projectRoot }, runner: async (spec) => {
+      calls++;
+      spec.onStdoutChunk?.(Buffer.from('{"type":"turn.completed"}\n'));
+      return { code: "ok", exitCode: 0, signal: null, timedOut: false, outputCapped: false, durationMs: 1, stdout: output, stderr: output };
+    } });
+  const events = (await readTaskSessionEvents(fixture.stateRoot, binding)).events;
+  assert.equal(calls, 1);
+  assert.deepEqual(events.map((event) => event.kind), ["dispatch-start", "dispatch-end"]);
+  assert.equal(events[0]?.configuredModel, "fixture-model");
+  assert.equal(events[0]?.configuredEffort, "high");
+  assert.equal(events.some((event) => event.outcome === "accepted"), false);
+});

@@ -66,6 +66,7 @@ export interface SuperviseTaskOptions {
   signal?: AbortSignal;
   now?: () => Date;
   gsd?: StartTaskOptions["gsd"] & { phaseId?: string };
+  onRunReady?: StartTaskOptions["onRunReady"];
 }
 
 export interface SupervisorResult {
@@ -612,6 +613,7 @@ async function runSupervisorLoop(
       ...(options.now ? { now: options.now } : {}),
       ...(options.gsd ? { gsd: options.gsd } : {}),
       ...(strategy.promptInjection ? { promptInjection: strategy.promptInjection } : {}),
+      ...(options.onRunReady ? { onRunReady: options.onRunReady } : {}),
     };
 
     try {

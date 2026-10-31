@@ -1344,10 +1344,10 @@ async function startGeneralTask(params: {
   }
 }
 
-async function startMultiPhaseTask(params: Parameters<typeof executeMultiPhaseTask>[0]): Promise<{ run: TaskRunRecord; recordPath: string }> {
+async function startMultiPhaseTask(params: Omit<Parameters<typeof executeMultiPhaseTask>[0], "lease">): Promise<{ run: TaskRunRecord; recordPath: string }> {
   const lease = await acquireControllerLease({ projectRoot: resolve(params.contract.scope.projectRoot),
     harness: params.contract.agentPolicy.controller, contractDigest: params.digest });
-  try { return await executeMultiPhaseTask(params); }
+  try { return await executeMultiPhaseTask({ ...params, lease }); }
   finally { await lease.release(); }
 }
 
@@ -1358,6 +1358,7 @@ async function executeMultiPhaseTask(params: {
   options: StartTaskOptions;
   baseline: { baseCommit: string };
   clock: () => Date;
+  lease: ControllerLease;
 }): Promise<{ run: TaskRunRecord; recordPath: string }> {
   const { contract, digest, approval, options, baseline, clock } = params;
   const projectRoot = resolve(contract.scope.projectRoot);
@@ -1410,6 +1411,7 @@ async function executeMultiPhaseTask(params: {
     packageRoot: options.packageRoot,
     stateRoot: options.stateRoot,
     runId,
+    controllerLease: params.lease,
   }); } catch (error) {
     const failed: TaskRunRecord = { ...executing, status: "stopped", finishedAt: clock().toISOString(),
       stopReason: bounded(error instanceof Error ? error.message : String(error), 300),

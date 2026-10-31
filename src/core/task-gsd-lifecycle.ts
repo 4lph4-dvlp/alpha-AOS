@@ -71,6 +71,8 @@ export interface GsdStepResult {
 }
 
 export interface ExecuteStepOptions {
+  readonly steeringText?: string | undefined;
+  readonly steeringBinding?: import("./task-session.js").TaskSessionBinding | undefined;
   readonly gitDirectory?: string | null | undefined;
   readonly projectRoot: string;
   readonly phaseId: string;
@@ -97,6 +99,7 @@ export interface ExecuteStepOptions {
 }
 
 export interface RunPhaseOptions {
+  readonly controllerLease?: import("./controller-lease.js").ControllerLease | undefined;
   readonly gitDirectory?: string | null | undefined;
   readonly projectRoot: string;
   readonly phaseId: string;
@@ -117,6 +120,7 @@ export interface RunPhaseOptions {
 }
 
 export interface MultiPhaseOptions {
+  readonly controllerLease?: import("./controller-lease.js").ControllerLease | undefined;
   readonly gitDirectory?: string | null | undefined;
   readonly projectRoot: string;
   readonly contract: TaskContract;
@@ -514,6 +518,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     : (resolveCommand(executable) ?? executable);
 
   const detectedHarness = detectHarnessFromExecutable(executable);
+  if (detectedHarness && options.steeringText) args[args.length - 1] += options.steeringText;
   if (detectedHarness) {
     const role: "controller" | "executor" | "reviewer" =
       options.step === "execute"
@@ -571,10 +576,11 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     args,
     cwd: options.projectRoot,
     timeoutMs: options.timeoutMs ?? 60_000,
-    ...(options.stdin !== undefined ? { stdin: options.stdin } : {}),
+    ...((options.stdin !== undefined || (!detectedHarness && options.steeringText)) ? { stdin: [options.stdin, !detectedHarness ? options.steeringText : undefined].filter(Boolean).join("\n") } : {}),
     environment: { literal: scrubEnvironmentForOffTree(process.env).env },
   };
   const role = options.step === "execute" ? "executor" : options.step === "verify" ? "reviewer" : "controller";
+  if (options.steeringBinding && options.stateRoot && await (await import("./task-steering.js")).hasExactTaskStop({ stateRoot: options.stateRoot, binding: options.steeringBinding, projectRoot: options.projectRoot })) throw new Error("Task stop requested before GSD dispatch");
   const processResult = detectedHarness === null ? await runProcess(processSpec) : (await meteredTaskDispatch({
     stateRoot: options.stateRoot ?? userStateRoot(), contract: options.contract,
     digest: taskContractDigest(options.contract), runId: options.runId ?? "unbound-gsd-step", role,
@@ -755,7 +761,7 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
     }
   }
 
-  for (const step of steps) {
+  for (const [stepIndex, step] of steps.entries()) {
     const attemptId = randomUUID();
     const currentHead = (await runGitRead(options.projectRoot, ["rev-parse", "HEAD"]).catch(() => options.targetRevisionSha)).trim();
     const currentArtifact = await collectTaskArtifact({ projectRoot: options.projectRoot, allowedRoots: options.contract.allowedRoots });
@@ -768,16 +774,33 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
           contractId: options.contract.id, revision: options.contract.revision }, projectGsdStep({ phaseId: options.phaseId, attemptId, workflow: options.contract.scope.workflow, step, at: new Date().toISOString(), outcome, evidenceRefs }));
       } catch { process.emitWarning("Task progress delivery failed; lifecycle remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
     };
+    const binding = options.stateRoot && options.runId && options.controllerLease ? await (await import("./task-session.js")).readTaskSessionBindingForRun(options.stateRoot, { contractDigest: taskContractDigest(options.contract), runId: options.runId, contractId: options.contract.id, revision: options.contract.revision }) : null;
+    const boundary = binding && options.stateRoot && options.controllerLease ? { stateRoot: options.stateRoot, binding, contract: options.contract, lease: options.controllerLease, projectRoot: options.projectRoot, boundary: `phase:${options.phaseId}:${step}:${attemptId}` } : null;
+    const steering = boundary && (step === "discuss" || step === "plan") ? await (await import("./task-steering.js")).consumeTaskSteeringAtBoundary(boundary) : null;
     await publishStep("running", []);
-    const result = await executeGsdStep({
+    let result: GsdStepResult;
+    try { result = await executeGsdStep({
       ...options,
       targetRevisionSha: currentHead,
       workingTreeDigest: currentArtifact.digest,
       step,
       priorReceipts: accumulatedCapabilityReceipts,
-    });
+      steeringText: steering?.text,
+      steeringBinding: binding ?? undefined,
+    }); } catch (error) { await steering?.complete(false); throw error; }
+    if (steering && boundary) {
+      await steering.delivered();
+      const { readTaskChanges, auditTaskEffects } = await import("./task-effects.js");
+      const changes = await readTaskChanges({ projectRoot: options.projectRoot, baseCommit: currentHead });
+      const audit = await auditTaskEffects({ contract: options.contract, runId: boundary.binding.runId, changes, projectRoot: options.projectRoot, baseCommit: currentHead });
+      const disposition = await steering.complete(true, { baseCommit: currentHead, planningPaths: audit.planningPaths, violations: audit.violations });
+      if (disposition === "revision-required") return { success: false, finalStep: "needs-input", receipts };
+    }
     await publishStep(result.nextStep === "needs-input" ? "needs-input" : result.nextStep === "failed" || result.exitCode !== 0 ? "failed" : "completed",
       result.receipts.map((receipt) => receipt.receiptDigest));
+    if (boundary && (result.nextStep === "needs-input" || result.nextStep === "failed" || result.exitCode !== 0 || !steps.slice(stepIndex + 1).some((future) => future === "discuss" || future === "plan"))) {
+      await (await import("./task-steering.js")).consumeTaskSteeringAtBoundary({ ...boundary, allowDelivery: false });
+    }
 
     for (const r of result.receipts) {
       receipts.push(r.receiptDigest);
@@ -898,6 +921,7 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       runId: options.runId,
       sessionId: options.sessionId,
       stateRoot: options.stateRoot,
+      controllerLease: options.controllerLease,
     });
 
     if (!lifecycleResult.success) {

@@ -29,3 +29,12 @@ export function projectRunOutcome(record: TaskRunRecord): TaskSessionEventInput 
     step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null,
     outcome: record.status, processState: null, recordedReason: record.stopReason, evidenceRefs: [record.runId] };
 }
+
+export function projectRecordedDecisions(record: TaskRunRecord): TaskSessionEventInput[] {
+  if (record.decisionLog?.status !== "valid") return [];
+  const shorten = (text: string, max: number) => text.length <= max ? text : `${text.slice(0, max - 1)}…`;
+  return record.decisions.map((decision) => ({ sourceEventId: `decision:${createHash("sha256").update(decision.id).digest("hex")}`,
+    observedAt: decision.at, kind: "decision", workflow: null, step: shorten(decision.choice, 128), role: "controller",
+    configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null, outcome: null,
+    processState: null, recordedReason: shorten(decision.rationale, 512), evidenceRefs: [decision.id] }));
+}

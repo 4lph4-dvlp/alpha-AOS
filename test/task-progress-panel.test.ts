@@ -332,6 +332,31 @@ test("phase26 steering receipts preserve the last work action on replay", async 
   }
 });
 
+test("phase26 terminal run outcome outranks skewed work times and later backfill", async (t) => {
+  const { origin } = await setup(t);
+  const script = await (await fetch(`${origin}/panel.js`)).text();
+  const { runInNewContext } = await import("node:vm");
+  class Element {
+    children: Element[] = []; textContent = ""; hidden = false;
+    append(...items: Element[]) { this.children.push(...items); }
+    appendChild(item: Element) { this.append(item); }
+    contains() { return false; }
+    addEventListener() {}
+  }
+  const nodes = new Map<string, Element>();
+  const document = { activeElement: null, getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id)!; }, createElement() { return new Element(); } };
+  const context = { document, location: { hash: "", pathname: "/" }, history: { replaceState() {} }, sessionStorage: { getItem() { return null; }, removeItem() {} }, Intl, Date, JSON, Map, Error };
+  runInNewContext(`${script}\nconst events=[
+    {sequence:1,observedAt:'2026-11-01T00:01:00Z',kind:'decision',outcome:'needs-input',recordedReason:'Skewed decision'},
+    {sequence:2,observedAt:'2026-11-01T00:00:00Z',kind:'run-outcome',outcome:'accepted'},
+    {sequence:3,observedAt:'2026-11-01T00:02:00Z',kind:'dispatch-start',outcome:'running'},
+    {sequence:4,observedAt:'2026-11-01T00:03:00Z',kind:'run-outcome',outcome:'executing'}]; events.slice(0,2).forEach(display); document.getElementById('after-terminal').textContent=document.getElementById('current').textContent; events.slice(2).forEach(display); events.forEach(display);`, context);
+  assert.match(nodes.get("after-terminal")!.textContent, /승인됨/u);
+  assert.match(nodes.get("current")!.textContent, /승인됨/u);
+  assert.equal(nodes.get("action")!.hidden, true);
+  assert.equal(nodes.get("events")!.children.length, 4);
+});
+
 test("phase26 reload reconnect and stale owner", async (t) => {
   const { origin } = await setup(t);
   const script = await (await fetch(`${origin}/panel.js`)).text();

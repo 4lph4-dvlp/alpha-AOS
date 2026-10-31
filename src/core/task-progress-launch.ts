@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readTaskApprovals, reservedRunIdForApproval } from "./task-contract.js";
 import type { TaskRunRecord } from "./task-run.js";
-import { appendTaskSessionEvent, createTaskSession, readTaskSessionEvents, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
+import { appendTaskSessionEvent, createTaskSession, hasTaskSessionSourceEvent, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
 import { getCommandJobStatus, readBoundedFile, startCommandJob, writeAtomicPrivateFile } from "./command-jobs.js";
 import { waitForCompletion } from "./completion-wait.js";
 import { startTaskProgressPanel } from "./task-progress-panel.js";
@@ -55,25 +55,7 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   const binding = validateTaskSessionBinding(options.binding);
   const { run, projectRoot, workflow, dedicated } = await exactRun(options.stateRoot, binding);
   const deadlineAt = panelDeadline(run, options.timeoutMs);
-  // Refuse a different origin binding before creating a detached observer.
-  await createTaskSession(options.stateRoot, binding);
-  const { projectTaskProgress, projectRecordedDecisions, projectRunOutcome } = await import("./task-progress.js");
-  const { readTaskDispatches } = await import("./task-runtime.js");
-  const dispatches = dedicated ? [dedicated.dispatch] : await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
-  const outcome = dedicated ? null : projectRunOutcome(run);
-  const events = [...dispatches.map((dispatch) => projectTaskProgress(dispatch, workflow)),
-    ...(dedicated ? [] : projectRecordedDecisions(run)), ...(outcome ? [outcome] : [])].sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
-  // Earlier lifecycle events are not reconstructible from the bounded run records.
-  if (dispatches.length || outcome) events.unshift({ sourceEventId: `history-gap:${createHash("sha256").update(binding.runId).digest("hex")}`, observedAt: events[0]!.observedAt,
-    kind: "history-gap", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
-    observedEffort: null, outcome: null, processState: null, recordedReason: "Earlier activity unavailable", evidenceRefs: [] });
-  for (const event of events) {
-    const alreadyPublished = async () => (await readTaskSessionEvents(options.stateRoot, binding)).events.some((entry) => entry.sourceEventId === event.sourceEventId);
-    if (!await alreadyPublished()) {
-      try { await appendTaskSessionEvent(options.stateRoot, binding, event); }
-      catch (error) { if (!(error instanceof Error) || !error.message.includes("Conflicting task session source event") || !await alreadyPublished()) throw error; }
-    }
-  }
+  await hydrateTaskProgress({ stateRoot: options.stateRoot, binding, run, workflow, dedicated });
   const id = randomUUID().replaceAll("-", ""), paths = launchPaths(options.stateRoot, id);
   await mkdir(paths.dir, { recursive: true, mode: 0o700 });
   await writeAtomicPrivateFile(paths.spec, JSON.stringify({ schemaVersion: 1, binding, deadlineAt }), 8192, options.stateRoot, { exclusive: true });
@@ -95,6 +77,34 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   if (observed.status !== "completed") throw new Error(`Panel handoff ${observed.status}; observer job ${job.jobId} remains the exact handle`);
   await unlink(paths.handoff);
   return { jobId: job.jobId, binding, deadlineAt, url: observed.value };
+}
+async function hydrateTaskProgress(options: { stateRoot: string; binding: TaskSessionBinding; run: TaskRunRecord; workflow: string | undefined; dedicated: Awaited<ReturnType<typeof exactRun>>["dedicated"] }): Promise<void> {
+  const { binding, run, workflow, dedicated } = options;
+  // Refuse a different origin binding before creating a detached observer.
+  await createTaskSession(options.stateRoot, binding);
+  const { projectTaskProgress, projectRecordedDecisions, projectRunOutcome } = await import("./task-progress.js");
+  const { readTaskDispatches } = await import("./task-runtime.js");
+  let historyUnavailable = false;
+  const dispatches = dedicated ? [dedicated.dispatch] : await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true }).catch(() => { historyUnavailable = true; return []; });
+  const outcome = dedicated ? null : projectRunOutcome(run);
+  const events = [...dispatches.map((dispatch) => projectTaskProgress(dispatch, workflow)),
+    ...(dedicated ? [] : projectRecordedDecisions(run)), ...(outcome ? [outcome] : [])].sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
+  // Earlier lifecycle events are not reconstructible from the bounded run records.
+  if (dispatches.length || outcome || historyUnavailable) events.unshift({ sourceEventId: `history-gap:${createHash("sha256").update(binding.runId).digest("hex")}`, observedAt: events[0]?.observedAt ?? run.startedAt,
+    kind: "history-gap", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
+    observedEffort: null, outcome: null, processState: null, recordedReason: "Earlier activity unavailable", evidenceRefs: [] });
+  for (const event of events) {
+    const alreadyPublished = () => hasTaskSessionSourceEvent(options.stateRoot, binding, event.sourceEventId);
+    if (!await alreadyPublished()) {
+      try { await appendTaskSessionEvent(options.stateRoot, binding, event); }
+      catch (error) { if (!(error instanceof Error) || !error.message.includes("Conflicting task session source event") || !await alreadyPublished()) throw error; }
+    }
+  }
+}
+export async function hydrateExactTaskProgress(stateRoot: string, value: TaskSessionBinding): Promise<void> {
+  const binding = validateTaskSessionBinding(value);
+  const { run, workflow, dedicated } = await exactRun(stateRoot, binding);
+  await hydrateTaskProgress({ stateRoot, binding, run, workflow, dedicated });
 }
 export async function serveTaskProgressPanel(stateRoot: string, id: string): Promise<void> {
   const paths = launchPaths(stateRoot, id);

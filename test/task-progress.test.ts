@@ -76,6 +76,64 @@ test("phase26 late attach reconstructs authoritative detached run history", { ti
   }
 });
 
+test("phase26 exact hydration preserves rejected and stopped outcomes", { timeout: 30000 }, async (t) => {
+  for (const expected of ["rejected", "stopped"] as const) {
+    const fixture = await createTaskFixture(t);
+    const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+    await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+    const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+    await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+    let ticks = 0;
+    const { run } = await startFixtureTask(fixture, { expectedDigest: digest,
+      ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }),
+      ...(expected === "stopped" ? { now: () => new Date(Date.parse("2026-01-01T00:00:00Z") + (ticks++ ? 7200000 : 0)) } : {}) });
+    assert.equal(run.status, expected);
+    const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision,
+      runId: run.runId, host: "codex", originatingSessionId: `late-${expected}` });
+    if (expected === "stopped") {
+      const { mkdir, writeFile } = await import("node:fs/promises");
+      const { join } = await import("node:path");
+      const dir = join(fixture.stateRoot, "runs", digest, "dispatches");
+      await mkdir(dir, { recursive: true });
+      for (let index = 0; index < 1001; index++) await writeFile(join(dir, `${index.toString(16).padStart(64, "0")}.json`), "{}");
+    }
+    const { hydrateExactTaskProgress } = await import("../src/core/task-progress-launch.js");
+    await Promise.all([hydrateExactTaskProgress(fixture.stateRoot, binding), hydrateExactTaskProgress(fixture.stateRoot, binding)]);
+    const replay = await readTaskSessionEvents(fixture.stateRoot, binding);
+    assert.equal(replay.events.filter((event) => event.kind === "run-outcome").length, 1);
+    assert.equal(replay.events.find((event) => event.kind === "run-outcome")?.outcome, expected);
+    assert.equal(replay.gap, true);
+  }
+});
+
+test("phase26 exact hydration of an in-flight run never invents acceptance", { timeout: 30000 }, async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+  const { startTask } = await import("../src/core/task-run.js");
+  const { packageRoot } = await import("../src/core/paths.js");
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let binding: import("../src/core/task-session.js").TaskSessionBinding | undefined, entered!: () => void, release!: () => void;
+  const held = new Promise<void>((resolve) => { release = resolve; });
+  const ready = new Promise<void>((resolve) => { entered = resolve; });
+  const base = referenceControllerPort("correct");
+  const work = startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller: { async dispatch(request) { entered(); await held; return base.dispatch(request); } }, reviewer: staticReviewerPort(passingReview) }),
+    gsd: { configRoot: fixture.gsdConfigRoot }, onRunReady: async (run) => { binding = { schemaVersion: 1, contractId: run.contractId,
+      contractDigest: digest, revision: run.revision, runId: run.runId, host: "codex", originatingSessionId: "late-inflight" }; } });
+  try {
+    await ready;
+    assert.ok(binding);
+    const { hydrateExactTaskProgress } = await import("../src/core/task-progress-launch.js");
+    await hydrateExactTaskProgress(fixture.stateRoot, binding);
+    const replay = await readTaskSessionEvents(fixture.stateRoot, binding);
+    assert.ok(replay.events.some((event) => event.kind === "dispatch-start"));
+    assert.ok(!replay.events.some((event) => event.kind === "run-outcome"));
+    assert.equal(replay.gap, true);
+  } finally { release(); await work; }
+});
+
 test("phase26 progress preserves recorded decision reasons", async (t) => {
   const fixture = await createTaskFixture(t);
   const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");

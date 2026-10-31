@@ -164,6 +164,10 @@ export async function appendTaskSessionEvent(stateRoot: string, binding: TaskSes
     return { ...input, binding: validateTaskSessionBinding(binding), sequence };
   });
 }
+export async function hasTaskSessionSourceEvent(stateRoot: string, binding: TaskSessionBinding, sourceEventId: string): Promise<boolean> {
+  if (!id.test(sourceEventId)) throw new Error("Invalid task session source event");
+  return withStore(stateRoot, binding, false, (db) => !!db.prepare("SELECT 1 FROM events WHERE source=?").get(sourceEventId));
+}
 export async function readTaskSessionEvents(stateRoot: string, binding: TaskSessionBinding, cursor = 0): Promise<{ binding: TaskSessionBinding; events: TaskSessionEvent[]; cursor: number; gap: boolean }> {
   if (!Number.isSafeInteger(cursor) || cursor < 0) throw new Error("Invalid task session cursor");
   return withStore(stateRoot, binding, false, (db) => {

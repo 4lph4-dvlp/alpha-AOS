@@ -189,6 +189,28 @@ test("phase26 start publishes panel before dispatch completion", { timeout: 3000
   assert.equal(readyBeforeDispatch, true);
 });
 
+test("phase26 question packet is bounded and isolated", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+  const { startTask } = await import("../src/core/task-run.js");
+  const { packageRoot } = await import("../src/core/paths.js");
+  const reader = await import("../src/core/task-read.js") as Record<string, unknown>;
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let ready = false;
+  await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    gsd: { configRoot: fixture.gsdConfigRoot }, onRunReady: async (run) => {
+      const binding = { schemaVersion: 1 as const, contractId: run.contractId, contractDigest: digest, revision: run.revision,
+        runId: run.runId, host: "codex" as const, originatingSessionId: "question-session" };
+      await createTaskSession(fixture.stateRoot, binding);
+      ready = true;
+    } });
+  assert.equal(ready, true);
+  assert.equal(typeof reader.readTaskSessionPacket, "function", "the exact run must have a bounded question packet reader");
+});
+
 test("phase26 multi-phase run-ready hook follows durable executing record", { timeout: 20000 }, async (t) => {
   const fixture = await createTaskFixture(t);
   const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");

@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { readTaskApprovals } from "./task-contract.js";
+import { readTaskApprovals, reservedRunIdForApproval } from "./task-contract.js";
 import { readTaskReport, type TaskRunRecord } from "./task-run.js";
-import { createTaskSession, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
-import { readBoundedFile, startCommandJob, writeAtomicPrivateFile } from "./command-jobs.js";
+import { appendTaskSessionEvent, createTaskSession, readTaskSessionEvents, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
+import { getCommandJobStatus, readBoundedFile, startCommandJob, writeAtomicPrivateFile } from "./command-jobs.js";
 import { waitForCompletion } from "./completion-wait.js";
 import { startTaskProgressPanel } from "./task-progress-panel.js";
 
@@ -25,13 +25,24 @@ export function panelDeadline(run: TaskRunRecord, explicitMs?: number, now = Dat
   const runDeadline = run.status === "executing" && run.deadlineAt ? Date.parse(run.deadlineAt) : NaN;
   return Number.isFinite(runDeadline) && runDeadline > now ? Math.min(now + MAX_OBSERVER_MS, runDeadline + 60_000) : now + 30 * 60_000;
 }
-async function exactRun(stateRoot: string, binding: TaskSessionBinding): Promise<{ run: TaskRunRecord; projectRoot: string }> {
+async function exactRun(stateRoot: string, binding: TaskSessionBinding): Promise<{ run: TaskRunRecord; projectRoot: string; dedicated?: { dispatch: import("./task-runtime.js").TaskDispatchObservation; workflow: string | undefined } }> {
   const run = await readTaskReport({ stateRoot, contractId: binding.contractId, runId: binding.runId });
-  if (!run || run.runId !== binding.runId || run.contractDigest !== binding.contractDigest || run.revision !== binding.revision) throw new Error("Exact approved task run not found");
   const approvals = await readTaskApprovals({ stateRoot, contractId: binding.contractId });
   const approval = approvals.find((value) => value.contractDigest === binding.contractDigest && value.revision === binding.revision);
-  if (!approval) throw new Error("Exact task approval not found");
-  return { run, projectRoot: approval.canonicalProjectRoot };
+  if (!approval) throw new Error("Exact approved task run not found");
+  if (run && run.runId === binding.runId && run.contractDigest === binding.contractDigest && run.revision === binding.revision) return { run, projectRoot: approval.canonicalProjectRoot };
+  if (binding.runId !== reservedRunIdForApproval({ contractDigest: binding.contractDigest })) throw new Error("Exact approved task run not found");
+  const { readTaskDispatches } = await import("./task-runtime.js");
+  const dispatches = await readTaskDispatches(stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
+  for (const dispatch of dispatches.reverse()) {
+    if (!dispatch.jobId || dispatch.contractDigest !== binding.contractDigest || dispatch.runId !== binding.runId || dispatch.projectRoot !== approval.contract.scope.projectRoot) continue;
+    const job = await getCommandJobStatus(stateRoot, dispatch.jobId).catch(() => null);
+    if (!job || !job.acknowledgedAt || !job.startedAt || job.cwd !== approval.canonicalProjectRoot) continue;
+    const deadline = Date.parse(job.startedAt) + job.deadlineMs;
+    const projectedRun = { status: dispatch.status === "running" ? "executing" : "unknown", deadlineAt: Number.isFinite(deadline) ? new Date(deadline).toISOString() : null } as TaskRunRecord;
+    return { run: projectedRun, projectRoot: approval.canonicalProjectRoot, dedicated: { dispatch, workflow: approval.contract.scope.workflow } };
+  }
+  throw new Error("Exact approved task run not found");
 }
 function parseSpec(value: unknown): PanelSpec {
   if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value).sort().join(",") !== "binding,deadlineAt,schemaVersion") throw new Error("Invalid panel launch spec");
@@ -41,14 +52,25 @@ function parseSpec(value: unknown): PanelSpec {
 }
 export async function launchTaskProgressPanel(options: { stateRoot: string; binding: TaskSessionBinding; timeoutMs?: number }): Promise<{ jobId: string; binding: TaskSessionBinding; deadlineAt: number; url: string }> {
   const binding = validateTaskSessionBinding(options.binding);
-  const { run, projectRoot } = await exactRun(options.stateRoot, binding);
+  const { run, projectRoot, dedicated } = await exactRun(options.stateRoot, binding);
   const deadlineAt = panelDeadline(run, options.timeoutMs);
+  // Refuse a different origin binding before creating a detached observer.
+  await createTaskSession(options.stateRoot, binding);
+  if (dedicated) {
+    const { projectTaskProgress } = await import("./task-progress.js");
+    const event = projectTaskProgress(dedicated.dispatch, dedicated.workflow);
+    const alreadyPublished = async () => (await readTaskSessionEvents(options.stateRoot, binding)).events.some((entry) => entry.sourceEventId === event.sourceEventId);
+    if (!await alreadyPublished()) {
+      try { await appendTaskSessionEvent(options.stateRoot, binding, event); }
+      catch (error) { if (!(error instanceof Error) || !error.message.includes("Conflicting task session source event") || !await alreadyPublished()) throw error; }
+    }
+  }
   const id = randomUUID().replaceAll("-", ""), paths = launchPaths(options.stateRoot, id);
   await mkdir(paths.dir, { recursive: true, mode: 0o700 });
   await writeAtomicPrivateFile(paths.spec, JSON.stringify({ schemaVersion: 1, binding, deadlineAt }), 8192, options.stateRoot, { exclusive: true });
   const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
   const job = await startCommandJob({ stateRoot: options.stateRoot, cwd: projectRoot, executable: process.execPath,
-    args: [cli, "task", "panel-serve", "--launch-id", id], deadlineMs: Math.min(MAX_OBSERVER_MS, Math.max(1, deadlineAt - Date.now() + 10_000)) });
+    args: [cli, "task", "panel-serve", "--launch-id", id, "--state-root", options.stateRoot], deadlineMs: Math.min(MAX_OBSERVER_MS, Math.max(1, deadlineAt - Date.now() + 10_000)) });
   const observed = await waitForCompletion({ targetPath: paths.handoff, timeoutMs: Math.min(10000, Math.max(1, deadlineAt - Date.now())), check: async () => {
     try {
       const data = JSON.parse(await readBoundedFile(paths.handoff, options.stateRoot, 8192, undefined, true)) as { url?: unknown; deadlineAt?: unknown };

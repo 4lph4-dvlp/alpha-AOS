@@ -180,16 +180,24 @@ test("TOOL-01 tracer: single fixture item executes preview -> perform -> reconci
     });
     assert.equal(approval.status, "approved");
 
-    const ports = mockPorts({ connector });
+    let readyCount = 0, durable = false;
+    const ports = mockPorts({ connector: { ...connector, async perform(...args) { assert.equal(readyCount, 1); return connector.perform(...args); } } });
     const { run } = await startTask({
       contractPath,
       expectedDigest: preview.digest,
       stateRoot,
       packageRoot: process.cwd(),
       ports,
+      onRunReady: async (record, path) => {
+        readyCount++;
+        const persisted = JSON.parse(await readFile(path, "utf8")) as typeof record;
+        durable = persisted.status === "executing" && persisted.runId === record.runId;
+      },
     });
 
     assert.equal(run.status, "accepted");
+    assert.equal(readyCount, 1);
+    assert.equal(durable, true);
     assert.equal(run.contractDigest, preview.digest);
     assert.ok(run.artifact !== null);
     assert.ok(run.verdict !== null);

@@ -226,6 +226,26 @@ test("phase26 GSD progress records actual phase and failed step", async (context
   assert.equal(steps[0]!.workflow, "gsd");
 });
 
+test("phase26 GSD progress records needs-input without claiming completion", async (context) => {
+  const projectRoot = await scratch(context, "progress-input-project");
+  const stateRoot = await scratch(context, "progress-input-state");
+  const contract = createMockContract(projectRoot, { scope: { projectRoot, workflow: "gsd", summary: "Lifecycle testing" }, allowedEffects: ["workspace-write"] });
+  const { taskContractDigest } = await import("../src/core/task-contract.js");
+  const { createTaskSession, readTaskSessionEvents } = await import("../src/core/task-session.js");
+  const binding = { schemaVersion: 1 as const, contractId: contract.id, contractDigest: taskContractDigest(contract), revision: 1,
+    runId: "run-input", host: "codex" as const, originatingSessionId: "conversation-input" };
+  await createTaskSession(stateRoot, binding);
+  const script = join(projectRoot, "prompt.cjs");
+  await writeFile(script, 'console.log("Question: Do you want to install package axios via npm install axios?"); console.log("Default: npm install axios");', "utf8");
+  const outcome = await runPhaseLifecycle({ projectRoot, phaseId: "17-gsd-lifecycle-bridge", contract,
+    targetRevisionSha: "a".repeat(40), workingTreeDigest: "b".repeat(64), stateRoot, runId: binding.runId,
+    receiptsRoot: join(projectRoot, "receipts"), commandMap: { discuss: { executable: process.execPath, args: [script] } } });
+  assert.equal(outcome.finalStep, "needs-input");
+  const events = (await readTaskSessionEvents(stateRoot, binding)).events.filter((event) => event.kind === "gsd-step-end");
+  assert.equal(events.length, 1);
+  assert.equal(events[0]?.outcome, "needs-input");
+});
+
 test("executeGsdStep pauses with needs-input when child output contains unauthorized prompt (D-02)", async (context) => {
   const projectRoot = await scratch(context, "prompt-needs-input");
   const receiptsRoot = join(projectRoot, "receipts");

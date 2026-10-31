@@ -2156,11 +2156,12 @@ async function main(): Promise<void> {
     const context = observableContext();
     const stateRoot = userStateRoot();
     if (subcommand === "panel-serve") {
-      const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--launch-id"], booleanFlags: [] });
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--launch-id", "--state-root"], booleanFlags: [] });
       const id = parsed.options.get("--launch-id");
-      if (parsed.operands.length !== 0 || typeof id !== "string") throw new Error("Invalid internal panel launch");
+      const panelStateRoot = parsed.options.get("--state-root");
+      if (parsed.operands.length !== 0 || typeof id !== "string" || typeof panelStateRoot !== "string") throw new Error("Invalid internal panel launch");
       const { serveTaskProgressPanel } = await import("./core/task-progress-launch.js");
-      await serveTaskProgressPanel(stateRoot, id);
+      await serveTaskProgressPanel(panelStateRoot, id);
       return;
     }
     if (subcommand === "attach") {

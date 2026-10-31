@@ -415,7 +415,10 @@ export interface StartTaskOptions {
 async function notifyRunReady(options: StartTaskOptions, run: TaskRunRecord, recordPath: string): Promise<void> {
   if (!options.onRunReady) return;
   try { await options.onRunReady(run, recordPath); }
-  catch { process.emitWarning("Task observer launch failed; the run continues", { code: "AOS_PROGRESS_DELIVERY" }); }
+  catch (error) {
+    const handle = error instanceof Error ? /observer job (job-[a-f0-9]+)/u.exec(error.message)?.[1] : undefined;
+    process.emitWarning(`Task observer launch failed; the run continues${handle ? `; observer job ${handle}` : ""}`, { code: "AOS_PROGRESS_DELIVERY" });
+  }
 }
 
 const REPORT_TEXT_LIMIT = 4096;

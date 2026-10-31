@@ -100,6 +100,11 @@ function redactOneUrl(candidate: string): string {
     if (!SECRET_QUERY_KEYS.has(key.toLowerCase())) continue;
     url.searchParams.set(key, placeholder("token"));
   }
+  // Panel bootstrap credentials are carried in a loopback URL fragment. A
+  // command job may capture the initiating CLI's explicitly secret output.
+  if (url.hostname === "127.0.0.1" && /^#[A-Za-z0-9_-]{43}$/u.test(url.hash)) {
+    url.hash = "[redacted:token]";
+  }
   return url.toString();
 }
 

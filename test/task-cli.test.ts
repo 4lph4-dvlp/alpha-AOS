@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { commandProbeEnvironment, runProcess, type EnvironmentPolicy, type ProcessResult } from "../src/core/process.js";
 import { canonicalizeWithMissingTail } from "../src/core/path-boundary.js";
@@ -10,6 +12,8 @@ import { aliasPath, createPathAliases } from "../src/core/paths.js";
 import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src/core/task-contract.js";
 import { readCheckpoint, writeCheckpoint, type TaskCheckpoint } from "../src/core/task-journal.js";
 import type { ControllerPort } from "../src/core/task-run.js";
+import { panelDeadline } from "../src/core/task-progress-launch.js";
+import { createRedactionContext, redactDocument } from "../src/core/redaction.js";
 import {
   createTaskFixture,
   fixturePorts,
@@ -38,6 +42,77 @@ test("phase26 attach refuses an approval without an actual run", async (t) => {
     "--revision", "1", "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "5000", "--json"]);
   assert.notEqual(result.exitCode, 0);
   assert.match(result.stderr.excerpt, /Exact approved task run not found/u);
+});
+
+test("phase26 panel launch uses argv and finite jobs", async (t) => {
+  const { fixture, digest } = await contractFixture(t);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const { run } = await startFixtureTask(fixture, { ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }), expectedDigest: digest });
+  const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "20000", "--json"];
+  const result = await promisify(execFile)(process.execPath, [cliEntry, "task", ...args], { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } });
+  const launch = JSON.parse(result.stdout) as { url: string; jobId: string; deadlineAt: number };
+  assert.match(launch.url, /^http:\/\/127\.0\.0\.1:\d+\/#/u);
+  const response = await fetch(launch.url.split("#")[0]!);
+  assert.equal(response.status, 200);
+  assert.ok(launch.deadlineAt <= Date.now() + 20000);
+  const files = await listing(fixture.stateRoot);
+  const credential = new URL(launch.url).hash.slice(1);
+  assert.match(credential, /^[A-Za-z0-9_-]{43}$/u);
+  for (const file of files.filter((name) => /(?:job|spec|event)/u.test(name) && name.endsWith(".json"))) {
+    assert.ok(!(await readFile(join(fixture.stateRoot, file), "utf8")).includes(credential), file);
+  }
+  assert.ok(!redactDocument(`Panel URL: ${launch.url}`, createRedactionContext()).includes(credential));
+  const now = Date.now();
+  assert.equal(panelDeadline({ ...run, status: "executing", deadlineAt: new Date(now + 4 * 3600_000).toISOString() }, undefined, now), now + 4 * 3600_000 + 60_000);
+  assert.equal(panelDeadline({ ...run, deadlineAt: null }, undefined, now), now + 30 * 60_000);
+  assert.equal(panelDeadline(run, 1000, now), now + 1000);
+  const { cancelCommandJob } = await import("../src/core/command-jobs.js");
+  assert.equal((await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: launch.jobId, timeoutMs: 10000 })).status, "cancelled");
+});
+
+test("phase26 attach refreshes only the exact observer", { timeout: 30000 }, async (t) => {
+  const { fixture, digest } = await contractFixture(t);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const { run } = await startFixtureTask(fixture, { ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }), expectedDigest: digest });
+  const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "5000", "--json"];
+  const direct = () => promisify(execFile)(process.execPath, [cliEntry, "task", ...args], { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } });
+  const first = JSON.parse((await direct()).stdout) as { url: string; jobId: string };
+  const second = JSON.parse((await direct()).stdout) as { url: string; jobId: string };
+  assert.notEqual(first.url, second.url);
+  assert.notEqual(first.jobId, second.jobId);
+  const wrongRevision = [...args]; wrongRevision[wrongRevision.indexOf("--revision") + 1] = "2";
+  assert.notEqual((await cli(fixture, wrongRevision)).exitCode, 0);
+  const wrongOrigin = [...args]; wrongOrigin[wrongOrigin.indexOf("--origin-session") + 1] = "other-session";
+  assert.notEqual((await cli(fixture, wrongOrigin)).exitCode, 0);
+  const wrongHost = [...args]; wrongHost[wrongHost.indexOf("--origin-host") + 1] = "unknown";
+  assert.notEqual((await cli(fixture, wrongHost)).exitCode, 0);
+});
+
+test("phase26 public attach observes an applied registered job", { timeout: 40000 }, async (t) => {
+  const fixture = await createTaskFixture(t);
+  const contract = inventorySummaryContract(fixture.projectRoot, { agentPolicy: { controller: "codex", executor: "codex", reviewer: "codex", reviewerSession: "fresh-read-only", controllerModel: "fixture-model", controllerEffort: "high" } });
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest } = await loadTaskContract(fixture.contractPath);
+  const { reservedRunIdForApproval } = await import("../src/core/task-contract.js");
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const runId = reservedRunIdForApproval({ contractDigest: digest });
+  const fakeBin = join(fixture.scratch, "fake bin"); await mkdir(fakeBin);
+  await copyFile(process.execPath, join(fakeBin, process.platform === "win32" ? "codex.exe" : "codex"));
+  const spec = join(fixture.scratch, "registered-job.json");
+  await writeFile(spec, JSON.stringify({ route: "codex-json-v1", contractPath: fixture.contractPath, contractDigest: digest, runId, role: "controller", prompt: "fixture" }));
+  const environment = { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}` };
+  const dispatched = await promisify(execFile)(process.execPath, [cliEntry, "task", "dispatch", spec, "--apply", "--json"], { cwd: fixture.scratch, env: environment });
+  const job = JSON.parse(dispatched.stdout) as { jobId: string };
+  const { waitCommandJob } = await import("../src/core/command-jobs.js");
+  assert.equal((await waitCommandJob({ stateRoot: fixture.stateRoot, jobId: job.jobId, timeoutMs: 15000 })).status, "completed");
+  const attached = await promisify(execFile)(process.execPath, [cliEntry, "task", "attach", contract.id, "--run", runId, "--contract-digest", digest, "--revision", "1", "--origin-host", "codex", "--origin-session", "dedicated-session", "--observer-timeout-ms", "5000", "--json"], { cwd: fixture.scratch, env: environment });
+  const launch = JSON.parse(attached.stdout) as { url: string };
+  const url = new URL(launch.url);
+  const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
+  const { token } = await exchange.json() as { token: string };
+  const snapshot = await (await fetch(`${url.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).json() as { events: { kind: string; outcome: string }[] };
+  assert.ok(snapshot.events.some((event) => event.kind === "dispatch-end"));
+  assert.ok(snapshot.events.every((event) => event.outcome !== "accepted"));
 });
 
 // The CLI child never inherits the parent's ALPHA_AOS_STATE_DIR because the

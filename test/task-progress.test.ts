@@ -149,7 +149,7 @@ test("phase26 dead owner is not live progress", async (t) => {
   assert.equal(snapshot.events.length, 0);
 });
 
-test("phase26 run-ready hook sees the durable actual run before dispatch", async (t) => {
+test("phase26 start publishes panel before dispatch completion", { timeout: 30000 }, async (t) => {
   const fixture = await createTaskFixture(t);
   const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
   const { startTask } = await import("../src/core/task-run.js");
@@ -158,20 +158,61 @@ test("phase26 run-ready hook sees the durable actual run before dispatch", async
   await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
   const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
   await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
-  let readyCount = 0, durable = false, readyBeforeDispatch = false;
+  const { launchTaskProgressPanel } = await import("../src/core/task-progress-launch.js");
+  let readyCount = 0, durable = false, readyBeforeDispatch = false, launchUrl = "";
+  let release!: () => void, entered!: () => void;
+  const hold = new Promise<void>((resolve) => { release = resolve; });
+  const dispatchEntered = new Promise<void>((resolve) => { entered = resolve; });
   const base = referenceControllerPort("correct");
-  const controller: typeof base = { async dispatch(request) { readyBeforeDispatch = readyCount === 1; return base.dispatch(request); } };
+  const controller: typeof base = { async dispatch(request) { readyBeforeDispatch = readyCount === 1; entered(); await hold; return base.dispatch(request); } };
   const options = { contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
     ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }), gsd: { configRoot: fixture.gsdConfigRoot },
     onRunReady: async (run: import("../src/core/task-run.js").TaskRunRecord, path: string) => {
       readyCount++;
       const persisted = JSON.parse(await readFile(path, "utf8")) as typeof run;
       durable = persisted.runId === run.runId && persisted.contractDigest === digest && persisted.status === "executing";
+      const launched = await launchTaskProgressPanel({ stateRoot: fixture.stateRoot, timeoutMs: 15000, binding: { schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision, runId: run.runId, host: "codex", originatingSessionId: "held-session" } });
+      launchUrl = launched.url;
     } };
-  await startTask(options);
+  const running = startTask(options);
+  await dispatchEntered;
+  try {
+    const url = new URL(launchUrl);
+    const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
+    assert.equal(exchange.status, 200);
+    const { token } = await exchange.json() as { token: string };
+    assert.equal((await fetch(`${url.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).status, 200);
+  } finally { release(); }
+  await running;
   assert.equal(readyCount, 1);
   assert.equal(durable, true);
   assert.equal(readyBeforeDispatch, true);
+});
+
+test("phase26 multi-phase run-ready hook follows durable executing record", { timeout: 20000 }, async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
+  const { startTask } = await import("../src/core/task-run.js");
+  const { packageRoot } = await import("../src/core/paths.js");
+  const { readFile } = await import("node:fs/promises");
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.scope.workflow = "gsd-multi-phase";
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let count = 0, durable = false;
+  await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    gsd: { lifecycle: { hookCommand: process.execPath, hookArgs: ["-e", "process.exit(0)"], commandMap: {
+      discuss: { executable: process.execPath, args: ["-e", "process.exit(1)"] },
+      plan: { executable: process.execPath, args: ["-e", "process.exit(1)"] },
+      execute: { executable: process.execPath, args: ["-e", "process.exit(1)"] },
+      verify: { executable: process.execPath, args: ["-e", "process.exit(1)"] },
+    } } },
+    onRunReady: async (run, path) => { count++; const stored = JSON.parse(await readFile(path, "utf8")) as typeof run;
+      durable = stored.status === "executing" && stored.runId === run.runId; } });
+  assert.equal(count, 1);
+  assert.equal(durable, true);
 });
 
 test("phase26 open SSE reports owner death without a work event", { timeout: 15000 }, async (t) => {

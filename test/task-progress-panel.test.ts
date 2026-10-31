@@ -27,8 +27,11 @@ test("phase26 panel follows a real metered dispatch", async (t) => {
     runId: binding.runId, role: "controller", invoke: async () => ({ sessionId: null, processCode: "ok", exitCode: 0, terminal: "completed", closeConfirmed: true }) });
   const snapshot = await fetch(`${origin}/snapshot`, { headers: { Authorization: `Bearer ${session}` } });
   assert.equal(snapshot.status, 200);
-  const data = await snapshot.json() as { events: { kind: string }[]; cursor: number };
+  const data = await snapshot.json() as { events: { kind: string }[]; cursor: number; capabilities: { host: string; bound: boolean; delivery: string; nativeUi: string; nativeSessionId: string | null }[] };
   assert.deepEqual(data.events.map((event) => event.kind), ["dispatch-start", "dispatch-end"]);
+  assert.deepEqual(data.capabilities.map((entry) => entry.host), ["claude", "codex", "antigravity", "pi", "hermes"]);
+  assert.deepEqual(data.capabilities.filter((entry) => entry.bound).map((entry) => entry.host), ["codex"]);
+  assert.ok(data.capabilities.every((entry) => entry.delivery === "disabled" && entry.nativeUi === "unverified" && entry.nativeSessionId === null));
   const abort = new AbortController();
   const stream = await fetch(`${origin}/events?cursor=0`, { headers: { Authorization: `Bearer ${session}` }, signal: abort.signal });
   const frame = await stream.body!.getReader().read();

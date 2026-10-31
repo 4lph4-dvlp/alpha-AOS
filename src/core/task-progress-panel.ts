@@ -17,8 +17,9 @@ const action=document.getElementById("action"),actionText=document.getElementByI
 document.getElementById("timezone").textContent="시간대: "+Intl.DateTimeFormat().resolvedOptions().timeZone;
 function save(value){try{sessionStorage.setItem(key,JSON.stringify(value))}catch{notice.textContent="이 브라우저에서 패널 인증 정보를 유지할 수 없습니다. 새로고침하면 새 패널 주소가 필요합니다."}}
 function clear(){try{sessionStorage.removeItem(key)}catch{}}
-async function read(){const r=await fetch("/snapshot",{headers:{Authorization:"Bearer "+token}}); if(r.status===401){clear();throw Error("auth")} if(!r.ok)throw Error("load"); const data=await r.json(); const tuple=JSON.stringify(data.binding); if(expected&&expected!==tuple){clear();throw Error("binding")} expected=tuple; expiresAt=data.expiresAt; bindingView.textContent=JSON.stringify(data.binding,null,2);document.getElementById("binding-summary").textContent="호스트: "+data.binding.host+" · 계약: "+data.binding.contractId+" · 리비전: "+data.binding.revision+" · 실행: "+data.binding.runId+" · 논리 대화 식별자: "+data.binding.originatingSessionId+" · 네이티브 세션: 확인되지 않음"; save({token,expected,expiresAt}); const states={"confirmed-closed":"종료 확인됨","unresolved":"종료 확인 안 됨","owner-alive":"소유 프로세스 생존 확인; 진행 여부는 확인되지 않음","unknown":"확인되지 않음"};document.getElementById("process").textContent="프로세스 관측: "+(data.processObservations.map(x=>states[x.state]||states.unknown).join(", ")||states.unknown)+" · "+new Date(data.processObservedAt).toLocaleString(); data.events.forEach(display); cursor=data.cursor; if(data.gap)notice.textContent="일부 이전 활동을 이 패널에서 복원할 수 없습니다."; status.textContent="패널 연결됨"; }
-async function stream(){const controller=new AbortController();let timer;const reset=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),35000)};const started=Date.now();reset();try{const response=await fetch("/events?cursor="+cursor,{headers:{Authorization:"Bearer "+token},signal:controller.signal});if(response.status===401){clear();throw Error("auth")}if(!response.ok)throw Error("load");const reader=response.body.getReader(),decoder=new TextDecoder();let buffer="";while(true){const part=await reader.read();if(part.done)break;reset();attempts=0;document.getElementById("transport").textContent="연결 확인: "+new Date().toLocaleString();buffer+=decoder.decode(part.value,{stream:true});if(buffer.length>262144)throw Error("load");let n;while((n=buffer.indexOf("\\n\\n"))>=0){const frame=buffer.slice(0,n);buffer=buffer.slice(n+2);const line=frame.split("\\n").find(x=>x.startsWith("data: "));if(!line)continue;const value=JSON.parse(line.slice(6));if(value.gap){await read();continue}if(JSON.stringify(value.binding)!==expected){clear();throw Error("binding")}if(value.sequence<=cursor){display(value);continue}if(value.sequence!==cursor+1){await read();continue}cursor=value.sequence;display(value)}}if(Date.now()-started<55000)throw Error("stream")}finally{clearTimeout(timer)}}
+function showProcesses(data){const states={"confirmed-closed":"종료 확인됨","unresolved":"종료 확인 안 됨","owner-alive":"소유 프로세스 생존 확인; 진행 여부는 확인되지 않음","unknown":"확인되지 않음"};document.getElementById("process").textContent="프로세스 관측: "+(data.processObservations.map(x=>states[x.state]||states.unknown).join(", ")||states.unknown)+" · "+new Date(data.processObservedAt).toLocaleString();}
+async function read(){const r=await fetch("/snapshot",{headers:{Authorization:"Bearer "+token}}); if(r.status===401){clear();throw Error("auth")} if(!r.ok)throw Error("load"); const data=await r.json(); const tuple=JSON.stringify(data.binding); if(expected&&expected!==tuple){clear();throw Error("binding")} expected=tuple; expiresAt=data.expiresAt; bindingView.textContent=JSON.stringify(data.binding,null,2);document.getElementById("binding-summary").textContent="호스트: "+data.binding.host+" · 계약: "+data.binding.contractId+" · 리비전: "+data.binding.revision+" · 실행: "+data.binding.runId+" · 논리 대화 식별자: "+data.binding.originatingSessionId+" · 네이티브 세션: 확인되지 않음"; save({token,expected,expiresAt}); showProcesses(data); data.events.forEach(display); cursor=data.cursor; if(data.gap)notice.textContent="일부 이전 활동을 이 패널에서 복원할 수 없습니다."; status.textContent="패널 연결됨"; }
+async function stream(){const controller=new AbortController();let timer;const reset=()=>{clearTimeout(timer);timer=setTimeout(()=>controller.abort(),35000)};const started=Date.now();reset();try{const response=await fetch("/events?cursor="+cursor,{headers:{Authorization:"Bearer "+token},signal:controller.signal});if(response.status===401){clear();throw Error("auth")}if(!response.ok)throw Error("load");const reader=response.body.getReader(),decoder=new TextDecoder();let buffer="";while(true){const part=await reader.read();if(part.done)break;reset();attempts=0;document.getElementById("transport").textContent="연결 확인: "+new Date().toLocaleString();buffer+=decoder.decode(part.value,{stream:true});if(buffer.length>262144)throw Error("load");let n;while((n=buffer.indexOf("\\n\\n"))>=0){const frame=buffer.slice(0,n);buffer=buffer.slice(n+2);const line=frame.split("\\n").find(x=>x.startsWith("data: "));if(!line)continue;const value=JSON.parse(line.slice(6));if(value.gap){await read();continue}if(JSON.stringify(value.binding)!==expected){clear();throw Error("binding")}if(value.processObservations){showProcesses(value);continue}if(value.sequence<=cursor){display(value);continue}if(value.sequence!==cursor+1){await read();continue}cursor=value.sequence;display(value)}}if(Date.now()-started<55000)throw Error("stream")}finally{clearTimeout(timer)}}
 async function loop(){try{await read();while(Date.now()<expiresAt)await stream();status.textContent="패널 관찰 시간이 끝났습니다. 마지막 기록을 표시합니다."}catch(e){if(e.message==="auth"||e.message==="binding"){clear();status.textContent=e.message==="auth"?"패널 접근 시간이 만료되었거나 인증 정보가 없습니다.":"실행 식별 정보가 일치하지 않아 표시를 중단했습니다.";return}if(Date.now()>=expiresAt){status.textContent="패널 관찰 시간이 끝났습니다. 마지막 기록을 표시합니다.";return}status.textContent="패널 연결이 끊겼습니다. 마지막 기록을 유지하며 다시 연결합니다.";if(attempts<3){const delay=[1000,2000,4000][attempts++];setTimeout(loop,delay)}else{status.textContent="자동 재연결을 멈췄습니다. 실행 상태는 확인되지 않았습니다.";document.getElementById("reconnect").hidden=false}}}
 document.getElementById("reconnect").addEventListener("click",()=>{document.getElementById("reconnect").hidden=true;attempts=0;void loop()});
 document.getElementById("copy").addEventListener("click",async()=>{try{await navigator.clipboard.writeText(bindingView.textContent);notice.textContent="실행 정보를 복사했습니다."}catch{const field=document.getElementById("copy-fallback");document.getElementById("copy-container").hidden=false;field.value=bindingView.textContent;field.select();notice.textContent="실행 식별 정보를 선택하여 복사하세요."}});
@@ -38,7 +39,30 @@ export async function startTaskProgressPanel(options: { stateRoot: string; bindi
   if (options.signal?.aborted) throw new Error("Panel aborted");
   const bootstrap = randomBytes(32).toString("base64url"), bootstrapHash = digest(bootstrap), bootstrapDeadline = Math.min(deadline, Date.now() + 120_000);
   let used = false, origin = "", stopped = false, clients = 0, rejected = 0, rejectSince = Date.now();
-  const sessions: Buffer[] = [], streams = new Set<ServerResponse>();
+  const sessions: Buffer[] = [], streams = new Set<ServerResponse>(), streamHints = new Set<() => void>();
+  let processObservations: { dispatchId: string; state: string }[] = [], processFingerprint = "[]", processVersion = 0, processObservedAt = new Date().toISOString();
+  let processRead: Promise<void> | null = null;
+  const refreshProcesses = (): Promise<void> => {
+    if (processRead) return processRead;
+    processRead = (async () => {
+      let next: typeof processObservations;
+      try {
+        const { readTaskDispatches } = await import("./task-runtime.js");
+        const records = await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000 });
+        next = records.slice(-32).map((record) => ({ dispatchId: record.dispatchId,
+          state: record.closeConfirmed === true ? "confirmed-closed" : record.status === "interrupted" ? "unresolved" :
+            record.status === "running" && record.host === hostname() ? "owner-alive" : "unknown" }));
+      } catch { next = [{ dispatchId: "unknown", state: "unknown" }]; }
+      if (stopped) return;
+      processObservedAt = new Date().toISOString();
+      const fingerprint = JSON.stringify(next);
+      if (fingerprint !== processFingerprint) {
+        processFingerprint = fingerprint; processObservations = next; processVersion++;
+        for (const hint of streamHints) hint();
+      }
+    })().finally(() => { processRead = null; });
+    return processRead;
+  };
   const server = createServer({ maxHeaderSize: 8192, requestTimeout: 10000, headersTimeout: 5000, connectionsCheckingInterval: 1000 }, (req, res) => { void handle(req, res).catch(() => { if (!res.headersSent) res.writeHead(500); res.end("Request failed"); }); });
   server.maxHeadersCount = 32; server.maxConnections = 8;
   server.on("upgrade", (_req, socket) => socket.destroy());
@@ -66,34 +90,37 @@ export async function startTaskProgressPanel(options: { stateRoot: string; bindi
     if (!sessions.some((entry) => matches(req.headers.authorization, entry))) { reject(); return; }
     if (parsed.pathname === "/snapshot" && !parsed.search) {
       const value = await readTaskSessionEvents(options.stateRoot, binding);
-      let processObservations: { dispatchId: string; state: string }[];
-      try {
-        const { readTaskDispatches } = await import("./task-runtime.js");
-        const records = await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000 });
-        processObservations = records.slice(-32).map((record) => ({ dispatchId: record.dispatchId,
-          state: record.closeConfirmed === true ? "confirmed-closed" : record.status === "interrupted" ? "unresolved" :
-            record.status === "running" && record.host === hostname() ? "owner-alive" : "unknown" }));
-      } catch { processObservations = [{ dispatchId: "unknown", state: "unknown" }]; }
-      const output = JSON.stringify({ ...value, processObservations, processObservedAt: new Date().toISOString(), expiresAt: deadline });
+      await refreshProcesses();
+      const output = JSON.stringify({ ...value, processObservations, processObservedAt, expiresAt: deadline });
       if (Buffer.byteLength(output) > 256 * 1024) { res.writeHead(503).end("Snapshot unavailable"); return; }
       res.writeHead(200, { "Content-Type": "application/json" }).end(output); return;
     }
     const cursorText = parsed.searchParams.get("cursor");
     if (parsed.pathname !== "/events" || parsed.searchParams.size !== 1 || !cursorText || !/^(0|[1-9][0-9]{0,15})$/u.test(cursorText) || clients >= 4) { res.writeHead(400).end("Invalid request"); return; }
-    let cursor = Number(cursorText), running = false, again = false, closed = false;
+    // Re-send the latest process observation on registration to close the snapshot/stream race.
+    let cursor = Number(cursorText), running = false, again = false, closed = false, seenProcessVersion = processVersion === 0 ? 0 : -1;
     if (!Number.isSafeInteger(cursor)) { res.writeHead(400).end("Invalid request"); return; }
     clients++; streams.add(res); res.writeHead(200, { "Content-Type": "text/event-stream; charset=utf-8", Connection: "keep-alive" }); res.flushHeaders();
     let watcher: ReturnType<typeof watch> | undefined;
-    const cleanup = () => { if (closed) return; closed = true; clients--; streams.delete(res); watcher?.close(); clearInterval(heartbeat); clearTimeout(rotation); };
+    const cleanup = () => { if (closed) return; closed = true; clients--; streams.delete(res); streamHints.delete(hint); watcher?.close(); clearInterval(heartbeat); clearTimeout(rotation); };
     const send = async () => {
       if (closed) return; if (running) { again = true; return; } running = true;
+      const writeFrame = async (frame: string): Promise<boolean> => {
+        if (Buffer.byteLength(frame) > 8192 || res.writableLength + Buffer.byteLength(frame) > 65536) { res.end(); return false; }
+        if (!res.write(frame)) await new Promise<void>((resolve) => { const timer = setTimeout(() => { res.destroy(); resolve(); }, 5000); res.once("drain", () => { clearTimeout(timer); resolve(); }); res.once("close", () => { clearTimeout(timer); resolve(); }); });
+        return !closed;
+      };
       try { do { again = false; const result = await readTaskSessionEvents(options.stateRoot, binding, cursor);
         if (result.gap) { res.write(`data: ${JSON.stringify({ gap: true })}\n\n`); res.end(); return; }
-        for (const event of result.events) { const frame = `data: ${JSON.stringify(event)}\n\n`; if (Buffer.byteLength(frame) > 8192 || res.writableLength + Buffer.byteLength(frame) > 65536) { res.end(); return; }
-          cursor = event.sequence; if (!res.write(frame)) { await new Promise<void>((resolve) => { const timer = setTimeout(() => { res.destroy(); resolve(); }, 5000); res.once("drain", () => { clearTimeout(timer); resolve(); }); res.once("close", () => { clearTimeout(timer); resolve(); }); }); if (closed) return; }
+        for (const event of result.events) { const frame = `data: ${JSON.stringify(event)}\n\n`;
+          cursor = event.sequence; if (!await writeFrame(frame)) return;
+        }
+        if (seenProcessVersion !== processVersion) { seenProcessVersion = processVersion;
+          if (!await writeFrame(`data: ${JSON.stringify({ binding, processObservations, processObservedAt })}\n\n`)) return;
         }
       } while (again && !closed); } catch { res.end(); } finally { running = false; }
     };
+    const hint = () => { void send(); }; streamHints.add(hint);
     const heartbeat = setInterval(() => { if (!running && res.writableLength < 1024) res.write(": heartbeat\n\n"); }, 15000);
     const rotation = setTimeout(() => res.end(), Math.min(60000, deadline - Date.now()));
     res.once("close", cleanup);
@@ -102,9 +129,11 @@ export async function startTaskProgressPanel(options: { stateRoot: string; bindi
   await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(0, "127.0.0.1", () => { server.off("error", reject); resolve(); }); });
   const address = server.address(); if (!address || typeof address === "string") { server.close(); throw new Error("Panel listener unavailable"); }
   origin = `http://127.0.0.1:${address.port}`;
+  const processTimer = setInterval(() => { if (streams.size) void refreshProcesses(); }, 2000);
+  processTimer.unref();
   let done: Promise<void> | null = null;
   const timer = setTimeout(() => { void dispose(); }, deadline - Date.now());
-  const dispose = () => { if (done) return done; stopped = true; clearTimeout(timer); options.signal?.removeEventListener("abort", onAbort); done = new Promise<void>((resolve) => { server.close(() => resolve()); for (const stream of streams) stream.end(); const force = setTimeout(() => { server.closeAllConnections(); resolve(); }, 2000); force.unref(); }); return done; };
+  const dispose = () => { if (done) return done; stopped = true; clearTimeout(timer); clearInterval(processTimer); options.signal?.removeEventListener("abort", onAbort); done = new Promise<void>((resolve) => { server.close(() => resolve()); for (const stream of streams) stream.end(); const force = setTimeout(() => { server.closeAllConnections(); resolve(); }, 2000); force.unref(); }); return done; };
   const onAbort = () => { void dispose(); }; options.signal?.addEventListener("abort", onAbort, { once: true }); if (options.signal?.aborted && !stopped) void dispose();
   return { url: `${origin}/#${bootstrap}`, dispose };
 }

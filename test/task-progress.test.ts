@@ -117,3 +117,30 @@ test("phase26 registered dedicated dispatch publishes configured evidence", asyn
   assert.equal(events[0]?.configuredEffort, "high");
   assert.equal(events.some((event) => event.outcome === "accepted"), false);
 });
+
+test("phase26 dead owner is not live progress", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { hostname } = await import("node:os");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { normalizeHarnessTelemetry } = await import("../src/core/task-telemetry.js");
+  const { startTaskProgressPanel } = await import("../src/core/task-progress-panel.js");
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: "d".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const dispatchId = "e".repeat(64), root = join(fixture.stateRoot, "runs", binding.contractDigest, "dispatches");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, `${dispatchId}.json`), JSON.stringify({ schemaVersion: 1, dispatchId, contractDigest: binding.contractDigest,
+    runId: binding.runId, role: "controller", harness: "codex", model: null, startedAt: "2026-10-31T00:00:00.000Z", finishedAt: null,
+    host: hostname(), ownerPid: 2147483647, childPid: null, sessionId: null, status: "running", reason: null,
+    telemetry: normalizeHarnessTelemetry("codex", null) }));
+  const panel = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 30000 });
+  t.after(() => panel.dispose());
+  const url = new URL(panel.url);
+  const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
+  const { token } = await exchange.json() as { token: string };
+  const snapshot = await (await fetch(`${url.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).json() as {
+    processObservations?: { state: string }[]; events: unknown[] };
+  assert.equal(snapshot.processObservations?.[0]?.state, "unresolved");
+  assert.equal(snapshot.events.length, 0);
+});

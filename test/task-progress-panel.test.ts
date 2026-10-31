@@ -281,3 +281,30 @@ test("phase26 stalled SSE drain disconnects within the finite bound", { timeout:
   assert.equal(closed, true);
   assert.ok(Date.now() - started < 8000);
 });
+
+test("phase26 UI retains focused history within 200 rows", async (t) => {
+  const { origin } = await setup(t);
+  const script = await (await fetch(`${origin}/panel.js`)).text();
+  const { runInNewContext } = await import("node:vm");
+  class Element {
+    children: Element[] = [];
+    parent: Element | null = null;
+    textContent = "";
+    hidden = false;
+    append(...items: Element[]) { for (const item of items) { item.parent = this; this.children.push(item); } }
+    appendChild(item: Element) { this.append(item); }
+    get firstElementChild() { return this.children[0]!; }
+    contains(item: Element | null): boolean { return this === item || this.children.some((child) => child.contains(item)); }
+    querySelector() { return null; }
+    remove() { if (this.parent) this.parent.children.splice(this.parent.children.indexOf(this), 1); }
+    addEventListener() {}
+  }
+  const nodes = new Map<string, Element>();
+  const document = { activeElement: null as Element | null, getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id)!; }, createElement() { return new Element(); } };
+  const context = { document, location: { hash: "", pathname: "/" }, history: { replaceState() {} }, sessionStorage: { getItem() { return null; }, removeItem() {} }, Intl, Date, JSON, Map, Error };
+  runInNewContext(`${script}\nfor(let i=1;i<=200;i++)display({sequence:i,observedAt:"2026-01-01",kind:"decision"}); document.activeElement=document.getElementById("events").firstElementChild; for(let i=201;i<=240;i++)display({sequence:i,observedAt:"2026-01-01",kind:"decision"});`, context);
+  const rows = nodes.get("events")!;
+  assert.equal(rows.children.length, 200);
+  assert.ok(rows.children.includes(document.activeElement!));
+  assert.match(nodes.get("notice")!.textContent, /200/u);
+});

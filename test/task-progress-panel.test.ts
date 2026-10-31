@@ -282,7 +282,7 @@ test("phase26 stalled SSE drain disconnects within the finite bound", { timeout:
   assert.ok(Date.now() - started < 8000);
 });
 
-test("phase26 UI retains focused history within 200 rows", async (t) => {
+test("phase26 UI states remain truthful and inert: focused history within 200 rows", async (t) => {
   const { origin } = await setup(t);
   const script = await (await fetch(`${origin}/panel.js`)).text();
   const { runInNewContext } = await import("node:vm");
@@ -307,4 +307,38 @@ test("phase26 UI retains focused history within 200 rows", async (t) => {
   assert.equal(rows.children.length, 200);
   assert.ok(rows.children.includes(document.activeElement!));
   assert.match(nodes.get("notice")!.textContent, /200/u);
+});
+
+test("phase26 reload reconnect and stale owner", async (t) => {
+  const { origin } = await setup(t);
+  const script = await (await fetch(`${origin}/panel.js`)).text();
+  const { runInNewContext } = await import("node:vm");
+  const stored = new Map<string, string>();
+  const storage = { getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => stored.set(key, value), removeItem: (key: string) => stored.delete(key) };
+  const binding = { schemaVersion: 1, contractId: "contract", contractDigest: "a".repeat(64), revision: 1, runId: "run", host: "codex", originatingSessionId: "origin" };
+  let exchanges = 0, snapshots = 0;
+  const run = async (fragment: string, returnedBinding = binding) => {
+    const nodes = new Map<string, { textContent: string; hidden: boolean; addEventListener(): void }>();
+    const document = { getElementById(id: string) { if (!nodes.has(id)) nodes.set(id, { textContent: "", hidden: false, addEventListener() {} }); return nodes.get(id)!; }, querySelectorAll() { return []; } };
+    let observed!: () => void;
+    const snapshotSeen = new Promise<void>((resolve) => { observed = resolve; });
+    const fetchFixture = async (path: string) => {
+      if (path === "/session") { exchanges++; return { ok: true, status: 200, json: async () => ({ token: "viewer", expiresAt: Date.now() + 60000 }) }; }
+      if (path === "/snapshot") { snapshots++; observed(); return { ok: true, status: 200, json: async () => ({ binding: returnedBinding, expiresAt: Date.now() + 60000, events: [], cursor: 0, processObservations: [{ state: "unknown" }], processObservedAt: Date.now(), capabilities: [] }) }; }
+      throw new Error("connection lost");
+    };
+    runInNewContext(script, { document, location: { hash: fragment, pathname: "/" }, history: { replaceState() {} }, sessionStorage: storage, fetch: fetchFixture, Intl, Date, JSON, Map, Error, AbortController, setTimeout() { return 1; }, clearTimeout() {} });
+    await snapshotSeen;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    return nodes;
+  };
+  await run("#bootstrap");
+  assert.equal(exchanges, 1);
+  assert.ok(stored.has("alpha-aos-panel"));
+  const reloaded = await run("");
+  assert.equal(exchanges, 1);
+  assert.equal(snapshots, 2);
+  assert.match(reloaded.get("process")!.textContent, /확인되지 않음/u);
+  await run("", { ...binding, runId: "other-run" });
+  assert.equal(stored.has("alpha-aos-panel"), false);
 });

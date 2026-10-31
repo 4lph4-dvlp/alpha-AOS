@@ -6,8 +6,12 @@ import test from "node:test";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { approveTaskContract, loadTaskContract } from "../src/core/task-contract.js";
-import { createTaskFixture, inventorySummaryContract, writeTaskContract } from "./helpers/task-fixture.js";
+import { approveTaskContract, loadTaskContract, previewTaskContract } from "../src/core/task-contract.js";
+import { createTaskFixture, fixturePorts, inventorySummaryContract, passingReview, referenceControllerPort, staticReviewerPort, writeTaskContract } from "./helpers/task-fixture.js";
+import { packageRoot } from "../src/core/paths.js";
+import { startTask } from "../src/core/task-run.js";
+import { createTaskSession, type TaskSessionBinding } from "../src/core/task-session.js";
+import { submitTaskSteering } from "../src/core/task-steering.js";
 const invoke = promisify(execFile);
 const cliEntry = join(resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."), "dist", "src", "cli.js");
 for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
@@ -65,6 +69,43 @@ test(`phase26 five host integration ${host} public start hands off while fixture
     await ended;
     if (launch) { const { cancelCommandJob } = await import("../src/core/command-jobs.js"); await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: launch.jobId, timeoutMs: 10000 }); }
   }
+  assert.ok(launch);
+  const binding = launch.binding;
+  const disposition = await invoke(process.execPath, [cliEntry, "task", "steering", binding.contractId, "--run", binding.runId, "--contract-digest", binding.contractDigest, "--revision", String(binding.revision), "--origin-host", host, "--origin-session", binding.originatingSessionId, "--json"], { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } });
+  const facts = (JSON.parse(disposition.stdout) as { facts: { state: string }[] }).facts;
+  assert.ok(facts.some((fact) => fact.state === "deferred"));
+  assert.ok(!facts.some((fact) => fact.state === "applied"));
+});
+
+}
+for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+test(`phase26 five host normal controller ${host} consumes steering`, async (t) => {
+  const fixture = await createTaskFixture(t);
+  await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const base = referenceControllerPort("correct");
+  let calls = 0, prompt = "", binding: TaskSessionBinding | undefined;
+  const controller: typeof base = { async dispatch(request) { calls++; prompt = request.prompt; return base.dispatch(request); } };
+  await startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller, reviewer: staticReviewerPort(passingReview) }), gsd: { configRoot: fixture.gsdConfigRoot },
+    onRunReady: async (run) => {
+      binding = { schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision, runId: run.runId,
+        host, originatingSessionId: `quick-tracer-${host}` };
+      await createTaskSession(fixture.stateRoot, binding);
+      await submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { schemaVersion: 1, binding, requestId: "quick-1",
+        submittedAt: "2026-11-01T00:00:00Z", text: "Reuse the existing input validation layout for the output checks." } });
+    } });
+  assert.equal(calls, 1);
+  assert.match(prompt, /Reuse the existing input validation layout for the output checks\./u);
+  assert.match(prompt, /UNTRUSTED/u);
+  assert.ok(binding);
+  const { readTaskSessionPacket } = await import("../src/core/task-read.js");
+  const packet = await readTaskSessionPacket({ stateRoot: fixture.stateRoot, binding, limit: 50 });
+  const dispositions: { state: string }[] = packet.proposalDispositions;
+  assert.ok(dispositions.some((entry) => entry.state === "delivered"));
+  assert.ok(dispositions.some((entry) => entry.state === "deferred"));
+  assert.ok(!dispositions.some((entry) => entry.state === "applied"));
 });
 
 

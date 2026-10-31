@@ -14,10 +14,10 @@ export function projectTaskProgress(record: TaskDispatchObservation, workflow: s
     recordedReason: record.reason, evidenceRefs: [record.dispatchId] };
 }
 
-export function projectGsdStep(input: { phaseId: string; attemptId: string; step: string; at: string; outcome: "running" | "completed" | "failed" | "needs-input"; evidenceRefs: readonly string[] }): TaskSessionEventInput {
+export function projectGsdStep(input: { phaseId: string; attemptId: string; workflow: string | undefined; step: string; at: string; outcome: "running" | "completed" | "failed" | "needs-input"; evidenceRefs: readonly string[] }): TaskSessionEventInput {
   const phaseHash = createHash("sha256").update(input.phaseId).digest("hex");
   return { sourceEventId: `gsd:${phaseHash}:${input.attemptId}:${input.outcome === "running" ? "start" : "end"}`,
-    observedAt: input.at, kind: input.outcome === "running" ? "gsd-step-start" : "gsd-step-end", workflow: "gsd",
+    observedAt: input.at, kind: input.outcome === "running" ? "gsd-step-start" : "gsd-step-end", workflow: input.workflow === "gsd" || input.workflow === "gsd-multi-phase" ? input.workflow : null,
     step: `${input.phaseId.slice(0, 100)}: ${input.step}`, role: null, configuredModel: null, configuredEffort: null,
     observedModel: null, observedEffort: null, outcome: input.outcome, processState: null, recordedReason: null,
     evidenceRefs: input.evidenceRefs.slice(0, 16) };

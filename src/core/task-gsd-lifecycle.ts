@@ -765,7 +765,7 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
       try {
         const [{ publishTaskSessionEvent }, { projectGsdStep }] = await Promise.all([import("./task-session.js"), import("./task-progress.js")]);
         await publishTaskSessionEvent(options.stateRoot, { contractDigest: taskContractDigest(options.contract), runId: options.runId,
-          contractId: options.contract.id, revision: options.contract.revision }, projectGsdStep({ phaseId: options.phaseId, attemptId, step, at: new Date().toISOString(), outcome, evidenceRefs }));
+          contractId: options.contract.id, revision: options.contract.revision }, projectGsdStep({ phaseId: options.phaseId, attemptId, workflow: options.contract.scope.workflow, step, at: new Date().toISOString(), outcome, evidenceRefs }));
       } catch { process.emitWarning("Task progress delivery failed; lifecycle remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
     };
     await publishStep("running", []);

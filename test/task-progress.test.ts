@@ -57,3 +57,12 @@ test("phase26 progress preserves recorded decision reasons", async (t) => {
   const events = (await readTaskSessionEvents(fixture.stateRoot, binding)).events;
   assert.equal(events.find((event) => event.kind === "decision")?.recordedReason, "Input length is limited");
 });
+
+test("phase26 phase projection preserves the multi-phase workflow", async () => {
+  const { projectGsdStep } = await import("../src/core/task-progress.js");
+  const event = projectGsdStep({ phaseId: "26", attemptId: "fixture-attempt", workflow: "gsd-multi-phase", step: "verify",
+    at: "2026-10-31T00:00:00.000Z", outcome: "completed", evidenceRefs: [] });
+  assert.equal(event.workflow, "gsd-multi-phase");
+  assert.equal(event.step, "26: verify");
+  assert.equal(event.outcome, "completed");
+});

@@ -223,6 +223,7 @@ test("phase26 GSD progress records actual phase and failed step", async (context
   assert.equal(steps.length, 1);
   assert.match(steps[0]!.step!, /17-gsd-lifecycle-bridge.*discuss/u);
   assert.equal(steps[0]!.outcome, "failed");
+  assert.equal(steps[0]!.workflow, "gsd");
 });
 
 test("executeGsdStep pauses with needs-input when child output contains unauthorized prompt (D-02)", async (context) => {

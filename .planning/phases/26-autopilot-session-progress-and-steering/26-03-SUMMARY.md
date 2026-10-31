@@ -44,7 +44,7 @@ completed: 2026-11-01
 - The panel retains focus while limiting its event DOM to 200 rows, displaying an explicit truncation notice. A deterministic browser-script fixture checks retained session storage, reload, mismatched-binding clearing and an unknown process label; separate earlier tests cover dead-owner HTTP observations. This is not browser visual acceptance.
 - Updated the tracked task skill and runtime-controls documentation for explicit opt-in, early URL, exact attach/context/steer, finite observation, fresh approval for new authority and native limitations. Source and all five target hashes were generated with `renderOwnedSkill`; temporary target-home parity was tested. No global installation or native inference was performed.
 
-## Verification
+## Test Evidence
 
 - `npm run check`: exit 0 before the final test-only additions; subsequent builds also compiled those additions.
 - `npm run build`: exit 0 after final source and test changes.

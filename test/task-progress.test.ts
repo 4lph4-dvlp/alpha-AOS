@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { once } from "node:events";
 import { createTaskFixture, inventorySummaryContract, fixturePorts, passingReview, referenceControllerPort, startFixtureTask, staticReviewerPort, writeTaskContract } from "./helpers/task-fixture.js";
 import { createTaskSession, readTaskSessionEvents, validateTaskSessionBinding } from "../src/core/task-session.js";
 import { meteredTaskDispatch } from "../src/core/task-runtime.js";
@@ -168,4 +169,42 @@ test("phase26 run-ready hook sees the durable actual run before dispatch", async
   assert.equal(readyCount, 1);
   assert.equal(durable, true);
   assert.equal(readyBeforeDispatch, true);
+});
+
+test("phase26 open SSE reports owner death without a work event", { timeout: 15000 }, async (t) => {
+  const fixture = await createTaskFixture(t);
+  const { spawn } = await import("node:child_process");
+  const { hostname } = await import("node:os");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const { normalizeHarnessTelemetry } = await import("../src/core/task-telemetry.js");
+  const { startTaskProgressPanel } = await import("../src/core/task-progress-panel.js");
+  const owner = spawn(process.execPath, ["-e", "setTimeout(() => {}, 12000)"], { stdio: "ignore", windowsHide: true });
+  await once(owner, "spawn");
+  t.after(() => { if (owner.exitCode === null) owner.kill(); });
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: "f".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const dispatchId = "e".repeat(64), root = join(fixture.stateRoot, "runs", binding.contractDigest, "dispatches");
+  await mkdir(root, { recursive: true });
+  await writeFile(join(root, `${dispatchId}.json`), JSON.stringify({ schemaVersion: 1, dispatchId, contractDigest: binding.contractDigest,
+    runId: binding.runId, role: "controller", harness: "codex", model: null, startedAt: "2026-10-31T00:00:00.000Z", finishedAt: null,
+    host: hostname(), ownerPid: owner.pid, childPid: null, sessionId: null, status: "running", reason: null,
+    telemetry: normalizeHarnessTelemetry("codex", null) }));
+  const panel = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 30000 });
+  t.after(() => panel.dispose());
+  const url = new URL(panel.url);
+  const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
+  const { token } = await exchange.json() as { token: string };
+  const headers = { Authorization: `Bearer ${token}` };
+  const initial = await (await fetch(`${url.origin}/snapshot`, { headers })).json() as { processObservations: { state: string }[] };
+  assert.equal(initial.processObservations[0]?.state, "owner-alive");
+  const response = await fetch(`${url.origin}/events?cursor=0`, { headers, signal: AbortSignal.timeout(6000) });
+  const reader = response.body!.getReader();
+  const closed = once(owner, "exit"); owner.kill(); await closed;
+  let frames = "";
+  try { while (!frames.includes('"state":"unresolved"')) { const part = await reader.read(); if (part.done) break; frames += new TextDecoder().decode(part.value); } } catch { /* timeout leaves assertion to report the missing observation */ }
+  assert.match(frames, /"state":"unresolved"/u);
+  assert.doesNotMatch(frames, /"sequence":/u);
+  await reader.cancel();
 });

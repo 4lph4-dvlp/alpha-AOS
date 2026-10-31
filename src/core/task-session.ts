@@ -179,7 +179,7 @@ export async function readTaskSessionEvents(stateRoot: string, binding: TaskSess
       if (bytes > maxReplayBytes) break;
       events.unshift(item);
     }
-    const historicalGap = cursor === 0 && !!db.prepare("SELECT 1 FROM events WHERE source=?").get(`history-gap:${binding.runId}`);
+    const historicalGap = cursor === 0 && !!db.prepare("SELECT 1 FROM events WHERE source=?").get(`history-gap:${createHash("sha256").update(binding.runId).digest("hex")}`);
     return { binding: validateTaskSessionBinding(binding), events, cursor: last, gap: historicalGap || cursor < (events[0]?.sequence ?? last + 1) - 1 };
   });
 }

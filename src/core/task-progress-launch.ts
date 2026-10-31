@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,13 +25,13 @@ export function panelDeadline(run: TaskRunRecord, explicitMs?: number, now = Dat
   const runDeadline = run.status === "executing" && run.deadlineAt ? Date.parse(run.deadlineAt) : NaN;
   return Number.isFinite(runDeadline) && runDeadline > now ? Math.min(now + MAX_OBSERVER_MS, runDeadline + 60_000) : now + 30 * 60_000;
 }
-export async function exactRun(stateRoot: string, binding: TaskSessionBinding): Promise<{ run: TaskRunRecord; projectRoot: string; dedicated?: { dispatch: import("./task-runtime.js").TaskDispatchObservation; workflow: string | undefined } }> {
+export async function exactRun(stateRoot: string, binding: TaskSessionBinding): Promise<{ run: TaskRunRecord; projectRoot: string; workflow: string | undefined; dedicated?: { dispatch: import("./task-runtime.js").TaskDispatchObservation; workflow: string | undefined } }> {
   const { readTaskReport } = await import("./task-run.js");
   const run = await readTaskReport({ stateRoot, contractId: binding.contractId, runId: binding.runId });
   const approvals = await readTaskApprovals({ stateRoot, contractId: binding.contractId });
   const approval = approvals.find((value) => value.contractDigest === binding.contractDigest && value.revision === binding.revision);
   if (!approval) throw new Error("Exact approved task run not found");
-  if (run && run.runId === binding.runId && run.contractDigest === binding.contractDigest && run.revision === binding.revision) return { run, projectRoot: approval.canonicalProjectRoot };
+  if (run && run.runId === binding.runId && run.contractDigest === binding.contractDigest && run.revision === binding.revision) return { run, projectRoot: approval.canonicalProjectRoot, workflow: approval.contract.scope.workflow };
   if (binding.runId !== reservedRunIdForApproval({ contractDigest: binding.contractDigest })) throw new Error("Exact approved task run not found");
   const { readTaskDispatches } = await import("./task-runtime.js");
   const dispatches = await readTaskDispatches(stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
@@ -41,7 +41,7 @@ export async function exactRun(stateRoot: string, binding: TaskSessionBinding): 
     if (!job || !job.acknowledgedAt || !job.startedAt || job.cwd !== approval.canonicalProjectRoot) continue;
     const deadline = Date.parse(job.startedAt) + job.deadlineMs;
     const projectedRun = { status: dispatch.status === "running" ? "executing" : "unknown", deadlineAt: Number.isFinite(deadline) ? new Date(deadline).toISOString() : null } as TaskRunRecord;
-    return { run: projectedRun, projectRoot: approval.canonicalProjectRoot, dedicated: { dispatch, workflow: approval.contract.scope.workflow } };
+    return { run: projectedRun, projectRoot: approval.canonicalProjectRoot, workflow: approval.contract.scope.workflow, dedicated: { dispatch, workflow: approval.contract.scope.workflow } };
   }
   throw new Error("Exact approved task run not found");
 }
@@ -53,7 +53,7 @@ function parseSpec(value: unknown): PanelSpec {
 }
 export async function launchTaskProgressPanel(options: { stateRoot: string; binding: TaskSessionBinding; timeoutMs?: number }): Promise<{ jobId: string; binding: TaskSessionBinding; deadlineAt: number; url: string }> {
   const binding = validateTaskSessionBinding(options.binding);
-  const { run, projectRoot, dedicated } = await exactRun(options.stateRoot, binding);
+  const { run, projectRoot, workflow, dedicated } = await exactRun(options.stateRoot, binding);
   const deadlineAt = panelDeadline(run, options.timeoutMs);
   // Refuse a different origin binding before creating a detached observer.
   await createTaskSession(options.stateRoot, binding);
@@ -61,10 +61,10 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   const { readTaskDispatches } = await import("./task-runtime.js");
   const dispatches = dedicated ? [dedicated.dispatch] : await readTaskDispatches(options.stateRoot, binding.contractDigest, { runId: binding.runId, maxRecords: 1000, processOnly: true });
   const outcome = dedicated ? null : projectRunOutcome(run);
-  const events = [...dispatches.map((dispatch) => projectTaskProgress(dispatch, dedicated?.workflow)),
+  const events = [...dispatches.map((dispatch) => projectTaskProgress(dispatch, workflow)),
     ...(dedicated ? [] : projectRecordedDecisions(run)), ...(outcome ? [outcome] : [])].sort((a, b) => Date.parse(a.observedAt) - Date.parse(b.observedAt));
   // Earlier lifecycle events are not reconstructible from the bounded run records.
-  if (dispatches.length || outcome) events.unshift({ sourceEventId: `history-gap:${binding.runId}`, observedAt: events[0]!.observedAt,
+  if (dispatches.length || outcome) events.unshift({ sourceEventId: `history-gap:${createHash("sha256").update(binding.runId).digest("hex")}`, observedAt: events[0]!.observedAt,
     kind: "history-gap", workflow: null, step: null, role: null, configuredModel: null, configuredEffort: null, observedModel: null,
     observedEffort: null, outcome: null, processState: null, recordedReason: "Earlier activity unavailable", evidenceRefs: [] });
   for (const event of events) {

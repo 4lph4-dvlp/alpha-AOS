@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { lstat, mkdir, open, readdir } from "node:fs/promises";
+import { link, lstat, mkdir, mkdtemp, open, readdir, rmdir, unlink } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { assertNoSymlinksInPathAndAncestors, STRUCTURAL_CREDENTIAL_PATTERNS } from "./command-jobs.js";
 
@@ -101,15 +101,34 @@ function checkIdentity(before: string[], after: string[]): void {
 }
 async function withStore<T>(stateRoot: string, binding: TaskSessionBinding, create: boolean, action: (db: Db) => T): Promise<T> {
   const root = taskSessionRoot(stateRoot, binding), path = join(root, "events.sqlite");
-  let created = false;
   await assertNoSymlinksInPathAndAncestors(root);
   if (create) {
     await mkdir(root, { recursive: true, mode: 0o700 });
-    const handle = await open(path, "wx", 0o600).catch((error: NodeJS.ErrnoException) => {
-      if (error.code === "EEXIST") return null;
-      throw error;
-    });
-    if (handle) { created = true; await handle.close(); }
+    try { await lstat(path); } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      // Publish only a fully initialized database. Other creators may win the
+      // hard-link race, in which case the existing binding is checked below.
+      const temporaryRoot = await mkdtemp(join(dirname(root), ".session-init-"));
+      const temporaryPath = join(temporaryRoot, "events.sqlite");
+      try {
+        const handle = await open(temporaryPath, "wx", 0o600);
+        await handle.close();
+        const { DatabaseSync } = await import("node:sqlite");
+        const initial = new DatabaseSync(temporaryPath, { allowExtension: false });
+        try {
+          initial.exec("BEGIN IMMEDIATE; CREATE TABLE binding (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY, source TEXT NOT NULL UNIQUE, input TEXT NOT NULL)");
+          initial.prepare("INSERT INTO binding(id,value) VALUES(1,?)").run(canonical(binding));
+          initial.exec("COMMIT");
+        } finally { initial.close(); }
+        await assertNoSymlinksInPathAndAncestors(root);
+        await link(temporaryPath, path).catch((linkError: NodeJS.ErrnoException) => {
+          if (linkError.code !== "EEXIST") throw linkError;
+        });
+      } finally {
+        await unlink(temporaryPath).catch((cleanupError: NodeJS.ErrnoException) => { if (cleanupError.code !== "ENOENT") throw cleanupError; });
+        await rmdir(temporaryRoot);
+      }
+    }
   }
   const names = await readdir(root);
   if (names.some((name) => !["events.sqlite", "events.sqlite-journal", "events.sqlite-wal", "events.sqlite-shm", "steering"].includes(name))) throw new Error("Unsupported legacy task session store");
@@ -131,10 +150,7 @@ async function withStore<T>(stateRoot: string, binding: TaskSessionBinding, crea
     db.exec("BEGIN IMMEDIATE");
     try {
       const schema = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
-      if (schema.length === 0 && created) {
-        db.exec("CREATE TABLE binding (id INTEGER PRIMARY KEY CHECK(id=1), value TEXT NOT NULL); CREATE TABLE events (sequence INTEGER PRIMARY KEY, source TEXT NOT NULL UNIQUE, input TEXT NOT NULL)");
-        db.prepare("INSERT INTO binding(id,value) VALUES(1,?)").run(canonical(binding));
-      } else if (schema.length !== 2 || schema[0]?.name !== "binding" || schema[1]?.name !== "events") throw new Error("Unsupported or corrupt task session schema");
+      if (schema.length !== 2 || schema[0]?.name !== "binding" || schema[1]?.name !== "events") throw new Error("Unsupported or corrupt task session schema");
       const stored = db.prepare("SELECT value FROM binding WHERE id=1").get();
       if (!stored || stored.value !== canonical(binding)) throw new Error("Task run session binding mismatch");
       const result = action(db);

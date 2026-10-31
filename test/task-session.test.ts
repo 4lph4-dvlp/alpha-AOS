@@ -3,6 +3,53 @@ import test from "node:test";
 import { createTaskFixture } from "./helpers/task-fixture.js";
 import { createTaskSession, appendTaskSessionEvent, readTaskSessionEvents, validateTaskSessionBinding } from "../src/core/task-session.js";
 
+test("phase26 concurrent creators publish only a complete bound database", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "8".repeat(64), revision: 1,
+    runId: "concurrent", host: "codex", originatingSessionId: "conversation-one" });
+  await Promise.all(Array.from({ length: 12 }, () => createTaskSession(fixture.stateRoot, binding)));
+  assert.deepEqual((await readTaskSessionEvents(fixture.stateRoot, binding)).events, []);
+  await assert.rejects(createTaskSession(fixture.stateRoot, { ...binding, revision: 2 }), /binding/i);
+});
+
+test("phase26 existing empty database is not treated as a new session", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "7".repeat(64), revision: 1,
+    runId: "empty", host: "codex", originatingSessionId: "conversation-one" });
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  const { mkdir, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const root = taskSessionRoot(fixture.stateRoot, binding);
+  await mkdir(root, { recursive: true, mode: 0o700 });
+  await writeFile(join(root, "events.sqlite"), "", { mode: 0o600 });
+  await assert.rejects(createTaskSession(fixture.stateRoot, binding), /corrupt task session schema/i);
+});
+
+test("phase26 independent processes can create the same session concurrently", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "6".repeat(64), revision: 1,
+    runId: "cross-process", host: "codex", originatingSessionId: "conversation-one" });
+  const { spawn } = await import("node:child_process");
+  const script = `import { createTaskSession } from ${JSON.stringify(new URL("../src/core/task-session.js", import.meta.url).href)};
+    process.stdout.write("ready\\n");
+    process.stdin.once("data", async () => { try { await createTaskSession(process.argv[1], JSON.parse(process.argv[2])); process.exit(0); } catch (error) { console.error(error); process.exit(1); } });`;
+  const children = Array.from({ length: 4 }, () => spawn(process.execPath, ["--input-type=module", "-e", script, fixture.stateRoot, JSON.stringify(binding)], { stdio: "pipe" }));
+  const outcomes = children.map((child) => new Promise<void>((resolve, reject) => {
+    let errors = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (text: string) => { errors += text; });
+    child.once("error", reject);
+    child.once("close", (code) => code === 0 ? resolve() : reject(new Error(`session creator exited ${code}: ${errors}`)));
+  }));
+  await Promise.all(children.map((child) => new Promise<void>((resolve, reject) => {
+    child.once("error", reject);
+    child.stdout.once("data", () => resolve());
+  })));
+  for (const child of children) child.stdin.end("start");
+  await Promise.all(outcomes);
+  assert.deepEqual((await readTaskSessionEvents(fixture.stateRoot, binding)).events, []);
+});
+
 test("phase26 store uses one run location and refuses unknown legacy evidence", async (t) => {
   const fixture = await createTaskFixture(t);
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "9".repeat(64), revision: 1,

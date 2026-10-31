@@ -149,3 +149,19 @@ test("phase26 failed observer publication does not interrupt a dispatch", async 
   const { readTaskDispatches } = await import("../src/core/task-runtime.js");
   assert.equal((await readTaskDispatches(fixture.stateRoot, binding.contractDigest))[0]?.status, "completed");
 });
+
+test("phase26 panel exchange rejects oversized bodies and limits invalid authentication", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "9".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const panel = await startTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, deadlineAt: Date.now() + 30000 });
+  t.after(() => panel.dispose());
+  const url = new URL(panel.url), origin = url.origin;
+  const oversized = await fetch(`${origin}/session`, { method: "POST", headers: { Origin: origin, Authorization: `Bearer ${url.hash.slice(1)}` }, body: "x".repeat(4097) });
+  assert.equal(oversized.status, 413);
+  const valid = await fetch(`${origin}/session`, { method: "POST", headers: { Origin: origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
+  assert.equal(valid.status, 200);
+  for (let i = 0; i < 10; i++) assert.equal((await fetch(`${origin}/snapshot`)).status, 401);
+  assert.equal((await fetch(`${origin}/snapshot`)).status, 429);
+});

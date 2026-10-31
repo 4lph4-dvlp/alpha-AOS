@@ -165,3 +165,27 @@ test("phase26 panel exchange rejects oversized bodies and limits invalid authent
   for (let i = 0; i < 10; i++) assert.equal((await fetch(`${origin}/snapshot`)).status, 401);
   assert.equal((await fetch(`${origin}/snapshot`)).status, 429);
 });
+
+test("phase26 SSE retains consecutive commits while observation is active", { timeout: 30000 }, async (t) => {
+  const { fixture, binding, origin, session } = await setup(t);
+  const { appendTaskSessionEvent } = await import("../src/core/task-session.js");
+  const signal = AbortSignal.timeout(20000);
+  const response = await fetch(`${origin}/events?cursor=0`, { headers: { Authorization: `Bearer ${session}` }, signal });
+  const reader = response.body!.getReader();
+  const collected = (async () => {
+    let text = "";
+    while (!text.includes('"sequence":3')) {
+      const part = await reader.read();
+      if (part.done) break;
+      text += new TextDecoder().decode(part.value);
+    }
+    return text;
+  })();
+  const event = { observedAt: "2026-10-31T00:00:00.000Z", kind: "dispatch-start", workflow: null, step: null,
+    role: "controller", configuredModel: null, configuredEffort: null, observedModel: null, observedEffort: null,
+    outcome: "running", processState: null, recordedReason: null, evidenceRefs: [] } as const;
+  for (let i = 1; i <= 3; i++) await appendTaskSessionEvent(fixture.stateRoot, binding, { ...event, sourceEventId: `burst:${i}` });
+  const frames = await collected;
+  assert.deepEqual([...frames.matchAll(/"sequence":(\d+)/gu)].map((match) => Number(match[1])), [1, 2, 3]);
+  await reader.cancel();
+});

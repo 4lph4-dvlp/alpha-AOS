@@ -3,6 +3,22 @@ import test from "node:test";
 import { createTaskFixture } from "./helpers/task-fixture.js";
 import { createTaskSession, appendTaskSessionEvent, readTaskSessionEvents, validateTaskSessionBinding } from "../src/core/task-session.js";
 
+test("phase26 store uses one run location and refuses unknown legacy evidence", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "9".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  const { taskSessionRoot } = await import("../src/core/task-session.js");
+  assert.equal(taskSessionRoot(fixture.stateRoot, binding), taskSessionRoot(fixture.stateRoot, { ...binding, revision: 2, originatingSessionId: "other" }));
+  const { mkdir, writeFile, readFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const root = taskSessionRoot(fixture.stateRoot, binding);
+  await mkdir(root, { recursive: true });
+  const legacy = join(root, "events.json");
+  await writeFile(legacy, "unknown evidence");
+  await assert.rejects(createTaskSession(fixture.stateRoot, binding));
+  assert.equal(await readFile(legacy, "utf8"), "unknown evidence");
+});
+
 test("phase26 session rejects cross binding and conflicting replay", async (t) => {
   const fixture = await createTaskFixture(t);
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "fixture", contractDigest: "a".repeat(64), revision: 1,

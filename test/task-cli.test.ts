@@ -28,6 +28,18 @@ const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
 const probeEnv = commandProbeEnvironment({ source: process.env });
 const OUTPUT_BYTES = 256 * 1024;
 
+test("phase26 attach refuses an approval without an actual run", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest } = await loadTaskContract(fixture.contractPath);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const result = await cli(fixture, ["attach", contract.id, "--run", "12345678-abcdef12", "--contract-digest", digest,
+    "--revision", "1", "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "5000", "--json"]);
+  assert.notEqual(result.exitCode, 0);
+  assert.match(result.stderr.excerpt, /Exact approved task run not found/u);
+});
+
 // The CLI child never inherits the parent's ALPHA_AOS_STATE_DIR because the
 // probe policy does not list it, so a declared literal is the only route that
 // keeps task records in the fixture's scratch state root instead of the host's.

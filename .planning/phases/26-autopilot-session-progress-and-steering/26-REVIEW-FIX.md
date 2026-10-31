@@ -44,3 +44,10 @@ After the durable terminal record, system settlement defers undisposed proposals
 ## Verification and limits
 
 Checks ran in the main checkout under the requested sequential, no-worktree execution. TypeScript compilation and the named focused regressions passed. The full suite and independent acceptance are reserved for the orchestrator. The final-step regression exercises a failed final verify step; it does not establish native chat delivery or visual acceptance. No provider inference was invoked.
+
+## CR-05 follow-up: Terminal overview precedence
+
+**Commit:** `f06872a`  
+**Status:** fixed: requires independent verification
+
+Recognized terminal run outcomes override display timestamps, and later nonterminal backfill cannot replace the terminal overview. An `executing` run-outcome is not treated as terminal. The served-script regression first failed with a later executing backfill in the overview; after the fix it passed alongside the existing steering-receipt replay regression (2 passed). TypeScript compilation passed in the main checkout. The scoped independent reviewer and final full suite remain with the orchestrator.

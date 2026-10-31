@@ -5,6 +5,24 @@ import { createTaskFixture, inventorySummaryContract, fixturePorts, passingRevie
 import { createTaskSession, readTaskSessionEvents, validateTaskSessionBinding } from "../src/core/task-session.js";
 import { meteredTaskDispatch } from "../src/core/task-runtime.js";
 
+test("phase26 unsafe projection details never suppress terminal outcomes", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: "e".repeat(64), revision: 1,
+    runId: "run-one", host: "codex", originatingSessionId: "conversation-one" });
+  await createTaskSession(fixture.stateRoot, binding);
+  const { projectRunOutcome } = await import("../src/core/task-progress.js");
+  const { appendTaskSessionEvent } = await import("../src/core/task-session.js");
+  const reasons = ["ENOENT C:\\private\\input.json", "cannot read /home/private/input", "token=supersecret", "line one\nline two", "x".repeat(9000)];
+  for (const [index, reason] of reasons.entries()) {
+    const record = { runId: `run-${index}`, status: "unknown", finishedAt: "2026-11-01T00:00:00Z", stopReason: reason } as import("../src/core/task-run.js").TaskRunRecord;
+    await appendTaskSessionEvent(fixture.stateRoot, binding, projectRunOutcome(record)!);
+  }
+  const events = (await readTaskSessionEvents(fixture.stateRoot, binding)).events;
+  assert.equal(events.length, reasons.length);
+  assert.ok(events.every((event) => event.outcome === "unknown"));
+  for (const reason of reasons) assert.equal(JSON.stringify(events).includes(reason), false);
+});
+
 test("phase26 progress projects the actual quick workflow", async (t) => {
   const fixture = await createTaskFixture(t);
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: "inventory-summary", contractDigest: "a".repeat(64), revision: 1,

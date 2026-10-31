@@ -363,7 +363,7 @@ test("an approved dependency change runs the read-only pack checkpoint and never
   });
   const record = await run(fixture, digest, controller);
 
-  assert.notEqual(record.status, "blocked");
+  assert.notEqual(record.status, "blocked", JSON.stringify({ stopReason: record.stopReason, effects: record.effects }));
   assert.equal(record.effects?.dependencyChanged, true);
   const checkpoint = record.effects?.packCheckpoint;
   assert.ok(checkpoint !== null && checkpoint !== undefined);

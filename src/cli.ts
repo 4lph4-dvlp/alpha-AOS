@@ -2130,7 +2130,7 @@ async function main(): Promise<void> {
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
     if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait.`);
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait. Also available: attach, dispatch, context, steer, steering.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve, start, resume, and final-review alone.

@@ -28,7 +28,7 @@ test("phase26 receipt is not application: durable and idempotent", async (t) => 
   await assert.rejects(submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { ...proposal, text: "Different content" } }));
   const receivedFacts = await readTaskSteering({ stateRoot: fixture.stateRoot, binding });
   assert.deepEqual(receivedFacts[0], receipt);
-  assert.ok(receivedFacts.some((fact) => fact.state === "deferred" && fact.reason?.includes("no-safe-boundary")));
+  assert.ok(receivedFacts.some((fact) => fact.state === "deferred" && fact.reason?.includes("no-safe-boundary") && typeof fact.sequence === "number"));
   const { readTaskSessionPacket } = await import("../src/core/task-read.js");
   assert.deepEqual((await readTaskSessionPacket({ stateRoot: fixture.stateRoot, binding, limit: 10 })).proposalDispositions, receivedFacts);
   await assert.rejects(readTaskSteering({ stateRoot: fixture.stateRoot, binding: { ...binding, originatingSessionId: "another-session" } }));

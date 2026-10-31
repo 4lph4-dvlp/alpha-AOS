@@ -115,7 +115,7 @@ export async function submitTaskSteering(options: { stateRoot: string; proposal:
   }
   return { state: "received", digest, requestId: proposal.requestId, binding: proposal.binding, submittedAt: proposal.submittedAt, actor: "user", sequence: event.sequence };
 }
-export async function readTaskSteering(options: { stateRoot: string; binding: TaskSessionBinding }): Promise<(Receipt | BoundaryFact)[]> {
+export async function readTaskSteering(options: { stateRoot: string; binding: TaskSessionBinding }): Promise<(Receipt | (BoundaryFact & { sequence: number | null }))[]> {
   const binding = validateTaskSessionBinding(options.binding);
   await validateRun(options.stateRoot, binding);
   const dir = directory(options.stateRoot, binding);
@@ -133,7 +133,7 @@ export async function readTaskSteering(options: { stateRoot: string; binding: Ta
   if (allNames.some((name) => /^0\d\d\.(?:claim|delivered|assessed|applied|rejected|deferred)\.json$/u.test(name) && !names.includes(`${name.slice(0, 3)}.json`))) throw new Error("Orphan task steering fact");
   if (names.length > 100) throw new Error("Invalid task steering inbox");
   const replay = await readTaskSessionEvents(options.stateRoot, binding);
-  const receipts: (Receipt | BoundaryFact)[] = [];
+  const receipts: (Receipt | (BoundaryFact & { sequence: number | null }))[] = [];
   for (const name of names.sort()) {
     const proposal = await readProposal(join(dir, name), options.stateRoot);
     if (JSON.stringify(proposal.binding) !== JSON.stringify(binding)) throw new Error("Task steering binding mismatch");
@@ -145,7 +145,7 @@ export async function readTaskSteering(options: { stateRoot: string; binding: Ta
       if (!allNames.includes(factName)) continue;
       const fact = JSON.parse(await readBoundedFile(join(dir, factName), options.stateRoot, 4096)) as BoundaryFact;
       if (Object.keys(fact).sort().join(",") !== "actor,binding,boundary,digest,reason,recordedAt,requestId,state" || fact.state !== state || (fact.actor !== "controller" && !(fact.actor === "system" && fact.state === "deferred" && fact.boundary === "no-safe-boundary")) || fact.digest !== digest || fact.requestId !== proposal.requestId || JSON.stringify(fact.binding) !== JSON.stringify(binding) || !id.test(fact.boundary) || !Number.isFinite(Date.parse(fact.recordedAt)) || (fact.reason !== null && (typeof fact.reason !== "string" || fact.reason.length > 512))) throw new Error("Invalid task steering fact");
-      receipts.push(fact);
+      receipts.push({ ...fact, sequence: replay.events.find((event) => event.sourceEventId === `steering:${hash(`${digest}:${state}`)}`)?.sequence ?? null });
     }
   }
   await assertNoSymlinksInPathAndAncestors(dir);

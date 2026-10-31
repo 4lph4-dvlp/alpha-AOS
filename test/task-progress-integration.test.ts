@@ -72,6 +72,42 @@ test("phase26 stop after steering delivery settles without controller assessment
   assert.deepEqual(facts.map((fact) => fact.state), ["received", "delivered", "deferred"]);
   assert.equal(facts[2]?.actor, "system");
 });
+test("phase26 proposal during final multi-phase step is explicitly deferred", { timeout: 30000 }, async (t) => {
+  const fixture = await createTaskFixture(t);
+  const phaseDir = join(fixture.projectRoot, ".planning", "phases", "1");
+  await mkdir(phaseDir, { recursive: true });
+  for (const name of ["1-CONTEXT.md", "1-01-PLAN.md", "1-01-SUMMARY.md"]) await writeFile(join(phaseDir, name), "# fixture\n");
+  await invoke("git", ["add", ".planning"], { cwd: fixture.projectRoot });
+  await invoke("git", ["commit", "-m", "prepare phase fixture"], { cwd: fixture.projectRoot });
+  const contract = inventorySummaryContract(fixture.projectRoot);
+  contract.scope.workflow = "gsd-multi-phase";
+  await writeTaskContract(fixture.contractPath, contract);
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const marker = join(fixture.scratch, "verify-entered"), release = join(fixture.scratch, "verify-release");
+  const script = `const fs=require('node:fs');const watcher=fs.watch(${JSON.stringify(fixture.scratch)},()=>{if(fs.existsSync(${JSON.stringify(release)})){watcher.close();process.exit(1)}});fs.writeFileSync(${JSON.stringify(marker)},'entered');setTimeout(()=>{watcher.close();process.exit(1)},20000);`;
+  let binding: TaskSessionBinding | undefined;
+  const work = startTask({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot, packageRoot: packageRoot(),
+    ports: fixturePorts({ controller: referenceControllerPort("correct"), reviewer: staticReviewerPort(passingReview) }),
+    gsd: { lifecycle: { hookCommand: process.execPath, hookArgs: ["-e", "process.exit(0)"], commandMap: { verify: { executable: process.execPath, args: ["-e", script] } } } },
+    onRunReady: async (record) => { binding = { schemaVersion: 1, contractId: record.contractId, contractDigest: digest, revision: record.revision,
+      runId: record.runId, host: "codex", originatingSessionId: "final-step" }; await createTaskSession(fixture.stateRoot, binding); } });
+  try {
+    const { waitForCompletion } = await import("../src/core/completion-wait.js");
+    const seen = await waitForCompletion({ targetPath: marker, timeoutMs: 15000, check: async () => existsSync(marker) ? { state: "terminal" as const, value: true } : { state: "pending" as const } });
+    assert.equal(seen.status, "completed");
+    assert.ok(binding);
+    await submitTaskSteering({ stateRoot: fixture.stateRoot, proposal: { schemaVersion: 1, binding, requestId: "final-step",
+      submittedAt: "2026-11-01T00:00:00Z", text: "Consider the final result." } });
+  } finally { await writeFile(release, "release"); }
+  const { run } = await work;
+  assert.notEqual(run.status, "executing");
+  assert.ok(binding);
+  const { readTaskSteering } = await import("../src/core/task-steering.js");
+  const facts = await readTaskSteering({ stateRoot: fixture.stateRoot, binding });
+  assert.deepEqual(facts.map((fact) => fact.state), ["received", "deferred"]);
+  assert.ok(!facts.some((fact) => fact.state === "applied" || fact.state === "assessed"));
+});
 for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
 test(`phase26 five host integration ${host} public start hands off while fixture controller is held`, { timeout: 60000, skip: process.platform !== "win32" }, async (t) => {
   const fixture = await createTaskFixture(t);

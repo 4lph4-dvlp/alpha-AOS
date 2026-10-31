@@ -409,6 +409,13 @@ export interface StartTaskOptions {
   requireReviewWitness?: boolean;
   requiredBoundaries?: readonly CapabilityBoundary[];
   runId?: string;
+  onRunReady?: ((run: TaskRunRecord, recordPath: string) => Promise<void> | void) | undefined;
+}
+
+async function notifyRunReady(options: StartTaskOptions, run: TaskRunRecord, recordPath: string): Promise<void> {
+  if (!options.onRunReady) return;
+  try { await options.onRunReady(run, recordPath); }
+  catch { process.emitWarning("Task observer launch failed; the run continues", { code: "AOS_PROGRESS_DELIVERY" }); }
 }
 
 const REPORT_TEXT_LIMIT = 4096;
@@ -1105,6 +1112,7 @@ async function startGeneralTask(params: {
     gitDirectory: null,
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
+  await notifyRunReady(options, executing, recordPath);
   let record = executing;
 
   const finish = async (next: TaskRunRecord): Promise<{ run: TaskRunRecord; recordPath: string }> => {
@@ -1381,6 +1389,7 @@ async function executeMultiPhaseTask(params: {
     gitDirectory,
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
+  await notifyRunReady(options, executing, recordPath);
 
   let multiPhaseResult: Awaited<ReturnType<typeof orchestrateMultiPhaseProgression>>;
   try { multiPhaseResult = await orchestrateMultiPhaseProgression({
@@ -1593,6 +1602,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     gitDirectory,
   };
   const recordPath = await writeRunRecord(options.stateRoot, options.packageRoot, executing);
+  await notifyRunReady(options, executing, recordPath);
 
   let record = executing;
   let scratchRoot: string | null = null;

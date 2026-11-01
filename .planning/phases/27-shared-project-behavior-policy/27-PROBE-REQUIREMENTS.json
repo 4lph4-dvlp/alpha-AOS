@@ -1,0 +1,22 @@
+[
+  {
+    "id": "MODE-01",
+    "text": "A user entering a project without a behavior policy receives strict intake by default, without an implicit configuration write."
+  },
+  {
+    "id": "MODE-02",
+    "text": "A user can change the project's strict/flexible mode through a natural-language request in any supported harness or the CLI, including before GSD initialization, and all harnesses consume that one project setting."
+  },
+  {
+    "id": "MODE-03",
+    "text": "A user can inspect the resolved project root, effective mode and configuration source/revision; the next task intake re-reads current policy rather than relying on a stale session value."
+  },
+  {
+    "id": "MODE-04",
+    "text": "A user can preview, apply and roll back mode changes through bounded, snapshotted transactions that preserve unrelated project settings."
+  },
+  {
+    "id": "MODE-05",
+    "text": "A user receives an actionable diagnostic for invalid or unreadable policy instead of silently falling back to flexible or another project."
+  }
+]

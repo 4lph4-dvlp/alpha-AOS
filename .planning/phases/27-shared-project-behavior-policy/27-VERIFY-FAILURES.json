@@ -1,0 +1,211 @@
+{
+  "status": "ok",
+  "commands": [
+    {
+      "command": "npm run check",
+      "statement": "Non-zero exit from strict TypeScript checking.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-01-PLAN.md",
+      "task": "27-01-01: Query a real standalone project through the compiled CLI"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or the compiled dist/test/project-mode-cli.test.js file is absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-01-PLAN.md",
+      "task": "27-01-01: Query a real standalone project through the compiled CLI"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/project-mode-cli.test.js",
+      "statement": "Non-zero exit, a missing compiled-file diagnostic, zero executed tests or any failed tracer assertion.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-01-PLAN.md",
+      "task": "27-01-01: Query a real standalone project through the compiled CLI"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or dist/test/behavior-policy.test.js is absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-01-PLAN.md",
+      "task": "27-01-02: Refuse invalid policy and wrong-root reads without fallback"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/behavior-policy.test.js dist/test/project-mode-cli.test.js dist/test/evidence.test.js dist/test/path-boundary.test.js dist/test/project.test.js",
+      "statement": "Non-zero exit, zero executed tests, a named file missing, any failed assertion, or claimed parity resting only on skipped capability cases.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-01-PLAN.md",
+      "task": "27-01-02: Refuse invalid policy and wrong-root reads without fallback"
+    },
+    {
+      "command": "npm run check",
+      "statement": "Non-zero exit from TypeScript checking, including any downstream PathComponentIdentity incompatibility.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-02-PLAN.md",
+      "task": "27-02-01: Detect exact root replacement before accepting policy evidence"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or expected compiled identity tests are missing.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-02-PLAN.md",
+      "task": "27-02-01: Detect exact root replacement before accepting policy evidence"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/path-boundary.test.js dist/test/behavior-policy.test.js dist/test/transaction.test.js",
+      "statement": "Non-zero exit, zero executed tests, any failed identity/serialization assertion or a capability skip presented as a passed exact-identity case.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-02-PLAN.md",
+      "task": "27-02-01: Detect exact root replacement before accepting policy evidence"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or either new compiled policy test file is absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-02-PLAN.md",
+      "task": "27-02-02: Preview an exact mode transition through text and JSON CLI"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/behavior-policy.test.js dist/test/project-mode-cli.test.js",
+      "statement": "Non-zero exit, zero executed tests, any digest/root/no-write assertion failure or a query accepting mutation-only flags.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-02-PLAN.md",
+      "task": "27-02-02: Preview an exact mode transition through text and JSON CLI"
+    },
+    {
+      "command": "npm run check",
+      "statement": "Non-zero exit or mismatched shared transaction/session types.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-03-PLAN.md",
+      "task": "27-03-01: Restore policy transactions atomically through the common journal route"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or compiled transaction tests are absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-03-PLAN.md",
+      "task": "27-03-01: Restore policy transactions atomically through the common journal route"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/transaction.test.js dist/test/validation.test.js dist/test/rollback.test.js",
+      "statement": "Non-zero exit, zero executed tests, any byte/sibling/schema assertion failure or existing generic-journal regression.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-03-PLAN.md",
+      "task": "27-03-01: Restore policy transactions atomically through the common journal route"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or any named compiled rollback/crash file is absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-03-PLAN.md",
+      "task": "27-03-02: Refuse unsafe rollback and retain crash evidence without content leaks"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/rollback.test.js dist/test/rollback-cli-verification.test.js dist/test/transaction-crash.test.js dist/test/transaction.test.js",
+      "statement": "Non-zero exit, zero executed tests, a child deadline expires, leaked sentinel output, incorrect lock release or an existing rollback/crash assertion fails.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-03-PLAN.md",
+      "task": "27-03-02: Refuse unsafe rollback and retain crash evidence without content leaks"
+    },
+    {
+      "command": "npm run check",
+      "statement": "Non-zero exit from strict TypeScript checking.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-04-PLAN.md",
+      "task": "27-04-01: Apply reviewed mode changes and preserve strict no-op behavior"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or compiled CLI lifecycle tests are absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-04-PLAN.md",
+      "task": "27-04-01: Apply reviewed mode changes and preserve strict no-op behavior"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/project-mode-cli.test.js dist/test/behavior-policy.test.js dist/test/transaction.test.js dist/test/rollback-cli-verification.test.js",
+      "statement": "Non-zero exit, zero executed tests, missing compiled files, any incorrect operation count/null ID or changed unrelated fingerprint.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-04-PLAN.md",
+      "task": "27-04-01: Apply reviewed mode changes and preserve strict no-op behavior"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or dist/test/project-mode-concurrency.test.js is absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-04-PLAN.md",
+      "task": "27-04-02: Prove one-writer transitions across processes, aliases and state roots"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/project-mode-concurrency.test.js dist/test/transaction-crash.test.js dist/test/project-mode-cli.test.js",
+      "statement": "Non-zero exit, zero executed tests, any child deadline/cleanup failure, two commits for one reviewed prior state or an old-digest retry incorrectly accepted after a changed winner.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-04-PLAN.md",
+      "task": "27-04-02: Prove one-writer transitions across processes, aliases and state roots"
+    },
+    {
+      "command": "npm run build",
+      "statement": "Non-zero exit or dist/test/project-mode-routing.test.js is absent.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-05-PLAN.md",
+      "task": "27-05-01: Route policy requests through one freshly read five-target skill"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/project-mode-routing.test.js dist/test/owned-skills.test.js dist/test/project-mode-cli.test.js",
+      "statement": "Non-zero exit, zero executed tests, fewer than five asserted target deployments, source/rendered hash mismatch or cross-target policy evidence disagreement.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-05-PLAN.md",
+      "task": "27-05-01: Route policy requests through one freshly read five-target skill"
+    },
+    {
+      "command": "node scripts/run-tests.mjs --files dist/test/project-mode-cli.test.js dist/test/project-mode-routing.test.js",
+      "statement": "Non-zero exit, missing compiled files or zero executed command/routing tests for the documented interfaces.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-05-PLAN.md",
+      "task": "27-05-02: Document the exact preference, review and conservative recovery contract"
+    },
+    {
+      "command": "npm test",
+      "statement": "Non-zero exit, zero executed tests, a failed suite/test, a missing named required Phase 27 test file or unexamined unexpected skips.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-05-PLAN.md",
+      "task": "27-05-03: Record native handoff evidence and run the final regression gate"
+    },
+    {
+      "command": "npm run build:check",
+      "statement": "Non-zero exit or artifact metadata reports stale/mismatched source/build inputs.",
+      "status": "ok",
+      "severity": "none",
+      "plan": "27-05-PLAN.md",
+      "task": "27-05-03: Record native handoff evidence and run the final regression gate"
+    }
+  ],
+  "counts": {
+    "blocker": 0,
+    "warning": 0,
+    "total": 25
+  },
+  "readError": null
+}

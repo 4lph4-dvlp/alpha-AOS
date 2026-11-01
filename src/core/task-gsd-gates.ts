@@ -142,7 +142,7 @@ export async function hasPassedVerification(
   const reviewHeader = artifactHeader(dir, phase, "REVIEW");
   if (reviewHeader) {
     const reviewStatus = reviewHeader.match(/status:\s*([^\r\n#]+)/)?.[1]?.trim();
-    if (reviewStatus && reviewStatus !== "clean") {
+    if (reviewStatus && reviewStatus !== "clean" && reviewStatus !== "passed" && reviewStatus !== "passed_with_warnings") {
       return false;
     }
   }

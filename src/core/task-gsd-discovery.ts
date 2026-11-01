@@ -135,6 +135,22 @@ export async function verifyPlanTripleCorrelation(options: {
         break;
       }
     }
+
+    if (!hasGitCommit && baseCommit) {
+      const fallbackArgs = ["log", "-n", "100", "HEAD", "--format=%H%x09%s"];
+      const fallbackOutput = await runGitRead(projectRoot, fallbackArgs);
+      const fallbackLines = fallbackOutput.split(/\r?\n/u).filter((l) => l.trim().length > 0);
+      for (const line of fallbackLines) {
+        const [sha, subject] = line.split("\t");
+        if (!subject) continue;
+        const trimmed = subject.trim();
+        if (prefixes.some((prefix) => trimmed.startsWith(prefix)) || commitPattern.test(trimmed)) {
+          hasGitCommit = true;
+          commitSha = sha;
+          break;
+        }
+      }
+    }
   } catch {}
 
   const completed = hasSummary && hasStateRow && hasGitCommit;

@@ -7,6 +7,23 @@ date: 2026-11-01
 
 # Resume alpha-AOS 0.5.0 release and global installation
 
+## Current user override — local remediation only
+
+User explicitly instructed: inspect CI failure, find/apply fixes, DO NOT run CI
+again. Do not push, dispatch/rerun CI, or start the release pipeline until a
+subsequent explicit instruction. Previous job job-9f748bcc4e034aaa already ended
+failed at CI watch; no release process remains active. The local pipeline checks
+`.planning/tmp/release050-no-ci.hold` before executing remote operations.
+
+CI41307974019 for a2ed662 passed package/Linux/Windows and failed two macOS
+task-cli panel cases: cleanup observed failed instead of cancelled; public
+attach received ECONNREFUSED. Exact observer error/exit/signal were absent, so
+direct cause is not established. Code inspection found readiness published
+before signal-handler installation and a public observer lifetime of5seconds
+including startup. Local scoped remediation and diagnostics are underway;
+actual future macOS acceptance remains unverified. Results preserved in
+`.planning/tmp/release050-ci-v3-failed.log` and `release050-ci-result-v3.json`.
+
 ## Post-reboot update
 
 User confirmed the PC restart and requested continuation. Native taskkill/T/F
@@ -166,3 +183,5 @@ User requested continuation. Scoped source fix c2d45a7 is committed. See REGRESS
 CI41302349585 passed Linux/Windows/package and failed one macOS panel fetch with upstream-style setTypeOfService EINVAL. Terra fixture-only fix06c61a5 and root scoped review/targeted local checks passed; see REGRESSION. No production or dependency change. A new committed candidate must pass ordinary push and exact-SHA3OSCI; use the existing finite release script with current candidate file. Previous completed job job-ff69e98aaa0a40a3 stopped safely at failed CI. Native stderr handling was fixed and independently probed; original result preserved.
 
 Latest continuation: c808476 pre-push stopped on an evidence.test decimal-rendering false failure before CI existed. Fixture-only746c1a3 and targeted2/2 passed; root scoped review completed. Prior receipt/log copied to release050-receipt-identity-failure.json and release050-identity-gate-failure.log. Next committed candidate and owned execution are saved under .planning/tmp/release050-final-candidate.txt and release050-identity-resume-job.json. Main/tag remain unpublished.
+
+Local remediation complete at f0ec2d9; build/check/artifact and affected tests2/2 passed. Root scoped review complete. Historical macOS cause remains unconfirmed; improved diagnostics required for any future failure. CI/push/release remain on user hold. Current source commit is local only; global npm link sees rebuiltCLI but release and three-OS acceptance remain incomplete.

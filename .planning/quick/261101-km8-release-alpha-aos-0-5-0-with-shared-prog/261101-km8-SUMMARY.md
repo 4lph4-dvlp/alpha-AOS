@@ -48,3 +48,7 @@ See `261101-km8-HANDOFF.md` for current handles, authority and ordered resume;
 receipts are external under `.planning/tmp/release050-*`. This quick task must
 remain incomplete until remote main/peeled v0.5.0 match an exact-SHA green
 three-OS candidate and the final linked global installation is reverified.
+
+## User-requested local remediation only
+
+CI41307974019 (a2ed662) passed package/Linux/Windows; macOS failed panel cleanup (failed instead of cancelled) and public attach ECONNREFUSED. Exact process error/exit/signal absent: historical cause remains unconfirmed. Code inspection established readiness-before-signal-handler ordering and a5s fixture observer lifetime that included startup. Commit f0ec2d948d55df37d591ec4cb6cfff7bc96cb8d7 installs signal handlers/timer before publishing readiness, removes them in finally and preserves panel/file cleanup; fixture observer is finite60s with strict positive cancellation. Bounded exact-job diagnostics retain primary and cleanup errors, status/exit/signal/cancellation times/deadline/stage, without output or credentials. Root Sol reviewed exact two-file diff with no further findings. Build/typecheck/artifact and both affected real tests passed locally (2/2,no skips). No deterministic race test seam was available, so local end-to-end coverage is not proof of historical race or macOS success. No fullsuite, CI dispatch/rerun, push or release pipeline executed. User hold recorded in HANDOFF and external release050-no-ci.hold; pending release must not resume without subsequent explicit user instruction.

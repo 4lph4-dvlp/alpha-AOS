@@ -404,7 +404,28 @@ const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
     createdAt: { type: "string" },
     status: { enum: ["applying", "applied", "rolled-back", "failed", "repaired"] },
     allowedRoots: { type: "array", items: { type: "string" } },
+    directorySyncSupported: { type: "boolean" },
+    repairedAt: { type: "string" },
     files: { type: "array" },
+    policyOperation: {
+      type: "object",
+      required: ["kind", "canonicalRoot", "rootIdentity", "policyRelativePath"],
+      additionalProperties: false,
+      properties: {
+        kind: { const: "project-mode" },
+        canonicalRoot: { type: "string", minLength: 1 },
+        rootIdentity: {
+          type: "object",
+          required: ["deviceExact", "inodeExact"],
+          additionalProperties: false,
+          properties: {
+            deviceExact: { type: "string", minLength: 1 },
+            inodeExact: { type: "string", minLength: 1 },
+          },
+        },
+        policyRelativePath: { const: ".alpha-aos/behavior.json" },
+      },
+    },
   }),
   "install-state": coreObject(["schemaVersion", "components"], {
     schemaVersion: { type: "integer" },

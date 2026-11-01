@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { lstat, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { applyFileTransaction, rollbackFileTransaction, rollbackManagedTransaction } from "../src/core/transaction.js";
+import {
+  applyFileTransaction,
+  rollbackFileTransaction,
+  rollbackManagedTransaction,
+  type PolicyOperationMetadata,
+} from "../src/core/transaction.js";
 
 test("transaction restores existing bytes and removes files it created", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-transaction-"));
@@ -82,4 +88,162 @@ test("transactional removal can be restored byte-for-byte", async (context) => {
   await assert.rejects(() => readFile(target), { code: "ENOENT" });
   await rollbackManagedTransaction(stateRoot, journal.id);
   assert.equal(await readFile(target, "utf8"), "legacy bytes\n");
+});
+
+test("policy transaction first-create rollback unlinks behavior.json and preserves .alpha-aos and siblings", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-create-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  const dotAlphaAos = join(projectRoot, ".alpha-aos");
+  await mkdir(dotAlphaAos, { recursive: true });
+  const siblingFile = join(dotAlphaAos, "stack.yaml");
+  await writeFile(siblingFile, "trusted: true\n");
+
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const policyMeta: PolicyOperationMetadata = {
+    kind: "project-mode",
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    policyRelativePath: ".alpha-aos/behavior.json",
+  };
+
+  const policyFile = join(projectRoot, ".alpha-aos", "behavior.json");
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [dotAlphaAos],
+    policyOperation: policyMeta,
+    operations: [{ target: policyFile, content: '{\n  "schemaVersion": 1,\n  "mode": "flexible"\n}\n' }],
+  });
+
+  assert.equal(journal.status, "applied");
+  assert.equal(existsSync(policyFile), true);
+  assert.equal(existsSync(siblingFile), true);
+
+  const rolledBack = await rollbackManagedTransaction(stateRoot, journal.id);
+  assert.equal(rolledBack.status, "rolled-back");
+  assert.equal(existsSync(policyFile), false, "behavior.json must be unlinked");
+  assert.equal(existsSync(dotAlphaAos), true, ".alpha-aos directory must NOT be swept");
+  assert.equal(existsSync(siblingFile), true, "sibling file must remain intact");
+  assert.equal(await readFile(siblingFile, "utf8"), "trusted: true\n");
+});
+
+test("policy transaction replacement rollback restores exact CRLF and Unicode bytes", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-replace-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  const dotAlphaAos = join(projectRoot, ".alpha-aos");
+  await mkdir(dotAlphaAos, { recursive: true });
+
+  const exactOriginalBytes = Buffer.from('{\r\n  "schemaVersion": 1,\r\n  "mode": "strict",\r\n  "unicode": "프로젝트-한글"\r\n}\r\n', "utf8");
+  const policyFile = join(dotAlphaAos, "behavior.json");
+  await writeFile(policyFile, exactOriginalBytes);
+
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const policyMeta: PolicyOperationMetadata = {
+    kind: "project-mode",
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    policyRelativePath: ".alpha-aos/behavior.json",
+  };
+
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [dotAlphaAos],
+    policyOperation: policyMeta,
+    operations: [{ target: policyFile, content: '{\n  "schemaVersion": 1,\n  "mode": "flexible"\n}\n' }],
+  });
+
+  assert.equal(journal.status, "applied");
+  assert.notDeepEqual(await readFile(policyFile), exactOriginalBytes);
+
+  const rolledBack = await rollbackManagedTransaction(stateRoot, journal.id);
+  assert.equal(rolledBack.status, "rolled-back");
+  const restoredBytes = await readFile(policyFile);
+  assert.deepEqual(restoredBytes, exactOriginalBytes, "restored bytes must match exact CRLF and Unicode byte-for-byte");
+});
+
+test("policy transaction rollback refuses when snapshot hash is corrupt", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-corrupt-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  const dotAlphaAos = join(projectRoot, ".alpha-aos");
+  await mkdir(dotAlphaAos, { recursive: true });
+
+  const policyFile = join(dotAlphaAos, "behavior.json");
+  await writeFile(policyFile, '{\n  "schemaVersion": 1,\n  "mode": "strict"\n}\n');
+
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const policyMeta: PolicyOperationMetadata = {
+    kind: "project-mode",
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    policyRelativePath: ".alpha-aos/behavior.json",
+  };
+
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [dotAlphaAos],
+    policyOperation: policyMeta,
+    operations: [{ target: policyFile, content: '{\n  "schemaVersion": 1,\n  "mode": "flexible"\n}\n' }],
+  });
+
+  const snapshotFile = journal.files[0]!.snapshot!;
+  await writeFile(snapshotFile, "corrupted snapshot bytes\n");
+
+  await assert.rejects(
+    () => rollbackManagedTransaction(stateRoot, journal.id),
+    /snapshot hash mismatch/u,
+  );
+  assert.equal(await readFile(policyFile, "utf8"), '{\n  "schemaVersion": 1,\n  "mode": "flexible"\n}\n');
+});
+
+test("journal with malformed policyOperation metadata is rejected and refuses fallback", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-malformed-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const stateRoot = join(root, "state");
+  const journalRoot = join(stateRoot, "journal");
+  await mkdir(journalRoot, { recursive: true });
+
+  const badJournal = {
+    schemaVersion: 1,
+    id: "bad-policy-journal",
+    createdAt: new Date().toISOString(),
+    status: "applied",
+    allowedRoots: [join(root, "project", ".alpha-aos")],
+    files: [
+      {
+        target: join(root, "project", ".alpha-aos", "behavior.json"),
+        existed: false,
+        snapshot: null,
+        beforeHash: null,
+        afterHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        proofDigest: "abc",
+      },
+    ],
+    policyOperation: {
+      kind: "project-mode",
+      canonicalRoot: join(root, "project"),
+      // missing rootIdentity!
+      policyRelativePath: ".alpha-aos/behavior.json",
+    },
+  };
+
+  await writeFile(join(journalRoot, "bad-policy-journal.json"), JSON.stringify(badJournal, null, 2));
+
+  await assert.rejects(
+    () => rollbackManagedTransaction(stateRoot, "bad-policy-journal"),
+    /Transaction journal is invalid: bad-policy-journal/u,
+  );
 });

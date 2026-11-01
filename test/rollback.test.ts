@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,8 +12,10 @@ import {
   rollbackManagedTransaction,
   sweepReverseDirectories,
   RollbackDriftError,
+  type PolicyOperationMetadata,
 } from "../src/core/transaction.js";
 import { formatDriftDiagnostics } from "../src/format.js";
+import { setTreePolicy } from "../src/core/tree-policy.js";
 
 test("all-or-nothing preflight refusal on drift performs zero writes (LIFE-05, D-05)", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-rollback-"));
@@ -212,4 +214,129 @@ test("clean reverse directory sweep removes only empty parent directories (LIFE-
   // subA contains user-file.txt, so subA and user-file.txt must be preserved!
   assert.ok(existsSync(join(targetRoot, "subA")));
   assert.ok(existsSync(userFile));
+});
+
+test("policy drift diagnostics omit edited policy content and set unifiedDiff to null (MODE-05, D-08, D-13)", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-drift-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  const dotAlphaAos = join(projectRoot, ".alpha-aos");
+  await mkdir(dotAlphaAos, { recursive: true });
+
+  const policyFile = join(dotAlphaAos, "behavior.json");
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const policyMeta: PolicyOperationMetadata = {
+    kind: "project-mode",
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    policyRelativePath: ".alpha-aos/behavior.json",
+  };
+
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [dotAlphaAos],
+    policyOperation: policyMeta,
+    operations: [{ target: policyFile, content: '{\n  "schemaVersion": 1,\n  "mode": "strict"\n}\n' }],
+  });
+
+  // User manually edits policy file and includes a secret sentinel
+  const SECRET_SENTINEL = "sk-super-secret-user-token-999";
+  await writeFile(policyFile, `{\n  "schemaVersion": 1,\n  "mode": "flexible",\n  "leak": "${SECRET_SENTINEL}"\n}\n`);
+
+  let caughtError: unknown;
+  try {
+    await rollbackManagedTransaction(stateRoot, journal.id);
+  } catch (err) {
+    caughtError = err;
+  }
+
+  assert.ok(caughtError instanceof RollbackDriftError);
+  const diag = caughtError.diagnostics[0];
+  assert.ok(diag);
+  assert.equal(diag.target, policyFile);
+  assert.equal(diag.unifiedDiff, null, "policy drift diagnostic MUST have unifiedDiff null to avoid disclosing content");
+  assert.equal(diag.remediation.includes(SECRET_SENTINEL), false);
+
+  const formatted = formatDriftDiagnostics(caughtError.diagnostics);
+  assert.equal(formatted.includes(SECRET_SENTINEL), false, "formatted drift diagnostics MUST NOT leak secret sentinel");
+  assert.ok(formatted.includes(policyFile));
+});
+
+test("policy rollback refuses if canonical root directory identity changed", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-root-identity-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  const dotAlphaAos = join(projectRoot, ".alpha-aos");
+  await mkdir(dotAlphaAos, { recursive: true });
+
+  const policyFile = join(dotAlphaAos, "behavior.json");
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const policyMeta: PolicyOperationMetadata = {
+    kind: "project-mode",
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    policyRelativePath: ".alpha-aos/behavior.json",
+  };
+
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [dotAlphaAos],
+    policyOperation: policyMeta,
+    operations: [{ target: policyFile, content: '{\n  "schemaVersion": 1,\n  "mode": "flexible"\n}\n' }],
+  });
+
+  // Simulate root replacement by mutating the recorded identity in journal
+  const journalPath = join(stateRoot, "journal", `${journal.id}.json`);
+  const journalObj = JSON.parse(await readFile(journalPath, "utf8"));
+  journalObj.policyOperation.rootIdentity.inodeExact = "999999999999";
+  await writeFile(journalPath, JSON.stringify(journalObj, null, 2));
+
+  await assert.rejects(
+    () => rollbackManagedTransaction(stateRoot, journal.id),
+    /project root identity changed since transaction/u,
+  );
+});
+
+test("policy rollback refuses if directory is isolated by tree policy (off)", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-tree-off-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  const dotAlphaAos = join(projectRoot, ".alpha-aos");
+  await mkdir(dotAlphaAos, { recursive: true });
+
+  const policyFile = join(dotAlphaAos, "behavior.json");
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const policyMeta: PolicyOperationMetadata = {
+    kind: "project-mode",
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    policyRelativePath: ".alpha-aos/behavior.json",
+  };
+
+  const journal = await applyFileTransaction({
+    stateRoot,
+    allowedRoots: [dotAlphaAos],
+    policyOperation: policyMeta,
+    operations: [{ target: policyFile, content: '{\n  "schemaVersion": 1,\n  "mode": "flexible"\n}\n' }],
+  });
+
+  // Isolate projectRoot with tree policy mode: off
+  await setTreePolicy(projectRoot, "off", { stateRoot });
+
+  await assert.rejects(
+    () => rollbackManagedTransaction(stateRoot, journal.id),
+    /Rollback blocked: .*isolated by tree policy \(off\)/u,
+  );
 });

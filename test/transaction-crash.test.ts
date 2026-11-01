@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, lstat } from "node:fs/promises";
 import { once } from "node:events";
 import { hostname, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -18,9 +18,11 @@ import test from "node:test";
 import { applyFileTransaction, type TransactionFailpoint } from "../src/core/transaction.js";
 import {
   acquireMutationSession,
+  acquirePolicyTargetSession,
   applyWriterRepair,
   inspectWriterState,
   planWriterRepair,
+  policyTargetLockPath,
   WriterConflictError,
   writerLockPath,
 } from "../src/core/writer-lock.js";
@@ -527,4 +529,67 @@ test("an in-process transaction serializes against a held session", async (conte
     },
   );
   assert.equal(existsSync(join(fixture.targetRoot, "other.txt")), false, "a refused transaction must write nothing");
+});
+
+test("state-only repair does not remove or alter a retained policy target lock", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-repair-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  const stateRoot = join(root, "state");
+  await mkdir(projectRoot, { recursive: true });
+  await mkdir(stateRoot, { recursive: true });
+
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const session = await acquirePolicyTargetSession({
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    operationId: "retained-target-op",
+    planDigest: "test-digest",
+  });
+
+  const targetLockFile = policyTargetLockPath(projectRoot);
+  assert.equal(existsSync(targetLockFile), true);
+
+  // Run state-only writer repair
+  const plan = await planWriterRepair(stateRoot);
+  assert.equal(plan.status, "free");
+
+  // Verify that the policy target lock was untouched
+  assert.equal(existsSync(targetLockFile), true, "policy target lock must remain untouched by state repair");
+
+  await session.close();
+  assert.equal(existsSync(targetLockFile), false);
+});
+
+test("policy target lock release refuses to remove a lock if token does not match", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-policy-release-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const projectRoot = join(root, "project");
+  await mkdir(projectRoot, { recursive: true });
+
+  const lstats = await lstat(projectRoot, { bigint: true });
+  const session = await acquirePolicyTargetSession({
+    canonicalRoot: projectRoot,
+    rootIdentity: {
+      deviceExact: lstats.dev.toString(),
+      inodeExact: lstats.ino.toString(),
+    },
+    operationId: "token-check-op",
+    planDigest: "test-digest",
+  });
+
+  const targetLockFile = policyTargetLockPath(projectRoot);
+  assert.equal(existsSync(targetLockFile), true);
+
+  // Overwrite lock with another token
+  const content = JSON.parse(await readFile(targetLockFile, "utf8"));
+  content.token = "different-stolen-token";
+  await writeFile(targetLockFile, JSON.stringify(content, null, 2));
+
+  // Attempt to close; should NOT delete the replaced lock
+  await session.close();
+  assert.equal(existsSync(targetLockFile), true, "lock with non-matching token must be retained");
 });

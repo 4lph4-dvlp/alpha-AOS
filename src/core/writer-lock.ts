@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, open, readFile, readdir, rm, stat } from "node:fs/promises";
+import { mkdir, open, readFile, readdir, rm, stat, lstat } from "node:fs/promises";
 import { hostname } from "node:os";
 import { dirname, join } from "node:path";
-import type { OperationPathProofSet } from "./path-boundary.js";
+import { provePathBoundary, type OperationPathProofSet } from "./path-boundary.js";
 
 /**
  * Flushes a directory entry so a rename or create survives a crash. Not every
@@ -87,6 +87,195 @@ export function isOperationJournalName(operationId: string, name: string): boole
 
 export function writerLockPath(stateRoot: string): string {
   return join(stateRoot, "writer.lock");
+}
+
+export function policyTargetLockPath(canonicalRoot: string): string {
+  return join(canonicalRoot, ".alpha-aos-behavior.lock");
+}
+
+export interface PolicyTargetLockRecord {
+  schemaVersion: 1;
+  kind: "project-mode-target-lock";
+  canonicalRoot: string;
+  rootIdentity: {
+    deviceExact: string;
+    inodeExact: string;
+  };
+  token: string;
+  pid: number;
+  host: string;
+  startedAt: string;
+  operationId: string;
+  planDigest: string;
+}
+
+export interface PolicyTargetSession {
+  readonly canonicalRoot: string;
+  readonly rootIdentity: {
+    readonly deviceExact: string;
+    readonly inodeExact: string;
+  };
+  readonly lockPath: string;
+  readonly token: string;
+  readonly operationId: string;
+  readonly planDigest: string;
+  assertOwned(): void;
+  close(): Promise<void>;
+}
+
+export class PolicyTargetConflictError extends Error {
+  readonly code = "ACTIVE_TARGET_WRITER";
+  readonly canonicalRoot: string;
+  readonly lockPath: string;
+  readonly activePid: number | null;
+  readonly activeHost: string | null;
+  readonly operationId: string | null;
+
+  constructor(options: {
+    canonicalRoot: string;
+    lockPath: string;
+    activePid: number | null;
+    activeHost: string | null;
+    operationId: string | null;
+    detail: string;
+  }) {
+    super(
+      `Another writer holds the policy target lock for ${options.canonicalRoot}: ${options.detail} ` +
+        `(operationId=${options.operationId ?? "unknown"} pid=${options.activePid ?? "unknown"}). ` +
+        `Retry after it finishes.`,
+    );
+    this.name = "PolicyTargetConflictError";
+    this.canonicalRoot = options.canonicalRoot;
+    this.lockPath = options.lockPath;
+    this.activePid = options.activePid;
+    this.activeHost = options.activeHost;
+    this.operationId = options.operationId;
+  }
+}
+
+export async function acquirePolicyTargetSession(options: {
+  canonicalRoot: string;
+  rootIdentity: {
+    deviceExact: string;
+    inodeExact: string;
+  };
+  operationId: string;
+  planDigest: string;
+}): Promise<PolicyTargetSession> {
+  const canonicalRoot = options.canonicalRoot;
+  const lockPath = policyTargetLockPath(canonicalRoot);
+
+  // Verify canonicalRoot existence and recheck identity
+  let lstats;
+  try {
+    lstats = await lstat(canonicalRoot, { bigint: true });
+  } catch {
+    throw new Error(`Cannot acquire policy target lock: canonical root is inaccessible (${canonicalRoot})`);
+  }
+  if (!lstats.isDirectory()) {
+    throw new Error(`Cannot acquire policy target lock: canonical root is not a directory (${canonicalRoot})`);
+  }
+  if (
+    lstats.dev.toString() !== options.rootIdentity.deviceExact ||
+    lstats.ino.toString() !== options.rootIdentity.inodeExact
+  ) {
+    throw new Error(`Cannot acquire policy target lock: canonical root identity changed`);
+  }
+
+  // Verify lock path proof
+  const proof = await provePathBoundary({
+    role: "target",
+    path: lockPath,
+    allowedRoots: [canonicalRoot],
+  });
+  if (!proof.proven) {
+    throw new Error(`Cannot acquire policy target lock: lock path boundary refused: ${proof.code}`);
+  }
+
+  const token = randomUUID();
+  const record: PolicyTargetLockRecord = {
+    schemaVersion: 1,
+    kind: "project-mode-target-lock",
+    canonicalRoot,
+    rootIdentity: options.rootIdentity,
+    token,
+    pid: process.pid,
+    host: hostname(),
+    startedAt: new Date().toISOString(),
+    operationId: options.operationId,
+    planDigest: options.planDigest,
+  };
+
+  let handle;
+  try {
+    handle = await open(lockPath, "wx", 0o600);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    const existingText = await readFile(lockPath, "utf8").catch(() => null);
+    let activePid: number | null = null;
+    let activeHost: string | null = null;
+    let opId: string | null = null;
+    let detail = "target lock file already exists";
+    if (existingText !== null) {
+      try {
+        const parsed = JSON.parse(existingText) as Partial<PolicyTargetLockRecord>;
+        if (typeof parsed.pid === "number") activePid = parsed.pid;
+        if (typeof parsed.host === "string") activeHost = parsed.host;
+        if (typeof parsed.operationId === "string") opId = parsed.operationId;
+        if (activePid !== null && isProcessAlive(activePid)) {
+          detail = `active process ${activePid} on host ${activeHost ?? "unknown"}`;
+        } else {
+          detail = "lock exists on disk; inspect evidence before retrying";
+        }
+      } catch {
+        detail = "lock file is corrupt or unreadable";
+      }
+    }
+    throw new PolicyTargetConflictError({
+      canonicalRoot,
+      lockPath,
+      activePid,
+      activeHost,
+      operationId: opId,
+      detail,
+    });
+  }
+
+  try {
+    await handle.writeFile(`${JSON.stringify(record, null, 2)}\n`, "utf8");
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+  await syncDirectory(canonicalRoot);
+
+  let open_ = true;
+  return {
+    canonicalRoot,
+    rootIdentity: options.rootIdentity,
+    lockPath,
+    token,
+    operationId: options.operationId,
+    planDigest: options.planDigest,
+    assertOwned(): void {
+      if (!open_) throw new Error(`Policy target session for ${canonicalRoot} is already closed`);
+    },
+    async close(): Promise<void> {
+      if (!open_) return;
+      open_ = false;
+      const current = await readFile(lockPath, "utf8").catch(() => null);
+      if (current === null) return;
+      try {
+        const parsed = JSON.parse(current) as Partial<PolicyTargetLockRecord>;
+        if (parsed?.token === token) {
+          await rm(lockPath, { force: true });
+          await syncDirectory(canonicalRoot);
+        }
+      } catch {
+        // Retain replaced or malformed lock
+      }
+    },
+  };
 }
 
 export function isProcessAlive(pid: number): boolean {

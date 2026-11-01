@@ -39,6 +39,26 @@
           }
         }
       }
+    },
+    "policyOperation": {
+      "description": "Optional additive metadata for project behavior policy transactions.",
+      "type": "object",
+      "required": ["kind", "canonicalRoot", "rootIdentity", "policyRelativePath"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "type": "string", "const": "project-mode" },
+        "canonicalRoot": { "type": "string", "minLength": 1 },
+        "rootIdentity": {
+          "type": "object",
+          "required": ["deviceExact", "inodeExact"],
+          "additionalProperties": false,
+          "properties": {
+            "deviceExact": { "type": "string", "minLength": 1 },
+            "inodeExact": { "type": "string", "minLength": 1 }
+          }
+        },
+        "policyRelativePath": { "type": "string", "const": ".alpha-aos/behavior.json" }
+      }
     }
   }
 }

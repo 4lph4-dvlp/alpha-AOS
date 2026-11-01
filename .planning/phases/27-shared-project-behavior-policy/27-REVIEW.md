@@ -37,7 +37,7 @@ findings:
   warning: 2
   info: 1
   total: 3
-status: clean
+status: passed_with_warnings
 ---
 
 # Phase 27: Independent Code Review Report

@@ -2,17 +2,17 @@
 gsd_state_version: "1.0"
 milestone: v0.6.0
 milestone_name: Predictable Task Entry and Shared Project Policy
-current_phase: 28
-current_phase_name: Predictable Strict and Flexible Intake
-status: ready-to-plan
-stopped_at: "Phase 27 verified complete; advancing to Phase 28 discuss"
-last_updated: "2026-11-02T07:23:00.000Z"
+current_phase: 27
+current_phase_name: Shared Project Behavior Policy
+status: verification-checkpoint
+stopped_at: "Phase 27 automated verification passed (15/15 truths); verification open for human verification of external paid hosts (D-12)"
+last_updated: "2026-11-02T07:58:00.000Z"
 last_activity: 2026-11-02
-last_activity_desc: Phase 27 completed and verified; Phase 28 discuss next
-state_head: 0453ca223d51cf123e003fccbc4bbea352107b4d
+last_activity_desc: Phase 27 verified (human_needed for external paid hosts); independent code review passed_with_warnings
+state_head: 86739048b306e5756cf9e0eca9c546f09be5f97a
 progress:
   total_phases: 5
-  completed_phases: 1
+  completed_phases: 0
   total_plans: 5
   completed_plans: 5
   percent: 20
@@ -25,18 +25,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 28 - Predictable Strict and Flexible Intake; Phase 27 completed and verified
+**Current focus:** Phase 27 - Shared Project Behavior Policy; goal-backward verification and code review complete; checkpoint on external paid hosts (human_needed)
 
 ## Current Position
 
-Phase: 28 (Predictable Strict and Flexible Intake)
-Plan: —
-Status: Ready to discuss
-Last activity: 2026-11-02 - Phase 27 completed and verified; Phase 28 discuss next
+Phase: 27 (Shared Project Behavior Policy)
+Plan: 05
+Status: Verification Checkpoint (human_needed)
+Last activity: 2026-11-02 - Phase 27 verified (human_needed); independent review passed_with_warnings
 
-### Completed Phases
+### Active Phase Status
 
-- Phase 27: complete (Shared Project Behavior Policy) — 5 plans completed and verified (MODE-01 through MODE-05)
+- Phase 27: verification-checkpoint (Shared Project Behavior Policy) — 5 plans completed, 15/15 truths verified automated, external paid hosts open (human_needed per D-12)
 
 ## Performance Metrics
 

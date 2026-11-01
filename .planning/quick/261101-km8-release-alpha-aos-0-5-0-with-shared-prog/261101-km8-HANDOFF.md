@@ -1,11 +1,21 @@
 ---
 quick_id: 261101-km8
-status: paused
-reason: user chose manual PC restart after unsuccessful authorized WMI repair
+status: in_progress
+reason: user restarted PC and explicitly resumed release and global rollout
 date: 2026-11-01
 ---
 
 # Resume alpha-AOS 0.5.0 release and global installation
+
+## Post-reboot update
+
+User confirmed the PC restart and requested continuation. Native taskkill/T/F
+finished exit0 in520ms and the owned child exited. The named owned-cancellation
+case passed, then the complete command-job-runtime suite passed5/5 and existing
+runner-isolation check passed1/1. Commit4aede4b includes command-job-runtime in
+the existing Windows isolated group:144concurrent+10isolated+1packed=155unique
+files. No production runtime limits changed. Old paused observations below remain
+historical evidence; root is preparing one new bounded owned release-push job.
 
 ## User authorization and scope
 

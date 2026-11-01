@@ -2,7 +2,7 @@
 
 **Milestone:** Predictable Task Entry and Shared Project Policy
 **Defined:** 2026-11-02
-**Status:** APPROVED — all 27 requirements approved by the user on 2026-11-02; roadmap approval pending
+**Status:** APPROVED — all 27 requirements and Phase 27–31 assignments approved by the user on 2026-11-02
 **Core value:** Consistent, intentional agent workflows and capability boundaries across supported projects, operating systems and harnesses.
 
 ## Locked Scope Decisions
@@ -91,38 +91,38 @@
 
 ## Traceability
 
-All 27 requirements are approved. Phase assignments will be added in the proposed roadmap; roadmap approval is a separate gate.
+All 27 approved requirements map to exactly one owning phase in the user-approved roadmap. Phase assignments were approved on 2026-11-02; implementation remains pending.
 
 | Requirement | Phase | Status |
 |---|---|---|
-| MODE-01 | Pending roadmap | Pending |
-| MODE-02 | Pending roadmap | Pending |
-| MODE-03 | Pending roadmap | Pending |
-| MODE-04 | Pending roadmap | Pending |
-| MODE-05 | Pending roadmap | Pending |
-| ENTRY-01 | Pending roadmap | Pending |
-| ENTRY-02 | Pending roadmap | Pending |
-| ENTRY-03 | Pending roadmap | Pending |
-| ENTRY-04 | Pending roadmap | Pending |
-| ENTRY-05 | Pending roadmap | Pending |
-| ENTRY-06 | Pending roadmap | Pending |
-| ENTRY-07 | Pending roadmap | Pending |
-| BOOT-01 | Pending roadmap | Pending |
-| BOOT-02 | Pending roadmap | Pending |
-| BOOT-03 | Pending roadmap | Pending |
-| BOOT-04 | Pending roadmap | Pending |
-| STYLE-01 | Pending roadmap | Pending |
-| STYLE-02 | Pending roadmap | Pending |
-| STYLE-03 | Pending roadmap | Pending |
-| STYLE-04 | Pending roadmap | Pending |
-| STYLE-05 | Pending roadmap | Pending |
-| STYLE-06 | Pending roadmap | Pending |
-| STYLE-07 | Pending roadmap | Pending |
-| PROVE-01 | Pending roadmap | Pending |
-| PROVE-02 | Pending roadmap | Pending |
-| PROVE-03 | Pending roadmap | Pending |
-| PROVE-04 | Pending roadmap | Pending |
+| MODE-01 | Phase 27 | Pending |
+| MODE-02 | Phase 27 | Pending |
+| MODE-03 | Phase 27 | Pending |
+| MODE-04 | Phase 27 | Pending |
+| MODE-05 | Phase 27 | Pending |
+| ENTRY-01 | Phase 28 | Pending |
+| ENTRY-02 | Phase 28 | Pending |
+| ENTRY-03 | Phase 28 | Pending |
+| ENTRY-04 | Phase 28 | Pending |
+| ENTRY-05 | Phase 28 | Pending |
+| ENTRY-06 | Phase 28 | Pending |
+| ENTRY-07 | Phase 28 | Pending |
+| BOOT-01 | Phase 29 | Pending |
+| BOOT-02 | Phase 29 | Pending |
+| BOOT-03 | Phase 29 | Pending |
+| BOOT-04 | Phase 29 | Pending |
+| STYLE-01 | Phase 30 | Pending |
+| STYLE-02 | Phase 30 | Pending |
+| STYLE-03 | Phase 30 | Pending |
+| STYLE-04 | Phase 30 | Pending |
+| STYLE-05 | Phase 30 | Pending |
+| STYLE-06 | Phase 30 | Pending |
+| STYLE-07 | Phase 30 | Pending |
+| PROVE-01 | Phase 31 | Pending |
+| PROVE-02 | Phase 31 | Pending |
+| PROVE-03 | Phase 31 | Pending |
+| PROVE-04 | Phase 31 | Pending |
 
-**Coverage:** 27 defined; 0 mapped; 27 awaiting roadmap approval. No implementation claimed.
+**Coverage:** 27 defined; 27 mapped exactly once; 0 unmapped. Requirements and roadmap approved. No implementation claimed.
 
-*Last updated: 2026-11-02 after user approval of all 27 requirements; roadmap approval pending.*
+*Last updated: 2026-11-02 after user approval of all 27 requirements and the five-phase roadmap.*

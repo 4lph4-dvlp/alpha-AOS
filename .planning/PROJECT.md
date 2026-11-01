@@ -24,7 +24,7 @@ A user can enter any supported project on any supported operating system and get
 - Autopilot choices retain exact-contract review, approval, separate start, model policy, isolated runner and GSD single-writer boundaries
 - Cross-harness scenario evidence, meaningful regressions, packaged guidance and English/Korean documentation
 
-**Planning status:** Corrected milestone scope, research-first path and all 27 requirements confirmed on 2026-11-02. Research is complete; roadmap approval is pending and implementation has not started. Phase numbering continues at 27. Outgoing v0.2.0 planning artifacts are preserved under `milestones/`; this planning rollover does not claim a release or close outstanding verification.
+**Planning status:** Corrected milestone scope, research-first path, all 27 requirements and the five-phase roadmap approved on 2026-11-02. Research and milestone initialization are complete. Phase 27 discussion is next; detailed phase plans and implementation have not started. Outgoing v0.2.0 planning artifacts are preserved under `milestones/`; this planning rollover does not claim a release or close outstanding verification.
 
 ## Requirements
 
@@ -142,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-02 for corrected v0.6.0 scope approval and research kickoff*
+*Last updated: 2026-11-02 after v0.6.0 requirements and roadmap approval; milestone initialized*

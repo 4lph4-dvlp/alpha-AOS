@@ -1,78 +1,38 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v0.2.0 — Universal Autonomous Work",
+  "milestone": "v0.6.0 — Predictable Task Entry and Shared Project Policy",
   "phases": [
     {
-      "number": "14",
-      "name": "Contract and Vertical Tracer",
-      "status": "complete"
+      "number": "27",
+      "name": "Shared Project Behavior Policy",
+      "status": "pending"
     },
     {
-      "number": "15",
-      "name": "Durable Supervisor and Effect Ledger",
-      "status": "complete"
+      "number": "28",
+      "name": "Predictable Strict and Flexible Intake",
+      "status": "pending"
     },
     {
-      "number": "16",
-      "name": "Composable Harness Roles",
-      "status": "complete"
+      "number": "29",
+      "name": "GSD Initialization and Request Continuity",
+      "status": "pending"
     },
     {
-      "number": "17",
-      "name": "GSD Lifecycle Bridge",
-      "status": "complete"
+      "number": "30",
+      "name": "Six Execution Styles and Quality Binding",
+      "status": "pending"
     },
     {
-      "number": "18",
-      "name": "Capability Fabric and Automatic Invocation",
-      "status": "complete"
-    },
-    {
-      "number": "19",
-      "name": "Structured Independent Review",
-      "status": "complete"
-    },
-    {
-      "number": "20",
-      "name": "General Tool Connectors",
-      "status": "complete"
-    },
-    {
-      "number": "21",
-      "name": "Natural Entry and Operator CLI",
-      "status": "complete"
-    },
-    {
-      "number": "22",
-      "name": "Release Proof",
-      "status": "complete"
-    },
-    {
-      "number": "23",
-      "name": "Capability Governance and Active Tool Orchestration",
-      "status": "complete"
-    },
-    {
-      "number": "24",
-      "name": "Autopilot Antigravity Routing and Snapshot Resilience",
-      "status": "complete"
-    },
-    {
-      "number": "25",
-      "name": "Runtime Usage and Recovery Controls",
-      "status": "complete"
-    },
-    {
-      "number": "26",
-      "name": "Autopilot Session Progress and Steering",
-      "status": "complete"
+      "number": "31",
+      "name": "Cross-Harness Proof and Distribution",
+      "status": "pending"
     }
   ],
   "next": {
-    "command": "$gsd-new-milestone",
-    "label": "Start a new milestone",
-    "reason": "All phases complete — start a new milestone"
+    "command": "$gsd-progress --next",
+    "label": "Advance to the next step (plan phase 27)",
+    "reason": "Phase 1 of 5 — needs a plan"
   },
-  "updated_at": "2026-11-01T00:26:01.729Z"
+  "updated_at": "2026-11-01T16:29:28.923Z"
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -107,7 +107,7 @@ function baseValidReport(options: {
 }
 
 async function adversarialRoot(): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-adversarial-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-adversarial-")));
   await mkdir(join(dir, ".planning"));
   await writeFile(join(dir, ".planning", "REQUIREMENTS.md"), "- [ ] **REQ-01**: Primary feature requirement\n");
   return dir;

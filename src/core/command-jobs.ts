@@ -3,7 +3,7 @@ import { validateTaskJobBinding } from "./task-job-binding.js";
 import { constants, existsSync, statSync } from "node:fs";
 import { link, lstat, mkdir, open, rename, rmdir, stat, unlink } from "node:fs/promises";
 import { hostname } from "node:os";
-import { basename, dirname, join, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   waitForCompletion,
@@ -766,6 +766,7 @@ export function assertNoCredentialsInArgs(
   // 1. Check known secret values from credential-named environment variables FIRST
   const secretValues: string[] = [];
   for (const [key, value] of Object.entries(source)) {
+    if ((key === "PWD" || key === "OLDPWD") && value && isAbsolute(value)) continue;
     if (value && SECRET_ENV_NAME_PATTERN.test(key) && value.trim().length >= 8) {
       secretValues.push(value.trim());
     }

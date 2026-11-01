@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -21,7 +21,7 @@ import {
 import type { TaskContract } from "../src/core/task-contract.js";
 
 async function scratch(context: TestContext, name: string): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), `alpha-aos-gsd-lifecycle-${name}-`));
+  const root = await realpath(await mkdtemp(join(tmpdir(), `alpha-aos-gsd-lifecycle-${name}-`)));
   context.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }

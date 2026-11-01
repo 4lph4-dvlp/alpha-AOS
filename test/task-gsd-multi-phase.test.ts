@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readdir, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rm, writeFile, readFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -17,7 +17,7 @@ import { packageRoot } from "../src/core/paths.js";
 import type { TaskPorts } from "../src/core/task-run.js";
 
 async function scratch(context: TestContext, name: string): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), `alpha-aos-gsd-multiphase-${name}-`));
+  const root = await realpath(await mkdtemp(join(tmpdir(), `alpha-aos-gsd-multiphase-${name}-`)));
   context.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }

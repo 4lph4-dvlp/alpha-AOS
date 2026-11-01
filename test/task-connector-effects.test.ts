@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -450,7 +450,7 @@ test("recordEffectState allows recovery demotion only when explicit option is pa
 });
 
 test("resumeTask on general contract demotes missing applied files to planned and audits in journal", async (context) => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-sup-gen-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-sup-gen-")));
   context.after(async () => rm(dir, { recursive: true, force: true }));
 
   const contractPath = join(dir, "task-contract.json");
@@ -683,7 +683,7 @@ test("resumeTask on general contract demotes missing applied files to planned an
 });
 
 test("resumeTask halts and records blocked checkpoint when unknown connector effect exists", async (context) => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-sup-gen-unk-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-sup-gen-unk-")));
   context.after(async () => rm(dir, { recursive: true, force: true }));
 
   const contractPath = join(dir, "task-contract.json");

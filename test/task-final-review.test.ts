@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, mkdir, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -213,7 +213,7 @@ test("D-13: gateMilestoneFinalReview returns unknown when port is absent", async
 });
 
 test("D-14: gateMilestoneFinalReview returns unknown when required evidence is missing or unverified", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-final-test-")));
   try {
     await writeFinalRequirements(dir);
     const contract = sampleContract();
@@ -250,7 +250,7 @@ test("D-14: gateMilestoneFinalReview returns unknown when required evidence is m
 });
 
 test("D-15: gateMilestoneFinalReview rejects when cross-phase core constraints fail", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-final-test-")));
   try {
     await writeFinalRequirements(dir);
     const contract = sampleContract();
@@ -295,7 +295,7 @@ test("D-15: gateMilestoneFinalReview rejects when cross-phase core constraints f
 });
 
 test("REV-03, Task 2: missing feature or architecture violation blocks milestone and routes to GSD repair", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-final-test-")));
   try {
     await writeFinalRequirements(dir);
     const contract = sampleContract();
@@ -364,7 +364,7 @@ test("REV-03, Task 2: missing feature or architecture violation blocks milestone
 });
 
 test("D-13, REV-03: successful final review yields accepted and writes immutable witness receipt", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-final-test-")));
   try {
     await writeFinalRequirements(dir);
     const contract = sampleContract();
@@ -408,7 +408,7 @@ test("D-13, REV-03: successful final review yields accepted and writes immutable
 });
 
 test("orchestrateMultiPhaseProgression requires real GSD evidence and final independent acceptance", async () => {
-  const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-test-"));
+  const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-final-test-")));
   try {
     const repository = await createOrdinaryRepository(dir, "project");
     assert.equal(repository.ok, true);
@@ -473,7 +473,7 @@ test("fresh final review cannot dispatch with an unavailable Codex USD meter", a
 
 test("final requirement coverage rejects omitted, duplicate and unknown schema-valid rows", async () => {
   for (const kind of ["omitted", "duplicate", "unknown"] as const) {
-    const dir = await mkdtemp(join(tmpdir(), "alpha-aos-final-coverage-"));
+    const dir = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-final-coverage-")));
     try {
       await writeFinalRequirements(dir);
       const contract = sampleContract(), contractDigest = taskContractDigest(contract);

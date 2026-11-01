@@ -1240,6 +1240,20 @@ test("command-jobs CR-04: readBoundedFile enforces strict EOF ceiling and fatal 
 // CR-05: Credential array validation (split flags, equals, URLs)
 // ============================================================================
 
+test("command-jobs: directory environment does not mask credential rejection", () => {
+  const directory = process.cwd();
+  const cli = join(directory, "dist", "src", "cli.js");
+  assert.doesNotThrow(() => assertNoCredentialsInArgs(process.execPath, [cli], { PWD: directory, OLDPWD: directory }));
+  for (const key of ["DB_PWD", "PASSWORD", "PWD"]) {
+    const secret = key === "PWD" ? "relative-secret-value" : "opaque-secret-value";
+    assert.throws(() => assertNoCredentialsInArgs(process.execPath, [secret], { [key]: secret }), /reason=secret_env_match/);
+  }
+  assert.throws(() => assertNoCredentialsInArgs(process.execPath, [cli], { DB_PWD: directory }), /reason=secret_env_match/);
+  assert.throws(() => assertNoCredentialsInArgs(process.execPath, [cli], { pwd: directory }), /reason=secret_env_match/);
+  assert.throws(() => assertNoCredentialsInArgs(process.execPath, ["--password=secret"], { PWD: directory }), /reason=sensitive_flag_equals/);
+  assert.throws(() => assertNoCredentialsInArgs(process.execPath, ["https://example.test/?token=secret"], { PWD: directory }), /reason=url_credential_query/);
+});
+
 test("command-jobs CR-05: assertNoCredentialsInArgs rejects split flags, equals flags, and credential URLs", () => {
   assert.throws(
     () => {

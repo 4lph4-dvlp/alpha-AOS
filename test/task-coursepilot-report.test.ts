@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, writeFile, unlink, mkdir, readdir, stat } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, unlink, mkdir, readdir, stat, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -43,7 +43,7 @@ import type { ProcessCode, ProcessResult } from "../src/core/process.js";
 import { previewTaskContract, type TaskContractPreview } from "../src/core/task-contract.js";
 
 async function setupTestDir(prefix = "cp-report-"): Promise<string> {
-  return await mkdtemp(join(tmpdir(), prefix));
+  return await realpath(await mkdtemp(join(tmpdir(), prefix)));
 }
 
 function makeMockProcessResult(options: {

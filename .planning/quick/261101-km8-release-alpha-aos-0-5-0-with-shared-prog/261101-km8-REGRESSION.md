@@ -34,3 +34,9 @@ Two fixture assumptions conflict with the behavior under test: an exact-binding 
 - After the user's restart, the root-owned native `taskkill /T` probe exited 0 in 520 ms and its owned child closed. The named owned-cancellation case passed 1/1 in 2.93 seconds. These observations do not establish the cause of the earlier host failure.
 - Added `command-job-runtime.test.js` to the existing Windows-only isolated list because it exercises real owned child and worker cancellation. The ordinary Windows partition contains 144 concurrent files, 10 isolated files and one packed file: all 155 current compiled test files occur exactly once. Explicit `--files` behavior remains unchanged.
 - Build and artifact check both exited 0; the complete compiled command-job-runtime file passed 5/5 with no skips, and the existing runner-isolation test passed 1/1. Logs and partition evidence are under `.planning/tmp/release050-postboot-*`. The full release gate remains outstanding.
+
+## Computer-use policy clock fixture
+
+- The subsequent normal pre-push run reached the computer-use policy check after the 155-file suite, packed fixture and real upstream ECC check; the policy check failed with `Computer invalid clock/counters`. The release gate did not pass.
+- A separate Node process with a preload advancing `Date.now()` by 1 ms per call reproduced that exact failure in the actual policy script (exit 1). Capturing one timestamp for the fixture's `now`, `startedAt` and `lastActivityAt` made the same invocation pass (exit 0). The production guard and existing negative policy assertions were unchanged.
+- Build and artifact check passed; the four mandatory policy, audit, integration and research checks each returned `ok: true`, and the existing compiled computer-use policy suite passed 3/3 with no skips. Logs are under `.planning/tmp/release050-postboot-cu-*` and `.planning/tmp/release050-postboot-clock-*`. A fresh full release gate remains outstanding.

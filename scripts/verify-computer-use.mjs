@@ -16,7 +16,8 @@ export function authorityInput() {
 export async function checkPolicy() {
   const p = await production("core/computer-use-policy");
   const a = p.validateComputerAuthority(authorityInput());
-  const s = { runId: a.runId, contractDigest: a.contractDigest, target: a.target, runtime: a.runtime, now: Date.now(), startedAt: Date.now(), lastActivityAt: Date.now(), actions: 0, captures: 0, bytes: 0, stopped: false };
+  const now = Date.now();
+  const s = { runId: a.runId, contractDigest: a.contractDigest, target: a.target, runtime: a.runtime, now, startedAt: now, lastActivityAt: now, actions: 0, captures: 0, bytes: 0, stopped: false };
   assert.doesNotThrow(() => p.authorizeComputerAction(a, s, { kind: "click", x: 0, y: 0 }));
   for (const change of [{ stopped: true }, { runId: "foreign" }, { actions: 3 }, { now: a.expiresAt }, { target: { ...a.target, pid: 43 } }, { runtime: { ...a.runtime, schemaHash: "f".repeat(64) } }]) assert.throws(() => p.authorizeComputerAction(a, { ...s, ...change }, { kind: "click", x: 0, y: 0 }));
   assert.throws(() => p.authorizeComputerAction(a, s, { kind: "click", x: NaN, y: 0 }));

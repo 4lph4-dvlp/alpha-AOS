@@ -10,21 +10,21 @@ The system manages capability scope as well as installation: broadly useful, low
 
 A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
 
-## Current Milestone: v0.2.0 Universal Autonomous Work
+## Current Milestone: v0.6.0 Predictable Task Entry and Shared Project Policy
 
-**Goal:** A user explicitly enables autopilot for one task and approves its goal, acceptance criteria and authority; alpha-AOS then coordinates interchangeable agents and every applicable alpha-AOS capability through GSD-governed execution, independent review, correction and recovery until verified completion or an explicitly reported stop condition. Ordinary conversational GSD remains the default.
+**Goal:** A user can predict how alpha-AOS handles a request across all five supported harnesses: a shared project policy defaults to strict, each independent substantial task receives an explicit execution-style choice, and uninitialized projects are guided through GSD initialization before execution.
 
 **Target features:**
-- Versioned, digest-bound goal contracts with acceptance criteria, authority, role assignments and optional resource limits
-- Per-task, default-off autopilot opt-in by direct request or approved in-agent offer, without changing ordinary GSD interaction
-- Composable controller/executor/reviewer adapters for Claude Code, Codex, Antigravity, Pi and Hermes, with version-scoped native capability evidence
-- Full inventory and automatic GSD-step use of global/project ECC skills, MCP tools, approved project packs, native tools and mandatory hooks, backed by actual invocation receipts
-- Durable local execution, independent result review, GSD gap closure and recovery; GSD remains the only lifecycle/state authority
-- Development and general tool workflows, including an opt-in CoursePilot materials-download connector with file-level completion evidence
-- Unlimited cycles when explicitly selected, configurable time/usage/cost/cycle limits, no-progress strategy changes and honest blocked/unknown results
-- Natural-language entry, CLI preview/status/resume/stop, native skill/MCP use and a cross-platform release evidence matrix
+- Project-scoped strict/flexible policy, defaulting to strict, readable and changeable from every supported harness without harness-local divergence
+- Six stable task-scoped choices: 대화형-quick, 대화형-quick-full, 대화형-phase, 오토파일럿-quick, 오토파일럿-quick-full, 오토파일럿-phase, each with a concise explanation
+- A fresh choice for each independent strict-mode task; a previous choice never becomes a project default or consent for later work
+- Explicit style requests bypass the chooser for that task; direct GSD commands retain their selected workflow and timing
+- Explainable common criteria exempt simple, clearly bounded operations from the chooser and unnecessary project-initialization prompts
+- GSD readiness diagnostics distinguish absent, partial and ready projects; new-project reuses the original request, collects missing information and returns to the pending task
+- Autopilot choices retain exact-contract review, approval, separate start, model policy, isolated runner and GSD single-writer boundaries
+- Cross-harness scenario evidence, meaningful regressions, packaged guidance and English/Korean documentation
 
-**Planning status:** Scope and nine-phase roadmap approved by the user on 2026-09-29. Requirements and design are ready for Phase 14 discussion; implementation has not started. Detailed design: `docs/design/autonomous-work/README.md`.
+**Planning status:** Corrected milestone scope and research-first path confirmed on 2026-11-02. Requirements and roadmap approval are pending; implementation has not started. Phase numbering continues at 27. Outgoing v0.2.0 planning artifacts are preserved under `milestones/`; this planning rollover does not claim a release or close outstanding verification.
 
 ## Requirements
 
@@ -54,7 +54,8 @@ A user can enter any supported project on any supported operating system and get
 
 ### Active
 
-- [ ] Deliver v0.2.0 Universal Autonomous Work according to the current REQUIREMENTS.md and ROADMAP.md; completion requires evidence, not an agent's success claim
+- [ ] Deliver v0.6.0 Predictable Task Entry and Shared Project Policy according to the new milestone requirements and roadmap; current task-entry behavior is not yet changed
+- [ ] Preserve outgoing v0.2.0 verification evidence and unresolved release work; the planning rollover is not publication or a new full-suite pass
 - [ ] Resolve the named managed-lifecycle gaps in the archived Phase 6 verification report; v0.1.1 Phase 11 created formal evidence and did not declare every LIFE requirement verified
 - [ ] Validate every active supported harness on at least one real host; Claude Code's own real-host invocation receipt is the outstanding item (G-07-2, REL-02)
 - [ ] Publish the v0.1.0 release artifacts and documentation (v0.1.0 closed with a non-publishing release preview)
@@ -112,7 +113,9 @@ The authority boundaries are:
 | Keep Hermes worker-only for GSD state | A single state writer avoids conflicting `.planning/` transitions while retaining Hermes as a capable worker and handoff consumer | ✓ Good |
 | Replace harness-name controller eligibility with verified role capability in v0.2.0 | User requested arbitrary role combinations across all five harnesses; one controller lease per project remains mandatory | Planned revision of D-10; current worker-only implementation remains until its migration passes |
 | Add an opt-in task execution supervisor without replacing GSD state | Supervisor owns process attempts, resources and recovery; GSD owns plans, phases, verification and lifecycle | v0.2.0 design |
-| Keep ordinary GSD interaction as the default; bind autopilot to one approved task | The user explicitly requested that autonomous looping start only by direct request or approval of an in-agent offer | v0.2.0 design |
+| Keep autopilot bound to one approved task; supersede automatic intake defaults with project strict/flexible policy | v0.6.0 defaults intake to strict and asks for a style on each independent substantial task; neither project mode nor a previous task choice grants autopilot authority | v0.6.0 scope approved; implementation pending |
+| Persist only strict/flexible as project intake policy, never the selected execution style | User corrected the earlier interpretation on 2026-11-02: a release may use autopilot-phase while a later bug fix receives a fresh choice and uses autopilot-quick-full | v0.6.0 locked decision |
+| Exempt simple operations using common criteria rather than a closed task-name list | User chose clear target/result with no separate design, investigation or multi-stage implementation as the chooser-exemption criterion | v0.6.0 locked decision |
 | Route every applicable alpha-AOS capability through GSD with actual invocation proof | Installed global/project ECC skills, MCP tools and packs are only useful if the matching task step can discover and call them | v0.2.0 design |
 | Use stable exact versions and source/file integrity locks | Cross-harness user configuration is supply-chain-sensitive and must be reproducible | ✓ Good |
 | Treat `project-only` as configuration isolation, not a security boundary | Process-level isolation cannot honestly guarantee filesystem, network, or host-secret containment | ✓ Good |
@@ -139,4 +142,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-09-29 for v0.2.0 scope approval*
+*Last updated: 2026-11-02 for corrected v0.6.0 scope approval and research kickoff*

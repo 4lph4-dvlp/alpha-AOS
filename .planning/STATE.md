@@ -1,21 +1,16 @@
 ---
 gsd_state_version: "1.0"
-milestone: v0.2.0
-milestone_name: Universal Autonomous Work
-current_phase: 26
-current_plan: Not started
-status: completed
-stopped_at: "Quick 261101-km8: local macOS panel remediation verified; CI, push and release on explicit user hold; main/tag incomplete"
-last_updated: "2026-11-01T15:16:41.953Z"
-last_activity: 2026-11-01
-last_activity_desc: Phase 26 complete
-state_head: d657e8fdf1de46b61429cfa18424a9b5d8e06f49
+milestone: v0.6.0
+milestone_name: Predictable Task Entry and Shared Project Policy
+status: planning
+last_updated: "2026-11-01T16:10:15.102Z"
+last_activity: 2026-11-02
 progress:
-  total_phases: 13
-  completed_phases: 13
-  total_plans: 70
-  completed_plans: 70
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
@@ -29,12 +24,10 @@ See: .planning/PROJECT.md (updated 2026-09-29)
 
 ## Current Position
 
-Progress: [██████████] 100% (13/13 phases; 70/70 implementation plans; Phase 26 verified and complete)
-Current Plan: Not started
-Total Plans in Phase: 3
-Phase: 26
-Status: All phases complete
-Last activity: 2026-11-02 — Quick 261101-ww3 applied the GSD full default and local milestone skills; wider regression gap recorded
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-11-02 — Milestone v0.6.0 started
 
 ## Performance Metrics
 

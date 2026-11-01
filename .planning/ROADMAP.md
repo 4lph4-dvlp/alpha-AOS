@@ -48,6 +48,7 @@ Every requirement has exactly one owning phase. Later integration verification r
   3. A user can inspect effective mode, canonical root and source/revision; an existing session re-reads a later change at its next task intake.
   4. Mode mutations are previewable, root-bounded, snapshotted and rollback-aware, preserve unrelated settings, and reject stale reviewed input where applicable.
   5. Invalid/unreadable policy and wrong-root conditions produce actionable errors instead of silent flexible or cross-project fallback.
+
 **Plans:** TBD — created by plan-phase after discussion.
 
 **Planning focus:** Decide policy filename/schema and actual project-root resolution without coupling behavior configuration to GSD initialization or pack trust. Include minimal native mode-change routing and owned-skill integrity updates in this phase; do not defer MODE-02 to final proof.
@@ -64,7 +65,28 @@ Every requirement has exactly one owning phase. Later integration verification r
   3. A named style skips selection while a directly invoked GSD command preserves its selected workflow/timing and native prerequisites; an explicit full-style request is not downgraded by a simple-operation exemption.
   4. Bounded push, simple rename and README translation/linking skip chooser and forced bootstrap; a cross-subsystem rename needing investigation does not pass on its name alone. A user can see the decision reason and receives only necessary clarification for uncertain scope.
   5. Flexible mode preserves adaptive intake, while neither mode nor classification weakens normal effect authority, tree-off boundaries or exact autopilot consent.
-**Plans:** TBD — created by plan-phase after discussion.
+
+**Plans:** 6 plans in 6 sequential waves; checks complete, planning commit blocked by Git index write permission; execution pending.
+**Wave 1**
+- [ ] 28-01-PLAN.md — Strict intake CLI tracer, bounded versioned interchange and exact six-style chooser.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 28-02-PLAN.md — Explicit GSD command/style precedence and narrow partial/conflicting intent.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 28-03-PLAN.md — Exact current-task continuity and task-scoped pending-selection lifetime.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 28-04-PLAN.md — Evidence-backed simple operations, narrow clarification and WIP-preserving escalation.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 28-05-PLAN.md — Common owned-skill routing across five targets, integrity and user contract.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 28-06-PLAN.md — End-to-end acceptance, honest native evidence and final regression gate.
+
+**Cross-cutting constraints:**
+- Every intake rereads the current canonical policy and grants no execution authority.
 
 **Planning focus:** Define the shared typed decision and evidence criteria, including explicit command, explicit style, continuation, simple operation, substantial work and clarification-needed. Define current-task identity without persisting style as a project preference or relying on unbounded transcripts.
 **Validation emphasis:** Release uses autopilot-phase, later independent bug fix asks again and chooses autopilot-quick-full; active-task test repair does not ask; meaningful simple/complex twins; native question UI and numbered text fallback.
@@ -80,6 +102,7 @@ Every requirement has exactly one owning phase. Later integration verification r
   3. Partial initialization names missing prerequisites and invokes a GSD recovery path that preserves existing context; no empty placeholders or silent overwrites manufacture readiness.
   4. After bootstrap/recovery, the original request and its selected style resume once without retyping, a second chooser or duplicate implementation. Required GSD checkpoints and autopilot review remain intact.
   5. A simple exempt operation or policy-only change avoids forced initialization, while cancellation/interruption of substantive initialization leaves an honest resumable checkpoint and does not start the pending task.
+
 **Plans:** TBD — created by plan-phase after discussion.
 
 **Planning focus:** Keep GSD the sole lifecycle/state authority. Select a minimal bounded pending-request handoff that does not become a second phase/task lifecycle. Inspect version-specific readiness capabilities before implementation.
@@ -96,6 +119,7 @@ Every requirement has exactly one owning phase. Later integration verification r
   3. Autopilot quick-full binds quality selection into contract/digest, drift/reapproval comparison and --full dispatch; acceptance refuses ordinary-quick-only or incomplete full-stage evidence, without breaking existing approved contract semantics.
   4. A style selection never grants exact-contract approval or separate start, weakens approved harness/model assignments, authorizes inline autopilot implementation, or rewrites an already running contract when the project's mode changes.
   5. Autopilot-phase stays within the approved roadmap/phase scope and GSD lifecycle bridge; all six routes preserve GSD ownership and existing capability/review/verification gates, with unsupported routes reported explicitly rather than silently substituted.
+
 **Plans:** TBD — created by plan-phase after discussion.
 
 **Planning focus:** Decide backward-compatible quality metadata and sufficient full-stage evidence; reuse task-contract, quick runner and phase lifecycle bridge. Update source/five-target owned-skill hashes whenever guidance changes.
@@ -112,6 +136,7 @@ Every requirement has exactly one owning phase. Later integration verification r
   3. The packed artifact contains integrity-locked shared guidance and all six routes, with meaningful discovery/invocation checks rather than file-presence-only claims.
   4. English and Korean documentation explains both modes, six styles, exception criteria, task boundaries, initialization and direct commands, including real support limitations.
   5. Targeted positive/negative checks and the final full regression have recorded actual outcomes. Failed/not-run prior regressions are not counted as passed or waived; required failures block affected acceptance and remediation must stay explicitly scoped.
+
 **Plans:** TBD — created by plan-phase after discussion.
 
 **Planning focus:** Define representative native receipts and paid-call-free fixtures before advertising parity. Previous release holds remain; this milestone does not implicitly authorize paid canaries, global reconciliation, push, CI repair or publication.
@@ -119,12 +144,12 @@ Every requirement has exactly one owning phase. Later integration verification r
 
 ## Progress
 
-**Execution Order:** 27 → 28 → 29 → 30 → 31. Roadmap approval is complete; Phase 27 discussion is next. No phase has an approved detailed plan yet.
+**Execution Order:** 27 → 28 → 29 → 30 → 31. Phase 28 now has six checked plans; the planning-doc commit is blocked by Git index write permission. This planning update does not execute Phase 28 or plan later phases; historical phase completion evidence remains in STATE and each phase's verification artifacts.
 
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 27. Shared Project Behavior Policy | 0/TBD | Not started | - |
-| 28. Predictable Strict and Flexible Intake | 0/TBD | Not started | - |
+| 28. Predictable Strict and Flexible Intake | 0/6 | Blocked (planning commit) | - |
 | 29. GSD Initialization and Request Continuity | 0/TBD | Not started | - |
 | 30. Six Execution Styles and Quality Binding | 0/TBD | Not started | - |
 | 31. Cross-Harness Proof and Distribution | 0/TBD | Not started | - |

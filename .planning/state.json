@@ -11,7 +11,7 @@
     {
       "number": "28",
       "name": "Predictable Strict and Flexible Intake",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "29",
@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "$gsd-progress --next",
-    "label": "Advance to the next step (plan phase 27)",
-    "reason": "Phase 1 of 5 — needs a plan"
+    "command": "/gsd-progress",
+    "label": "Show progress",
+    "reason": "Unsure of state — showing progress"
   },
-  "updated_at": "2026-11-01T16:29:28.923Z"
+  "updated_at": "2026-11-01T23:49:17.887Z"
 }

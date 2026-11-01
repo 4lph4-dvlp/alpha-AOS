@@ -63,6 +63,36 @@ canary, npm public-registry publishing, forced push or hook/CI bypass.
 
 ## Actual release blockers and evidence
 
+### Post-reboot release progress (current)
+
+- Source candidate `137b142c7fc4902311e5e84e2a04c9320b3f651f` passed the
+  ordinary local pre-push gate: 155 files, 1,938 tests, 1,926 passed, 12 skipped,
+  zero failures/cancellations; real upstream ECC and all four computer-use checks
+  also passed. `origin/release/0.5.0` now points to that commit. Evidence:
+  `.planning/tmp/release050-local-gate.json` and `release050-push-postboot-v2.log`.
+- Exact-SHA remote CI run `41294068087` passed packaging but failed Ubuntu/macOS
+  tests. Windows subsequently passed all steps; the run ended failure solely
+  for the Linux/macOS legs. Main/tag publication
+  remains incomplete. Run: https://github.com/4lph4-dvlp/alpha-AOS/actions/runs/41294068087
+- Both POSIX logs show the panel launch rejected by `secret_env_match`; the
+  credential-name expression includes exact `PWD`, whose standard POSIX value is
+  the checkout directory embedded in the CLI argument. macOS additionally rejects
+  noncanonical `/var` temporary fixture paths at the existing symlink guard.
+  Terra owns narrowly scoped fixes and targeted regressions; production credential
+  and symlink protections must remain enforced. Clean logs are
+  `.planning/tmp/release050-ci-{linux,macos}-failed.log`.
+- All-five global bootstrap install completed under operation
+  `2026-11-01T09-40-51-083Z-406d44b0-f280-4e29-8c5e-0156fd9ae26d`.
+  Global CLI reports 0.5.0; managed install preview is CURRENT for Claude, Codex,
+  Antigravity, Pi and Hermes. Doctor exited 0; writer is free, no repair or
+  incomplete transaction is reported. Actual native version commands passed for
+  all five agents. Agent binaries were not upgraded. Existing sessions require
+  reload/restart. Logs: `.planning/tmp/release050-global-*`.
+- The global install intentionally proceeded during remote CI after local gate
+  success (resume order step 6); it does not imply remote release acceptance.
+  After source remediation, rebuild and reverify the linked CLI/components.
+  Do not repeat bootstrap blindly or resume the original OhMyCircuit project.
+
 1. Initial ordinary push failed its active pre-push hook: main batch1816tests,
    1798pass,7fail,11skip. Six cancellation observation timeouts and one short
    attach handoff timeout. Log `.planning/tmp/release050-push-branch.log`.
@@ -126,3 +156,7 @@ Root plan is261101-km8-PLAN.md. Regression history is261101-km8-REGRESSION.md.
 Prepared GitHub notes: `.planning/tmp/release050-notes.md`.
 Unknown model tokens/cost remain unavailable, not zero. Research-temp deletion
 was separately policy-blocked; do not retry or work around it as part of release.
+
+## Current continuation after quota stop
+
+User requested continuation. Scoped source fix c2d45a7 is committed. See REGRESSION and REVIEW for actual targeted outcomes, including unresolved isolated CLI handshake failure. Root corrected the reviewed release script to require successful exact HEAD equality after fast-forward, before tagging. Next launch: root-owned .planning/tmp/release050-finish.ps1 through alpha-aos job start with10800000ms process-tree deadline. Candidate is committed docs+source HEAD stored in release050-final-candidate.txt. Script keeps receipt release050-final-receipt.json, exact CI runID and external stage logs, and stops on any failed mandatory gate. No old process restart, bypass or original-project resume. Final GSD acceptance remains pending.

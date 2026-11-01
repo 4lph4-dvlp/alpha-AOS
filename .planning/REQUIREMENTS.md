@@ -1,182 +1,128 @@
-# Requirements: alpha-AOS v0.2.0 Universal Autonomous Work
+# Requirements: alpha-AOS v0.6.0
 
-**Defined:** 2026-09-29
-**Status:** Approved for v0.2.0 implementation on 2026-09-29
-**Core value:** When a user explicitly enables autopilot for a task, alpha-AOS coordinates the full applicable capability inventory through GSD, independent review, correction and recovery until evidence proves completion or a named stop condition. Ordinary interactive GSD work remains the default.
+**Milestone:** Predictable Task Entry and Shared Project Policy
+**Defined:** 2026-11-02
+**Status:** APPROVED — all 27 requirements approved by the user on 2026-11-02; roadmap approval pending
+**Core value:** Consistent, intentional agent workflows and capability boundaries across supported projects, operating systems and harnesses.
 
-Every requirement below is a user-visible capability. `Supported` means an exact harness/version/role combination has a native invocation receipt. A configured executable alone is insufficient. Detailed behavior: [design](../docs/design/autonomous-work/README.md).
+## Locked Scope Decisions
 
-## v0.2.0 Requirements
+- Persist only project strict/flexible; missing policy defaults to strict.
+- Every independent substantial strict task receives a fresh choice. A style is NEVER a project default. This supersedes the earlier interpretation explicitly corrected by the user.
+- Continue a selected style within the same active task; later independent bug fixes receive a fresh chooser even if the release used another style.
+- Exempt simple requests using common criteria, not only a closed list of task names.
+- Preserve explicit style requests and direct GSD commands.
+- Require real GSD initialization before substantial six-style execution, reusing the initial request.
+- Retain exact autopilot consent, separate start, isolated runner, model policy and GSD single-writer ownership.
 
-### Goal contracts
+## v0.6.0 Requirements
 
-- [x] **CON-01**: A user can review and approve a versioned task contract showing goal, scope, mandatory acceptance criteria, allowed effects, agent roles and optional limits before execution begins.
-- [x] **CON-02**: A user can delegate routine implementation decisions within the approved contract and later inspect what the controller decided and why.
-- [x] **CON-03**: A user sees an approval become stale when the goal, allowed effects or authority changes, and a new contract revision is required before the changed work runs.
+### Shared Project Mode
 
-### Explicit autopilot mode
+- [ ] **MODE-01**: A user entering a project without a behavior policy receives strict intake by default, without an implicit configuration write.
+- [ ] **MODE-02**: A user can change the project's strict/flexible mode through a natural-language request in any supported harness or the CLI, including before GSD initialization, and all harnesses consume that one project setting.
+- [ ] **MODE-03**: A user can inspect the resolved project root, effective mode and configuration source/revision; the next task intake re-reads current policy rather than relying on a stale session value.
+- [ ] **MODE-04**: A user can preview, apply and roll back mode changes through bounded, snapshotted transactions that preserve unrelated project settings.
+- [ ] **MODE-05**: A user receives an actionable diagnostic for invalid or unreadable policy instead of silently falling back to flexible or another project.
 
-- [x] **AUTO-01**: A user enters autopilot only by explicitly requesting it or approving a clearly presented in-agent offer; the mode is off by default for every new task.
-- [x] **AUTO-02**: A user can see autopilot consent, scope, authority and duration bound to the approved task contract; routine GSD questions may be answered automatically only within that authority, and new authority or effects pause for approval.
-- [x] **AUTO-03**: A user can continue ordinary conversational GSD work without invoking the autonomous supervisor; ending or stopping one autopilot run does not silently enable it for another task.
+### Predictable Task Intake
 
-### Execution and recovery
+- [ ] **ENTRY-01**: A user making a new substantial strict-mode request without an explicit style sees all six stable labels with concise descriptions and selects one before execution.
+- [ ] **ENTRY-02**: A user explicitly naming a task style proceeds with that style without the chooser; normal readiness and authority requirements still apply.
+- [ ] **ENTRY-03**: A user's choice applies only to that task: follow-up edits and verification continue without repeated selection, while later independent requests receive a fresh chooser.
+- [ ] **ENTRY-04**: A user requesting an operation with a clear target/result and no separate design, investigation or multi-stage implementation avoids chooser and forced initialization prompts; bounded push, simple rename and README translation/linking are acceptance examples.
+- [ ] **ENTRY-05**: A user can inspect a bounded reason for the intake decision; uncertain task scope receives a narrow clarification and a complex operation is not exempted by its task name alone.
+- [ ] **ENTRY-06**: A user choosing flexible mode receives existing adaptive conversational/autopilot intake behavior while explicit style and authority boundaries remain effective.
+- [ ] **ENTRY-07**: A user directly invoking a GSD command retains the selected workflow and timing without an unrelated six-style chooser; that command's native prerequisites and checkpoints remain intact.
 
-- [x] **RUN-01**: A user can start an approved development task and observe one production-quality path from GSD-governed implementation through measured checks, independent review and accepted or rejected result.
-- [x] **RUN-02**: A user can inspect a durable, redacted attempt journal that distinguishes alpha-AOS process state from GSD project lifecycle state.
-- [x] **RUN-03**: A user can resume after process interruption without replaying completed attempts or uncertain external actions as though they were undone.
-- [x] **RUN-04**: A user can choose unlimited cycles or set time, cycle, usage or measured cost limits, and sees the precise limit/telemetry reason when the run stops.
-- [x] **RUN-05**: A user sees a changed repair strategy when the same evidenced failure repeats, and receives a named blocked result if no viable next action remains.
+### GSD Initialization and Request Continuity
 
-### Agent roles
+- [ ] **BOOT-01**: A user can distinguish missing GSD runtime, absent project, partial initialization and ready project from native prerequisite evidence before substantial workflow execution.
+- [ ] **BOOT-02**: A user requesting substantial work in an undefined project is guided into GSD new-project using facts already present in the request, with questions limited to missing information and required GSD decisions.
+- [ ] **BOOT-03**: A user with partial initialization receives the missing prerequisites and a GSD recovery path that preserves existing context instead of overwriting it or synthesizing placeholder artifacts.
+- [ ] **BOOT-04**: After initialization/recovery, a user's original request resumes once with its already selected style and known facts, without re-entering the request, repeating selection or bypassing remaining GSD checkpoints.
 
-- [x] **ROL-01**: A user can assign controller, executor and independent reviewer roles using any supported combination of Claude Code, Codex, Antigravity, Pi and Hermes; unsupported role/version combinations fail in preview with the missing proof named.
-- [x] **ROL-02**: A user can see each of the five harnesses launched, cancelled and judged by its native machine interface with exact-version invocation receipts before its role is advertised.
-- [x] **ROL-03**: A user can select any harness with proven controller capability, including Hermes, while concurrent runs are prevented from producing two GSD writers for the same project.
-- [x] **ROL-04**: A user can require a different reviewer harness/model where available; even a same-harness review runs in a fresh, separately identified read-only session.
-- [x] **ROL-05**: A user can inspect role support, native skill/MCP availability and model/provider usage evidence separately for each harness, without treating a harness name as a price or quota guarantee.
+### Six Execution Styles
 
-### GSD lifecycle
+- [ ] **STYLE-01**: A user selecting 대화형-quick receives native GSD quick in the current conversation with its documented optional-stage omissions and required state/commit gates.
+- [ ] **STYLE-02**: A user selecting 대화형-quick-full receives native GSD quick --full in the current conversation, including discussion, research, planning, plan checking, implementation and verification.
+- [ ] **STYLE-03**: A user selecting 대화형-phase receives GSD roadmap/phase progression in the current conversation with necessary user questions and native lifecycle gates.
+- [ ] **STYLE-04**: A user selecting 오토파일럿-quick receives ordinary quick through an approved exact contract and the existing isolated runner, with the selected style visible in the preview.
+- [ ] **STYLE-05**: A user selecting 오토파일럿-quick-full receives a contract-bound full quality pipeline: its preview/digest, dispatch and verification distinguish it from ordinary quick, and ordinary quick evidence alone cannot satisfy acceptance.
+- [ ] **STYLE-06**: A user selecting 오토파일럿-phase receives only approved roadmap/phase scope through the existing runner and GSD lifecycle bridge.
+- [ ] **STYLE-07**: A user's mode/style selection never substitutes for exact per-task autopilot contract approval and separate start, rewrites an approved running contract, or permits inline autopilot implementation/model substitution.
 
-- [x] **GSD-01**: A user can run the appropriate GSD discuss, plan, execute and verify steps for a development goal without typing each step, with authorized defaults recorded.
-- [x] **GSD-02**: A user sees confirmed implementation gaps routed into GSD gap plans or new phases, then re-executed and re-verified against the approved criteria.
-- [x] **GSD-03**: A user can inspect GSD as the sole project lifecycle authority while alpha-AOS owns attempts, role dispatch, limits and recovery in a separate journal.
-- [x] **GSD-04**: A user sees mandatory GSD gates backed by actual execution and same-revision evidence; a configured skill or exit code alone cannot satisfy independent-review acceptance.
+### Cross-Harness Evidence and Distribution
 
-### Full alpha-AOS capability use
+- [ ] **PROVE-01**: A user can inspect scenario evidence for policy transitions and fresh independent-task selection across Claude, Codex, Antigravity, Pi and Hermes; native proof, fixture proof and unsupported/unverified behavior are reported distinctly.
+- [ ] **PROVE-02**: A user installing the packed artifact receives integrity-locked guidance for the shared policy and six routes, with discoverability and meaningful invocation evidence rather than file presence alone.
+- [ ] **PROVE-03**: A user can follow English and Korean documentation explaining both modes, all six styles, simple-operation criteria, initialization, task boundaries and direct-command behavior.
+- [ ] **PROVE-04**: A user can inspect targeted positive/negative behavioral checks and the final full regression outcome, with failed/not-run existing regressions preserved honestly rather than reported as passing.
 
-- [x] **CAP-01**: A user can inspect a versioned, project-scoped inventory of all applicable alpha-AOS capabilities: GSD workflows, global and project ECC skills, owned skills, MCP tools, capability packs, alpha-AOS control commands, native harness tools and mandatory hooks, including installed, active, unavailable and excluded states.
-- [x] **CAP-02**: After scaffolding, manifest changes or dependency installation, autopilot automatically runs the alpha-aos-control capability-pack plan/status checkpoint and materializes matching project packs only with an exact approved plan digest; it verifies CURRENT status and starts a fresh tool-aware agent session before using newly delivered project skills or changed tool configuration.
-- [x] **CAP-03**: At GSD discuss, plan, execute, review and verify boundaries, autopilot matches task needs and mandatory policy to the current capability inventory, automatically invokes every applicable required skill/MCP/tool at the appropriate step, and records actual invocation and outcome rather than treating installation or discovery as use.
-- [x] **CAP-04**: A user sees capability selection recomputed when phase, task scope, dependencies, pack state, harness version or tool availability changes; an applicable unavailable capability triggers a repair, alternate proven path or explicit blocked result instead of silent omission.
-- [x] **CAP-05**: A user can verify positive and negative selection fixtures for every declared alpha-AOS capability and per-harness native discovery and meaningful invocation receipts for advertised global/project skills, MCPs, project packs, control commands and gate hooks; a missing call required by the task or policy prevents a success verdict.
+## Stable Labels and Descriptions
 
-### Independent acceptance
-
-- [x] **REV-01**: A user receives a verdict for every mandatory criterion supported by current measured evidence, including an explicit `unknown` when the result cannot be verified.
-- [x] **REV-02**: A user receives structured reviewer findings with contract/revision identity, severity, criterion ID, reproduction steps and evidence, and cannot accept stale or malformed reports.
-- [x] **REV-03**: A user sees an independent final review of required features, implementation quality, architecture and test evidence before a development milestone is accepted.
-- [x] **REV-04**: A user sees review receipts invalidated when the artifact changes, with resolved findings reconciled and a new review run on the changed artifact.
-- [x] **REV-05**: A user can distinguish a review suggestion outside approved scope from a blocking requirement defect, without the controller silently expanding the goal.
-
-### General task tools
-
-- [x] **TOOL-01**: A user can run a non-code task through a versioned connector that previews a bounded item/effect manifest and verifies each required outcome independently.
-- [x] **TOOL-02**: A user can request all in-scope CoursePilot teaching-material downloads and see actual saved files reconciled against a fresh item manifest; `planned`, LMS completion and `viewed_only` never count as downloads.
-- [x] **TOOL-03**: A user sees external actions assigned stable operation keys and an uncertain effect reconciled before retry, preventing duplicate actions after a crash when source evidence is available.
-- [x] **TOOL-04**: A user sees partial, fatal and schema-version errors from a connector reported per item, with untrusted source content handled as data.
-
-### Entry and release proof
-
-- [x] **UX-01**: A user can state a task naturally through an alpha-AOS skill in each supported harness, choose ordinary GSD interaction or explicitly opt into autopilot, and review the resulting task contract.
-- [x] **UX-02**: A user can preview, start, inspect, stop, resume and diagnose a task through a local CLI, including after the original chat ends.
-- [x] **UX-03**: A user can view selected tools, agent/model identities, progress, limits, failed criteria and actionable stop reasons in human-readable and JSON output.
-- [x] **VER-01**: A user can see three-OS CI evidence for crash recovery, concurrency, cancellation, false acceptance and effect deduplication, including tests that fail against the broken behavior.
-- [x] **VER-02**: A user can inspect exact-version real-host invocation receipts for every advertised role capability and representative cross-harness handoffs; unproven cells remain unverified.
-- [x] **VER-03**: A user can verify a packed install/doctor/uninstall lifecycle that leaves unrelated real-host paths unchanged after the new capability is distributed.
-- [x] **VER-04**: A user can run development and CoursePilot end-to-end cases with applicable global/project ECC skills, MCPs and packs automatically invoked through GSD, and see every required criterion, capability receipt and remaining limitation reported honestly.
-
-## 2026-10-30 Runtime repair requirements
-
-The approved Oh-My-Circuit handoff's R1–R8 are tracked one-to-one below.
-These eight repair requirements supplement the original 41 milestone requirements.
-
-- [x] **RUNTIME-01**: Quota/crash termination remains observable without final controller bookkeeping (R1).
-- [x] **RUNTIME-02**: A surviving or unconfirmed child prevents duplicate dispatch (R2).
-- [x] **RUNTIME-03**: Failed, missing-final, replayed, resumed and child usage is retained and counted once (R3).
-- [x] **RUNTIME-04**: Observed aggregate limits block the next dispatch; required unavailable meters refuse launch (R4).
-- [x] **RUNTIME-05**: Finite waits, process observations and bookkeeping require no model calls (R5).
-- [x] **RUNTIME-06**: Unchanged review evidence is reused while mandatory independent acceptance remains required (R6).
-- [x] **RUNTIME-07**: Windows typed argv preserves delimiter, executable, multilingual prompt and resume identity (R7).
-- [x] **RUNTIME-08**: Public approved resume preserves partial commits and dirty WIP through verify, Nyquist and final acceptance (R8).
-
-## 2026-10-30 Session progress requirements
-
-Requested for all supported hosts: Antigravity, Claude Code, Codex, Pi and Hermes.
-Feasibility research is not implementation or verified end-user delivery.
-
-- [x] **SESSION-01**: Automatically report actual generic quick and supported full/dedicated lifecycle transitions, models, recorded decision reasons and outcomes.
-- [x] **SESSION-02**: Bind progress to the exact originating session and approved run, with bounded cursor replay, deduplication and explicit delivery failures; no model polling.
-- [x] **SESSION-03**: Provide the approved common panel for all five hosts and report each host's native delivery capability honestly; do not represent CLI output, history injection or an untested adapter as equivalent same-session chat delivery.
-- [x] **SESSION-04**: Support bounded evidence-based Q&A and durable steering, with safe-boundary acknowledgement, GSD ownership and contract approval preservation.
-- [x] **SESSION-05**: Preserve detached mode and enforce redaction, bounded payloads, finite waits and cancellation/backpressure handling.
-- [x] **SESSION-06**: Validate with paid-call-free fixtures, related regressions, final full regression and actual independent review; retain unverified UI gaps honestly.
+| Label | Short explanation |
+|---|---|
+| 대화형-quick | 현재 대화에서 작은 작업을 간소화된 GSD 절차로 처리 |
+| 대화형-quick-full | 작은 작업에 토론·조사·계획 검사·구현·검증 적용 |
+| 대화형-phase | 로드맵과 Phase를 따라 필요한 사항을 질문하며 진행 |
+| 오토파일럿-quick | 승인된 계약과 별도 실행기로 작은 작업 처리 |
+| 오토파일럿-quick-full | 승인된 범위에서 작은 작업의 전체 품질 절차 수행 |
+| 오토파일럿-phase | 승인된 로드맵 범위의 Phase들을 자율 진행 |
 
 ## Future Requirements
 
-- Additional first-party connectors beyond CoursePilot after the connector protocol has a release proof.
-- Hosted scheduling, cross-machine continuation, and team-wide task ownership.
-- Live proof for every 125 controller/executor/reviewer triples; v0.2.0 proves each role capability and synthetic composition of every triple, plus representative live cross-harness paths.
-- Existing v0.1.0/0.1.1 deferred lifecycle and publication gaps remain in [the previous milestone requirements](milestones/v0.1.1-REQUIREMENTS.md). This feature does not silently mark them resolved.
+- Configurable custom style catalogs or project style defaults are not requested; any future proposal requires explicit new scope.
+- Additional host-specific UI conveniences can follow only after the common intake behavior and native capability evidence are established.
 
 ## Out of Scope
 
 | Item | Reason |
 |---|---|
-| Guarantee of eventual success for arbitrary goals | Some goals are impossible, under-specified or blocked by external access. |
-| Invoking unrelated installed tools for every task | Every applicable required capability must be selected and actually invoked at its workflow step; irrelevant tools remain available but unused with a recorded reason. |
-| Treating user subscription or harness identity as a zero-cost meter | Costs and quotas depend on provider, model and account; only observed usage may be enforced as a hard bound. |
-| Changing CoursePilot's LMS support or storing its credentials | The connector calls its documented local interface and respects its source contract. |
-| Publishing or deploying user work automatically | External irreversible actions require authority in the individual task contract. |
+| Persisting the selected style as project default | Explicitly rejected by user correction |
+| Blanket future autopilot consent | Each task retains exact approval and separate start |
+| A new lifecycle/state engine | GSD remains sole lifecycle owner |
+| Dependency/GSD upgrades | Existing stack supports this change; unrelated promotion policy remains |
+| Automatic installation/authentication of harnesses | Existing project boundary |
+| Perfect semantic classification from arbitrary prose | Use common evidence, reasons and narrow clarification |
+| New GUI/dashboard | Existing question UI and numbered text fallback suffice |
+| Publishing, pushing, CI repair or global reconciliation | Prior holds remain; milestone planning does not authorize them |
+| Silently clearing prior regression debt | Quick 261101-ww3 remains incomplete |
 
 ## Traceability
 
-| Requirement IDs | Phase | Status |
-|---|---:|---|
-| CON-01 | 14 | Complete |
-| CON-02 | 14 | Complete |
-| CON-03 | 14 | Complete |
-| AUTO-01 | 14 | Complete |
-| AUTO-02 | 14 | Complete |
-| AUTO-03 | 14 | Complete |
-| RUN-01 | 14 | Complete |
-| REV-01 | 14 | Complete |
-| RUN-02 | 15 | Complete |
-| RUN-03 | 15 | Complete |
-| RUN-04 | 15 | Complete |
-| RUN-05 | 15 | Complete |
-| TOOL-03 | 15 | Complete |
-| ROL-01 | 16 | Complete |
-| ROL-02 | 16 | Complete |
-| ROL-03 | 16 | Complete |
-| ROL-04 | 16 | Complete |
-| ROL-05 | 16 | Complete |
-| GSD-01 | 17 | Complete |
-| GSD-02 | 17 | Complete |
-| GSD-03 | 17 | Complete |
-| GSD-04 | 17 | Complete |
-| CAP-01 | 18 | Complete |
-| CAP-02 | 18 | Complete |
-| CAP-03 | 18 | Complete |
-| CAP-04 | 18 | Complete |
-| CAP-05 | 18 | Complete |
-| REV-02 | 19 | Complete |
-| REV-03 | 19 | Complete |
-| REV-04 | 19 | Complete |
-| REV-05 | 19 | Complete |
-| TOOL-01 | 20 | Complete |
-| TOOL-02 | 20 | Complete |
-| TOOL-04 | 20 | Complete |
-| UX-01 | 21 | Complete |
-| UX-02 | 21 | Complete |
-| UX-03 | 21 | Complete |
-| VER-01 | 22 | Complete |
-| VER-02 | 22 | Complete |
-| VER-03 | 22 | Complete |
-| VER-04 | 22 | Complete |
-| RUNTIME-01 | 25 | Complete |
-| RUNTIME-02 | 25 | Complete |
-| RUNTIME-03 | 25 | Complete |
-| RUNTIME-04 | 25 | Complete |
-| RUNTIME-05 | 25 | Complete |
-| RUNTIME-06 | 25 | Complete |
-| RUNTIME-07 | 25 | Complete |
-| RUNTIME-08 | 25 | Complete |
-| SESSION-01 | 26 | Complete |
-| SESSION-02 | 26 | Complete |
-| SESSION-03 | 26 | Complete |
-| SESSION-04 | 26 | Complete |
-| SESSION-05 | 26 | Complete |
-| SESSION-06 | 26 | Complete |
+All 27 requirements are approved. Phase assignments will be added in the proposed roadmap; roadmap approval is a separate gate.
 
-**Coverage:** 55 requirements (41 original milestone requirements, 8 runtime repair requirements and 6 pending session-progress requirements); 55 mapped exactly once; 0 unmapped. Existing assignments and completion evidence are preserved.
+| Requirement | Phase | Status |
+|---|---|---|
+| MODE-01 | Pending roadmap | Pending |
+| MODE-02 | Pending roadmap | Pending |
+| MODE-03 | Pending roadmap | Pending |
+| MODE-04 | Pending roadmap | Pending |
+| MODE-05 | Pending roadmap | Pending |
+| ENTRY-01 | Pending roadmap | Pending |
+| ENTRY-02 | Pending roadmap | Pending |
+| ENTRY-03 | Pending roadmap | Pending |
+| ENTRY-04 | Pending roadmap | Pending |
+| ENTRY-05 | Pending roadmap | Pending |
+| ENTRY-06 | Pending roadmap | Pending |
+| ENTRY-07 | Pending roadmap | Pending |
+| BOOT-01 | Pending roadmap | Pending |
+| BOOT-02 | Pending roadmap | Pending |
+| BOOT-03 | Pending roadmap | Pending |
+| BOOT-04 | Pending roadmap | Pending |
+| STYLE-01 | Pending roadmap | Pending |
+| STYLE-02 | Pending roadmap | Pending |
+| STYLE-03 | Pending roadmap | Pending |
+| STYLE-04 | Pending roadmap | Pending |
+| STYLE-05 | Pending roadmap | Pending |
+| STYLE-06 | Pending roadmap | Pending |
+| STYLE-07 | Pending roadmap | Pending |
+| PROVE-01 | Pending roadmap | Pending |
+| PROVE-02 | Pending roadmap | Pending |
+| PROVE-03 | Pending roadmap | Pending |
+| PROVE-04 | Pending roadmap | Pending |
+
+**Coverage:** 27 defined; 0 mapped; 27 awaiting roadmap approval. No implementation claimed.
+
+*Last updated: 2026-11-02 after user approval of all 27 requirements; roadmap approval pending.*

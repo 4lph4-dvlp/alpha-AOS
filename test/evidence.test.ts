@@ -1279,6 +1279,14 @@ test("the other detector kinds' reasons are unchanged on the same excluded-direc
   );
 });
 
+test("rounded index comparison uses the represented integer, not the shortest decimal", () => {
+  const exact = 60517119992979110n;
+  const rounded = Number(exact);
+  assert.equal(String(rounded), String(exact));
+  assert.notEqual(BigInt(rounded), exact);
+  assert.notEqual(`identity:1:${exact}`, `identity:1:${BigInt(rounded)}`);
+});
+
 test("a directory identity key carries the host's exact 64-bit index, never a rounded double", async (context) => {
   const workspace = await scratch(context, "identity-precision");
   await mkdir(join(workspace, "one"), { recursive: true });
@@ -1297,12 +1305,12 @@ test("a directory identity key carries the host's exact 64-bit index, never a ro
   // an identity — which excludes the second as `visited-identity` although it
   // exists and was never visited (broken-windows ledger #13).
   assert.equal(identity, `identity:${exact.dev}:${exact.ino}`);
-  // Fires only on a host whose index actually loses information in a double,
-  // and asserts the key is NOT the one the rounded read would have produced.
+  // Number's shortest decimal may spell the original integer even when the
+  // represented double differs. Convert it back to its exact integer first.
   if (BigInt(Number(exact.ino)) !== exact.ino) {
     assert.notEqual(
       identity,
-      `identity:${exact.dev}:${Number(exact.ino)}`,
+      `identity:${exact.dev}:${BigInt(Number(exact.ino))}`,
       `the identity key carried the rounded double rather than ${exact.ino}`,
     );
   }

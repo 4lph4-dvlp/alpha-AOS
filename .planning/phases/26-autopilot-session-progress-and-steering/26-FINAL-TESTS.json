@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "status": "passed",
+  "attempt": 2,
+  "sourceCommit": "19451b94efc1fb545ad2428d9512d86ccc42b863",
+  "command": "npm test",
+  "typecheck": {
+    "command": "npm run check",
+    "exitCode": 0,
+    "log": ".planning/tmp/phase26-final-check-v2.log"
+  },
+  "exitCode": 0,
+  "log": ".planning/tmp/phase26-final-full-v2.log",
+  "logSha256": "bf8feb5b6251ca8a805cb4bd4ed64f7bee978e11d2826593e8b29eece3a1a4ca",
+  "groups": [
+    {
+      "tests": 1816,
+      "pass": 1805,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 11,
+      "todo": 0,
+      "duration_ms": 714169.8912
+    },
+    {
+      "tests": 4,
+      "pass": 4,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 8229.9635
+    },
+    {
+      "tests": 37,
+      "pass": 37,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 15153.7297
+    },
+    {
+      "tests": 9,
+      "pass": 9,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 30267.2258
+    },
+    {
+      "tests": 31,
+      "pass": 31,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 36938.2813
+    },
+    {
+      "tests": 11,
+      "pass": 11,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 32497.1678
+    },
+    {
+      "tests": 20,
+      "pass": 19,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 1,
+      "todo": 0,
+      "duration_ms": 24605.9526
+    },
+    {
+      "tests": 10,
+      "pass": 10,
+      "fail": 0,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0,
+      "duration_ms": 233478.4593
+    }
+  ],
+  "totals": {
+    "tests": 1938,
+    "pass": 1926,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 12,
+    "todo": 0,
+    "groupDurationMs": 1095340.6712
+  },
+  "allCurrentTestFiles": 155,
+  "stages": [
+    "ordinary concurrent group",
+    "command-job-worker.test.js",
+    "command-jobs.test.js",
+    "efficient-wait-cli.test.js",
+    "process.test.js",
+    "protocol-session.test.js",
+    "verify-efficient-wait.test.js",
+    "tarball-fixture.test.js"
+  ],
+  "rerunJustification": "Initial final suite failed; initialized SQLite atomic publication fixed and independently accepted. Checkpoint failure cause unproven, but original assertion remains and full rerun passed.",
+  "previousAttempt": "26-FINAL-TESTS-ATTEMPT-1.json",
+  "durationNote": "groupDurationMs sums runner-reported group durations, not a separate end-to-end wall-clock measurement.",
+  "tokens": null,
+  "cost": null
+}

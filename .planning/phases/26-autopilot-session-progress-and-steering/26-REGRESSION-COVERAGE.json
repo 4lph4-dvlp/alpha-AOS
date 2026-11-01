@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "status": "awaiting-final-full-rerun",
+  "status": "passed-current-full-suite",
   "strategy": "Reuse exact successful final npm test over every current compiled test file; do not duplicate prior-phase subset after a full pass.",
   "priorVerificationReports": [
     ".planning/phases/14-contract-and-vertical-tracer/14-VERIFICATION.md",
@@ -424,5 +424,8 @@
     "test/task-skill-sync.test.ts",
     "test/task-structured-failure-json.test.ts"
   ],
-  "normalization": "Historical compiled test/*.test.js references are normalized to current test/*.test.ts. Missing historical names remain explicit, not claimed executed."
+  "normalization": "Historical compiled test/*.test.js references are normalized to current test/*.test.ts. Missing historical names remain explicit, not claimed executed.",
+  "finalEvidence": "26-FINAL-TESTS.json",
+  "exitCode": 0,
+  "note": "All current test files ran, including all 61 extant normalized historical references. Thirteen historical test names no longer exist; they are not claimed individually executed."
 }

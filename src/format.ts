@@ -18,6 +18,7 @@ import type {
   UninstallPlan,
   UninstallResult,
 } from "./types.js";
+import type { ProjectBehaviorView } from "./core/behavior-policy.js";
 import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
 import {
   approvalCommand,
@@ -425,6 +426,20 @@ export function formatProjectApproval(result: ProjectApprovalResult): string {
     result.status === "already-current"
       ? "Already current. No bytes were written and no transaction was opened."
       : "Approved. Only .alpha-aos/plan.json was written; project source, package manifests, tests and build configuration stay read-only inputs.",
+  ].join("\n");
+}
+
+/** What a `project mode` query observed. */
+export function formatProjectBehavior(view: ProjectBehaviorView): string {
+  return [
+    `Project: ${view.canonicalRoot}`,
+    `Root reason: ${view.rootReason}`,
+    `Project ID: ${view.projectId}`,
+    `Policy path: ${view.policyPath}`,
+    `Policy exists: ${view.exists ? "true" : "false"}`,
+    `Effective mode: ${view.effectiveMode}`,
+    `Source: ${view.source}`,
+    `Revision: ${view.revision}`,
   ].join("\n");
 }
 

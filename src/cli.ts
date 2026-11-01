@@ -54,6 +54,7 @@ Usage:
   alpha-aos update --check [--json]
   alpha-aos update --stage [--apply]
   alpha-aos update --apply [--target <harness[,harness]>] [--json]
+  alpha-aos project mode [path] [--json]
   alpha-aos project plan|sync [path] [--project <rel>] [--why] [--json]
   alpha-aos project approve [path] [--project <rel>] [--plan-digest <digest>] [--apply] [--json]
   alpha-aos project status [path] [--project <rel>] [--json]
@@ -1637,6 +1638,40 @@ async function main(): Promise<void> {
       }
       return;
     }
+    if (subcommand === "mode") {
+      const modeArgs = args.slice(2);
+      if (hasFlag(args, "--apply")) {
+        throw new Error("`project mode` query has no --apply: it reads and changes nothing. To preview a mode change, use `alpha-aos project mode set strict|flexible [path]`.");
+      }
+      if (hasFlag(args, "--plan-digest")) {
+        throw new Error("`project mode` query does not accept --plan-digest.");
+      }
+      if (hasFlag(args, "--why")) {
+        throw new Error("`project mode` query does not accept --why.");
+      }
+      if (hasFlag(args, "--project")) {
+        throw new Error("`project mode` query does not accept --project flag; pass the path as a positional argument.");
+      }
+      for (const arg of modeArgs) {
+        if (arg.startsWith("--") && arg !== "--json") {
+          throw new Error(`Unknown flag for \`project mode\`: ${arg}`);
+        }
+      }
+      const pos = positional(modeArgs);
+      if (pos.length > 1) {
+        throw new Error(`Unexpected positional argument for \`project mode\`: ${pos[1]}`);
+      }
+      const target = pos[0];
+      const context = observableContext();
+      const { resolveProjectBehavior } = await import("./core/behavior-policy.js");
+      const { formatProjectBehavior } = await import("./format.js");
+      const view = await resolveProjectBehavior({
+        invocationPath: process.cwd(),
+        ...(target !== undefined ? { projectRoot: target } : {}),
+      });
+      print(view, json, formatProjectBehavior(view), context);
+      return;
+    }
     // `detect` is gone: it is folded into `plan`, which already printed
     // everything `detect` printed and more. Keeping two entry points would
     // keep two answers to one question (plan 02-06).
@@ -2946,6 +2981,11 @@ export interface CliErrorEnvelope {
   readonly runId?: string | undefined;
   readonly contractDigest?: string | undefined;
   readonly evidence?: string | undefined;
+  readonly code?: string | undefined;
+  readonly path?: string | null | undefined;
+  readonly cause?: string | undefined;
+  readonly causeCategory?: string | undefined;
+  readonly remediation?: string | undefined;
 }
 
 const RUN_ID_REGEX = /^[0-9a-z]{8,}-[0-9a-f]{8}$/iu;
@@ -2958,12 +2998,32 @@ async function serializeCliError(
 ): Promise<CliErrorEnvelope> {
   const TaskContractError = args[0] === "task" ? (await import("./core/task-contract.js")).TaskContractError : undefined;
   const TaskRunError = args[0] === "task" ? (await import("./core/task-run.js")).TaskRunError : undefined;
+  const BehaviorPolicyError = (args[0] === "project" && args[1] === "mode")
+    ? (await import("./core/behavior-policy.js")).BehaviorPolicyError
+    : undefined;
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = redactString(rawMessage, context);
 
   let status: "failed" | "blocked" | "refused" = "failed";
   let reasonCode = "COMMAND_FAILED";
   let nextAction = "Inspect the error message and retry with valid arguments.";
+
+  if (BehaviorPolicyError && error instanceof BehaviorPolicyError) {
+    status = "failed";
+    reasonCode = error.code.toUpperCase().replace(/-/g, "_");
+    nextAction = error.remediation;
+    return {
+      status,
+      reasonCode,
+      code: error.code,
+      path: error.path,
+      cause: error.cause,
+      causeCategory: error.causeCategory,
+      remediation: error.remediation,
+      reason: redactString(error.message, context),
+      nextAction: error.remediation,
+    };
+  }
 
   if (TaskContractError && error instanceof TaskContractError) {
     switch (error.code) {
@@ -3204,7 +3264,7 @@ main().catch(async (error: unknown) => {
   const command = args[0] ?? "help";
   const json = hasFlag(args, "--json");
 
-  if (json && (command === "task" || command === "job") && !rawMessage.includes("Refusing to print a JSON envelope over the observable byte budget")) {
+  if (json && (command === "task" || command === "job" || (command === "project" && args[1] === "mode")) && !rawMessage.includes("Refusing to print a JSON envelope over the observable byte budget")) {
     try {
       const errorPayload = await serializeCliError(error, args, context);
       const envelope = serializeObservable(errorPayload, context);

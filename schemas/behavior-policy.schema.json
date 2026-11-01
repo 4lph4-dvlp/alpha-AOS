@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/behavior-policy.schema.json",
+  "title": "alpha-AOS project behavior policy",
+  "description": "Shared project execution preference. Controls strict vs flexible task intake mode.",
+  "type": "object",
+  "required": ["schemaVersion", "mode"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["strict", "flexible"]
+    }
+  }
+}

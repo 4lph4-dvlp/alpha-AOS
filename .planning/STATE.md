@@ -5,11 +5,10 @@ milestone_name: Predictable Task Entry and Shared Project Policy
 current_phase: 28
 current_phase_name: Predictable Strict and Flexible Intake
 status: ready-to-plan
-stopped_at: "Phase 27 verified complete; advancing to Phase 28 discuss"
-last_updated: "2026-11-02T08:09:00.000Z"
+stopped_at: "Phase 28 discuss complete; ready for Phase 28 plan"
+last_updated: "2026-11-02T08:30:00.000Z"
 last_activity: 2026-11-02
 last_activity_desc: Phase 27 completed and verified; Phase 28 discuss next
-state_head: 11791461f6cb65f57fc1f20fae66e921d7ae461f
 progress:
   total_phases: 5
   completed_phases: 1
@@ -442,9 +441,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-11-01T16:29:27.882Z
-Stopped at: v0.6.0 milestone initialized: 27 requirements and Phases 27-31 approved; next gsd-discuss-phase 27; no implementation
-Resume file: .planning/ROADMAP.md
+Last session: 2026-11-02T08:30:00.000Z
+Stopped at: Phase 28 discuss complete; ready for Phase 28 plan
+Resume file: .planning/phases/28-predictable-strict-and-flexible-intake/28-CONTEXT.md
 
 ## Operator Next Steps
 

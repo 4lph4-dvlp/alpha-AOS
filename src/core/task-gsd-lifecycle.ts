@@ -156,7 +156,7 @@ export function buildGsdStepWorkflowPrompt(step: GsdStepKind, phaseId: string): 
     case "discuss":
       return `Execute the GSD discuss-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/discuss-phase.md) for Phase ${phaseId} with arguments "${phaseId} --auto". Act as an autonomous engineering user proxy: analyze all gray areas for Phase ${phaseId}, select optimal recommended choices, log decisions into CONTEXT.md, and commit docs. Stop immediately after CONTEXT.md is written and committed.`;
     case "plan":
-      return `Execute the GSD plan-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/plan-phase.md) for Phase ${phaseId} with arguments "${phaseId} --no-reversibility-gates --text". Run phase research, pattern mapping, detailed plan synthesis, and plan-checker verification loop until plans pass. Commit planning docs and stop before execute-phase.`;
+      return `Execute the GSD plan-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/plan-phase.md) for Phase ${phaseId} with arguments "${phaseId} --no-reversibility-gates --text". As the autonomous controller, perform required research, pattern analysis, and plan synthesis directly inline in this session without spawning external subagent CLI processes. Author detailed wave plans (${phaseId}-01-PLAN.md, etc.) following GSD requirements and commit planning docs. Stop before execute-phase.`;
     case "execute":
       return `Execute the GSD execute-phase workflow (@~/.gemini/antigravity/gsd-core/workflows/execute-phase.md) for Phase ${phaseId} with arguments "${phaseId} --no-transition". Implement every task in all wave plans cleanly with full unit tests and atomic git commits.`;
     case "verify":
@@ -823,6 +823,30 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
         finalStep: step,
         receipts,
       };
+    }
+
+    if (!options.commandMap) {
+      if (step === "discuss") {
+        const updatedPhaseDir = await resolvePhaseDirectory(options.projectRoot, options.phaseId);
+        const updatedFiles = updatedPhaseDir ? await readdir(updatedPhaseDir) : [];
+        if (!updatedFiles.some((name) => name.endsWith("CONTEXT.md"))) {
+          return {
+            success: false,
+            finalStep: "discuss",
+            receipts,
+          };
+        }
+      } else if (step === "plan") {
+        const updatedPhaseDir = await resolvePhaseDirectory(options.projectRoot, options.phaseId);
+        const updatedFiles = updatedPhaseDir ? await readdir(updatedPhaseDir) : [];
+        if (!updatedFiles.some((name) => name.endsWith("-PLAN.md")) || updatedFiles.some((name) => name.endsWith("-PLAN-BLOCKED.md"))) {
+          return {
+            success: false,
+            finalStep: "plan",
+            receipts,
+          };
+        }
+      }
     }
   }
 

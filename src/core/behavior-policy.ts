@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { lstat, readFile, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
@@ -8,12 +8,19 @@ import { resolveCanonicalRoot } from "./evidence.js";
 import { reviewedDigest } from "./component-session.js";
 import {
   canonicalizeWithMissingTail,
+  proveOperationPaths,
   provePathBoundary,
   recheckPathProof,
 } from "./path-boundary.js";
-import { findPackageRoot } from "./paths.js";
+import { findPackageRoot, userStateRoot } from "./paths.js";
+import { applyFileTransaction } from "./transaction.js";
 import { loadTreeRegistry, resolveEffectivePolicy } from "./tree-policy.js";
 import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
+import {
+  acquireMutationSession,
+  acquirePolicyTargetSession,
+  type MutationSession,
+} from "./writer-lock.js";
 
 export type ProjectBehaviorMode = "strict" | "flexible";
 export type ProjectBehaviorSource = "project-policy" | "builtin-default";
@@ -66,7 +73,8 @@ export type BehaviorPolicyErrorCode =
   | "unreadable-policy"
   | "invalid-policy"
   | "unsupported-schema"
-  | "invalid-json";
+  | "invalid-json"
+  | "stale-plan";
 
 export class BehaviorPolicyError extends Error {
   readonly code: BehaviorPolicyErrorCode;
@@ -570,4 +578,145 @@ export async function planProjectModeChange(
     change,
     planDigest,
   };
+}
+
+export interface ApplyProjectModeOptions {
+  readonly input: ProjectBehaviorInput;
+  readonly requestedMode: ProjectBehaviorMode;
+  readonly planDigest: string;
+  readonly stateRoot?: string | undefined;
+}
+
+export interface ApplyProjectModeResult {
+  readonly canonicalRoot: string;
+  readonly policyPath: string;
+  readonly mode: ProjectBehaviorMode;
+  readonly change: "created" | "replaced" | "current";
+  readonly operationId: string | null;
+  readonly planDigest: string;
+  readonly revision: string;
+}
+
+export async function applyProjectModeChange(
+  options: ApplyProjectModeOptions,
+): Promise<ApplyProjectModeResult> {
+  // First, plan against current state
+  const plan = await planProjectModeChange(options.input, options.requestedMode);
+  if (plan.planDigest !== options.planDigest) {
+    throw new BehaviorPolicyError({
+      code: "stale-plan",
+      path: plan.policyPath,
+      cause: "plan digest does not match current project state",
+      causeCategory: "stale-plan",
+      remediation: "Preview the project mode change again to inspect current state.",
+    });
+  }
+
+  // Linearization point for no-op: same valid mode is already requested (D-03, D-20)
+  if (plan.change === "current") {
+    return {
+      canonicalRoot: plan.canonicalRoot,
+      policyPath: plan.policyPath,
+      mode: options.requestedMode,
+      change: "current",
+      operationId: null,
+      planDigest: plan.planDigest,
+      revision: plan.currentRevision,
+    };
+  }
+
+  // Real change (create or replace)
+  const operationId = `${new Date().toISOString().replaceAll(/[:.]/gu, "-")}-${randomUUID()}`;
+  const targetSession = await acquirePolicyTargetSession({
+    canonicalRoot: plan.canonicalRoot,
+    rootIdentity: plan.rootIdentity,
+    operationId,
+    planDigest: options.planDigest,
+  });
+
+  const stateRoot = options.stateRoot ?? userStateRoot();
+  const dotAlphaAos = dirname(plan.policyPath);
+
+  let stateSession: MutationSession;
+  try {
+    const proofs = await proveOperationPaths({
+      inputs: [
+        { role: "target", path: plan.policyPath },
+        { role: "state", path: stateRoot },
+        { role: "journal", path: join(stateRoot, "journal") },
+        { role: "snapshot", path: join(stateRoot, "snapshots") },
+      ],
+      allowedRoots: [dotAlphaAos, stateRoot],
+      requiredRoles: ["target", "state", "journal", "snapshot"],
+    });
+    if (!proofs.proven) {
+      throw new BehaviorPolicyError({
+        code: "path-escape",
+        path: plan.policyPath,
+        cause: proofs.detail ?? "path proof refused for transaction",
+        causeCategory: "path-escape",
+        remediation: "Ensure paths are accessible and contained within project boundaries.",
+      });
+    }
+    stateSession = await acquireMutationSession({
+      stateRoot,
+      proofs,
+      planDigest: options.planDigest,
+      operationId,
+    });
+  } catch (err) {
+    await targetSession.close();
+    throw err;
+  }
+
+  try {
+    // Re-verify plan inside held ownership to guard against concurrent mutations (D-19)
+    const freshPlan = await planProjectModeChange(options.input, options.requestedMode);
+    if (freshPlan.planDigest !== options.planDigest) {
+      throw new BehaviorPolicyError({
+        code: "stale-plan",
+        path: plan.policyPath,
+        cause: "project state changed since plan preview",
+        causeCategory: "stale-plan",
+        remediation: "Preview the project mode change again to inspect current state.",
+      });
+    }
+
+    const content = JSON.stringify({ schemaVersion: 1, mode: options.requestedMode }, null, 2) + "\n";
+    const journal = await applyFileTransaction({
+      stateRoot,
+      allowedRoots: [dotAlphaAos],
+      policyOperation: {
+        kind: "project-mode",
+        canonicalRoot: plan.canonicalRoot,
+        rootIdentity: plan.rootIdentity,
+        policyRelativePath: ".alpha-aos/behavior.json",
+      },
+      policyContext: {
+        targetSession,
+        stateSession,
+      },
+      operations: [
+        {
+          target: plan.policyPath,
+          content,
+        },
+      ],
+    });
+
+    const newRevision = createHash("sha256").update(content, "utf8").digest("hex");
+    return {
+      canonicalRoot: plan.canonicalRoot,
+      policyPath: plan.policyPath,
+      mode: options.requestedMode,
+      change: plan.change === "create" ? "created" : "replaced",
+      operationId: journal.id,
+      planDigest: options.planDigest,
+      revision: newRevision,
+    };
+  } finally {
+    // Release in reverse order: state first, then target
+    await stateSession.close();
+    await targetSession.close();
+  }
 }

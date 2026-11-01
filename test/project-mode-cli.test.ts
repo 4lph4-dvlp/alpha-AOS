@@ -189,11 +189,84 @@ test("CLI project mode set previews exact plan with zero writes and rejects inva
   });
   assert.notEqual(dupDigestRes.status, 0);
 
-  // --apply at preview stage is refused
-  const applyRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "strict", projectDir, "--apply"], {
+  // --apply without --plan-digest is refused
+  const applyNoDigestRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "strict", projectDir, "--apply"], {
     env: sandbox.env,
     encoding: "utf8",
   });
-  assert.notEqual(applyRes.status, 0);
-  assert.match(applyRes.stderr, /not yet available/u);
+  assert.notEqual(applyNoDigestRes.status, 0);
+  assert.match(applyNoDigestRes.stderr, /requires the digest that was reviewed/u);
+});
+
+test("CLI project mode set --apply executes real change with exact digest and common rollback restores state (MODE-04, MODE-05)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "apply-project");
+  await mkdir(projectDir, { recursive: true });
+
+  // 1. Preview to get plan digest for missing -> flexible
+  const preview = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "flexible", projectDir, "--json"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(preview.status, 0, `preview failed: ${preview.stderr}`);
+  const plan = JSON.parse(preview.stdout);
+  assert.equal(plan.change, "create");
+  const digest = plan.planDigest;
+
+  // 2. Stale digest refusal
+  const badApply = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "flexible", projectDir, "--apply", "--plan-digest", "0000000000000000000000000000000000000000000000000000000000000000"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.notEqual(badApply.status, 0);
+  assert.match(badApply.stderr, /stale-plan|plan digest does not match/u);
+
+  // 3. Successful apply with reviewed digest
+  const applyRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "flexible", projectDir, "--apply", "--plan-digest", digest, "--json"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(applyRes.status, 0, `apply failed: ${applyRes.stderr}`);
+  const result = JSON.parse(applyRes.stdout);
+  assert.equal(result.change, "created");
+  assert.equal(result.mode, "flexible");
+  assert.equal(typeof result.operationId, "string");
+  assert.ok(result.operationId.length > 0);
+
+  const policyFile = join(projectDir, ".alpha-aos", "behavior.json");
+  assert.equal(existsSync(policyFile), true);
+
+  // 4. Same-mode apply is a strict no-op with null operationId and zero byte modifications
+  const noOpPreview = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "flexible", projectDir, "--json"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(noOpPreview.status, 0);
+  const noOpPlan = JSON.parse(noOpPreview.stdout);
+  assert.equal(noOpPlan.change, "current");
+
+  const homeBeforeNoOp = await fingerprintManifest(sandbox.home);
+  const stateBeforeNoOp = await fingerprintManifest(sandbox.state);
+
+  const noOpApply = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "flexible", projectDir, "--apply", "--plan-digest", noOpPlan.planDigest, "--json"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(noOpApply.status, 0);
+  const noOpResult = JSON.parse(noOpApply.stdout);
+  assert.equal(noOpResult.change, "current");
+  assert.equal(noOpResult.operationId, null);
+
+  const homeAfterNoOp = await fingerprintManifest(sandbox.home);
+  const stateAfterNoOp = await fingerprintManifest(sandbox.state);
+  assert.equal(homeBeforeNoOp.digest, homeAfterNoOp.digest, "no-op must write zero bytes in home");
+  assert.equal(stateBeforeNoOp.digest, stateAfterNoOp.digest, "no-op must write zero journals or locks in state");
+
+  // 5. Common CLI rollback restores initial missing state
+  const rollbackRes = spawnSync(process.execPath, [cliPath, "rollback", result.operationId, "--apply", "--json"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(rollbackRes.status, 0, `rollback failed: ${rollbackRes.stderr}`);
+  assert.equal(existsSync(policyFile), false, "policy file must be removed after rollback");
 });

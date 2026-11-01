@@ -1665,19 +1665,30 @@ async function main(): Promise<void> {
           throw new Error(`Unexpected positional argument for \`project mode set\`: ${pos[2]}`);
         }
         const targetPath = pos[1];
-        if (hasFlag(setArgs, "--apply")) {
-          throw new Error("`project mode set --apply` is not yet available in this phase wave. Preview the change without --apply.");
-        }
         const context = observableContext();
-        const { planProjectModeChange } = await import("./core/behavior-policy.js");
-        const { formatProjectModePlan } = await import("./format.js");
-        const plan = await planProjectModeChange(
-          {
-            invocationPath: process.cwd(),
-            ...(targetPath !== undefined ? { projectRoot: targetPath } : {}),
-          },
-          requestedMode,
-        );
+        const { planProjectModeChange, applyProjectModeChange } = await import("./core/behavior-policy.js");
+        const { formatProjectModePlan, formatApplyProjectModeResult } = await import("./format.js");
+        const input = {
+          invocationPath: process.cwd(),
+          ...(targetPath !== undefined ? { projectRoot: targetPath } : {}),
+        };
+
+        if (hasFlag(setArgs, "--apply")) {
+          const planDigest = optionValue(setArgs, "--plan-digest");
+          if (!planDigest) {
+            const plan = await planProjectModeChange(input, requestedMode);
+            throw new Error(`\`project mode set --apply\` requires the digest that was reviewed (--plan-digest <digest>). Current plan digest is: ${plan.planDigest}`);
+          }
+          const result = await applyProjectModeChange({
+            input,
+            requestedMode,
+            planDigest,
+          });
+          print(result, json, formatApplyProjectModeResult(result), context);
+          return;
+        }
+
+        const plan = await planProjectModeChange(input, requestedMode);
         print(plan, json, formatProjectModePlan(plan), context);
         return;
       }

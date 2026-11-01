@@ -13,7 +13,37 @@ Serve as the natural-language task coordination interface for alpha-AOS across a
 
 ## Decision Rules for Task Intake
 
-### 1. General Task Request (Default Path: D-01, D-02)
+### 1. Project Behavior Policy Request (Precedes General Task Intake: D-10, D-11, D-14)
+When a user makes a project behavior policy request (e.g., query current mode, switch mode to strict or flexible, "유연 모드로 바꿔줘", "현재 strict/flexible 설정 보여줘", "set project mode to flexible"):
+1. **Query & Freshness Precedence (D-10, D-14)**:
+   - Always resolve the canonical project root and query the live behavior policy via the shared CLI:
+     ```bash
+     alpha-aos project mode [path] --json
+     ```
+   - Never rely on session memory or stale cache as authority for project behavior mode. Another harness or concurrent writer may have modified it.
+   - For an active task bound to a canonical project root, check that the requested target root matches the bound root; a mismatch blocks rather than switching projects.
+2. **Policy-Only Mode Change Request (D-10, D-11)**:
+   - Do NOT prompt the user with the general execution chooser (GSD vs Autopilot), task contracts, or GSD new-project initialization for a policy-only request.
+   - Preview the change:
+     ```bash
+     alpha-aos project mode set strict|flexible [path] --json
+     ```
+   - Present the canonical root, current mode/revision, requested mode, and computed plan digest to the user.
+   - Using the user's concrete natural-language request as setting authority, invoke the apply command with the reviewed plan digest using the session's process tool:
+     ```bash
+     alpha-aos project mode set strict|flexible [path] --plan-digest <digest> --apply
+     ```
+   - Do NOT require the user to copy/paste CLI commands or retype digests into a terminal.
+   - If the project root or requested mode is missing or ambiguous, ask only clarifying questions to resolve the missing parameter.
+3. **Mixed Mode-Setting and Substantial Task Request (D-11, D-14)**:
+   - Handle the explicitly authorized mode setting FIRST via the shared CLI preview/apply flow.
+   - Once the mode change is applied (or verified current), resume the original task intake using a fresh policy read.
+   - Mode change is purely a behavior preference; it does NOT grant execution consent, task approval, style persistence, or autopilot start authorization for the substantial task.
+4. **Subsequent Task Intake (D-14)**:
+   - Before each new task intake, rerun `alpha-aos project mode [path] --json` to ensure the latest project policy is active.
+   - Changes made by other harnesses appear at the next intake without altering an active task's style, contract, or plan.
+
+### 2. General Task Request (Default Path: D-01, D-02)
 When a user expresses a general task request (e.g., "Implement feature X", "Fix bug Y", "Write tests for Z"):
 1. Briefly clarify the core goal and scope.
 2. Present a clear two-path choice to the user:
@@ -28,13 +58,13 @@ When a user expresses a general task request (e.g., "Implement feature X", "Fix 
    - Do NOT require the user to re-enter a separate CLI command.
    - Do NOT create task contracts, supervisor records, or background run files.
 
-### 2. Ambiguous Autopilot Request (D-03)
+### 3. Ambiguous Autopilot Request (D-03)
 When the user opts into autopilot but the goal, acceptance criteria, or allowed mutations/effects are ambiguous:
 1. Do NOT guess or hallucinate permissions, boundaries, or criteria.
 2. Ask only clarifying questions needed to resolve the missing criteria and boundaries.
 3. Only once the requirements are unambiguous, proceed to generate the read-only contract preview.
 
-### 3. Explicit Autopilot Request (D-04)
+### 4. Explicit Autopilot Request (D-04)
 When the user explicitly asks for autonomous autopilot up front (e.g., "Run this in autopilot", "오토파일럿으로 실행해줘", "Execute under autonomous contract"):
 1. Do NOT re-prompt to choose between GSD and autopilot.
 2. Verify that goal, acceptance criteria, and allowed effect boundaries are clear.
@@ -171,6 +201,10 @@ alpha-AOS provides an integrated capability suite across all supported harnesses
    - Inline execution binds model selection to the interactive UI dropdown (e.g. Gemini Flash) rather than the contractually approved model tiers (e.g. Gemini Argon / Claude Opus / GPT-4o).
    - Autopilot tasks MUST execute exclusively via headless, isolated child processes dispatched by the background supervisor or runner script with explicit CLI model flags (`--model`).
    - If an agent is in an interactive chat session and an autopilot task is approved, task implementation belongs to the separate runner rather than inline repo writes in the chat conversation. Invoking preview, approved `task approve`, authorized `task start`, and status/report/stop tools from that conversation is permitted orchestration, not inline task implementation.
+6. **Mode Preference Invariant (No Authority Expansion: D-04, D-11)**:
+   - Setting or querying project behavior mode (strict or flexible) is purely a project-level preference for task intake.
+   - A mode change request MUST NOT be treated as task execution consent, autopilot start authorization, a style default, or permission to alter an active task's contract, style, or plan.
+   - Flexible mode does NOT bypass exact-digest contract approval, separate start command requirements, or isolated external runner boundaries.
 
 ## GUI verification orchestration
 

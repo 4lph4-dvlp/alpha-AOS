@@ -262,6 +262,35 @@ alpha-aos project status .
   alpha-aos repair --apply
   ```
 
+### Scenario H: Shared Project Behavior Policy (strict / flexible)
+- **Question**: *"How do multiple agents (Claude, Codex, Antigravity, Pi, Hermes) share the same project behavior policy across sessions?"*
+- **Solution**: Use `project mode`:
+  ```sh
+  # 1. Query project behavior mode (read-only, zero writes)
+  alpha-aos project mode [path]
+  alpha-aos project mode [path] --json
+
+  # 2. Preview mode change (dry-run, outputs plan digest)
+  alpha-aos project mode set strict|flexible [path]
+
+  # 3. Apply mode change with the reviewed plan digest
+  alpha-aos project mode set strict|flexible [path] --plan-digest <digest> --apply
+
+  # 4. Rollback to restore exact previous bytes or remove first-created policy
+  alpha-aos rollback <operation-id> --apply
+  ```
+- **Policy Semantics & Safety Boundaries**:
+  - **Single Authority**: `<canonical-project-root>/.alpha-aos/behavior.json` with schema `{"schemaVersion": 1, "mode": "strict"|"flexible"}`.
+  - **Default Strict**: An uninitialized project or missing policy file defaults to `strict` with zero file or directory writes.
+  - **No-Op Protection**: A valid same-mode request is a pure no-op (operation ID is null, no lock, transaction, or journal allocated).
+  - **Preference Only**: `flexible` mode is an intake preference; it does **NOT** grant task execution consent, autopilot start authorization, or GSD spine replacement.
+  - **Concurrent Exclusion**: Mutual exclusion is enforced via physical coordinator lock `<canonical-project-root>/.alpha-aos-behavior.lock`. Stale preview digests are strictly refused.
+  - **Cross-Host Visibility**: Another agent sees policy updates on its next intake without restarting an active task.
+  - **Conservative Recovery**: First-create rollback removes only `behavior.json` without sweeping `.alpha-aos` or sibling files; replacement rollback restores exact original bytes (including CRLF/Unicode).
+  alpha-aos repair
+  alpha-aos repair --apply
+  ```
+
 ### Scenario H: Shipping Verified GSD Phases
 - **Question**: *"How do I ship my completed work after finishing a GSD phase?"*
 - **Solution**: Use the repository-owned `/alpha-aos-ship` skill:

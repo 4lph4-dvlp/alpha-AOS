@@ -148,3 +148,35 @@ alpha-aos task steering <contract-id> --run <run-id> --contract-digest <digest> 
 ```
 
 The panel URL is a short-lived secret and should be handed to the initiating user before awaiting work. Its bearer is kept in sessionStorage for the exact origin, binding and finite observation deadline; a fresh exact attach renews observation without launching the task again. Viewer closure does not stop the task. The panel permits local observation and copying, not browser-side steering. A proposal receipt does not prove application; safe-boundary assessment and any new authority approval remain required. Transport disconnection is not a task outcome. Preserve the exact process/job handle and use one finite wait or a bounded handoff; no repeated model polling is needed.
+
+## Project behavior policy and concurrent exclusion controls
+
+### Architecture and single authority
+
+The project behavior policy (`mode`: `strict` | `flexible`) is maintained in a single declarative file:
+`<canonical-project-root>/.alpha-aos/behavior.json`
+Schema definition: `{"schemaVersion": 1, "mode": "strict"|"flexible"}`.
+
+Key invariants:
+- **No Cascade**: Subdirectories or nested projects do not inherit parent policy. Worktrees maintain independent project policy files.
+- **Marker-Free Directories**: Uninitialized directories or standalone paths default to `strict` with missing revision; queries perform zero filesystem writes.
+- **Preference Only**: `flexible` mode is an intake preference and never constitutes task execution consent, autopilot start authorization, a style default, or GSD spine replacement.
+- **Freshness at Next Intake**: Agents reread live canonical root and policy bytes on each task intake rather than relying on session memory. Changes made by another harness are visible on the next intake without restarting an active task.
+
+### Target coordinator lock and concurrency
+
+To prevent lost updates across independent processes, separate state roots (`ALPHA_AOS_STATE_DIR`), and path aliases:
+- Physical lock location: `<canonical-project-root>/.alpha-aos-behavior.lock`.
+- Created exclusively with `wx` flag before state session acquisition.
+- Records `rootIdentity` (`deviceExact`, `inodeExact`), random owner token, PID, host, and operation metadata.
+- Two-phase lock order: Target coordinator lock is acquired first, followed by the state mutation session.
+- Inside-lock verification: Inputs, root identity, path boundaries, and exact file bytes are freshly re-verified and compared against the reviewed plan digest inside the held lock. Stale preview digests are refused (`stale-plan`).
+- Reverse release: State session is released first, followed by target coordinator lock release with token matching.
+
+### Conservative rollback and operator recovery
+
+- **First-Create Rollback**: Unlinks only `.alpha-aos/behavior.json` and preserves `.alpha-aos` and all sibling configuration files.
+- **Replacement Rollback**: Durably restores exact prior bytes, including CRLF and Unicode characters.
+- **Drift Guard**: If the file was modified after the transaction, rollback refuses to overwrite drift and outputs content-safe diagnostics (`unifiedDiff: null`) without disclosing secret tokens or file contents.
+- **Retained Coordinator Locks**: In the event of a crash, state-only repair (`alpha-aos repair`) does not remove target coordinator locks. A retained target lock must be inspected or cleared explicitly; locks are never automatically cleared based on elapsed time or a missing PID.
+

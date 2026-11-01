@@ -66,13 +66,13 @@
     {
       "number": "26",
       "name": "Autopilot Session Progress and Steering",
-      "status": "in_progress"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "$gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 13 of 13 · 92% · ready to verify"
+    "command": "$gsd-new-milestone",
+    "label": "Start a new milestone",
+    "reason": "All phases complete — start a new milestone"
   },
-  "updated_at": "2026-10-31T18:04:00.308Z"
+  "updated_at": "2026-11-01T00:26:01.729Z"
 }

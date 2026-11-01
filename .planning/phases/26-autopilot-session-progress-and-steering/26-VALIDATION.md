@@ -1,28 +1,31 @@
 ---
 phase: "26"
 slug: "autopilot-session-progress-and-steering"
-status: awaiting_goal_verification
-nyquist_compliant: false
+status: validated
+nyquist_compliant: true
+technical_signoff: passed
+goal_verification: passed
+historical_tdd_compliance: not_established
 wave_0_complete: true
 created: "2026-10-31"
 ---
 
 # Phase 26 — Actual validation evidence
 
-Implementation and the settled-source full suite have run. Goal-verifier sign-off
-remains pending. Planned test-name descriptions are superseded by the actual
+Implementation, settled-source full suite and independent goal verification have
+passed within the approved common-panel scope. Planned test-name descriptions are superseded by the actual
 files and executed cases below; a planned name alone is not execution evidence.
 
 ## Requirement evidence
 
 | Requirement | Actual evidence | Technical result |
 |---|---|---|
-| SESSION-01 | task-progress, task-progress-panel and task-gsd-lifecycle fixtures exercise generic quick/full/registered dispatch observations, configured versus observed models, recorded reasons, needs-input/failure and authoritative outcome. Late-attach regressions cover accepted/rejected/stopped/in-flight and bounded history. | pass; goal verifier pending |
-| SESSION-02 | task-session exact-binding/conflicting replay/cross-process and initialized publication fixtures; task-cli exact attach; task-progress-panel reload/mismatch/dead-owner observations. | pass; goal verifier pending |
+| SESSION-01 | task-progress, task-progress-panel and task-gsd-lifecycle fixtures exercise generic quick/full/registered dispatch observations, configured versus observed models, recorded reasons, needs-input/failure and authoritative outcome. Late-attach regressions cover accepted/rejected/stopped/in-flight and bounded history. | verified |
+| SESSION-02 | task-session exact-binding/conflicting replay/cross-process and initialized publication fixtures; task-cli exact attach; task-progress-panel reload/mismatch/dead-owner observations. | verified |
 | SESSION-03 | Five public CLI/HTTP origins and separate five existing-controller fixtures in task-progress-integration; five temporary owned-skill render targets in task-skill. Native delivery remains disabled/unverified. | composed evidence passed; no universal native-chat claim |
-| SESSION-04 | task-steering tracer, receipt/application separation, safe boundaries, revision-required, crash/no-boundary and actual committed-plan evidence; exact CLI context/steer; terminal/final-review/stop settlement regressions. | pass; goal verifier pending |
+| SESSION-04 | task-steering tracer, receipt/application separation, safe boundaries, revision-required, crash/no-boundary and actual committed-plan evidence; exact CLI context/steer; terminal/final-review/stop settlement regressions. | verified |
 | SESSION-05 | Hostile/auth/origin/method/limits/backpressure/disposal/replay fixtures in task-progress-panel and session; finite argv launch and read-only context in task-cli; inert bounded packets; actual Chrome copy/HTML/focus/200-row checks. | pass within documented security boundary |
-| SESSION-06 | 26-FINAL-TESTS.json; original and scoped independent review/acceptance; 26-FINAL-UI-EVIDENCE.md; current full suite covers 155 test files. | all technical gates passed; actual GSD goal verification pending |
+| SESSION-06 | 26-FINAL-TESTS.json; original and scoped independent review/acceptance; 26-FINAL-UI-EVIDENCE.md; current full suite covers 155 test files; 26-VERIFICATION.md. | verified; lifecycle completion remains root-owned |
 
 Actual named examples include `phase26 steering tracer uses the existing controller`,
 `phase26 receipt is not application: durable and idempotent`, `phase26 safe boundaries
@@ -89,11 +92,30 @@ Original Oh-My-Circuit was not written or resumed. Tokens/cost are unavailable,
 not zero. Research temporary-folder deletion was again rejected by automatic
 policy review after renewed user authorization; no bypass was attempted.
 
+## Validation coverage sign-off
+
+All eight implementation tasks have automated verification, with no three-task
+gap, no watch-mode checks and no outstanding missing test infrastructure. Actual
+renamed cases are mapped above and their executions appear in the final log;
+the verifier checked its SHA-256 against 26-FINAL-TESTS.json. Existing targeted
+fixtures and the settled-source full run supply coverage; no duplicate full run
+was performed for this sign-off. Browser evidence supplies the visual layer at
+its expressly recorded limits. No new feedback-latency guarantee is inferred
+from the final concurrent suite.
+
+`nyquist_compliant: true` records current automated validation coverage and
+sampling continuity. It does not certify historical test-first execution:
+`historical_tdd_compliance: not_established` and the deviations above remain.
+The independent verifier found all fourteen plan truths and all six SESSION
+requirements supported within the approved common-panel scope. Its report owns
+the native covered-input fingerprint and verdict; this file does not perform
+phase or requirement state transitions.
+
 ## Sign-off
 
 - [x] Actual automated evidence exists for all implementation tasks.
 - [x] Independent review and accepted scoped fixes are recorded.
 - [x] Settled-source final full regression passed.
 - [x] Real browser evidence and uncovered visual/native limits are recorded.
-- [ ] Actual GSD goal verifier/fingerprint and owner status are recorded.
+- [x] Actual independent GSD goal verification passed; fingerprint and owner status are recorded in 26-VERIFICATION.md.
 - [ ] Phase and requirement completion follow the verifier's accepted verdict.

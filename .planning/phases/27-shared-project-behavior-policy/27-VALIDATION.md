@@ -1,11 +1,13 @@
 ---
 phase: "27"
 slug: "shared-project-behavior-policy"
-status: executed
+status: verified
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-02"
 updated: "2026-11-02"
+verification_status: human_needed
+review_status: passed_with_warnings
 ---
 
 # Phase 27 — Validation Strategy & Execution Results
@@ -63,3 +65,5 @@ Phase 27 implementation is complete across all 5 waves. Automated tests and buil
 - [x] Actual focused latency is measured (25.3s for Phase 27 targeted suites); no watch flags.
 - [x] Native receipts and fixture proof are labeled separately in `27-NATIVE-EVIDENCE.md`.
 - [x] `nyquist_compliant: true` is set after the completed map is checked.
+- [x] Goal-backward verification recorded in `27-VERIFICATION.md` (`status: human_needed` for external paid hosts per D-12; 15/15 truths verified automated).
+- [x] Independent code review recorded in `27-REVIEW.md` (`status: passed_with_warnings`; 0 critical blockers, 2 design warnings).

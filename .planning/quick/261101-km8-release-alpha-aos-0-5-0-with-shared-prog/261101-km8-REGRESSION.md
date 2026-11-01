@@ -28,3 +28,9 @@ Two fixture assumptions conflict with the behavior under test: an exact-binding 
 - Serial named cases: 8 passed, 0 failed (two CLI cases, all five hosts, and detached-history attach).
 - Three-file concurrent named cases: 6 passed, 2 failed. Panel launch and detached-history attach returned `unresolved` after cancellation timeout and one finite reconnect. Those failures are preserved; unconfirmed closure was not accepted. The normal Windows suite isolates these files; explicit concurrent execution remains a limitation.
 - Original and new outputs are retained under `.planning/tmp/release050-regression-*` and `.planning/tmp/release050-fix-*`. The instrumented attach case passed without producing failure-only diagnostics. Full release-gate verification remains for the normal pre-push hook.
+
+## Post-reboot verification
+
+- After the user's restart, the root-owned native `taskkill /T` probe exited 0 in 520 ms and its owned child closed. The named owned-cancellation case passed 1/1 in 2.93 seconds. These observations do not establish the cause of the earlier host failure.
+- Added `command-job-runtime.test.js` to the existing Windows-only isolated list because it exercises real owned child and worker cancellation. The ordinary Windows partition contains 144 concurrent files, 10 isolated files and one packed file: all 155 current compiled test files occur exactly once. Explicit `--files` behavior remains unchanged.
+- Build and artifact check both exited 0; the complete compiled command-job-runtime file passed 5/5 with no skips, and the existing runner-isolation test passed 1/1. Logs and partition evidence are under `.planning/tmp/release050-postboot-*`. The full release gate remains outstanding.

@@ -1,12 +1,22 @@
-import { realpathSync as canonicalFixturePath } from "node:fs";
+import { existsSync, realpathSync as canonicalFixturePath } from "node:fs";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir, hostname } from "node:os";
 import { join, dirname } from "node:path";
 import test from "node:test";
-import { waitTask } from "../src/core/task-wait.js";
+import { waitTask as waitTaskCore } from "../src/core/task-wait.js";
 import { selectTaskExecution } from "../src/core/task-read.js";
+
+const waitTask: typeof waitTaskCore = async (options) => {
+  const fallbackProjectRoot = existsSync(join(dirname(options.stateRoot), "project"))
+    ? join(dirname(options.stateRoot), "project")
+    : undefined;
+  return waitTaskCore({
+    ...options,
+    projectRoot: options.projectRoot ?? fallbackProjectRoot,
+  });
+};
 import { writeCheckpoint, appendJournalEvent, runJournalPath, type TaskCheckpoint } from "../src/core/task-journal.js";
 import { acquireControllerLease } from "../src/core/controller-lease.js";
 import { approveTaskContract, loadTaskContract } from "../src/core/task-contract.js";

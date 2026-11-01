@@ -164,3 +164,5 @@ User requested continuation. Scoped source fix c2d45a7 is committed. See REGRESS
 ## Latest macOS follow-up
 
 CI41302349585 passed Linux/Windows/package and failed one macOS panel fetch with upstream-style setTypeOfService EINVAL. Terra fixture-only fix06c61a5 and root scoped review/targeted local checks passed; see REGRESSION. No production or dependency change. A new committed candidate must pass ordinary push and exact-SHA3OSCI; use the existing finite release script with current candidate file. Previous completed job job-ff69e98aaa0a40a3 stopped safely at failed CI. Native stderr handling was fixed and independently probed; original result preserved.
+
+Latest continuation: c808476 pre-push stopped on an evidence.test decimal-rendering false failure before CI existed. Fixture-only746c1a3 and targeted2/2 passed; root scoped review completed. Prior receipt/log copied to release050-receipt-identity-failure.json and release050-identity-gate-failure.log. Next committed candidate and owned execution are saved under .planning/tmp/release050-final-candidate.txt and release050-identity-resume-job.json. Main/tag remain unpublished.

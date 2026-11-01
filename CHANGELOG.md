@@ -4,6 +4,17 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-01
+
+### Added
+
+- An optional shared read-only progress panel for Claude, Codex, Antigravity, Pi and Hermes, with task context, steer proposals and steering status. User questions remain in the originating conversation; native chat delivery remains disabled and unverified.
+- Runtime budget, process observation, recovery and registered dispatch controls, including bounded waits and durable handles. Dedicated legacy wrappers must use the registered route for controlled model dispatch. See [runtime controls](docs/task-runtime-controls.md).
+
+### Fixed
+
+- Redaction and terminal-state handling, plus atomic SQLite persistence and recovery safeguards.
+
 ## [0.4.8] - 2026-10-28
 
 ### Fixed

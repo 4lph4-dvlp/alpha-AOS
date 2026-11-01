@@ -1,9 +1,9 @@
 ---
 phase: "26"
 slug: "autopilot-session-progress-and-steering"
-status: planned
+status: in_progress
 nyquist_compliant: false
-wave_0_complete: false
+wave_0_complete: true
 created: "2026-10-31"
 ---
 
@@ -23,8 +23,11 @@ is an estimate, not a completion timeout or a reason to poll through a model.
 
 ## Requirement verification map
 
-Every named test below must execute behavior, not only match source text. All
-statuses are pending; planning has not run implementation tests or proven UI.
+Every named test below must execute behavior, not only match source text.
+Implementation, targeted checks, independent review and real browser checks have
+run; final full regression and goal-verifier sign-off remain pending. The rows
+retain planned test-name descriptions; final evidence must cite actual executed
+tests and summaries rather than infer an execution from a name.
 
 | Requirement | Tasks | Test file / concrete test names | Status |
 |---|---|---|---|

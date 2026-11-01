@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "attempt": 1,
+  "sourceCommit": "f06872aebd3f2b72c4e0337eab55b1b4cab92ef5",
+  "command": "npm test",
+  "exitCode": 1,
+  "log": ".planning/tmp/phase26-final-full.log",
+  "logSha256": "2ee640b6c94f0c30a7577220bd24b57c4a6c78b487463ba00c6337d553cdda64",
+  "mainBatch": {
+    "tests": 1813,
+    "pass": 1800,
+    "fail": 2,
+    "skipped": 11,
+    "cancelled": 0,
+    "durationMs": 770372.669
+  },
+  "unexecutedAfterFailure": [
+    "command-job-worker.test.js",
+    "command-jobs.test.js",
+    "efficient-wait-cli.test.js",
+    "process.test.js",
+    "protocol-session.test.js",
+    "verify-efficient-wait.test.js",
+    "tarball-fixture.test.js"
+  ],
+  "failures": [
+    "approved dependency change pack checkpoint unexpectedly blocked; cause unproven",
+    "concurrent exact hydration observed uninitialized SQLite database; fixed ecf5462"
+  ],
+  "rerunJustification": "Reproduced source race fixed and independently accepted; unreproduced checkpoint retains diagnostic assertion and must pass full rerun."
+}

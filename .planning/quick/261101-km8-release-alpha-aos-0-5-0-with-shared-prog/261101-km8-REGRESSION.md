@@ -1,5 +1,21 @@
 # Release 0.5.0 regression investigation
 
+## Later release-gate and host findings
+
+After the fixture correction commit4f3db9b, the second normal pre-push run did
+not complete. It had an additional existing command-job-runtime owned-cancellation
+failure, and its log stopped changing for over30minutes. That exact native exec
+was interrupted; no remote ref changed. Standalone MCP fixture4/4 passed, while
+the standalone owned-cancellation case failed with observation timeout.
+
+Native taskkill/T/F was separately tested against directly created, owned Node
+children and did not finish or terminate the child within15s/10s. PID filtering
+did not help. Cleanup used held owned Process handles, not a blanket PID kill.
+The user-approved elevated WMI-only restart returned service-running, but the
+same native probe still timed out afterward. This does not establish WMI as
+the cause or a successful repair. User chose manual PC restart before continuation.
+See261101-km8-HANDOFF.md for current authority, exact source and resume sequence.
+
 ## Findings
 
 The full Windows pre-push batch had six cancellation-observation timeouts and one panel handoff timeout. A concurrent reproduction before changes had one cancellation timeout (69 passed, one failed). An isolated CLI run also saw a refused panel fetch, and an isolated named run saw the short handoff timeout. These observations do not establish a specific Windows or production runtime root cause.

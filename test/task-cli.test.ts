@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
+import { get } from "node:http";
 import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -54,8 +55,15 @@ test("phase26 panel launch uses argv and finite jobs", { timeout: 120000 }, asyn
   const launch = JSON.parse(result.stdout) as { url: string; jobId: string; deadlineAt: number };
   try {
     assert.match(launch.url, /^http:\/\/127\.0\.0\.1:\d+\/#/u);
-    const response = await fetch(launch.url.split("#")[0]!);
-    assert.equal(response.status, 200);
+    const status = await new Promise<number | undefined>((resolveResponse, reject) => {
+      const request = get(launch.url.split("#")[0]!, { signal: AbortSignal.timeout(5000) }, (response) => {
+        response.once("error", reject);
+        response.once("end", () => resolveResponse(response.statusCode));
+        response.resume();
+      });
+      request.once("error", reject);
+    });
+    assert.equal(status, 200);
     assert.ok(launch.deadlineAt <= Date.now() + 60000);
     const files = await listing(fixture.stateRoot);
     const credential = new URL(launch.url).hash.slice(1);

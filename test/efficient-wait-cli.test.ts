@@ -20,11 +20,14 @@ function testEnv(stateRoot: string): EnvironmentPolicy {
   return { ...probeEnv, literal: { ...probeEnv.literal, ALPHA_AOS_STATE_DIR: stateRoot } };
 }
 
-async function runCli(args: readonly string[], stateRoot: string, cwd = process.cwd()): Promise<ProcessResult> {
+async function runCli(args: readonly string[], stateRoot: string, cwd?: string): Promise<ProcessResult> {
+  const fallbackProjectRoot = existsSync(join(dirname(stateRoot), "project"))
+    ? join(dirname(stateRoot), "project")
+    : process.cwd();
   return runProcess({
     executable: process.execPath,
     args: [cliEntry, ...args],
-    cwd,
+    cwd: cwd ?? fallbackProjectRoot,
     environment: testEnv(stateRoot),
     maxOutputBytes: OUTPUT_BYTES,
     excerptBytes: OUTPUT_BYTES,

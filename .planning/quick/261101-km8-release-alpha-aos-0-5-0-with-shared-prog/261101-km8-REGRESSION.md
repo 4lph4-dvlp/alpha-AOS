@@ -1,5 +1,26 @@
 # Release 0.5.0 regression investigation
 
+## Remote CI second candidate
+
+Candidate e4c5c3cdf95a4116b88a42b881007059ac4dc569 passed the ordinary
+branch push and reached origin/release/0.5.0. The Windows PowerShell wrapper
+then treated native stderr `npm notice` as a terminating error. Its native
+invocation now temporarily uses Continue and explicitly checks the exit code;
+an extracted-helper probe accepted exit 0 with stderr and rejected exit 7.
+The already-published candidate was not needlessly pushed again.
+
+CI41302349585 passed packaging, Ubuntu and Windows. macOS npm test reported
+1929 tests,1913 passed,1 failed,15 skipped,0 cancelled. The sole failure is
+`phase26 panel launch uses argv and finite jobs`: uncaught
+`Socket.setTypeOfService EINVAL` inside Node's bundled undici HTTP client.
+The stack matches the reported upstream issue
+https://github.com/nodejs/undici/issues/5544 (and Node24 backport issue6075),
+but the precise triggering socket state is not established. The next scoped
+fixture change preserves real authenticated HTTP and all assertions while
+avoiding that client path; production socket policy and Node versions remain
+unchanged. macOS acceptance requires fresh remote CI. Logs/results are
+`.planning/tmp/release050-ci-macos-v2-failed.log` and `release050-ci-result-v2.json`.
+
 ## Later release-gate and host findings
 
 After the fixture correction commit4f3db9b, the second normal pre-push run did
@@ -44,3 +65,5 @@ Two fixture assumptions conflict with the behavior under test: an exact-binding 
 ## POSIX release remediation
 
 Commit c2d45a727ab492be92f7a8d3594e6bae5189a6ed exempts only absolute values of exact uppercase PWD/OLDPWD from credential-env matching and canonicalizes newly created fixture roots. Deterministic RED reproduced secret_env_match; GREEN, build, check and artifact passed. Concurrent targeted run:152 total146 pass4 fail2 cancelled. Isolated credential cases3/3 and progress2/2 passed; CLI1/2, with public attach failing a5000ms detached-worker handshake. This remains unresolved, not proven concurrency-only. Full normal release gates must pass. Narrow independent review found no further source defect; its release-script exact-main blocker was corrected before launch.
+
+Fixture fix06c61a5835508d4088ffb3d020ef4dd549313103 replaces only the failing test's fetch with node:http GET, a5-second AbortSignal deadline, response draining and the same HTTP200 assertion. Build, check, artifact and named panel test1/1 passed locally. Root Sol inspected the exact diff: real panel launch, credential redaction, deadlines and positive owned cancellation assertions are retained; no additional findings. Actual macOS acceptance remains pending. Logs: .planning/tmp/release050-mac-http-*.

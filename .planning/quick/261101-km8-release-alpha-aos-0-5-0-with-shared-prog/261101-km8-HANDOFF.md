@@ -160,3 +160,7 @@ was separately policy-blocked; do not retry or work around it as part of release
 ## Current continuation after quota stop
 
 User requested continuation. Scoped source fix c2d45a7 is committed. See REGRESSION and REVIEW for actual targeted outcomes, including unresolved isolated CLI handshake failure. Root corrected the reviewed release script to require successful exact HEAD equality after fast-forward, before tagging. Next launch: root-owned .planning/tmp/release050-finish.ps1 through alpha-aos job start with10800000ms process-tree deadline. Candidate is committed docs+source HEAD stored in release050-final-candidate.txt. Script keeps receipt release050-final-receipt.json, exact CI runID and external stage logs, and stops on any failed mandatory gate. No old process restart, bypass or original-project resume. Final GSD acceptance remains pending.
+
+## Latest macOS follow-up
+
+CI41302349585 passed Linux/Windows/package and failed one macOS panel fetch with upstream-style setTypeOfService EINVAL. Terra fixture-only fix06c61a5 and root scoped review/targeted local checks passed; see REGRESSION. No production or dependency change. A new committed candidate must pass ordinary push and exact-SHA3OSCI; use the existing finite release script with current candidate file. Previous completed job job-ff69e98aaa0a40a3 stopped safely at failed CI. Native stderr handling was fixed and independently probed; original result preserved.

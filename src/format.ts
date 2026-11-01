@@ -18,7 +18,7 @@ import type {
   UninstallPlan,
   UninstallResult,
 } from "./types.js";
-import type { ProjectBehaviorView } from "./core/behavior-policy.js";
+import type { ProjectBehaviorView, ProjectModePlan } from "./core/behavior-policy.js";
 import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
 import {
   approvalCommand,
@@ -440,6 +440,25 @@ export function formatProjectBehavior(view: ProjectBehaviorView): string {
     `Effective mode: ${view.effectiveMode}`,
     `Source: ${view.source}`,
     `Revision: ${view.revision}`,
+  ].join("\n");
+}
+
+/** What a `project mode set` plan observed. */
+export function formatProjectModePlan(plan: ProjectModePlan): string {
+  return [
+    `Project: ${plan.canonicalRoot}`,
+    `Root reason: ${plan.rootReason}`,
+    `Project ID: ${plan.projectId}`,
+    `Root identity: ${plan.rootIdentity.deviceExact}:${plan.rootIdentity.inodeExact}`,
+    `Policy path: ${plan.policyPath}`,
+    `Coordinator path: ${plan.coordinatorPath}`,
+    `Current mode: ${plan.currentMode} (${plan.currentSource}, revision ${plan.currentRevision})`,
+    `Requested mode: ${plan.requestedMode}`,
+    `Planned change: ${plan.change}`,
+    `Plan digest: ${plan.planDigest}`,
+    plan.change === "current"
+      ? "Already current. Applying this plan will perform no writes."
+      : "Preview only. Nothing was written: applying requires --apply with this plan digest.",
   ].join("\n");
 }
 

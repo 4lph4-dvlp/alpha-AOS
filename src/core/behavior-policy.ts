@@ -5,6 +5,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RootReason } from "./evidence.js";
 import { resolveCanonicalRoot } from "./evidence.js";
+import { reviewedDigest } from "./component-session.js";
 import {
   canonicalizeWithMissingTail,
   provePathBoundary,
@@ -33,6 +34,25 @@ export interface ProjectBehaviorView {
   readonly effectiveMode: ProjectBehaviorMode;
   readonly source: ProjectBehaviorSource;
   readonly revision: string;
+}
+
+export interface ProjectModePlan {
+  readonly canonicalRoot: string;
+  readonly rootReason: RootReason;
+  readonly projectId: string;
+  readonly rootIdentity: {
+    readonly deviceExact: string;
+    readonly inodeExact: string;
+  };
+  readonly policyPath: string;
+  readonly coordinatorPath: string;
+  readonly currentExists: boolean;
+  readonly currentMode: ProjectBehaviorMode;
+  readonly currentSource: ProjectBehaviorSource;
+  readonly currentRevision: string;
+  readonly requestedMode: ProjectBehaviorMode;
+  readonly change: "create" | "replace" | "current";
+  readonly planDigest: string;
 }
 
 export type BehaviorPolicyErrorCode =
@@ -466,5 +486,88 @@ export async function resolveProjectBehavior(
     effectiveMode: validPolicy.mode,
     source: "project-policy",
     revision,
+  };
+}
+
+/**
+ * Plans a project behavior mode transition without mutating any filesystem state.
+ * Implements D-03, D-08, D-09, D-15, D-17, and D-19.
+ */
+export async function planProjectModeChange(
+  input: ProjectBehaviorInput,
+  requestedMode: ProjectBehaviorMode,
+): Promise<ProjectModePlan> {
+  const currentView = await resolveProjectBehavior(input);
+
+  // Re-prove canonical root to extract exact root component identity
+  const rootProof = await provePathBoundary({
+    role: "target",
+    path: currentView.canonicalRoot,
+    allowedRoots: [currentView.canonicalRoot],
+  });
+  const rootComponent = rootProof.components.at(-1);
+  if (!rootComponent || rootComponent.deviceExact === undefined || rootComponent.inodeExact === undefined) {
+    throw new BehaviorPolicyError({
+      code: "invalid-root",
+      path: currentView.canonicalRoot,
+      cause: "filesystem root exact identity is not available",
+      causeCategory: "unprovable-identity",
+      remediation: "Run on a filesystem supporting exact device and inode identification.",
+    });
+  }
+  const rootIdentity = {
+    deviceExact: rootComponent.deviceExact,
+    inodeExact: rootComponent.inodeExact,
+  };
+
+  const coordinatorPath = join(currentView.canonicalRoot, ".alpha-aos-behavior.lock");
+  const coordinatorProof = await provePathBoundary({
+    role: "target",
+    path: coordinatorPath,
+    allowedRoots: [currentView.canonicalRoot],
+  });
+  if (!coordinatorProof.proven) {
+    throw new BehaviorPolicyError({
+      code: "path-escape",
+      path: coordinatorPath,
+      cause: coordinatorProof.detail ?? "coordinator path escapes canonical project root",
+      causeCategory: "path-escape",
+      remediation: "Ensure the project root allows lock containment.",
+    });
+  }
+
+  let change: "create" | "replace" | "current";
+  if (!currentView.exists) {
+    change = "create";
+  } else if (currentView.effectiveMode === requestedMode) {
+    change = "current";
+  } else {
+    change = "replace";
+  }
+
+  const planDigest = reviewedDigest("project-mode-plan-v1", {
+    canonicalRoot: currentView.canonicalRoot,
+    rootIdentity,
+    policyPath: currentView.policyPath,
+    coordinatorPath,
+    currentRevision: currentView.revision,
+    requestedMode,
+    change,
+  });
+
+  return {
+    canonicalRoot: currentView.canonicalRoot,
+    rootReason: currentView.rootReason,
+    projectId: currentView.projectId,
+    rootIdentity,
+    policyPath: currentView.policyPath,
+    coordinatorPath,
+    currentExists: currentView.exists,
+    currentMode: currentView.effectiveMode,
+    currentSource: currentView.source,
+    currentRevision: currentView.revision,
+    requestedMode,
+    change,
+    planDigest,
   };
 }

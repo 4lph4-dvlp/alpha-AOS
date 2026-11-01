@@ -4,6 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import {
   BehaviorPolicyError,
+  planProjectModeChange,
   resolveProjectBehavior,
 } from "../src/core/behavior-policy.js";
 import { setTreePolicy } from "../src/core/tree-policy.js";
@@ -385,6 +386,65 @@ test("resolveProjectBehavior handles symlink escape or dangling link safely (MOD
     (err: unknown) => {
       assert.ok(err instanceof BehaviorPolicyError);
       assert.ok(err.code === "invalid-policy-path" || err.code === "path-escape");
+      return true;
+    },
+  );
+});
+
+test("planProjectModeChange handles create, replace, current and detects formatting edits (MODE-03, MODE-04, MODE-05)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "plan-mode-project");
+  await mkdir(projectDir, { recursive: true });
+
+  // 1. Missing policy -> create (both strict and flexible)
+  const planCreateStrict = await planProjectModeChange({ projectRoot: projectDir }, "strict");
+  assert.equal(planCreateStrict.change, "create");
+  assert.equal(planCreateStrict.currentRevision, "missing");
+  assert.equal(planCreateStrict.requestedMode, "strict");
+
+  const planCreateFlex = await planProjectModeChange({ projectRoot: projectDir }, "flexible");
+  assert.equal(planCreateFlex.change, "create");
+  assert.equal(planCreateFlex.requestedMode, "flexible");
+  assert.notEqual(planCreateStrict.planDigest, planCreateFlex.planDigest);
+
+  // 2. Existing policy with mode: "strict"
+  const alphaAosDir = join(projectDir, ".alpha-aos");
+  await mkdir(alphaAosDir, { recursive: true });
+  await writeFile(
+    join(alphaAosDir, "behavior.json"),
+    '{\n  "schemaVersion": 1,\n  "mode": "strict"\n}\n',
+    "utf8",
+  );
+
+  // Requesting same mode -> current
+  const planSame = await planProjectModeChange({ projectRoot: projectDir }, "strict");
+  assert.equal(planSame.change, "current");
+
+  // Requesting opposite mode -> replace
+  const planOpposite = await planProjectModeChange({ projectRoot: projectDir }, "flexible");
+  assert.equal(planOpposite.change, "replace");
+
+  // 3. Formatting-only byte edit (adding trailing newline or spaces) changes revision and planDigest
+  await writeFile(
+    join(alphaAosDir, "behavior.json"),
+    '{\n  "schemaVersion": 1,\n  "mode": "strict"\n}\n\n',
+    "utf8",
+  );
+  const planFormatted = await planProjectModeChange({ projectRoot: projectDir }, "strict");
+  assert.equal(planFormatted.change, "current");
+  assert.notEqual(planSame.currentRevision, planFormatted.currentRevision);
+  assert.notEqual(planSame.planDigest, planFormatted.planDigest);
+
+  // 4. Malformed existing policy refuses planProjectModeChange
+  await writeFile(
+    join(alphaAosDir, "behavior.json"),
+    '{\n  "schemaVersion": 1,\n  "mode": "invalid"\n}\n',
+    "utf8",
+  );
+  await assert.rejects(
+    async () => planProjectModeChange({ projectRoot: projectDir }, "flexible"),
+    (err: unknown) => {
+      assert.ok(err instanceof BehaviorPolicyError);
       return true;
     },
   );

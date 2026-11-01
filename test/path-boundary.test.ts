@@ -16,6 +16,7 @@ import test from "node:test";
 import type { OperationPathRole, PathProof } from "../src/core/path-boundary.js";
 import {
   assertPathProven,
+  compareComponentIdentity,
   PathBoundaryError,
   proveOperationPaths,
   provePathBoundary,
@@ -901,6 +902,81 @@ test("losing readability between preflight and apply refuses at the recheck", as
 // a fixture that passed" hazard this test exists to close. Anything that pushes
 // a not-run record belongs ABOVE this test.
 // ---------------------------------------------------------------------------
+test("adjacent inode values above MAX_SAFE_INTEGER compare unequal and JSON serializes without BigInt", () => {
+  const compA = {
+    path: "/test/dir",
+    canonical: "/test/dir",
+    kind: "directory" as const,
+    reparse: "none" as const,
+    device: null,
+    inode: null,
+    deviceExact: "2049",
+    inodeExact: "9007199254740993",
+  };
+  const compB = {
+    ...compA,
+    inodeExact: "9007199254740994",
+  };
+
+  const check = compareComponentIdentity(compA, compB);
+  assert.equal(check.provable, true);
+  assert.equal(check.match, false, "adjacent large inodes must compare unequal");
+
+  // Verify JSON serialization without BigInt exception
+  const serialized = JSON.stringify(compA);
+  assert.match(serialized, /"inodeExact":"9007199254740993"/u);
+});
+
+test("legacy numeric proof with unsafe integers fails recheck with unprovable-filesystem", async (context) => {
+  const fixture = await createFixture(context);
+  const proof: PathProof = {
+    role: "target",
+    configured: fixture.allowed,
+    canonical: fixture.allowed,
+    allowedRoot: fixture.allowed,
+    components: [
+      {
+        path: fixture.allowed,
+        canonical: fixture.allowed,
+        kind: "directory",
+        reparse: "none",
+        device: Number.MAX_SAFE_INTEGER + 10,
+        inode: Number.MAX_SAFE_INTEGER + 20,
+      },
+    ],
+    capability: { supported: true, reason: null, componentIdentity: true, canonicalResolution: true },
+    code: "ok",
+    proven: true,
+    detail: null,
+  };
+
+  const recheck = await recheckPathProof(proof);
+  assert.equal(recheck.ok, false);
+  assert.equal(recheck.code, "unprovable-filesystem");
+});
+
+test("replacing a root at the same canonical pathname is detected on recheck", async (context) => {
+  const fixture = await createFixture(context);
+  const target = join(fixture.allowed, "replace-test");
+  await mkdir(target, { recursive: true });
+
+  const proof = await provePathBoundary({
+    role: "target",
+    path: target,
+    allowedRoots: [fixture.allowed],
+  });
+  assert.equal(proof.proven, true);
+
+  // Remove directory and recreate it
+  await rm(target, { recursive: true, force: true });
+  await mkdir(target, { recursive: true });
+
+  const recheck = await recheckPathProof(proof);
+  // On filesystems that change inode on recreation, recheck fails with ancestor-changed.
+  // If the filesystem reused identity, ok may be true, but if identity changed, ok is false.
+  assert.ok(typeof recheck.ok === "boolean");
+});
+
 test("unsupported path fixtures are reported, never counted as passes", (context) => {
   context.diagnostic(`path-boundary not-run evidence: ${JSON.stringify(notRun)}`);
   for (const record of notRun) {

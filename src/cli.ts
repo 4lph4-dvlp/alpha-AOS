@@ -1640,6 +1640,47 @@ async function main(): Promise<void> {
     }
     if (subcommand === "mode") {
       const modeArgs = args.slice(2);
+      if (modeArgs[0] === "set") {
+        const setArgs = modeArgs.slice(1);
+        const digestFlags = setArgs.filter((arg) => arg === "--plan-digest");
+        if (digestFlags.length > 1) {
+          throw new Error("Duplicate flag: --plan-digest");
+        }
+        for (let i = 0; i < setArgs.length; i++) {
+          const arg = setArgs[i]!;
+          if (arg === "--plan-digest") {
+            i++;
+            continue;
+          }
+          if (arg.startsWith("--") && arg !== "--apply" && arg !== "--json") {
+            throw new Error(`Unknown flag for \`project mode set\`: ${arg}`);
+          }
+        }
+        const pos = positional(setArgs, ["--plan-digest"]);
+        if (pos.length === 0 || (pos[0] !== "strict" && pos[0] !== "flexible")) {
+          throw new Error("`project mode set` requires a mode argument: 'strict' or 'flexible'.");
+        }
+        const requestedMode = pos[0] as "strict" | "flexible";
+        if (pos.length > 2) {
+          throw new Error(`Unexpected positional argument for \`project mode set\`: ${pos[2]}`);
+        }
+        const targetPath = pos[1];
+        if (hasFlag(setArgs, "--apply")) {
+          throw new Error("`project mode set --apply` is not yet available in this phase wave. Preview the change without --apply.");
+        }
+        const context = observableContext();
+        const { planProjectModeChange } = await import("./core/behavior-policy.js");
+        const { formatProjectModePlan } = await import("./format.js");
+        const plan = await planProjectModeChange(
+          {
+            invocationPath: process.cwd(),
+            ...(targetPath !== undefined ? { projectRoot: targetPath } : {}),
+          },
+          requestedMode,
+        );
+        print(plan, json, formatProjectModePlan(plan), context);
+        return;
+      }
       if (hasFlag(args, "--apply")) {
         throw new Error("`project mode` query has no --apply: it reads and changes nothing. To preview a mode change, use `alpha-aos project mode set strict|flexible [path]`.");
       }

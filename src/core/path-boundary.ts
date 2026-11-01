@@ -37,6 +37,9 @@ export interface PathComponentIdentity {
   /** POSIX device/inode. Null where the host does not expose usable identity. */
   device: number | null;
   inode: number | null;
+  /** Exact decimal strings suitable for JSON, without BigInt conversion loss. */
+  deviceExact?: string | undefined;
+  inodeExact?: string | undefined;
 }
 
 export interface FilesystemCapability {
@@ -157,6 +160,56 @@ export async function canonicalizeWithMissingTail(pathValue: string): Promise<{ 
   return { canonical: pathValue, reason: `no ancestor of ${pathValue} exists, so it has no canonical form` };
 }
 
+function toSafeNumber(val: bigint): number | null {
+  if (val >= BigInt(Number.MIN_SAFE_INTEGER) && val <= BigInt(Number.MAX_SAFE_INTEGER)) {
+    return Number(val);
+  }
+  return null;
+}
+
+export function compareComponentIdentity(
+  recorded: PathComponentIdentity,
+  current: PathComponentIdentity,
+): { match: boolean; provable: boolean } {
+  if (
+    recorded.deviceExact !== undefined &&
+    recorded.inodeExact !== undefined &&
+    current.deviceExact !== undefined &&
+    current.inodeExact !== undefined
+  ) {
+    return {
+      match: current.deviceExact === recorded.deviceExact && current.inodeExact === recorded.inodeExact,
+      provable: true,
+    };
+  }
+
+  if (
+    recorded.device !== null &&
+    current.device !== null &&
+    recorded.inode !== null &&
+    current.inode !== null
+  ) {
+    if (
+      Number.isSafeInteger(recorded.device) &&
+      Number.isSafeInteger(current.device) &&
+      Number.isSafeInteger(recorded.inode) &&
+      Number.isSafeInteger(current.inode)
+    ) {
+      return {
+        match: current.device === recorded.device && current.inode === recorded.inode,
+        provable: true,
+      };
+    }
+    return { match: false, provable: false };
+  }
+
+  if (recorded.kind === "missing" && current.kind === "missing") {
+    return { match: true, provable: true };
+  }
+
+  return { match: false, provable: false };
+}
+
 async function classifyComponent(
   path: string,
 ): Promise<
@@ -166,7 +219,7 @@ async function classifyComponent(
 > {
   let info: Awaited<ReturnType<typeof lstat>>;
   try {
-    info = await lstat(path);
+    info = await lstat(path, { bigint: true });
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
@@ -217,13 +270,18 @@ async function classifyComponent(
     canonical = path;
   }
 
+  const isNonzeroIno = typeof info.ino === "bigint" && info.ino !== 0n;
+  const isDevBigint = typeof info.dev === "bigint";
+
   return {
     path,
     canonical,
     kind,
     reparse,
-    device: typeof info.dev === "number" ? info.dev : null,
-    inode: typeof info.ino === "number" && info.ino !== 0 ? Number(info.ino) : null,
+    device: isDevBigint ? toSafeNumber(info.dev) : null,
+    inode: isNonzeroIno ? toSafeNumber(info.ino) : null,
+    deviceExact: isDevBigint ? info.dev.toString() : undefined,
+    inodeExact: isNonzeroIno ? info.ino.toString() : undefined,
   };
 }
 
@@ -308,7 +366,7 @@ export async function provePathBoundary(options: {
   const capability: FilesystemCapability = {
     supported: true,
     reason: null,
-    componentIdentity: components.every((component) => component.kind === "missing" || component.device !== null),
+    componentIdentity: components.every((component) => component.kind === "missing" || (component.deviceExact !== undefined && component.inodeExact !== undefined)),
     canonicalResolution: true,
   };
 
@@ -404,10 +462,23 @@ export async function recheckPathProof(proof: PathProof): Promise<{ ok: boolean;
     if (current.canonical !== recorded.canonical) {
       return { ok: false, code: "ancestor-changed", detail: `component now resolves elsewhere: ${recorded.path}` };
     }
-    if (recorded.device !== null && current.device !== null) {
-      if (current.device !== recorded.device || current.inode !== recorded.inode) {
-        return { ok: false, code: "ancestor-changed", detail: `component identity changed: ${recorded.path}` };
+    const idCheck = compareComponentIdentity(recorded, current);
+    if (!idCheck.provable) {
+      const recordedUnsafe =
+        (recorded.device !== null && !Number.isSafeInteger(recorded.device)) ||
+        (recorded.inode !== null && !Number.isSafeInteger(recorded.inode));
+      const currentUnsafe =
+        (current.device !== null && !Number.isSafeInteger(current.device)) ||
+        (current.inode !== null && !Number.isSafeInteger(current.inode));
+      if (recordedUnsafe || currentUnsafe) {
+        return {
+          ok: false,
+          code: "unprovable-filesystem",
+          detail: `legacy numeric identity exceeds safe integer limits: ${recorded.path}`,
+        };
       }
+    } else if (!idCheck.match) {
+      return { ok: false, code: "ancestor-changed", detail: `component identity changed: ${recorded.path}` };
     }
   }
 

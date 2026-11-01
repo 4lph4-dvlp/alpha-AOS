@@ -116,3 +116,84 @@ test("CLI query rejects mutation flags and surplus operands (MODE-01, MODE-05)",
   });
   assert.notEqual(surplusRes.status, 0);
 });
+
+test("CLI project mode set previews exact plan with zero writes and rejects invalid syntax (MODE-03, MODE-04, MODE-05)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "preview-project");
+  await mkdir(projectDir, { recursive: true });
+
+  const homeBefore = await fingerprintManifest(sandbox.home);
+  const stateBefore = await fingerprintManifest(sandbox.state);
+  const projectBefore = await fingerprintManifest(projectDir);
+
+  // 1. Preview set strict on missing -> create plan
+  const textPlan = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "strict", projectDir], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(textPlan.status, 0, `preview text failed: ${textPlan.stderr}`);
+  assert.match(textPlan.stdout, /Planned change: create/u);
+  assert.match(textPlan.stdout, /Plan digest: [0-9a-f]{64}/u);
+  assert.match(textPlan.stdout, /Coordinator path:/u);
+  assert.match(textPlan.stdout, /Preview only\. Nothing was written/u);
+
+  // 2. JSON preview set flexible on missing -> create plan
+  const jsonPlan = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "flexible", projectDir, "--json"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.equal(jsonPlan.status, 0, `preview json failed: ${jsonPlan.stderr}`);
+  const parsed = JSON.parse(jsonPlan.stdout);
+  assert.equal(parsed.change, "create");
+  assert.equal(parsed.requestedMode, "flexible");
+  assert.equal(parsed.currentRevision, "missing");
+  assert.equal(parsed.currentExists, false);
+  assert.equal(typeof parsed.planDigest, "string");
+  assert.equal(typeof parsed.rootIdentity.deviceExact, "string");
+  assert.equal(typeof parsed.rootIdentity.inodeExact, "string");
+
+  // Zero-write verification: preview modified absolutely nothing
+  const homeAfter = await fingerprintManifest(sandbox.home);
+  const stateAfter = await fingerprintManifest(sandbox.state);
+  const projectAfter = await fingerprintManifest(projectDir);
+  assert.equal(homeBefore.digest, homeAfter.digest);
+  assert.equal(stateBefore.digest, stateAfter.digest);
+  assert.equal(projectBefore.digest, projectAfter.digest);
+
+  // 3. Syntax rejections:
+  // Missing mode
+  const noModeRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.notEqual(noModeRes.status, 0);
+
+  // Invalid mode
+  const badModeRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "invalid", projectDir], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.notEqual(badModeRes.status, 0);
+
+  // Unknown flag
+  const badFlagRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "strict", projectDir, "--unknown-flag"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.notEqual(badFlagRes.status, 0);
+
+  // Duplicate --plan-digest
+  const dupDigestRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "strict", projectDir, "--plan-digest", "abc", "--plan-digest", "def"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.notEqual(dupDigestRes.status, 0);
+
+  // --apply at preview stage is refused
+  const applyRes = spawnSync(process.execPath, [cliPath, "project", "mode", "set", "strict", projectDir, "--apply"], {
+    env: sandbox.env,
+    encoding: "utf8",
+  });
+  assert.notEqual(applyRes.status, 0);
+  assert.match(applyRes.stderr, /not yet available/u);
+});

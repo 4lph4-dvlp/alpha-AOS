@@ -1,33 +1,92 @@
-# Project Research Summary: Universal Autonomous Work
+# Project Research Summary
 
-*Generated 2026-09-29. Active v0.2.0 summary. Detailed v0.2.0 research is in `v0.2.0/`; older root research files document v0.1.0 and are historical.*
+**Project:** alpha-AOS v0.6.0 — Predictable Task Entry and Shared Project Policy
+**Domain:** Cross-harness project policy and GSD task intake
+**Researched:** 2026-11-02
+**Confidence:** HIGH locally; MEDIUM for semantic boundaries and native activation
+
+## Executive Summary
+
+Implement one project authority for strict/flexible and a shared inspectable intake decision. Missing policy defaults to strict. Each independent substantial strict task receives a fresh six-style choice. The selected style is task-scoped and never a project preference. Flexible preserves adaptive intake; explicit commands, named styles and simple operations have defined precedence.
+
+The existing stack is sufficient. Main gaps are fresh policy reads, reasoned classification, request-aware GSD initialization/resumption and actual quick-full propagation. Today native quick readiness checks planning/roadmap presence, while the controller invokes bare quick. A prompt-only or label-only change cannot satisfy the requested behavior.
+
+Outgoing planning files and 13 phase directories were preserved under v0.2.0 archives. This planning rollover is not release completion: prior regression debt and release holds remain.
 
 ## Key Findings
 
-The existing Node/TypeScript stack is sufficient. `runProcess`, `openProtocolProcess`, file transactions, writer locks, evidence ledgers and GSD hooks provide reusable primitives. None currently comprise a persistent multi-harness task supervisor. The new feature should compose those primitives and keep GSD Core as the only project lifecycle authority. See [stack](v0.2.0/STACK.md) and [architecture](v0.2.0/ARCHITECTURE.md).
+### Recommended Stack
 
-Ordinary conversational GSD remains the default. Autopilot requires an explicit request or approved in-agent offer for each task. Its capability router must inventory every applicable global/project ECC skill, MCP tool, owned skill, project pack, native tool and hook, then prove required native calls at the matching GSD step. Configured or discovered does not mean invoked. The current `alpha-aos-control` pack checkpoint already requires exact plan-digest approval and a fresh agent session after sync; autopilot must preserve both gates.
+Reuse Node.js/TypeScript, schemas, transactions, CLI, native adapters and node:test. Keep GSD full 1.18.0 and dependency versions unchanged. No new package or third-party API is justified.
 
-All five target harnesses have documented candidates for machine invocation: Codex `exec`, Claude `-p`, Antigravity `-p`, Pi RPC, Hermes one-shot/stream JSON. Exact support still requires installed-version and native-use probes. Existing alpha-AOS invocation evidence does not establish universal role parity. [Codex](https://learn.chatgpt.com/docs/non-interactive-mode), [Claude Code](https://code.claude.com/docs/en/headless), [Antigravity](https://www.antigravity.google/docs/cli/headless/), [Pi](https://pi.dev/docs/latest/rpc), [Hermes](https://hermes-agent.nousresearch.com/docs/reference/cli-commands/).
+### Expected Features
 
-Hermes controller eligibility conflicts with the existing D-10 code and project decision. To satisfy the user's all-combinations goal, replace harness-name restrictions with verified role capabilities while preserving an exclusive GSD writer. Rollout must fail closed for role/version pairs without a real receipt. The post-action planning-tree witness is insufficient as concurrent write prevention.
+- Safe project strict/flexible read/change/inspect with cross-harness consistency.
+- Six Korean labels/descriptions, fresh strict choice per independent task and continuation without repeated questions.
+- Explainable simple-operation exemptions, explicit-style precedence and direct-command control.
+- Native GSD readiness, absent/partial-state guidance, initial-request reuse and single resumption.
+- Real conversational/autopilot quick, quick-full and phase routing.
+- Exact contract approval/start, model policy, isolated runner and GSD sole lifecycle ownership.
+- Cross-harness behavioral receipts, packed integrity, bilingual docs and actual regression results.
 
-Task completion must be criterion-specific. Reviewer prose, process exit 0, a passing skill-only gate, or an old receipt cannot pass a changed artifact. The reviewer should be a fresh session and return an exact-digest report with evidence and abstentions. General external effects require stable operation keys and reconciliation after crashes. See [features](v0.2.0/FEATURES.md) and [pitfalls](v0.2.0/PITFALLS.md).
+### Architecture Approach
 
-## Implications for Requirements
+Stable harness guidance invokes live shared policy/intake services. GSD owns initialization and project lifecycle; the existing runtime owns autopilot contracts/processes. Backward-compatible quality metadata must connect quick-full selection to preview/digest, --full dispatch and additional evidence validation.
 
-Define requirements for per-task autopilot opt-in, a user-approved goal contract, complete capability inventory and automatic GSD-step invocation, role capability probes, safe execution, GSD bridge, independent review, measurable acceptance, bounded or unbounded resource policies, recovery, connector protocol, CoursePilot exemplar, diagnostics and release proof. Keep role composition testable independently from a claim of live 125-triple validation. Distinguish a user's default review cadence from hard mandatory gates.
+### Critical Pitfalls
+
+1. Persisting a selected style: specifically rejected by the user.
+2. Depending on startup-loaded instruction text for mode changes.
+3. Exempting every rename by keyword or initializing every small request.
+4. Treating placeholder files or PROJECT.md alone as readiness.
+5. Renaming quick to quick-full without proving quality stages.
+6. Reusing prior consent or creating a second GSD state writer.
 
 ## Implications for Roadmap
 
-Start with a default-off, explicitly approved production-quality tracer through contract approval, one executor, one reviewer and a deliberate failure. Then extend durability and GSD bridge, fill the five harness adapters, add a dedicated capability activation/routing phase, the review/repair loop, a general connector and CoursePilot, natural-language/CLI UX, and the three-OS and live-harness release matrix. Ensure every phase has a test that can falsify its most important claim.
+| Proposed phase | Outcome | Reason for order |
+|---|---|---|
+| 27 — Shared Project Behavior Policy | Canonical mode and safe CLI | Establish authority first |
+| 28 — Predictable Strict/Flexible Intake | Chooser, exemptions and task scope | Consume policy |
+| 29 — GSD Initialization and Request Continuity | Readiness, bootstrap/recovery and resumption | Connect selection to prerequisites |
+| 30 — Six Execution Styles and Quality Binding | Actual native/contracted routes | Consume readiness and style |
+| 31 — Cross-Harness Proof and Distribution | Behavioral receipts, docs and regressions | Prove composition |
+
+These are proposals pending requirements and roadmap approval, not executable plans.
+
+### Research Flags
+
+Phase 28 needs task-boundary discussion. Phase 29 needs a minimal pending-request representation and partial-state recovery. Phase 30 needs contract compatibility and quality evidence. Phase 31 needs actual host evidence; fixtures are not native parity.
+
+## Confidence Assessment
+
+| Area | Confidence | Basis |
+|---|---|---|
+| Stack | HIGH | Existing primitives and inspected schemas |
+| Requested behavior | HIGH | User scope and explicit correction |
+| Architecture | HIGH locally / MEDIUM natively | Call paths inspected; host activation not tested |
+| Task/exemption boundaries | MEDIUM | Shared criteria defined; adversarial checks pending |
+| Six-route readiness | MEDIUM | Quick/phase exist; quick-full propagation absent |
+
+### Gaps to Address
+
+Final policy schema/location; continuation binding; GSD partial-state recovery; backward-compatible quick-full metadata; host-specific receipts; existing broader-regression debt.
 
 ## Sources
 
-- Repository: `src/core/process.ts`, `src/core/worker-authority.ts`, `src/core/writer-lock.ts`, `src/core/gate.ts`, `src/core/gate-receipt.ts`, `src/core/capability-ledger.ts`, `src/core/project-pack-sync.ts`, `src/core/ecc-skills.ts`, `src/core/mcp.ts`, `src/adapters/capability-oracle.ts`, `.gsd/capabilities/alpha-aos/capability.json`, `skills/alpha-aos-control/SKILL.md`.
-- Local task contract: `C:/Users/alpha/.codex/skills/coursepilot/SKILL.md` and `JSON_CONTRACT.md` (source-specific evidence rules; must be resolved at runtime).
-- Official harness and Node references linked above and in [stack](v0.2.0/STACK.md).
+### Primary local evidence
 
-## Confidence and Gaps
+package.json; catalog/stack.lock.json; project-stack.schema.json; task-contract.schema.json; project.ts; transaction.ts; task-contract.ts; task-gsd.ts; task-gsd-prompt.ts; task-run.ts; task-gsd-lifecycle.ts; alpha-aos-task/SKILL.md; task-skill.test.ts; task-governance-hierarchy.test.ts; installed quick.md/new-milestone.md; quick 261101-ww3 summary.
 
-High: repository ownership and process semantics, documented headless entry points. Medium: current installed binary compatibility and usable authentication. Unverified: full controller parity, cross-harness native skill/MCP delivery, real-host cancellation and role combination support; each needs milestone acceptance evidence.
+### Official external evidence
+
+- [GSD quick](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/quick.md): full quality semantics; mutable next branch, not stable lock.
+- [GSD new-project](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/new-project.md): initialization artifacts and GSD ownership.
+- [Codex guidance](https://developers.openai.com/codex/guides/agents-md): per-run/session instruction discovery.
+- [Claude memory](https://code.claude.com/docs/en/memory): contextual instruction behavior, not automatic enforcement.
+
+## Methodology
+
+Three focused Exa queries; four successful Firecrawl single-page extractions; bounded local source/schema/test/workflow reads. No crawl, dependency install, paid native model calls or product source edits. Research was inline: this invocation did not explicitly authorize subagents. Recommendations remain proposed; native behavior is unverified until implementation.
+
+*Research completed: 2026-11-02. Requirements scoping and roadmap approval pending.*

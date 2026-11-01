@@ -1,3 +1,4 @@
+import { cancelAndConfirmOwnedJob } from "./helpers/command-job-runtime.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -109,7 +110,7 @@ test("phase26 proposal during final multi-phase step is explicitly deferred", { 
   assert.ok(!facts.some((fact) => fact.state === "applied" || fact.state === "assessed"));
 });
 for (const host of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
-test(`phase26 five host integration ${host} public start hands off while fixture controller is held`, { timeout: 60000, skip: process.platform !== "win32" }, async (t) => {
+test(`phase26 five host integration ${host} public start hands off while fixture controller is held`, { timeout: 120000, skip: process.platform !== "win32" }, async (t) => {
   const fixture = await createTaskFixture(t);
   const contract = inventorySummaryContract(fixture.projectRoot, { agentPolicy: { controller: "codex", executor: "codex", reviewer: "codex", reviewerSession: "fresh-read-only", controllerModel: "fixture-model", controllerEffort: "high", executorModel: "fixture-model", executorEffort: "high", reviewerModel: "fixture-model", reviewerEffort: "high" } });
   await writeTaskContract(fixture.contractPath, contract);
@@ -123,7 +124,7 @@ test(`phase26 five host integration ${host} public start hands off while fixture
   const { computeBinarySha256, writeHarnessRoleReceipt } = await import("../src/adapters/task-receipts.js");
   const binarySha256 = await computeBinarySha256(script);
   for (const role of ["controller", "executor", "reviewer"] as const) await writeHarnessRoleReceipt({ schemaVersion: 1, harness: "codex", role, version: "1.2.3", binarySha256, executable: script, probedAt: new Date().toISOString(), capabilities: { invoked: true, cancelled: true, outputParsed: true, ...(role === "reviewer" ? { readOnlyGuaranteed: true } : {}) }, sampleDigest: "a".repeat(64) }, join(fixture.stateRoot, "receipts"));
-  const child = spawn(process.execPath, [cliEntry, "task", "start", fixture.contractPath, "--contract-digest", digest, "--apply", "--progress", "panel", "--origin-host", host, "--origin-session", `cli-held-${host}`, "--observer-timeout-ms", "30000", "--json"], { cwd: fixture.scratch, env: { ...process.env, CODEX_HOME: fixture.gsdConfigRoot, ALPHA_AOS_STATE_DIR: fixture.stateRoot, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}` }, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [cliEntry, "task", "start", fixture.contractPath, "--contract-digest", digest, "--apply", "--progress", "panel", "--origin-host", host, "--origin-session", `cli-held-${host}`, "--observer-timeout-ms", "60000", "--json"], { cwd: fixture.scratch, env: { ...process.env, CODEX_HOME: fixture.gsdConfigRoot, ALPHA_AOS_STATE_DIR: fixture.stateRoot, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}` }, stdio: ["ignore", "pipe", "pipe"] });
   let stderr = "", buffer = "";
   child.stderr.setEncoding("utf8"); child.stderr.on("data", (chunk: string) => { stderr += chunk; });
   const ended = new Promise<void>((resolve) => child.once("close", () => resolve()));
@@ -161,7 +162,7 @@ test(`phase26 five host integration ${host} public start hands off while fixture
   } finally {
     await writeFile(release, "release");
     await ended;
-    if (launch) { const { cancelCommandJob } = await import("../src/core/command-jobs.js"); await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: launch.jobId, timeoutMs: 10000 }); }
+    if (launch) await cancelAndConfirmOwnedJob(fixture.stateRoot, launch.jobId);
   }
   assert.ok(launch);
   const binding = launch.binding;

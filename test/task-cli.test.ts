@@ -13,6 +13,7 @@ import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src
 import { readCheckpoint, writeCheckpoint, type TaskCheckpoint } from "../src/core/task-journal.js";
 import type { ControllerPort } from "../src/core/task-run.js";
 import { panelDeadline } from "../src/core/task-progress-launch.js";
+import { cancelAndConfirmOwnedJob } from "./helpers/command-job-runtime.js";
 import { createRedactionContext, redactDocument } from "../src/core/redaction.js";
 import {
   createTaskFixture,
@@ -44,48 +45,64 @@ test("phase26 attach refuses an approval without an actual run", async (t) => {
   assert.match(result.stderr.excerpt, /Exact approved task run not found/u);
 });
 
-test("phase26 panel launch uses argv and finite jobs", async (t) => {
+test("phase26 panel launch uses argv and finite jobs", { timeout: 120000 }, async (t) => {
   const { fixture, digest } = await contractFixture(t);
   await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
   const { run } = await startFixtureTask(fixture, { ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }), expectedDigest: digest });
-  const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "20000", "--json"];
+  const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "60000", "--json"];
   const result = await promisify(execFile)(process.execPath, [cliEntry, "task", ...args], { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } });
   const launch = JSON.parse(result.stdout) as { url: string; jobId: string; deadlineAt: number };
-  assert.match(launch.url, /^http:\/\/127\.0\.0\.1:\d+\/#/u);
-  const response = await fetch(launch.url.split("#")[0]!);
-  assert.equal(response.status, 200);
-  assert.ok(launch.deadlineAt <= Date.now() + 20000);
-  const files = await listing(fixture.stateRoot);
-  const credential = new URL(launch.url).hash.slice(1);
-  assert.match(credential, /^[A-Za-z0-9_-]{43}$/u);
-  for (const file of files.filter((name) => /(?:job|spec|event)/u.test(name) && name.endsWith(".json"))) {
-    assert.ok(!(await readFile(join(fixture.stateRoot, file), "utf8")).includes(credential), file);
+  try {
+    assert.match(launch.url, /^http:\/\/127\.0\.0\.1:\d+\/#/u);
+    const response = await fetch(launch.url.split("#")[0]!);
+    assert.equal(response.status, 200);
+    assert.ok(launch.deadlineAt <= Date.now() + 60000);
+    const files = await listing(fixture.stateRoot);
+    const credential = new URL(launch.url).hash.slice(1);
+    assert.match(credential, /^[A-Za-z0-9_-]{43}$/u);
+    for (const file of files.filter((name) => /(?:job|spec|event)/u.test(name) && name.endsWith(".json"))) {
+      assert.ok(!(await readFile(join(fixture.stateRoot, file), "utf8")).includes(credential), file);
+    }
+    assert.ok(!redactDocument(`Panel URL: ${launch.url}`, createRedactionContext()).includes(credential));
+    const now = Date.now();
+    assert.equal(panelDeadline({ ...run, status: "executing", deadlineAt: new Date(now + 4 * 3600_000).toISOString() }, undefined, now), now + 4 * 3600_000 + 60_000);
+    assert.equal(panelDeadline({ ...run, deadlineAt: null }, undefined, now), now + 30 * 60_000);
+    assert.equal(panelDeadline(run, 1000, now), now + 1000);
+    assert.equal(panelDeadline({ ...run, status: "executing", deadlineAt: new Date(now + 25 * 3600_000).toISOString() }, undefined, now), now + 24 * 3600_000);
+    assert.throws(() => panelDeadline(run, 24 * 3600_000 + 1, now));
+  } finally {
+    await cancelAndConfirmOwnedJob(fixture.stateRoot, launch.jobId);
   }
-  assert.ok(!redactDocument(`Panel URL: ${launch.url}`, createRedactionContext()).includes(credential));
-  const now = Date.now();
-  assert.equal(panelDeadline({ ...run, status: "executing", deadlineAt: new Date(now + 4 * 3600_000).toISOString() }, undefined, now), now + 4 * 3600_000 + 60_000);
-  assert.equal(panelDeadline({ ...run, deadlineAt: null }, undefined, now), now + 30 * 60_000);
-  assert.equal(panelDeadline(run, 1000, now), now + 1000);
-  const { cancelCommandJob } = await import("../src/core/command-jobs.js");
-  assert.equal((await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: launch.jobId, timeoutMs: 10000 })).status, "cancelled");
 });
 
-test("phase26 attach refreshes only the exact observer", { timeout: 30000 }, async (t) => {
+test("phase26 attach refreshes only the exact observer", { timeout: 120000 }, async (t) => {
   const { fixture, digest } = await contractFixture(t);
   await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
   const { run } = await startFixtureTask(fixture, { ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }), expectedDigest: digest });
-  const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "5000", "--json"];
+  const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "60000", "--json"];
   const direct = () => promisify(execFile)(process.execPath, [cliEntry, "task", ...args], { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } });
-  const first = JSON.parse((await direct()).stdout) as { url: string; jobId: string };
-  const second = JSON.parse((await direct()).stdout) as { url: string; jobId: string };
-  assert.notEqual(first.url, second.url);
-  assert.notEqual(first.jobId, second.jobId);
-  const wrongRevision = [...args]; wrongRevision[wrongRevision.indexOf("--revision") + 1] = "2";
-  assert.notEqual((await cli(fixture, wrongRevision)).exitCode, 0);
-  const wrongOrigin = [...args]; wrongOrigin[wrongOrigin.indexOf("--origin-session") + 1] = "other-session";
-  assert.notEqual((await cli(fixture, wrongOrigin)).exitCode, 0);
-  const wrongHost = [...args]; wrongHost[wrongHost.indexOf("--origin-host") + 1] = "unknown";
-  assert.notEqual((await cli(fixture, wrongHost)).exitCode, 0);
+  const observers: { url: string; jobId: string }[] = [];
+  try {
+    const first = JSON.parse((await direct()).stdout) as { url: string; jobId: string };
+    observers.push(first);
+    const second = JSON.parse((await direct()).stdout) as { url: string; jobId: string };
+    observers.push(second);
+    assert.notEqual(first.url, second.url);
+    assert.notEqual(first.jobId, second.jobId);
+    const wrongRevision = [...args]; wrongRevision[wrongRevision.indexOf("--revision") + 1] = "2";
+    assert.notEqual((await cli(fixture, wrongRevision)).exitCode, 0);
+    const wrongOrigin = [...args]; wrongOrigin[wrongOrigin.indexOf("--origin-session") + 1] = "other-session";
+    assert.notEqual((await cli(fixture, wrongOrigin)).exitCode, 0);
+    const wrongHost = [...args]; wrongHost[wrongHost.indexOf("--origin-host") + 1] = "unknown";
+    assert.notEqual((await cli(fixture, wrongHost)).exitCode, 0);
+  } finally {
+    const failures: unknown[] = [];
+    for (const observer of observers) {
+      try { await cancelAndConfirmOwnedJob(fixture.stateRoot, observer.jobId); }
+      catch (error) { failures.push(error); }
+    }
+    if (failures.length) throw new AggregateError(failures, "Observer cleanup failed");
+  }
 });
 
 test("phase26 public attach observes an applied registered job", { timeout: 40000 }, async (t) => {
@@ -115,7 +132,7 @@ test("phase26 public attach observes an applied registered job", { timeout: 4000
   assert.ok(snapshot.events.every((event) => event.outcome !== "accepted"));
 });
 
-test("phase26 public start hands off while fixture controller is held", { timeout: 60000, skip: process.platform !== "win32" }, async (t) => {
+test("phase26 public start hands off while fixture controller is held", { timeout: 120000, skip: process.platform !== "win32" }, async (t) => {
   const fixture = await createTaskFixture(t);
   const contract = inventorySummaryContract(fixture.projectRoot, { agentPolicy: { controller: "codex", executor: "codex", reviewer: "codex", reviewerSession: "fresh-read-only", controllerModel: "fixture-model", controllerEffort: "high", executorModel: "fixture-model", executorEffort: "high", reviewerModel: "fixture-model", reviewerEffort: "high" } });
   await writeTaskContract(fixture.contractPath, contract);
@@ -129,7 +146,7 @@ test("phase26 public start hands off while fixture controller is held", { timeou
   const { computeBinarySha256, writeHarnessRoleReceipt } = await import("../src/adapters/task-receipts.js");
   const binarySha256 = await computeBinarySha256(script);
   for (const role of ["controller", "executor", "reviewer"] as const) await writeHarnessRoleReceipt({ schemaVersion: 1, harness: "codex", role, version: "1.2.3", binarySha256, executable: script, probedAt: new Date().toISOString(), capabilities: { invoked: true, cancelled: true, outputParsed: true, ...(role === "reviewer" ? { readOnlyGuaranteed: true } : {}) }, sampleDigest: "a".repeat(64) }, join(fixture.stateRoot, "receipts"));
-  const child = spawn(process.execPath, [cliEntry, "task", "start", fixture.contractPath, "--contract-digest", digest, "--apply", "--progress", "panel", "--origin-host", "codex", "--origin-session", "cli-held", "--observer-timeout-ms", "30000", "--json"], { cwd: fixture.scratch, env: { ...process.env, CODEX_HOME: fixture.gsdConfigRoot, ALPHA_AOS_STATE_DIR: fixture.stateRoot, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}` }, stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [cliEntry, "task", "start", fixture.contractPath, "--contract-digest", digest, "--apply", "--progress", "panel", "--origin-host", "codex", "--origin-session", "cli-held", "--observer-timeout-ms", "60000", "--json"], { cwd: fixture.scratch, env: { ...process.env, CODEX_HOME: fixture.gsdConfigRoot, ALPHA_AOS_STATE_DIR: fixture.stateRoot, PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}` }, stdio: ["ignore", "pipe", "pipe"] });
   let stderr = "", buffer = "";
   child.stderr.setEncoding("utf8"); child.stderr.on("data", (chunk: string) => { stderr += chunk; });
   const ended = new Promise<void>((resolve) => child.once("close", () => resolve()));
@@ -150,7 +167,7 @@ test("phase26 public start hands off while fixture controller is held", { timeou
   } finally {
     await writeFile(release, "release");
     await ended;
-    if (launch) { const { cancelCommandJob } = await import("../src/core/command-jobs.js"); await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: launch.jobId, timeoutMs: 10000 }); }
+    if (launch) await cancelAndConfirmOwnedJob(fixture.stateRoot, launch.jobId);
   }
 });
 

@@ -30,6 +30,27 @@ export async function assertRuntimeReaped(record: CommandJobRecord): Promise<voi
   await processExited(record.childPid);
   await processExited(record.workerPid);
 }
+export async function cancelAndConfirmOwnedJob(stateRoot: string, jobId: string): Promise<void> {
+  const running = await readJobRecord(stateRoot, jobId);
+  let result: CommandJobRecord;
+  try {
+    result = await cancelCommandJob({ stateRoot, jobId, timeoutMs: 10000 });
+  } catch (error) {
+    if (!String(error).includes("CANCEL_OBSERVATION_TIMEOUT")) throw error;
+    const observed = await waitCommandJob({ stateRoot, jobId, timeoutMs: 10000 });
+    assert.equal(observed.status, "completed", "Reconnect must observe a terminal record.");
+    if (observed.status !== "completed") throw new Error("No canonical terminal result.");
+    result = observed.value;
+  }
+  assert.equal(result.status, "cancelled");
+  assert.equal(result.childPid, running.childPid);
+  assert.equal(result.workerPid, running.workerPid);
+  assert.equal(result.cancelRequested, true);
+  assert.equal(result.cancelDelivered, true);
+  assert.ok(result.cancelRequestedAt !== null && result.cancelConfirmedAt !== null);
+  assert.ok(result.exitCode !== null || result.signal !== null);
+  await assertRuntimeReaped(result);
+}
 export async function runtimeFixture(context: TestContext) {
   const base = await realpath(await mkdtemp(join(tmpdir(), "alpha-job-runtime-")));
   const stateRoot = join(base, "state"), projectRoot = join(base, "project");

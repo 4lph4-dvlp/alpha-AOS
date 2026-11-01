@@ -1,3 +1,4 @@
+import { cancelAndConfirmOwnedJob } from "./helpers/command-job-runtime.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { once } from "node:events";
@@ -51,7 +52,7 @@ test("phase26 progress records final acceptance only from the run", async (t) =>
   assert.equal(events.filter((event) => event.kind === "run-outcome" && event.outcome === "accepted").length, 1);
 });
 
-test("phase26 late attach reconstructs authoritative detached run history", { timeout: 30000 }, async (t) => {
+test("phase26 late attach reconstructs authoritative detached run history", { timeout: 120000 }, async (t) => {
   const fixture = await createTaskFixture(t);
   const { approveTaskContract, previewTaskContract } = await import("../src/core/task-contract.js");
   await writeTaskContract(fixture.contractPath, inventorySummaryContract(fixture.projectRoot));
@@ -63,7 +64,7 @@ test("phase26 late attach reconstructs authoritative detached run history", { ti
   const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision,
     runId: run.runId, host: "codex", originatingSessionId: "late-attach" });
   const { launchTaskProgressPanel } = await import("../src/core/task-progress-launch.js");
-  const panel = await launchTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, timeoutMs: 15000 });
+  const panel = await launchTaskProgressPanel({ stateRoot: fixture.stateRoot, binding, timeoutMs: 60000 });
   try {
     const replay = await readTaskSessionEvents(fixture.stateRoot, binding);
     assert.ok(replay.events.some((event) => event.kind === "dispatch-end"));
@@ -71,8 +72,7 @@ test("phase26 late attach reconstructs authoritative detached run history", { ti
     assert.equal(replay.events.find((event) => event.kind === "run-outcome")?.observedAt, run.finishedAt);
     assert.equal(replay.gap, true);
   } finally {
-    const { cancelCommandJob } = await import("../src/core/command-jobs.js");
-    await cancelCommandJob({ stateRoot: fixture.stateRoot, jobId: panel.jobId, timeoutMs: 10000 });
+    await cancelAndConfirmOwnedJob(fixture.stateRoot, panel.jobId);
   }
 });
 

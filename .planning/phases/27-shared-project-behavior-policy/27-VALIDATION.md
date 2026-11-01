@@ -1,7 +1,7 @@
 ---
 phase: "27"
 slug: "shared-project-behavior-policy"
-status: verified
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-02"

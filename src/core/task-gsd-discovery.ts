@@ -120,12 +120,16 @@ export async function verifyPlanTripleCorrelation(options: {
       `docs(${phaseId}-${normalizedPlanId}):`,
       `docs(${phaseId}-${planId}):`,
     ];
+    const commitPattern = new RegExp(
+      `^(?:feat|fix|docs|refactor|test|chore|perf|build|ci)\\((?:${phaseId}-${paddedPlanId}|${phaseId}-${normalizedPlanId}|${phaseId}-${planId})\\):`,
+      "u",
+    );
 
     for (const line of lines) {
       const [sha, subject] = line.split("\t");
       if (!subject) continue;
       const trimmed = subject.trim();
-      if (prefixes.some((prefix) => trimmed.startsWith(prefix))) {
+      if (prefixes.some((prefix) => trimmed.startsWith(prefix)) || commitPattern.test(trimmed)) {
         hasGitCommit = true;
         commitSha = sha;
         break;

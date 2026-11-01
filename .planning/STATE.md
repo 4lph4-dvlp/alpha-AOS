@@ -2,20 +2,20 @@
 gsd_state_version: "1.0"
 milestone: v0.6.0
 milestone_name: Predictable Task Entry and Shared Project Policy
-current_phase: 27
-current_phase_name: Shared Project Behavior Policy
-status: planning
-stopped_at: "v0.6.0 milestone initialized: 27 requirements and Phases 27-31 approved; next gsd-discuss-phase 27; no implementation"
-last_updated: "2026-11-01T16:29:28.044Z"
+current_phase: 28
+current_phase_name: Predictable Strict and Flexible Intake
+status: ready-to-plan
+stopped_at: "Phase 27 verified complete; advancing to Phase 28 discuss"
+last_updated: "2026-11-02T07:23:00.000Z"
 last_activity: 2026-11-02
-last_activity_desc: v0.6.0 requirements and five-phase roadmap approved; milestone initialized; Phase 27 discussion next
-state_head: 29676a1002e8f0a7adc740f02e0ca47822e0762c
+last_activity_desc: Phase 27 completed and verified; Phase 28 discuss next
+state_head: 0453ca223d51cf123e003fccbc4bbea352107b4d
 progress:
   total_phases: 5
-  completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
-  percent: 0
+  completed_phases: 1
+  total_plans: 5
+  completed_plans: 5
+  percent: 20
 ---
 
 # Project State
@@ -25,14 +25,18 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 27 - Shared Project Behavior Policy; milestone roadmap approved; discussion next
+**Current focus:** Phase 28 - Predictable Strict and Flexible Intake; Phase 27 completed and verified
 
 ## Current Position
 
-Phase: 27 (Shared Project Behavior Policy)
+Phase: 28 (Predictable Strict and Flexible Intake)
 Plan: —
-Status: Ready to plan
-Last activity: 2026-11-02 - v0.6.0 requirements and five-phase roadmap approved; milestone initialized; Phase 27 discussion next
+Status: Ready to discuss
+Last activity: 2026-11-02 - Phase 27 completed and verified; Phase 28 discuss next
+
+### Completed Phases
+
+- Phase 27: complete (Shared Project Behavior Policy) — 5 plans completed and verified (MODE-01 through MODE-05)
 
 ## Performance Metrics
 

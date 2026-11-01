@@ -567,7 +567,10 @@ async function provePlainJobPath(path: string, stateRoot: string, role: "state" 
   assertPathProven(proof);
   if (proof.components.some((component) =>
     component.reparse !== "none" ||
-    (component.kind !== "missing" && (component.device === null || component.inode === null))
+    (component.kind !== "missing" && (
+      (component.device === null && component.deviceExact === undefined) ||
+      (component.inode === null && component.inodeExact === undefined)
+    ))
   )) {
     throw new Error("Job path has a link or unavailable component identity: code=JOB_PATH_UNPROVEN");
   }

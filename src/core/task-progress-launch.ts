@@ -112,13 +112,25 @@ export async function serveTaskProgressPanel(stateRoot: string, id: string): Pro
   await exactRun(stateRoot, spec.binding);
   await createTaskSession(stateRoot, spec.binding);
   const panel = await startTaskProgressPanel({ stateRoot, binding: spec.binding, deadlineAt: spec.deadlineAt });
+  let finish!: () => void;
+  let timer!: ReturnType<typeof setTimeout>;
+  const stopped = new Promise<void>((resolve) => {
+    finish = () => resolve();
+    timer = setTimeout(finish, Math.max(1, spec.deadlineAt - Date.now()));
+    process.once("SIGTERM", finish);
+    process.once("SIGINT", finish);
+  });
   try {
     await writeAtomicPrivateFile(paths.handoff, JSON.stringify({ url: panel.url, deadlineAt: spec.deadlineAt }), 8192, stateRoot, { exclusive: true });
-    await new Promise<void>((resolve) => { const timer = setTimeout(resolve, Math.max(1, spec.deadlineAt - Date.now()));
-      const finish = () => { clearTimeout(timer); resolve(); }; process.once("SIGTERM", finish); process.once("SIGINT", finish); });
+    await stopped;
   } finally {
-    await panel.dispose();
-    await unlink(paths.handoff).catch(() => {});
-    await unlink(paths.spec).catch(() => {});
+    clearTimeout(timer);
+    process.removeListener("SIGTERM", finish);
+    process.removeListener("SIGINT", finish);
+    try { await panel.dispose(); }
+    finally {
+      await unlink(paths.handoff).catch(() => {});
+      await unlink(paths.spec).catch(() => {});
+    }
   }
 }

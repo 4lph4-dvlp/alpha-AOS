@@ -15,6 +15,7 @@ import { readCheckpoint, writeCheckpoint, type TaskCheckpoint } from "../src/cor
 import type { ControllerPort } from "../src/core/task-run.js";
 import { panelDeadline } from "../src/core/task-progress-launch.js";
 import { cancelAndConfirmOwnedJob } from "./helpers/command-job-runtime.js";
+import { readJobRecord } from "../src/core/command-jobs.js";
 import { createRedactionContext, redactDocument } from "../src/core/redaction.js";
 import {
   createTaskFixture,
@@ -33,6 +34,24 @@ const repositoryRoot = resolve(testDirectory, "..", "..");
 const cliEntry = join(repositoryRoot, "dist", "src", "cli.js");
 const probeEnv = commandProbeEnvironment({ source: process.env });
 const OUTPUT_BYTES = 256 * 1024;
+
+async function withPanelCleanup(stateRoot: string, launch: { jobId: string; deadlineAt: number }, action: (stage: (value: string) => void) => Promise<void>): Promise<void> {
+  const startedAt = Date.now();
+  const errors: unknown[] = [];
+  let stage = "action";
+  try { await action((value) => { stage = value; }); } catch (error) { errors.push(error); }
+  try { await cancelAndConfirmOwnedJob(stateRoot, launch.jobId); } catch (error) { errors.push(error); }
+  if (errors.length) {
+    let details: object;
+    try {
+      const job = await readJobRecord(stateRoot, launch.jobId);
+      details = { jobId: launch.jobId, status: job.status, exitCode: job.exitCode, signal: job.signal,
+        cancelRequestedAt: job.cancelRequestedAt, cancelConfirmedAt: job.cancelConfirmedAt,
+        errorCode: job.error?.code, deadlineAt: launch.deadlineAt, elapsedMs: Date.now() - startedAt, stage };
+    } catch { details = { jobId: launch.jobId, deadlineAt: launch.deadlineAt, elapsedMs: Date.now() - startedAt, stage, record: "unavailable" }; }
+    throw new AggregateError(errors, `Panel action or cleanup failed: ${JSON.stringify(details)}`);
+  }
+}
 
 test("phase26 attach refuses an approval without an actual run", async (t) => {
   const fixture = await createTaskFixture(t);
@@ -53,8 +72,9 @@ test("phase26 panel launch uses argv and finite jobs", { timeout: 120000 }, asyn
   const args = ["attach", run.contractId, "--run", run.runId, "--contract-digest", digest, "--revision", String(run.revision), "--origin-host", "codex", "--origin-session", "conversation-one", "--observer-timeout-ms", "60000", "--json"];
   const result = await promisify(execFile)(process.execPath, [cliEntry, "task", ...args], { cwd: fixture.scratch, env: { ...process.env, ALPHA_AOS_STATE_DIR: fixture.stateRoot } });
   const launch = JSON.parse(result.stdout) as { url: string; jobId: string; deadlineAt: number };
-  try {
+  await withPanelCleanup(fixture.stateRoot, launch, async (stage) => {
     assert.match(launch.url, /^http:\/\/127\.0\.0\.1:\d+\/#/u);
+    stage("page");
     const status = await new Promise<number | undefined>((resolveResponse, reject) => {
       const request = get(launch.url.split("#")[0]!, { signal: AbortSignal.timeout(5000) }, (response) => {
         response.once("error", reject);
@@ -64,6 +84,7 @@ test("phase26 panel launch uses argv and finite jobs", { timeout: 120000 }, asyn
       request.once("error", reject);
     });
     assert.equal(status, 200);
+    stage("assertions");
     assert.ok(launch.deadlineAt <= Date.now() + 60000);
     const files = await listing(fixture.stateRoot);
     const credential = new URL(launch.url).hash.slice(1);
@@ -78,9 +99,7 @@ test("phase26 panel launch uses argv and finite jobs", { timeout: 120000 }, asyn
     assert.equal(panelDeadline(run, 1000, now), now + 1000);
     assert.equal(panelDeadline({ ...run, status: "executing", deadlineAt: new Date(now + 25 * 3600_000).toISOString() }, undefined, now), now + 24 * 3600_000);
     assert.throws(() => panelDeadline(run, 24 * 3600_000 + 1, now));
-  } finally {
-    await cancelAndConfirmOwnedJob(fixture.stateRoot, launch.jobId);
-  }
+  });
 });
 
 test("phase26 attach refreshes only the exact observer", { timeout: 120000 }, async (t) => {
@@ -130,14 +149,18 @@ test("phase26 public attach observes an applied registered job", { timeout: 4000
   const job = JSON.parse(dispatched.stdout) as { jobId: string };
   const { waitCommandJob } = await import("../src/core/command-jobs.js");
   assert.equal((await waitCommandJob({ stateRoot: fixture.stateRoot, jobId: job.jobId, timeoutMs: 15000 })).status, "completed");
-  const attached = await promisify(execFile)(process.execPath, [cliEntry, "task", "attach", contract.id, "--run", runId, "--contract-digest", digest, "--revision", "1", "--origin-host", "codex", "--origin-session", "dedicated-session", "--observer-timeout-ms", "5000", "--json"], { cwd: fixture.scratch, env: environment });
-  const launch = JSON.parse(attached.stdout) as { url: string };
-  const url = new URL(launch.url);
-  const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
-  const { token } = await exchange.json() as { token: string };
-  const snapshot = await (await fetch(`${url.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).json() as { events: { kind: string; outcome: string }[] };
-  assert.ok(snapshot.events.some((event) => event.kind === "dispatch-end"));
-  assert.ok(snapshot.events.every((event) => event.outcome !== "accepted"));
+  const attached = await promisify(execFile)(process.execPath, [cliEntry, "task", "attach", contract.id, "--run", runId, "--contract-digest", digest, "--revision", "1", "--origin-host", "codex", "--origin-session", "dedicated-session", "--observer-timeout-ms", "60000", "--json"], { cwd: fixture.scratch, env: environment });
+  const launch = JSON.parse(attached.stdout) as { url: string; jobId: string; deadlineAt: number };
+  await withPanelCleanup(fixture.stateRoot, launch, async (stage) => {
+    const url = new URL(launch.url);
+    stage("session");
+    const exchange = await fetch(`${url.origin}/session`, { method: "POST", headers: { Origin: url.origin, Authorization: `Bearer ${url.hash.slice(1)}` } });
+    const { token } = await exchange.json() as { token: string };
+    stage("snapshot");
+    const snapshot = await (await fetch(`${url.origin}/snapshot`, { headers: { Authorization: `Bearer ${token}` } })).json() as { events: { kind: string; outcome: string }[] };
+    assert.ok(snapshot.events.some((event) => event.kind === "dispatch-end"));
+    assert.ok(snapshot.events.every((event) => event.outcome !== "accepted"));
+  });
 });
 
 test("phase26 public start hands off while fixture controller is held", { timeout: 120000, skip: process.platform !== "win32" }, async (t) => {

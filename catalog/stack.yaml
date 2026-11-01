@@ -37,7 +37,7 @@ harnesses:
 components:
   gsd:
     package: "@opengsd/gsd-core"
-    profile: standard
+    profile: full
     targets: [claude, codex, antigravity, pi, hermes]
   ecc:
     package: ecc-universal

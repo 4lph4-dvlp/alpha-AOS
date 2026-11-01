@@ -155,7 +155,7 @@ test("promoteCandidate full promotion updates all components and resets candidat
 
     const stable = JSON.parse(await readFile(stablePath, "utf8"));
     assert.equal(stable.components.gsd.version, "1.14.0");
-    assert.equal(stable.components.gsd.profile, "standard");
+    assert.equal(stable.components.gsd.profile, "full", "a stale standard candidate must not remove milestone skills");
     assert.equal(stable.components.ecc.version, "2.2.1");
     assert.equal(stable.components.mcp.context7.version, "4.1.1");
     assert.equal(stable.components.mcp.firecrawl.version, "3.25.2");
@@ -169,6 +169,23 @@ test("promoteCandidate full promotion updates all components and resets candidat
     // Schema validation passes
     const loadedLock = await loadLock(tempDir, "stable");
     assert.equal(loadedLock.components.gsd?.version, "1.14.0");
+  } finally {
+    await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
+  }
+});
+
+test("GSD promotion preserves an explicitly configured stable profile", async () => {
+  const { tempDir, stablePath } = await setupTempRepo();
+  try {
+    const before = JSON.parse(await readFile(stablePath, "utf8"));
+    before.components.gsd.profile = "standard";
+    await writeFile(stablePath, `${JSON.stringify(before, null, 2)}\n`, "utf8");
+
+    await promoteCandidate({ root: tempDir, components: ["gsd"] });
+
+    const after = JSON.parse(await readFile(stablePath, "utf8"));
+    assert.equal(after.components.gsd.version, "1.14.0");
+    assert.equal(after.components.gsd.profile, "standard");
   } finally {
     await rm(tempDir, { recursive: true, force: true }).catch(() => undefined);
   }

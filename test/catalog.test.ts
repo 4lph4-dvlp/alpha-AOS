@@ -62,7 +62,8 @@ test("stable catalog loads exact locked components", async () => {
   const root = packageRoot();
   const catalog = await loadCatalog(root);
   const lock = await loadLock(root);
-  assert.equal(catalog.components.gsd.profile, "standard");
+  assert.equal(catalog.components.gsd.profile, "full");
+  assert.equal(lock.components.gsd?.profile, catalog.components.gsd.profile);
   assert.equal(catalog.components.ecc.profileInstallAllowed, false);
   // Versions and hashes are rewritten by the automated weekly promotion, so the
   // stable lock is asserted by shape here. Whether each hash matches the locked
@@ -123,6 +124,8 @@ test("install plan is ordered and installs GSD on all harnesses including Hermes
   assert.equal(plan.find((action) => action.id === "gsd:codex")?.note, "canary first");
   assert.ok(plan.filter((action) => action.component === "gsd" && action.operation === "install")
     .every((action) => action.command?.includes("--no-legacy-cleanup")));
+  assert.ok(plan.filter((action) => action.component === "gsd" && action.operation === "install")
+    .every((action) => action.command?.includes("--profile=full")));
   assert.match(plan.find((action) => action.id === "gsd:shared-root-audit")?.note ?? "", /never in parallel/u);
   assert.equal(plan.find((action) => action.id === "ecc:pi")?.operation, "install");
   assert.equal(plan.find((action) => action.id === "ecc:claude")?.operation, "install");

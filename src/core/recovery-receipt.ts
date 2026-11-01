@@ -56,7 +56,7 @@ export function compensateGsd(
   target: string,
   previousVersion: string | null,
   appliedVersion: string,
-  profile = "standard",
+  profile = "full",
 ): { instructions: string; commands: string[] } {
   if (previousVersion) {
     return {

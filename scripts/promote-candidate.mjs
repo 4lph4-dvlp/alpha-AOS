@@ -100,7 +100,8 @@ export async function promoteCandidate(options = {}) {
     if (comp === "gsd") {
       stable.components.gsd = {
         ...candPkg,
-        profile: "standard", // GSD Core standard profile spine invariant
+        // Dependency promotion preserves the reviewed stable skill surface.
+        profile: stable.components.gsd?.profile ?? "full",
       };
       promoted.push(comp);
     } else if (comp === "ecc") {

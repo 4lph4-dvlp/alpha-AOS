@@ -22,6 +22,8 @@ Declarative, cross-platform installer and updater for a small, consistent AI-age
 
 alpha-AOS configures the supported harnesses already present on a machine: Claude Code, Codex, Antigravity, Pi Agent, and Hermes Agent. It uses GSD as the workflow/state spine, installs exactly three selected ECC skills, and registers Context7, Exa, and a four-tool Firecrawl surface. It does not install the harness applications themselves and does not install an ECC profile.
 
+GSD is installed with the explicit `full` profile by default, including `new-milestone`, `complete-milestone`, and `audit-milestone`. Use milestone planning for the next feature/version cycle of an existing project. Dependency updates preserve the stable lock's selected profile.
+
 The installer is deterministic and dry-run first. It detects installed harnesses, compares them with the stable lock, runs isolated package fixtures only when a change is needed, applies targets sequentially, verifies the result, and journals alpha-AOS-owned file writes. It never applies `candidate.lock.json` on an end-user machine.
 
 ---
@@ -108,7 +110,7 @@ alpha-AOS enforces a strict boundary between global baseline tools and project-s
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        USER WORKSTATION (Global)                       │
-│  • GSD Core standard (Lifecycle Spine)                                 │
+│  • GSD Core full (Lifecycle Spine, including milestones)                │
 │  • ECC Global Skills (unified-memory, documentation-lookup,            │
 │                       deep-research)                                   │
 │  • Curated MCP Servers (Context7, Exa, Firecrawl bounded proxy)        │
@@ -289,7 +291,7 @@ For the complete 35-cell role & capability support evaluation and verified hando
 
 | Layer | Component / Package | Targets | Notes |
 |---|---|---|---|
-| **Workflow & State Spine** | GSD Core `standard` | Claude, Codex, Antigravity, Pi | Governs project planning, phase execution, and verification. |
+| **Workflow & State Spine** | GSD Core `full` | Claude, Codex, Antigravity, Pi | Governs project planning, milestone cycles, phase execution, and verification. |
 | **Worker Harness** | Hermes Agent | Hermes | Configured as worker-only; does not write GSD planning state. |
 | **Cross-Harness Memory** | ECC `unified-memory` | All five harnesses | Shared Memory Vault across agents. |
 | **Library Documentation** | ECC `documentation-lookup` + Context7 | All five harnesses | Real-time docs via Context7 stdio MCP gateway. |

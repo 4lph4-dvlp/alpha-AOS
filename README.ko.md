@@ -36,7 +36,9 @@ macOS/Linux GUI 실기 동작 및 전체 3OS CI는 검증되지 않았으며 미
 
 일관되고 제어 가능한 AI 에이전트 작업 환경을 구축하기 위한 선언적(Declarative) 크로스 플랫폼 인스톨러 및 업데이트 관리자입니다.
 
-alpha-AOS는 사용자 머신에 이미 설치된 지원 AI 하네스(Claude Code, Codex, Antigravity, Pi Agent, Hermes Agent)를 자동으로 감지하고 최적의 환경으로 구성합니다. 프로젝트 워크플로우 및 상태 척추로 **GSD(Get Stuff Done)**를 사용하고, 엄선된 3개의 **ECC(Everything Claude Code)** 글로벌 스킬을 제공하며, **Context7**, **Exa**, 그리고 로컬 프록시로 안전하게 제한된 **Firecrawl** MCP 서버를 등록합니다. 하네스 애플리케이션 자체를 임의로 설치하지 않으며, 무분별한 전역 프로필 설치를 차단합니다.
+alpha-AOS는 사용자 머신에 이미 설치된 지원 AI 하네스(Claude Code, Codex, Antigravity, Pi Agent, Hermes Agent)를 자동으로 감지하고 최적의 환경으로 구성합니다. 프로젝트 워크플로우 및 상태 척추로 **GSD(Get Stuff Done)**를 사용하고, 엄선된 3개의 **ECC(Everything Claude Code)** 글로벌 스킬을 제공하며, **Context7**, **Exa**, 그리고 로컬 프록시로 안전하게 제한된 **Firecrawl** MCP 서버를 등록합니다. 하네스 애플리케이션 자체를 임의로 설치하지 않으며, ECC 전체 프로필 설치를 차단합니다.
+
+GSD 기본 설치 프로필은 마일스톤 명령(`new-milestone`, `complete-milestone`, `audit-milestone`)을 포함하는 **`full`**입니다. 기존 프로젝트의 다음 기능·버전 기획은 마일스톤으로 시작할 수 있으며, 의존성 업데이트도 안정 락에서 선택한 프로필을 유지합니다.
 
 모든 변경 작업은 기본적으로 **Dry-run(사전 검토)**을 거쳐 결정론적(Deterministic)으로 실행됩니다. 설치된 하네스를 감지하여 검증된 불변 락(`stack.lock.json`)과 비교하고, 변경이 필요한 경우에만 격리된 픽스처 테스트를 통과한 후 순차적으로 적용하며, 모든 파일 변경 이력을 트랜잭션 저널로 기록하여 완벽한 스냅샷 롤백을 보장합니다.
 
@@ -124,7 +126,7 @@ alpha-AOS는 공통 전역 도구와 프로젝트 맞춤 기능 간의 경계를
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                        사용자 워크스테이션 (Global 스택)                  │
-│  • GSD Core standard (프로젝트 워크플로우 & 상태 관리 척추)               │
+│  • GSD Core full (마일스톤 포함 프로젝트 워크플로우 & 상태 관리 척추)      │
 │  • ECC 전역 스킬 (unified-memory, documentation-lookup,                │
 │                   deep-research)                                       │
 │  • 엄선된 MCP 도구 (Context7 최신 문서, Exa 검색, Firecrawl 프록시)       │
@@ -303,7 +305,7 @@ alpha-aos project status .
 
 | 레이어 | 패키지 / 구성 요소 | 타깃 | 설명 |
 |---|---|---|---|
-| **워크플로우 척추** | GSD Core `standard` | Claude, Codex, Antigravity, Pi | 프로젝트 기획, 단계별 계획/실행 및 검증 총괄. |
+| **워크플로우 척추** | GSD Core `full` | Claude, Codex, Antigravity, Pi | 프로젝트·마일스톤 기획, 단계별 계획/실행 및 검증 총괄. |
 | **작업자 하네스** | Hermes Agent | Hermes | 작업자 전용(Worker-only)으로 설정되어 GSD 기획 상태를 임의 변경하지 않음. |
 | **에이전트 통합 메모리** | ECC `unified-memory` | 5대 하네스 공통 | 에이전트 간 맥락과 결정 사항을 공유하는 Memory Vault. |
 | **최신 라이브러리 문서** | ECC `documentation-lookup` + Context7 | 5대 하네스 공통 | Context7 stdio MCP 게이트웨이를 통한 실시간 최신 공식 문서 조회. |

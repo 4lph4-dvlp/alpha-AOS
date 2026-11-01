@@ -60,7 +60,7 @@ export async function resolveCandidate(current: StackLock): Promise<StackLock> {
     generatedAt: new Date().toISOString(),
     status: "unverified",
     components: {
-      gsd: { ...gsd, profile: current.components.gsd?.profile ?? "standard" },
+      gsd: { ...gsd, profile: current.components.gsd?.profile ?? "full" },
       ecc: {
         ...ecc,
         skills: current.components.ecc?.skills ?? [],

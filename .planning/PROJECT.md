@@ -93,7 +93,7 @@ The authority boundaries are:
 - **Compatibility**: Windows 11, current macOS, and current Linux distributions — v0.1.0 must keep scripts, path handling, and native configuration adapters portable
 - **Runtime**: Node.js `>=24.0.0`, npm `>=10.0.0`, and Git — required by the locked toolchain and GSD version
 - **Harness scope**: Active v0.1.0 development targets are Claude Code, Codex, Antigravity GUI/CLI/IDE, Pi Agent, and Hermes Agent. Claude Code is reinstated per D-18 on equal footing with the other four harnesses and still requires its own real invocation-receipt evidence before promotion, exactly like every other harness. Capabilities may use different native adapters, and unsupported parity must be reported rather than simulated
-- **Workflow ownership**: GSD Core `standard` is the only project lifecycle/state spine — ECC and native features must not duplicate or overwrite its state transitions
+- **Workflow ownership**: GSD Core `full` (including milestone commands) is the only project lifecycle/state spine — ECC and native features must not duplicate or overwrite its state transitions
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion
 - **Secrets**: Credential values cannot enter manifests, locks, plans, journals, diagnostics, command arguments, or repository files — project-only launch environments must default to a reviewed allowlist
@@ -104,7 +104,8 @@ The authority boundaries are:
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Use GSD Core `standard` as the sole workflow and project-state spine | It provides the strongest structured cross-harness phase boundaries without the broad overlap of the full profile | ✓ Good |
+| Use GSD Core `standard` as the sole workflow and project-state spine | Original restricted skill surface | Superseded by the user's 2026-11-01 milestone-capable default request |
+| Install GSD Core `full` by default while retaining GSD as the sole lifecycle/state owner | Exposes milestone creation, completion and review alongside phase workflows on supported harnesses; dependency promotion preserves the reviewed profile | Adopted 2026-11-01, quick task 261101-ww3 |
 | Use a hybrid capability activation model | Native implicit invocation is sufficient for optional low-risk global skills; deterministic project detection and explicit quality gates cover scope-sensitive or mandatory behavior | — Pending |
 | Keep alpha-AOS as a control plane, not an invocation proxy for every tool call | Harness-native selection preserves natural agent behavior while alpha-AOS concentrates on reproducibility, policy, and isolation | — Pending |
 | Install only three global ECC capabilities and no ECC profile | This supplies memory, current documentation, and deep research without importing a competing workflow system | ✓ Good |

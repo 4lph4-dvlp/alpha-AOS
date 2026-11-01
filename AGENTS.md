@@ -15,7 +15,7 @@ The system manages capability scope as well as installation: broadly useful, low
 - **Compatibility**: Windows 11, current macOS, and current Linux distributions — v0.1.0 must keep scripts, path handling, and native configuration adapters portable
 - **Runtime**: Node.js `>=24.0.0`, npm `>=10.0.0`, and Git — required by the locked toolchain and GSD version
 - **Harness scope**: Claude Code, Codex, Antigravity GUI/CLI/IDE, Pi Agent, and Hermes Agent — capabilities may use different native adapters, and unsupported parity must be reported rather than simulated
-- **Workflow ownership**: GSD Core `standard` is the only project lifecycle/state spine — ECC and native features must not duplicate or overwrite its state transitions
+- **Workflow ownership**: GSD Core `full` (including milestone commands) is the only project lifecycle/state spine — ECC and native features must not duplicate or overwrite its state transitions
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion
 - **Secrets**: Credential values cannot enter manifests, locks, plans, journals, diagnostics, command arguments, or repository files — project-only launch environments must default to a reviewed allowlist

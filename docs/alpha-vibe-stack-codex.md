@@ -1,5 +1,7 @@
 # Alpha Vibe 에이전트 워크플로우 스택 결정서
 
+> 2026-11-01 변경: 사용자의 명시적 요청에 따라 현재 GSD 기본 설치 프로필은 마일스톤 명령을 포함하는 `full`이다. 아래의 `standard` 선택 근거와 설치 예시는 당시 결정의 기록이며, 현재 프로필은 `catalog/stack.yaml`, `catalog/stack.lock.json`, `.planning/PROJECT.md`를 따른다. GSD 단일 상태 소유권과 ECC 선택 설치 원칙은 유지한다.
+
 - 상태: v4 — Claude v4 이관 항목을 사실 검증·정정한 최종 권위 문서 (구성 준비 단계)
 - 작성일: 2026-09-01
 - 대상 OS: Windows 11

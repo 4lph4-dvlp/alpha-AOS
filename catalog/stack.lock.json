@@ -7,7 +7,7 @@
       "package": "@opengsd/gsd-core",
       "version": "1.18.0",
       "integrity": "sha512-00b29mvlQMmUcR8wkvJFf/okGDWRB1kiHR4Pg921N+Q8nFwXehRhHEGAusQn+oM/p7SMGM4sAdPAbiECGaozwg==",
-      "profile": "standard"
+      "profile": "full"
     },
     "ecc": {
       "package": "ecc-universal",

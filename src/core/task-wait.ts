@@ -117,6 +117,10 @@ const CHECKPOINT_ALLOWED_KEYS = new Set([
   "usage",
   "stopReason",
   "updatedAt",
+  "quickId",
+  "nativeSessionId",
+  "stageReceiptIds",
+  "workflowSha256",
 ]);
 
 const CHECKPOINT_USAGE_ALLOWED_KEYS = new Set([
@@ -334,6 +338,18 @@ function validateCheckpointRecord(
   }
   if (typeof cp.updatedAt !== "string" || cp.updatedAt.length === 0) {
     return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint updatedAt must be non-empty string" };
+  }
+  if (cp.quickId !== undefined && cp.quickId !== null && (typeof cp.quickId !== "string" || cp.quickId.length === 0)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint quickId must be non-empty string or null" };
+  }
+  if (cp.nativeSessionId !== undefined && cp.nativeSessionId !== null && (typeof cp.nativeSessionId !== "string" || cp.nativeSessionId.length === 0)) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint nativeSessionId must be non-empty string or null" };
+  }
+  if (cp.stageReceiptIds !== undefined && (!Array.isArray(cp.stageReceiptIds) || cp.stageReceiptIds.some((id) => typeof id !== "string"))) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint stageReceiptIds must be an array of strings" };
+  }
+  if (cp.workflowSha256 !== undefined && cp.workflowSha256 !== null && (typeof cp.workflowSha256 !== "string" || !/^[a-f0-9]{64}$/u.test(cp.workflowSha256))) {
+    return { ok: false, code: "FORGED_CHECKPOINT", reason: "Checkpoint workflowSha256 must be a 64-char hex SHA-256 or null" };
   }
 
   if (typeof cp.usage !== "object" || cp.usage === null || Array.isArray(cp.usage)) {

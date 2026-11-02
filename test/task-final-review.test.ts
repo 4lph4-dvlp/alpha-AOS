@@ -421,6 +421,8 @@ test("orchestrateMultiPhaseProgression requires real GSD evidence and final inde
     await writeFile(join(planning, "ROADMAP.md"), "### Phase 01: Fixture\n");
     await writeFile(join(planning, "STATE.md"), "status: executing\n");
     await writeFinalRequirements(projectRoot);
+    gitCommand(projectRoot, ["add", "-A"]);
+    assert.equal(gitCommand(projectRoot, ["commit", "-m", "chore: initial roadmap"]).ok, true);
     const contract = { ...sampleContract(), scope: { projectRoot, workflow: "gsd-multi-phase", summary: "fixture" }, allowedRoots: ["src"] };
     const baseCommit = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
     const noOp = { executable: process.execPath, args: ["-e", "process.exit(0)"] };

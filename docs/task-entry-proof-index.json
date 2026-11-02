@@ -574,7 +574,8 @@
         "CR-03",
         "WR-01"
       ],
-      "modelPolicy": "user-approved-session-inheritance"
+      "modelPolicy": "user-approved-session-inheritance",
+      "reportArchiveCommitSha": "9b6679a481a0d694551712e6c1f621afbdada704"
     },
     "currentRun": {
       "sourceHead": "9b6679a481a0d694551712e6c1f621afbdada704",
@@ -863,6 +864,14 @@
           "durationMs": 360371.6056
         }
       }
-    ]
+    ],
+    "finalReview": {
+      "status": "passed",
+      "reviewedSourceHead": "1f444d828ea282fc354ecc558c03e1db3b7fa11c",
+      "report": "31-REVIEW.md",
+      "reportSha256": "a74f84b6912b22e32322c643a4c267d38bd1d4db035ee95836c41c856906f0bc",
+      "scope": "final-source-and-measured-ledger",
+      "modelPolicy": "user-approved-session-inheritance"
+    }
   }
 }

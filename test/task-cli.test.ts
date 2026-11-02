@@ -443,7 +443,7 @@ test("an unknown task subcommand lists all valid subcommands", async (context) =
 
   const result = await cli(fixture, ["run", fixture.contractPath, "--contract-digest", digest]);
   assert.equal(result.exitCode, 2);
-  assert.match(result.stderr.excerpt, /Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait\./u);
+  assert.match(result.stderr.excerpt, /Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait, intake\./u);
   assert.deepEqual(await listing(fixture.stateRoot), []);
 });
 

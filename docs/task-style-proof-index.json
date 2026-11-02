@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "description": "Bounded index of native execution style proof evidence (D-21, D-22, D-24)",
+  "routes": [
+    {
+      "route": "conversational-quick",
+      "status": "unverified",
+      "reason": "Awaiting Plan 08 native execution"
+    },
+    {
+      "route": "conversational-quick-full",
+      "status": "unverified",
+      "reason": "Awaiting Plan 08 native execution"
+    },
+    {
+      "route": "conversational-phase",
+      "status": "unverified",
+      "reason": "Awaiting Plan 08 native execution"
+    },
+    {
+      "route": "autopilot-quick",
+      "status": "unverified",
+      "reason": "Awaiting Plan 08 native execution"
+    },
+    {
+      "route": "autopilot-quick-full",
+      "status": "unverified",
+      "reason": "Awaiting Plan 08 native execution"
+    },
+    {
+      "route": "autopilot-phase",
+      "status": "unverified",
+      "reason": "Awaiting Plan 08 native execution"
+    }
+  ]
+}

@@ -27,6 +27,11 @@ export const REQUIRED_V060_ENTRIES = [
   "schemas/task-receipt.schema.json",
   "scripts/verify-task-bootstrap-native.mjs",
   "scripts/verify-task-style-native.mjs",
+  "scripts/verify-task-entry-proof.mjs",
+  "docs/task-entry.md",
+  "docs/task-entry.ko.md",
+  "docs/task-entry-proof.md",
+  "docs/task-entry-proof-index.json",
 ];
 
 export function isInspectableTextEntry(path) {

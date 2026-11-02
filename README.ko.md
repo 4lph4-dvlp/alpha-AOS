@@ -130,7 +130,7 @@ alpha-AOS는 공통 전역 도구와 프로젝트 맞춤 기능 간의 경계를
 │  • ECC 전역 스킬 (unified-memory, documentation-lookup,                │
 │                   deep-research)                                       │
 │  • 엄선된 MCP 도구 (Context7 최신 문서, Exa 검색, Firecrawl 프록시)       │
-│  • 기본 탑재 소유 스킬 (alpha-aos-control, alpha-aos-ship)          │
+│  • 기본 탑재 소유 스킬 (alpha-aos-control, alpha-aos-ship, alpha-aos-task)          │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
        ┌────────────────────────────┴────────────────────────────┐
@@ -211,6 +211,21 @@ alpha-aos project status .
 
 ---
 
+## 예측 가능한 작업 진입과 6개 실행 스타일
+
+공유 프로젝트 모드는 파일을 쓰지 않는 기본 strict 또는 적응형 intake인 flexible입니다. 활성 작업·직접 GSD 명령·명시적인 스타일·증거 기반 단순 작업 면제를 먼저 판단한 뒤 새 본격 작업에서 스타일을 확인합니다. flexible은 실행 동의가 아닙니다.
+
+| 번호 | 고정 라벨 | Canonical ID |
+|---|---|---|
+| 1 | 대화형-quick | `conversational-quick` |
+| 2 | 대화형-quick-full | `conversational-quick-full` |
+| 3 | 대화형-phase | `conversational-phase` |
+| 4 | 오토파일럿-quick | `autopilot-quick` |
+| 5 | 오토파일럿-quick-full | `autopilot-quick-full` |
+| 6 | 오토파일럿-phase | `autopilot-phase` |
+
+상세 흐름은 [English](./docs/task-entry.md) / [한국어](./docs/task-entry.ko.md), 검증 결과는 [증명 원장](./docs/task-entry-proof.md), 운영 제어는 [런타임 문서](./docs/task-runtime-controls.md), 호환성은 [지원 매트릭스](./docs/SUPPORT_MATRIX.md)를 참고하세요. Hermes는 worker-only이며 GSD 컨트롤러를 지원하지 않습니다. Claude G-07-2 인증, 3-OS CI, 글로벌 재적용과 push·npm publish는 보류 중입니다. 소스 복제 개발용 패키지 버전 0.5.0은 유지합니다.
+
 ## 실전 사용 시나리오 및 자주 묻는 질문 (FAQ)
 
 ### 시나리오 A: 기존 코드베이스 온보딩 (Brownfield)
@@ -276,7 +291,18 @@ alpha-aos project status .
   alpha-aos repair --apply
   ```
 
-### 시나리오 H: 완성된 GSD 작업물 PR 배포 (Ship)
+### 시나리오 H: 공유 프로젝트 행동 정책 (strict / flexible)
+
+다섯 하네스는 같은 프로젝트 정책을 다음 intake에서 읽습니다. 기본 strict는 쓰기 없이 적용되며 flexible은 진입 선호일 뿐 실행·오토파일럿 시작 권한이 아닙니다. 진행 중인 작업의 스타일은 유지합니다.
+
+```sh
+alpha-aos project mode . --json
+alpha-aos project mode set flexible . --json
+alpha-aos project mode set flexible . --plan-digest <digest> --apply
+alpha-aos rollback <operation-id> --apply
+```
+
+### 시나리오 I: 완성된 GSD 작업물 PR 배포 (Ship)
 - **질문**: *"GSD 단계를 모두 완료하고 안전하게 브랜치를 푸시하고 PR을 열고 싶습니다."*
 - **해결책**: 저장소 소유 스킬인 `/alpha-aos-ship`을 사용합니다:
   ```sh
@@ -285,7 +311,7 @@ alpha-aos project status .
   ```
   불필요한 유틸리티 낭비 없이 GSD 정식 Ship 워크플로우(클린 트리 검증, 브랜치 검사, 푸시, PR 생성)를 바로 호출합니다.
 
-### 시나리오 I: 구조화된 독립 마일스톤 최종 리뷰 (Final Review)
+### 시나리오 J: 구조화된 독립 마일스톤 최종 리뷰 (Final Review)
 - **질문**: *"마일스톤이나 Phase를 완료 선언하기 전에 모든 필수 기준과 아키텍처 제약이 충족되었는지 어떻게 보증합니까?"*
 - **해결책**: 독립 최종 리뷰어 게이트를 실행합니다:
   ```sh
@@ -312,6 +338,7 @@ alpha-aos project status .
 | **심층 멀티 웹 리서치** | ECC `deep-research` + Exa/Firecrawl | 5대 하네스 공통 | Exa 검색 및 안전하게 필터링된 Firecrawl 기반의 리서치. |
 | **웹 스크래핑 프록시** | Firecrawl Proxy | 5대 하네스 공통 | 상위 25개 도구 중 안전한 4개 추출/크롤링 도구만 노출하는 로컬 SDK 프록시. |
 | **자율형 통합 제어기** | `alpha-aos-control` | 5대 하네스 공통 | 프로젝트 팩 추천·자동설치, 폴더 격리(Tree-Off), 진단, 롤백을 통합 제어. |
+| **예측 가능한 작업 진입** | `alpha-aos-task` | 5대 하네스 공통 | 공유 strict/flexible 정책, 작업 진입, GSD 준비 상태 복구 및 6개 실행 스타일. |
 | **GSD PR 배포 스킬** | `alpha-aos-ship` | Claude Code | 사용자 호출 전용의 브랜치 푸시 및 PR 생성 스킬. |
 | **프로젝트 격리 지원** | alpha-AOS 런타임 어댑터 | 5대 하네스 공통 | Fail-closed 보장을 갖춘 프로젝트 독립 샌드박스 실행. |
 

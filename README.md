@@ -114,7 +114,7 @@ alpha-AOS enforces a strict boundary between global baseline tools and project-s
 │  • ECC Global Skills (unified-memory, documentation-lookup,            │
 │                       deep-research)                                   │
 │  • Curated MCP Servers (Context7, Exa, Firecrawl bounded proxy)        │
-│  • Built-in Owned Skills (alpha-aos-control, alpha-aos-ship)           │
+│  • Built-in Owned Skills (alpha-aos-control, alpha-aos-ship, alpha-aos-task)           │
 └───────────────────────────────────┬────────────────────────────────────┘
                                     │
        ┌────────────────────────────┴────────────────────────────┐
@@ -194,6 +194,21 @@ alpha-aos project status .
 ```
 
 ---
+
+## Predictable Task Entry & Six Execution Styles
+
+The shared project policy uses strict by default with zero writes, or flexible adaptive intake. Active-task continuity, leading GSD commands, explicit styles and evidence-backed simple exemptions precede the chooser for new substantial tasks. Flexible is an intake preference, not execution consent.
+
+| Number | Exact label | Canonical ID |
+|---|---|---|
+| 1 | 대화형-quick | `conversational-quick` |
+| 2 | 대화형-quick-full | `conversational-quick-full` |
+| 3 | 대화형-phase | `conversational-phase` |
+| 4 | 오토파일럿-quick | `autopilot-quick` |
+| 5 | 오토파일럿-quick-full | `autopilot-quick-full` |
+| 6 | 오토파일럿-phase | `autopilot-phase` |
+
+Read the [English guide](./docs/task-entry.md) / [한국어 가이드](./docs/task-entry.ko.md), [proof ledger](./docs/task-entry-proof.md), [runtime controls](./docs/task-runtime-controls.md) and [support matrix](./docs/SUPPORT_MATRIX.md). Hermes is worker-only with no GSD controller. Claude G-07-2 auth, 3-OS CI, global reconciliation, push and npm publish remain held. Source-clone development retains package version 0.5.0.
 
 ## Practical Scenarios & Common Questions (FAQ)
 
@@ -287,11 +302,8 @@ alpha-aos project status .
   - **Concurrent Exclusion**: Mutual exclusion is enforced via physical coordinator lock `<canonical-project-root>/.alpha-aos-behavior.lock`. Stale preview digests are strictly refused.
   - **Cross-Host Visibility**: Another agent sees policy updates on its next intake without restarting an active task.
   - **Conservative Recovery**: First-create rollback removes only `behavior.json` without sweeping `.alpha-aos` or sibling files; replacement rollback restores exact original bytes (including CRLF/Unicode).
-  alpha-aos repair
-  alpha-aos repair --apply
-  ```
 
-### Scenario H: Shipping Verified GSD Phases
+### Scenario I: Shipping Verified GSD Phases
 - **Question**: *"How do I ship my completed work after finishing a GSD phase?"*
 - **Solution**: Use the repository-owned `/alpha-aos-ship` skill:
   ```sh
@@ -300,7 +312,7 @@ alpha-aos project status .
   ```
   This cleanly triggers the GSD ship workflow (clean tree check, branch verification, push, PR creation) without enabling GSD's broader utility clutter.
 
-### Scenario I: Structured Independent Milestone Final Review
+### Scenario J: Structured Independent Milestone Final Review
 - **Question**: *"How do I ensure a milestone or phase meets all mandatory criteria before declaring it complete?"*
 - **Solution**: Run the independent final reviewer gate:
   ```sh
@@ -327,6 +339,7 @@ For the complete 35-cell role & capability support evaluation and verified hando
 | **Multi-Source Research** | ECC `deep-research` + Exa/Firecrawl | All five harnesses | Multi-source web search & extraction. |
 | **Filtered Web Scraping** | Firecrawl Proxy | All five harnesses | Local SDK proxy restricting upstream 25 tools to 4 safe extraction tools. |
 | **Autonomous Controller** | `alpha-aos-control` | All five harnesses | Unifies autonomous capability pack advisory, directory tree-off policy, diagnostics, and rollback/repair. |
+| **Predictable Task Entry** | `alpha-aos-task` | All five harnesses | Shared strict/flexible policy, predictable intake, GSD readiness recovery and six execution styles. |
 | **GSD Shipping Workflow** | `alpha-aos-ship` | Claude Code | User-invocable PR & branch shipping skill. |
 | **Project Isolation** | alpha-AOS launch adapters | All five harnesses | Isolated runtime with fail-closed bounds. |
 

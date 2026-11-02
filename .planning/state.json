@@ -26,13 +26,13 @@
     {
       "number": "31",
       "name": "Cross-Harness Proof and Distribution",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step (verify)",
-    "reason": "Phase 3 of 5 · 40% · ready to verify"
+    "label": "Advance to the next step",
+    "reason": "Phase 5 of 5 · 40% · executing"
   },
-  "updated_at": "2026-11-02T15:31:23.159Z"
+  "updated_at": "2026-11-02T17:46:20.129Z"
 }

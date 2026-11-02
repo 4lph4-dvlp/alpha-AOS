@@ -1,5 +1,7 @@
 # Runtime usage and recovery controls
 
+> For end-user shared `strict`/`flexible` modes and six-style task entry, see [English task entry](./task-entry.md) and [한국어 작업 진입](./task-entry.ko.md). This document covers low-level supervisor budgets, processes and dispatch telemetry.
+
 This repair follows the Oh-My-Circuit audit of 2026-10-30. That incident used
 approved dedicated jobs and a project PowerShell controller, not generic
 `task start`. The generic supervisor's missing token accumulation is a separately

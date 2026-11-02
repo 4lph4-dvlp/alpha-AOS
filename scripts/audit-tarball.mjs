@@ -276,7 +276,13 @@ export function auditTarballEntries(files) {
             }
             if (value && typeof value === "object" && !visited.has(value)) {
               visited.add(value);
-              for (const [key, item] of Object.entries(value)) pending.push(key, item);
+              if (value instanceof Map) {
+                for (const [key, item] of value) pending.push(key, item);
+              } else if (value instanceof Set) {
+                for (const item of value) pending.push(item);
+              } else {
+                for (const [key, item] of Object.entries(value)) pending.push(key, item);
+              }
             }
           }
         } catch {

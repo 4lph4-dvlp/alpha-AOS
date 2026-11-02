@@ -343,6 +343,8 @@ test("tarball privacy audit decodes escaped JSON and YAML and refuses malformed 
     { path: "docs/escaped.json", text: JSON.stringify({ nested: ["D:" + "\\dev\\private-repo"] }) },
     { path: "docs/unicode.json", text: '{"root":"D:\\u005cdev\\u005cprivate-repo"}' },
     { path: "docs/escaped.yaml", text: 'root: "D:\\x5cdev\\x5cprivate-repo"' },
+    { path: "docs/nested-set.yaml", text: 'root: !!set\n  ? "D:\\x5cdev\\x5cprivate-repo"' },
+    { path: "docs/top-set.yaml", text: '!!set\n? "D:\\x5cdev\\x5cprivate-repo"' },
     { path: "docs/malformed.json", text: "{" },
     { path: "docs/malformed.yaml", text: "root: [" },
   ];

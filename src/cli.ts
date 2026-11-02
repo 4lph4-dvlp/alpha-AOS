@@ -61,6 +61,7 @@ Usage:
   alpha-aos project isolate init [path] --mode project-only|sealed --harness <id[,id]> [--trust] [--apply]
   alpha-aos project isolate plan|doctor|sync|clean [path] [--apply] [--json]
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
+  alpha-aos task intake --input <request.json> [--json]
   alpha-aos task plan <contract.json> [--detail] [--json]
   alpha-aos task preview <contract.json> [--json]
   alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
@@ -2216,11 +2217,14 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait. Also available: attach, dispatch, context, steer, steering.`);
+    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering", "intake"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait, intake. Also available: attach, dispatch, context, steer, steering.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve, start, resume, and final-review alone.
+    if (subcommand === "intake" && hasFlag(args, "--apply")) {
+      throw new Error("`task intake` has no --apply: it inspects intake without mutations.");
+    }
     if (subcommand === "plan" && hasFlag(args, "--apply")) {
       throw new Error("`task plan` has no --apply: it reads and plans capabilities without mutations.");
     }
@@ -2244,6 +2248,30 @@ async function main(): Promise<void> {
     }
     const context = observableContext();
     const stateRoot = userStateRoot();
+    if (subcommand === "intake") {
+      const parsed = parseClosedFlags(args.slice(2), {
+        valueFlags: ["--input"],
+        booleanFlags: ["--json"],
+      });
+      if (parsed.operands.length > 0) {
+        throw new Error("task intake does not accept positional operands; use --input <request.json>");
+      }
+      const inputPath = parsed.options.get("--input");
+      if (typeof inputPath !== "string" || !inputPath) {
+        throw new Error("task intake requires --input <request.json>");
+      }
+      const { inspectTaskIntake, toPublicTaskIntakeDecision } = await import("./core/task-intake.js");
+      const { formatTaskIntakeDecision } = await import("./format.js");
+      const decision = await inspectTaskIntake({
+        inputPath: resolve(inputPath),
+        invocationPath: process.cwd(),
+        stateRoot,
+      });
+      const publicDecision = toPublicTaskIntakeDecision(decision);
+      const formatted = formatTaskIntakeDecision(publicDecision);
+      print(publicDecision, json, formatted, context);
+      return;
+    }
     if (subcommand === "context" || subcommand === "steering") {
       const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--run", "--contract-digest", "--revision", "--origin-host", "--origin-session", ...(subcommand === "context" ? ["--after-sequence", "--limit"] : [])], booleanFlags: ["--json"] });
       if (parsed.operands.length !== 1) throw new Error(`task ${subcommand} requires exactly one contract id`);
@@ -3050,8 +3078,11 @@ async function serializeCliError(
 ): Promise<CliErrorEnvelope> {
   const TaskContractError = args[0] === "task" ? (await import("./core/task-contract.js")).TaskContractError : undefined;
   const TaskRunError = args[0] === "task" ? (await import("./core/task-run.js")).TaskRunError : undefined;
-  const BehaviorPolicyError = (args[0] === "project" && args[1] === "mode")
+  const BehaviorPolicyError = ((args[0] === "project" && args[1] === "mode") || (args[0] === "task" && args[1] === "intake"))
     ? (await import("./core/behavior-policy.js")).BehaviorPolicyError
+    : undefined;
+  const TaskIntakeError = (args[0] === "task" && args[1] === "intake")
+    ? (await import("./core/task-intake.js")).TaskIntakeError
     : undefined;
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = redactString(rawMessage, context);
@@ -3059,6 +3090,23 @@ async function serializeCliError(
   let status: "failed" | "blocked" | "refused" = "failed";
   let reasonCode = "COMMAND_FAILED";
   let nextAction = "Inspect the error message and retry with valid arguments.";
+
+  if (TaskIntakeError && error instanceof TaskIntakeError) {
+    status = error.code === "input-too-large" || error.code === "not-a-file" ? "refused" : "failed";
+    reasonCode = error.code.toUpperCase().replace(/-/g, "_");
+    nextAction = error.remediation;
+    return {
+      status,
+      reasonCode,
+      code: error.code,
+      path: error.path,
+      cause: error.causeDescription,
+      causeCategory: error.causeCategory,
+      remediation: error.remediation,
+      reason: redactString(error.message, context),
+      nextAction: error.remediation,
+    };
+  }
 
   if (BehaviorPolicyError && error instanceof BehaviorPolicyError) {
     status = "failed";
@@ -3260,7 +3308,7 @@ async function serializeCliError(
 
   for (const arg of args) {
     if (arg.startsWith("-")) continue;
-    if (["task", "job", "plan", "preview", "approve", "start", "report", "status", "stop", "resume", "doctor", "answer", "final-review", "wait", "cancel", "worker", "help"].includes(arg)) {
+    if (["task", "job", "plan", "preview", "approve", "start", "report", "status", "stop", "resume", "doctor", "answer", "final-review", "wait", "cancel", "worker", "help", "intake"].includes(arg)) {
       continue;
     }
     if (!runId && RUN_ID_REGEX.test(arg)) {

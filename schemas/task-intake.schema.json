@@ -1,0 +1,286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-intake.schema.json",
+  "title": "alpha-AOS task intake request and handoff",
+  "description": "Closed bounded task intake request and handoff interchange (ENTRY-01, ENTRY-05, ENTRY-06).",
+  "type": "object",
+  "required": ["schemaVersion", "request"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "projectRoot": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "boundProjectRoot": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "request": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "shortGoal": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "shortScope": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "explicit": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "style": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "phase": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "arguments": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "currentTask": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "taskId": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "runId": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "contractDigest": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "selectedStyle": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "relationship": {
+          "type": "string",
+          "enum": [
+            "follow-up",
+            "test-repair",
+            "verification",
+            "status",
+            "independent",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "target": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "result": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "boundedImpact": {
+          "type": "boolean"
+        }
+      }
+    },
+    "questionCapability": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supportsSixOptions": {
+          "type": "boolean"
+        },
+        "style": {
+          "type": "string",
+          "enum": ["native", "numbered-text", "unknown"]
+        }
+      }
+    },
+    "answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "raw": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "canonicalStyle": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "pendingTaskId": {
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["fact", "status", "provenance"],
+        "additionalProperties": false,
+        "properties": {
+          "fact": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "status": {
+            "type": "string",
+            "enum": ["known", "unknown", "contradicted"]
+          },
+          "provenance": {
+            "type": "string",
+            "enum": [
+              "user-explicit",
+              "filesystem",
+              "git",
+              "gsd-artifact",
+              "contract-run",
+              "host-capability"
+            ]
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "handoff": {
+      "type": "object",
+      "required": [
+        "schemaVersion",
+        "originalRequest",
+        "knownFacts",
+        "policyRevision",
+        "nextAction"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": {
+          "type": "integer",
+          "const": 1
+        },
+        "originalRequest": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "shortGoal": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "shortScope": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "knownFacts": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "required": ["fact", "status", "provenance"],
+            "additionalProperties": false,
+            "properties": {
+              "fact": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "status": {
+                "type": "string",
+                "enum": ["known", "unknown", "contradicted"]
+              },
+              "provenance": {
+                "type": "string",
+                "enum": [
+                  "user-explicit",
+                  "filesystem",
+                  "git",
+                  "gsd-artifact",
+                  "contract-run",
+                  "host-capability"
+                ]
+              },
+              "detail": {
+                "type": "string",
+                "maxLength": 512
+              }
+            }
+          }
+        },
+        "selectedStyle": {
+          "type": "string",
+          "enum": [
+            "conversational-quick",
+            "conversational-quick-full",
+            "conversational-phase",
+            "autopilot-quick",
+            "autopilot-quick-full",
+            "autopilot-phase"
+          ]
+        },
+        "taskReference": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "policyRevision": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "nextAction": {
+          "type": "string",
+          "enum": [
+            "choose-style",
+            "adaptive-intake",
+            "ask-clarification",
+            "execute-explicit",
+            "continue-task",
+            "execute-simple"
+          ]
+        }
+      }
+    }
+  }
+}

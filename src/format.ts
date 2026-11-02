@@ -48,6 +48,7 @@ import type {
 } from "./core/task-final-review.js";
 import type { GeneralTaskReportData } from "./core/task-connector.js";
 import type { TaskReapprovalPreview } from "./adapters/coursepilot-task.js";
+import type { TaskIntakePublicDecision } from "./core/task-intake.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -441,6 +442,50 @@ export function formatProjectBehavior(view: ProjectBehaviorView): string {
     `Source: ${view.source}`,
     `Revision: ${view.revision}`,
   ].join("\n");
+}
+
+/** What a `task intake` inspection observed. */
+export function formatTaskIntakeDecision(decision: TaskIntakePublicDecision): string {
+  const lines: string[] = [
+    `Project: ${decision.policy.canonicalRoot}`,
+    `Effective mode: ${decision.policy.effectiveMode} (source: ${decision.policy.source}, revision: ${decision.policy.revision})`,
+    `Decision: ${decision.kind}`,
+    `Next action: ${decision.nextAction}`,
+    `Execution authorized: ${decision.executionAuthorized ? "true" : "false"}`,
+  ];
+  if (decision.selectedStyle) {
+    lines.push(`Selected style: ${decision.selectedStyle}`);
+  }
+  if (decision.taskReference) {
+    lines.push(`Task reference: ${decision.taskReference}`);
+  }
+  if (decision.reasons.length > 0) {
+    lines.push("Reasons:");
+    for (const r of decision.reasons) {
+      lines.push(`  - ${r}`);
+    }
+  }
+  if (decision.observations.length > 0) {
+    lines.push("Observations:");
+    for (const o of decision.observations) {
+      lines.push(`  - ${o}`);
+    }
+  }
+  if (decision.chooser) {
+    lines.push("");
+    lines.push(decision.chooser.prompt);
+    for (const opt of decision.chooser.options) {
+      lines.push(`  ${opt.number}. ${opt.label}: ${opt.description}`);
+    }
+  }
+  if (decision.clarification) {
+    lines.push("");
+    lines.push(`Clarification needed: ${decision.clarification.question}`);
+    for (const fact of decision.clarification.missingFacts) {
+      lines.push(`  - Missing fact: ${fact}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 /** What a `project mode set` plan observed. */

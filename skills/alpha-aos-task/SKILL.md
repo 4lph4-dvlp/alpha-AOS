@@ -111,6 +111,64 @@ When a user expresses a task request (or invokes a direct command, style, or sim
      3. Separate execution start command (`alpha-aos task start <contract.json> --contract-digest <digest> --apply`).
    - The conversational agent MUST NOT perform inline implementation of autopilot tasks in chat.
 
+### 3. GSD Readiness & Project Initialization Gate (BOOT-01, BOOT-02, BOOT-03, BOOT-04, D-05–D-24)
+Before substantial task execution or contract generation:
+
+1. **Exemptions (D-08, D-21)**:
+   - Proven simple operations (`simple-operation`: bounded git push to explicit remote/branch, file rename, README edits) and policy-only requests (`alpha-aos project mode`) do NOT invoke GSD readiness or task bootstrap handoff.
+   - Expanding simple scope into substantial changes cancels the exemption and resumes normal GSD readiness while preserving original WIP.
+
+2. **Direct Command Timing (D-02, D-03)**:
+   - Explicit direct GSD commands (`gsd-*`, `/gsd:*`) preserve their target workflow and native checkpoints. GSD readiness and bootstrap are invoked only when the project lifecycle state is absent or partial.
+
+3. **Task Readiness Inspection (`alpha-aos task readiness`: BOOT-01, D-01, D-02, D-10, D-13)**:
+   - Inspect project readiness before substantial execution:
+     ```bash
+     alpha-aos task readiness --input <readiness-input.json> --json
+     ```
+   - Input schema: `{ schemaVersion: 1, controller: "<harness>", workflow: "<workflow>", projectRoot: "<path>" }`.
+   - Never pass raw user prompt facts or secrets in argv; use transient bounded JSON files under authorized roots.
+   - Diagnostic outcomes:
+     - `ready`: Project state complete (`PROJECT.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`). Proceed directly to task dispatch.
+     - `absent-project`: `.planning/` directory absent. Requires `gsd-new-project` initialization.
+     - `partial-project`: Interrupted initialization or missing state. Inspect `recoveryPlan`:
+       - `resume-new-project`: Resume initialization at first missing stage (skipping requirements regeneration if `REQUIREMENTS.md` exists).
+       - `new-milestone`: Milestone archive present with no active roadmap. Routes to `gsd-new-milestone`.
+       - `reconstruct-state`: Missing `STATE.md` with phase history. Routes to `gsd-resume-project`.
+     - `blocked`: Inconsistent state (e.g. `.planning` without `PROJECT.md`), corrupt/0-byte files, or unsupported controller. Report exact diagnostic and halt; do not guess or corrupt artifacts.
+
+4. **Task Bootstrap Handoff Protocol (`alpha-aos task bootstrap`: BOOT-02, BOOT-03, D-05, D-06, D-07, D-15)**:
+   - For `absent-project` or `partial-project`, prepare durable handoff:
+     ```bash
+     alpha-aos task bootstrap --input <bootstrap-input.json> --plan-digest <digest> --apply --json
+     ```
+   - The handoff document securely seeds the native GSD initialization (`gsd-new-project` or recovery) with already-known user facts, avoiding chooser repetition.
+   - **Mandatory Native Gates**: Ask the user only missing/conflicting facts and mandatory project foundation decisions (project name, core objectives, stack). Never add `--auto` or bypass user confirmation of architecture/milestone scope.
+
+5. **Once-Only Reentry, Linkage & Delivery Acknowledgment (`claim` -> `link` -> `acknowledge`: BOOT-04, D-15–D-20)**:
+   - After native initialization or recovery completes:
+     1. **Claim (`operation: "claim"`)**: Re-inspect fresh readiness and claim the pending handoff record:
+        ```bash
+        alpha-aos task bootstrap --input <claim-input.json> --apply --json
+        ```
+        - Conversational styles (`대화형-quick`, `대화형-quick-full`, `대화형-phase`): `dispatchAuthorized: true`. Dispatch the originally selected native workflow.
+        - Autopilot styles (`오토파일럿-quick`, `오토파일럿-quick-full`, `오토파일럿-phase`): `dispatchAuthorized: false`. Restores exact task contract preview, requiring explicit user approval and separate start command. Zero inline chat execution.
+     2. **Link Native Reference (`operation: "link"`)**: Host records the prospective or actual native GSD artifact path (e.g. `quickPath` or `phasePath`) before implementation begins:
+        ```bash
+        alpha-aos task bootstrap --input <link-input.json> --apply --json
+        ```
+        - If already linked, returns `route: "continue-existing"` to prevent duplicate task execution.
+     3. **Acknowledge Delivery (`operation: "acknowledge"`)**: Once native workflow accepts the task, host acknowledges delivery:
+        ```bash
+        alpha-aos task bootstrap --input <ack-input.json> --apply --json
+        ```
+        - Records delivery receipt (never task completion).
+     4. **Cancellation (`operation: "cancel"`)**: Atomically cancels pending transfer, preserving planning artifacts. Racing in-flight claims report `delivery-in-flight` and route to native stop.
+
+6. **Controller Support & Limitations (D-23, D-24)**:
+   - Claude Code, Codex, Antigravity, and Pi Agent are supported GSD controllers using verified native runtimes.
+   - Hermes Agent is worker/handoff-only; readiness query reports `controller: "hermes"` as unsupported controller for GSD state spine execution rather than simulating false parity.
+
 ---
 
 ## Contract Review & Execution Protocol (D-05, D-09, D-10)

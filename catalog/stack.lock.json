@@ -128,13 +128,13 @@
         }
       },
       "alpha-aos-task": {
-        "sourceSha256": "349b09d2baa3eaae2f4423dfdbb62eebc3bd11fbe16783cb22371ef5dc2a659e",
+        "sourceSha256": "e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0",
         "targetSha256": {
-          "claude": "349b09d2baa3eaae2f4423dfdbb62eebc3bd11fbe16783cb22371ef5dc2a659e",
-          "codex": "349b09d2baa3eaae2f4423dfdbb62eebc3bd11fbe16783cb22371ef5dc2a659e",
-          "antigravity": "349b09d2baa3eaae2f4423dfdbb62eebc3bd11fbe16783cb22371ef5dc2a659e",
-          "pi": "349b09d2baa3eaae2f4423dfdbb62eebc3bd11fbe16783cb22371ef5dc2a659e",
-          "hermes": "349b09d2baa3eaae2f4423dfdbb62eebc3bd11fbe16783cb22371ef5dc2a659e"
+          "claude": "e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0",
+          "codex": "e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0",
+          "antigravity": "e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0",
+          "pi": "e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0",
+          "hermes": "e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0"
         }
       },
       "cli-anything": {

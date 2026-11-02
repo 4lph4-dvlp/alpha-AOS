@@ -232,6 +232,7 @@ test("two processes competing for one pending transfer grant only one dispatch p
 
   assert.equal(claimARetry.status, "claimed");
   assert.equal(claimARetry.dispatchAuthorized, true);
+  assert.deepEqual(claimARetry.executionRoute, claimA.executionRoute);
 });
 
 test("already linked handoff redirects to continue-existing without second quick dispatch (BOOT-04, D-18)", async (context) => {
@@ -509,6 +510,50 @@ test("autopilot style claim restores identity but withholds dispatch authorizati
   assert.equal(claimed.executionRoute.style, "autopilot-quick");
   assert.equal(claimed.executionRoute.surface, "isolated-runner");
   assert.equal(claimed.executionRoute.quickQuality, "standard");
+});
+
+test("all autopilot styles withhold authority across initial, pre-link retry and linked reentry (G-31-01)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "autopilot-retry-project");
+  await mkdir(join(projectDir, ".planning"), { recursive: true });
+  await writeFile(join(projectDir, ".planning/PROJECT.md"), "# Existing context\n");
+  const runner = mockReadyRunner(projectDir);
+  for (const [index, selectedStyle] of ["autopilot-quick", "autopilot-quick-full", "autopilot-phase"].entries()) {
+    const phase = selectedStyle === "autopilot-phase";
+    const pendingId = `pending-auto-retry-${index}`;
+    const packet = {
+      schemaVersion: 1,
+      operation: "prepare",
+      controller: "codex",
+      workflow: phase ? "execute-phase" : "quick",
+      ...(phase ? { phase: "31" } : {}),
+      pendingId,
+      projectRoot: projectDir,
+      request: { text: "Implement the approved task after project initialization" },
+      selectedStyle,
+    };
+    const preview = await prepareTaskBootstrap({ input: packet, invocationPath: projectDir, stateRoot: sandbox.state, runner });
+    await prepareTaskBootstrap({ input: { ...packet, planDigest: preview.planDigest }, invocationPath: projectDir, stateRoot: sandbox.state, runner, apply: true });
+    const claimOptions = { pendingId, projectRoot: projectDir, invocationPath: projectDir, stateRoot: sandbox.state, claimNonce: `claim-auto-retry-${index}`, runner };
+    const initial = await claimTaskBootstrap(claimOptions);
+    const retry = await claimTaskBootstrap(claimOptions);
+    for (const result of [initial, retry]) {
+      assert.equal(result.status, "claimed");
+      assert.equal(result.dispatchAuthorized, false, `${selectedStyle}: bootstrap cannot authorize execution`);
+      assert.equal(result.selectedStyle, selectedStyle);
+      assert.equal(result.executionRoute?.surface, "isolated-runner");
+      assert.ok(result.nextAction.includes("exact digest approval, and separate start command"));
+    }
+    assert.deepEqual(retry.executionRoute, initial.executionRoute);
+    await assert.rejects(claimTaskBootstrap({ ...claimOptions, claimNonce: "different-claimant" }), /already-claimed/u);
+    const nativeReference = { kind: phase ? "gsd-phase" : "gsd-quick", id: `${pendingId}-native`, path: `.planning/${pendingId}.md` };
+    await linkTaskBootstrapNativeReference({ pendingId, projectRoot: projectDir, invocationPath: projectDir, stateRoot: sandbox.state, nativeReference });
+    const linked = await claimTaskBootstrap(claimOptions);
+    assert.equal(linked.status, "linked");
+    assert.equal(linked.nextAction, "continue-existing");
+    assert.equal(linked.dispatchAuthorized, false);
+    assert.equal(linked.nativeReference?.id, nativeReference.id);
+  }
 });
 
 test("bootstrap claim retains quick --full route and text/json parity (STYLE-02, D-01, D-02, D-04)", async (context) => {

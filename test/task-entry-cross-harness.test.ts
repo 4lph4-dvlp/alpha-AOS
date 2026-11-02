@@ -787,6 +787,19 @@ console.log(JSON.stringify({
   assert.equal(claimData.selectedStyle, "autopilot-quick-full");
   assert.equal(claimData.dispatchAuthorized, false, "autopilot claim MUST keep dispatchAuthorized: false");
 
+  // Retry before linking: reconstructing a durable claim cannot grant autopilot authority.
+  const preLinkRetry = spawnSync(
+    process.execPath,
+    [cliPath, "task", "bootstrap", "--input", claimReqPath, "--apply", "--json"],
+    { cwd: partialDir, env, encoding: "utf8" },
+  );
+  assert.equal(preLinkRetry.status, 0, preLinkRetry.stderr);
+  const retryData = JSON.parse(preLinkRetry.stdout);
+  assert.equal(retryData.status, "claimed");
+  assert.equal(retryData.dispatchAuthorized, false);
+  assert.deepEqual(retryData.executionRoute, claimData.executionRoute);
+  assert.ok(retryData.nextAction.includes("exact digest approval, and separate start command"));
+
   // Link native reference
   const summaryDir = join(partialPlanningDir, "quick", "001-payment");
   await mkdir(summaryDir, { recursive: true });

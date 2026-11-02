@@ -38,6 +38,8 @@ import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
 
 const MAX_INPUT_BYTES = 16 * 1024;
+const AUTOPILOT_CLAIM_NEXT_ACTION = "Autopilot style selected; requires separate contract preview, exact digest approval, and separate start command. Task bootstrap does not authorize autopilot execution or perform inline file mutations.";
+const AUTOPILOT_CLAIM_REASON = "Autopilot identity restored; execution authorization withheld until explicit contract approval and separate start.";
 
 export type TaskBootstrapOperation =
   | "prepare"
@@ -833,6 +835,7 @@ export async function claimTaskBootstrap(
 
   if (existing.status === "claimed") {
     if (existing.claim?.nonce === claimNonce) {
+      const isAutopilot = existing.canonicalSelectedStyle?.startsWith("autopilot");
       return {
         schemaVersion: 1,
         operation: "claim",
@@ -845,11 +848,18 @@ export async function claimTaskBootstrap(
         destinationPath,
         status: "claimed",
         readinessDiagnosis: readiness.diagnosis,
-        nextAction: "Link native task reference once allocated.",
-        dispatchAuthorized: true,
-        reasons: ["Handoff claim re-verified idempotently for this claimant."],
+        nextAction: isAutopilot ? AUTOPILOT_CLAIM_NEXT_ACTION : "Link native task reference once allocated.",
+        dispatchAuthorized: !isAutopilot,
+        reasons: [
+          "Handoff claim re-verified idempotently for this claimant.",
+          ...(isAutopilot ? [AUTOPILOT_CLAIM_REASON] : []),
+        ],
         selectedStyle: existing.canonicalSelectedStyle,
         commandRoute: existing.commandRoute,
+        executionRoute: resolveTaskExecutionRoute({
+          selectedStyle: existing.canonicalSelectedStyle,
+          commandRoute: existing.commandRoute,
+        }),
       };
     }
     throw new TaskBootstrapError({
@@ -934,13 +944,13 @@ export async function claimTaskBootstrap(
     status: "claimed",
     readinessDiagnosis: readiness.diagnosis,
     nextAction: isAutopilot
-      ? "Autopilot style selected; requires separate contract preview, exact digest approval, and separate start command. Task bootstrap does not authorize autopilot execution or perform inline file mutations."
+      ? AUTOPILOT_CLAIM_NEXT_ACTION
       : "Proceed to native task execution and link native reference.",
     dispatchAuthorized: !isAutopilot,
     reasons: [
       `Durable claim recorded with nonce '${claimNonce}'.`,
       isAutopilot
-        ? "Autopilot identity restored; execution authorization withheld until explicit contract approval and separate start."
+        ? AUTOPILOT_CLAIM_REASON
         : "Single dispatch permission granted to claimant.",
     ],
     selectedStyle: updatedHandoff.canonicalSelectedStyle,

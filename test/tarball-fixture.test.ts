@@ -17,6 +17,7 @@ import {
   installPackedRelease,
   packRelease,
   parseJsonResult,
+  runInstalledCli,
   seedHarnessPrerequisites,
   snapshotTargets,
   vanishedEntryCount,
@@ -26,6 +27,9 @@ import {
   evaluatePackedLifecycle,
   renderReleasePackageReceiptsMarkdown,
 } from "../src/core/release-package-proof.js";
+import { destinationFor } from "../src/core/owned-skills.js";
+import type { HarnessId, StackLock } from "../src/types.js";
+import type { FixtureSandbox, PackedRelease } from "./helpers/packed-sandbox.js";
 
 interface TarballEntry {
   readonly path: string;
@@ -43,7 +47,7 @@ const hostHome = homedir();
 const hostStateRoot = resolve(process.env.ALPHA_AOS_STATE_DIR?.trim() || join(hostHome, ".alpha-aos"));
 const hostCodexRoot = resolve(process.env.CODEX_HOME?.trim() || join(hostHome, ".codex"));
 
-const hostMutationTargets = [
+const hostMutationTargets = [...new Set([
   hostStateRoot,
   join(hostCodexRoot, "AGENTS.md"),
   join(hostCodexRoot, "config.toml"),
@@ -52,7 +56,98 @@ const hostMutationTargets = [
   join(hostHome, ".agents", "skills", "unified-memory", "SKILL.md"),
   join(hostHome, ".agents", "skills", "documentation-lookup", "SKILL.md"),
   join(hostHome, ".agents", "skills", "deep-research", "SKILL.md"),
-];
+  ...["claude", "codex", "antigravity", "pi", "hermes"].map((target) => destinationFor(target as HarnessId, "alpha-aos-task", undefined, process.env, hostHome)),
+  join(hostCodexRoot, "skills", "alpha-aos-task", "SKILL.md"),
+  join(resolve(process.env.PI_CODING_AGENT_DIR?.trim() || join(hostHome, ".pi", "agent")), "skills", "alpha-aos-task", "SKILL.md"),
+])];
+
+const entryLabels = ["대화형-quick", "대화형-quick-full", "대화형-phase", "오토파일럿-quick", "오토파일럿-quick-full", "오토파일럿-phase"];
+
+function isolatedCliState(sandbox: FixtureSandbox, name: string): FixtureSandbox {
+  const state = join(sandbox.root, name);
+  const env = { ...sandbox.env, ALPHA_AOS_STATE_DIR: state };
+  return {
+    ...sandbox,
+    state,
+    env,
+    runCli(args, options) {
+      return runInstalledCli(sandbox.resolveCli(), sandbox.prefix, args, env, options);
+    },
+  };
+}
+
+async function verifyPackedTaskGuidance(sandbox: FixtureSandbox, release: PackedRelease): Promise<void> {
+  const lock = release.installedLock as StackLock;
+  const expected = lock.components.ownedSkills!["alpha-aos-task"]!;
+  const sourcePath = join(release.installedPackage, "skills/alpha-aos-task/SKILL.md");
+  const source = await readFile(sourcePath);
+  assert.equal(createHash("sha256").update(source).digest("hex"), expected.sourceSha256);
+  for (const target of ["claude", "codex", "antigravity", "pi", "hermes"] as const) {
+    const synced = parseJsonResult<{ operationId: string | null }>(sandbox.runCli(["owned-skills", "sync", "alpha-aos-task", "--target", target, "--apply", "--json"]), `packed ${target} guidance sync`);
+    const plan = parseJsonResult<{ action: string; currentHash: string; expectedHash: string; destination: string }>(sandbox.runCli(["owned-skills", "sync", "alpha-aos-task", "--target", target, "--json"]), `packed ${target} guidance discovery`);
+    assert.equal(plan.action, "current");
+    assert.equal(plan.currentHash, expected.targetSha256[target]);
+    assert.equal(plan.expectedHash, plan.currentHash);
+    // CLI output is intentionally display-normalized (e.g. ~/...). Derive
+    // filesystem authority from the sandbox env, never from display paths.
+    const destination = destinationFor(target, "alpha-aos-task", undefined, sandbox.env, sandbox.home);
+    const deployed = await readFile(destination, "utf8");
+    assert.match(deployed, /^---\nname: alpha-aos-task\ndescription: .+\n/u);
+    for (const label of entryLabels) assert.ok(deployed.includes(label), `${target}: ${label}`);
+    assert.ok(deployed.includes("strict") && deployed.includes("flexible") && /precedence/iu.test(deployed));
+    if (target === "codex") {
+      // The original install can already own this destination. Ensure a fresh sync
+      // operation exists before testing its drift-safe rollback.
+      await writeFile(destination, `${deployed}\nfixture drift`);
+      const replaced = parseJsonResult<{ operationId: string }>(sandbox.runCli(["owned-skills", "sync", "alpha-aos-task", "--target", target, "--apply", "--json"]), "packed guidance replacement");
+      assert.ok(replaced.operationId || synced.operationId);
+      await writeFile(destination, `${deployed}\nexternal drift`);
+      try {
+        const drift = parseJsonResult<{ action: string; currentHash: string; expectedHash: string }>(sandbox.runCli(["owned-skills", "sync", "alpha-aos-task", "--target", target, "--json"]), "deployed guidance drift");
+        assert.equal(drift.action, "replace");
+        assert.notEqual(drift.currentHash, drift.expectedHash);
+        assert.equal(sandbox.runCli(["rollback", replaced.operationId, "--apply", "--json"]).status, 2);
+      } finally {
+        await writeFile(destination, deployed);
+      }
+    }
+  }
+  const doctor = parseJsonResult<{ code: string; level: string; message: string }[]>(sandbox.runCli(["doctor", "--json"]), "packed task doctor");
+  assert.equal(doctor.find((finding) => finding.code === "lock.owned-skill.alpha-aos-task")?.level, "ok");
+  const inventory = parseJsonResult<{ harnesses: { id: string; detected: boolean; command: string | null; notes: string[] }[] }>(sandbox.runCli(["inventory", "--json"]), "packed read-only native discovery");
+  assert.equal(inventory.harnesses.length, 5);
+  for (const row of inventory.harnesses) {
+    assert.equal(typeof row.detected, "boolean");
+    assert.ok(Array.isArray(row.notes));
+    if (!row.detected) assert.ok(row.notes.length > 0 || row.command === null, `${row.id}: missing native executable must be explicit`);
+  }
+  try {
+    await writeFile(sourcePath, Buffer.concat([source, Buffer.from("x")]));
+    const refused = sandbox.runCli(["install", "--target", "codex"]);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stdout + refused.stderr, /Owned skill source hash mismatch/u);
+    const badDoctor = sandbox.runCli(["doctor", "--json"]);
+    assert.equal(badDoctor.status, 2);
+    assert.equal((JSON.parse(badDoctor.stdout) as { code: string; level: string }[]).find((row) => row.code === "lock.owned-skill.alpha-aos-task")?.level, "error");
+  } finally {
+    await writeFile(sourcePath, source);
+  }
+  const lockPath = join(release.installedPackage, "catalog/stack.lock.json");
+  const lockBytes = await readFile(lockPath);
+  try {
+    const tampered = JSON.parse(lockBytes.toString("utf8")) as StackLock;
+    tampered.components.ownedSkills!["alpha-aos-task"]!.targetSha256.pi = "0".repeat(64);
+    await writeFile(lockPath, JSON.stringify(tampered));
+    const refused = sandbox.runCli(["owned-skills", "sync", "alpha-aos-task", "--target", "pi"]);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.stdout + refused.stderr, /Owned skill rendered hash mismatch/u);
+    const badDoctor = sandbox.runCli(["doctor", "--json"]);
+    assert.equal(badDoctor.status, 2);
+    assert.equal((JSON.parse(badDoctor.stdout) as { code: string; level: string }[]).find((row) => row.code === "lock.owned-skill.alpha-aos-task")?.level, "error");
+  } finally {
+    await writeFile(lockPath, lockBytes);
+  }
+}
 
 async function hostSnapshot(manifests?: Map<string, HostFingerprint>): Promise<Map<string, string>> {
   return snapshotTargets(hostMutationTargets, manifests);
@@ -453,6 +548,10 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
   );
   assert.ok(findings.length > 0);
   assert.deepEqual(findings.filter((finding) => finding.level === "error"), []);
+
+  // Separate journals keep injected drift from becoming a predecessor of the
+  // original install/uninstall transaction chain.
+  await verifyPackedTaskGuidance(isolatedCliState(sandbox, "task-guidance-state"), release);
 
   parseJsonResult<unknown>(
     sandbox.runCli(["uninstall", "--all", "--yes", "--apply", "--purge", "--json"]),

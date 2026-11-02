@@ -118,7 +118,29 @@
         "projectRoot": { "type": "string", "minLength": 1, "maxLength": 1024 },
         "workflow": { "type": "string", "enum": ["gsd-quick", "gsd-multi-phase", "gsd", "generic-connector"] },
         "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
-        "quickQuality": { "type": "string", "enum": ["standard", "full"] }
+        "quickQuality": { "type": "string", "enum": ["standard", "full"] },
+        "phaseSelection": {
+          "type": "object",
+          "required": ["phaseIds", "roadmapSha256"],
+          "additionalProperties": false,
+          "properties": {
+            "phaseIds": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 64,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[0-9]+(?:\\.[0-9]+)?[a-zA-Z0-9_-]*$",
+                "maxLength": 64
+              }
+            },
+            "roadmapSha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        }
       }
     },
     "allowedRoots": {

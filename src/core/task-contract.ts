@@ -55,11 +55,17 @@ export interface TaskCriterion {
 
 export type TaskQuickQuality = "standard" | "full";
 
+export interface TaskPhaseSelection {
+  readonly phaseIds: readonly string[];
+  readonly roadmapSha256: string;
+}
+
 export interface TaskScope {
   projectRoot: string;
   workflow?: "gsd-quick" | "generic-connector" | string | undefined;
   summary: string;
   quickQuality?: TaskQuickQuality | undefined;
+  phaseSelection?: TaskPhaseSelection | undefined;
 }
 
 export type DifferentReviewerPolicy = "require-different-harness" | "require-different-model" | "allow-same";
@@ -160,6 +166,10 @@ export interface DigestableTaskContract {
     workflow: string;
     summary: string;
     quickQuality?: "full" | undefined;
+    phaseSelection?: {
+      phaseIds: string[];
+      roadmapSha256: string;
+    } | undefined;
   };
   allowedRoots: string[];
   allowedEffects: TaskEffect[];
@@ -246,7 +256,10 @@ export interface TaskContractPreview {
     surface: "isolated-runner";
     quality?: "standard" | "full" | undefined;
     requiredStages?: string[] | undefined;
+    phaseSelection?: TaskPhaseSelection | undefined;
+    scopeBoundaryReason?: string | undefined;
   } | undefined;
+  phaseSelection?: TaskPhaseSelection | undefined;
   reapprovalPreview?: TaskReapprovalPreview | undefined;
   changedFields?: string[] | undefined;
   status?: "approved" | "reviewable" | "blocked" | undefined;
@@ -361,7 +374,7 @@ async function readContractText(path: string): Promise<string> {
  * Validates contract text against the closed schema and the invariants the
  * schema cannot state. Every refusal names a document path, never a value.
  */
-async function parseTaskContract(text: string, label: string): Promise<TaskContract> {
+export async function parseTaskContract(text: string, label: string): Promise<TaskContract> {
   const validation = validateManagedDocument<TaskContract>({
     text,
     format: "json",
@@ -398,6 +411,44 @@ async function parseTaskContract(text: string, label: string): Promise<TaskContr
     if (effectiveWorkflow !== "gsd-quick") {
       throw invalid(
         `Task contract ${label} is invalid: quickQuality is only allowed when effective workflow is gsd-quick, but effective workflow is ${effectiveWorkflow} at /scope/quickQuality.`,
+      );
+    }
+  }
+  if (contract.scope.phaseSelection !== undefined) {
+    if (contract.category !== "development") {
+      throw invalid(
+        `Task contract ${label} is invalid: phaseSelection is only allowed for development contracts at /scope/phaseSelection.`,
+      );
+    }
+    if (effectiveWorkflow !== "gsd" && effectiveWorkflow !== "gsd-multi-phase") {
+      throw invalid(
+        `Task contract ${label} is invalid: phaseSelection is only allowed when effective workflow is gsd or gsd-multi-phase, but effective workflow is ${effectiveWorkflow} at /scope/phaseSelection.`,
+      );
+    }
+    const { phaseIds, roadmapSha256 } = contract.scope.phaseSelection;
+    if (!Array.isArray(phaseIds) || phaseIds.length === 0 || phaseIds.length > 64) {
+      throw invalid(
+        `Task contract ${label} is invalid: phaseIds must be a non-empty array with at most 64 items at /scope/phaseSelection/phaseIds.`,
+      );
+    }
+    const seenPhases = new Set<string>();
+    const PHASE_ID_PATTERN = /^[0-9]+(?:\.[0-9]+)?[a-zA-Z0-9_-]*$/;
+    for (const [index, phaseId] of phaseIds.entries()) {
+      if (typeof phaseId !== "string" || !PHASE_ID_PATTERN.test(phaseId) || phaseId.length > 64) {
+        throw invalid(
+          `Task contract ${label} is invalid: invalid phaseId format "${String(phaseId)}" at /scope/phaseSelection/phaseIds/${index}.`,
+        );
+      }
+      if (seenPhases.has(phaseId)) {
+        throw invalid(
+          `Task contract ${label} is invalid: duplicate phaseId "${phaseId}" at /scope/phaseSelection/phaseIds/${index}.`,
+        );
+      }
+      seenPhases.add(phaseId);
+    }
+    if (typeof roadmapSha256 !== "string" || !/^[0-9a-f]{64}$/i.test(roadmapSha256)) {
+      throw invalid(
+        `Task contract ${label} is invalid: roadmapSha256 must be a 64-character hex string at /scope/phaseSelection/roadmapSha256.`,
       );
     }
   }
@@ -643,6 +694,14 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
       workflow: effectiveWorkflow,
       summary: contract.scope.summary.normalize("NFC"),
       ...(effectiveQuality === "full" ? { quickQuality: "full" as const } : {}),
+      ...(contract.scope.phaseSelection !== undefined
+        ? {
+            phaseSelection: {
+              phaseIds: [...contract.scope.phaseSelection.phaseIds].map((id) => id.normalize("NFC")),
+              roadmapSha256: contract.scope.phaseSelection.roadmapSha256.toLowerCase(),
+            },
+          }
+        : {}),
     },
     allowedRoots: sortedUnique(contract.allowedRoots.map(normalizeContractPath)),
     allowedEffects: sortedUnique(contract.allowedEffects),
@@ -740,6 +799,7 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   const leftQuality = resolveTaskQuickQuality(before);
   const rightQuality = resolveTaskQuickQuality(after);
   compare("scope.quickQuality", leftQuality ?? null, rightQuality ?? null);
+  compare("scope.phaseSelection", before.scope.phaseSelection ?? null, after.scope.phaseSelection ?? null);
   compare("allowedRoots", before.allowedRoots, after.allowedRoots);
   compare("allowedEffects", before.allowedEffects, after.allowedEffects);
   compare("agentPolicy.controller", before.agentPolicy.controller, after.agentPolicy.controller);
@@ -905,6 +965,14 @@ export async function previewTaskContract(options: {
       style: "autopilot-phase",
       label: "오토파일럿-phase",
       surface: "isolated-runner",
+      ...(loaded.contract.scope.phaseSelection !== undefined
+        ? {
+            phaseSelection: loaded.contract.scope.phaseSelection,
+            scopeBoundaryReason: `Bound to ${loaded.contract.scope.phaseSelection.phaseIds.length} approved phase(s) at roadmap revision ${loaded.contract.scope.phaseSelection.roadmapSha256.slice(0, 8)}.`,
+          }
+        : {
+            scopeBoundaryReason: "Legacy phase approval: phase scope will be derived from approved git baseline.",
+          }),
     };
   }
 
@@ -918,6 +986,7 @@ export async function previewTaskContract(options: {
     resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
     gitAuthority: await taskGitAuthority(loaded.contract),
     ...(executionStyle !== undefined ? { executionStyle } : {}),
+    ...(loaded.contract.scope.phaseSelection !== undefined ? { phaseSelection: loaded.contract.scope.phaseSelection } : {}),
     ...(changedFields !== undefined && changedFields.length > 0 ? { changedFields } : {}),
     ...(options.reapprovalPreview !== undefined ? { reapprovalPreview: options.reapprovalPreview } : {}),
   };

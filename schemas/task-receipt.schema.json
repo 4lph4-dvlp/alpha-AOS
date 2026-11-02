@@ -328,6 +328,18 @@
                 "commits": { "type": "array", "items": { "$ref": "#/$defs/commit" } },
                 "missing": { "type": "array", "items": { "type": "string" } },
                 "workflowSha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+                "phaseSelection": {
+                  "type": "object",
+                  "required": ["phaseIds", "roadmapSha256"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "phaseIds": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "roadmapSha256": { "$ref": "#/$defs/sha256" }
+                  }
+                },
                 "fullEvidence": {
                   "type": "object",
                   "required": ["status", "quickId", "missingStages", "failedStages", "invalidReceipts", "issues"],

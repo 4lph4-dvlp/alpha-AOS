@@ -1376,6 +1376,12 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
           ...(preview.executionStyle.requiredStages && preview.executionStyle.requiredStages.length > 0
             ? [`Required stages: ${preview.executionStyle.requiredStages.join(", ")}`]
             : []),
+          ...(preview.executionStyle.phaseSelection
+            ? [`Phase selection: ${preview.executionStyle.phaseSelection.phaseIds.join(", ")} (roadmap: ${preview.executionStyle.phaseSelection.roadmapSha256.slice(0, 8)})`]
+            : []),
+          ...(preview.executionStyle.scopeBoundaryReason
+            ? [`Phase scope boundary: ${preview.executionStyle.scopeBoundaryReason}`]
+            : []),
         ]
       : []),
     `Agents: controller ${contract.agentPolicy.controller}${contract.agentPolicy.controllerModel ? ` [model: ${contract.agentPolicy.controllerModel}${contract.agentPolicy.controllerEffort ? `/${contract.agentPolicy.controllerEffort}` : ""}]` : ""}, executor ${contract.agentPolicy.executor}${contract.agentPolicy.executorModel ? ` [model: ${contract.agentPolicy.executorModel}${contract.agentPolicy.executorEffort ? `/${contract.agentPolicy.executorEffort}` : ""}]` : ""}, reviewer ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession})${contract.agentPolicy.reviewerModel ? ` [model: ${contract.agentPolicy.reviewerModel}${contract.agentPolicy.reviewerEffort ? `/${contract.agentPolicy.reviewerEffort}` : ""}]` : ""}`,

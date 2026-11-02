@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { gunzipSync } from "node:zlib";
+import { parse as parseYaml } from "yaml";
 
 const TAR_BLOCK_BYTES = 512;
 const TAR_END_BYTES = TAR_BLOCK_BYTES * 2;
@@ -260,6 +261,27 @@ export function auditTarballEntries(files) {
       const match = PRIVATE_PATH_PATTERN.exec(entry.text);
       if (match) {
         violations.push(`Private host path detected in ${entry.path}: ${match[0]}`);
+      } else if (/\.(?:json|ya?ml)$/iu.test(entry.path)) {
+        try {
+          const decoded = entry.path.endsWith(".json")
+            ? JSON.parse(entry.text)
+            : parseYaml(entry.text, { maxAliasCount: 100, prettyErrors: false });
+          const pending = [decoded];
+          const visited = new Set();
+          while (pending.length > 0) {
+            const value = pending.pop();
+            if (typeof value === "string" && PRIVATE_PATH_PATTERN.test(value)) {
+              violations.push(`Private host path detected in ${entry.path}: decoded string`);
+              break;
+            }
+            if (value && typeof value === "object" && !visited.has(value)) {
+              visited.add(value);
+              for (const [key, item] of Object.entries(value)) pending.push(key, item);
+            }
+          }
+        } catch {
+          violations.push(`Invalid structured document in ${entry.path}`);
+        }
       }
     }
   }

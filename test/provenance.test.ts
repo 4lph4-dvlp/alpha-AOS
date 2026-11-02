@@ -337,6 +337,23 @@ test("auditTarballEntries rejects private workstation paths in inspectable text 
   assert.equal(syntheticViolations.length, 0);
 });
 
+test("tarball privacy audit decodes escaped JSON and YAML and refuses malformed documents", async () => {
+  const audit = await import(auditUrl) as AuditTarballModule;
+  const entries = [
+    { path: "docs/escaped.json", text: JSON.stringify({ nested: ["D:" + "\\dev\\private-repo"] }) },
+    { path: "docs/unicode.json", text: '{"root":"D:\\u005cdev\\u005cprivate-repo"}' },
+    { path: "docs/escaped.yaml", text: 'root: "D:\\x5cdev\\x5cprivate-repo"' },
+    { path: "docs/malformed.json", text: "{" },
+    { path: "docs/malformed.yaml", text: "root: [" },
+  ];
+  for (const entry of entries) {
+    const violations = audit.auditTarballEntries([{ ...entry, size: Buffer.byteLength(entry.text) }]);
+    assert.equal(violations.length, 1, entry.path);
+    assert.match(violations[0]!, /Private host path|Invalid structured document/u);
+  }
+  assert.deepEqual(audit.auditTarballEntries([{ path: "docs/portable.yaml", size: 20, text: "root: ~/projects/demo" }]), []);
+});
+
 test("auditRequiredPackageEntries rejects missing v0.6.0 entries", async () => {
   const audit = await import(auditUrl) as AuditTarballModule;
 

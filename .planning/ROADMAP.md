@@ -150,27 +150,27 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. A style selection never grants exact-contract approval or separate start, weakens approved harness/model assignments, authorizes inline autopilot implementation, or rewrites an already running contract when the project's mode changes.
   5. Autopilot-phase stays within the approved roadmap/phase scope and GSD lifecycle bridge; all six routes preserve GSD ownership and existing capability/review/verification gates, with unsupported routes reported explicitly rather than silently substituted.
 
-**Plans:** 8 plans in 8 sequential waves; 0 executed. Inline research/planning/checking was explicitly requested. Required native checkpoint remains in 30-08; this planning invocation stops before execute-phase.
+**Plans:** 7/8 plans executed in 8 sequential waves; 0 executed. Inline research/planning/checking was explicitly requested. Required native checkpoint remains in 30-08; this planning invocation stops before execute-phase.
 **Wave 1**
-- [ ] 30-01-PLAN.md — Public conversational route projection, exact direct commands and bootstrap continuity.
+- [x] 30-01-PLAN.md — Public conversational route projection, exact direct commands and bootstrap continuity.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 30-02-PLAN.md — Compatible quick quality contract/digest/preview and full native dispatch/preflight.
+- [x] 30-02-PLAN.md — Compatible quick quality contract/digest/preview and full native dispatch/preflight.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 30-03-PLAN.md — Observed native stage receipts, bounded provenance and exact evaluated revisions.
+- [x] 30-03-PLAN.md — Observed native stage receipts, bounded provenance and exact evaluated revisions.
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 30-04-PLAN.md — Mandatory full acceptance and exact partial-run/WIP recovery.
+- [x] 30-04-PLAN.md — Mandatory full acceptance and exact partial-run/WIP recovery.
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 30-05-PLAN.md — Approved ordered phase scope and remaining-slice lifecycle progression.
+- [x] 30-05-PLAN.md — Approved ordered phase scope and remaining-slice lifecycle progression.
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 30-06-PLAN.md — Owned six-route guidance, five-target integrity and operational boundaries.
+- [x] 30-06-PLAN.md — Owned six-route guidance, five-target integrity and operational boundaries.
 
 **Wave 7** *(blocked on Wave 6 completion)*
-- [ ] 30-07-PLAN.md — Composed six-route fixtures, native proof verifier and final regression gate.
+- [x] 30-07-PLAN.md — Composed six-route fixtures, native proof verifier and final regression gate.
 
 **Wave 8** *(blocked on Wave 7 completion)*
 - [ ] 30-08-PLAN.md — Blocking actual native six-route/full-stage verification checkpoint.
@@ -209,7 +209,7 @@ Every requirement has exactly one owning phase. Later integration verification r
 | 27. Shared Project Behavior Policy | 0/TBD | Not started | - |
 | 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
 | 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
-| 30. Six Execution Styles and Quality Binding | 0/8 | Planned | - |
+| 30. Six Execution Styles and Quality Binding | 7/8 | In Progress | - |
 | 31. Cross-Harness Proof and Distribution | 0/TBD | Not started | - |
 
 ## Planning and Execution Gates

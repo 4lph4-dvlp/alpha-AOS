@@ -4,17 +4,17 @@ milestone: v0.6.0
 milestone_name: Predictable Task Entry and Shared Project Policy
 current_phase: 30
 current_phase_name: Six Execution Styles and Quality Binding
-status: planning
-stopped_at: Phase 30 planning complete; eight checked plans in eight waves; execute-phase not started
-last_updated: "2026-11-02T08:30:51.247Z"
+status: in-progress
+stopped_at: "Plan 30-07 complete; paused at Plan 30-08 blocking human-verify checkpoint"
+last_updated: "2026-11-02T14:31:00.000Z"
 last_activity: 2026-11-02
-last_activity_desc: Phase 30 planning complete; 8 plans in 8 waves; execution not started
+last_activity_desc: "Completed Wave 7 (Plan 30-07); reached Wave 8 (Plan 30-08 blocking human-verify checkpoint)"
 progress:
   total_phases: 5
   completed_phases: 3
   total_plans: 25
-  completed_plans: 17
-  percent: 60
+  completed_plans: 24
+  percent: 96
 ---
 
 # Project State
@@ -24,14 +24,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-09-29)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 30 - Six Execution Styles and Quality Binding; planning complete, execute-phase not started
+**Current focus:** Phase 30 - Six Execution Styles and Quality Binding; Wave 7 complete, paused at Wave 8 Plan 30-08 checkpoint
 
 ## Current Position
 
-Phase: 30 (Six Execution Styles and Quality Binding) — READY TO EXECUTE
-Plan: 0/8
-Status: Planning complete
-Last activity: 2026-11-02 — Phase 30 planning complete; 8 plans in 8 waves; execution not started
+Phase: 30 (Six Execution Styles and Quality Binding) — IN PROGRESS (Wave 8 Checkpoint)
+Plan: 7/8 complete
+Status: Awaiting Plan 30-08 Human Verification Checkpoint
+Last activity: 2026-11-02 — Completed Wave 7 (Plan 30-07); reached Wave 8 (Plan 30-08 blocking human-verify checkpoint)
 
 ### Completed Phases
 

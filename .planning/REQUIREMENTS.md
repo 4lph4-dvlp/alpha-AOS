@@ -54,10 +54,10 @@
 
 ### Cross-Harness Evidence and Distribution
 
-- [ ] **PROVE-01**: A user can inspect scenario evidence for policy transitions and fresh independent-task selection across Claude, Codex, Antigravity, Pi and Hermes; native proof, fixture proof and unsupported/unverified behavior are reported distinctly.
-- [ ] **PROVE-02**: A user installing the packed artifact receives integrity-locked guidance for the shared policy and six routes, with discoverability and meaningful invocation evidence rather than file presence alone.
-- [ ] **PROVE-03**: A user can follow English and Korean documentation explaining both modes, all six styles, simple-operation criteria, initialization, task boundaries and direct-command behavior.
-- [ ] **PROVE-04**: A user can inspect targeted positive/negative behavioral checks and the final full regression outcome, with failed/not-run existing regressions preserved honestly rather than reported as passing.
+- [x] **PROVE-01**: A user can inspect scenario evidence for policy transitions and fresh independent-task selection across Claude, Codex, Antigravity, Pi and Hermes; native proof, fixture proof and unsupported/unverified behavior are reported distinctly.
+- [x] **PROVE-02**: A user installing the packed artifact receives integrity-locked guidance for the shared policy and six routes, with discoverability and meaningful invocation evidence rather than file presence alone.
+- [x] **PROVE-03**: A user can follow English and Korean documentation explaining both modes, all six styles, simple-operation criteria, initialization, task boundaries and direct-command behavior.
+- [x] **PROVE-04**: A user can inspect targeted positive/negative behavioral checks and the final full regression outcome, with failed/not-run existing regressions preserved honestly rather than reported as passing.
 
 ## Stable Labels and Descriptions
 
@@ -118,10 +118,10 @@ All 27 approved requirements map to exactly one owning phase in the user-approve
 | STYLE-05 | Phase 30 | Complete |
 | STYLE-06 | Phase 30 | Complete |
 | STYLE-07 | Phase 30 | Complete |
-| PROVE-01 | Phase 31 | Pending |
-| PROVE-02 | Phase 31 | Pending |
-| PROVE-03 | Phase 31 | Pending |
-| PROVE-04 | Phase 31 | Pending |
+| PROVE-01 | Phase 31 | Complete |
+| PROVE-02 | Phase 31 | Complete |
+| PROVE-03 | Phase 31 | Complete |
+| PROVE-04 | Phase 31 | Complete |
 
 **Coverage:** 27 defined; 27 mapped exactly once; 0 unmapped. Requirements and roadmap approved. No implementation claimed.
 

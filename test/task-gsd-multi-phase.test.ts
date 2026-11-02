@@ -318,3 +318,297 @@ test("orchestrateMultiPhaseProgression advances across 2+ phases without manual 
   assert.equal(finalReviews, 1, "The same final evidence must not launch another independent review");
   assert.deepEqual(rerunResult.completedPhases, ["01", "02"]);
 });
+
+
+test("blocked phase halts progression and leaves subsequent phase command counts zero (D-18, D-19)", async (context) => {
+  const parent = await scratch(context, "blocked-stop");
+  const stateRoot = join(parent, "state");
+  await mkdir(stateRoot, { recursive: true });
+  const repoRes = await createOrdinaryRepository(parent, "repo");
+  assert.equal(repoRes.ok, true);
+  if (!repoRes.ok) return;
+  const projectRoot = repoRes.fixture.path;
+  const receiptsRoot = join(stateRoot, "receipts");
+
+  const planningDir = join(projectRoot, ".planning");
+  const phasesDir = join(planningDir, "phases");
+  await mkdir(join(phasesDir, "01-phase-one"), { recursive: true });
+  await mkdir(join(phasesDir, "02-phase-two"), { recursive: true });
+
+  const initialRoadmap = [
+    "# Roadmap",
+    "",
+    "- [ ] **Phase 01: Phase One**",
+    "- [ ] **Phase 02: Phase Two**",
+    "",
+  ].join("\n");
+  await writeFile(join(planningDir, "ROADMAP.md"), initialRoadmap, "utf8");
+  await writeFile(join(planningDir, "STATE.md"), "# State\ncurrent_phase: 01\n", "utf8");
+  await writeFile(join(planningDir, "REQUIREMENTS.md"), "- **REQ-01**: Req\n", "utf8");
+  await writeFile(join(projectRoot, "test.mjs"), "process.exit(0);\n", "utf8");
+
+  gitCommand(projectRoot, ["add", "-A"]);
+  gitCommand(projectRoot, ["commit", "-m", "chore: init"]);
+  const baseCommit = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+
+  const mockScriptPath = join(parent, "mock-blocked-runner.cjs");
+  const scriptContent = `
+    const fs = require('fs');
+    const path = require('path');
+    const step = process.argv[2];
+    const phase = process.argv[3] || '01';
+    const logPath = ${JSON.stringify(join(parent, "invocations.json"))};
+    let log = [];
+    try { log = JSON.parse(fs.readFileSync(logPath, 'utf8')); } catch {}
+    log.push({ phaseId: phase, step });
+    fs.writeFileSync(logPath, JSON.stringify(log));
+
+    // Phase 01 fails at plan step
+    if (phase === '01' && step === 'plan') {
+      process.exit(1);
+    }
+    // Discuss step writes context
+    if (step === 'discuss') {
+      const phaseDir = path.join(${JSON.stringify(projectRoot)}, '.planning', 'phases', '01-phase-one');
+      fs.writeFileSync(path.join(phaseDir, '01-CONTEXT.md'), '# Context\\n');
+    }
+    process.exit(0);
+  `;
+  await writeFile(mockScriptPath, scriptContent, "utf8");
+
+  const commandMap: Partial<Record<GsdStepKind, { executable: string; args?: readonly string[] }>> = {
+    discuss: { executable: process.execPath, args: [mockScriptPath, "discuss", "01"] },
+    plan: { executable: process.execPath, args: [mockScriptPath, "plan", "01"] },
+    execute: { executable: process.execPath, args: [mockScriptPath, "execute", "01"] },
+    verify: { executable: process.execPath, args: [mockScriptPath, "verify", "01"] },
+  };
+
+  const contract = createMockContract(projectRoot);
+  contract.scope.phaseSelection = {
+    phaseIds: ["01", "02"],
+    roadmapSha256: "0".repeat(64),
+  };
+
+  const result = await orchestrateMultiPhaseProgression({
+    projectRoot,
+    stateRoot,
+    contract,
+    baseCommit,
+    receiptsRoot,
+    commandMap,
+  });
+
+  // Progression must halt with failed
+  assert.equal(result.finalStatus, "failed");
+  assert.deepEqual(result.completedPhases, []);
+
+  // Inspect invocations
+  let recorded: Array<{ phaseId: string; step: string }> = [];
+  try {
+    recorded = JSON.parse(await readFile(join(parent, "invocations.json"), "utf8"));
+  } catch {}
+
+  const phase2Calls = recorded.filter((c) => c.phaseId === "02");
+  assert.equal(phase2Calls.length, 0, "Phase 02 must have 0 command invocations after Phase 01 failure");
+
+  const phase1PlanCalls = recorded.filter((c) => c.phaseId === "01" && c.step === "plan");
+  assert.equal(phase1PlanCalls.length, 1);
+  const phase1ExecuteCalls = recorded.filter((c) => c.phaseId === "01" && c.step === "execute");
+  assert.equal(phase1ExecuteCalls.length, 0, "Phase 01 must not execute after plan failure");
+});
+
+test("interrupted phase preserves dirty WIP, partial summary, and resumes only remaining slices (D-18, D-19)", async (context) => {
+  const parent = await scratch(context, "resume-slices");
+  const stateRoot = join(parent, "state");
+  await mkdir(stateRoot, { recursive: true });
+  const repoRes = await createOrdinaryRepository(parent, "repo");
+  assert.equal(repoRes.ok, true);
+  if (!repoRes.ok) return;
+  const projectRoot = repoRes.fixture.path;
+  const receiptsRoot = join(stateRoot, "receipts");
+
+  const planningDir = join(projectRoot, ".planning");
+  const phasesDir = join(planningDir, "phases");
+  const phase1Dir = join(phasesDir, "01-core-architecture");
+  await mkdir(phase1Dir, { recursive: true });
+
+  const initialRoadmap = [
+    "# Roadmap",
+    "",
+    "- [ ] **Phase 01: Core Architecture**",
+    "",
+  ].join("\n");
+  await writeFile(join(planningDir, "ROADMAP.md"), initialRoadmap, "utf8");
+  await writeFile(join(planningDir, "STATE.md"), "# State\ncurrent_phase: 01\n", "utf8");
+  await writeFile(join(planningDir, "REQUIREMENTS.md"), "- **REQ-01**: Core\n", "utf8");
+  await writeFile(join(projectRoot, "test.mjs"), "process.exit(0);\n", "utf8");
+
+  gitCommand(projectRoot, ["add", "-A"]);
+  gitCommand(projectRoot, ["commit", "-m", "chore: init"]);
+  const baseCommit = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+
+  // Create valid context and plan files (simulating completed discuss and plan steps)
+  await writeFile(join(phase1Dir, "01-CONTEXT.md"), "# Locked original decisions\n");
+  await writeFile(join(phase1Dir, "01-01-PLAN.md"), "# Plan 01\n");
+  // Partial summary from interrupted execution
+  const partialSummaryContent = "---\nstatus: partial\n---\nInterrupted execution.\n";
+  await writeFile(join(phase1Dir, "01-01-SUMMARY.md"), partialSummaryContent, "utf8");
+  gitCommand(projectRoot, ["add", ".planning"]);
+  gitCommand(projectRoot, ["commit", "-m", "feat(01): completed discuss and plan"]);
+
+  // Dirty uncommitted user WIP in allowedRoots
+  const wipPath = join(projectRoot, "preserved-wip.txt");
+  const dirtyWipContent = "USER_WIP_MUST_REMAIN_INTACT_AND_DIRTY\n";
+  await writeFile(wipPath, dirtyWipContent, "utf8");
+
+  const mockScriptPath = join(parent, "mock-resume-runner.cjs");
+  const scriptContent = `
+    const fs = require('fs');
+    const path = require('path');
+    const { execFileSync } = require('child_process');
+    const step = process.argv[2];
+    const logPath = ${JSON.stringify(join(parent, "step-calls.json"))};
+    let log = [];
+    try { log = JSON.parse(fs.readFileSync(logPath, 'utf8')); } catch {}
+    log.push(step);
+    fs.writeFileSync(logPath, JSON.stringify(log));
+
+    const phaseDir = path.join(${JSON.stringify(projectRoot)}, '.planning', 'phases', '01-core-architecture');
+    const statePath = path.join(${JSON.stringify(projectRoot)}, '.planning', 'STATE.md');
+
+    if (step === 'execute') {
+      fs.writeFileSync(path.join(phaseDir, '01-01-SUMMARY.md'), '# Complete Summary\\n');
+      let state = fs.readFileSync(statePath, 'utf8');
+      state += '| 01 | 01-01 | complete |\\n';
+      state += '\\nPhase 01: complete\\n';
+      fs.writeFileSync(statePath, state, 'utf8');
+      execFileSync('git', ['add', phaseDir, statePath], { cwd: ${JSON.stringify(projectRoot)} });
+      execFileSync('git', ['commit', '-m', 'docs(01-01): complete execution'], { cwd: ${JSON.stringify(projectRoot)} });
+    } else if (step === 'verify') {
+      fs.writeFileSync(path.join(phaseDir, '01-VERIFICATION.md'), '---\\nstatus: passed\\n---\\n# Verification\\n');
+      fs.writeFileSync(path.join(phaseDir, '01-VALIDATION.md'), '---\\nstatus: validated\\nnyquist_compliant: true\\n---\\n');
+    }
+    process.exit(0);
+  `;
+  await writeFile(mockScriptPath, scriptContent, "utf8");
+
+  const commandMap: Partial<Record<GsdStepKind, { executable: string; args?: readonly string[] }>> = {
+    discuss: { executable: process.execPath, args: [mockScriptPath, "discuss"] },
+    plan: { executable: process.execPath, args: [mockScriptPath, "plan"] },
+    execute: { executable: process.execPath, args: [mockScriptPath, "execute"] },
+    verify: { executable: process.execPath, args: [mockScriptPath, "verify"] },
+  };
+
+  const contract = createMockContract(projectRoot);
+  contract.scope.phaseSelection = {
+    phaseIds: ["01"],
+    roadmapSha256: "0".repeat(64),
+  };
+
+  const mockFinalReviewPort: FinalReviewPort = {
+    evaluateMilestoneFinal: async (req) => ({
+      schemaVersion: 1,
+      requestId: "req-01",
+      contractId: req.contract.id,
+      contractDigest: taskContractDigest(req.contract),
+      targetRevisionSha: req.targetRevisionSha,
+      artifactDigest: req.artifactDigest,
+      sessionId: "sess-01",
+      reviewerHarness: req.contract.agentPolicy.reviewer,
+      reviewerVersion: "1.0.0",
+      evaluatedAt: new Date().toISOString(),
+      overallVerdict: "accepted",
+      requirements: [{
+        requirementId: "REQ-01",
+        description: "Core",
+        status: "verified" as const,
+        implementationLocation: {
+          path: "package.json",
+          digest: "a".repeat(64),
+        },
+        checkReceiptRef: {
+          receiptId: "chk-01",
+          digest: "b".repeat(64),
+          status: "pass" as const,
+        },
+        reviewEvidenceRef: {
+          reportDigest: "c".repeat(64),
+        },
+      }],
+      crossPhaseAssessment: {
+        userFlow: { status: "pass" as const, summary: "ok" },
+        approvalBoundaries: { status: "pass" as const, summary: "ok" },
+        gsdStateOwnership: { status: "pass" as const, summary: "ok" },
+        reviewerIndependence: { status: "pass" as const, summary: "ok" },
+      },
+      findings: [],
+      summary: "ok",
+    }),
+  };
+
+  const result = await orchestrateMultiPhaseProgression({
+    projectRoot,
+    stateRoot,
+    contract,
+    baseCommit,
+    receiptsRoot,
+    commandMap,
+    finalReviewPort: mockFinalReviewPort,
+  });
+
+  assert.equal(result.finalStatus, "completed");
+  assert.deepEqual(result.completedPhases, ["01"]);
+
+  // Verify only pending slices (execute, verify) were run
+  const recordedSteps: string[] = JSON.parse(await readFile(join(parent, "step-calls.json"), "utf8"));
+  assert.equal(recordedSteps.includes("discuss"), false, "Completed discuss step must not be re-run");
+  assert.equal(recordedSteps.includes("plan"), false, "Completed plan step must not be re-run");
+  assert.equal(recordedSteps.includes("execute"), true, "Pending execute step must run");
+  assert.equal(recordedSteps.includes("verify"), true, "Verify step must run");
+
+  // Verify dirty WIP remained intact
+  assert.equal(await readFile(wipPath, "utf8"), dirtyWipContent);
+  const gitStatus = gitCommand(projectRoot, ["status", "--porcelain"]).stdout;
+  assert.match(gitStatus, /preserved-wip\.txt/);
+});
+
+test("unauthorized live roadmap phase addition is refused at phase boundary (D-17, T-30-11)", async (context) => {
+  const parent = await scratch(context, "unauth-scope");
+  const stateRoot = join(parent, "state");
+  await mkdir(stateRoot, { recursive: true });
+  const repoRes = await createOrdinaryRepository(parent, "repo");
+  assert.equal(repoRes.ok, true);
+  if (!repoRes.ok) return;
+  const projectRoot = repoRes.fixture.path;
+
+  const planningDir = join(projectRoot, ".planning");
+  await mkdir(join(planningDir, "phases", "01-core"), { recursive: true });
+  await mkdir(join(planningDir, "phases", "02-extra"), { recursive: true });
+
+  await writeFile(
+    join(planningDir, "ROADMAP.md"),
+    ["# Roadmap", "", "- [ ] **Phase 01: Core**", "- [ ] **Phase 02: Extra**", ""].join("\n"),
+    "utf8",
+  );
+  await writeFile(join(planningDir, "STATE.md"), "# State\ncurrent_phase: 01\n", "utf8");
+  gitCommand(projectRoot, ["add", "-A"]);
+  gitCommand(projectRoot, ["commit", "-m", "chore: init"]);
+  const baseCommit = gitCommand(projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+
+  const contract = createMockContract(projectRoot);
+  contract.scope.phaseSelection = {
+    phaseIds: ["01"],
+    roadmapSha256: "0".repeat(64),
+  };
+
+  const result = await orchestrateMultiPhaseProgression({
+    projectRoot,
+    stateRoot,
+    contract,
+    baseCommit,
+    phases: ["02"],
+  });
+
+  assert.equal(result.finalStatus, "failed");
+  assert.ok(result.stopReason?.includes("not in the approved phase selection"));
+});

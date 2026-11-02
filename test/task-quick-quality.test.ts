@@ -458,6 +458,7 @@ test("previewTaskContract and formatTaskContractPreview expose concrete executio
     style: "autopilot-phase",
     label: "오토파일럿-phase",
     surface: "isolated-runner",
+    scopeBoundaryReason: "Legacy phase approval: phase scope will be derived from approved git baseline.",
   });
 
   const formattedPhase = formatTaskContractPreview(previewPhase, "alpha-aos task approve");

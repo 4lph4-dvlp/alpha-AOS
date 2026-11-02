@@ -266,5 +266,111 @@ alpha-aos task bootstrap --input <bootstrap-input.json> [--plan-digest <digest> 
 - **Byte Preservation**: Native bootstrap recovery strictly preserves original bytes and user WIP (`verifyNativeBootstrapRecovery`).
 - **Deferred Scope**: Phase 29 establishes GSD initialization, recovery projection, and once-only request continuity. Six-pipeline execution and full quality gates remain Phase 30.
 
+## Six execution routes, quality evidence gates, and operational boundaries (STYLE-01–STYLE-07, D-01–D-23)
+
+### Six canonical execution routes and surfaces
+
+Task execution maps every canonical choice to an exact surface and runtime invocation:
+
+| Number | Canonical Identifier | Korean Label | Surface | Quality | Native Command / Invocation |
+|---|---|---|---|---|---|
+| 1 | `conversational-quick` | 대화형-quick | `conversation` | `standard` | `$gsd-quick "<task description>"` |
+| 2 | `conversational-quick-full` | 대화형-quick-full | `conversation` | `full` | `$gsd-quick "<task description>" --full` |
+| 3 | `conversational-phase` | 대화형-phase | `conversation` | N/A | `/gsd:discuss-phase <phase>` (or plan/execute) |
+| 4 | `autopilot-quick` | 오토파일럿-quick | `isolated-runner` | `standard` | `alpha-aos task start <contract.json> --contract-digest <digest> --apply` |
+| 5 | `autopilot-quick-full` | 오토파일럿-quick-full | `isolated-runner` | `full` | `alpha-aos task start <contract.json> --contract-digest <digest> --apply` |
+| 6 | `autopilot-phase` | 오토파일럿-phase | `isolated-runner` | N/A | `alpha-aos task start <contract.json> --contract-digest <digest> --apply` |
+
+Key operational rules:
+- **Zero Inline Execution for Autopilot**: Conversational chat agents are strictly prohibited from simulating or performing inline code edits (`write_file`, `edit_file`) for autopilot tasks. Autopilot contracts must be executed exclusively through isolated child processes/runners via `task start --apply`.
+- **Conversational Full Retains Interactive Discussion**: In `conversational-quick-full` and `conversational-phase`, human discussion and gray area questions remain within the current conversation unless explicitly delegated.
+
+### Legacy standard normalization and strict full-quality preservation
+
+- **Legacy Normalization**: Existing contracts or tasks where `quickQuality` is omitted normalize strictly to `standard` (`quickQuality: "standard"`).
+- **No Down-Conversion**: Contracts with `quickQuality: "full"` require full 7-stage quality evidence. A full-quality contract is never silently downgraded to standard, nor will standard quick evidence satisfy a full-quality gate.
+- **Workflow Scope Validation**: `quickQuality` is restricted strictly to `gsd-quick` development tasks. Other workflows (`gsd`, `gsd-multi-phase`, `generic-connector`) reject `quickQuality` at schema and contract validation boundaries.
+- **Phase Selection Binding**: `phaseSelection` is restricted strictly to `gsd`/`gsd-multi-phase` development tasks and is prohibited on `gsd-quick` tasks.
+
+### 7-Stage full evidence precondition gate and diagnostics
+
+Full quality (`quickQuality: "full"`) mandates verified execution across seven required stages:
+1. `discussion`: Context, gray-area analysis, and explicit design decisions.
+2. `research`: Technical constraints, dependencies, and architecture research.
+3. `planning`: Detailed execution plan (`PLAN.md`).
+4. `plan-check`: Plan verification and goal-backward consistency analysis.
+5. `implementation`: Code modification with atomic commits and invariant enforcement.
+6. `verification`: Direct test execution, UAT verification, and recorded proof.
+7. `state-docs`: State progression (`STATE.md`), roadmap updates, and documentation.
+
+Stage outcome evaluation classifies each stage into:
+- `passed`: Stage executed cleanly and produced valid artifact receipts.
+- `missing`: Required stage artifact or execution receipt is absent.
+- `failed`: Stage reported errors, test failures, or non-zero exit.
+- `needs-input`: Gray area or human decision is required before proceeding.
+- `unknown`: Outcome was not recorded or provenance could not be verified.
+
+CLI diagnostic output format (`TaskGsdFullEvidence`):
+```json
+{
+  "status": "missing",
+  "quickId": "261102-quick-example",
+  "stages": [],
+  "missingStages": [
+    "discussion",
+    "research",
+    "planning",
+    "plan-check",
+    "implementation",
+    "verification",
+    "state-docs"
+  ],
+  "failedStages": [],
+  "invalidReceipts": [],
+  "issues": [
+    "Missing required full stage receipts: discussion, research, planning, plan-check, implementation, verification, state-docs"
+  ]
+}
+```
+
+### Exact per-task preview, approval, and separate start
+
+Autopilot execution enforces a three-step lifecycle:
+1. **Preview**:
+   ```bash
+   alpha-aos task preview <contract.json> [--json]
+   ```
+   Computes exact canonical SHA256 digest (`contractDigest`). Performs zero writes, issues zero authorization (`executionAuthorized: false`).
+2. **Approval**:
+   ```bash
+   alpha-aos task approve <contract.json> --contract-digest <digest> --apply [--json]
+   ```
+   Records an immutable approval record bound to the exact contract digest. Approval alone does NOT start or execute the task.
+3. **Separate Start**:
+   ```bash
+   alpha-aos task start <contract.json> --contract-digest <digest> --apply [--json]
+   ```
+   Checks that the contract has been approved (`assertTaskStartable`). If approval is absent, fails closed with `not-approved`. If the file drifted from the approved digest, fails closed with `contract-drift`.
+
+### Same-run recovery, scope drift, and mode switch vs active task continuation
+
+- **Same-Run Recovery**: Resuming an interrupted task (`task resume` or `startMultiPhaseTask`) preserves dirty WIP and partial summaries. Only remaining, uncompleted plan slices are executed; completed slices are not re-executed.
+- **Scope Drift Protection**: If live `ROADMAP.md` or git workspace expands beyond the approved `phaseSelection` or `allowedRoots`, progression is halted immediately at the phase boundary.
+- **Active Task Continuation vs Policy Mode Switch**:
+  - The project behavior mode in `.alpha-aos/behavior.json` (`strict` | `flexible`) represents intake preference for *new* tasks.
+  - If a user or external harness changes `behavior.json` while an active task is running, the active task's bound execution style and contract remain completely intact (`continuation`).
+  - The updated behavior mode takes effect only when a new, independent task intake is evaluated.
+
+### Direct commands and stopping timing
+
+- **Direct Command Preservation**: When a user invokes a direct GSD command (e.g. `$gsd-discuss-phase 30`, `/gsd:quick "fix" --full`), intake bypasses the style chooser and returns `kind: "explicit-command"`.
+- **Exact Stopping Points**: Direct phase commands preserve native stopping timing (e.g. `discuss-phase` stops at `discuss:post` after `CONTEXT.md` is committed; `plan-phase` stops at `plan:post`).
+- **Conflict Handling**: If a direct command conflicts with an explicit style request (e.g. direct command `$gsd-discuss-phase` combined with `오토파일럿-quick`), intake returns `kind: "conflict"` and asks a narrow clarification question rather than guessing.
+
+### Proof tier and native verification boundaries
+
+- **Static and Fixture Proof Tier**: Static type checks (`npm run check`), compiled unit tests, and five-harness rendered guidance integrity verify source compliance, contract schema validation, and identical multi-target template rendering.
+- **Live Harness Boundaries**: Unit tests and rendered guidance verify repository packaging and operational guidance. They do not simulate live vendor CLI execution or claim live five-harness end-to-end completion without dedicated native execution fixtures (Phase 31).
+
 
 

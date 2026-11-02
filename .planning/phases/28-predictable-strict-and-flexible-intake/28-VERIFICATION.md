@@ -24,6 +24,7 @@ covered_files: [
   ".planning/phases/28-predictable-strict-and-flexible-intake/28-06-SUMMARY.md",
   ".planning/phases/28-predictable-strict-and-flexible-intake/28-CONTEXT.md",
   ".planning/phases/28-predictable-strict-and-flexible-intake/28-NATIVE-EVIDENCE.md",
+  ".planning/phases/28-predictable-strict-and-flexible-intake/28-REVIEW.md",
   ".planning/phases/28-predictable-strict-and-flexible-intake/28-VALIDATION.md",
   "catalog/stack.lock.json",
   "docs/task-runtime-controls.md",
@@ -126,6 +127,22 @@ All twelve observable truths and acceptance criteria defined across Plans 28-01 
 
 ---
 
+## Independent Code Review & Nyquist Validation
+
+- **Independent Code Review (`28-REVIEW.md`):**
+  - Completed with status `passed_with_warnings` (0 critical, 1 warning, 2 info).
+  - Scope: 16 files reviewed across core intake, continuity, explicit dispatch, evidence matrix, schemas, skills, formatting, and acceptance suites.
+  - WARN-01: Documented host question tool option budget constraints and verified deterministic numbered-text fallback.
+  - INFO-01: Confirmed safe fail-closed behavior for unclassified or ambiguous operations.
+  - INFO-02: Verified zero disk writes, zero git mutations, and zero state modification during intake.
+- **Nyquist Validation Gate (`28-VALIDATION.md`):**
+  - `nyquist_compliant: true` achieved with all 12 planned task suites created and passing (76 tests in 275.5s).
+  - TypeScript static verification: 0 errors (`npm run check`).
+  - Provenance check: 321 inputs / 632 outputs verified (`npm run build:check`).
+  - Full regression suite: 1,804 passed, 0 failed, 13 skipped (`npm test`).
+
+---
+
 ## Native Evidence & Human-Needed Boundary
 
 Per Decision **D-20** and Phase 28 validation rules:
@@ -137,4 +154,6 @@ Per Decision **D-20** and Phase 28 validation rules:
 ## Final Verification Verdict
 
 - **Automated Verification:** **PASS** (12/12 must-haves verified, 76/76 phase tests pass, full regression green, 0 typecheck errors).
+- **Independent Code Review:** **PASS** (`28-REVIEW.md` completed, 0 critical blockers).
+- **Nyquist Validation Gate:** **PASS** (`28-VALIDATION.md` signed off, `nyquist_compliant: true`).
 - **Overall Phase 28 Status:** **`passed`** (Goal achieved; live interactive paid host proof noted in `28-NATIVE-EVIDENCE.md` and documented per D-20).

@@ -15,6 +15,32 @@ const MAX_ENTRY_COUNT = 20_000;
 const MAX_PATH_BYTES = 255;
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+export const PRIVATE_PATH_PATTERN = /([a-zA-Z]:[\\/](?:Users|dev|home|temp|AppData)|[\\/](?:home|Users)[\\/])/iu;
+
+export const REQUIRED_V060_ENTRIES = [
+  "skills/alpha-aos-task/SKILL.md",
+  "schemas/behavior-policy.schema.json",
+  "schemas/task-intake.schema.json",
+  "schemas/task-bootstrap.schema.json",
+  "schemas/task-contract.schema.json",
+  "schemas/task-gsd-stage-receipt.schema.json",
+  "schemas/task-receipt.schema.json",
+  "scripts/verify-task-bootstrap-native.mjs",
+  "scripts/verify-task-style-native.mjs",
+];
+
+export function isInspectableTextEntry(path) {
+  if (typeof path !== "string") return false;
+  if (path === "README.md" || path === "README.ko.md" || path === "CHANGELOG.md") {
+    return true;
+  }
+  const inspectablePrefixes = ["docs/", "skills/", "schemas/", "catalog/"];
+  if (inspectablePrefixes.some((prefix) => path.startsWith(prefix))) {
+    return /\.(?:md|json|ya?ml)$/iu.test(path);
+  }
+  return false;
+}
+
 function isZeroBlock(block) {
   return block.every((byte) => byte === 0);
 }
@@ -148,7 +174,11 @@ export function listTarballFiles(tarballPath) {
       const collisionKey = path.toLowerCase();
       if (seenPaths.has(collisionKey)) throw new Error(`Duplicate or case-colliding tar entry path: ${path}`);
       seenPaths.add(collisionKey);
-      files.push({ path, size });
+      const entry = { path, size };
+      if (isInspectableTextEntry(path)) {
+        entry.text = archive.subarray(dataStart, dataEnd).toString("utf8");
+      }
+      files.push(entry);
     }
     offset = paddedEnd;
   }
@@ -220,6 +250,30 @@ export function auditTarballEntries(files) {
     }
     if (!allowedExact.has(entry.path) && !allowedPrefixes.some((prefix) => entry.path.startsWith(prefix))) {
       violations.push(`Unallowlisted file detected: ${entry.path}`);
+    }
+    if (typeof entry.text === "string") {
+      const match = PRIVATE_PATH_PATTERN.exec(entry.text);
+      if (match) {
+        violations.push(`Private host path detected in ${entry.path}: ${match[0]}`);
+      }
+    }
+  }
+  return violations;
+}
+
+/**
+ * Audits that all required package entries are present.
+ *
+ * @param {ReadonlyArray<{ path: string, size?: number, text?: string }>} files
+ * @param {ReadonlyArray<string>} [requiredEntries=REQUIRED_V060_ENTRIES]
+ * @returns {string[]}
+ */
+export function auditRequiredPackageEntries(files, requiredEntries = REQUIRED_V060_ENTRIES) {
+  const presentPaths = new Set(files.map((file) => file.path));
+  const violations = [];
+  for (const required of requiredEntries) {
+    if (!presentPaths.has(required)) {
+      violations.push(`Missing required package entry: ${required}`);
     }
   }
   return violations;
@@ -297,7 +351,10 @@ function runCli() {
 
     if (!existsSync(tarballPath)) throw new Error(`Tarball not found at ${tarballPath}`);
     const files = listTarballFiles(tarballPath);
-    const violations = auditTarballEntries(files);
+    const violations = [
+      ...auditTarballEntries(files),
+      ...auditRequiredPackageEntries(files),
+    ];
     if (violations.length > 0) {
       console.error(`Tarball content audit FAILED (${violations.length} violation(s)):`);
       for (const violation of violations) console.error(`  - ${violation}`);

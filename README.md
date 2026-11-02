@@ -135,7 +135,7 @@ alpha-AOS enforces a strict boundary between global baseline tools and project-s
 
 ## Using alpha-AOS in Your Projects
 
-When working in any project directory (e.g. `D:\dev\my-project`), you can discover and materialize tailored capability packs, manage directory isolation, run diagnostics, and rollback changes using either an **Autonomous AI Agent Workflow** or a **Manual Developer CLI Workflow**.
+When working in any project directory (e.g. `~/projects/my-project`), you can discover and materialize tailored capability packs, manage directory isolation, run diagnostics, and rollback changes using either an **Autonomous AI Agent Workflow** or a **Manual Developer CLI Workflow**.
 
 For software without a convenient agent interface, the intent-driven `cli-anything` skill can discover an existing CLI through CLI-Hub or guide creation of a new one. CLI-Hub and individual application CLIs are optional external software; see the [CLI-Anything setup and use guide](docs/how-to/cli-anything.md).
 

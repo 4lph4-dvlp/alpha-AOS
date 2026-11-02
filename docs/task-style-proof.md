@@ -76,7 +76,7 @@ The following holds remain in effect and are NOT cleared by local Windows fixtur
      - `task-progress-integration.test.js`: 13 passed, 0 failed.
      - `task-progress.test.js`: 15 passed, 0 failed.
      - `verify-efficient-wait.test.js`: 19 passed, 1 skipped (Windows host symlink constraint), 0 failed.
-     - `tarball.test.js`: 10 passed, 0 failed.
+     - `tarball-fixture.test.js`: 10 passed, 0 failed.
 5. `npm run build:check`: Exit code 0 (all 345 inputs and 680 outputs verified against build artifact manifest).
 
 ### Limitations and Unresolved Proof:
@@ -87,13 +87,13 @@ The following holds remain in effect and are NOT cleared by local Windows fixtur
 
 - **Date**: 2026-11-03
 - **Disposition Status**: `verified`
-- **Gate**: Blocking human verification checkpoint ([`30-08-PLAN.md`](file:///D:/dev/alpha-AOS/.planning/phases/30-six-execution-styles-and-quality-binding/30-08-PLAN.md))
+- **Gate**: Blocking human verification checkpoint (`.planning/phases/30-six-execution-styles-and-quality-binding/30-08-PLAN.md`)
 - **Harness Surface**: `pi` (Pi Coding Agent v1.4.0)
 - **Execution Summary**:
-  - Live execution performed in isolated temporary git repository (`D:/dev/alpha-AOS/.planning/tmp/pi-native-proof`).
+  - Live execution performed in isolated temporary git repository (`.planning/tmp/pi-native-proof`).
   - Realistic task executed by Pi Agent: `slugify(text)` utility with 8 `node:assert` unit tests (`utils.js`, `test.js`), verified green (`All slugify tests passed.`).
   - Git commit recorded: `f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b`.
-  - Genuine observation locators and SHA-256 hashes registered in [`docs/task-style-proof-index.json`](file:///D:/dev/alpha-AOS/docs/task-style-proof-index.json).
+  - Genuine observation locators and SHA-256 hashes registered in [docs/task-style-proof-index.json](./task-style-proof-index.json).
   - Standalone verifier output (`node scripts/verify-task-style-native.mjs --index docs/task-style-proof-index.json`):
     - `valid`: `true`
     - `allVerified`: `true`

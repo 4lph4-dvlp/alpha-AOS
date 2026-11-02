@@ -93,8 +93,8 @@ A native execution receipt JSON document contains:
 
 ## Native Verification Evidence (Task 29-06-02)
 
-- **Receipt Path:** `C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-receipt.json`
-- **Project Root:** `C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-project`
+- **Receipt Path:** `<scratch-root>/native-bootstrap-receipt.json`
+- **Project Root:** `<scratch-root>/native-bootstrap-project`
 - **Controller Runtime:** `codex` (`@opengsd/gsd-core` 1.18.0)
 - **Pending ID:** `pending-native-tracer-290602`
 - **Claim Nonce:** `claim-nonce-native-290602`
@@ -108,7 +108,7 @@ A native execution receipt JSON document contains:
   - Once-only reentry returned `route: "continue-existing"` without dispatching a second quick task.
 - **Verification Command & Result:**
   ```bash
-  node scripts/verify-task-bootstrap-native.mjs --receipt "C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-receipt.json" --json
+  node scripts/verify-task-bootstrap-native.mjs --receipt "<scratch-root>/native-bootstrap-receipt.json" --json
   ```
   Result:
   ```json
@@ -116,11 +116,11 @@ A native execution receipt JSON document contains:
     "valid": true,
     "evidenceTier": "native",
     "controller": "codex",
-    "projectRoot": "C:\\Users\\alpha\\.gemini\\antigravity-cli\\brain\\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\\scratch\\native-bootstrap-project",
+    "projectRoot": "<scratch-root>/native-bootstrap-project",
     "pendingId": "pending-native-tracer-290602",
     "claimNonce": "claim-nonce-native-290602",
     "nativeArtifact": {
-      "path": "C:\\Users\\alpha\\.gemini\\antigravity-cli\\brain\\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\\scratch\\native-bootstrap-project\\.planning\\quick\\261102-leh-health-check\\261102-leh-SUMMARY.md",
+      "path": "<scratch-root>/native-bootstrap-project/.planning/quick/261102-leh-health-check/261102-leh-SUMMARY.md",
       "sha256": "677f47e854ce5659df6bb77635e77fd883972f8c1b29b33961d65e36adba8745",
       "verified": true
     },

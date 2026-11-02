@@ -33,6 +33,21 @@ interface ArchiveEntry {
   readonly body: Buffer;
 }
 
+interface TarballFileEntry {
+  readonly path: string;
+  readonly size: number;
+  readonly text?: string | undefined;
+}
+
+interface AuditTarballModule {
+  listTarballFiles(tarballPath: string): TarballFileEntry[];
+  auditTarballEntries(files: readonly TarballFileEntry[]): string[];
+  auditRequiredPackageEntries(files: readonly TarballFileEntry[], requiredEntries?: readonly string[]): string[];
+  isInspectableTextEntry(path: string): boolean;
+  REQUIRED_V060_ENTRIES: readonly string[];
+  PRIVATE_PATH_PATTERN: RegExp;
+}
+
 interface CommandResult {
   readonly status: number;
   readonly stdout: string;
@@ -46,6 +61,8 @@ const smokePath = join(repositoryRoot, "scripts", "smoke-test.mjs");
 const smokeUrl = pathToFileURL(smokePath).href;
 const releasePath = join(repositoryRoot, "scripts", "release.mjs");
 const releaseUrl = pathToFileURL(releasePath).href;
+const auditPath = join(repositoryRoot, "scripts", "audit-tarball.mjs");
+const auditUrl = pathToFileURL(auditPath).href;
 const buildManifestPath = "dist/build-artifact.json";
 const stackLockPath = "catalog/stack.lock.json";
 
@@ -292,4 +309,51 @@ test("the installed CLI reports the canonical package version", async () => {
   });
   assert.equal(result.status, 0, typeof result.stderr === "string" ? result.stderr : "");
   assert.equal(typeof result.stdout === "string" ? result.stdout.trim() : "", manifest.version);
+});
+
+test("auditTarballEntries rejects private workstation paths in inspectable text entries", async () => {
+  const audit = await import(auditUrl) as AuditTarballModule;
+
+  // Clean entries produce zero private path violations
+  const cleanViolations = audit.auditTarballEntries([
+    { path: "README.md", size: 10, text: "A clean documentation file with ~/projects/demo path." },
+    { path: "docs/guide.md", size: 10, text: "A portable guide with <scratch-root>/receipt.json" },
+  ]);
+  assert.equal(cleanViolations.length, 0);
+
+  // Private path in inspectable text entry triggers violation
+  const dirtyViolations = audit.auditTarballEntries([
+    { path: "README.md", size: 100, text: "Leaked host path: D:\\dev\\my-secret-repo" },
+    { path: "docs/proof.md", size: 100, text: "Leaked profile path: C:/Users/alpha/AppData/something" },
+  ]);
+  assert.equal(dirtyViolations.length, 2);
+  assert.ok(dirtyViolations.some((v) => v.includes("Private host path detected in README.md: D:\\dev")));
+  assert.ok(dirtyViolations.some((v) => v.includes("Private host path detected in docs/proof.md: C:/Users")));
+
+  // Non-text synthetic entries remain backward-compatible without error
+  const syntheticViolations = audit.auditTarballEntries([
+    { path: "README.md", size: 50 },
+  ]);
+  assert.equal(syntheticViolations.length, 0);
+});
+
+test("auditRequiredPackageEntries rejects missing v0.6.0 entries", async () => {
+  const audit = await import(auditUrl) as AuditTarballModule;
+
+  // Complete list has zero missing-entry violations
+  const allPresent = audit.REQUIRED_V060_ENTRIES.map((path) => ({ path, size: 100 }));
+  assert.deepEqual(audit.auditRequiredPackageEntries(allPresent), []);
+
+  // Empty list reports all 9 missing
+  const emptyViolations = audit.auditRequiredPackageEntries([]);
+  assert.equal(emptyViolations.length, audit.REQUIRED_V060_ENTRIES.length);
+  for (const required of audit.REQUIRED_V060_ENTRIES) {
+    assert.ok(emptyViolations.some((v) => v.includes(`Missing required package entry: ${required}`)));
+  }
+
+  // Omitting one entry reports specifically that entry
+  const missingOne = audit.REQUIRED_V060_ENTRIES.slice(1).map((path) => ({ path, size: 100 }));
+  const oneViolations = audit.auditRequiredPackageEntries(missingOne);
+  assert.equal(oneViolations.length, 1);
+  assert.ok(oneViolations[0]?.includes(`Missing required package entry: ${audit.REQUIRED_V060_ENTRIES[0]}`));
 });

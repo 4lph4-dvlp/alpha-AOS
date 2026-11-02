@@ -1,0 +1,542 @@
+{
+  "schemaVersion": 1,
+  "packageBindings": {
+    "ownedSkill": {
+      "sourceSha256": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
+      "targetSha256": {
+        "claude": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
+        "codex": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
+        "antigravity": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
+        "pi": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
+        "hermes": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb"
+      }
+    },
+    "files": [
+      {
+        "path": "skills/alpha-aos-task/SKILL.md",
+        "sha256": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb"
+      },
+      {
+        "path": "schemas/behavior-policy.schema.json",
+        "sha256": "0e52717b81b9188e4078178f4f3e2118c6cacfca48ed8e928fcc9474d3346c61"
+      },
+      {
+        "path": "schemas/task-intake.schema.json",
+        "sha256": "6989a0b53d6555ba0ab20820cf13fac056ec5e0193d6d8715f67740a0bd4ad7c"
+      },
+      {
+        "path": "schemas/task-bootstrap.schema.json",
+        "sha256": "e66829b3ccd3ad2e189d60271ebf1cde43477ca1e9f299c75f2bddca36bb2ae7"
+      },
+      {
+        "path": "schemas/task-contract.schema.json",
+        "sha256": "918291deced137bc0f37659dd219b4855c21689edb91289a39fc3a5767ca5870"
+      },
+      {
+        "path": "schemas/task-gsd-stage-receipt.schema.json",
+        "sha256": "24a7c4419c2ce0ec91c52ba38573347424ca4826c000dee7b8ecf3dd7ebe7bf0"
+      },
+      {
+        "path": "schemas/task-receipt.schema.json",
+        "sha256": "67f767f6ad937bc60ef4ade5ae1be719934688a1652b366ec33604c8f7cfa0a3"
+      },
+      {
+        "path": "docs/task-bootstrap-proof.md",
+        "sha256": "b258fdf7955a25ff739f2e248a50b79e16b13214966e13728585befaa7de9ea5"
+      },
+      {
+        "path": "docs/task-style-proof.md",
+        "sha256": "0a14c05c455cf04569efd3437305f7dcf71fdb03d86d55dba3e4e8561c4bf6c8"
+      },
+      {
+        "path": "docs/task-style-proof-index.json",
+        "sha256": "7655ab2ba3ca13ed48fb51506ddee2beedf48fb9f1fc2b2cc1823988a8606367"
+      }
+    ]
+  },
+  "cells": [
+    {
+      "harness": "claude",
+      "axis": "policy-query-and-set",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-policy-transition"
+    },
+    {
+      "harness": "claude",
+      "axis": "independent-task-reselection",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "claude",
+      "axis": "bootstrap-and-recovery-handoff",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-bootstrap-continuity"
+    },
+    {
+      "harness": "claude",
+      "axis": "conversational-quick",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "claude",
+      "axis": "conversational-quick-full",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "claude",
+      "axis": "conversational-phase",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "claude",
+      "axis": "autopilot-quick",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "claude",
+      "axis": "autopilot-quick-full",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "claude",
+      "axis": "autopilot-phase",
+      "status": "blocked",
+      "reasonCode": "CLAUDE_G_07_2_ISOLATED_AUTH_HOLD"
+    },
+    {
+      "harness": "claude",
+      "axis": "question-ui-delivery",
+      "status": "verified-fixture",
+      "reasonCode": "NUMBERED_TEXT_FALLBACK_FIXTURE_NATIVE_UI_UNVERIFIED",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "claude",
+      "axis": "gsd-controller-authority",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "policy-query-and-set",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-policy-transition"
+    },
+    {
+      "harness": "codex",
+      "axis": "independent-task-reselection",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "codex",
+      "axis": "bootstrap-and-recovery-handoff",
+      "status": "verified-native",
+      "reasonCode": "CODEX_PHASE_29_ARCHIVED_NATIVE_BOOTSTRAP",
+      "provenance": "native",
+      "scenario": "chain-bootstrap-continuity",
+      "evidence": {
+        "path": "docs/task-bootstrap-proof.md",
+        "commitSha": "3adb72549623865abc4187715bc344b346f8acc9",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "codex",
+      "axis": "conversational-quick",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "conversational-quick-full",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "conversational-phase",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "autopilot-quick",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "autopilot-quick-full",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "autopilot-phase",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "codex",
+      "axis": "question-ui-delivery",
+      "status": "verified-fixture",
+      "reasonCode": "NUMBERED_TEXT_FALLBACK_FIXTURE_NATIVE_UI_UNVERIFIED",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "codex",
+      "axis": "gsd-controller-authority",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "policy-query-and-set",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-policy-transition"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "independent-task-reselection",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "bootstrap-and-recovery-handoff",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-bootstrap-continuity"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "conversational-quick",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "conversational-quick-full",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "conversational-phase",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "autopilot-quick",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "autopilot-quick-full",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "autopilot-phase",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "question-ui-delivery",
+      "status": "verified-fixture",
+      "reasonCode": "NUMBERED_TEXT_FALLBACK_FIXTURE_NATIVE_UI_UNVERIFIED",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "antigravity",
+      "axis": "gsd-controller-authority",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "pi",
+      "axis": "policy-query-and-set",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-policy-transition"
+    },
+    {
+      "harness": "pi",
+      "axis": "independent-task-reselection",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "pi",
+      "axis": "bootstrap-and-recovery-handoff",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-bootstrap-continuity"
+    },
+    {
+      "harness": "pi",
+      "axis": "conversational-quick",
+      "status": "verified-native",
+      "reasonCode": "PI_PHASE_30_ARCHIVED_NATIVE_ROUTE",
+      "provenance": "native",
+      "evidence": {
+        "path": "docs/task-style-proof.md",
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "pi",
+      "axis": "conversational-quick-full",
+      "status": "verified-native",
+      "reasonCode": "PI_PHASE_30_ARCHIVED_NATIVE_ROUTE",
+      "provenance": "native",
+      "evidence": {
+        "path": "docs/task-style-proof.md",
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "pi",
+      "axis": "conversational-phase",
+      "status": "verified-native",
+      "reasonCode": "PI_PHASE_30_ARCHIVED_NATIVE_ROUTE",
+      "provenance": "native",
+      "evidence": {
+        "path": "docs/task-style-proof.md",
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "pi",
+      "axis": "autopilot-quick",
+      "status": "verified-native",
+      "reasonCode": "PI_PHASE_30_ARCHIVED_NATIVE_ROUTE",
+      "provenance": "native",
+      "evidence": {
+        "path": "docs/task-style-proof.md",
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "pi",
+      "axis": "autopilot-quick-full",
+      "status": "verified-native",
+      "reasonCode": "PI_PHASE_30_ARCHIVED_NATIVE_ROUTE",
+      "provenance": "native",
+      "evidence": {
+        "path": "docs/task-style-proof.md",
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "pi",
+      "axis": "autopilot-phase",
+      "status": "verified-native",
+      "reasonCode": "PI_PHASE_30_ARCHIVED_NATIVE_ROUTE",
+      "provenance": "native",
+      "evidence": {
+        "path": "docs/task-style-proof.md",
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b",
+        "archiveCommitSha": "06838756804c7385ad5ee1c6330b7362cd068e26"
+      }
+    },
+    {
+      "harness": "pi",
+      "axis": "question-ui-delivery",
+      "status": "verified-fixture",
+      "reasonCode": "NUMBERED_TEXT_FALLBACK_FIXTURE_NATIVE_UI_UNVERIFIED",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "pi",
+      "axis": "gsd-controller-authority",
+      "status": "unverified",
+      "reasonCode": "NO_SPEND_POLICY_PAID_TURN_WITHHELD"
+    },
+    {
+      "harness": "hermes",
+      "axis": "policy-query-and-set",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-policy-transition"
+    },
+    {
+      "harness": "hermes",
+      "axis": "independent-task-reselection",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "hermes",
+      "axis": "bootstrap-and-recovery-handoff",
+      "status": "verified-fixture",
+      "reasonCode": "DETERMINISTIC_COMPOSED_CLI",
+      "provenance": "fixture",
+      "scenario": "chain-bootstrap-continuity"
+    },
+    {
+      "harness": "hermes",
+      "axis": "conversational-quick",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    },
+    {
+      "harness": "hermes",
+      "axis": "conversational-quick-full",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    },
+    {
+      "harness": "hermes",
+      "axis": "conversational-phase",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    },
+    {
+      "harness": "hermes",
+      "axis": "autopilot-quick",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    },
+    {
+      "harness": "hermes",
+      "axis": "autopilot-quick-full",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    },
+    {
+      "harness": "hermes",
+      "axis": "autopilot-phase",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    },
+    {
+      "harness": "hermes",
+      "axis": "question-ui-delivery",
+      "status": "verified-fixture",
+      "reasonCode": "NUMBERED_TEXT_FALLBACK_FIXTURE_NATIVE_UI_UNVERIFIED",
+      "provenance": "fixture",
+      "scenario": "chain-task-boundary"
+    },
+    {
+      "harness": "hermes",
+      "axis": "gsd-controller-authority",
+      "status": "unsupported",
+      "reasonCode": "HERMES_WORKER_ONLY_NO_GSD_CONTROLLER"
+    }
+  ],
+  "composedScenarios": [
+    {
+      "id": "chain-policy-transition",
+      "path": "test/task-entry-cross-harness.test.ts",
+      "checkoutOnly": true,
+      "sha256": "c0d02e204a437f35875bf9b379b1ee996fa4cc88293f1d735144233a516ddf0a"
+    },
+    {
+      "id": "chain-task-boundary",
+      "path": "test/task-entry-cross-harness.test.ts",
+      "checkoutOnly": true,
+      "sha256": "c0d02e204a437f35875bf9b379b1ee996fa4cc88293f1d735144233a516ddf0a"
+    },
+    {
+      "id": "chain-bootstrap-continuity",
+      "path": "test/task-entry-cross-harness.test.ts",
+      "checkoutOnly": true,
+      "sha256": "c0d02e204a437f35875bf9b379b1ee996fa4cc88293f1d735144233a516ddf0a"
+    },
+    {
+      "id": "chain-quality-and-tamper-guards",
+      "path": "test/task-entry-cross-harness.test.ts",
+      "checkoutOnly": true,
+      "sha256": "c0d02e204a437f35875bf9b379b1ee996fa4cc88293f1d735144233a516ddf0a"
+    }
+  ],
+  "priorObservations": [
+    {
+      "harness": "antigravity",
+      "tier": "historical-session-observation",
+      "status": "unverified",
+      "reasonCode": "PHASE_27_28_NATIVE_INTAKE_SESSION_NO_PORTABLE_RECEIPT",
+      "note": "Native intake/policy was observed in prior sessions; this index conservatively labels reproducible CLI composition fixture-tier."
+    }
+  ],
+  "regressionLedger": {
+    "gateStatus": "pending-final-wave",
+    "historicalDebt261101Ww3": {
+      "status": "historical-unwaived",
+      "jobId": "job-8aff6aa5e58e46ea",
+      "suite": "command-job-runtime.test.js",
+      "outcome": "worker-start-handshake-timeout",
+      "notRunSuites": [
+        "task-progress-integration.test.js",
+        "task-progress.test.js",
+        "verify-efficient-wait.test.js",
+        "tarball-fixture.test.js"
+      ]
+    },
+    "activeHolds": [
+      {
+        "id": "3-os-macos-ci",
+        "status": "held"
+      },
+      {
+        "id": "claude-g-07-2",
+        "status": "held"
+      },
+      {
+        "id": "global-reconcile",
+        "status": "held"
+      },
+      {
+        "id": "git-push",
+        "status": "held"
+      },
+      {
+        "id": "npm-publish",
+        "status": "held"
+      }
+    ]
+  }
+}

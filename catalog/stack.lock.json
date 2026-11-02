@@ -128,13 +128,13 @@
         }
       },
       "alpha-aos-task": {
-        "sourceSha256": "b09adce603f26cb12c4e8f8ecb0f8ace4aac8f3cefd364cea8e50afc5a50c00e",
+        "sourceSha256": "0008e5e342fd6366c542b062e215afccc4e6f30af7003d8c381f5f904ec15df0",
         "targetSha256": {
-          "claude": "b09adce603f26cb12c4e8f8ecb0f8ace4aac8f3cefd364cea8e50afc5a50c00e",
-          "codex": "b09adce603f26cb12c4e8f8ecb0f8ace4aac8f3cefd364cea8e50afc5a50c00e",
-          "antigravity": "b09adce603f26cb12c4e8f8ecb0f8ace4aac8f3cefd364cea8e50afc5a50c00e",
-          "pi": "b09adce603f26cb12c4e8f8ecb0f8ace4aac8f3cefd364cea8e50afc5a50c00e",
-          "hermes": "b09adce603f26cb12c4e8f8ecb0f8ace4aac8f3cefd364cea8e50afc5a50c00e"
+          "claude": "0008e5e342fd6366c542b062e215afccc4e6f30af7003d8c381f5f904ec15df0",
+          "codex": "0008e5e342fd6366c542b062e215afccc4e6f30af7003d8c381f5f904ec15df0",
+          "antigravity": "0008e5e342fd6366c542b062e215afccc4e6f30af7003d8c381f5f904ec15df0",
+          "pi": "0008e5e342fd6366c542b062e215afccc4e6f30af7003d8c381f5f904ec15df0",
+          "hermes": "0008e5e342fd6366c542b062e215afccc4e6f30af7003d8c381f5f904ec15df0"
         }
       },
       "cli-anything": {

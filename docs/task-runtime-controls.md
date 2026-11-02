@@ -180,3 +180,52 @@ To prevent lost updates across independent processes, separate state roots (`ALP
 - **Drift Guard**: If the file was modified after the transaction, rollback refuses to overwrite drift and outputs content-safe diagnostics (`unifiedDiff: null`) without disclosing secret tokens or file contents.
 - **Retained Coordinator Locks**: In the event of a crash, state-only repair (`alpha-aos repair`) does not remove target coordinator locks. A retained target lock must be inspected or cleared explicitly; locks are never automatically cleared based on elapsed time or a missing PID.
 
+## Task intake and execution style controls (ENTRY-01–ENTRY-07, D-01–D-20)
+
+### Shared CLI intake contract
+
+Task intake inspection operates through the single, read-only CLI command:
+```bash
+alpha-aos task intake --input <request.json> [--json]
+```
+- **Read-Only Invariant**: The intake command classifies requests, verifies canonical root and behavior policy, evaluates mechanical evidence, and returns decision outcomes. It performs zero file writes, modifies no git histories, launches no worker processes, and creates no task run or journal records (`executionAuthorized: false`).
+- **Input Budget**: Maximum 16 KiB UTF-8 input document before parsing. Validated against `schemas/task-intake.schema.json` with duplicate-key rejection and strict schema enforcement.
+- **Decision Precedence**:
+  1. Root validation & behavior policy freshness read.
+  2. Scope change inspection (`scopeChange`): stops before expanded work and preserves dirty WIP (`wipBytesPreserved: true`). Active task repairs retain verified task style.
+  3. Explicit direct GSD commands (`explicit-command`): preserves command, workflow, phase, arguments, and native checkpoints without an unrelated chooser.
+  4. Explicit style requests (`explicit-style`): normalizes full requested canonical style. Partial autopilot retains autopilot mode and asks only depth options (`오토파일럿-quick`, `오토파일럿-quick-full`, `오토파일럿-phase`). Conflicting intents request narrow clarification.
+  5. Active task continuity (`continuation`): verified active contract/GSD task follow-ups, test repairs, and status queries retain style and exact contract binding.
+  6. Proven simple operations (`simple-operation`): bounded push to explicit remote/branch, local rename with unchanged API meaning, and faithful README translation/link skip chooser and forced GSD bootstrap. Exemption does NOT grant push or mutation authority.
+  7. Clarification needed (`clarification-needed`): missing target/result/impact yields one discriminating question.
+  8. Substantial work (`substantial-work`): strict mode presents all six canonical options; flexible mode returns adaptive intake.
+
+### Six canonical execution styles
+
+In strict mode, new substantial tasks display all six approved labels and short descriptions in canonical order:
+
+| Number | Canonical Identifier | Korean Label | Short Description |
+|---|---|---|---|
+| 1 | `conversational-quick` | 대화형-quick | 현재 대화에서 작은 작업을 간소화된 GSD 절차로 처리 |
+| 2 | `conversational-quick-full` | 대화형-quick-full | 작은 작업에 토론·조사·계획 검사·구현·검증 적용 |
+| 3 | `conversational-phase` | 대화형-phase | 로드맵과 Phase를 따라 필요한 사항을 질문하며 진행 |
+| 4 | `autopilot-quick` | 오토파일럿-quick | 승인된 계약과 별도 실행기로 작은 작업 처리 |
+| 5 | `autopilot-quick-full` | 오토파일럿-quick-full | 승인된 범위에서 작은 작업의 전체 품질 절차 수행 |
+| 6 | `autopilot-phase` | 오토파일럿-phase | 승인된 로드맵 범위의 Phase들을 자율 진행 |
+
+### Capability rendering and answer resolution
+
+- **Native UI Capability**: Used only when the host environment is verified to support all six options.
+- **Numbered Text Fallback**: When host capability has a 2–3 option limit or is unknown/unverified, intake falls back to presenting all six options together as a numbered 1–6 list. No choices are hidden or dropped into submenus.
+- **Answer Correlation**: In-memory `pendingTaskId` correlates user responses to the pending choice. Mismatched correlation IDs reject the answer (`pending-mismatch`), preventing cross-task answer consumption.
+- **Status & Cancellation**: Status inquiries ("status", "진행 상황") preserve the pending choice without advancing state. Cancellation ("cancel", "취소") discards the choice without selecting an inferred default.
+
+### Scope lifetime and authority boundaries
+
+- **Task-Scoped Transport**: Project behavior mode (`strict` / `flexible`) is a persistent project preference; selected execution style is purely a task-scoped transport value forwarded to downstream workflows. Style is never stored in `behavior.json`.
+- **Zero Inline Autopilot**: Selecting an autopilot style does NOT grant execution consent, approve a contract, or launch a runner. Conversational agents are strictly forbidden from inline code generation for autopilot tasks. Autopilot execution requires exact preview, exact-digest approval, and a separate start command via isolated background runners.
+- **Independent Task Isolation**: An independent new task following a completed release task (even one that ran under `autopilot-phase`) receives a fresh chooser, where it may select any style (e.g. `autopilot-quick-full`). Stale styles do not leak across completed task boundaries.
+- **Evidence-Based Exemptions**: Bounded operations (push, rename, README translation/link) skip chooser and forced GSD bootstrap only when observed mechanical evidence is complete (<=16 files, <=64 KiB text inspected). Same-name complex twins (force push, public API changes, README redesign) are never exempt.
+- **Phase 29/30 Deferred Boundaries**: Phase 28 delivers intake inspection, style cataloging, decision dispatch, and bounded handoffs. Execution pipeline bootstrap (Phase 29) and execution pipeline synthesis (Phase 30) are handled downstream.
+
+

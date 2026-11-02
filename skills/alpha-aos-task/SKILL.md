@@ -43,33 +43,69 @@ When a user makes a project behavior policy request (e.g., query current mode, s
    - Before each new task intake, rerun `alpha-aos project mode [path] --json` to ensure the latest project policy is active.
    - Changes made by other harnesses appear at the next intake without altering an active task's style, contract, or plan.
 
-### 2. General Task Request (Default Path: D-01, D-02)
-When a user expresses a general task request (e.g., "Implement feature X", "Fix bug Y", "Write tests for Z"):
-1. Briefly clarify the core goal and scope.
-2. Present a clear two-path choice to the user:
-   - **Ordinary Conversational GSD (Recommended / Default)**: Interactive, step-by-step workflow within the current conversation (`$gsd-quick`, `$gsd-execute-phase`, or `$gsd-debug`). Ordinary/quick work does not need an autopilot contract just to run an already-authorized build or test.
-   - **Autonomous Autopilot**: Isolated, bounded execution governed by an explicit task contract and exact-digest approval.
-3. **Precedence Invariant (No Ambient Shortcut Bypass)**:
-   - The agent **MUST NOT** bypass path confirmation by unilaterally jumping directly into execution shortcuts (such as bare `$gsd-quick`).
-   - Native shortcuts (`$gsd-quick`, `$gsd-debug`, `$gsd-execute-phase`) operate **downstream** of intake confirmation, never as a bypass around it.
-4. **If user chooses Ordinary GSD (or defaults to it)**:
-   - Continue immediately within the same conversation in the appropriate GSD workflow.
-   - For non-trivial tasks (involving external repositories, new capabilities, or architectural decisions), the agent **MUST NOT** use bare `$gsd-quick` that silently skips research and discussion.
-   - Do NOT require the user to re-enter a separate CLI command.
-   - Do NOT create task contracts, supervisor records, or background run files.
+### 2. General Task Request (Shared Intake Procedure: D-01–D-20)
+When a user expresses a task request (or invokes a direct command, style, or simple operation):
 
-### 3. Ambiguous Autopilot Request (D-03)
-When the user opts into autopilot but the goal, acceptance criteria, or allowed mutations/effects are ambiguous:
-1. Do NOT guess or hallucinate permissions, boundaries, or criteria.
-2. Ask only clarifying questions needed to resolve the missing criteria and boundaries.
-3. Only once the requirements are unambiguous, proceed to generate the read-only contract preview.
+1. **Shared CLI Intake Inspection (D-01, D-18)**:
+   - Collect the bounded original request, known facts, and exact task/contract references.
+   - Write a transient JSON request document through an authorized temporary file:
+     ```json
+     {
+       "schemaVersion": 1,
+       "request": {
+         "text": "<user request text>",
+         "shortGoal": "<short goal if known>",
+         "shortScope": "<short scope if known>"
+       }
+     }
+     ```
+   - Invoke the shared read-only intake CLI via the session's process tool:
+     ```bash
+     alpha-aos task intake --input <request.json> --json
+     ```
+   - Immediately remove the transient request file within its authorized root.
+   - Do NOT pass credential values or arbitrary user command arguments in command-line flags.
+   - Consume the returned `TaskIntakePublicDecision` (`kind`, `nextAction`, `chooser`, `clarification`, `commandRoute`, `selectedStyle`, `taskReference`, `reasons`, `observations`).
 
-### 4. Explicit Autopilot Request (D-04)
-When the user explicitly asks for autonomous autopilot up front (e.g., "Run this in autopilot", "오토파일럿으로 실행해줘", "Execute under autonomous contract"):
-1. Do NOT re-prompt to choose between GSD and autopilot.
-2. Verify that goal, acceptance criteria, and allowed effect boundaries are clear.
-3. Proceed directly to generating the read-only contract preview.
-4. An explicit request is purely a path selection — it is NOT contract approval or execution permission.
+2. **Precedence and Decision Dispatch (D-02, D-03, D-04, D-17)**:
+   - **Explicit Direct Commands (`explicit-command`)**:
+     - Direct GSD command invocations (e.g. `gsd-discuss-phase`, `gsd-plan-phase`, `gsd-execute-phase`, `gsd-quick`, `gsd-debug`) preserve their original workflow, phase, arguments, and native checkpoints.
+     - Do NOT insert an unrelated six-style chooser or two-path question before direct commands.
+     - Command citations or explanations in quotes/code blocks are not direct invocations.
+   - **Explicit Style Requests (`explicit-style`)**:
+     - When the user explicitly requests one of the 6 canonical styles (e.g. "대화형-quick-full로 README 번역"), that choice is preserved directly without a chooser.
+     - When the user specifies partial autopilot (e.g. "오토파일럿으로 실행해줘"), the autopilot execution mode is preserved, and the agent asks only the missing depth choice (`오토파일럿-quick`, `오토파일럿-quick-full`, `오토파일럿-phase`).
+     - A style choice is purely a workflow routing preference; it does NOT grant execution effects or contract approval.
+   - **Verified Active Task Continuity (`continuation`)**:
+     - When continuing an active task for follow-up work, test repair, or status queries, the verified task's style and exact contract binding are retained.
+     - Completed or cancelled tasks never restore style to independent new work.
+   - **Proven Simple Operations (`simple-operation`)**:
+     - Bounded operations with mechanical evidence (bounded push to explicit remote/branch, local file rename with unchanged API meaning, faithful README translation/link) skip chooser and forced GSD bootstrap (`nextAction: "execute-simple"`).
+     - Simple operation exemption does NOT grant push authority, workspace write permissions, or effect approval. Downstream execution gates still apply.
+   - **Clarification Needed (`clarification-needed`)**:
+     - When target, result, or impact evidence is incomplete, ask the returned single discriminating question (e.g. filename-only vs public API rename, target remote and branch). Reclassify upon response.
+   - **Substantial Work (`substantial-work`)**:
+     - **Strict Mode (`nextAction: "choose-style"`)**:
+       - Present all six canonical options and descriptions in exact approved order:
+         1. **대화형-quick**: 현재 대화에서 작은 작업을 간소화된 GSD 절차로 처리
+         2. **대화형-quick-full**: 작은 작업에 토론·조사·계획 검사·구현·검증 적용
+         3. **대화형-phase**: 로드맵과 Phase를 따라 필요한 사항을 질문하며 진행
+         4. **오토파일럿-quick**: 승인된 계약과 별도 실행기로 작은 작업 처리
+         5. **오토파일럿-quick-full**: 승인된 범위에서 작은 작업의 전체 품질 절차 수행
+         6. **오토파일럿-phase**: 승인된 로드맵 범위의 Phase들을 자율 진행
+       - Use native question tooling ONLY if verified to support all six options. If the host tool has a 2–3 option limit or is unknown, present the complete 1–6 numbered text list and await response.
+       - Empty, invalid, or ambiguous answers keep selection pending without starting execution.
+       - Status inquiries preserve pending selection. Cancellation ("cancel", "취소") discards it.
+     - **Flexible Mode (`nextAction: "adaptive-intake"`)**:
+       - Uses adaptive conversational or autopilot intake without mandatory six-item chooser.
+       - Does NOT silently default to autopilot or generate unnecessary autopilot contracts for conversational tasks.
+
+3. **Autopilot Boundary Invariant (D-04, D-05, D-09, D-10, D-19)**:
+   - Any chosen autopilot style (`오토파일럿-quick`, `오토파일럿-quick-full`, `오토파일럿-phase`) requires:
+     1. Read-only contract preview (`alpha-aos task preview <contract.json> --json`).
+     2. Exact-digest approval (`alpha-aos task approve <contract.json> --contract-digest <digest> --apply`).
+     3. Separate execution start command (`alpha-aos task start <contract.json> --contract-digest <digest> --apply`).
+   - The conversational agent MUST NOT perform inline implementation of autopilot tasks in chat.
 
 ---
 

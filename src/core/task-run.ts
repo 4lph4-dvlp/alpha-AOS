@@ -149,6 +149,7 @@ export interface ControllerDispatchRequest {
 export interface ControllerDispatchResult {
   closeConfirmed?: boolean;
   telemetry?: import("./task-telemetry.js").NormalizedTelemetry;
+  stageObservation?: import("./task-gsd-stage-observation.js").CodexStageObservationResult | undefined;
   harness: string;
   version: string | null;
   executable: string | null;
@@ -1718,6 +1719,45 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       gitDirectory,
     });
     record = { ...record, executor: executorBlock(dispatched) };
+
+    if (effectiveQuality === "full" && dispatched.stageObservation?.status === "observed" && dispatched.stageObservation.stages.length > 0) {
+      const claimQuickId = dispatched.claim?.gsdQuickId ?? `${runId}-quick`;
+      const { writeStageReceipt, computeStageReceiptDigest } = await import("./task-gsd-stages.js");
+      for (const st of dispatched.stageObservation.stages) {
+        const stageReceiptPayload = {
+          schemaVersion: 1 as const,
+          kind: "task-gsd-stage-receipt" as const,
+          receiptId: `stage-${contract.id}-${st.stage}`,
+          contractDigest: digest,
+          revision: contract.revision,
+          runId,
+          canonicalProjectRoot: resolve(contract.scope.projectRoot),
+          quickId: claimQuickId,
+          stage: st.stage,
+          quality: "full" as const,
+          harness: dispatched.harness,
+          sessionId: dispatched.sessionId ?? "unknown-session",
+          runtimeVersion: dispatched.version,
+          workflowSha256: outline.sourceSha256,
+          invocationLocator: st.invocationId,
+          invocationDigest: st.invocationDigest,
+          resultLocator: st.resultId,
+          resultDigest: st.resultDigest,
+          outcome: st.outcome,
+          evaluatedCommit: st.evaluatedCommit,
+          inputArtifacts: st.inputArtifacts,
+          outputArtifacts: st.outputArtifacts,
+          observedAt: st.observedAt,
+          detail: st.detail,
+        };
+        const receiptDigest = computeStageReceiptDigest(stageReceiptPayload);
+        await writeStageReceipt({
+          stateRoot: options.stateRoot,
+          receipt: { ...stageReceiptPayload, receiptDigest },
+          pkgRoot: options.packageRoot,
+        });
+      }
+    }
 
     const gitControlAfter = await snapshotGitControl({ projectRoot, gitDirectory: gitDirectoryForSnapshot });
     const changedControlLabels = diffGitControl(gitControlBefore, gitControlAfter);

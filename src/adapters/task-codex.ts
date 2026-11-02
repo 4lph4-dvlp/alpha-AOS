@@ -4,6 +4,7 @@ import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { canonicalizeWithMissingTail } from "../core/path-boundary.js";
 import { packageRoot as defaultPackageRoot } from "../core/paths.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
+import { observeCodexStages, codexStageObservationCapability } from "../core/task-gsd-stage-observation.js";
 import type {
   ControllerDispatchRequest,
   ControllerDispatchResult,
@@ -587,6 +588,12 @@ export async function runCodexController(
   const events = parseCodexEvents(result.stdout, result.outputCapped);
   const streamedUsage = usageCollector.finish();
   const telemetry = streamedUsage.status === "measured" ? streamedUsage : normalizeHarnessTelemetry("codex", { usage: events.usage });
+  const stageObservation = observeCodexStages(result.stdout, {
+    projectRoot: request.projectRoot,
+    outputCapped: result.outputCapped,
+    expectedModel: resolvedModel,
+    expectedEffort: request.contract.agentPolicy.controllerEffort,
+  });
   request.onProcess?.({ cwd: request.projectRoot, nativeSessionId: events.sessionId, processCode: result.code, exitCode: result.exitCode,
     terminal: events.terminal, closeConfirmed: result.closeConfirmed ?? result.exitCode !== null });
   const read = await readCodexClaim(lastMessagePath, schema);
@@ -607,6 +614,7 @@ export async function runCodexController(
       terminal: "completed",
       claim: read.claim,
       detail: `codex exited with status ${String(result.exitCode)} but successfully wrote a valid claim`,
+      stageObservation,
     };
   }
   const detail = failureDetail(result, events, read.issue);
@@ -622,6 +630,7 @@ export async function runCodexController(
     terminal: events.terminal,
     claim: read.claim,
     detail: detail === null ? null : boundedSentence(detail, DETAIL_LIMIT),
+    stageObservation,
   };
 }
 
@@ -903,3 +912,6 @@ export async function runCodexFinalReviewer(
     }
   }
 }
+
+export { codexStageObservationCapability };
+

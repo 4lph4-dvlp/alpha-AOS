@@ -483,11 +483,15 @@ async function readTaskStartReadiness(
   const effectiveQuality = resolveTaskQuickQuality(contract);
   let stageObservation: TaskStartReadiness["stageObservation"] | undefined;
   if (effectiveQuality === "full") {
+    const { codexStageObservationCapability } = await import("./core/task-gsd-stage-observation.js");
+    const cap = codexStageObservationCapability(contract.agentPolicy);
     stageObservation = {
-      supported: false,
-      reason: `No stage observation capability recorded for controller ${contract.agentPolicy.controller}`,
+      supported: cap.supported,
+      ...(cap.reason !== undefined ? { reason: cap.reason } : {}),
     };
-    missingProof.push(`stage-observation:${contract.agentPolicy.controller}`);
+    if (!cap.supported) {
+      missingProof.push(`stage-observation:${contract.agentPolicy.controller}`);
+    }
   }
   const readiness: TaskStartReadiness = {
     contractId: contract.id,

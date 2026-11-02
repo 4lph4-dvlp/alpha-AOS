@@ -18,7 +18,7 @@ import type {
   TaskPorts,
 } from "../core/task-run.js";
 import { probeClaudeVersion, runClaudeReviewer, runClaudeFinalReviewer, type ClaudeAdapterOptions } from "./task-claude.js";
-import { probeCodexVersion, runCodexController, runCodexReviewer, runCodexFinalReviewer, type CodexAdapterOptions } from "./task-codex.js";
+import { probeCodexVersion, runCodexController, runCodexReviewer, runCodexFinalReviewer, codexStageObservationCapability, type CodexAdapterOptions } from "./task-codex.js";
 import { runAntigravityController, runAntigravityReviewer, runAntigravityFinalReviewer, probeAntigravityVersion } from "./task-antigravity.js";
 import { runPiController, runPiReviewer, runPiFinalReviewer, probePiVersion } from "./task-pi.js";
 import { runHermesController, runHermesReviewer, runHermesFinalReviewer, probeHermesVersion } from "./task-hermes.js";
@@ -249,12 +249,14 @@ export function createDynamicTaskPorts(
     finalReview: createDynamicFinalReviewPort(policy, options),
     reviewer: reviewerMap[policy.reviewer],
     assess: (p) => probeTaskAgentPair(p, options),
+    stageObservation: (p) => codexStageObservationCapability(p),
   };
 }
 
 /** The default task ports using dynamic port dispatch based on contract policy. */
 export function nativeTaskPorts(options: NativeTaskPortOptions = {}): TaskPorts {
   return {
+    stageObservation: (policy) => codexStageObservationCapability(policy),
     finalReview: { isolation: "native-read-only", evaluateMilestoneFinal: (request) => createDynamicFinalReviewPort(request.contract.agentPolicy, options).evaluateMilestoneFinal(request) },
     controller: {
       dispatch: (request) => {

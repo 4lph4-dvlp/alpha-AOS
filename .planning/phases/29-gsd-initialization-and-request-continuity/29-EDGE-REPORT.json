@@ -1,0 +1,50 @@
+{
+  "items": [
+    {
+      "requirement_id": "BOOT-01",
+      "category": "unclassified",
+      "status": "unresolved",
+      "verification": null,
+      "resolution": null,
+      "reason": null,
+      "probe": "unclassified — review manually"
+    },
+    {
+      "requirement_id": "BOOT-02",
+      "category": "concurrency",
+      "status": "unresolved",
+      "verification": null,
+      "resolution": null,
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    },
+    {
+      "requirement_id": "BOOT-03",
+      "category": "unclassified",
+      "status": "unresolved",
+      "verification": null,
+      "resolution": null,
+      "reason": null,
+      "probe": "unclassified — review manually"
+    },
+    {
+      "requirement_id": "BOOT-04",
+      "category": "concurrency",
+      "status": "unresolved",
+      "verification": null,
+      "resolution": null,
+      "reason": null,
+      "probe": "If interrupted or run in parallel, what is guaranteed?"
+    }
+  ],
+  "coverage": {
+    "applicable": 4,
+    "resolved": 0,
+    "unresolved": 4,
+    "unclassified": 2,
+    "byVerification": {
+      "explicit": 0,
+      "backstop": 0
+    }
+  }
+}

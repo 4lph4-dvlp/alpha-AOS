@@ -1,7 +1,7 @@
 ---
 phase: "28"
 slug: predictable-strict-and-flexible-intake
-status: complete
+status: validated
 nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-02"

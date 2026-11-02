@@ -215,7 +215,7 @@ export function hasNyquistValidation(dir: string | null | undefined, phase: stri
   if (!valHeader) return false;
 
   const fm = parseFrontmatter(valHeader);
-  if (fm["status"] !== "validated") return false;
+  if (fm["status"] !== "validated" && fm["status"] !== "complete") return false;
   if (fm["nyquist_compliant"] !== "true") return false;
   if (fm["wave_0_complete"] === "false") return false;
 

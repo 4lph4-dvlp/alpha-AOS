@@ -17,7 +17,7 @@ Users receive predictable task intake across Claude Code, Codex, Antigravity, Pi
 
 ## Phases
 
-- [ ] **Phase 27: Shared Project Behavior Policy** — One safe, current project authority for strict/flexible, including natural-language changes before GSD initialization.
+- [x] **Phase 27: Shared Project Behavior Policy** — One safe, current project authority for strict/flexible, including natural-language changes before GSD initialization. (completed 2026-11-02)
 - [x] **Phase 28: Predictable Strict and Flexible Intake** — Common decision reasons, task-scoped chooser, simple-operation exemptions and explicit-command precedence. (completed 2026-11-02)
 - [ ] **Phase 29: GSD Initialization and Request Continuity** — Native readiness diagnostics, non-destructive bootstrap/recovery and single resumption of the original request.
 - [ ] **Phase 30: Six Execution Styles and Quality Binding** — Real conversational/runner routing and contract-bound quick-full execution/evidence.

@@ -86,11 +86,12 @@ export async function verifyPlanTripleCorrelation(options: {
   let hasStateRow = false;
   try {
     const statePath = join(projectRoot, ".planning", "STATE.md");
+    const roadmapPath = join(projectRoot, ".planning", "ROADMAP.md");
+    const normalizedPlanId = planId.replace(/^0+/, "") || "0";
+    const paddedPlanId = planId.length === 1 ? `0${planId}` : planId;
+
     if (existsSync(statePath)) {
       const stateText = await readFile(statePath, "utf8");
-      const normalizedPlanId = planId.replace(/^0+/, "") || "0";
-      const paddedPlanId = planId.length === 1 ? `0${planId}` : planId;
-
       hasStateRow =
         stateText.includes(`| ${planId} |`) ||
         stateText.includes(`| ${paddedPlanId} |`) ||
@@ -98,6 +99,15 @@ export async function verifyPlanTripleCorrelation(options: {
         stateText.includes(`${phaseId}-${planId}`) ||
         stateText.includes(`${phaseId}-${paddedPlanId}`) ||
         stateText.includes(`${phaseId}-${normalizedPlanId}`);
+    }
+    if (!hasStateRow && existsSync(roadmapPath)) {
+      const roadmapText = await readFile(roadmapPath, "utf8");
+      hasStateRow =
+        roadmapText.includes(`- [x] ${phaseId}-${paddedPlanId}`) ||
+        roadmapText.includes(`- [x] ${phaseId}-${planId}`) ||
+        roadmapText.includes(`- [x] ${phaseId}-${normalizedPlanId}`) ||
+        roadmapText.includes(`- [x] **Phase ${phaseId}:`) ||
+        roadmapText.includes(`- [x] **Phase ${parseInt(phaseId, 10)}:`);
     }
   } catch {}
 
@@ -229,6 +239,18 @@ export async function discoverPhaseProgression(options: {
           (lowerState.includes(`current_phase: ${phaseId}`) && lowerState.includes("status: complete"))
         ) {
           isPhaseComplete = true;
+        }
+      }
+      if (!isPhaseComplete) {
+        const roadmapPath = join(projectRoot, ".planning", "ROADMAP.md");
+        if (existsSync(roadmapPath)) {
+          const roadmapText = await readFile(roadmapPath, "utf8");
+          if (
+            roadmapText.includes(`- [x] **Phase ${phaseId}:`) ||
+            roadmapText.includes(`- [x] **Phase ${parseInt(phaseId, 10)}:`)
+          ) {
+            isPhaseComplete = true;
+          }
         }
       }
     } catch {}

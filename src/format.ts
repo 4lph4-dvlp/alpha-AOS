@@ -1582,6 +1582,9 @@ export function formatTaskRunReport(run: TaskRunRecord): string {
       lines.push(`    issues: ${fe.issues.join("; ")}`);
     }
   }
+  if (gsd?.phaseSelection) {
+    lines.push(`  Approved phase scope: ${gsd.phaseSelection.phaseIds.join(", ")} (roadmap: ${gsd.phaseSelection.roadmapSha256.slice(0, 8)})`);
+  }
 
   const effects = run.effects;
   if (effects === null) {

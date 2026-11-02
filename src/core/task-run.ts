@@ -317,6 +317,7 @@ export interface TaskRunGsd {
   missing: string[];
   workflowSha256: string | null;
   fullEvidence?: import("./task-gsd-stages.js").TaskGsdFullEvidence | undefined;
+  phaseSelection?: import("./task-contract.js").TaskPhaseSelection | undefined;
 }
 
 /** Every path changed after the base commit, split by authority (D-03, AUTO-02, D-07). */
@@ -1460,7 +1461,7 @@ async function executeMultiPhaseTask(params: {
       rows: [],
       preconditions: [],
     },
-    stopReason: isSuccess ? "completed" : multiPhaseResult.finalStatus,
+    stopReason: isSuccess ? "completed" : multiPhaseResult.stopReason ?? multiPhaseResult.finalStatus,
     nextAction: isSuccess
       ? "All roadmap phases and final review completed successfully."
       : "Inspect phase progression and resume.",
@@ -1473,6 +1474,7 @@ async function executeMultiPhaseTask(params: {
       commits: changes.commits,
       missing: isSuccess ? [] : ["phase-progression-incomplete"],
       workflowSha256: null,
+      ...(multiPhaseResult.phaseSelection !== undefined ? { phaseSelection: multiPhaseResult.phaseSelection } : {}),
     },
     effects: {
       ...audit,

@@ -13,7 +13,12 @@ import {
   type TaskContract,
   type TaskPhaseSelection,
 } from "../src/core/task-contract.js";
+import {
+  resolveApprovedPhaseSelection,
+  verifyPhaseScopeBoundary,
+} from "../src/core/task-phase-scope.js";
 import { createTaskFixture, inventorySummaryContract, writeTaskContract } from "./helpers/task-fixture.js";
+import { createOrdinaryRepository, gitCommand } from "./helpers/git-fixture.js";
 
 const VALID_ROADMAP_SHA = "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90";
 
@@ -339,3 +344,176 @@ test("previewTaskContract: reports executionStyle and scope boundary reasons", a
   assert.equal(legacyPreview.executionStyle?.phaseSelection, undefined);
   assert.ok(legacyPreview.executionStyle?.scopeBoundaryReason?.includes("Legacy phase approval"));
 });
+
+test("resolveApprovedPhaseSelection: resolves explicit contract selection and bounds requested subsets", async () => {
+  const contract = createPhaseContract("D:/dev/sample-proj", {
+    scope: {
+      projectRoot: "D:/dev/sample-proj",
+      workflow: "gsd-multi-phase",
+      summary: "Multi-phase test",
+      phaseSelection: {
+        phaseIds: ["01", "02", "03"],
+        roadmapSha256: VALID_ROADMAP_SHA,
+      },
+    },
+  });
+
+  // 1. Default candidates match approved phaseIds
+  const resolved = await resolveApprovedPhaseSelection({
+    contract,
+    projectRoot: "D:/dev/sample-proj",
+  });
+  assert.equal(resolved.status, "ok");
+  if (resolved.status === "ok") {
+    assert.equal(resolved.source, "contract");
+    assert.deepEqual(resolved.candidatePhases, ["01", "02", "03"]);
+    assert.deepEqual(resolved.phaseSelection.phaseIds, ["01", "02", "03"]);
+  }
+
+  // 2. Valid subset preserving relative order
+  const subset = await resolveApprovedPhaseSelection({
+    contract,
+    projectRoot: "D:/dev/sample-proj",
+    requestedPhases: ["01", "03"],
+  });
+  assert.equal(subset.status, "ok");
+  if (subset.status === "ok") {
+    assert.deepEqual(subset.candidatePhases, ["01", "03"]);
+  }
+
+  // 3. Unauthorized phase in requested subset
+  const unauth = await resolveApprovedPhaseSelection({
+    contract,
+    projectRoot: "D:/dev/sample-proj",
+    requestedPhases: ["01", "99"],
+  });
+  assert.equal(unauth.status, "blocked");
+  if (unauth.status === "blocked") {
+    assert.equal(unauth.code, "scope-unauthorized-phase");
+  }
+
+  // 4. Reordered requested subset violating approved order
+  const reordered = await resolveApprovedPhaseSelection({
+    contract,
+    projectRoot: "D:/dev/sample-proj",
+    requestedPhases: ["02", "01"],
+  });
+  assert.equal(reordered.status, "blocked");
+  if (reordered.status === "blocked") {
+    assert.equal(reordered.code, "scope-reorder-rejected");
+  }
+});
+
+test("resolveApprovedPhaseSelection: legacy contract derives selection from git baseline or blocks", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const legacyContract = createPhaseContract(fixture.projectRoot);
+  delete (legacyContract.scope as unknown as Record<string, unknown>).phaseSelection;
+
+  // 1. Missing baseCommit: fails closed with scope-binding-required
+  const missingBase = await resolveApprovedPhaseSelection({
+    contract: legacyContract,
+    projectRoot: fixture.projectRoot,
+    baseCommit: null,
+  });
+  assert.equal(missingBase.status, "blocked");
+  if (missingBase.status === "blocked") {
+    assert.equal(missingBase.code, "scope-binding-required");
+  }
+
+  // 2. Set up git baseline with .planning/ROADMAP.md
+  const planningDir = join(fixture.projectRoot, ".planning");
+  await mkdir(planningDir, { recursive: true });
+  const roadmapContent = [
+    "# Roadmap",
+    "",
+    "- [ ] **Phase 01: Core Architecture**",
+    "- [ ] **Phase 02: Verification Engine**",
+    "",
+  ].join("\n");
+  await writeFile(join(planningDir, "ROADMAP.md"), roadmapContent, "utf8");
+  await gitCommand(fixture.projectRoot, ["add", ".planning/ROADMAP.md"]);
+  await gitCommand(fixture.projectRoot, ["commit", "-m", "docs: initialize roadmap"]);
+  const headSha = (await gitCommand(fixture.projectRoot, ["rev-parse", "HEAD"])).stdout.trim();
+
+  // 3. With valid git baseline: derives exact ordered selection
+  const derived = await resolveApprovedPhaseSelection({
+    contract: legacyContract,
+    projectRoot: fixture.projectRoot,
+    baseCommit: headSha,
+  });
+  assert.equal(derived.status, "ok");
+  if (derived.status === "ok") {
+    assert.equal(derived.source, "derived-baseline");
+    assert.deepEqual(derived.candidatePhases, ["01", "02"]);
+    assert.deepEqual(derived.phaseSelection.phaseIds, ["01", "02"]);
+    assert.match(derived.phaseSelection.roadmapSha256, /^[0-9a-f]{64}$/u);
+  }
+});
+
+test("verifyPhaseScopeBoundary: allows progress edits but blocks live additions and unapproved phases", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const approvedSelection: TaskPhaseSelection = {
+    phaseIds: ["01", "02"],
+    roadmapSha256: VALID_ROADMAP_SHA,
+  };
+
+  const planningDir = join(fixture.projectRoot, ".planning");
+  await mkdir(planningDir, { recursive: true });
+  await writeFile(
+    join(planningDir, "ROADMAP.md"),
+    ["# Roadmap", "", "- [ ] **Phase 01: Core**", "- [ ] **Phase 02: Verification**", ""].join("\n"),
+    "utf8",
+  );
+
+  // 1. Phase in approved selection: allowed
+  const check1 = await verifyPhaseScopeBoundary({
+    phaseId: "01",
+    approvedSelection,
+    projectRoot: fixture.projectRoot,
+  });
+  assert.equal(check1.allowed, true);
+
+  // 2. Phase NOT in approved selection: rejected
+  const checkUnknown = await verifyPhaseScopeBoundary({
+    phaseId: "03",
+    approvedSelection,
+    projectRoot: fixture.projectRoot,
+  });
+  assert.equal(checkUnknown.allowed, false);
+  assert.ok(checkUnknown.reason?.includes("not in approved phase selection"));
+
+  // 3. Native GSD progress edit (marking Phase 01 complete): allowed
+  await writeFile(
+    join(planningDir, "ROADMAP.md"),
+    ["# Roadmap", "", "- [x] **Phase 01: Core**", "- [ ] **Phase 02: Verification**", ""].join("\n"),
+    "utf8",
+  );
+  const checkProgress = await verifyPhaseScopeBoundary({
+    phaseId: "02",
+    approvedSelection,
+    projectRoot: fixture.projectRoot,
+  });
+  assert.equal(checkProgress.allowed, true);
+
+  // 4. Live addition of an unapproved phase in ROADMAP.md: rejected
+  await writeFile(
+    join(planningDir, "ROADMAP.md"),
+    [
+      "# Roadmap",
+      "",
+      "- [x] **Phase 01: Core**",
+      "- [ ] **Phase 02: Verification**",
+      "- [ ] **Phase 03: Rogue Phase**",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+  const checkAdded = await verifyPhaseScopeBoundary({
+    phaseId: "02",
+    approvedSelection,
+    projectRoot: fixture.projectRoot,
+  });
+  assert.equal(checkAdded.allowed, false);
+  assert.ok(checkAdded.reason?.includes("contains unauthorized phase \"03\""));
+});
+

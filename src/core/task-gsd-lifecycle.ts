@@ -22,7 +22,8 @@ import {
   hasPassedVerification,
   hasNyquistValidation,
 } from "./task-gsd-gates.js";
-import { taskContractDigest, type TaskContract } from "./task-contract.js";
+import { taskContractDigest, type TaskContract, type TaskPhaseSelection } from "./task-contract.js";
+import { resolveApprovedPhaseSelection, verifyPhaseScopeBoundary } from "./task-phase-scope.js";
 import { userStateRoot } from "./paths.js";
 import type { HarnessId } from "../types.js";
 import { resolveHarnessRoleModel, resolveTaskAgentLaunch } from "../adapters/task-agent-launch.js";
@@ -862,13 +863,13 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
 /**
  * Extracts phase IDs from a ROADMAP.md file.
  */
-function parsePhasesFromRoadmap(roadmapContent: string): string[] {
+export function parsePhasesFromRoadmap(roadmapContent: string): string[] {
   const phases: string[] = [];
   const lines = roadmapContent.split(/\r?\n/);
 
   for (const line of lines) {
-    // Matches: - [ ] **Phase 01: ...** or - [x] **Phase 01: ...** or - [ ] Phase 01: ...
-    const match = line.match(/^-\s*\[[ xX]\]\s*(?:\*\*)?Phase\s+([0-9]+[a-zA-Z0-9_-]*)/i);
+    // Matches: - [ ] **Phase 01: ...** or - [x] **Phase 01: ...** or - [ ] Phase 01: ... or Phase 02.1: ...
+    const match = line.match(/^-\s*\[[ xX]\]\s*(?:\*\*)?Phase\s+([0-9]+(?:\.[0-9]+)?[a-zA-Z0-9_-]*)/i);
     if (match?.[1]) {
       const pid = match[1];
       if (!phases.includes(pid)) {
@@ -877,7 +878,7 @@ function parsePhasesFromRoadmap(roadmapContent: string): string[] {
       continue;
     }
     // Matches: ### Phase 01: ...
-    const headerMatch = line.match(/^###?\s+(?:\*\*)?Phase\s+([0-9]+[a-zA-Z0-9_-]*)/i);
+    const headerMatch = line.match(/^###?\s+(?:\*\*)?Phase\s+([0-9]+(?:\.[0-9]+)?[a-zA-Z0-9_-]*)/i);
     if (headerMatch?.[1]) {
       const pid = headerMatch[1];
       if (!phases.includes(pid)) {
@@ -893,30 +894,53 @@ function parsePhasesFromRoadmap(roadmapContent: string): string[] {
  * Orchestrates multi-phase progression across roadmap phases purely driven by read-only
  * observation of GSD STATE.md and ROADMAP.md without supervisor substitute state machines.
  *
- * Implements GSD-01, GSD-03, and decisions D-09, D-12, SC 1.
+ * Implements GSD-01, GSD-03, and decisions D-09, D-12, D-17, D-18, D-19, SC 1.
  */
 export async function orchestrateMultiPhaseProgression(options: MultiPhaseOptions): Promise<{
   completedPhases: readonly string[];
   finalStatus: "completed" | "needs-input" | "failed";
   finalReviewGate?: GateMilestoneFinalReviewResult | undefined;
+  phaseSelection?: TaskPhaseSelection | undefined;
+  stopReason?: string | undefined;
 }> {
   const completedPhases: string[] = [];
-  let candidatePhases: string[] = [];
 
-  if (options.phases && options.phases.length > 0) {
-    candidatePhases = [...options.phases];
-  } else {
-    const roadmapPath = join(options.projectRoot, ".planning", "ROADMAP.md");
-    if (existsSync(roadmapPath)) {
-      const roadmapText = await readBounded(roadmapPath);
-      candidatePhases = parsePhasesFromRoadmap(roadmapText);
-    }
+  const scopeResolution = await resolveApprovedPhaseSelection({
+    contract: options.contract,
+    projectRoot: options.projectRoot,
+    baseCommit: options.baseCommit,
+    requestedPhases: options.phases,
+  });
+
+  if (scopeResolution.status !== "ok") {
+    return {
+      completedPhases,
+      finalStatus: "failed",
+      stopReason: scopeResolution.reason,
+    };
   }
+
+  const candidatePhases = [...scopeResolution.candidatePhases];
+  const approvedSelection = scopeResolution.phaseSelection;
 
   const targetSha = options.targetRevisionSha ?? options.baseCommit;
   const treeDigest = options.workingTreeDigest ?? "0".repeat(64);
 
   for (const phaseId of candidatePhases) {
+    const boundaryCheck = await verifyPhaseScopeBoundary({
+      phaseId,
+      approvedSelection,
+      projectRoot: options.projectRoot,
+    });
+    if (!boundaryCheck.allowed) {
+      return {
+        completedPhases,
+        finalStatus: "failed",
+        stopReason: boundaryCheck.reason,
+        phaseSelection: approvedSelection,
+      };
+    }
+
     // 1. Pure read observation of GSD state: check if phase already complete
     const progression = await discoverPhaseProgression({
       projectRoot: options.projectRoot,
@@ -954,11 +978,13 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       return {
         completedPhases,
         finalStatus: lifecycleResult.finalStep === "needs-input" ? "needs-input" : "failed",
+        stopReason: `Phase ${phaseId} stopped at step ${lifecycleResult.finalStep}`,
+        phaseSelection: approvedSelection,
       };
     }
 
     const completed = await discoverPhaseProgression({ projectRoot: options.projectRoot, phaseId, baseCommit: options.baseCommit });
-    if (!completed.isPhaseComplete) return { completedPhases, finalStatus: "failed" };
+    if (!completed.isPhaseComplete) return { completedPhases, finalStatus: "failed", stopReason: `Phase ${phaseId} progression incomplete`, phaseSelection: approvedSelection };
 
     completedPhases.push(phaseId);
 
@@ -981,7 +1007,7 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
 
   const finalHead = (await runGitRead(options.projectRoot, ["rev-parse", "HEAD"])).trim();
   const finalArtifact = await collectTaskArtifact({ projectRoot: options.projectRoot, allowedRoots: options.contract.allowedRoots });
-  if (finalArtifact.status !== "ok") return { completedPhases, finalStatus: "failed" };
+  if (finalArtifact.status !== "ok") return { completedPhases, finalStatus: "failed", stopReason: "Final artifact collection failed", phaseSelection: approvedSelection };
   const finalReviewGate = await gateMilestoneFinalReview({
     runId: options.runId,
     projectRoot: options.projectRoot,
@@ -999,6 +1025,8 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       completedPhases,
       finalStatus: finalReviewGate.status === "blocked" ? "failed" : "needs-input",
       finalReviewGate,
+      stopReason: `Milestone final review gate ${finalReviewGate.status}`,
+      phaseSelection: approvedSelection,
     };
   }
 
@@ -1006,5 +1034,6 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
     completedPhases,
     finalStatus: "completed",
     finalReviewGate,
+    phaseSelection: approvedSelection,
   };
 }

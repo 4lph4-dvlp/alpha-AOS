@@ -33,7 +33,7 @@ The hash-bound checkout-only source is test/task-entry-cross-harness.test.ts. It
 
 ## Read-only verification in two contexts
 
-Run node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json from a checkout or unpacked package. Both contexts re-open packaged bytes and the stable lock, verify SHA-256 bindings, canonical cell order, tier rules and unwaived holds. git-checkout additionally checks scenario source hashes and git cat-file receipt commits. packed-package needs neither .git nor .planning, reports checkoutEvidence: not-shipped, and verifies packaged archival evidence without claiming fresh native execution. No model calls, global writes or artifact synthesis occur.
+Run node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json from a checkout or unpacked package. Both contexts re-open packaged bytes and the stable lock, verify SHA-256 bindings, canonical cell order, tier rules and unwaived holds. git-checkout additionally checks scenario source hashes and git cat-file archive commits and the committed archival document bytes. packed-package needs neither .git nor .planning, reports checkoutEvidence: not-shipped, and verifies packaged archival evidence without claiming fresh native execution. No model calls, global writes or artifact synthesis occur.
 
 Windows .CMD shims may be discovered through local inventory. resolveTaskAgentLaunch unwraps Node-backed shims for invocation; command discovery alone proves neither authentication nor execution. An absent binary must remain explicitly undetected.
 
@@ -43,6 +43,6 @@ Gate status: pending-final-wave. Final measured counts and source HEAD will be r
 
 Historical 261101-ww3 debt remains unwaived: command-job-runtime.test.js job-8aff6aa5e58e46ea hit a worker-start handshake timeout. task-progress-integration.test.js, task-progress.test.js, verify-efficient-wait.test.js and tarball-fixture.test.js were not run in that historical attempt. A current pass is recorded alongside that history, never by deleting it.
 
-Active holds: 3-OS/macOS CI, Claude G-07-2, global reconciliation, git push and npm publish. Local tests cannot clear these holds or count them as passed. An independent read-only code review is required at final acceptance.
+Active holds: 3-OS/macOS CI, Claude G-07-2, global reconciliation, git push and npm publish. Local tests cannot clear these holds or count them as passed. The fresh independent read-only phase review is clean at source 2dde9db after resolving CR-01, CR-02, CR-03 and WR-01. This does not clear the separate milestone/release holds. The configured unavailable reviewer/verifier model was replaced only with user-approved current-session inheritance.
 
 Related: [support matrix](./SUPPORT_MATRIX.md), [historical matrix](./SUPPORT_MATRIX_v0.2.0.md), [bootstrap proof](./task-bootstrap-proof.md), [style proof](./task-style-proof.md).

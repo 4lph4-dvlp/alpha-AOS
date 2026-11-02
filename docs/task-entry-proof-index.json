@@ -545,6 +545,19 @@
         "id": "npm-publish",
         "status": "held"
       }
-    ]
+    ],
+    "independentReview": {
+      "status": "passed",
+      "reviewedSourceHead": "2dde9db6803d2d386549fe2e8a644361a3eabb5b",
+      "report": "31-REVIEW.md",
+      "reportSha256": "da801d7af49face3073e2378c1bfecdb9126e0c7582ca765725bdc5b840994c4",
+      "findingsResolved": [
+        "CR-01",
+        "CR-02",
+        "CR-03",
+        "WR-01"
+      ],
+      "modelPolicy": "user-approved-session-inheritance"
+    }
   }
 }

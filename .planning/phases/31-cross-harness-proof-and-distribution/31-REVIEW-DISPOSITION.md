@@ -18,3 +18,7 @@ warning_open: 0
 Fresh independent reviewer confirmed a clean report at `2dde9db`. The user explicitly authorized reviewer and verifier to inherit the current session model because configured `gpt-5.6-terra` was unavailable. No downgrade or global model configuration change was made.
 
 The first final-gate attempt at `bdd19aa` was superseded after the YAML set finding; check/build/targeted/audit passed, but its incomplete full regression is not counted as a success. Logs remain in `.planning/tmp/31-superseded-31-final-*.log`. Final regression must complete against the corrected source.
+
+## Goal-gap follow-up
+
+G-31-01: resolved by `e3ead95`; initial/pre-link/linked service/CLI regressions pass for all three autopilot styles, and corrected-source full regression at `3215bca` has 2150 total/2136 passed/0 failed/14 skipped/0 not-run. Mandatory bootstrap source binding is in `b961a0f`. Final independent source/ledger review is clean at `2a16e9d`. Four original prohibition judgments remain pending explicit user resolution.

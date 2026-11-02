@@ -77,3 +77,5 @@ The phase source review is clean. A separate milestone final review remains pend
 The final independent code review of source and measured ledger is clean at 1f444d8. The earlier clean review remains hash-bound to its archive commit; the final review has a separate receipt. No release hold was cleared.
 
 G-31-01 scoped source correction is independently reviewed clean at b961a0f. Corrected-source full regression has completed as recorded above; the earlier run remains historical evidence.
+
+The final independent review of corrected source and measured ledger is clean at 2a16e9d, including G-31-01. Four original prohibition judgments remain a separate end-of-phase human checkpoint; no release hold is cleared.

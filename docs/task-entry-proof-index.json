@@ -885,7 +885,8 @@
       "reviewedSourceHead": "b961a0f289631c506c313893d67330e30c8cabba",
       "report": "31-REVIEW.md",
       "reportSha256": "1a72ae6057dfb6d538dc69a8087179a367656b75f59f82058cd41d48003a37e0",
-      "modelPolicy": "user-approved-session-inheritance"
+      "modelPolicy": "user-approved-session-inheritance",
+      "reportArchiveCommitSha": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d"
     },
     "currentRun": {
       "sourceHead": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d",
@@ -1095,6 +1096,14 @@
         }
       ]
     },
-    "testedSourceHead": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d"
+    "testedSourceHead": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d",
+    "finalReview": {
+      "status": "passed",
+      "reviewedSourceHead": "2a16e9d38c4003dd12d5774f2b5976478bbe11ae",
+      "report": "31-REVIEW.md",
+      "reportSha256": "7d5a8d77d42d509fcc946e58c69639a06ea65acac1aaec1374ab6c2b1fea80ca",
+      "scope": "corrected-source-and-measured-ledger",
+      "modelPolicy": "user-approved-session-inheritance"
+    }
   }
 }

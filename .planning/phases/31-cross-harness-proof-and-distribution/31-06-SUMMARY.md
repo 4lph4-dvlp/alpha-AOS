@@ -59,3 +59,5 @@ None from the scoped gap plan. The source fix changes the claim response guard/p
 ## Self-Check: PASSED
 
 The identified intermediate state is covered through real service and CLI calls, all corrected-source checks pass, source provenance includes the corrected module, and history remains separated. Objective work is complete; four original flagged prohibition judgments remain a separate explicit end-of-phase human checkpoint. Phase completion is not claimed here.
+
+Final source/ledger review gate: clean at `2a16e9d`; G-31-01 and prior CR/WR findings are resolved in code/evidence. Four human prohibition decisions remain pending.

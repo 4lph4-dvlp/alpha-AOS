@@ -89,7 +89,45 @@ A native execution receipt JSON document contains:
 | BOOT-03 Partial Recovery | Fixture | VERIFIED | `test/task-bootstrap-recovery.test.ts` |
 | BOOT-04 Reentry & Concurrency | Fixture | VERIFIED | `test/task-bootstrap-resume.test.ts`, `test/task-bootstrap-cli.test.ts` |
 | Composed Journey Acceptance | Fixture | VERIFIED | `test/task-bootstrap-acceptance.test.ts` |
-| Live Native Execution Tracer | Native | PENDING CHECKPOINT | Awaiting blocking native checkpoint (Task 29-06-02) |
+| Live Native Execution Tracer | Native | VERIFIED | `scripts/verify-task-bootstrap-native.mjs --receipt <receipt-path>` (Passed at Checkpoint 29-06-02) |
+
+## Native Verification Evidence (Task 29-06-02)
+
+- **Receipt Path:** `C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-receipt.json`
+- **Project Root:** `C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-project`
+- **Controller Runtime:** `codex` (`@opengsd/gsd-core` 1.18.0)
+- **Pending ID:** `pending-native-tracer-290602`
+- **Claim Nonce:** `claim-nonce-native-290602`
+- **Native Quick ID:** `261102-leh`
+- **Native Artifact Path:** `.planning/quick/261102-leh-health-check/261102-leh-SUMMARY.md`
+- **Artifact SHA-256:** `677f47e854ce5659df6bb77635e77fd883972f8c1b29b33961d65e36adba8745`
+- **Git Commit SHA:** `3adb72549623865abc4187715bc344b346f8acc9`
+- **Single Task Execution Invariants:**
+  - `taskInvocationCount`: 1
+  - `duplicateTaskCount`: 0
+  - Once-only reentry returned `route: "continue-existing"` without dispatching a second quick task.
+- **Verification Command & Result:**
+  ```bash
+  node scripts/verify-task-bootstrap-native.mjs --receipt "C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-receipt.json" --json
+  ```
+  Result:
+  ```json
+  {
+    "valid": true,
+    "evidenceTier": "native",
+    "controller": "codex",
+    "projectRoot": "C:\\Users\\alpha\\.gemini\\antigravity-cli\\brain\\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\\scratch\\native-bootstrap-project",
+    "pendingId": "pending-native-tracer-290602",
+    "claimNonce": "claim-nonce-native-290602",
+    "nativeArtifact": {
+      "path": "C:\\Users\\alpha\\.gemini\\antigravity-cli\\brain\\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\\scratch\\native-bootstrap-project\\.planning\\quick\\261102-leh-health-check\\261102-leh-SUMMARY.md",
+      "sha256": "677f47e854ce5659df6bb77635e77fd883972f8c1b29b33961d65e36adba8745",
+      "verified": true
+    },
+    "gitCommitVerified": true,
+    "singleTaskExecutionVerified": true
+  }
+  ```
 
 ## Verification Command
 

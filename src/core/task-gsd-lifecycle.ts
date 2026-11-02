@@ -220,10 +220,10 @@ function detectPromptInOutput(text: string): { questionText: string; recommended
     };
   }
 
-  const bareQMatch = text.match(/(?:^|\n)\s*([A-Z][^\n\r?]+\?)\s*(?:\r?\n|$)/);
-  if (bareQMatch) {
+  const inquirerPromptMatch = text.match(/(?:^|\n)\s*\?\s+([^\r\n(]+?\?)\s*(?:\r?\n|$)/);
+  if (inquirerPromptMatch) {
     return {
-      questionText: bareQMatch[1]!.trim(),
+      questionText: inquirerPromptMatch[1]!.trim(),
       recommendedDefault: null,
     };
   }

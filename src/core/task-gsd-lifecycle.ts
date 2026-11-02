@@ -603,9 +603,19 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
   })).result;
   const durationMs = Math.max(0, Date.now() - startTime);
 
-  // 4. Interactive prompt detection and classifier evaluation (D-01, D-02)
+  // 4. Enumerate produced artifacts for ledger and downstream progression
+  const artifactsProduced = await enumerateProducedArtifacts(
+    options.projectRoot,
+    options.phaseId,
+    options.step,
+  );
+  const isOk = processResult.code === "ok" && (processResult.exitCode === 0 || processResult.exitCode === null);
+
+  // 5. Interactive prompt detection and classifier evaluation (D-01, D-02)
+  // An interactive prompt only blocks if the child process did not complete cleanly
+  // or did not produce the expected artifacts for the step.
   const promptMatch = detectPromptInOutput(processResult.stdout.excerpt);
-  if (promptMatch) {
+  if (promptMatch && (!isOk || artifactsProduced.length === 0)) {
     const evaluation = evaluateGsdPromptQuestion(
       promptMatch.questionText,
       promptMatch.recommendedDefault,
@@ -628,8 +638,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     }
   }
 
-  // 5. Fail-closed on non-zero exit or abnormal process termination
-  const isOk = processResult.code === "ok" && (processResult.exitCode === 0 || processResult.exitCode === null);
+  // 6. Fail-closed on non-zero exit or abnormal process termination
   if (!isOk) {
     return {
       step: options.step,
@@ -646,7 +655,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     };
   }
 
-  // 6. Mandatory Post-step hook execution (D-13)
+  // 7. Mandatory Post-step hook execution (D-13)
   const postHookPoint: GsdHookPoint = `${options.step}:post`;
   const postReceipt = await executeHookWithReceipt({
     hookPoint: postHookPoint,
@@ -661,13 +670,6 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     timeoutMs: options.timeoutMs,
   });
   receipts.push(postReceipt);
-
-  // 7. Enumerate artifacts produced and determine next sequential step
-  const artifactsProduced = await enumerateProducedArtifacts(
-    options.projectRoot,
-    options.phaseId,
-    options.step,
-  );
 
   // 8. Stage Gate Enforcement: Fail-closed on missing execution summaries or verification gaps
   const phaseDir = await resolvePhaseDirectory(options.projectRoot, options.phaseId);

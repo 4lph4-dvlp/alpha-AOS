@@ -39,7 +39,7 @@ Windows .CMD shims may be discovered through local inventory. resolveTaskAgentLa
 
 ## Regression ledger and release holds
 
-Gate status: passed for the local D-14 regression. Tested source HEAD: 9b6679a481a0d694551712e6c1f621afbdada704. Platform: win32/x64, Node v24.13.1, npm 11.8.0. Measured aggregate: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. Windows symlink privilege skips remain separate from passed tests.
+Gate status: pending-final-wave for corrected-source acceptance. Goal verification found G-31-01 (pre-link autopilot claim retry); Plan 31-06 closes it. The following completed local regression is retained as historical test evidence, not acceptance of the subsequently corrected source. Tested source HEAD: 9b6679a481a0d694551712e6c1f621afbdada704. Platform: win32/x64, Node v24.13.1, npm 11.8.0. Measured aggregate: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. Windows symlink privilege skips remain separate from passed tests.
 
 All eight ordered check/build/targeted/audit/full/build-check/style-proof/entry-proof gates exited 0 at the same source HEAD. The superseded earlier full run was stopped for a source correction and is excluded from these counts.
 

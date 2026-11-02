@@ -1,8 +1,8 @@
 ---
 phase: "31"
 slug: "cross-harness-proof-and-distribution"
-status: validated
-nyquist_compliant: true
+status: draft
+nyquist_compliant: false
 wave_0_complete: true
 created: "2026-11-03"
 ---
@@ -92,3 +92,7 @@ Tested source `9b6679a481a0d694551712e6c1f621afbdada704`: 2149 total, 2135 passe
 | Gaps found | 0 |
 | Resolved | 0 |
 | Escalated | 0 |
+
+## Goal-gap follow-up
+
+G-31-01 exposed a missing pre-link retry assertion. Gap plan 31-06 adds the corrected-source service/CLI coverage and a fresh complete regression. Prior measurements remain historical; final sign-off is pending.

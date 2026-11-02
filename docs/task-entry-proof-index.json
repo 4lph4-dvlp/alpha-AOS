@@ -51,6 +51,14 @@
       {
         "path": "docs/task-style-proof-index.json",
         "sha256": "7655ab2ba3ca13ed48fb51506ddee2beedf48fb9f1fc2b2cc1823988a8606367"
+      },
+      {
+        "path": "docs/task-entry.md",
+        "sha256": "c1b5fb49ea1116ea9117145f6cea04c48bf1cb21bc366400977a4ffa853bf3b3"
+      },
+      {
+        "path": "docs/task-entry.ko.md",
+        "sha256": "038c9909dfa956c27df8ffe1908bba57618e02296cb84b7ad15ce4214cebad84"
       }
     ]
   },

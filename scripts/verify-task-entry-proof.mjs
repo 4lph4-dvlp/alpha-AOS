@@ -20,7 +20,11 @@ const REQUIRED_FILES = [
   "schemas/task-contract.schema.json", "schemas/task-gsd-stage-receipt.schema.json",
   "schemas/task-receipt.schema.json", "docs/task-bootstrap-proof.md",
   "docs/task-style-proof.md", "docs/task-style-proof-index.json",
+  "docs/task-entry.md", "docs/task-entry.ko.md",
 ];
+const FINAL_GATES = ["check", "build", "targeted", "audit", "full", "build-check", "style-proof", "entry-proof"];
+const WINDOWS_SUITES = ["command-job-runtime.test.js", "command-job-worker.test.js", "command-jobs.test.js", "efficient-wait-cli.test.js", "process.test.js", "protocol-session.test.js", "task-cli.test.js", "task-progress-integration.test.js", "task-progress.test.js", "verify-efficient-wait.test.js"];
+const SOURCE_FILES = ["scripts/verify-task-entry-proof.mjs", "scripts/audit-tarball.mjs", "src/core/doctor.ts", "test/tarball-fixture.test.ts"];
 const SCENARIOS = ["chain-policy-transition", "chain-task-boundary", "chain-bootstrap-continuity", "chain-quality-and-tamper-guards"];
 const HOLDS = ["3-os-macos-ci", "claude-g-07-2", "global-reconcile", "git-push", "npm-publish"];
 const DEBT_SUITES = ["task-progress-integration.test.js", "task-progress.test.js", "verify-efficient-wait.test.js", "tarball-fixture.test.js"];
@@ -132,9 +136,26 @@ export function verifyTaskEntryProof(indexPath) {
     requireProof(HOLDS.every((id) => ledger.activeHolds?.some((hold) => hold.id === id && hold.status === "held")), "LEDGER", "Release/CI/auth holds cannot be counted as passed");
     if (ledger.gateStatus === "passed") {
       const run = ledger.currentRun;
-      requireProof(run && /^[a-f0-9]{40}$/u.test(run.sourceHead) && typeof run.platform === "string" && Array.isArray(run.suites) && run.suites.length > 0, "LEDGER", "Passed regression requires measured source-bound suites");
+      requireProof(run && /^[a-f0-9]{40}$/u.test(run.sourceHead) && /^(win32|linux|darwin)\//u.test(run.platform) && Array.isArray(run.suites), "LEDGER", "Passed regression requires measured source-bound suites");
+      requireProof(Array.isArray(run.gates) && run.gates.length === FINAL_GATES.length && FINAL_GATES.every((name) => run.gates.filter((gate) => gate.name === name && gate.exitCode === 0 && Number.isSafeInteger(gate.durationMs) && gate.durationMs >= 0).length === 1), "LEDGER", "Every final verification command must have one successful measured receipt");
+      const requiredSuites = ["ordinary", ...(run.platform.startsWith("win32/") ? WINDOWS_SUITES : []), "tarball-fixture.test.js"];
+      requireProof(run.suites.length === requiredSuites.length && requiredSuites.every((name) => run.suites.filter((suite) => suite.name === name).length === 1), "LEDGER", "Missing, unknown or duplicate regression suite groups");
       for (const counts of [run, ...run.suites]) {
-        requireProof(["total", "passed", "failed", "skipped", "notRun"].every((key) => Number.isSafeInteger(counts[key]) && counts[key] >= 0) && counts.total === counts.passed + counts.failed + counts.skipped + counts.notRun && counts.failed === 0 && counts.notRun === 0, "LEDGER", "Skipped, failed and not-run tests cannot be folded into passed");
+        requireProof(["total", "passed", "failed", "skipped", "notRun"].every((key) => Number.isSafeInteger(counts[key]) && counts[key] >= 0) && counts.total === counts.passed + counts.failed + counts.skipped + counts.notRun && counts.passed > 0 && counts.failed === 0 && counts.notRun === 0, "LEDGER", "Each required suite must execute tests; skipped, failed and not-run tests cannot be folded into passed");
+      }
+      for (const key of ["total", "passed", "failed", "skipped", "notRun"]) requireProof(run[key] === run.suites.reduce((sum, suite) => sum + suite[key], 0), "LEDGER", "Aggregate counts must equal measured suite groups");
+      requireProof(Array.isArray(run.sourceBindings) && run.sourceBindings.length === SOURCE_FILES.length && SOURCE_FILES.every((path) => run.sourceBindings.filter((binding) => binding.path === path && /^[a-f0-9]{64}$/u.test(binding.sha256) && binding.checkoutOnly === !path.startsWith("scripts/")).length === 1), "LEDGER", "Measured run must bind every reviewed source input");
+      if (verificationContext === "git-checkout") {
+        const commit = spawnSync("git", ["cat-file", "-t", run.sourceHead], { cwd: root, encoding: "utf8", timeout: 10000, windowsHide: true });
+        requireProof(commit.status === 0 && commit.stdout.trim() === "commit", "COMMIT_NOT_FOUND", "Measured source commit is unavailable");
+      }
+      for (const binding of run.sourceBindings) {
+        if (verificationContext === "packed-package" && binding.checkoutOnly) continue;
+        requireProof(hash(regularFile(insideFile(root, binding.path))) === binding.sha256, "HASH_MISMATCH", "Measured source bytes changed");
+        if (verificationContext === "git-checkout") {
+          const committed = spawnSync("git", ["show", `${run.sourceHead}:${binding.path}`], { cwd: root, timeout: 10000, windowsHide: true });
+          requireProof(committed.status === 0 && hash(committed.stdout) === binding.sha256, "HASH_MISMATCH", "Measured source does not match the tested commit");
+        }
       }
     }
     return { valid: true, schemaVersion: 1, verificationContext, cellCount: 55, tierCounts, gateStatus: ledger.gateStatus, nativeEvidence: "archival-receipts; no fresh model turns", checkoutEvidence: verificationContext === "git-checkout" ? "verified" : "not-shipped" };

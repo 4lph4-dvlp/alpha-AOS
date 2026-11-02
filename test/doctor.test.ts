@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import fs from "node:fs";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -94,4 +96,42 @@ test("doctor verifies packaged owned-skill hashes and frontmatter fail-closed", 
   assert.ok(strippedFinding);
   assert.equal(strippedFinding.level, "error");
   assert.match(strippedFinding.message, /frontmatter is invalid/i);
+});
+
+test("doctor preserves all findings when a deployed skill is a directory or unreadable", async (context) => {
+  const { root } = await createDoctorPackageFixture(context);
+  const catalog = await loadCatalog(root);
+  const lock = await loadLock(root);
+  const claudeRoot = join(root, "isolated-claude");
+  const destination = join(claudeRoot, "skills/alpha-aos-task/SKILL.md");
+  const previous = process.env.CLAUDE_CONFIG_DIR;
+  process.env.CLAUDE_CONFIG_DIR = claudeRoot;
+  const originalRead = fs.readFileSync;
+  try {
+    await mkdir(destination, { recursive: true });
+    const directory = await runDoctor(catalog, lock, createInventory(), root);
+    const warning = directory.find((row) => row.code === "policy.owned-skill.alpha-aos-task.claude");
+    assert.equal(warning?.level, "warning");
+    assert.match(warning!.message, /NOT_REGULAR_FILE/u);
+    assert.ok(directory.some((row) => row.code === "harness.claude"));
+    assert.equal(directory.find((row) => row.code === "lock.owned-skill.alpha-aos-task")?.level, "ok");
+    await rm(destination, { recursive: true });
+    await writeFile(destination, "fixture");
+    const deniedRead = ((path: Parameters<typeof fs.readFileSync>[0], ...args: unknown[]) => {
+      if (path === destination) throw Object.assign(new Error("fixture permission denied"), { code: "EACCES" });
+      return Reflect.apply(originalRead, fs, [path, ...args]);
+    }) as typeof fs.readFileSync;
+    context.mock.method(fs, "readFileSync", deniedRead);
+    syncBuiltinESMExports();
+    const unreadable = await runDoctor(catalog, lock, createInventory(), root);
+    const denied = unreadable.find((row) => row.code === "policy.owned-skill.alpha-aos-task.claude");
+    assert.equal(denied?.level, "warning");
+    assert.match(denied!.message, /EACCES/u);
+    assert.ok(unreadable.some((row) => row.code === "harness.claude"));
+  } finally {
+    context.mock.restoreAll();
+    syncBuiltinESMExports();
+    if (previous === undefined) delete process.env.CLAUDE_CONFIG_DIR;
+    else process.env.CLAUDE_CONFIG_DIR = previous;
+  }
 });

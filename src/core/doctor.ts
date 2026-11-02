@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { DoctorFinding, Inventory, StackCatalog, StackLock } from "../types.js";
@@ -158,7 +158,9 @@ export async function runDoctor(
         for (const harness of inventory.harnesses) {
           if (harness.detected && catalogSkill.targets.includes(harness.id)) {
             const dest = destinationFor(harness.id, skill);
-            if (existsSync(dest)) {
+            try {
+              const info = lstatSync(dest);
+              if (info.isSymbolicLink() || !info.isFile()) throw Object.assign(new Error("not a regular file"), { code: "NOT_REGULAR_FILE" });
               const destContent = readFileSync(dest);
               const destHash = sha256(destContent);
               const expectedHash = entry.targetSha256[harness.id];
@@ -167,6 +169,15 @@ export async function runDoctor(
                   level: "warning",
                   code: `policy.owned-skill.${skill}.${harness.id}`,
                   message: `${skill} deployed for ${harness.displayName} differs from target lock; run owned-skills sync ${skill} --target ${harness.id}`,
+                });
+              }
+            } catch (error) {
+              const code = (error as NodeJS.ErrnoException).code;
+              if (code !== "ENOENT") {
+                findings.push({
+                  level: "warning",
+                  code: `policy.owned-skill.${skill}.${harness.id}`,
+                  message: `${skill} deployed for ${harness.displayName} could not be inspected (${code && /^[A-Z_]+$/u.test(code) ? code : "UNREADABLE"}); check the deployed skill file`,
                 });
               }
             }

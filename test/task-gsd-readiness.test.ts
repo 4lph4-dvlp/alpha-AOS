@@ -686,3 +686,49 @@ test("inspectGsdProjectReadiness: rejects duplicate keys, invalid UTF-8, and ove
     { name: "TaskReadinessError", code: "invalid-input" },
   );
 });
+
+test("inspectGsdProjectReadiness: separates archive and missing state history recovery (BOOT-01, BOOT-03, D-11, D-12)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "archive-vs-history");
+  await mkdir(join(projectDir, ".planning"), { recursive: true });
+
+  const fakeGsdTools = join(sandbox.home, "gsd-core", "bin", "gsd-tools.cjs");
+  await mkdir(dirname(fakeGsdTools), { recursive: true });
+  await writeFile(fakeGsdTools, "// stub", "utf8");
+
+  const prevEnv = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = sandbox.home;
+  context.after(() => {
+    if (prevEnv !== undefined) process.env.CODEX_HOME = prevEnv;
+    else delete process.env.CODEX_HOME;
+  });
+
+  // Archive case: milestones_exists reports true with missing active state/roadmap
+  const archiveRunner = mockRunner({
+    "runtime-identity": { packageName: "@opengsd/gsd-core", version: "1.18.0" },
+    "init.resume": {
+      planning_exists: true,
+      init_incomplete: false,
+      milestones_exists: true,
+      roadmap_exists: false,
+      state_exists: false,
+      project_root: projectDir,
+    },
+  });
+
+  const archiveReadiness = await inspectGsdProjectReadiness({
+    input: {
+      schemaVersion: 1,
+      controller: "codex",
+      workflow: "quick",
+      projectRoot: projectDir,
+    },
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner: archiveRunner,
+  });
+
+  assert.equal(archiveReadiness.diagnosis, "partial-project");
+  assert.equal(archiveReadiness.ready, false);
+  assert.match(archiveReadiness.nextAction, /gsd-new-milestone|gsd-progress/u);
+});

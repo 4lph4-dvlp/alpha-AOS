@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-bootstrap.schema.json",
+  "title": "alpha-AOS task readiness and bootstrap interchange",
+  "description": "Closed bounded task readiness and bootstrap interchange (BOOT-01..BOOT-04).",
+  "type": "object",
+  "required": ["schemaVersion", "controller", "workflow"],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1
+    },
+    "controller": {
+      "type": "string",
+      "enum": ["claude", "codex", "antigravity", "pi", "hermes"]
+    },
+    "workflow": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "phase": {
+      "type": "string",
+      "maxLength": 128
+    },
+    "arguments": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "string",
+        "maxLength": 512
+      }
+    },
+    "projectRoot": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "boundProjectRoot": {
+      "type": "string",
+      "maxLength": 1024
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["prepare", "inspect", "claim", "link", "acknowledge", "cancel"]
+    }
+  }
+}

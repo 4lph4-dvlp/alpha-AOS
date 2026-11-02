@@ -195,7 +195,7 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. English and Korean documentation explains both modes, six styles, exception criteria, task boundaries, initialization and direct commands, including real support limitations.
   5. Targeted positive/negative checks and the final full regression have recorded actual outcomes. Failed/not-run prior regressions are not counted as passed or waived; required failures block affected acceptance and remediation must stay explicitly scoped.
 
-**Plans:** 5 plans in 4 waves
+**Plans:** 5 plans in 5 sequential waves
 
 Plans:
 
@@ -205,11 +205,13 @@ Plans:
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 31-02-PLAN.md — Deterministic 5-harness composed scenario journeys, `D-13` positive/negative pairs, 55-cell cross-harness proof index/ledger, and dual-context read-only verifier.
 
-**Wave 3** *(blocked on Wave 2 completion — zero `files_modified` overlap between 31-03 and 31-04)*
-- [ ] 31-03-PLAN.md — Packed tarball sandbox 5-target `alpha-aos-task` integrity, tamper refusal, meaningful discoverability, E2E CLI invocation, and zero `hostSnapshot` drift.
+**Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 31-04-PLAN.md — Symmetric English/Korean user guides (`docs/task-entry*.md`), repaired `README.md`/`README.ko.md` parity, complete 14-entry tarball allowlist, and doc contract suite.
 
-**Wave 4** *(blocked on Wave 3 completion)*
+**Wave 4** *(blocked on Wave 3 completion — packs finalized 14-entry release surface without `build`/`audit-tarball` write races)*
+- [ ] 31-03-PLAN.md — Packed tarball sandbox 5-target `alpha-aos-task` integrity, tamper refusal, meaningful discoverability, E2E CLI invocation, and zero `hostSnapshot` drift.
+
+**Wave 5** *(blocked on Wave 4 completion)*
 - [ ] 31-05-PLAN.md — Single-`HEAD` `D-14` final regression gate, preserved `261101-ww3` side-by-side ledger, and unwaived CI/canary/release/review hold verification.
 
 **Planning focus:** Define representative native receipts and paid-call-free fixtures before advertising parity. Previous release holds remain; this milestone does not implicitly authorize paid canaries, global reconciliation, push, CI repair or publication.

@@ -228,4 +228,43 @@ In strict mode, new substantial tasks display all six approved labels and short 
 - **Evidence-Based Exemptions**: Bounded operations (push, rename, README translation/link) skip chooser and forced GSD bootstrap only when observed mechanical evidence is complete (<=16 files, <=64 KiB text inspected). Same-name complex twins (force push, public API changes, README redesign) are never exempt.
 - **Phase 29/30 Deferred Boundaries**: Phase 28 delivers intake inspection, style cataloging, decision dispatch, and bounded handoffs. Execution pipeline bootstrap (Phase 29) and execution pipeline synthesis (Phase 30) are handled downstream.
 
+## Task readiness, native bootstrap, and continuity controls (BOOT-01–BOOT-04, D-01–D-24)
+
+### Shared CLI readiness contract
+
+Project readiness inspection evaluates GSD project completeness and prerequisites before substantial work execution:
+```bash
+alpha-aos task readiness --input <readiness-input.json> [--json]
+```
+- **Read-Only Invariant**: Like task intake, readiness inspection performs zero writes, mutates no files, and issues zero execution authority (`executionAuthorized: false`). Rejects `--apply` and positional operands.
+- **Diagnostic Classes**:
+  - `ready`: Active GSD project state present (`PROJECT.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`).
+  - `absent-project`: Planning directory (`.planning/`) is absent. Requires native bootstrap via `gsd-new-project`.
+  - `partial-project`: Interrupted initialization, milestone transition, or reconstructible state loss. Evaluated via `planNativeBootstrapRecovery`:
+    - `resume-new-project`: Resumes at the first missing stage (`REQUIREMENTS.md` or `ROADMAP.md`). Skips requirements regeneration if `REQUIREMENTS.md` exists.
+    - `new-milestone`: Prior milestone completed and archived with no active roadmap. Normal state between milestones.
+    - `reconstruct-state`: Missing `STATE.md` with verifiable phase history on disk.
+  - `blocked`: Inconsistent state (e.g. `.planning` exists without `PROJECT.md`), corrupt/0-byte/null-byte files, or unsupported controller (`hermes`). Fails closed and reports exact remediation advice.
+
+### Task bootstrap handoff and lifecycle operations
+
+When readiness indicates `absent-project` or `partial-project`, the host coordinates native bootstrap through the shared CLI:
+```bash
+alpha-aos task bootstrap --input <bootstrap-input.json> [--plan-digest <digest> --apply] [--json]
+```
+- **Operations**:
+  - `prepare`: Evaluates readiness and generates a preview of the handoff document with computed plan digest. With `--apply`, atomically writes the private handoff document under `~/.alpha-aos/task-intake/bootstrap/`.
+  - `claim`: Re-evaluates readiness and atomically reserves the pending transfer with a unique `claimNonce`. Returns `dispatchAuthorized: true` for conversational styles, or `dispatchAuthorized: false` for autopilot styles.
+  - `link`: Binds the exact native-generated GSD reference (e.g. `quickPath` or `phasePath`) before implementation begins. Idempotently redirects already-linked transfers to `route: "continue-existing"`.
+  - `acknowledge`: Validates that the referenced native artifact exists on disk and links to the requested root, recording delivery receipt (never task completion).
+  - `cancel`: Atomically cancels pending transfer while preserving planning documents and user WIP. Racing in-flight claims report `delivery-in-flight` and route to native stop.
+
+### Concurrency, authority boundaries, and scope
+
+- **Two-Process Concurrency**: Multiple processes claiming the same pending transfer yield at most one new dispatch permission. Competing nonces fail closed with `already-claimed`.
+- **Zero Inline Execution & Approval Separation**: Bootstrap handoff and style restoration grant no task approval or start authorization. Autopilot tasks retain strict preview, exact-digest approval, and separate start boundaries. Conversational agents must not execute autopilot tasks inline.
+- **Byte Preservation**: Native bootstrap recovery strictly preserves original bytes and user WIP (`verifyNativeBootstrapRecovery`).
+- **Deferred Scope**: Phase 29 establishes GSD initialization, recovery projection, and once-only request continuity. Six-pipeline execution and full quality gates remain Phase 30.
+
+
 

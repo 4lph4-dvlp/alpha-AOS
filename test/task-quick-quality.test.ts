@@ -16,6 +16,8 @@ import {
   type TaskContract,
 } from "../src/core/task-contract.js";
 import { buildGsdControllerPrompt } from "../src/core/task-gsd.js";
+import { packageRoot } from "../src/core/paths.js";
+import { startTask, TaskRunError, type TaskPorts } from "../src/core/task-run.js";
 import { formatTaskContractPreview } from "../src/format.js";
 import {
   createTaskFixture,
@@ -553,3 +555,133 @@ test("buildGsdControllerPrompt distinguishes standard vs full and preserves dist
   assert.ok(fullPrompt.includes("Preserve native research-before-questions and active code-review gates."));
   assert.ok(fullPrompt.includes("You are the approved controller and executor (codex) for this project for this run."));
 });
+
+test("startTask: rejects unsupported full quality before dispatch and retains usable approval", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const fullContractPath = join(fixture.scratch, "task-full-dispatch.json");
+  const fullContract = inventorySummaryContract(fixture.projectRoot);
+  fullContract.id = "full-dispatch-01";
+  fullContract.scope.quickQuality = "full";
+  await writeTaskContract(fullContractPath, fullContract);
+
+  // 1. Approve the full contract
+  const preview = await previewTaskContract({
+    contractPath: fullContractPath,
+    stateRoot: fixture.stateRoot,
+  });
+  const approvalResult = await approveTaskContract({
+    contractPath: fullContractPath,
+    expectedDigest: preview.digest,
+    stateRoot: fixture.stateRoot,
+  });
+  assert.equal(approvalResult.status, "approved");
+
+  let dispatchCalls = 0;
+  let reviewCalls = 0;
+
+  const mockPorts: TaskPorts = {
+    controller: {
+      dispatch: async () => {
+        dispatchCalls++;
+        throw new Error("Worker should never be dispatched when capability is missing");
+      },
+    },
+    reviewer: {
+      review: async () => {
+        reviewCalls++;
+        throw new Error("Reviewer should never be dispatched when capability is missing");
+      },
+    },
+    assess: async () => ({
+      supported: true,
+      controller: { harness: "codex", version: "0.110.0", executable: "codex" },
+      reviewer: { harness: "antigravity", version: "1.0.0", executable: "agy" },
+      missingProof: [],
+    }),
+  };
+
+  // 2. Attempt startTask with standard-only ports (no stageObservation)
+  await assert.rejects(
+    async () => {
+      await startTask({
+        contractPath: fullContractPath,
+        expectedDigest: preview.digest,
+        stateRoot: fixture.stateRoot,
+        packageRoot: packageRoot(),
+        ports: mockPorts,
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof TaskRunError);
+      assert.equal(err.code, "unsupported-stage-observation");
+      assert.ok(err.message.includes("Full quick quality requires a stage observation capability"));
+      return true;
+    },
+  );
+
+  // Zero-dispatch guarantee: worker was never launched
+  assert.equal(dispatchCalls, 0, "controller must not be dispatched when stage observation is missing");
+  assert.equal(reviewCalls, 0, "reviewer must not be dispatched when stage observation is missing");
+
+  // Approval is retained and unconsumed
+  const startableAfter = await assertTaskStartable({
+    contractPath: fullContractPath,
+    expectedDigest: preview.digest,
+    stateRoot: fixture.stateRoot,
+  });
+  assert.equal(startableAfter.loaded.digest, preview.digest);
+
+  // 3. Attempt startTask with explicitly unsupported stageObservation
+  const unsupportedPorts: TaskPorts = {
+    ...mockPorts,
+    stageObservation: {
+      supported: false,
+      harness: "codex",
+      reason: "Observer runtime not installed or unsupported",
+    },
+  };
+
+  await assert.rejects(
+    async () => {
+      await startTask({
+        contractPath: fullContractPath,
+        expectedDigest: preview.digest,
+        stateRoot: fixture.stateRoot,
+        packageRoot: packageRoot(),
+        ports: unsupportedPorts,
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof TaskRunError);
+      assert.equal(err.code, "unsupported-stage-observation");
+      assert.ok(err.message.includes("Observer runtime not installed or unsupported"));
+      return true;
+    },
+  );
+
+  assert.equal(dispatchCalls, 0);
+
+  // 4. Stale approval rejection before dispatch
+  fullContract.scope.summary = "Modified summary causing drift";
+  await writeTaskContract(fullContractPath, fullContract);
+
+  await assert.rejects(
+    async () => {
+      await startTask({
+        contractPath: fullContractPath,
+        expectedDigest: preview.digest,
+        stateRoot: fixture.stateRoot,
+        packageRoot: packageRoot(),
+        ports: mockPorts,
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof TaskContractError);
+      assert.equal(err.code, "contract-drift");
+      return true;
+    },
+  );
+
+  assert.equal(dispatchCalls, 0);
+});
+

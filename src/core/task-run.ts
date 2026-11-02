@@ -60,6 +60,7 @@ import {
   assertTaskStartable,
   describeIssue,
   isTaskContractId,
+  resolveTaskQuickQuality,
   TaskContractError,
   taskSchema,
   type TaskAgentPolicy,
@@ -232,11 +233,22 @@ export interface TaskPortAssessment {
   missingProof: string[];
 }
 
+export interface TaskStageObservationCapability {
+  readonly supported: boolean;
+  readonly harness: HarnessId | string;
+  readonly reason?: string | undefined;
+}
+
+export type TaskStageObservationSeam =
+  | TaskStageObservationCapability
+  | ((policy: TaskAgentPolicy) => Promise<TaskStageObservationCapability> | TaskStageObservationCapability);
+
 export interface TaskPorts {
   finalReview?: import("./task-final-review.js").FinalReviewPort | undefined;
   controller: ControllerPort;
   reviewer: ReviewerPort;
   assess(policy: TaskAgentPolicy): Promise<TaskPortAssessment>;
+  stageObservation?: TaskStageObservationSeam | undefined;
   capability?: TaskCapabilityPort | undefined;
   capabilityAlternates?: readonly CapabilityAlternateCandidate[] | undefined;
   userActionAvailable?: boolean | undefined;
@@ -351,6 +363,7 @@ export interface TaskRunRecord {
 export type TaskRunErrorCode =
   | "approval-consumed"
   | "unsupported-agent-pair"
+  | "unsupported-stage-observation"
   | "run-record-invalid"
   | "dirty-baseline"
   | "gsd-not-ready"
@@ -389,6 +402,7 @@ export interface TaskStartReadiness {
     | { status: "unavailable"; reason: string };
   /** True only when nothing below would refuse the start. */
   ready: boolean;
+  stageObservation?: { supported: boolean; reason?: string } | undefined;
 }
 
 export interface StartTaskOptions {
@@ -1528,6 +1542,23 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       "unsupported-agent-pair",
       `No proven adapter pair for controller ${contract.agentPolicy.controller}, executor ${contract.agentPolicy.executor} and reviewer ${contract.agentPolicy.reviewer}: ${assessment.missingProof.join("; ") || "no proof recorded"}.`,
     );
+  }
+
+  const effectiveQuality = resolveTaskQuickQuality(contract);
+  if (effectiveQuality === "full") {
+    let stageObs: TaskStageObservationCapability | undefined;
+    if (typeof options.ports.stageObservation === "function") {
+      stageObs = await options.ports.stageObservation(contract.agentPolicy);
+    } else if (options.ports.stageObservation) {
+      stageObs = options.ports.stageObservation;
+    }
+    if (!stageObs || !stageObs.supported) {
+      const reason = stageObs?.reason ?? `No stage observation capability available for controller ${contract.agentPolicy.controller}`;
+      throw new TaskRunError(
+        "unsupported-stage-observation",
+        `Full quick quality requires a stage observation capability for controller ${contract.agentPolicy.controller}: ${reason}.`,
+      );
+    }
   }
 
   if (contract.category === "general") {

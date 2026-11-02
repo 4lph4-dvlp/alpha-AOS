@@ -1628,6 +1628,13 @@ export function formatTaskStartReadiness(readiness: TaskStartReadiness, command:
     `GSD quick: ${readiness.gsd.ready ? "ready" : "not ready"} — ${readiness.gsd.reason}`,
     `Baseline: ${baselineText}`,
     `Approval: ${approval}`,
+    ...(readiness.stageObservation
+      ? [
+          readiness.stageObservation.supported
+            ? "Stage observation: supported"
+            : `Stage observation: unsupported (${readiness.stageObservation.reason ?? "missing stage observation capability"})`,
+        ]
+      : []),
     "",
     `Readiness: ${readiness.ready ? "ready to start" : "not ready; start would be refused"}`,
     "Readiness preview only. Nothing was launched and nothing was written.",

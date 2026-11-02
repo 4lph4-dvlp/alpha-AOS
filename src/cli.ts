@@ -437,7 +437,7 @@ async function readTaskStartReadiness(
   stateRoot: string,
   options?: { reprobeOnDrift?: boolean; probeMissing?: boolean },
 ): Promise<{ readiness: TaskStartReadiness; command: string }> {
-  const { assertTaskStartable, loadTaskContract, previewTaskContract } = await import("./core/task-contract.js");
+  const { assertTaskStartable, loadTaskContract, previewTaskContract, resolveTaskQuickQuality } = await import("./core/task-contract.js");
   const { listTaskRuns } = await import("./core/task-run.js");
   const { probeGsdQuickReadiness, resolveInstalledGsdTools } = await import("./core/task-gsd.js");
   const { readTaskBaseline } = await import("./core/task-effects.js");
@@ -480,6 +480,15 @@ async function readTaskStartReadiness(
   if (!meterCheck.ready) {
     missingProof.push(...meterCheck.missingMeters);
   }
+  const effectiveQuality = resolveTaskQuickQuality(contract);
+  let stageObservation: TaskStartReadiness["stageObservation"] | undefined;
+  if (effectiveQuality === "full") {
+    stageObservation = {
+      supported: false,
+      reason: `No stage observation capability recorded for controller ${contract.agentPolicy.controller}`,
+    };
+    missingProof.push(`stage-observation:${contract.agentPolicy.controller}`);
+  }
   const readiness: TaskStartReadiness = {
     contractId: contract.id,
     revision: contract.revision,
@@ -492,7 +501,8 @@ async function readTaskStartReadiness(
     missingProof,
     gsd,
     baseline,
-    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean" && meterCheck.ready,
+    ...(stageObservation !== undefined ? { stageObservation } : {}),
+    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean" && meterCheck.ready && (effectiveQuality !== "full" || (stageObservation?.supported ?? false)),
   };
   return { readiness, command: await taskStartCommand(loaded.sourcePath, digest) };
 }

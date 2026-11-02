@@ -15,6 +15,11 @@ import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
 import type { ExplicitCommandRoute } from "./task-intake-explicit.js";
 import { normalizeExplicitTaskIntent } from "./task-intake-explicit.js";
 import { resolveTaskIntakeContinuity } from "./task-intake-continuity.js";
+import type {
+  TaskIntakeOperationInput,
+  TaskIntakeScopeChangeInput,
+} from "./task-intake-evidence.js";
+import { collectTaskIntakeEvidence } from "./task-intake-evidence.js";
 
 export type TaskExecutionStyle =
   | "conversational-quick"
@@ -147,12 +152,8 @@ export interface TaskIntakeInput {
       | "unknown"
       | undefined;
   } | undefined;
-  readonly operation?: {
-    readonly type?: string | undefined;
-    readonly target?: string | undefined;
-    readonly result?: string | undefined;
-    readonly boundedImpact?: boolean | undefined;
-  } | undefined;
+  readonly operation?: TaskIntakeOperationInput | undefined;
+  readonly scopeChange?: TaskIntakeScopeChangeInput | undefined;
   readonly questionCapability?: {
     readonly supportsSixOptions?: boolean | undefined;
     readonly style?: "native" | "numbered-text" | "unknown" | undefined;
@@ -702,7 +703,68 @@ export async function inspectTaskIntake(
     };
   }
 
-  // 2. Check active task continuity (D-07, D-08, D-09, D-10, D-11, D-12)
+  // 2. Check scope change before continuity / simple operation (D-16)
+  if (inputObj.scopeChange?.expandedScope === true || inputObj.scopeChange?.requiresInvestigation === true) {
+    const isRepair = inputObj.scopeChange.isTaskRepair === true;
+    const currentStyle = inputObj.currentTask?.selectedStyle as TaskExecutionStyle | undefined;
+
+    if (isRepair && currentStyle) {
+      const taskRef = inputObj.currentTask?.taskId ?? inputObj.scopeChange.previousOperationId;
+      return {
+        schemaVersion: 1,
+        kind: "continuation",
+        policy: policySummary,
+        nextAction: "continue-task",
+        executionAuthorized: false,
+        selectedStyle: currentStyle,
+        taskReference: taskRef,
+        reasons: ["active-task-repair-retains-style", "wip-bytes-preserved"],
+        observations: [
+          `Active task repair retains style ${currentStyle} and preserves dirty WIP without inheriting new effects`,
+        ],
+        handoff: {
+          schemaVersion: 1,
+          originalRequest: inputObj.request.text,
+          shortGoal: inputObj.request.shortGoal,
+          shortScope: inputObj.request.shortScope,
+          knownFacts: inputObj.facts ?? [],
+          selectedStyle: currentStyle,
+          taskReference: taskRef,
+          policyRevision: policyView.revision,
+          nextAction: "continue-task",
+        },
+      };
+    }
+
+    const nextAction: TaskIntakeNextAction =
+      policyView.effectiveMode === "strict" ? "choose-style" : "adaptive-intake";
+    return {
+      schemaVersion: 1,
+      kind: "substantial-work",
+      policy: policySummary,
+      nextAction,
+      executionAuthorized: false,
+      reasons: ["scope-expansion-reclassified", "wip-bytes-preserved"],
+      observations: [
+        "Expanded scope requiring investigation stops before expanded work and preserves dirty WIP",
+      ],
+      chooser:
+        policyView.effectiveMode === "strict"
+          ? renderTaskStyleQuestion(TASK_EXECUTION_STYLES, inputObj.questionCapability)
+          : undefined,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction,
+      },
+    };
+  }
+
+  // 3. Check active task continuity (D-07, D-08, D-09, D-10, D-11, D-12)
   const continuity = await resolveTaskIntakeContinuity({
     canonicalRoot: policyView.canonicalRoot,
     stateRoot: options.stateRoot,
@@ -862,11 +924,71 @@ export async function inspectTaskIntake(
     };
   }
 
+  // Evaluate candidate simple operation evidence
+  const evidence = await collectTaskIntakeEvidence({
+    canonicalRoot: policyView.canonicalRoot,
+    requestText: inputObj.request.text,
+    shortGoal: inputObj.request.shortGoal,
+    shortScope: inputObj.request.shortScope,
+    operation: inputObj.operation,
+    scopeChange: inputObj.scopeChange,
+    currentTask: inputObj.currentTask,
+    facts: inputObj.facts,
+  });
+
+  if (evidence.status === "eligible") {
+    return {
+      schemaVersion: 1,
+      kind: "simple-operation",
+      policy: policySummary,
+      nextAction: "execute-simple",
+      executionAuthorized: false,
+      reasons: evidence.reasons,
+      observations: evidence.observations,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: evidence.facts,
+        policyRevision: policyView.revision,
+        nextAction: "execute-simple",
+      },
+    };
+  }
+
+  if (evidence.status === "clarification-needed") {
+    return {
+      schemaVersion: 1,
+      kind: "clarification-needed",
+      policy: policySummary,
+      nextAction: "ask-clarification",
+      executionAuthorized: false,
+      reasons: evidence.reasons,
+      observations: evidence.observations,
+      clarification: {
+        question: evidence.question,
+        missingFacts: evidence.missingFacts,
+      },
+      missingEvidence: evidence.missingFacts,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: evidence.facts,
+        policyRevision: policyView.revision,
+        nextAction: "ask-clarification",
+      },
+    };
+  }
+
   let selectedStyle: TaskExecutionStyle | undefined;
   let chooser: TaskIntakeChooserQuestion | undefined;
   let nextAction: TaskIntakeNextAction;
-  const reasons: string[] = [];
-  const observations: string[] = [];
+  const reasons: string[] = evidence.status === "substantial-work" ? [...evidence.reasons] : [];
+  const observations: string[] =
+    evidence.status === "substantial-work" ? [...evidence.observations] : [];
 
   if (continuity.outcome === "terminal") {
     observations.push(

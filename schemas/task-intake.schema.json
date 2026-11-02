@@ -123,6 +123,95 @@
         },
         "boundedImpact": {
           "type": "boolean"
+        },
+        "remote": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "localRef": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "force": {
+          "type": "boolean"
+        },
+        "delete": {
+          "type": "boolean"
+        },
+        "mirror": {
+          "type": "boolean"
+        },
+        "historyRewrite": {
+          "type": "boolean"
+        },
+        "conflictResolution": {
+          "type": "boolean"
+        },
+        "oldPath": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "newPath": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "unchangedApiMeaning": {
+          "type": "boolean"
+        },
+        "sourcePath": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "targetLink": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "scopedPaths": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 1024
+          }
+        },
+        "faithful": {
+          "type": "boolean"
+        },
+        "redesign": {
+          "type": "boolean"
+        },
+        "newFeatureScope": {
+          "type": "boolean"
+        }
+      }
+    },
+    "scopeChange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "previousOperationId": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "expandedScope": {
+          "type": "boolean"
+        },
+        "requiresInvestigation": {
+          "type": "boolean"
+        },
+        "wipBytesPreserved": {
+          "type": "boolean"
+        },
+        "isTaskRepair": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 512
         }
       }
     },

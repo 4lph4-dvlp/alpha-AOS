@@ -49,6 +49,7 @@ import type {
 import type { GeneralTaskReportData } from "./core/task-connector.js";
 import type { TaskReapprovalPreview } from "./adapters/coursepilot-task.js";
 import type { TaskIntakePublicDecision } from "./core/task-intake.js";
+import type { GsdProjectReadiness } from "./core/task-gsd-readiness.js";
 
 function table(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) => Math.max(header.length, ...rows.map((row) => row[index]?.length ?? 0)));
@@ -494,6 +495,39 @@ export function formatTaskIntakeDecision(decision: TaskIntakePublicDecision): st
     lines.push(`Clarification needed: ${decision.clarification.question}`);
     for (const fact of decision.clarification.missingFacts) {
       lines.push(`  - Missing fact: ${fact}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+/** What a `task readiness` inspection observed (BOOT-01, D-01, D-02). */
+export function formatGsdProjectReadiness(readiness: GsdProjectReadiness): string {
+  const lines: string[] = [
+    `Project: ${readiness.canonicalRoot}`,
+    `Controller: ${readiness.controller}`,
+    `Runtime: ${readiness.runtime.packageName ?? "none"} ${readiness.runtime.version ?? "unknown"}${readiness.runtime.configRoot ? ` (${readiness.runtime.configRoot})` : ""}`,
+    `Workflow: ${readiness.workflow}${readiness.phase ? ` (phase: ${readiness.phase})` : ""}`,
+    `Diagnosis: ${readiness.diagnosis}`,
+    `Ready: ${readiness.ready ? "true" : "false"}`,
+    `Execution authorized: ${readiness.executionAuthorized ? "true" : "false"}`,
+    `Next action: ${readiness.nextAction}`,
+  ];
+  if (readiness.satisfiedPrerequisites.length > 0) {
+    lines.push("Satisfied prerequisites:");
+    for (const item of readiness.satisfiedPrerequisites) {
+      lines.push(`  - ${item}`);
+    }
+  }
+  if (readiness.missingPrerequisites.length > 0) {
+    lines.push("Missing prerequisites:");
+    for (const item of readiness.missingPrerequisites) {
+      lines.push(`  - ${item}`);
+    }
+  }
+  if (readiness.reasons.length > 0) {
+    lines.push("Reasons:");
+    for (const item of readiness.reasons) {
+      lines.push(`  - ${item}`);
     }
   }
   return lines.join("\n");

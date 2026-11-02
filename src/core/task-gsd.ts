@@ -169,6 +169,12 @@ export async function probeGsdQuickReadiness(options: {
   if (init.roadmap_exists !== true) {
     return notReady("GSD reports no .planning/ROADMAP.md in the project, and GSD quick requires one; create the roadmap with GSD before starting a task");
   }
+  if (init.init_incomplete === true) {
+    return notReady("GSD reports init_incomplete: initial project setup was interrupted");
+  }
+  if (init.agents_installed === false) {
+    return notReady("GSD agents are not installed; install required agents before starting a task");
+  }
   return { ready: true, reason: "GSD quick reports .planning and ROADMAP.md present", gsdToolsPath };
 }
 

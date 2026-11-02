@@ -30,6 +30,7 @@ import {
 import { destinationFor } from "../src/core/owned-skills.js";
 import type { HarnessId, StackLock } from "../src/types.js";
 import type { FixtureSandbox, PackedRelease } from "./helpers/packed-sandbox.js";
+import { inventorySummaryContract } from "./helpers/task-fixture.js";
 
 interface TarballEntry {
   readonly path: string;
@@ -147,6 +148,95 @@ async function verifyPackedTaskGuidance(sandbox: FixtureSandbox, release: Packed
   } finally {
     await writeFile(lockPath, lockBytes);
   }
+}
+
+async function verifyPackedTaskEntry(sandbox: FixtureSandbox, release: PackedRelease): Promise<void> {
+  const project = join(sandbox.repo, "packed-v060-e2e");
+  await mkdir(project, { recursive: true });
+  const query = (): { effectiveMode: string; source: string; exists: boolean } => parseJsonResult(sandbox.runCli(["project", "mode", project, "--json"]), "packed project mode");
+  assert.deepEqual([query().effectiveMode, query().source, query().exists], ["strict", "builtin-default", false]);
+  assert.equal(existsSync(join(project, ".alpha-aos")), false);
+  const setMode = (mode: string): { operationId: string } => {
+    const preview = parseJsonResult<{ planDigest: string }>(sandbox.runCli(["project", "mode", "set", mode, project, "--json"]), `packed ${mode} preview`);
+    return parseJsonResult(sandbox.runCli(["project", "mode", "set", mode, project, "--plan-digest", preview.planDigest, "--apply", "--json"]), `packed ${mode} apply`);
+  };
+  setMode("flexible");
+  assert.equal(query().effectiveMode, "flexible");
+  const policyPath = join(project, ".alpha-aos/behavior.json");
+  const flexibleBytes = await readFile(policyPath);
+  const strict = setMode("strict");
+  assert.equal(query().effectiveMode, "strict");
+  assert.equal(sandbox.runCli(["rollback", strict.operationId, "--apply", "--json"]).status, 0);
+  assert.deepEqual(await readFile(policyPath), flexibleBytes);
+  setMode("strict");
+
+  const inputPath = join(project, "intake.json");
+  const request = { schemaVersion: 1, projectRoot: project, request: { text: "Refactor database access and distributed transaction routing" } };
+  const intake = async (input: unknown): Promise<{ nextAction: string; executionAuthorized: boolean; chooser?: { options: { label: string }[] }; handoff?: { executionRoute?: { style: string } } }> => {
+    await writeFile(inputPath, JSON.stringify(input));
+    return parseJsonResult(sandbox.runCli(["task", "intake", "--input", inputPath, "--json"], { cwd: project }), "packed task intake");
+  };
+  const chooser = await intake(request);
+  assert.equal(chooser.nextAction, "choose-style");
+  assert.equal(chooser.executionAuthorized, false);
+  assert.deepEqual(chooser.chooser?.options.map((option) => option.label), entryLabels);
+  await writeFile(join(project, "README.md"), "# Example\n");
+  await writeFile(join(project, "guide.md"), "# Guide\n");
+  const simple = await intake({ ...request, request: { text: "Add a README link to guide.md" }, operation: { type: "readme-link", sourcePath: "README.md", targetLink: "guide.md", scopedPaths: ["README.md"], boundedImpact: true, redesign: false, newFeatureScope: false } });
+  assert.equal(simple.nextAction, "execute-simple");
+  assert.equal(simple.executionAuthorized, false);
+  for (const style of ["conversational-quick", "conversational-quick-full", "conversational-phase"]) {
+    const selected = await intake({ ...request, explicit: { style } });
+    assert.equal(selected.nextAction, "execute-explicit");
+    assert.equal(selected.executionAuthorized, false);
+    assert.ok(JSON.stringify(selected).includes(style));
+  }
+
+  // Deterministic read-only GSD fixture: inspect actual project artifact presence.
+  // This is CLI integration evidence, never native GSD/model execution evidence.
+  const gsdRoot = join(sandbox.home, ".codex/gsd-core");
+  await mkdir(join(gsdRoot, "bin"), { recursive: true });
+  await mkdir(join(gsdRoot, "workflows"), { recursive: true });
+  await writeFile(join(gsdRoot, "workflows/quick.md"), "<purpose>Fixture quick</purpose>\n**Step 1: Parse arguments**\nRead request.\n**Step 2: Initialize**\nInspect state.\n");
+  await writeFile(join(gsdRoot, "bin/gsd-tools.cjs"), `const fs=require("node:fs"),p=require("node:path");const root=process.cwd();const has=n=>fs.existsSync(p.join(root,".planning",n));console.log(JSON.stringify({packageName:"@opengsd/gsd-core",version:"1.18.0",planning_exists:has(""),init_incomplete:has("")&&!["PROJECT.md","REQUIREMENTS.md","ROADMAP.md","STATE.md"].every(has),project_exists:has("PROJECT.md"),requirements_exists:has("REQUIREMENTS.md"),roadmap_exists:has("ROADMAP.md"),state_exists:has("STATE.md"),agents_installed:true,project_root:root}));`);
+  const readinessPath = join(project, "readiness.json");
+  const readiness = async (controller = "codex"): Promise<{ diagnosis: string; ready: boolean }> => {
+    await writeFile(readinessPath, JSON.stringify({ schemaVersion: 1, controller, workflow: "quick", projectRoot: project }));
+    return parseJsonResult(sandbox.runCli(["task", "readiness", "--input", readinessPath, "--json"], { cwd: project }), "packed readiness");
+  };
+  assert.equal((await readiness()).diagnosis, "absent-project");
+  await mkdir(join(project, ".planning"));
+  const projectBytes = Buffer.from("# Existing project\r\n보존할 원래 내용\r\n");
+  await writeFile(join(project, ".planning/PROJECT.md"), projectBytes);
+  assert.equal((await readiness()).diagnosis, "partial-project");
+  assert.deepEqual(await readFile(join(project, ".planning/PROJECT.md")), projectBytes);
+  const roadmap = "# Roadmap\n\n### Phase 01: Example\n**Goal:** Build example\n**Requirements:** DEMO-01\n";
+  for (const [name, text] of [["REQUIREMENTS.md", "# Requirements\n"], ["ROADMAP.md", roadmap], ["STATE.md", "# State\n"]]) await writeFile(join(project, ".planning", name!), text!);
+  assert.equal((await readiness()).ready, true);
+  const hermes = await readiness("hermes");
+  assert.equal(hermes.diagnosis, "unsupported");
+  assert.equal(hermes.ready, false);
+
+  const digests: string[] = [];
+  for (const style of ["autopilot-quick", "autopilot-quick-full", "autopilot-phase"]) {
+    const base = inventorySummaryContract(project);
+    const contract = { ...base, id: style, scope: style === "autopilot-phase" ? { ...base.scope, workflow: "gsd-multi-phase", phaseSelection: { phaseIds: ["01"], roadmapSha256: createHash("sha256").update(roadmap).digest("hex") } } : { ...base.scope, quickQuality: style.endsWith("full") ? "full" : "standard" } };
+    const path = join(project, `${style}.json`);
+    await writeFile(path, JSON.stringify(contract));
+    const preview = parseJsonResult<{ approved: boolean; digest: string; executionStyle: { style: string; quality?: string } }>(sandbox.runCli(["task", "preview", path, "--json"], { cwd: project }), `packed ${style} contract preview`);
+    assert.equal(preview.approved, false);
+    assert.equal(preview.executionStyle.style, style);
+    assert.match(preview.digest, /^[a-f0-9]{64}$/u);
+    if (style.endsWith("full")) assert.equal(preview.executionStyle.quality, "full");
+    digests.push(preview.digest);
+  }
+  assert.equal(new Set(digests).size, 3);
+  const verifier = spawnSync(process.execPath, [join(release.installedPackage, "scripts/verify-task-entry-proof.mjs"), "--index", join(release.installedPackage, "docs/task-entry-proof-index.json"), "--json"], { cwd: release.installedPackage, env: sandbox.env, encoding: "utf8", timeout: 30000, windowsHide: true });
+  assert.equal(verifier.status, 0, verifier.stdout + verifier.stderr);
+  const proof = JSON.parse(verifier.stdout) as { valid: boolean; cellCount: number; verificationContext: string };
+  assert.equal(proof.valid, true);
+  assert.equal(proof.cellCount, 55);
+  assert.equal(proof.verificationContext, "packed-package");
 }
 
 async function hostSnapshot(manifests?: Map<string, HostFingerprint>): Promise<Map<string, string>> {
@@ -552,6 +642,7 @@ test("packed release completes the isolated install, reconcile, diagnose, and un
   // Separate journals keep injected drift from becoming a predecessor of the
   // original install/uninstall transaction chain.
   await verifyPackedTaskGuidance(isolatedCliState(sandbox, "task-guidance-state"), release);
+  await verifyPackedTaskEntry(isolatedCliState(sandbox, "task-entry-state"), release);
 
   parseJsonResult<unknown>(
     sandbox.runCli(["uninstall", "--all", "--yes", "--apply", "--purge", "--json"]),

@@ -6,6 +6,7 @@ import {
   acknowledgeTaskBootstrap,
   cancelTaskBootstrap,
   claimTaskBootstrap,
+  formatTaskBootstrapResult,
   linkTaskBootstrapNativeReference,
   prepareTaskBootstrap,
   TaskBootstrapError,
@@ -504,4 +505,192 @@ test("autopilot style claim restores identity but withholds dispatch authorizati
   assert.equal(claimed.selectedStyle, "autopilot-quick");
   assert.equal(claimed.dispatchAuthorized, false, "Autopilot claim MUST NOT grant direct dispatch authorization");
   assert.ok(claimed.nextAction.includes("requires separate contract preview, exact digest approval, and separate start command"));
+  assert.ok(claimed.executionRoute);
+  assert.equal(claimed.executionRoute.style, "autopilot-quick");
+  assert.equal(claimed.executionRoute.surface, "isolated-runner");
+  assert.equal(claimed.executionRoute.quickQuality, "standard");
+});
+
+test("bootstrap claim retains quick --full route and text/json parity (STYLE-02, D-01, D-02, D-04)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "full-bootstrap-project");
+  await mkdir(join(projectDir, ".planning"), { recursive: true });
+  await writeFile(join(projectDir, ".planning", "PROJECT.md"), "# Full Context\n", "utf8");
+
+  const runner = mockReadyRunner(projectDir);
+
+  const packet = {
+    schemaVersion: 1,
+    operation: "prepare",
+    controller: "codex",
+    workflow: "quick",
+    pendingId: "pending-full-01",
+    projectRoot: projectDir,
+    request: {
+      text: "Comprehensive auth security overhaul",
+    },
+    selectedStyle: "conversational-quick-full",
+  };
+
+  const preview = await prepareTaskBootstrap({
+    input: packet,
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner,
+    apply: false,
+  });
+
+  await prepareTaskBootstrap({
+    input: { ...packet, planDigest: preview.planDigest },
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner,
+    apply: true,
+  });
+
+  const claimed = await claimTaskBootstrap({
+    pendingId: "pending-full-01",
+    projectRoot: projectDir,
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    claimNonce: "full-claim-nonce",
+    runner,
+  });
+
+  assert.equal(claimed.status, "claimed");
+  assert.equal(claimed.selectedStyle, "conversational-quick-full");
+  assert.ok(claimed.executionRoute);
+  assert.equal(claimed.executionRoute.style, "conversational-quick-full");
+  assert.equal(claimed.executionRoute.surface, "conversation");
+  assert.equal(claimed.executionRoute.workflow, "quick");
+  assert.equal(claimed.executionRoute.command, "gsd-quick");
+  assert.deepEqual(claimed.executionRoute.arguments, ["--full"]);
+  assert.equal(claimed.executionRoute.quickQuality, "full");
+  assert.equal(claimed.executionRoute.authorityRequirements.requiresEvidenceValidation, true);
+  assert.equal(claimed.executionRoute.authorityRequirements.executionAuthorized, false);
+
+  const formatted = formatTaskBootstrapResult(claimed);
+  assert.ok(formatted.includes("Execution route: gsd-quick (workflow: quick, surface: conversation)"));
+  assert.ok(formatted.includes("Route arguments: --full"));
+  assert.ok(formatted.includes("Quick quality: full"));
+});
+
+test("mode mutation between prepare and claim preserves executionRoute; new task reads fresh policy (D-04, D-16)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "mode-mutation-project");
+  await mkdir(join(projectDir, ".planning"), { recursive: true });
+  await writeFile(join(projectDir, ".planning", "PROJECT.md"), "# Mode Project\n", "utf8");
+
+  // Project starts with strict behavior
+  const alphaAosDir = join(projectDir, ".alpha-aos");
+  await mkdir(alphaAosDir, { recursive: true });
+  await writeFile(
+    join(alphaAosDir, "behavior.json"),
+    JSON.stringify({ schemaVersion: 1, mode: "strict" }, null, 2),
+    "utf8",
+  );
+
+  const runner = mockReadyRunner(projectDir);
+
+  const packet = {
+    schemaVersion: 1,
+    operation: "prepare",
+    controller: "codex",
+    workflow: "quick",
+    pendingId: "pending-mode-01",
+    projectRoot: projectDir,
+    request: {
+      text: "Task prepared in strict mode",
+    },
+    selectedStyle: "conversational-quick-full",
+  };
+
+  const preview = await prepareTaskBootstrap({
+    input: packet,
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner,
+    apply: false,
+  });
+
+  await prepareTaskBootstrap({
+    input: { ...packet, planDigest: preview.planDigest },
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner,
+    apply: true,
+  });
+
+  // Now mutate project policy to flexible before claim
+  await writeFile(
+    join(alphaAosDir, "behavior.json"),
+    JSON.stringify({ schemaVersion: 1, mode: "flexible" }, null, 2),
+    "utf8",
+  );
+
+  // Claiming the task preserves its selected style and executionRoute
+  const claimed = await claimTaskBootstrap({
+    pendingId: "pending-mode-01",
+    projectRoot: projectDir,
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    claimNonce: "mode-claim-nonce",
+    runner,
+  });
+
+  assert.equal(claimed.status, "claimed");
+  assert.equal(claimed.selectedStyle, "conversational-quick-full");
+  assert.ok(claimed.executionRoute);
+  assert.equal(claimed.executionRoute.style, "conversational-quick-full");
+  assert.equal(claimed.executionRoute.quickQuality, "full");
+});
+
+test("cancelled task bootstrap does not grant dispatch (D-14, D-19)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "cancel-project");
+  await mkdir(join(projectDir, ".planning"), { recursive: true });
+  await writeFile(join(projectDir, ".planning", "PROJECT.md"), "# Cancel Context\n", "utf8");
+
+  const runner = mockReadyRunner(projectDir);
+
+  const packet = {
+    schemaVersion: 1,
+    operation: "prepare",
+    controller: "codex",
+    workflow: "quick",
+    pendingId: "pending-cancel-01",
+    projectRoot: projectDir,
+    request: {
+      text: "Task to be cancelled",
+    },
+    selectedStyle: "conversational-quick",
+  };
+
+  const preview = await prepareTaskBootstrap({
+    input: packet,
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner,
+    apply: false,
+  });
+
+  await prepareTaskBootstrap({
+    input: { ...packet, planDigest: preview.planDigest },
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    runner,
+    apply: true,
+  });
+
+  const cancelled = await cancelTaskBootstrap({
+    pendingId: "pending-cancel-01",
+    projectRoot: projectDir,
+    invocationPath: projectDir,
+    stateRoot: sandbox.state,
+    reason: "User cancelled task intake",
+  });
+
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(cancelled.dispatchAuthorized, undefined);
+  assert.ok(cancelled.reasons.some((r) => r.includes("Cancelled before claim or dispatch")));
 });

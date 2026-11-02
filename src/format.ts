@@ -468,6 +468,20 @@ export function formatTaskIntakeDecision(decision: TaskIntakePublicDecision): st
   if (decision.selectedStyle) {
     lines.push(`Selected style: ${decision.selectedStyle}`);
   }
+  if (decision.executionRoute) {
+    lines.push(
+      `Execution route: ${decision.executionRoute.command} (workflow: ${decision.executionRoute.workflow}, surface: ${decision.executionRoute.surface})`,
+    );
+    if (decision.executionRoute.arguments.length > 0) {
+      lines.push(`Route arguments: ${decision.executionRoute.arguments.join(" ")}`);
+    }
+    if (decision.executionRoute.quickQuality) {
+      lines.push(`Quick quality: ${decision.executionRoute.quickQuality}`);
+    }
+    if (decision.executionRoute.stoppingPoint) {
+      lines.push(`Stopping point: ${decision.executionRoute.stoppingPoint}`);
+    }
+  }
   if (decision.taskReference) {
     lines.push(`Task reference: ${decision.taskReference}`);
   }

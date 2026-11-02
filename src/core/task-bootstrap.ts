@@ -30,6 +30,10 @@ import {
 } from "./task-bootstrap-recovery.js";
 import type { ExplicitCommandRoute } from "./task-intake-explicit.js";
 import type { TaskExecutionStyle } from "./task-intake.js";
+import {
+  resolveTaskExecutionRoute,
+  type TaskExecutionRoute,
+} from "./task-style.js";
 import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
 
@@ -85,6 +89,7 @@ export interface TaskBootstrapResult {
   readonly reasons: readonly string[];
   readonly selectedStyle?: TaskExecutionStyle | undefined;
   readonly commandRoute?: ExplicitCommandRoute | undefined;
+  readonly executionRoute?: TaskExecutionRoute | undefined;
   readonly recoveryPlan?: NativeBootstrapRecoveryPlan | undefined;
   readonly dispatchAuthorized?: boolean | undefined;
   readonly nativeReference?: Record<string, unknown> | undefined;
@@ -565,6 +570,7 @@ export async function prepareTaskBootstrap(
     ],
     selectedStyle,
     commandRoute,
+    executionRoute: resolveTaskExecutionRoute({ selectedStyle, commandRoute }),
     recoveryPlan,
   };
 }
@@ -659,6 +665,10 @@ export async function inspectTaskBootstrap(
     ],
     selectedStyle: handoff.canonicalSelectedStyle,
     commandRoute: handoff.commandRoute,
+    executionRoute: resolveTaskExecutionRoute({
+      selectedStyle: handoff.canonicalSelectedStyle,
+      commandRoute: handoff.commandRoute,
+    }),
     recoveryPlan,
   };
 }
@@ -935,6 +945,10 @@ export async function claimTaskBootstrap(
     ],
     selectedStyle: updatedHandoff.canonicalSelectedStyle,
     commandRoute: updatedHandoff.commandRoute,
+    executionRoute: resolveTaskExecutionRoute({
+      selectedStyle: updatedHandoff.canonicalSelectedStyle,
+      commandRoute: updatedHandoff.commandRoute,
+    }),
   };
 }
 
@@ -1062,6 +1076,10 @@ export async function linkTaskBootstrapNativeReference(
     ],
     selectedStyle: updatedHandoff.canonicalSelectedStyle,
     commandRoute: updatedHandoff.commandRoute,
+    executionRoute: resolveTaskExecutionRoute({
+      selectedStyle: updatedHandoff.canonicalSelectedStyle,
+      commandRoute: updatedHandoff.commandRoute,
+    }),
     nativeReference: nativeRef,
   };
 }
@@ -1179,6 +1197,10 @@ export async function acknowledgeTaskBootstrap(
     ],
     selectedStyle: updatedHandoff.canonicalSelectedStyle,
     commandRoute: updatedHandoff.commandRoute,
+    executionRoute: resolveTaskExecutionRoute({
+      selectedStyle: updatedHandoff.canonicalSelectedStyle,
+      commandRoute: updatedHandoff.commandRoute,
+    }),
     nativeReference: updatedHandoff.nativeReference ?? updatedHandoff.link?.nativeRef,
   };
 }
@@ -1293,6 +1315,10 @@ export async function cancelTaskBootstrap(
     ],
     selectedStyle: updatedHandoff.canonicalSelectedStyle,
     commandRoute: updatedHandoff.commandRoute,
+    executionRoute: resolveTaskExecutionRoute({
+      selectedStyle: updatedHandoff.canonicalSelectedStyle,
+      commandRoute: updatedHandoff.commandRoute,
+    }),
     nativeReference: updatedHandoff.nativeReference ?? updatedHandoff.link?.nativeRef,
   };
 }
@@ -1399,6 +1425,17 @@ export function formatTaskBootstrapResult(result: TaskBootstrapResult): string {
   }
   if (result.commandRoute) {
     lines.push(`Command route: ${result.commandRoute.command} (${result.commandRoute.workflow})`);
+  }
+  if (result.executionRoute) {
+    lines.push(
+      `Execution route: ${result.executionRoute.command} (workflow: ${result.executionRoute.workflow}, surface: ${result.executionRoute.surface})`,
+    );
+    if (result.executionRoute.arguments.length > 0) {
+      lines.push(`Route arguments: ${result.executionRoute.arguments.join(" ")}`);
+    }
+    if (result.executionRoute.quickQuality) {
+      lines.push(`Quick quality: ${result.executionRoute.quickQuality}`);
+    }
   }
   if (result.dispatchAuthorized !== undefined) {
     lines.push(`Dispatch authorized: ${result.dispatchAuthorized ? "true" : "false"}`);

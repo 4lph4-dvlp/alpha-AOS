@@ -234,6 +234,10 @@ test("CLI mode flip does not replace active task style or contract binding (D-12
   assert.equal(activeJson.nextAction, "continue-task");
   assert.equal(activeJson.selectedStyle, "autopilot-phase");
   assert.equal(activeJson.policy.effectiveMode, "flexible");
+  assert.ok(activeJson.executionRoute);
+  assert.equal(activeJson.executionRoute.style, "autopilot-phase");
+  assert.equal(activeJson.executionRoute.surface, "isolated-runner");
+  assert.equal(activeJson.executionRoute.command, "gsd-phase");
 
   // But a new independent request in the same flexible project receives adaptive intake
   const independentPayload = {

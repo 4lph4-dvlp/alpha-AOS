@@ -1,36 +1,210 @@
 {
   "schemaVersion": 1,
-  "description": "Bounded index of native execution style proof evidence (D-21, D-22, D-24)",
+  "description": "Bounded index of native execution style proof evidence (D-21, D-22, D-24) proven via Pi Agent",
   "routes": [
     {
       "route": "conversational-quick",
-      "status": "unverified",
-      "reason": "Awaiting Plan 08 native execution"
+      "evidenceTier": "native",
+      "provenance": "native",
+      "harness": "pi",
+      "projectRoot": "D:/dev/alpha-AOS/.planning/tmp/pi-native-proof",
+      "sourceLocator": ".planning/observations/conversational-quick-source.json",
+      "sourceSha256": "1913275d0818c7660693184f4d1f2b658c15b9e608b532a6c69bf2bc03ff10e3",
+      "resultLocator": ".planning/observations/conversational-quick-result.json",
+      "resultSha256": "fbb1ea07f4925a97464d073ec4f4f9bf2afaf440090ce2e66d71371fe50f14a5",
+      "artifacts": [
+        {
+          "path": "utils.js",
+          "sha256": "c4d1c41e5e5bdff110ef29db96a3aaa8ec9ebc3e73c47c1d54c058192b4ef195"
+        },
+        {
+          "path": "test.js",
+          "sha256": "09c0069080ca86e67b8fac0d902e5ad2db339d3348f5fcdbd6f272c01609dd2c"
+        }
+      ],
+      "gitEvidence": {
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b"
+      }
     },
     {
       "route": "conversational-quick-full",
-      "status": "unverified",
-      "reason": "Awaiting Plan 08 native execution"
+      "evidenceTier": "native",
+      "provenance": "native",
+      "harness": "pi",
+      "projectRoot": "D:/dev/alpha-AOS/.planning/tmp/pi-native-proof",
+      "sourceLocator": ".planning/observations/conversational-quick-full-source.json",
+      "sourceSha256": "e7709b73695f4b31572432134fc52165e7e31111d303b25524f03f0639812781",
+      "resultLocator": ".planning/observations/conversational-quick-full-result.json",
+      "resultSha256": "2e9831b24fa8635f7d4ec0842da768f0bcac43fefc0037cda15f652eac64968e",
+      "artifacts": [
+        {
+          "path": "utils.js",
+          "sha256": "c4d1c41e5e5bdff110ef29db96a3aaa8ec9ebc3e73c47c1d54c058192b4ef195"
+        },
+        {
+          "path": "test.js",
+          "sha256": "09c0069080ca86e67b8fac0d902e5ad2db339d3348f5fcdbd6f272c01609dd2c"
+        }
+      ],
+      "gitEvidence": {
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b"
+      },
+      "stageReceipts": [
+        {
+          "stage": "discussion",
+          "outcome": "passed"
+        },
+        {
+          "stage": "research",
+          "outcome": "passed"
+        },
+        {
+          "stage": "planning",
+          "outcome": "passed"
+        },
+        {
+          "stage": "plan-check",
+          "outcome": "passed"
+        },
+        {
+          "stage": "implementation",
+          "outcome": "passed"
+        },
+        {
+          "stage": "verification",
+          "outcome": "passed"
+        },
+        {
+          "stage": "state-docs",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "route": "conversational-phase",
-      "status": "unverified",
-      "reason": "Awaiting Plan 08 native execution"
+      "evidenceTier": "native",
+      "provenance": "native",
+      "harness": "pi",
+      "projectRoot": "D:/dev/alpha-AOS/.planning/tmp/pi-native-proof",
+      "sourceLocator": ".planning/observations/conversational-phase-source.json",
+      "sourceSha256": "9c75d5fd4296ff3e1380174c254e9d824c774a9638ae0d484dd79b0066dfac12",
+      "resultLocator": ".planning/observations/conversational-phase-result.json",
+      "resultSha256": "cfcbb123ed52f5b23608ea87f32a7a5f63373fb83ddf2c05245e001e5c14c9cf",
+      "artifacts": [
+        {
+          "path": "utils.js",
+          "sha256": "c4d1c41e5e5bdff110ef29db96a3aaa8ec9ebc3e73c47c1d54c058192b4ef195"
+        },
+        {
+          "path": "test.js",
+          "sha256": "09c0069080ca86e67b8fac0d902e5ad2db339d3348f5fcdbd6f272c01609dd2c"
+        }
+      ],
+      "gitEvidence": {
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b"
+      }
     },
     {
       "route": "autopilot-quick",
-      "status": "unverified",
-      "reason": "Awaiting Plan 08 native execution"
+      "evidenceTier": "native",
+      "provenance": "native",
+      "harness": "pi",
+      "projectRoot": "D:/dev/alpha-AOS/.planning/tmp/pi-native-proof",
+      "sourceLocator": ".planning/observations/autopilot-quick-source.json",
+      "sourceSha256": "46d3521fa06612471a0cdbf52d060ea5970f0e3113f3e4033d0bea35fc31830e",
+      "resultLocator": ".planning/observations/autopilot-quick-result.json",
+      "resultSha256": "726b82c2cbbedd49a43c06a50ffbf0d018034c873bd8337ff533ac2b0abfd7c8",
+      "artifacts": [
+        {
+          "path": "utils.js",
+          "sha256": "c4d1c41e5e5bdff110ef29db96a3aaa8ec9ebc3e73c47c1d54c058192b4ef195"
+        },
+        {
+          "path": "test.js",
+          "sha256": "09c0069080ca86e67b8fac0d902e5ad2db339d3348f5fcdbd6f272c01609dd2c"
+        }
+      ],
+      "gitEvidence": {
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b"
+      }
     },
     {
       "route": "autopilot-quick-full",
-      "status": "unverified",
-      "reason": "Awaiting Plan 08 native execution"
+      "evidenceTier": "native",
+      "provenance": "native",
+      "harness": "pi",
+      "projectRoot": "D:/dev/alpha-AOS/.planning/tmp/pi-native-proof",
+      "sourceLocator": ".planning/observations/autopilot-quick-full-source.json",
+      "sourceSha256": "0ae18c729ee6e23610ce6587264ce16674191afe153f416c6fe57f1d94cdea36",
+      "resultLocator": ".planning/observations/autopilot-quick-full-result.json",
+      "resultSha256": "20fce319117dac3b5f054ca15a94cfbd1133fd5e402d8d62faeaf3364a1a8861",
+      "artifacts": [
+        {
+          "path": "utils.js",
+          "sha256": "c4d1c41e5e5bdff110ef29db96a3aaa8ec9ebc3e73c47c1d54c058192b4ef195"
+        },
+        {
+          "path": "test.js",
+          "sha256": "09c0069080ca86e67b8fac0d902e5ad2db339d3348f5fcdbd6f272c01609dd2c"
+        }
+      ],
+      "gitEvidence": {
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b"
+      },
+      "stageReceipts": [
+        {
+          "stage": "discussion",
+          "outcome": "passed"
+        },
+        {
+          "stage": "research",
+          "outcome": "passed"
+        },
+        {
+          "stage": "planning",
+          "outcome": "passed"
+        },
+        {
+          "stage": "plan-check",
+          "outcome": "passed"
+        },
+        {
+          "stage": "implementation",
+          "outcome": "passed"
+        },
+        {
+          "stage": "verification",
+          "outcome": "passed"
+        },
+        {
+          "stage": "state-docs",
+          "outcome": "passed"
+        }
+      ]
     },
     {
       "route": "autopilot-phase",
-      "status": "unverified",
-      "reason": "Awaiting Plan 08 native execution"
+      "evidenceTier": "native",
+      "provenance": "native",
+      "harness": "pi",
+      "projectRoot": "D:/dev/alpha-AOS/.planning/tmp/pi-native-proof",
+      "sourceLocator": ".planning/observations/autopilot-phase-source.json",
+      "sourceSha256": "e3dea5f1f9872744af4376bb4ed875d1bf5f3086abd20878e7d56be6beecf9e4",
+      "resultLocator": ".planning/observations/autopilot-phase-result.json",
+      "resultSha256": "9891270e46ecc21033f361897b28a150fece23e7196e5b484117e45fc9dda32e",
+      "artifacts": [
+        {
+          "path": "utils.js",
+          "sha256": "c4d1c41e5e5bdff110ef29db96a3aaa8ec9ebc3e73c47c1d54c058192b4ef195"
+        },
+        {
+          "path": "test.js",
+          "sha256": "09c0069080ca86e67b8fac0d902e5ad2db339d3348f5fcdbd6f272c01609dd2c"
+        }
+      ],
+      "gitEvidence": {
+        "commitSha": "f0b7f315c9d719a3ed74f591b92b0fc8e4cebe9b"
+      }
     }
   ]
 }

@@ -3,8 +3,8 @@ phase: "31"
 slug: cross-harness-proof-and-distribution
 status: verified
 threats_open: 0
-threats_total: 13
-threats_closed: 13
+threats_total: 14
+threats_closed: 14
 register_authored_at_plan_time: true
 asvs_level: 1
 created: "2026-11-03"
@@ -12,7 +12,7 @@ created: "2026-11-03"
 
 # Phase 31 — Security
 
-The plan-authored STRIDE register was checked against implementation and passing tests at source 9b6679a481a0d694551712e6c1f621afbdada704. ASVS L1 / block-on-high applies. All 13 unique threats have concrete mitigations; the L1 zero-open-threat short-circuit in the secure-phase workflow applies, so no deeper auditor or new authority is required.
+The plan-authored STRIDE register was checked against implementation and passing tests at source 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d. ASVS L1 / block-on-high applies. All 14 unique threats have concrete mitigations; the L1 zero-open-threat short-circuit in the secure-phase workflow applies, so no deeper auditor or new authority is required.
 
 ## Trust Boundaries
 
@@ -34,6 +34,7 @@ Packaged documentation, schemas, guidance and stable lock bytes cross into archi
 | T-31-10 | Information Disclosure | `docs/task-entry*.md`, `README*.md`, `scripts/audit-tarball.mjs` | high | mitigate | post-ledger privacy checks and tarball audit (451 entries) | closed |
 | T-31-11 | Repudiation | `docs/task-entry-proof-index.json` & `docs/task-entry-proof.md` (`regressionLedger`) | high | mitigate | full log counts, exact required groups/gates, source bindings and five-row history | closed |
 | T-31-12 | Elevation of Privilege | Final acceptance gate (`31-05-01`, `31-05-02`) | high | mitigate | clean independent review; all mandatory commands passed; release holds retained | closed |
+| T-31-13 | Elevation of Privilege | Claimed bootstrap retry response | high | mitigate | autopilot3style initial/pre-link/linked service and compiled CLI regressions; guarded route and nonce checks | closed |
 | T-31-SC | Tampering | Supply chain & locked dependencies | high | mitigate | stable lock unchanged; no new dependencies; build artifact and packed stable channel verified | closed |
 
 ## Accepted Risks Log
@@ -45,7 +46,7 @@ No new risks were accepted or waived. Paid native G-07-2, other-OS CI, global re
 - [x] All plan-authored threats have a mitigation and observed source/test evidence.
 - [x] No new risk acceptance or authority expansion.
 - [x] threats_open: 0.
-- [x] status: verified; 2149 total / 2135 passed / 0 failed / 14 skipped / 0 not-run.
+- [x] status: verified; 2150 total / 2136 passed / 0 failed / 14 skipped / 0 not-run.
 
 Review fixes CR-01, CR-02, CR-03 and WR-01 are closed in the independent review disposition. Post-ledger package/build/proof checks pass.
 
@@ -53,6 +54,6 @@ Review fixes CR-01, CR-02, CR-03 and WR-01 are closed in the independent review 
 
 | Metric | Count |
 |---|---|
-| Threats found | 13 |
-| Closed | 13 |
+| Threats found | 14 |
+| Closed | 14 |
 | Open | 0 |

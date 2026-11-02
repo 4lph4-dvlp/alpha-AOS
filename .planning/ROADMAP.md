@@ -195,10 +195,10 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. English and Korean documentation explains both modes, six styles, exception criteria, task boundaries, initialization and direct commands, including real support limitations.
   5. Targeted positive/negative checks and the final full regression have recorded actual outcomes. Failed/not-run prior regressions are not counted as passed or waived; required failures block affected acceptance and remediation must stay explicitly scoped.
 
-**Plans:** 5/6 plans executed in 5 sequential waves
+**Plans:** 6/6 plans executed in 5 sequential waves
 
 Plans:
-- [ ] 31-06-PLAN.md
+- [x] 31-06-PLAN.md
 
 **Wave 1** *(packaging hygiene & doctor owned-skill tamper foundation)*
 - [x] 31-01-PLAN.md — Normalize packaged workstation paths, enforce fail-closed tarball text/surface auditing, and harden `runDoctor` 5-target owned-skill verification.
@@ -228,7 +228,7 @@ Plans:
 | 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
 | 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
 | 30. Six Execution Styles and Quality Binding | 8/8 | Complete    | 2026-11-03 |
-| 31. Cross-Harness Proof and Distribution | 5/6 | In Progress | - |
+| 31. Cross-Harness Proof and Distribution | 6/6 | In Progress | - |
 
 ## Planning and Execution Gates
 

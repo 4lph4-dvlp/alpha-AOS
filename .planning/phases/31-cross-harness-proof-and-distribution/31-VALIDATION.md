@@ -1,8 +1,8 @@
 ---
 phase: "31"
 slug: "cross-harness-proof-and-distribution"
-status: draft
-nyquist_compliant: false
+status: validated
+nyquist_compliant: true
 wave_0_complete: true
 created: "2026-11-03"
 ---
@@ -73,7 +73,7 @@ created: "2026-11-03"
 
 - [x] All 10 tasks have `<automated>` verify and observable `<fails_when>` directions in their plans
 - [x] Sampling continuity: no 3 consecutive tasks without automated verify
-- [x] Every new compiled test target (`task-entry-cross-harness`, `task-entry-proof`, `task-entry-docs`) has an explicit owning creation task (`wave_0_complete: false` remains until execution verifies them)
+- [x] Every new compiled test target (`task-entry-cross-harness`, `task-entry-proof`, `task-entry-docs`) has an explicit owning creation task (`wave_0_complete: true` remains until execution verifies them)
 - [x] No watch-mode flags or unbounded polling loops
 - [x] Measured feedback: ~13–63 seconds targeted; packed lifecycle isolated from concurrent/native process suites
 - [x] Security ASVS L1 / high threats have unique `T-31-01`..`T-31-12` + `T-31-SC` coverage across plans
@@ -83,7 +83,7 @@ created: "2026-11-03"
 
 ## Execution Evidence
 
-Tested source `9b6679a481a0d694551712e6c1f621afbdada704`: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. All ten task rows have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. No additional tests were generated because all four PROVE requirements are covered.
+Tested source `9b6679a481a0d694551712e6c1f621afbdada704`: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. All original ten tasks plus two gap-closure tasks have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. No additional tests were generated because all four PROVE requirements are covered.
 
 ## Validation Audit 2026-11-02
 
@@ -95,4 +95,20 @@ Tested source `9b6679a481a0d694551712e6c1f621afbdada704`: 2149 total, 2135 passe
 
 ## Goal-gap follow-up
 
-G-31-01 exposed a missing pre-link retry assertion. Gap plan 31-06 adds the corrected-source service/CLI coverage and a fresh complete regression. Prior measurements remain historical; final sign-off is pending.
+G-31-01 exposed a missing pre-link retry assertion. Gap plan 31-06 adds the corrected-source service/CLI coverage and a fresh complete regression. Prior measurements remain historical; corrected-source sign-off is recorded below.
+
+## Execution Evidence
+
+Tested source `3215bca7540a964b02d5a7e636a8d5dcadf0ca3d`: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. All ten task rows have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. No additional tests were generated because all four PROVE requirements are covered.
+
+## Latest Gap Closure Evidence
+
+G-31-01 source fix and initial/pre-link/linked regressions are verified at 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. Plan31-06 task1 is covered by bootstrap-resume and cross-harness suites; task2 is covered by the complete fresh D-14 gate and post-ledger proof/archive/build checks. Four original prohibition judgments remain a separate human checkpoint.
+
+## Validation Audit 2026-11-02
+
+| Metric | Count |
+|---|---|
+| Gaps found | 1 |
+| Resolved | 1 |
+| Escalated | 0 |

@@ -511,7 +511,7 @@
     }
   ],
   "regressionLedger": {
-    "gateStatus": "pending-final-wave",
+    "gateStatus": "passed",
     "historicalDebt261101Ww3": {
       "status": "historical-unwaived",
       "jobId": "job-8aff6aa5e58e46ea",
@@ -593,7 +593,7 @@
           "failed": 0,
           "skipped": 0,
           "notRun": 0,
-          "durationMs": 25177.5311
+          "durationMs": 11375.5701
         }
       },
       {
@@ -609,7 +609,7 @@
           "failed": 0,
           "skipped": 0,
           "notRun": 0,
-          "durationMs": 140074.8029
+          "durationMs": 134490.947
         }
       },
       {
@@ -625,7 +625,7 @@
           "failed": 0,
           "skipped": 0,
           "notRun": 0,
-          "durationMs": 70265.804
+          "durationMs": 65138.5542
         }
       },
       {
@@ -641,7 +641,7 @@
           "failed": 0,
           "skipped": 1,
           "notRun": 0,
-          "durationMs": 28154.4319
+          "durationMs": 39178.5823
         }
       },
       {
@@ -657,7 +657,7 @@
           "failed": 0,
           "skipped": 0,
           "notRun": 0,
-          "durationMs": 360371.6056
+          "durationMs": 344706.6398
         }
       }
     ],
@@ -791,56 +791,56 @@
             "command": "npm run check",
             "exitCode": 0,
             "durationMs": 17840,
-            "log": ".planning/tmp/31-final-check.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-check.log"
           },
           {
             "name": "build",
             "command": "npm run build",
             "exitCode": 0,
             "durationMs": 20434,
-            "log": ".planning/tmp/31-final-build.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-build.log"
           },
           {
             "name": "targeted",
             "command": "node scripts/run-tests.mjs --files dist/test/task-entry-cross-harness.test.js dist/test/task-entry-proof.test.js dist/test/task-entry-docs.test.js",
             "exitCode": 0,
             "durationMs": 62566,
-            "log": ".planning/tmp/31-final-targeted.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-targeted.log"
           },
           {
             "name": "audit",
             "command": "npm run audit-tarball",
             "exitCode": 0,
             "durationMs": 4942,
-            "log": ".planning/tmp/31-final-audit.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-audit.log"
           },
           {
             "name": "full",
             "command": "npm test",
             "exitCode": 0,
             "durationMs": 1887926,
-            "log": ".planning/tmp/31-final-full.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-full.log"
           },
           {
             "name": "build-check",
             "command": "npm run build:check",
             "exitCode": 0,
             "durationMs": 1267,
-            "log": ".planning/tmp/31-final-build-check.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-build-check.log"
           },
           {
             "name": "style-proof",
             "command": "node scripts/verify-task-style-native.mjs --index docs/task-style-proof-index.json --json",
             "exitCode": 0,
             "durationMs": 496,
-            "log": ".planning/tmp/31-final-style-proof.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-style-proof.log"
           },
           {
             "name": "entry-proof",
             "command": "node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json",
             "exitCode": 0,
             "durationMs": 1242,
-            "log": ".planning/tmp/31-final-entry-proof.log"
+            "log": ".planning/tmp/31-9b6679a-31-final-entry-proof.log"
           }
         ],
         "sourceBindings": [
@@ -868,11 +868,6 @@
       }
     ],
     "lastCompletedTestSourceHead": "9b6679a481a0d694551712e6c1f621afbdada704",
-    "openGoalGap": {
-      "id": "G-31-01",
-      "plan": "31-06",
-      "status": "correction-pending-final-verification"
-    },
     "previousReviews": [
       {
         "status": "passed",
@@ -891,6 +886,215 @@
       "report": "31-REVIEW.md",
       "reportSha256": "1a72ae6057dfb6d538dc69a8087179a367656b75f59f82058cd41d48003a37e0",
       "modelPolicy": "user-approved-session-inheritance"
-    }
+    },
+    "currentRun": {
+      "sourceHead": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d",
+      "platform": "win32/x64",
+      "node": "v24.13.1",
+      "npm": "11.8.0",
+      "startedAt": "2026-11-02T20:25:52.8458180Z",
+      "finishedAt": "2026-11-02T20:57:26.4929218Z",
+      "total": 2150,
+      "passed": 2136,
+      "failed": 0,
+      "skipped": 14,
+      "notRun": 0,
+      "suites": [
+        {
+          "name": "ordinary",
+          "total": 1952,
+          "passed": 1939,
+          "failed": 0,
+          "skipped": 13,
+          "notRun": 0,
+          "durationMs": 867139.8267
+        },
+        {
+          "name": "command-job-runtime.test.js",
+          "total": 5,
+          "passed": 5,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 11375.5701
+        },
+        {
+          "name": "command-job-worker.test.js",
+          "total": 4,
+          "passed": 4,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 7774.871
+        },
+        {
+          "name": "command-jobs.test.js",
+          "total": 38,
+          "passed": 38,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 15465.2171
+        },
+        {
+          "name": "efficient-wait-cli.test.js",
+          "total": 9,
+          "passed": 9,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 31065.71
+        },
+        {
+          "name": "process.test.js",
+          "total": 31,
+          "passed": 31,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 30346.092
+        },
+        {
+          "name": "protocol-session.test.js",
+          "total": 11,
+          "passed": 11,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 26661.5291
+        },
+        {
+          "name": "task-cli.test.js",
+          "total": 42,
+          "passed": 42,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 203885.1565
+        },
+        {
+          "name": "task-progress-integration.test.js",
+          "total": 13,
+          "passed": 13,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 134490.947
+        },
+        {
+          "name": "task-progress.test.js",
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 65138.5542
+        },
+        {
+          "name": "verify-efficient-wait.test.js",
+          "total": 20,
+          "passed": 19,
+          "failed": 0,
+          "skipped": 1,
+          "notRun": 0,
+          "durationMs": 39178.5823
+        },
+        {
+          "name": "tarball-fixture.test.js",
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "skipped": 0,
+          "notRun": 0,
+          "durationMs": 344706.6398
+        }
+      ],
+      "gates": [
+        {
+          "name": "check",
+          "command": "npm run check",
+          "exitCode": 0,
+          "durationMs": 14484,
+          "log": ".planning/tmp/31-final-check.log"
+        },
+        {
+          "name": "build",
+          "command": "npm run build",
+          "exitCode": 0,
+          "durationMs": 18790,
+          "log": ".planning/tmp/31-final-build.log"
+        },
+        {
+          "name": "targeted",
+          "command": "node scripts/run-tests.mjs --files dist/test/task-bootstrap-resume.test.js dist/test/task-entry-cross-harness.test.js dist/test/task-entry-proof.test.js dist/test/task-entry-docs.test.js",
+          "exitCode": 0,
+          "durationMs": 53671,
+          "log": ".planning/tmp/31-final-targeted.log"
+        },
+        {
+          "name": "audit",
+          "command": "npm run audit-tarball",
+          "exitCode": 0,
+          "durationMs": 4483,
+          "log": ".planning/tmp/31-final-audit.log"
+        },
+        {
+          "name": "full",
+          "command": "npm test",
+          "exitCode": 0,
+          "durationMs": 1799181,
+          "log": ".planning/tmp/31-final-full.log"
+        },
+        {
+          "name": "build-check",
+          "command": "npm run build:check",
+          "exitCode": 0,
+          "durationMs": 1208,
+          "log": ".planning/tmp/31-final-build-check.log"
+        },
+        {
+          "name": "style-proof",
+          "command": "node scripts/verify-task-style-native.mjs --index docs/task-style-proof-index.json --json",
+          "exitCode": 0,
+          "durationMs": 483,
+          "log": ".planning/tmp/31-final-style-proof.log"
+        },
+        {
+          "name": "entry-proof",
+          "command": "node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json",
+          "exitCode": 0,
+          "durationMs": 1200,
+          "log": ".planning/tmp/31-final-entry-proof.log"
+        }
+      ],
+      "sourceBindings": [
+        {
+          "path": "scripts/verify-task-entry-proof.mjs",
+          "sha256": "895e881a11a033492385c68b76ccdd77bf7c352a30ce9e6fc94d7b4007d94aa2",
+          "checkoutOnly": false
+        },
+        {
+          "path": "scripts/audit-tarball.mjs",
+          "sha256": "faf1cbd70b5980949fd423c4150d8a82d12f62bc32b6545ba369ec9b3a06bcdc",
+          "checkoutOnly": false
+        },
+        {
+          "path": "src/core/doctor.ts",
+          "sha256": "3afa18b08d6e0551c32a28bec3860c7d107a37e27f50b8f0953193ce8c30f341",
+          "checkoutOnly": true
+        },
+        {
+          "path": "src/core/task-bootstrap.ts",
+          "sha256": "4a4977a5220aaed4a79e0c8355a8db922671572112e695446eb14d4f126721d6",
+          "checkoutOnly": true
+        },
+        {
+          "path": "test/tarball-fixture.test.ts",
+          "sha256": "9f9a8576fb9e408312cc3bec7bad3928dd95f564c2ca7cf750d2ba79e477b021",
+          "checkoutOnly": true
+        }
+      ]
+    },
+    "testedSourceHead": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d"
   }
 }

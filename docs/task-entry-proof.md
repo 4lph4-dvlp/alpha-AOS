@@ -39,32 +39,32 @@ Windows .CMD shims may be discovered through local inventory. resolveTaskAgentLa
 
 ## Regression ledger and release holds
 
-Gate status: pending-final-wave for corrected-source acceptance. Goal verification found G-31-01 (pre-link autopilot claim retry); Plan 31-06 closes it. The following completed local regression is retained as historical test evidence, not acceptance of the subsequently corrected source. Tested source HEAD: 9b6679a481a0d694551712e6c1f621afbdada704. Platform: win32/x64, Node v24.13.1, npm 11.8.0. Measured aggregate: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. Windows symlink privilege skips remain separate from passed tests.
-
-All eight ordered check/build/targeted/audit/full/build-check/style-proof/entry-proof gates exited 0 at the same source HEAD. The superseded earlier full run was stopped for a source correction and is excluded from these counts.
+Gate status: passed for the corrected-source D-14 regression. Tested source HEAD: 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d. Platform: win32/x64, Node v24.13.1, npm 11.8.0. Measured aggregate: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. Windows permission skips remain distinct from passed. All eight ordered commands exited0 at the same source HEAD.
 
 | Full-run group | Total | Passed | Failed | Skipped | Not-run | Duration ms |
 |---|---:|---:|---:|---:|---:|---:|
-| ordinary | 1951 | 1938 | 0 | 13 | 0 | 920487.162 |
-| command-job-runtime.test.js | 5 | 5 | 0 | 0 | 0 | 25177.5311 |
-| command-job-worker.test.js | 4 | 4 | 0 | 0 | 0 | 10200.5595 |
-| command-jobs.test.js | 38 | 38 | 0 | 0 | 0 | 20054.4803 |
-| efficient-wait-cli.test.js | 9 | 9 | 0 | 0 | 0 | 31340.1378 |
-| process.test.js | 31 | 31 | 0 | 0 | 0 | 29121.9634 |
-| protocol-session.test.js | 11 | 11 | 0 | 0 | 0 | 25717.2224 |
-| task-cli.test.js | 42 | 42 | 0 | 0 | 0 | 205462.4199 |
-| task-progress-integration.test.js | 13 | 13 | 0 | 0 | 0 | 140074.8029 |
-| task-progress.test.js | 15 | 15 | 0 | 0 | 0 | 70265.804 |
-| verify-efficient-wait.test.js | 20 | 19 | 0 | 1 | 0 | 28154.4319 |
-| tarball-fixture.test.js | 10 | 10 | 0 | 0 | 0 | 360371.6056 |
+| ordinary | 1952 | 1939 | 0 | 13 | 0 | 867139.8267 |
+| command-job-runtime.test.js | 5 | 5 | 0 | 0 | 0 | 11375.5701 |
+| command-job-worker.test.js | 4 | 4 | 0 | 0 | 0 | 7774.871 |
+| command-jobs.test.js | 38 | 38 | 0 | 0 | 0 | 15465.2171 |
+| efficient-wait-cli.test.js | 9 | 9 | 0 | 0 | 0 | 31065.71 |
+| process.test.js | 31 | 31 | 0 | 0 | 0 | 30346.092 |
+| protocol-session.test.js | 11 | 11 | 0 | 0 | 0 | 26661.5291 |
+| task-cli.test.js | 42 | 42 | 0 | 0 | 0 | 203885.1565 |
+| task-progress-integration.test.js | 13 | 13 | 0 | 0 | 0 | 134490.947 |
+| task-progress.test.js | 15 | 15 | 0 | 0 | 0 | 65138.5542 |
+| verify-efficient-wait.test.js | 20 | 19 | 0 | 1 | 0 | 39178.5823 |
+| tarball-fixture.test.js | 10 | 10 | 0 | 0 | 0 | 344706.6398 |
 
-| Historical 261101-ww3 suite | Historical outcome (unwaived) | Current Phase 31 result |
+| Historical261101-ww3 suite | Historical outcome (unwaived) | Current corrected-source result |
 |---|---|---|
-| command-job-runtime.test.js | worker startup timeout after 4009 ms, job-8aff6aa5e58e46ea | 5 passed, 0 failed, 0 skipped |
+| command-job-runtime.test.js | worker startup timeout4009ms, job-8aff6aa5e58e46ea | 5 passed, 0 failed, 0 skipped |
 | task-progress-integration.test.js | not-run | 13 passed, 0 failed, 0 skipped |
 | task-progress.test.js | not-run | 15 passed, 0 failed, 0 skipped |
 | verify-efficient-wait.test.js | not-run | 19 passed, 0 failed, 1 skipped |
 | tarball-fixture.test.js | not-run | 10 passed, 0 failed, 0 skipped |
+
+Prior completed local regressions remain inspectable in priorCompletedRuns: 9b6679a481a0d694551712e6c1f621afbdada704 (2149 total/2135 passed/0 failed/14 skipped; tests-passed; later goal verification found G-31-01, so not current corrected-source acceptance). They are not substituted for current corrected-source acceptance. G-31-01 was corrected and its pre-link service/CLI regression is included in this run.
 
 Historical 261101-ww3 debt remains unwaived: command-job-runtime.test.js job-8aff6aa5e58e46ea hit a worker-start handshake timeout. task-progress-integration.test.js, task-progress.test.js, verify-efficient-wait.test.js and tarball-fixture.test.js were not run in that historical attempt. A current pass is recorded alongside that history, never by deleting it.
 
@@ -76,4 +76,4 @@ The phase source review is clean. A separate milestone final review remains pend
 
 The final independent code review of source and measured ledger is clean at 1f444d8. The earlier clean review remains hash-bound to its archive commit; the final review has a separate receipt. No release hold was cleared.
 
-G-31-01 scoped source correction is independently reviewed clean at b961a0f. Corrected-source full regression remains pending; the previous completed run is retained as historical evidence.
+G-31-01 scoped source correction is independently reviewed clean at b961a0f. Corrected-source full regression has completed as recorded above; the earlier run remains historical evidence.

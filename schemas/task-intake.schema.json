@@ -279,6 +279,9 @@
           }
         }
       }
+    },
+    "executionRoute": {
+      "$ref": "#/$defs/executionRoute"
     }
   },
   "$defs": {
@@ -403,6 +406,101 @@
             "continue-task",
             "execute-simple"
           ]
+        },
+        "executionRoute": {
+          "$ref": "#/$defs/executionRoute"
+        }
+      }
+    },
+    "executionRoute": {
+      "type": "object",
+      "required": [
+        "style",
+        "label",
+        "surface",
+        "workflow",
+        "command",
+        "arguments",
+        "authorityRequirements"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "style": {
+          "type": "string",
+          "enum": [
+            "conversational-quick",
+            "conversational-quick-full",
+            "conversational-phase",
+            "autopilot-quick",
+            "autopilot-quick-full",
+            "autopilot-phase"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "surface": {
+          "type": "string",
+          "enum": ["conversation", "isolated-runner"]
+        },
+        "workflow": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "command": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "phase": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "arguments": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "quickQuality": {
+          "type": "string",
+          "enum": ["standard", "full"]
+        },
+        "stoppingPoint": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "authorityRequirements": {
+          "type": "object",
+          "required": [
+            "executionAuthorized",
+            "requiresExactApproval",
+            "requiresSeparateStart",
+            "requiresEvidenceValidation",
+            "surface"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "executionAuthorized": {
+              "type": "boolean",
+              "const": false
+            },
+            "requiresExactApproval": {
+              "type": "boolean"
+            },
+            "requiresSeparateStart": {
+              "type": "boolean"
+            },
+            "requiresEvidenceValidation": {
+              "type": "boolean"
+            },
+            "surface": {
+              "type": "string",
+              "enum": ["conversation", "isolated-runner"]
+            }
+          }
         }
       }
     }

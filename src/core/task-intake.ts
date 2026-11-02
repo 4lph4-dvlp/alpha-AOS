@@ -20,60 +20,21 @@ import type {
   TaskIntakeScopeChangeInput,
 } from "./task-intake-evidence.js";
 import { collectTaskIntakeEvidence } from "./task-intake-evidence.js";
+import {
+  type TaskExecutionStyle,
+  type TaskExecutionStyleCatalogEntry,
+  type TaskExecutionRoute,
+  TASK_EXECUTION_STYLES,
+  resolveTaskExecutionRoute,
+} from "./task-style.js";
 
-export type TaskExecutionStyle =
-  | "conversational-quick"
-  | "conversational-quick-full"
-  | "conversational-phase"
-  | "autopilot-quick"
-  | "autopilot-quick-full"
-  | "autopilot-phase";
-
-export interface TaskExecutionStyleCatalogEntry {
-  readonly id: TaskExecutionStyle;
-  readonly number: number;
-  readonly label: string;
-  readonly description: string;
-}
-
-export const TASK_EXECUTION_STYLES: readonly TaskExecutionStyleCatalogEntry[] = [
-  {
-    id: "conversational-quick",
-    number: 1,
-    label: "대화형-quick",
-    description: "현재 대화에서 작은 작업을 간소화된 GSD 절차로 처리",
-  },
-  {
-    id: "conversational-quick-full",
-    number: 2,
-    label: "대화형-quick-full",
-    description: "작은 작업에 토론·조사·계획 검사·구현·검증 적용",
-  },
-  {
-    id: "conversational-phase",
-    number: 3,
-    label: "대화형-phase",
-    description: "로드맵과 Phase를 따라 필요한 사항을 질문하며 진행",
-  },
-  {
-    id: "autopilot-quick",
-    number: 4,
-    label: "오토파일럿-quick",
-    description: "승인된 계약과 별도 실행기로 작은 작업 처리",
-  },
-  {
-    id: "autopilot-quick-full",
-    number: 5,
-    label: "오토파일럿-quick-full",
-    description: "승인된 범위에서 작은 작업의 전체 품질 절차 수행",
-  },
-  {
-    id: "autopilot-phase",
-    number: 6,
-    label: "오토파일럿-phase",
-    description: "승인된 로드맵 범위의 Phase들을 자율 진행",
-  },
-] as const;
+export {
+  type TaskExecutionStyle,
+  type TaskExecutionStyleCatalogEntry,
+  type TaskExecutionRoute,
+  TASK_EXECUTION_STYLES,
+  resolveTaskExecutionRoute,
+};
 
 export type TaskIntakeDecisionKind =
   | "explicit-command"
@@ -174,6 +135,7 @@ export interface TaskIntakeHandoff {
   readonly knownFacts: readonly TaskFactItem[];
   readonly commandRoute?: ExplicitCommandRoute | undefined;
   readonly selectedStyle?: TaskExecutionStyle | undefined;
+  readonly executionRoute?: TaskExecutionRoute | undefined;
   readonly taskReference?: string | undefined;
   readonly policyRevision: string;
   readonly nextAction: TaskIntakeNextAction;
@@ -187,6 +149,7 @@ export interface TaskIntakePublicDecision {
   readonly executionAuthorized: false;
   readonly commandRoute?: ExplicitCommandRoute | undefined;
   readonly selectedStyle?: TaskExecutionStyle | undefined;
+  readonly executionRoute?: TaskExecutionRoute | undefined;
   readonly taskReference?: string | undefined;
   readonly reasons: readonly string[];
   readonly observations: readonly string[];
@@ -620,6 +583,10 @@ export async function inspectTaskIntake(
       observations.push(`Stopping point: ${explicitIntent.commandRoute.stoppingPoint}`);
     }
     const reasons = [`explicit-gsd-command:${explicitIntent.commandRoute.command}`];
+    const executionRoute = resolveTaskExecutionRoute({
+      selectedStyle: explicitIntent.selectedStyle,
+      commandRoute: explicitIntent.commandRoute,
+    });
 
     return {
       schemaVersion: 1,
@@ -629,6 +596,7 @@ export async function inspectTaskIntake(
       executionAuthorized: false,
       commandRoute: explicitIntent.commandRoute,
       selectedStyle: explicitIntent.selectedStyle,
+      executionRoute,
       reasons,
       observations,
       handoff: {
@@ -639,6 +607,7 @@ export async function inspectTaskIntake(
         knownFacts: inputObj.facts ?? [],
         commandRoute: explicitIntent.commandRoute,
         selectedStyle: explicitIntent.selectedStyle,
+        executionRoute,
         policyRevision: policyView.revision,
         nextAction: "execute-explicit",
       },
@@ -648,6 +617,9 @@ export async function inspectTaskIntake(
   if (explicitIntent.kind === "style" && explicitIntent.selectedStyle) {
     const reasons = [`explicit-style-selected:${explicitIntent.selectedStyle}`];
     const observations = [`Explicit task style specified: ${explicitIntent.selectedStyle}`];
+    const executionRoute = resolveTaskExecutionRoute({
+      selectedStyle: explicitIntent.selectedStyle,
+    });
 
     return {
       schemaVersion: 1,
@@ -656,6 +628,7 @@ export async function inspectTaskIntake(
       nextAction: "execute-explicit",
       executionAuthorized: false,
       selectedStyle: explicitIntent.selectedStyle,
+      executionRoute,
       reasons,
       observations,
       handoff: {
@@ -665,6 +638,7 @@ export async function inspectTaskIntake(
         shortScope: inputObj.request.shortScope,
         knownFacts: inputObj.facts ?? [],
         selectedStyle: explicitIntent.selectedStyle,
+        executionRoute,
         policyRevision: policyView.revision,
         nextAction: "execute-explicit",
       },
@@ -710,6 +684,7 @@ export async function inspectTaskIntake(
 
     if (isRepair && currentStyle) {
       const taskRef = inputObj.currentTask?.taskId ?? inputObj.scopeChange.previousOperationId;
+      const executionRoute = resolveTaskExecutionRoute({ selectedStyle: currentStyle });
       return {
         schemaVersion: 1,
         kind: "continuation",
@@ -717,6 +692,7 @@ export async function inspectTaskIntake(
         nextAction: "continue-task",
         executionAuthorized: false,
         selectedStyle: currentStyle,
+        executionRoute,
         taskReference: taskRef,
         reasons: ["active-task-repair-retains-style", "wip-bytes-preserved"],
         observations: [
@@ -729,6 +705,7 @@ export async function inspectTaskIntake(
           shortScope: inputObj.request.shortScope,
           knownFacts: inputObj.facts ?? [],
           selectedStyle: currentStyle,
+          executionRoute,
           taskReference: taskRef,
           policyRevision: policyView.revision,
           nextAction: "continue-task",
@@ -895,6 +872,7 @@ export async function inspectTaskIntake(
   if (continuity.outcome === "active-related" && continuity.selectedStyle) {
     const selectedStyle = continuity.selectedStyle;
     const taskRef = continuity.taskReference;
+    const executionRoute = resolveTaskExecutionRoute({ selectedStyle });
     const reasons = ["active-task-continuity-verified"];
     const observations = [
       continuity.reason ?? `Continuing verified active task ${taskRef}`,
@@ -907,6 +885,7 @@ export async function inspectTaskIntake(
       nextAction: "continue-task",
       executionAuthorized: false,
       selectedStyle,
+      executionRoute,
       taskReference: taskRef,
       reasons,
       observations,
@@ -917,6 +896,7 @@ export async function inspectTaskIntake(
         shortScope: inputObj.request.shortScope,
         knownFacts: inputObj.facts ?? [],
         selectedStyle,
+        executionRoute,
         taskReference: taskRef,
         policyRevision: policyView.revision,
         nextAction: "continue-task",
@@ -1036,6 +1016,8 @@ export async function inspectTaskIntake(
     observations.push("Adaptive intake applies without mandatory six-style chooser");
   }
 
+  const executionRoute = selectedStyle ? resolveTaskExecutionRoute({ selectedStyle }) : undefined;
+
   const handoff: TaskIntakeHandoff = {
     schemaVersion: 1,
     originalRequest: inputObj.request.text,
@@ -1043,6 +1025,7 @@ export async function inspectTaskIntake(
     shortScope: inputObj.request.shortScope,
     knownFacts: inputObj.facts ?? [],
     selectedStyle,
+    executionRoute,
     policyRevision: policyView.revision,
     nextAction,
   };
@@ -1054,6 +1037,7 @@ export async function inspectTaskIntake(
     nextAction,
     executionAuthorized: false,
     selectedStyle,
+    executionRoute,
     reasons,
     observations,
     chooser,

@@ -440,3 +440,254 @@ test("task-gsd-full-run: standard quality contract still accepts ordinary quick 
   const fullPrecond = run.verdict?.preconditions.find((p) => p.id === "full-quality-stages");
   assert.equal(fullPrecond, undefined);
 });
+
+test("task-gsd-full-run: same-run full resume reuses valid stages, preserves dirty WIP, and maintains 1 quick directory", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const baseContract = inventorySummaryContract(fixture.projectRoot, {
+    scope: {
+      projectRoot: fixture.projectRoot,
+      workflow: "gsd-quick",
+      quickQuality: "full",
+      summary: "Add inventory-summary CLI with full quality and resume",
+    },
+  });
+  await writeTaskContract(fixture.contractPath, baseContract);
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+
+  let attemptCount = 0;
+  let sharedQuickId = "";
+
+  const resumingController: ControllerPort = {
+    async dispatch(request) {
+      attemptCount++;
+      if (attemptCount === 1) {
+        await writeInventorySummaryImplementation(request.projectRoot, "correct");
+      }
+      if (!sharedQuickId) {
+        sharedQuickId = fixtureQuickId(request.runId);
+        await simulateGsdQuick(request.projectRoot, {
+          quickId: sharedQuickId,
+          slug: "inventory-summary",
+          description: "Add the inventory-summary CLI",
+        });
+      }
+
+      const planPath = `.planning/quick/${sharedQuickId}-inventory-summary/${sharedQuickId}-PLAN.md`;
+      const summaryPath = `.planning/quick/${sharedQuickId}-inventory-summary/${sharedQuickId}-SUMMARY.md`;
+      const planBytes = await readFile(join(request.projectRoot, planPath));
+      const summaryBytes = await readFile(join(request.projectRoot, summaryPath));
+      const binBytes = await readFile(join(request.projectRoot, "bin/inventory-summary.mjs"));
+
+      const planRef = { path: planPath, sha256: fileSha256(planBytes) };
+      const summaryRef = { path: summaryPath, sha256: fileSha256(summaryBytes) };
+      const binRef = { path: "bin/inventory-summary.mjs", sha256: fileSha256(binBytes) };
+
+      if (attemptCount === 1) {
+        // Attempt 1: only completes planning & plan-check, leaves uncommitted WIP in bin/
+        return {
+          harness: "codex",
+          version: "fixture",
+          executable: null,
+          sessionId: `fixture-controller-${request.runId}-att1`,
+          exitCode: 0,
+          processCode: "ok",
+          terminal: "interrupted",
+          claim: {
+            status: "completed",
+            summary: "Interrupted after plan-check",
+            authorityRequest: null,
+            gsdQuickId: sharedQuickId,
+          },
+          detail: null,
+          stageObservation: {
+            status: "observed",
+            sessionId: `fixture-controller-${request.runId}-att1`,
+            stages: [
+              { stage: "discussion", outcome: "passed", invocationId: "inv-1", invocationDigest: fileSha256("inv-1"), resultId: "res-1", resultDigest: fileSha256("res-1"), evaluatedCommit: null, inputArtifacts: [], outputArtifacts: [], observedAt: new Date().toISOString() },
+              { stage: "research", outcome: "passed", invocationId: "inv-2", invocationDigest: fileSha256("inv-2"), resultId: "res-2", resultDigest: fileSha256("res-2"), evaluatedCommit: null, inputArtifacts: [], outputArtifacts: [], observedAt: new Date().toISOString() },
+              { stage: "planning", outcome: "passed", invocationId: "inv-3", invocationDigest: fileSha256("inv-3"), resultId: "res-3", resultDigest: fileSha256("res-3"), evaluatedCommit: null, inputArtifacts: [], outputArtifacts: [planRef], observedAt: new Date().toISOString() },
+              { stage: "plan-check", outcome: "passed", invocationId: "inv-4", invocationDigest: fileSha256("inv-4"), resultId: "res-4", resultDigest: fileSha256("res-4"), evaluatedCommit: null, inputArtifacts: [planRef], outputArtifacts: [], observedAt: new Date().toISOString() },
+            ],
+          },
+        };
+      }
+
+      // Attempt 2: completes all 7 stages reusing existing quick
+      return {
+        harness: "codex",
+        version: "fixture",
+        executable: null,
+        sessionId: `fixture-controller-${request.runId}-att2`,
+        exitCode: 0,
+        processCode: "ok",
+        terminal: "completed",
+        claim: {
+          status: "completed",
+          summary: "Resumed and completed all remaining stages.",
+          authorityRequest: null,
+          gsdQuickId: sharedQuickId,
+        },
+        detail: null,
+        stageObservation: {
+          status: "observed",
+          sessionId: `fixture-controller-${request.runId}-att2`,
+          stages: [
+            { stage: "discussion", outcome: "passed", invocationId: "inv-1", invocationDigest: fileSha256("inv-1"), resultId: "res-1", resultDigest: fileSha256("res-1"), evaluatedCommit: null, inputArtifacts: [], outputArtifacts: [], observedAt: new Date().toISOString() },
+            { stage: "research", outcome: "passed", invocationId: "inv-2", invocationDigest: fileSha256("inv-2"), resultId: "res-2", resultDigest: fileSha256("res-2"), evaluatedCommit: null, inputArtifacts: [], outputArtifacts: [], observedAt: new Date().toISOString() },
+            { stage: "planning", outcome: "passed", invocationId: "inv-3", invocationDigest: fileSha256("inv-3"), resultId: "res-3", resultDigest: fileSha256("res-3"), evaluatedCommit: null, inputArtifacts: [], outputArtifacts: [planRef], observedAt: new Date().toISOString() },
+            { stage: "plan-check", outcome: "passed", invocationId: "inv-4", invocationDigest: fileSha256("inv-4"), resultId: "res-4", resultDigest: fileSha256("res-4"), evaluatedCommit: null, inputArtifacts: [planRef], outputArtifacts: [], observedAt: new Date().toISOString() },
+            { stage: "implementation", outcome: "passed", invocationId: "inv-5", invocationDigest: fileSha256("inv-5"), resultId: "res-5", resultDigest: fileSha256("res-5"), evaluatedCommit: null, inputArtifacts: [planRef], outputArtifacts: [binRef], observedAt: new Date().toISOString() },
+            { stage: "verification", outcome: "passed", invocationId: "inv-6", invocationDigest: fileSha256("inv-6"), resultId: "res-6", resultDigest: fileSha256("res-6"), evaluatedCommit: null, inputArtifacts: [binRef], outputArtifacts: [], observedAt: new Date().toISOString() },
+            { stage: "state-docs", outcome: "passed", invocationId: "inv-7", invocationDigest: fileSha256("inv-7"), resultId: "res-7", resultDigest: fileSha256("res-7"), evaluatedCommit: null, inputArtifacts: [binRef], outputArtifacts: [summaryRef], observedAt: new Date().toISOString() },
+          ],
+        },
+      };
+    },
+  };
+
+  // Run attempt 1
+  const run1 = await startTask({
+    contractPath: fixture.contractPath,
+    expectedDigest: digest,
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    ports: fullFixturePorts(resumingController),
+    gsd: { configRoot: fixture.gsdConfigRoot },
+  });
+  assert.equal(run1.run.status, "unknown"); // Missing stages 5-7
+
+  // Record checkpoint for supervisor recovery
+  const { writeCheckpoint } = await import("../src/core/task-journal.js");
+  const { runGitRead } = await import("../src/core/task-gsd.js");
+  const currentHead = (await runGitRead(fixture.projectRoot, ["rev-parse", "HEAD"])).trim();
+  await writeCheckpoint(fixture.stateRoot, {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: baseContract.id,
+    revision: 1,
+    status: "stopped",
+    attemptIndex: 1,
+    lastSequence: 1,
+    baseCommit: run1.run.baseCommit,
+    lastVerifiedHead: currentHead,
+    quickId: sharedQuickId,
+    usage: { cycles: 1, wallTimeMs: 100, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  });
+
+  // Run attempt 2 (resume with allowPriorRun: true)
+  const run2 = await startTask({
+    contractPath: fixture.contractPath,
+    expectedDigest: digest,
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    ports: fullFixturePorts(resumingController),
+    gsd: { configRoot: fixture.gsdConfigRoot },
+    allowPriorRun: true,
+  });
+
+  assert.equal(run2.run.status, "accepted");
+  assert.equal(run2.run.gsd?.fullEvidence?.status, "verified");
+
+  // Verify that only 1 quick directory was created
+  const { readdir } = await import("node:fs/promises");
+  const quickDirs = await readdir(join(fixture.projectRoot, ".planning", "quick"));
+  assert.equal(quickDirs.length, 1);
+  assert.equal(attemptCount, 2);
+});
+
+test("task-gsd-full-run: resumeTask refuses ambiguous quick directories", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const baseContract = inventorySummaryContract(fixture.projectRoot, {
+    scope: {
+      projectRoot: fixture.projectRoot,
+      workflow: "gsd-quick",
+      quickQuality: "full",
+      summary: "Add inventory-summary CLI",
+    },
+  });
+  await writeTaskContract(fixture.contractPath, baseContract);
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+
+  const { writeCheckpoint } = await import("../src/core/task-journal.js");
+  const { resumeTask } = await import("../src/core/task-supervisor.js");
+  const { mkdir } = await import("node:fs/promises");
+
+  // Create two conflicting quick directories
+  await mkdir(join(fixture.projectRoot, ".planning", "quick", "quick-1-first"), { recursive: true });
+  await mkdir(join(fixture.projectRoot, ".planning", "quick", "quick-2-second"), { recursive: true });
+
+  await writeCheckpoint(fixture.stateRoot, {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: baseContract.id,
+    revision: 1,
+    status: "stopped",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: null,
+    usage: { cycles: 1, wallTimeMs: 100, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await assert.rejects(
+    resumeTask({
+      contractPath: fixture.contractPath,
+      expectedDigest: digest,
+      stateRoot: fixture.stateRoot,
+      packageRoot: packageRoot(),
+      ports: fullFixturePorts(fullControllerPort()),
+    }),
+    /Cannot resume task: multiple quick directories found under \.planning\/quick\//u,
+  );
+});
+
+test("task-gsd-full-run: resumeTask refuses incompatible workflow hash", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const baseContract = inventorySummaryContract(fixture.projectRoot, {
+    scope: {
+      projectRoot: fixture.projectRoot,
+      workflow: "gsd-quick",
+      quickQuality: "full",
+      summary: "Add inventory-summary CLI",
+    },
+  });
+  await writeTaskContract(fixture.contractPath, baseContract);
+  const { digest } = await previewTaskContract({ contractPath: fixture.contractPath, stateRoot: fixture.stateRoot });
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+
+  const { writeCheckpoint } = await import("../src/core/task-journal.js");
+  const { resumeTask } = await import("../src/core/task-supervisor.js");
+
+  await writeCheckpoint(fixture.stateRoot, {
+    schemaVersion: 1,
+    contractDigest: digest,
+    contractId: baseContract.id,
+    revision: 1,
+    status: "stopped",
+    attemptIndex: 1,
+    lastSequence: 1,
+    lastVerifiedHead: null,
+    workflowSha256: "0000000000000000000000000000000000000000000000000000000000000000",
+    usage: { cycles: 1, wallTimeMs: 100, tokens: null, costUsd: null },
+    stopReason: null,
+    updatedAt: new Date().toISOString(),
+  });
+
+  await assert.rejects(
+    resumeTask({
+      contractPath: fixture.contractPath,
+      expectedDigest: digest,
+      stateRoot: fixture.stateRoot,
+      packageRoot: packageRoot(),
+      ports: fullFixturePorts(fullControllerPort()),
+      gsd: { configRoot: fixture.gsdConfigRoot },
+    }),
+    /Cannot resume task: incompatible workflow hash/u,
+  );
+});
+

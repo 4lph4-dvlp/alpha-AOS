@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { dispatchUsage, readTaskDispatches, reconcileTaskRuntime } from "./task-runtime.js";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   assertTaskStartable,
@@ -368,6 +368,38 @@ export async function resumeTask(options: SuperviseTaskOptions): Promise<Supervi
     }
   }
 
+  if (contract.scope.workflow === "gsd-quick") {
+    const quickRoot = join(projectRoot, ".planning", "quick");
+    let quickDirs: string[] = [];
+    try {
+      const entries = await readdir(quickRoot, { withFileTypes: true });
+      quickDirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    } catch {}
+
+    if (checkpoint.quickId) {
+      const matching = quickDirs.filter((d) => d === checkpoint.quickId || d.startsWith(`${checkpoint.quickId}-`));
+      if (matching.length > 1) {
+        throw new Error(`Cannot resume task: ambiguous quick directories for ${checkpoint.quickId}: ${matching.join(", ")}`);
+      }
+    } else if (quickDirs.length > 1) {
+      throw new Error(`Cannot resume task: multiple quick directories found under .planning/quick/: ${quickDirs.join(", ")}`);
+    }
+
+    if (checkpoint.workflowSha256) {
+      const { readGsdQuickOutline } = await import("./task-gsd.js");
+      const { codexConfigRoot } = await import("./gsd-compat.js");
+      const configRoot = options.gsd?.configRoot ?? codexConfigRoot();
+      try {
+        const outline = await readGsdQuickOutline(configRoot);
+        if (checkpoint.workflowSha256 !== outline.sourceSha256) {
+          throw new Error(`Cannot resume task: incompatible workflow hash (checkpoint ${checkpoint.workflowSha256}, installed ${outline.sourceSha256})`);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.startsWith("Cannot resume task")) throw err;
+      }
+    }
+  }
+
   // Reconcile performing / uncertain effects on recovery
   let ledger = (await readEffectLedger(options.stateRoot, digest)) ?? createEffectLedger(digest);
   let baseCommit: string | null = null;
@@ -632,6 +664,33 @@ async function runSupervisorLoop(
       checkpoint.lastVerifiedHead =
         (await runGitRead(projectRoot, ["rev-parse", "HEAD"]).catch(() => null))?.trim() ??
         checkpoint.lastVerifiedHead;
+    }
+
+    if (attemptResult?.run) {
+      if (attemptResult.run.baseCommit) {
+        checkpoint.baseCommit = attemptResult.run.baseCommit;
+      }
+      if (attemptResult.run.gsd?.quickId) {
+        checkpoint.quickId = attemptResult.run.gsd.quickId;
+      }
+      if (attemptResult.run.gsd?.workflowSha256) {
+        checkpoint.workflowSha256 = attemptResult.run.gsd.workflowSha256;
+      }
+      if (attemptResult.run.gsd?.fullEvidence?.stages) {
+        checkpoint.stageReceiptIds = attemptResult.run.gsd.fullEvidence.stages.map((st) => st.receiptId);
+        await logEvent(options.stateRoot, digest, {
+          kind: "stage_receipt_recorded",
+          attemptIndex,
+          payload: {
+            quickId: checkpoint.quickId,
+            stageReceiptIds: checkpoint.stageReceiptIds,
+            verifiedStages: attemptResult.run.gsd.fullEvidence.stages.map((st) => st.stage),
+          },
+        });
+      }
+      if (attemptResult.run.executor?.sessionId) {
+        checkpoint.nativeSessionId = attemptResult.run.executor.sessionId;
+      }
     }
 
     const errorMsg = attemptError instanceof Error ? attemptError.message : String(attemptError ?? "");

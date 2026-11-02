@@ -1579,14 +1579,28 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   const projectRoot = resolve(contract.scope.projectRoot);
   const baseline = await readTaskBaseline({ projectRoot });
   let recoveredBaseline: { baseCommit: string } | null = null;
-  if (baseline.status === "dirty" && options.allowPriorRun && ["gsd", "gsd-multi-phase"].includes(contract.scope.workflow ?? "")) {
+  const isApprovedMultiPhase = ["gsd", "gsd-multi-phase"].includes(contract.scope.workflow ?? "");
+  const isApprovedFullQuick = contract.scope.workflow === "gsd-quick" && effectiveQuality === "full";
+  if (baseline.status === "dirty" && options.allowPriorRun && (isApprovedMultiPhase || isApprovedFullQuick)) {
     const { readCheckpoint } = await import("./task-journal.js");
     const checkpoint = await readCheckpoint(options.stateRoot, digest);
     const currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
     if (checkpoint?.baseCommit && checkpoint.lastVerifiedHead === currentHead) {
-      const changes = await readTaskChanges({ projectRoot, baseCommit: checkpoint.baseCommit });
-      const audit = await auditTaskEffects({ contract, runId: options.runId ?? "resume-baseline", changes, projectRoot, baseCommit: checkpoint.baseCommit });
-      if (audit.violations.length === 0) recoveredBaseline = { baseCommit: checkpoint.baseCommit };
+      if (
+        checkpoint.revision === contract.revision &&
+        checkpoint.contractDigest === digest &&
+        (!isApprovedFullQuick || checkpoint.quickId !== undefined)
+      ) {
+        const changes = await readTaskChanges({ projectRoot, baseCommit: checkpoint.baseCommit });
+        const audit = await auditTaskEffects({
+          contract,
+          runId: options.runId ?? checkpoint.quickId ?? "resume-baseline",
+          changes,
+          projectRoot,
+          baseCommit: checkpoint.baseCommit,
+        });
+        if (audit.violations.length === 0) recoveredBaseline = { baseCommit: checkpoint.baseCommit };
+      }
     }
   }
   if (baseline.status !== "clean" && recoveredBaseline === null) {
@@ -1600,19 +1614,21 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     );
   }
 
+  const effectiveBaseline = recoveredBaseline ?? (baseline as { baseCommit: string });
+
   if (contract.scope.workflow === "gsd-multi-phase" || contract.scope.workflow === "gsd") {
     return await startMultiPhaseTask({
       contract,
       digest,
       approval,
       options,
-      baseline: recoveredBaseline ?? baseline as { baseCommit: string },
+      baseline: effectiveBaseline,
       clock,
     });
   }
 
   // The controller must be able to run the installed GSD quick workflow here.
-  if (baseline.status !== "clean") throw new TaskRunError("dirty-baseline", "Only approved multi-phase recovery can preserve a dirty baseline");
+  if (baseline.status !== "clean" && recoveredBaseline === null) throw new TaskRunError("dirty-baseline", "Only approved multi-phase or full quick recovery can preserve a dirty baseline");
   const configRoot = options.gsd?.configRoot ?? codexConfigRoot();
   const readiness = await probeGsdQuickReadiness({ projectRoot, gsdToolsPath: resolveInstalledGsdTools(configRoot) });
   if (!readiness.ready) {
@@ -1664,7 +1680,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     nextAction: null,
     decisions: [],
     decisionLog: null,
-    baseCommit: baseline.baseCommit,
+    baseCommit: effectiveBaseline.baseCommit,
     deadlineAt,
     gsd: null,
     effects: null,
@@ -1753,22 +1769,22 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     }
 
     // Every effect is audited against the approved authority (AUTO-02, D-03).
-    const changes = await readTaskChanges({ projectRoot, baseCommit: baseline.baseCommit });
-    const audit = await auditTaskEffects({ contract, runId, changes, projectRoot, baseCommit: baseline.baseCommit });
+    const changes = await readTaskChanges({ projectRoot, baseCommit: effectiveBaseline.baseCommit });
+    const audit = await auditTaskEffects({ contract, runId, changes, projectRoot, baseCommit: effectiveBaseline.baseCommit });
 
-    const revListCount = (await runGitRead(projectRoot, ["rev-list", "--count", baseline.baseCommit, "--not", "HEAD"])).trim();
+    const revListCount = (await runGitRead(projectRoot, ["rev-list", "--count", effectiveBaseline.baseCommit, "--not", "HEAD"])).trim();
     if (revListCount !== "0") {
       audit.violations.push({
         effect: "local-commit",
         path: "",
-        detail: `the base commit ${baseline.baseCommit.slice(0, 12)} is no longer reachable from HEAD (history rewritten)`,
+        detail: `the base commit ${effectiveBaseline.baseCommit.slice(0, 12)} is no longer reachable from HEAD (history rewritten)`,
       });
     }
 
     if (pendingSteering.current) {
       const steering = pendingSteering.current;
       pendingSteering.current = null;
-      const disposition = await steering.complete(true, { baseCommit: baseline.baseCommit, planningPaths: audit.planningPaths, violations: audit.violations });
+      const disposition = await steering.complete(true, { baseCommit: effectiveBaseline.baseCommit, planningPaths: audit.planningPaths, violations: audit.violations });
       if (disposition === "revision-required") return await finish({ ...record, status: "blocked", finishedAt: clock().toISOString(),
         stopReason: "new-authority-required: steering", nextAction: `Revise, preview and approve contract revision ${contract.revision + 1}.` });
     }
@@ -1811,7 +1827,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     // GSD's own evidence, read and never written (RUN-01).
     const evidence = await verifyGsdEvidence({
       projectRoot,
-      baseCommit: baseline.baseCommit,
+      baseCommit: effectiveBaseline.baseCommit,
       claimQuickId: claim?.gsdQuickId ?? null,
       allowExistingClaimedQuick: contract.revision > 1 || prior.length > 0 || Boolean(options.allowPriorRun),
     });
@@ -1861,7 +1877,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       const receipts = await listStageReceipts({ stateRoot: options.stateRoot, runId, pkgRoot: options.packageRoot }).catch(() => []);
       fullEvidence = await verifyGsdFullEvidence({
         projectRoot,
-        baseCommit: baseline.baseCommit,
+        baseCommit: effectiveBaseline.baseCommit,
         contractDigest: digest,
         revision: contract.revision,
         runId,
@@ -2095,7 +2111,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       };
     }
 
-    let targetRevisionSha = baseline.baseCommit;
+    let targetRevisionSha = effectiveBaseline.baseCommit;
     try {
       targetRevisionSha = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();
     } catch {}

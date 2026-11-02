@@ -25,7 +25,8 @@ export type TaskJournalEventKind =
   | "rejected"
   | "process_cancelled"
   | "prompt_answered"
-  | "needs_input";
+  | "needs_input"
+  | "stage_receipt_recorded";
 
 export type TaskJournalEventPayload = Record<string, unknown>;
 
@@ -67,6 +68,10 @@ export interface TaskCheckpoint {
   usage: TaskCheckpointUsage;
   stopReason: string | null;
   updatedAt: string;
+  quickId?: string | null;
+  nativeSessionId?: string | null;
+  stageReceiptIds?: readonly string[];
+  workflowSha256?: string | null;
 }
 
 export function runDirectory(stateRoot: string, contractDigest: string): string {

@@ -23,6 +23,10 @@ import {
   type GsdProjectReadinessDiagnosis,
   type GsdToolsRunner,
 } from "./task-gsd-readiness.js";
+import {
+  planNativeBootstrapRecovery,
+  type NativeBootstrapRecoveryPlan,
+} from "./task-bootstrap-recovery.js";
 import type { ExplicitCommandRoute } from "./task-intake-explicit.js";
 import type { TaskExecutionStyle } from "./task-intake.js";
 import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
@@ -80,6 +84,7 @@ export interface TaskBootstrapResult {
   readonly reasons: readonly string[];
   readonly selectedStyle?: TaskExecutionStyle | undefined;
   readonly commandRoute?: ExplicitCommandRoute | undefined;
+  readonly recoveryPlan?: NativeBootstrapRecoveryPlan | undefined;
 }
 
 export interface PrepareTaskBootstrapOptions {
@@ -99,6 +104,7 @@ export interface InspectTaskBootstrapOptions {
   readonly stateRoot?: string | undefined;
   readonly pendingId?: string | undefined;
   readonly projectRoot?: string | undefined;
+  readonly runner?: GsdToolsRunner | undefined;
 }
 
 let cachedBootstrapSchema: Record<string, unknown> | null = null;
@@ -361,6 +367,8 @@ export async function prepareTaskBootstrap(
     runner: options.runner,
   });
 
+  const recoveryPlan = await planNativeBootstrapRecovery({ canonicalRoot, readiness });
+
   if (readiness.diagnosis === "missing-runtime" || readiness.diagnosis === "probe-error") {
     return {
       schemaVersion: 1,
@@ -378,6 +386,28 @@ export async function prepareTaskBootstrap(
       reasons: readiness.reasons,
       selectedStyle,
       commandRoute,
+      recoveryPlan,
+    };
+  }
+
+  if (readiness.diagnosis === "partial-project" && recoveryPlan.status === "blocked") {
+    return {
+      schemaVersion: 1,
+      operation: "prepare",
+      canonicalRoot,
+      projectId,
+      pendingId,
+      contentDigest: "",
+      planDigest: null,
+      applied: false,
+      destinationPath: null,
+      status: "blocked",
+      readinessDiagnosis: readiness.diagnosis,
+      nextAction: recoveryPlan.nativeAction,
+      reasons: recoveryPlan.reasons,
+      selectedStyle,
+      commandRoute,
+      recoveryPlan,
     };
   }
 
@@ -467,9 +497,13 @@ export async function prepareTaskBootstrap(
       nextAction: `Apply bootstrap plan with 'alpha-aos task bootstrap --input <packet.json> --plan-digest ${planDigest} --apply'.`,
       reasons: [
         `Readiness diagnosed as ${readiness.diagnosis}. Bootstrap handoff previewed with zero filesystem writes.`,
+        ...(recoveryPlan?.status === "resumable"
+          ? [`Native recovery route: ${recoveryPlan.route} (${recoveryPlan.nativeAction})`]
+          : []),
       ],
       selectedStyle,
       commandRoute,
+      recoveryPlan,
     };
   }
 
@@ -516,13 +550,19 @@ export async function prepareTaskBootstrap(
     destinationPath,
     status: "pending",
     readinessDiagnosis: readiness.diagnosis,
-    nextAction: "Start native project initialization workflow (e.g. gsd-new-project).",
+    nextAction: recoveryPlan?.status === "resumable"
+      ? recoveryPlan.nativeAction
+      : "Start native project initialization workflow (e.g. gsd-new-project).",
     reasons: [
       `Handoff record persisted successfully at ${destinationPath}.`,
       "Native GSD initialization may now consume known facts without retyping.",
+      ...(recoveryPlan?.status === "resumable"
+        ? [`Native recovery route: ${recoveryPlan.route} (${recoveryPlan.nativeAction})`]
+        : []),
     ],
     selectedStyle,
     commandRoute,
+    recoveryPlan,
   };
 }
 
@@ -578,6 +618,21 @@ export async function inspectTaskBootstrap(
 
   const destinationPath = resolveBootstrapStoragePath(stateRoot, projectId, pendingId);
 
+  // Fresh readiness and recovery projection
+  const readiness = await inspectGsdProjectReadiness({
+    input: {
+      schemaVersion: 1,
+      controller: "codex",
+      workflow: "quick",
+      projectRoot: canonicalRoot,
+    },
+    invocationPath: canonicalRoot,
+    stateRoot: options.stateRoot,
+    runner: options.runner,
+  });
+
+  const recoveryPlan = await planNativeBootstrapRecovery({ canonicalRoot, readiness });
+
   return {
     schemaVersion: 1,
     operation: "inspect",
@@ -589,19 +644,26 @@ export async function inspectTaskBootstrap(
     applied: false,
     destinationPath,
     status: handoff.status,
-    readinessDiagnosis: null,
-    nextAction: handoff.status === "pending"
-      ? "Execute native initialization and link generated task reference."
-      : "Inspect task status or continue workflow.",
+    readinessDiagnosis: readiness.diagnosis,
+    nextAction: recoveryPlan.status === "resumable" && handoff.status === "pending"
+      ? recoveryPlan.nativeAction
+      : handoff.status === "pending"
+        ? "Execute native initialization and link generated task reference."
+        : "Inspect task status or continue workflow.",
     reasons: [
       `Record inspected: status is '${handoff.status}', policy revision is '${handoff.policyRevision}'.`,
+      `Readiness diagnosed as '${readiness.diagnosis}', recovery route '${recoveryPlan.route}'.`,
     ],
     selectedStyle: handoff.canonicalSelectedStyle,
     commandRoute: handoff.commandRoute,
+    recoveryPlan,
   };
 }
 
-export function buildNativeBootstrapInput(handoff: TaskBootstrapHandoff): string {
+export function buildNativeBootstrapInput(
+  handoff: TaskBootstrapHandoff,
+  recoveryPlan?: NativeBootstrapRecoveryPlan,
+): string {
   const sections: string[] = [
     `# Project Task Context (${handoff.pendingId})`,
     "",
@@ -630,6 +692,36 @@ export function buildNativeBootstrapInput(handoff: TaskBootstrapHandoff): string
     sections.push(`Selected Style: ${handoff.canonicalSelectedStyle}`);
   }
 
+  if (recoveryPlan) {
+    sections.push("");
+    sections.push(`## Recovery Guidance (${recoveryPlan.route})`);
+    sections.push(`Status: ${recoveryPlan.status}`);
+    if (recoveryPlan.completedSteps.length > 0) {
+      sections.push("Completed Native Steps:");
+      for (const step of recoveryPlan.completedSteps) {
+        sections.push(`- ${step}`);
+      }
+    }
+    sections.push(`First Missing Stage: ${recoveryPlan.firstMissingStep ?? "None"}`);
+    if (recoveryPlan.remainingSteps.length > 0) {
+      sections.push("Remaining Native Stages:");
+      for (const step of recoveryPlan.remainingSteps) {
+        sections.push(`- ${step}`);
+      }
+    }
+    sections.push(`Native Action: ${recoveryPlan.nativeAction}`);
+    sections.push("");
+    sections.push("Preservation Guarantees:");
+    sections.push("- Existing planning artifacts and unrelated user working tree files MUST be preserved byte for byte.");
+    sections.push("- Resumed initialization MUST NOT overwrite or regenerate already completed artifacts.");
+    if (recoveryPlan.artifactCheckpoints.length > 0) {
+      sections.push("Required Artifact Checkpoints:");
+      for (const cp of recoveryPlan.artifactCheckpoints) {
+        sections.push(`- ${cp}`);
+      }
+    }
+  }
+
   sections.push("");
   sections.push("Note: Confirm any missing or ambiguous requirements directly with the user.");
   sections.push("Do not assume pre-approval for unstated architecture decisions.");
@@ -654,6 +746,16 @@ export function formatTaskBootstrapResult(result: TaskBootstrapResult): string {
   }
   if (result.readinessDiagnosis) {
     lines.push(`Readiness: ${result.readinessDiagnosis}`);
+  }
+  if (result.recoveryPlan) {
+    lines.push(`Recovery route: ${result.recoveryPlan.route} (${result.recoveryPlan.status})`);
+    if (result.recoveryPlan.firstMissingStep) {
+      lines.push(`First missing stage: ${result.recoveryPlan.firstMissingStep}`);
+    }
+    if (result.recoveryPlan.completedSteps.length > 0) {
+      lines.push(`Completed steps: ${result.recoveryPlan.completedSteps.join(", ")}`);
+    }
+    lines.push(`Native recovery action: ${result.recoveryPlan.nativeAction}`);
   }
   if (result.selectedStyle) {
     lines.push(`Selected style: ${result.selectedStyle}`);

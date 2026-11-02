@@ -103,10 +103,40 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. After bootstrap/recovery, the original request and its selected style resume once without retyping, a second chooser or duplicate implementation. Required GSD checkpoints and autopilot review remain intact.
   5. A simple exempt operation or policy-only change avoids forced initialization, while cancellation/interruption of substantive initialization leaves an honest resumable checkpoint and does not start the pending task.
 
-**Plans:** TBD — created by plan-phase after discussion.
-
 **Planning focus:** Keep GSD the sole lifecycle/state authority. Select a minimal bounded pending-request handoff that does not become a second phase/task lifecycle. Inspect version-specific readiness capabilities before implementation.
 **Validation emphasis:** One real conversational-quick bootstrap/resume tracer, incomplete-project negative fixtures, interruption/re-entry without duplication, and preserved style identity for all later dispatch routes.
+
+**Plans:** 6 plans in 6 sequential waves (planned 2026-11-02; execution not started).
+
+**Wave 1**
+
+- [ ] 29-01-PLAN.md — Native readiness diagnosis through the public CLI, with workflow/version and compatibility checks.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 29-02-PLAN.md — Bounded original-request handoff, known-fact native input and preview-bound persistence.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 29-03-PLAN.md — Non-destructive partial/archive/history recovery and WIP preservation.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 29-04-PLAN.md — Exact claim/link/acceptance reconciliation, crash/cancel races and retained consent.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 29-05-PLAN.md — Shared five-target routing, source/target integrity and minimal user guidance.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+
+- [ ] 29-06-PLAN.md — Composed acceptance, blocking real native quick tracer and actual full regression.
+
+**Cross-cutting constraints:**
+
+- GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval.
+
+**Execution checkpoint:** 29-06 retains required native invocation proof. Missing capability/authority/receipt blocks Phase 29 completion; fixture success does not defer that proof to Phase 31. This planning run stops before execute-phase.
 
 ### Phase 30: Six Execution Styles and Quality Binding
 
@@ -144,13 +174,13 @@ Every requirement has exactly one owning phase. Later integration verification r
 
 ## Progress
 
-**Execution Order:** 27 → 28 → 29 → 30 → 31. Phase 28 now has six checked plans; the planning-doc commit is blocked by Git index write permission. This planning update does not execute Phase 28 or plan later phases; historical phase completion evidence remains in STATE and each phase's verification artifacts.
+**Execution Order:** 27 → 28 → 29 → 30 → 31. Phase 29 has six checked plans in six sequential waves. This planning update stops before execute-phase and does not plan later phases; historical phase completion and outstanding regression evidence remain in STATE and each phase's verification artifacts.
 
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 27. Shared Project Behavior Policy | 0/TBD | Not started | - |
 | 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
-| 29. GSD Initialization and Request Continuity | 0/TBD | Not started | - |
+| 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
 | 30. Six Execution Styles and Quality Binding | 0/TBD | Not started | - |
 | 31. Cross-Harness Proof and Distribution | 0/TBD | Not started | - |
 

@@ -15,6 +15,8 @@ import {
   type DigestableTaskContract,
   type TaskContract,
 } from "../src/core/task-contract.js";
+import { buildGsdControllerPrompt } from "../src/core/task-gsd.js";
+import { formatTaskContractPreview } from "../src/format.js";
 import {
   createTaskFixture,
   inventorySummaryContract,
@@ -369,4 +371,185 @@ test("preview, approval and assertTaskStartable round-trip with legacy and full 
       return true;
     },
   );
+});
+
+test("previewTaskContract and formatTaskContractPreview expose concrete execution style and quality", async (context) => {
+  const fixture = await createTaskFixture(context);
+
+  // 1. Standard quick contract preview
+  const standardContractPath = join(fixture.scratch, "task-standard-preview.json");
+  const standardContract = inventorySummaryContract(fixture.projectRoot);
+  standardContract.id = "standard-preview-01";
+  standardContract.scope.quickQuality = "standard";
+  await writeTaskContract(standardContractPath, standardContract);
+
+  const previewStandard = await previewTaskContract({
+    contractPath: standardContractPath,
+    stateRoot: fixture.stateRoot,
+  });
+
+  assert.deepEqual(previewStandard.executionStyle, {
+    style: "autopilot-quick",
+    label: "오토파일럿-quick",
+    surface: "isolated-runner",
+    quality: "standard",
+  });
+
+  const formattedStandard = formatTaskContractPreview(previewStandard, "alpha-aos task approve");
+  assert.ok(formattedStandard.includes("Execution style: 오토파일럿-quick (autopilot-quick)"));
+  assert.ok(formattedStandard.includes("Execution surface: isolated-runner"));
+  assert.ok(formattedStandard.includes("Execution quality: standard ($gsd-quick)"));
+  assert.ok(!formattedStandard.includes("Required stages:"));
+
+  // 2. Full quick contract preview
+  const fullContractPath = join(fixture.scratch, "task-full-preview.json");
+  const fullContract = inventorySummaryContract(fixture.projectRoot);
+  fullContract.id = "full-preview-01";
+  fullContract.scope.quickQuality = "full";
+  await writeTaskContract(fullContractPath, fullContract);
+
+  const previewFull = await previewTaskContract({
+    contractPath: fullContractPath,
+    stateRoot: fixture.stateRoot,
+  });
+
+  assert.deepEqual(previewFull.executionStyle, {
+    style: "autopilot-quick-full",
+    label: "오토파일럿-quick-full",
+    surface: "isolated-runner",
+    quality: "full",
+    requiredStages: [
+      "discussion",
+      "research",
+      "planning",
+      "plan-check",
+      "implementation",
+      "verification",
+      "state-docs",
+    ],
+  });
+
+  const formattedFull = formatTaskContractPreview(previewFull, "alpha-aos task approve");
+  assert.ok(formattedFull.includes("Execution style: 오토파일럿-quick-full (autopilot-quick-full)"));
+  assert.ok(formattedFull.includes("Execution surface: isolated-runner"));
+  assert.ok(formattedFull.includes("Execution quality: full ($gsd-quick --full)"));
+  assert.ok(
+    formattedFull.includes(
+      "Required stages: discussion, research, planning, plan-check, implementation, verification, state-docs",
+    ),
+  );
+
+  // 3. Phase contract preview
+  const phaseContractPath = join(fixture.scratch, "task-phase-preview.json");
+  const phaseContract = inventorySummaryContract(fixture.projectRoot);
+  phaseContract.id = "phase-preview-01";
+  phaseContract.scope.workflow = "gsd";
+  phaseContract.scope.quickQuality = undefined;
+  await writeTaskContract(phaseContractPath, phaseContract);
+
+  const previewPhase = await previewTaskContract({
+    contractPath: phaseContractPath,
+    stateRoot: fixture.stateRoot,
+  });
+
+  assert.deepEqual(previewPhase.executionStyle, {
+    style: "autopilot-phase",
+    label: "오토파일럿-phase",
+    surface: "isolated-runner",
+  });
+
+  const formattedPhase = formatTaskContractPreview(previewPhase, "alpha-aos task approve");
+  assert.ok(formattedPhase.includes("Execution style: 오토파일럿-phase (autopilot-phase)"));
+  assert.ok(formattedPhase.includes("Execution surface: isolated-runner"));
+  assert.ok(!formattedPhase.includes("Execution quality:"));
+
+  // 4. Preview remains read-only: no approvals created
+  const approvalsDir = join(fixture.stateRoot, "tasks", standardContract.id, "approvals");
+  let approvalsExist = false;
+  try {
+    const files = await import("node:fs/promises").then((fs) => fs.readdir(approvalsDir));
+    approvalsExist = files.length > 0;
+  } catch {
+    approvalsExist = false;
+  }
+  assert.equal(approvalsExist, false, "preview must be strictly read-only and create no approvals");
+});
+
+test("buildGsdControllerPrompt distinguishes standard vs full and preserves distinct roles", () => {
+  const outline = {
+    sourceSha256: "0".repeat(64),
+    stepNames: ["step-1", "step-2"],
+  };
+
+  // 1. Standard quick prompt
+  const standardContract = buildContract({
+    scope: {
+      projectRoot: "D:/dev/sample-proj",
+      workflow: "gsd-quick",
+      summary: "Standard task",
+      quickQuality: "standard",
+    },
+    agentPolicy: {
+      controller: "codex",
+      executor: "antigravity",
+      reviewer: "antigravity",
+      controllerModel: "gpt-6.1-sol",
+      controllerEffort: "high",
+      executorModel: "gemini-3.8-flash",
+      executorEffort: "high",
+      reviewerModel: "gemini-3.8-flash",
+      reviewerEffort: "high",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "allow-same",
+    },
+  });
+
+  const standardPrompt = buildGsdControllerPrompt({
+    contract: standardContract,
+    contractDigest: "a".repeat(64),
+    runId: "run-standard-01",
+    decisionLogPath: "/logs/decisions.jsonl",
+    outline,
+  });
+
+  assert.ok(standardPrompt.includes("`$gsd-quick`"));
+  assert.ok(!standardPrompt.includes("`$gsd-quick --full`"));
+  assert.ok(standardPrompt.includes("You are the approved controller (codex); executor is antigravity; reviewer is antigravity (fresh-read-only)."));
+  assert.ok(standardPrompt.includes("Preserve approved role assignments, delegation, and fresh read-only review."));
+
+  // 2. Full quick prompt
+  const fullContract = buildContract({
+    scope: {
+      projectRoot: "D:/dev/sample-proj",
+      workflow: "gsd-quick",
+      summary: "Full quality task",
+      quickQuality: "full",
+    },
+    agentPolicy: {
+      controller: "codex",
+      executor: "codex",
+      reviewer: "antigravity",
+      controllerModel: "gpt-6.1-sol",
+      controllerEffort: "high",
+      executorModel: "gpt-6.1-sol",
+      executorEffort: "high",
+      reviewerModel: "gemini-3.8-flash",
+      reviewerEffort: "high",
+      reviewerSession: "fresh-read-only",
+      differentReviewerPolicy: "allow-same",
+    },
+  });
+
+  const fullPrompt = buildGsdControllerPrompt({
+    contract: fullContract,
+    contractDigest: "b".repeat(64),
+    runId: "run-full-01",
+    decisionLogPath: "/logs/decisions.jsonl",
+    outline,
+  });
+
+  assert.ok(fullPrompt.includes("`$gsd-quick --full`"));
+  assert.ok(fullPrompt.includes("Full quality requires all native stages: discussion, research, planning, plan checking, implementation, verification, and state/docs commit."));
+  assert.ok(fullPrompt.includes("Preserve native research-before-questions and active code-review gates."));
+  assert.ok(fullPrompt.includes("You are the approved controller and executor (codex) for this project for this run."));
 });

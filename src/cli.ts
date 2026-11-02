@@ -2965,6 +2965,7 @@ async function main(): Promise<void> {
           command,
           contract: preview.contract,
           gitAuthority: preview.gitAuthority,
+          ...(preview.executionStyle ? { executionStyle: preview.executionStyle } : {}),
           ...(preview.status ? { status: preview.status } : {}),
           ...(preview.blockedReasons ? { blockedReasons: preview.blockedReasons } : {}),
           ...(preview.nextActions ? { nextActions: preview.nextActions } : {}),

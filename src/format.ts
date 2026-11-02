@@ -1366,7 +1366,19 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
       : `Git authority (local-commit): none — ${preview.gitAuthority.reason ?? "no git directory is granted"}`,
     `Project root: ${contract.scope.projectRoot}`,
     `Workflow: ${contract.scope.workflow} — ${contract.scope.summary}`,
-    `Agents: controller ${contract.agentPolicy.controller}, executor ${contract.agentPolicy.executor}, reviewer ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession})`,
+    ...(preview.executionStyle
+      ? [
+          `Execution style: ${preview.executionStyle.label} (${preview.executionStyle.style})`,
+          `Execution surface: ${preview.executionStyle.surface}`,
+          ...(preview.executionStyle.quality
+            ? [`Execution quality: ${preview.executionStyle.quality === "full" ? "full ($gsd-quick --full)" : "standard ($gsd-quick)"}`]
+            : []),
+          ...(preview.executionStyle.requiredStages && preview.executionStyle.requiredStages.length > 0
+            ? [`Required stages: ${preview.executionStyle.requiredStages.join(", ")}`]
+            : []),
+        ]
+      : []),
+    `Agents: controller ${contract.agentPolicy.controller}${contract.agentPolicy.controllerModel ? ` [model: ${contract.agentPolicy.controllerModel}${contract.agentPolicy.controllerEffort ? `/${contract.agentPolicy.controllerEffort}` : ""}]` : ""}, executor ${contract.agentPolicy.executor}${contract.agentPolicy.executorModel ? ` [model: ${contract.agentPolicy.executorModel}${contract.agentPolicy.executorEffort ? `/${contract.agentPolicy.executorEffort}` : ""}]` : ""}, reviewer ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession})${contract.agentPolicy.reviewerModel ? ` [model: ${contract.agentPolicy.reviewerModel}${contract.agentPolicy.reviewerEffort ? `/${contract.agentPolicy.reviewerEffort}` : ""}]` : ""}`,
     `Wall-time limit: ${minutes === null || minutes === undefined ? "no overall limit" : `${minutes} minutes`}`,
     `Cycles limit: ${cycles === null || cycles === undefined ? "no limit" : `${cycles} cycles`}`,
     `Tokens limit: ${tokens === null || tokens === undefined ? "no limit" : `${tokens} tokens`}`,

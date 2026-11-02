@@ -240,6 +240,13 @@ export interface TaskContractPreview {
   resourceLimit: number | null;
   /** The git authority approving this digest lets the controller write (AUTO-02, D-03). */
   gitAuthority: TaskGitAuthority;
+  executionStyle?: {
+    style: "autopilot-quick" | "autopilot-quick-full" | "autopilot-phase" | string;
+    label: string;
+    surface: "isolated-runner";
+    quality?: "standard" | "full" | undefined;
+    requiredStages?: string[] | undefined;
+  } | undefined;
   reapprovalPreview?: TaskReapprovalPreview | undefined;
   changedFields?: string[] | undefined;
   status?: "approved" | "reviewable" | "blocked" | undefined;
@@ -866,6 +873,41 @@ export async function previewTaskContract(options: {
     }
   }
 
+  const effectiveQuality = resolveTaskQuickQuality(loaded.contract);
+  let executionStyle: TaskContractPreview["executionStyle"];
+  if (loaded.contract.scope.workflow === "gsd-quick" || effectiveQuality !== undefined) {
+    if (effectiveQuality === "full") {
+      executionStyle = {
+        style: "autopilot-quick-full",
+        label: "오토파일럿-quick-full",
+        surface: "isolated-runner",
+        quality: "full",
+        requiredStages: [
+          "discussion",
+          "research",
+          "planning",
+          "plan-check",
+          "implementation",
+          "verification",
+          "state-docs",
+        ],
+      };
+    } else {
+      executionStyle = {
+        style: "autopilot-quick",
+        label: "오토파일럿-quick",
+        surface: "isolated-runner",
+        quality: "standard",
+      };
+    }
+  } else if (loaded.contract.scope.workflow === "gsd" || loaded.contract.scope.workflow === "gsd-multi-phase") {
+    executionStyle = {
+      style: "autopilot-phase",
+      label: "오토파일럿-phase",
+      surface: "isolated-runner",
+    };
+  }
+
   return {
     contract: digestableTaskContract(loaded.contract),
     digest: loaded.digest,
@@ -875,6 +917,7 @@ export async function previewTaskContract(options: {
     consent: { mode: "autopilot", grant: "explicit-cli-approval", scope: "single-run", revision: loaded.contract.revision },
     resourceLimit: loaded.contract.resourcePolicy.maxWallTimeMinutes ?? null,
     gitAuthority: await taskGitAuthority(loaded.contract),
+    ...(executionStyle !== undefined ? { executionStyle } : {}),
     ...(changedFields !== undefined && changedFields.length > 0 ? { changedFields } : {}),
     ...(options.reapprovalPreview !== undefined ? { reapprovalPreview: options.reapprovalPreview } : {}),
   };

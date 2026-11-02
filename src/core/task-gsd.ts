@@ -205,12 +205,20 @@ export function buildGsdControllerPrompt(options: {
     [
       "# Identity",
       `alpha-AOS autopilot task ${contract.id}, revision ${contract.revision}, contract digest ${contractDigest}, run ${runId}.`,
-      "You are the single GSD controller and executor for this project for this run.",
+      contract.agentPolicy.controller === contract.agentPolicy.executor
+        ? `You are the approved controller and executor (${contract.agentPolicy.controller}) for this project for this run.`
+        : `You are the approved controller (${contract.agentPolicy.controller}); executor is ${contract.agentPolicy.executor}; reviewer is ${contract.agentPolicy.reviewer} (${contract.agentPolicy.reviewerSession}). Preserve approved role assignments, delegation, and fresh read-only review.`,
     ],
     [
       "# Workflow",
-      "Do all project work by invoking `$gsd-quick` with the task description below and following the installed workflow exactly.",
+      `Do all project work by invoking \`${contract.scope.quickQuality === "full" ? "$gsd-quick --full" : "$gsd-quick"}\` with the task description below and following the installed workflow exactly.`,
       `Installed GSD quick workflow: quick.md sha256 ${outline.sourceSha256} (steps: ${outline.stepNames.join(", ")}).`,
+      ...(contract.scope.quickQuality === "full"
+        ? [
+            "Full quality requires all native stages: discussion, research, planning, plan checking, implementation, verification, and state/docs commit.",
+            "Preserve native research-before-questions and active code-review gates.",
+          ]
+        : []),
       "GSD writes `.planning/` (the quick directory, its PLAN and SUMMARY, the STATE.md row and the docs(quick-<id>) commit). Never edit `.planning/` by hand.",
     ],
     [

@@ -1,8 +1,8 @@
 ---
 phase: 31-cross-harness-proof-and-distribution
-reviewed: 2026-11-02T20:06:05Z
+reviewed: 2026-11-02T20:24:25Z
 depth: standard
-files_reviewed: 20
+files_reviewed: 22
 files_reviewed_list:
   - README.md
   - README.ko.md
@@ -18,9 +18,11 @@ files_reviewed_list:
   - scripts/audit-tarball.mjs
   - scripts/verify-task-entry-proof.mjs
   - src/core/doctor.ts
+  - src/core/task-bootstrap.ts
   - test/doctor.test.ts
   - test/provenance.test.ts
   - test/tarball-fixture.test.ts
+  - test/task-bootstrap-resume.test.ts
   - test/task-entry-cross-harness.test.ts
   - test/task-entry-docs.test.ts
   - test/task-entry-proof.test.ts
@@ -34,42 +36,43 @@ status: clean
 
 # Phase 31: Code Review Report
 
-**Reviewed:** 2026-11-02T20:06:05Z
+**Reviewed:** 2026-11-02T20:24:25Z
 **Depth:** standard
-**Files Reviewed:** 20, including final proof-ledger changes and remediation re-review
-**Source HEAD:** `1f444d828ea282fc354ecc558c03e1db3b7fa11c`
-**Tested functional source:** `9b6679a481a0d694551712e6c1f621afbdada704`
+**Files Reviewed:** 22, including the scoped G-31-01 closure and proof-ledger changes
+**Source HEAD:** `b961a0f289631c506c313893d67330e30c8cabba`
+**Corrected-source final regression:** pending-final-wave
 **Status:** clean
 
 ## Summary
 
-Final independent execute-phase review after the five plan summaries and measured regression. The original Phase 31 scope remains the 20 files listed above. Prior passes reviewed the fixes in `c162bf3`, `b4de18d`, `bdd19aa` and `2dde9db` against the original report committed in `d5b03bd`; this final pass reviewed the measured proof-index/document delta and its underlying receipts. No functional files under `src/`, `scripts/`, `test/`, `catalog/`, `schemas/` or `skills/` changed after the clean `2dde9db` review. CR-01, CR-02, CR-03 and WR-01 remain resolved. No unresolved issues were found in the reviewed scope. Frontmatter counts represent unresolved findings only.
+Fresh independent review of the scoped G-31-01 closure in `e3ead95` and the expanded source-binding guard in `b961a0f`. The earlier 20-file Phase 31 review scope now includes `src/core/task-bootstrap.ts` and `test/task-bootstrap-resume.test.ts`. This pass examined the changed claim branch, its surrounding state transitions, route projection, service/real-CLI regression assertions and evidence reset. The same-nonce pre-link retry no longer grants autopilot dispatch authority. CR-01, CR-02, CR-03 and WR-01 remain resolved. No proven residual source defect was found in this scoped closure. Frontmatter counts represent unresolved code findings only.
 
-No source edits, builds, test suites or commits were performed by this reviewer. Earlier defect reproduction used read-only in-memory probes. Final verification evidence was independently reconciled from existing completed receipts and bounded raw-log summaries, without rerunning the checks. This phase review does not clear the separate milestone final review, paid-canary, CI, global-apply, push, publication or version-bump holds.
+No source edits, builds, test suites, runtime mutation probes or commits were performed in this pass. Targeted pass counts supplied by the orchestrator were not rerun. A clean scoped code review does not complete Plan 31-06, accept the corrected source without its fresh full regression, or clear the separate milestone/release holds. All four original prohibition judgments remain pending explicit human disposition; this report does not fabricate their acceptance.
 
 ## Narrative Findings (AI reviewer)
 
-### Final ledger evidence
+### G-31-01 closure evidence
 
-The index's `currentRun` exactly matches `.planning/tmp/31-final-counts.json` for all counts and the 12 suite groups, and matches `.planning/tmp/31-final-gates.json` for all eight successful named command receipts and tested source. The bounded raw full-run summaries independently match those groups: **2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run**, with no cancelled or todo tests. Aggregate counts equal the sum of the groups. The four source-binding hashes match both working bytes and committed bytes at `9b6679a481a0d694551712e6c1f621afbdada704`.
+Both initial and same-nonce claimed-state responses now derive `dispatchAuthorized` from the same persisted canonical style guard. Each of `autopilot-quick`, `autopilot-quick-full` and `autopilot-phase` consequently returns false, the shared explicit approval/separate-start guidance and the same pure `resolveTaskExecutionRoute` projection. The retry return branch does not update the handoff. The wrong-nonce claimed-state branch still throws `already-claimed`; the transaction transition also preserves that check. Linked and acknowledged reentry remain non-dispatching. Conversational same-nonce authority remains unchanged, with route equality now explicitly asserted.
 
-Post-ledger receipt logs record 9 passed, 1 Windows symlink-permission skip and 0 failed for the proof/docs suites, a 451-entry tarball audit, a verified 348-input/686-output build artifact and native-style `valid: true, allVerified: true`. These are preserved completed-run evidence, not newly executed tests. The earlier pre-ledger entry-proof receipt honestly says `pending-final-wave`; the post-ledger proof tests exercise the finalized index in checkout and packed contexts.
+The service regression covers all three canonical autopilot styles across initial claim, pre-link retry, wrong-nonce refusal and linked reentry. The composed recovery journey adds a real compiled-CLI pre-link retry asserting false dispatch authority and route equality. Independent task-run approval/start gates were not changed, and the original goal gap did not demonstrate a bypass of those gates.
 
-The `261101-ww3` timeout job and four historical not-run suites remain explicitly unwaived beside the measured current outcomes. All release/CI/auth/global-apply holds remain held and excluded from passed totals. The 55 cells retain **7 verified-native, 19 verified-fixture, 7 unsupported, 21 unverified and 1 blocked**; no fixture was promoted to native evidence. The seven native cells remain bound to archived authorized scratch-repository receipts, with separate owning-repository archive commits. Packed verification continues to make no fresh native-execution claim.
+The verifier's required source bindings now contain five files, including `src/core/task-bootstrap.ts`; matching checkout fixtures and source-binding tests include that file. The prior completed run at `9b6679a481a0d694551712e6c1f621afbdada704` remains in `priorCompletedRuns` with its **2149 total / 2135 passed / 0 failed / 14 skipped / 0 not-run** measurements and an explicit later-goal-gap disposition. It is not current corrected-source acceptance. `gateStatus` is `pending-final-wave`, no stale `currentRun` remains, and G-31-01 is marked `correction-pending-final-verification`. The proof document also labels the old measurements historical.
 
-The index's `independentReview` metadata currently references the earlier clean review archive. The orchestrator will bind this final report's metadata after the artifact exists; this expected handoff does not grant milestone/release authority.
+The `261101-ww3` timeout and historical not-run suites remain unwaived. Existing release/CI/auth/global-apply holds and archival native/fixture tier distinctions were not promoted or cleared. Earlier independent review receipts remain historical archive references; fresh review metadata can be bound after this report exists.
 
 ### Previous finding dispositions
 
 | Finding | Original classification | Disposition | Evidence |
 |---|---|---|---|
-| CR-01 | BLOCKER | Resolved | Required named command receipts, exact platform-specific suite groups, positive passed counts, aggregate reconciliation, source-commit existence and four committed/on-disk source hashes now reject the original zero-test and inconsistent-total cases. New negative cases cover those checks. |
+| CR-01 | BLOCKER | Resolved | Required named command receipts, exact platform-specific suite groups, positive passed counts, aggregate reconciliation, source-commit existence and now five mandatory committed/on-disk source hashes reject the original zero-test and inconsistent-total cases. |
 | CR-02 | BLOCKER | Resolved | Structured documents are decoded, decoded string keys/values are scanned, malformed documents fail closed, and Map keys/values plus Set members are traversed explicitly. The visited-container guard remains in place. Added top-level and nested escaped-Windows-path `!!set` cases cover the previously reproduced residual bypass. |
 | CR-03 | BLOCKER | Resolved | Both guides are mandatory bindings, their SHA-256 values are present in the index, and checkout/packed negative cases cover omitted bindings, absent files and changed bytes. |
 | WR-01 | WARNING | Resolved | Each deployed-skill probe now validates regular-file shape, catches read errors, emits a safe coded warning and continues. Directory and simulated EACCES cases verify retained findings; test mocks/environment are restored. |
+| G-31-01 | BLOCKER from goal verification | Code fix reviewed; final regression pending | Initial and pre-link same-nonce claims share the autopilot authority guard and route projection; wrong-nonce and linked-state semantics remain protected. This scoped review does not close the separate corrected-source acceptance gate. |
 
 ---
 
-_Reviewed: 2026-11-02T20:06:05Z_
+_Reviewed: 2026-11-02T20:24:25Z_
 _Reviewer: independent agent (gsd-code-reviewer), inherited authorized session model_
 _Depth: standard_

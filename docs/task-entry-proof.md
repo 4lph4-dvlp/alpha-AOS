@@ -75,3 +75,5 @@ Related: [support matrix](./SUPPORT_MATRIX.md), [historical matrix](./SUPPORT_MA
 The phase source review is clean. A separate milestone final review remains pending (independent-review-gate-pending), along with 3-os-ci-held, G-07-2, global-apply-hold, git-push-hold and npm-publish-hold, including the version bump beyond 0.5.0. None is included in passed test totals.
 
 The final independent code review of source and measured ledger is clean at 1f444d8. The earlier clean review remains hash-bound to its archive commit; the final review has a separate receipt. No release hold was cleared.
+
+G-31-01 scoped source correction is independently reviewed clean at b961a0f. Corrected-source full regression remains pending; the previous completed run is retained as historical evidence.

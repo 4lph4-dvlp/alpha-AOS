@@ -880,8 +880,17 @@
         "report": "31-REVIEW.md",
         "reportSha256": "a74f84b6912b22e32322c643a4c267d38bd1d4db035ee95836c41c856906f0bc",
         "scope": "final-source-and-measured-ledger",
-        "modelPolicy": "user-approved-session-inheritance"
+        "modelPolicy": "user-approved-session-inheritance",
+        "reportArchiveCommitSha": "b8e60e4"
       }
-    ]
+    ],
+    "gapReview": {
+      "status": "passed",
+      "gap": "G-31-01",
+      "reviewedSourceHead": "b961a0f289631c506c313893d67330e30c8cabba",
+      "report": "31-REVIEW.md",
+      "reportSha256": "1a72ae6057dfb6d538dc69a8087179a367656b75f59f82058cd41d48003a37e0",
+      "modelPolicy": "user-approved-session-inheritance"
+    }
   }
 }

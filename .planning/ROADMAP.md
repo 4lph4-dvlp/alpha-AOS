@@ -195,7 +195,7 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. English and Korean documentation explains both modes, six styles, exception criteria, task boundaries, initialization and direct commands, including real support limitations.
   5. Targeted positive/negative checks and the final full regression have recorded actual outcomes. Failed/not-run prior regressions are not counted as passed or waived; required failures block affected acceptance and remediation must stay explicitly scoped.
 
-**Plans:** 4/5 plans executed in 5 sequential waves
+**Plans:** 5/5 plans executed in 5 sequential waves
 
 Plans:
 
@@ -212,7 +212,7 @@ Plans:
 - [x] 31-03-PLAN.md — Packed tarball sandbox 5-target `alpha-aos-task` integrity, tamper refusal, meaningful discoverability, E2E CLI invocation, and zero `hostSnapshot` drift.
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 31-05-PLAN.md — Single-`HEAD` `D-14` final regression gate, preserved `261101-ww3` side-by-side ledger, and unwaived CI/canary/release/review hold verification.
+- [x] 31-05-PLAN.md — Single-`HEAD` `D-14` final regression gate, preserved `261101-ww3` side-by-side ledger, and unwaived CI/canary/release/review hold verification.
 
 **Planning focus:** Define representative native receipts and paid-call-free fixtures before advertising parity. Previous release holds remain; this milestone does not implicitly authorize paid canaries, global reconciliation, push, CI repair or publication.
 **Validation emphasis:** Public CLI/skill/runner flows, native handoff receipts where authorized, packed install behavior, existing quick/phase compatibility, full regression and independent review.
@@ -227,7 +227,7 @@ Plans:
 | 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
 | 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
 | 30. Six Execution Styles and Quality Binding | 8/8 | Complete    | 2026-11-03 |
-| 31. Cross-Harness Proof and Distribution | 4/5 | In Progress | - |
+| 31. Cross-Harness Proof and Distribution | 5/5 | In Progress | - |
 
 ## Planning and Execution Gates
 

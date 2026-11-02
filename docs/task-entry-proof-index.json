@@ -876,7 +876,7 @@
         "reportSha256": "a74f84b6912b22e32322c643a4c267d38bd1d4db035ee95836c41c856906f0bc",
         "scope": "final-source-and-measured-ledger",
         "modelPolicy": "user-approved-session-inheritance",
-        "reportArchiveCommitSha": "b8e60e4"
+        "reportArchiveCommitSha": "b8e60e417a665fa897b6cc26e09c840eb0a87947"
       }
     ],
     "gapReview": {

@@ -83,7 +83,7 @@ created: "2026-11-03"
 
 ## Execution Evidence
 
-Tested source `9b6679a481a0d694551712e6c1f621afbdada704`: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. All original ten tasks plus two gap-closure tasks have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. No additional tests were generated because all four PROVE requirements are covered.
+Tested source `9b6679a481a0d694551712e6c1f621afbdada704`: 2149 total, 2135 passed, 0 failed, 14 skipped, 0 not-run. All original ten tasks plus two gap-closure tasks have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. The Nyquist audit required no further test generation beyond the implemented G-31-01 regressions; all four PROVE requirements are covered.
 
 ## Validation Audit 2026-11-02
 
@@ -99,11 +99,11 @@ G-31-01 exposed a missing pre-link retry assertion. Gap plan 31-06 adds the corr
 
 ## Execution Evidence
 
-Tested source `3215bca7540a964b02d5a7e636a8d5dcadf0ca3d`: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. All ten task rows have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. No additional tests were generated because all four PROVE requirements are covered.
+Tested source `3215bca7540a964b02d5a7e636a8d5dcadf0ca3d`: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. All original ten tasks and both gap-closure tasks have passing behavioral/contract evidence. Post-ledger proof/docs checks: 9 passed and 1 Windows symlink skip. Full command receipts and exact suite groups are recorded in `docs/task-entry-proof-index.json`; logs are `.planning/tmp/31-final-*.log`. The Nyquist audit required no further test generation beyond the implemented G-31-01 regressions; all four PROVE requirements are covered.
 
 ## Latest Gap Closure Evidence
 
-G-31-01 source fix and initial/pre-link/linked regressions are verified at 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. Plan31-06 task1 is covered by bootstrap-resume and cross-harness suites; task2 is covered by the complete fresh D-14 gate and post-ledger proof/archive/build checks. Four original prohibition judgments remain a separate human checkpoint.
+G-31-01 source fix and initial/pre-link/linked regressions are verified at 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d: 2150 total, 2136 passed, 0 failed, 14 skipped, 0 not-run. 31-06-01 is covered by bootstrap-resume and cross-harness suites; 31-06-02 is covered by the complete fresh D-14 gate and post-ledger proof/archive/build checks. Four original prohibition judgments remain a separate human checkpoint.
 
 ## Validation Audit 2026-11-02
 

@@ -53,10 +53,13 @@ export interface TaskCriterion {
   measurement: TaskMeasurementConfig;
 }
 
+export type TaskQuickQuality = "standard" | "full";
+
 export interface TaskScope {
   projectRoot: string;
   workflow?: "gsd-quick" | "generic-connector" | string | undefined;
   summary: string;
+  quickQuality?: TaskQuickQuality | undefined;
 }
 
 export type DifferentReviewerPolicy = "require-different-harness" | "require-different-model" | "allow-same";
@@ -156,6 +159,7 @@ export interface DigestableTaskContract {
     projectRoot: string;
     workflow: string;
     summary: string;
+    quickQuality?: "full" | undefined;
   };
   allowedRoots: string[];
   allowedEffects: TaskEffect[];
@@ -375,6 +379,21 @@ async function parseTaskContract(text: string, label: string): Promise<TaskContr
     }
     seen.add(criterion.id);
   }
+  const effectiveWorkflow =
+    contract.scope.workflow ??
+    (contract.category === "development" ? "gsd-quick" : "generic-connector");
+  if (contract.scope.quickQuality !== undefined) {
+    if (contract.scope.quickQuality !== "standard" && contract.scope.quickQuality !== "full") {
+      throw invalid(
+        `Task contract ${label} is invalid: schema.enum at /scope/quickQuality.`,
+      );
+    }
+    if (effectiveWorkflow !== "gsd-quick") {
+      throw invalid(
+        `Task contract ${label} is invalid: quickQuality is only allowed when effective workflow is gsd-quick, but effective workflow is ${effectiveWorkflow} at /scope/quickQuality.`,
+      );
+    }
+  }
   return contract;
 }
 
@@ -567,6 +586,33 @@ export function canonicalJsonValue(value: unknown): unknown {
   return value;
 }
 
+export function resolveTaskQuickQuality(
+  contract:
+    | TaskContract
+    | DigestableTaskContract
+    | {
+        readonly category?: string | undefined;
+        readonly scope?: {
+          readonly workflow?: string | undefined;
+          readonly quickQuality?: string | undefined;
+          readonly summary?: string | undefined;
+          readonly projectRoot?: string | undefined;
+        } | undefined;
+      },
+): TaskQuickQuality | undefined {
+  const category = "category" in contract ? contract.category : undefined;
+  const workflow =
+    contract.scope?.workflow ??
+    (category === "development" ? "gsd-quick" : undefined);
+  if (workflow !== "gsd-quick") {
+    return undefined;
+  }
+  const q = contract.scope?.quickQuality;
+  if (q === "full") return "full";
+  if (q === "standard" || q === undefined) return "standard";
+  return undefined;
+}
+
 /**
  * The reviewable content of a contract, built as a literal with a fixed key
  * order because `reviewedDigest` hashes `JSON.stringify`, which is key-order
@@ -575,6 +621,9 @@ export function canonicalJsonValue(value: unknown): unknown {
  * is never normalized: a byte change there is a real contract change.
  */
 export function digestableTaskContract(contract: TaskContract): DigestableTaskContract {
+  const effectiveWorkflow =
+    contract.scope.workflow ?? (contract.category === "development" ? "gsd-quick" : "generic-connector");
+  const effectiveQuality = resolveTaskQuickQuality(contract);
   return {
     schemaVersion: contract.schemaVersion,
     id: contract.id,
@@ -584,8 +633,9 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
     goal: contract.goal.normalize("NFC"),
     scope: {
       projectRoot: resolve(contract.scope.projectRoot).normalize("NFC"),
-      workflow: contract.scope.workflow ?? (contract.category === "development" ? "gsd-quick" : "generic-connector"),
+      workflow: effectiveWorkflow,
       summary: contract.scope.summary.normalize("NFC"),
+      ...(effectiveQuality === "full" ? { quickQuality: "full" as const } : {}),
     },
     allowedRoots: sortedUnique(contract.allowedRoots.map(normalizeContractPath)),
     allowedEffects: sortedUnique(contract.allowedEffects),
@@ -680,6 +730,9 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("scope.projectRoot", before.scope.projectRoot, after.scope.projectRoot);
   compare("scope.workflow", before.scope.workflow, after.scope.workflow);
   compare("scope.summary", before.scope.summary, after.scope.summary);
+  const leftQuality = resolveTaskQuickQuality(before);
+  const rightQuality = resolveTaskQuickQuality(after);
+  compare("scope.quickQuality", leftQuality ?? null, rightQuality ?? null);
   compare("allowedRoots", before.allowedRoots, after.allowedRoots);
   compare("allowedEffects", before.allowedEffects, after.allowedEffects);
   compare("agentPolicy.controller", before.agentPolicy.controller, after.agentPolicy.controller);

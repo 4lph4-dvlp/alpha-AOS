@@ -14,6 +14,7 @@ import {
   readTaskBootstrapHandoff,
   resolveBootstrapStoragePath,
   TaskBootstrapStoreError,
+  updateTaskBootstrapHandoff,
   validateTaskBootstrapHandoffLimits,
   type TaskBootstrapHandoff,
 } from "./task-bootstrap-store.js";
@@ -85,6 +86,8 @@ export interface TaskBootstrapResult {
   readonly selectedStyle?: TaskExecutionStyle | undefined;
   readonly commandRoute?: ExplicitCommandRoute | undefined;
   readonly recoveryPlan?: NativeBootstrapRecoveryPlan | undefined;
+  readonly dispatchAuthorized?: boolean | undefined;
+  readonly nativeReference?: Record<string, unknown> | undefined;
 }
 
 export interface PrepareTaskBootstrapOptions {
@@ -660,6 +663,640 @@ export async function inspectTaskBootstrap(
   };
 }
 
+export interface ClaimTaskBootstrapOptions {
+  readonly inputPath?: string | undefined;
+  readonly input?: unknown | undefined;
+  readonly invocationPath?: string | undefined;
+  readonly stateRoot?: string | undefined;
+  readonly pendingId?: string | undefined;
+  readonly contentDigest?: string | undefined;
+  readonly projectRoot?: string | undefined;
+  readonly claimNonce?: string | undefined;
+  readonly host?: string | undefined;
+  readonly session?: MutationSession | undefined;
+  readonly runner?: GsdToolsRunner | undefined;
+}
+
+export async function claimTaskBootstrap(
+  options: ClaimTaskBootstrapOptions,
+): Promise<TaskBootstrapResult> {
+  const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  const invocationPath = options.invocationPath ?? process.cwd();
+
+  const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
+  const pendingId = options.pendingId ?? (typeof packet.pendingId === "string" ? packet.pendingId : undefined);
+
+  if (!pendingId) {
+    throw new TaskBootstrapError({
+      code: "missing-pending-id",
+      cause: "claim operation requires pendingId",
+      causeCategory: "missing-field",
+      remediation: "Provide pendingId in packet or options.",
+    });
+  }
+
+  const claimNonce = options.claimNonce ?? (typeof packet.claimNonce === "string" ? packet.claimNonce : `nonce-${randomBytes(8).toString("hex")}`);
+
+  const behaviorInput: ProjectBehaviorInput = {
+    invocationPath,
+    projectRoot,
+    stateRoot: options.stateRoot,
+  };
+  const policyView = await resolveProjectBehavior(behaviorInput);
+  const canonicalRoot = policyView.canonicalRoot;
+  const projectId = policyView.projectId;
+
+  const controller = (packet.controller ?? "codex") as HarnessId;
+  const workflow = typeof packet.workflow === "string" ? packet.workflow : "quick";
+  const phase = typeof packet.phase === "string" ? packet.phase : undefined;
+
+  // Re-verify readiness immediately before claim
+  const readiness = await inspectGsdProjectReadiness({
+    input: {
+      schemaVersion: 1,
+      controller,
+      workflow,
+      phase,
+      projectRoot: canonicalRoot,
+    },
+    invocationPath: canonicalRoot,
+    stateRoot: options.stateRoot,
+    runner: options.runner,
+  });
+
+  if (readiness.diagnosis === "missing-runtime" || readiness.diagnosis === "probe-error" || readiness.diagnosis === "unsupported") {
+    throw new TaskBootstrapError({
+      code: "readiness-blocked",
+      cause: `Readiness check failed with '${readiness.diagnosis}': ${readiness.reasons.join("; ")}`,
+      remediation: readiness.nextAction,
+    });
+  }
+
+  const stateRoot = options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos");
+  const destinationPath = resolveBootstrapStoragePath(stateRoot, projectId, pendingId);
+
+  let existing: TaskBootstrapHandoff;
+  try {
+    existing = await readTaskBootstrapHandoff({
+      stateRoot,
+      projectId,
+      pendingId,
+      canonicalRoot,
+    });
+  } catch (err) {
+    if (err instanceof TaskBootstrapStoreError) {
+      throw new TaskBootstrapError({
+        code: err.code,
+        path: err.path,
+        cause: err.causeDescription,
+        causeCategory: err.causeCategory,
+        remediation: err.remediation,
+      });
+    }
+    throw err;
+  }
+
+  const expectedDigest = options.contentDigest ?? (typeof packet.contentDigest === "string" ? packet.contentDigest : undefined);
+  if (expectedDigest && existing.contentDigest !== expectedDigest) {
+    throw new TaskBootstrapError({
+      code: "content-digest-mismatch",
+      cause: `Handoff content digest '${existing.contentDigest}' does not match expected '${expectedDigest}'.`,
+      remediation: "Verify correlation digest.",
+    });
+  }
+
+  if (existing.status === "cancelled") {
+    throw new TaskBootstrapError({
+      code: "already-cancelled",
+      cause: `Cannot claim cancelled pending transfer '${pendingId}'.`,
+      remediation: "Start a new task intake request.",
+    });
+  }
+
+  if (existing.status === "linked") {
+    return {
+      schemaVersion: 1,
+      operation: "claim",
+      canonicalRoot,
+      projectId,
+      pendingId,
+      contentDigest: existing.contentDigest,
+      planDigest: null,
+      applied: false,
+      destinationPath,
+      status: "linked",
+      readinessDiagnosis: readiness.diagnosis,
+      nextAction: "continue-existing",
+      dispatchAuthorized: false,
+      reasons: [
+        `Pending transfer '${pendingId}' is already linked to native task reference; continue existing task.`,
+      ],
+      selectedStyle: existing.canonicalSelectedStyle,
+      commandRoute: existing.commandRoute,
+      nativeReference: existing.nativeReference ?? existing.link?.nativeRef,
+    };
+  }
+
+  if (existing.status === "acknowledged") {
+    return {
+      schemaVersion: 1,
+      operation: "claim",
+      canonicalRoot,
+      projectId,
+      pendingId,
+      contentDigest: existing.contentDigest,
+      planDigest: null,
+      applied: false,
+      destinationPath,
+      status: "acknowledged",
+      readinessDiagnosis: readiness.diagnosis,
+      nextAction: "task-already-acknowledged",
+      dispatchAuthorized: false,
+      reasons: [
+        `Pending transfer '${pendingId}' has already been acknowledged; work is delivered.`,
+      ],
+      selectedStyle: existing.canonicalSelectedStyle,
+      commandRoute: existing.commandRoute,
+      nativeReference: existing.nativeReference ?? existing.link?.nativeRef,
+    };
+  }
+
+  if (existing.status === "claimed") {
+    if (existing.claim?.nonce === claimNonce) {
+      return {
+        schemaVersion: 1,
+        operation: "claim",
+        canonicalRoot,
+        projectId,
+        pendingId,
+        contentDigest: existing.contentDigest,
+        planDigest: null,
+        applied: true,
+        destinationPath,
+        status: "claimed",
+        readinessDiagnosis: readiness.diagnosis,
+        nextAction: "Link native task reference once allocated.",
+        dispatchAuthorized: true,
+        reasons: ["Handoff claim re-verified idempotently for this claimant."],
+        selectedStyle: existing.canonicalSelectedStyle,
+        commandRoute: existing.commandRoute,
+      };
+    }
+    throw new TaskBootstrapError({
+      code: "already-claimed",
+      cause: `Pending transfer '${pendingId}' was already claimed by another session at ${existing.claim?.claimedAt ?? "unknown"}.`,
+      remediation: "Wait for existing execution or inspect task status.",
+    });
+  }
+
+  // existing.status === "pending" -> Transition to "claimed"
+  const now = new Date().toISOString();
+  let updatedHandoff: TaskBootstrapHandoff;
+  try {
+    const res = await updateTaskBootstrapHandoff({
+      stateRoot,
+      projectId,
+      pendingId,
+      expectedContentDigest: expectedDigest,
+      session: options.session,
+      transition: (cur) => {
+        if (cur.status === "cancelled") {
+          throw new TaskBootstrapStoreError({
+            code: "already-cancelled",
+            cause: "Pending transfer was cancelled during claim attempt",
+            remediation: "Start a new task intake request.",
+          });
+        }
+        if (cur.status === "claimed") {
+          if (cur.claim?.nonce === claimNonce) return cur;
+          throw new TaskBootstrapStoreError({
+            code: "already-claimed",
+            cause: "Pending transfer was already claimed by another session",
+            remediation: "Inspect task status.",
+          });
+        }
+        if (cur.status !== "pending") {
+          throw new TaskBootstrapStoreError({
+            code: "invalid-status-transition",
+            cause: `Cannot claim transfer in status '${cur.status}'`,
+            remediation: "Inspect task status.",
+          });
+        }
+        return {
+          ...cur,
+          status: "claimed",
+          claim: {
+            nonce: claimNonce,
+            host: options.host ?? "local-host",
+            session: `sess-${randomBytes(6).toString("hex")}`,
+            claimedAt: now,
+          },
+          updatedAt: now,
+        };
+      },
+    });
+    updatedHandoff = res.handoff;
+  } catch (err) {
+    if (err instanceof TaskBootstrapStoreError) {
+      throw new TaskBootstrapError({
+        code: err.code,
+        path: err.path,
+        cause: err.causeDescription,
+        causeCategory: err.causeCategory,
+        remediation: err.remediation,
+      });
+    }
+    throw err;
+  }
+
+  const isAutopilot = updatedHandoff.canonicalSelectedStyle?.startsWith("autopilot");
+
+  return {
+    schemaVersion: 1,
+    operation: "claim",
+    canonicalRoot,
+    projectId,
+    pendingId,
+    contentDigest: updatedHandoff.contentDigest,
+    planDigest: null,
+    applied: true,
+    destinationPath,
+    status: "claimed",
+    readinessDiagnosis: readiness.diagnosis,
+    nextAction: isAutopilot
+      ? "Autopilot style selected; requires separate contract preview, exact digest approval, and separate start command. Task bootstrap does not authorize autopilot execution or perform inline file mutations."
+      : "Proceed to native task execution and link native reference.",
+    dispatchAuthorized: !isAutopilot,
+    reasons: [
+      `Durable claim recorded with nonce '${claimNonce}'.`,
+      isAutopilot
+        ? "Autopilot identity restored; execution authorization withheld until explicit contract approval and separate start."
+        : "Single dispatch permission granted to claimant.",
+    ],
+    selectedStyle: updatedHandoff.canonicalSelectedStyle,
+    commandRoute: updatedHandoff.commandRoute,
+  };
+}
+
+export interface LinkTaskBootstrapNativeReferenceOptions {
+  readonly inputPath?: string | undefined;
+  readonly input?: unknown | undefined;
+  readonly invocationPath?: string | undefined;
+  readonly stateRoot?: string | undefined;
+  readonly pendingId?: string | undefined;
+  readonly contentDigest?: string | undefined;
+  readonly projectRoot?: string | undefined;
+  readonly nativeReference?: Record<string, unknown> | undefined;
+  readonly session?: MutationSession | undefined;
+}
+
+export async function linkTaskBootstrapNativeReference(
+  options: LinkTaskBootstrapNativeReferenceOptions,
+): Promise<TaskBootstrapResult> {
+  const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  const invocationPath = options.invocationPath ?? process.cwd();
+
+  const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
+  const pendingId = options.pendingId ?? (typeof packet.pendingId === "string" ? packet.pendingId : undefined);
+
+  if (!pendingId) {
+    throw new TaskBootstrapError({
+      code: "missing-pending-id",
+      cause: "link operation requires pendingId",
+      causeCategory: "missing-field",
+      remediation: "Provide pendingId in packet or options.",
+    });
+  }
+
+  const nativeRef = options.nativeReference ?? (typeof packet.nativeReference === "object" && packet.nativeReference !== null ? packet.nativeReference as Record<string, unknown> : undefined);
+  if (!nativeRef) {
+    throw new TaskBootstrapError({
+      code: "missing-native-reference",
+      cause: "link operation requires nativeReference",
+      causeCategory: "missing-field",
+      remediation: "Provide nativeReference object.",
+    });
+  }
+
+  const behaviorInput: ProjectBehaviorInput = {
+    invocationPath,
+    projectRoot,
+    stateRoot: options.stateRoot,
+  };
+  const policyView = await resolveProjectBehavior(behaviorInput);
+  const canonicalRoot = policyView.canonicalRoot;
+  const projectId = policyView.projectId;
+  const stateRoot = options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos");
+  const destinationPath = resolveBootstrapStoragePath(stateRoot, projectId, pendingId);
+
+  const now = new Date().toISOString();
+  let updatedHandoff: TaskBootstrapHandoff;
+  try {
+    const res = await updateTaskBootstrapHandoff({
+      stateRoot,
+      projectId,
+      pendingId,
+      session: options.session,
+      transition: (cur) => {
+        if (cur.status === "cancelled") {
+          throw new TaskBootstrapStoreError({
+            code: "already-cancelled",
+            cause: "Cannot link cancelled handoff",
+            remediation: "Start a new task intake request.",
+          });
+        }
+        if (cur.status === "linked") {
+          const curId = (cur.link?.nativeRef as Record<string, unknown> | undefined)?.id;
+          const newId = (nativeRef as Record<string, unknown>).id;
+          if (curId && newId && curId === newId) return cur;
+          throw new TaskBootstrapStoreError({
+            code: "link-conflict",
+            cause: "Pending handoff is already linked to a different native reference",
+            remediation: "Use existing link reference.",
+          });
+        }
+        if (cur.status === "acknowledged") {
+          return cur;
+        }
+        return {
+          ...cur,
+          status: "linked",
+          nativeReference: nativeRef,
+          link: {
+            nativeRef,
+            linkedAt: now,
+          },
+          updatedAt: now,
+        };
+      },
+    });
+    updatedHandoff = res.handoff;
+  } catch (err) {
+    if (err instanceof TaskBootstrapStoreError) {
+      throw new TaskBootstrapError({
+        code: err.code,
+        path: err.path,
+        cause: err.causeDescription,
+        causeCategory: err.causeCategory,
+        remediation: err.remediation,
+      });
+    }
+    throw err;
+  }
+
+  return {
+    schemaVersion: 1,
+    operation: "link",
+    canonicalRoot,
+    projectId,
+    pendingId,
+    contentDigest: updatedHandoff.contentDigest,
+    planDigest: null,
+    applied: true,
+    destinationPath,
+    status: "linked",
+    readinessDiagnosis: null,
+    nextAction: "Execute native workflow and acknowledge delivery upon completion.",
+    reasons: [
+      `Linked exact native reference '${(nativeRef as Record<string, unknown>).id ?? (nativeRef as Record<string, unknown>).kind ?? "task"}'.`,
+    ],
+    selectedStyle: updatedHandoff.canonicalSelectedStyle,
+    commandRoute: updatedHandoff.commandRoute,
+    nativeReference: nativeRef,
+  };
+}
+
+export interface AcknowledgeTaskBootstrapOptions {
+  readonly inputPath?: string | undefined;
+  readonly input?: unknown | undefined;
+  readonly invocationPath?: string | undefined;
+  readonly stateRoot?: string | undefined;
+  readonly pendingId?: string | undefined;
+  readonly contentDigest?: string | undefined;
+  readonly projectRoot?: string | undefined;
+  readonly deliveryReceipt?: Record<string, unknown> | undefined;
+  readonly session?: MutationSession | undefined;
+}
+
+export async function acknowledgeTaskBootstrap(
+  options: AcknowledgeTaskBootstrapOptions,
+): Promise<TaskBootstrapResult> {
+  const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  const invocationPath = options.invocationPath ?? process.cwd();
+
+  const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
+  const pendingId = options.pendingId ?? (typeof packet.pendingId === "string" ? packet.pendingId : undefined);
+
+  if (!pendingId) {
+    throw new TaskBootstrapError({
+      code: "missing-pending-id",
+      cause: "acknowledge operation requires pendingId",
+      causeCategory: "missing-field",
+      remediation: "Provide pendingId in packet or options.",
+    });
+  }
+
+  const behaviorInput: ProjectBehaviorInput = {
+    invocationPath,
+    projectRoot,
+    stateRoot: options.stateRoot,
+  };
+  const policyView = await resolveProjectBehavior(behaviorInput);
+  const canonicalRoot = policyView.canonicalRoot;
+  const projectId = policyView.projectId;
+  const stateRoot = options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos");
+  const destinationPath = resolveBootstrapStoragePath(stateRoot, projectId, pendingId);
+
+  const deliveryReceipt = options.deliveryReceipt ?? (typeof packet.deliveryReceipt === "object" && packet.deliveryReceipt !== null ? packet.deliveryReceipt as Record<string, unknown> : undefined);
+  const receiptSha256 = typeof deliveryReceipt?.receiptSha256 === "string" ? deliveryReceipt.receiptSha256 : undefined;
+  const now = new Date().toISOString();
+
+  let updatedHandoff: TaskBootstrapHandoff;
+  try {
+    const res = await updateTaskBootstrapHandoff({
+      stateRoot,
+      projectId,
+      pendingId,
+      session: options.session,
+      transition: (cur) => {
+        if (cur.status === "cancelled") {
+          throw new TaskBootstrapStoreError({
+            code: "already-cancelled",
+            cause: "Cannot acknowledge cancelled handoff",
+            remediation: "Start a new task intake request.",
+          });
+        }
+        if (cur.status === "acknowledged") {
+          return cur;
+        }
+        if (cur.status !== "linked") {
+          throw new TaskBootstrapStoreError({
+            code: "not-linked",
+            cause: "Cannot acknowledge unlinked handoff; link exact native reference first.",
+            remediation: "Link native task reference before acknowledging delivery.",
+          });
+        }
+        return {
+          ...cur,
+          status: "acknowledged",
+          delivery: {
+            deliveredAt: now,
+            receiptSha256,
+          },
+          updatedAt: now,
+        };
+      },
+    });
+    updatedHandoff = res.handoff;
+  } catch (err) {
+    if (err instanceof TaskBootstrapStoreError) {
+      throw new TaskBootstrapError({
+        code: err.code,
+        path: err.path,
+        cause: err.causeDescription,
+        causeCategory: err.causeCategory,
+        remediation: err.remediation,
+      });
+    }
+    throw err;
+  }
+
+  return {
+    schemaVersion: 1,
+    operation: "acknowledge",
+    canonicalRoot,
+    projectId,
+    pendingId,
+    contentDigest: updatedHandoff.contentDigest,
+    planDigest: null,
+    applied: true,
+    destinationPath,
+    status: "acknowledged",
+    readinessDiagnosis: null,
+    nextAction: "Task delivered and acknowledged. Request continuity completed.",
+    reasons: [
+      `Delivery acceptance recorded for pendingId '${pendingId}'.`,
+    ],
+    selectedStyle: updatedHandoff.canonicalSelectedStyle,
+    commandRoute: updatedHandoff.commandRoute,
+    nativeReference: updatedHandoff.nativeReference ?? updatedHandoff.link?.nativeRef,
+  };
+}
+
+export interface CancelTaskBootstrapOptions {
+  readonly inputPath?: string | undefined;
+  readonly input?: unknown | undefined;
+  readonly invocationPath?: string | undefined;
+  readonly stateRoot?: string | undefined;
+  readonly pendingId?: string | undefined;
+  readonly contentDigest?: string | undefined;
+  readonly projectRoot?: string | undefined;
+  readonly reason?: string | undefined;
+  readonly session?: MutationSession | undefined;
+}
+
+export async function cancelTaskBootstrap(
+  options: CancelTaskBootstrapOptions,
+): Promise<TaskBootstrapResult> {
+  const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  const invocationPath = options.invocationPath ?? process.cwd();
+
+  const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
+  const pendingId = options.pendingId ?? (typeof packet.pendingId === "string" ? packet.pendingId : undefined);
+
+  if (!pendingId) {
+    throw new TaskBootstrapError({
+      code: "missing-pending-id",
+      cause: "cancel operation requires pendingId",
+      causeCategory: "missing-field",
+      remediation: "Provide pendingId in packet or options.",
+    });
+  }
+
+  const reason = options.reason ?? (typeof packet.reason === "string" ? packet.reason : "Cancelled by user");
+  const behaviorInput: ProjectBehaviorInput = {
+    invocationPath,
+    projectRoot,
+    stateRoot: options.stateRoot,
+  };
+  const policyView = await resolveProjectBehavior(behaviorInput);
+  const canonicalRoot = policyView.canonicalRoot;
+  const projectId = policyView.projectId;
+  const stateRoot = options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos");
+  const destinationPath = resolveBootstrapStoragePath(stateRoot, projectId, pendingId);
+
+  const now = new Date().toISOString();
+  let inFlight = false;
+  let updatedHandoff: TaskBootstrapHandoff;
+
+  try {
+    const res = await updateTaskBootstrapHandoff({
+      stateRoot,
+      projectId,
+      pendingId,
+      session: options.session,
+      transition: (cur) => {
+        if (cur.status === "acknowledged") {
+          throw new TaskBootstrapStoreError({
+            code: "cannot-cancel-acknowledged",
+            cause: "Cannot cancel a task bootstrap handoff that has already been delivered and acknowledged.",
+            remediation: "The task was already completed natively.",
+          });
+        }
+        if (cur.status === "cancelled") return cur;
+        if (cur.status === "linked" || cur.status === "claimed") {
+          inFlight = true;
+        }
+        return {
+          ...cur,
+          status: "cancelled",
+          cancellation: {
+            reason,
+            cancelledAt: now,
+          },
+          updatedAt: now,
+        };
+      },
+    });
+    updatedHandoff = res.handoff;
+  } catch (err) {
+    if (err instanceof TaskBootstrapStoreError) {
+      throw new TaskBootstrapError({
+        code: err.code,
+        path: err.path,
+        cause: err.causeDescription,
+        causeCategory: err.causeCategory,
+        remediation: err.remediation,
+      });
+    }
+    throw err;
+  }
+
+  return {
+    schemaVersion: 1,
+    operation: "cancel",
+    canonicalRoot,
+    projectId,
+    pendingId,
+    contentDigest: updatedHandoff.contentDigest,
+    planDigest: null,
+    applied: true,
+    destinationPath,
+    status: "cancelled",
+    readinessDiagnosis: null,
+    nextAction: inFlight
+      ? "Delivery was in flight; stop native execution with native commands (e.g. gsd-undo). No further dispatch permission will be granted."
+      : "Pending handoff cancelled. Zero tasks will be dispatched.",
+    reasons: [
+      `Cancellation recorded: '${reason}'.`,
+      inFlight ? "delivery-in-flight: native task was already claimed or linked; stop native work." : "Cancelled before claim or dispatch.",
+    ],
+    selectedStyle: updatedHandoff.canonicalSelectedStyle,
+    commandRoute: updatedHandoff.commandRoute,
+    nativeReference: updatedHandoff.nativeReference ?? updatedHandoff.link?.nativeRef,
+  };
+}
+
 export function buildNativeBootstrapInput(
   handoff: TaskBootstrapHandoff,
   recoveryPlan?: NativeBootstrapRecoveryPlan,
@@ -762,6 +1399,12 @@ export function formatTaskBootstrapResult(result: TaskBootstrapResult): string {
   }
   if (result.commandRoute) {
     lines.push(`Command route: ${result.commandRoute.command} (${result.commandRoute.workflow})`);
+  }
+  if (result.dispatchAuthorized !== undefined) {
+    lines.push(`Dispatch authorized: ${result.dispatchAuthorized ? "true" : "false"}`);
+  }
+  if (result.nativeReference) {
+    lines.push(`Native reference: ${JSON.stringify(result.nativeReference)}`);
   }
   lines.push(`Next action: ${result.nextAction}`);
   if (result.reasons.length > 0) {

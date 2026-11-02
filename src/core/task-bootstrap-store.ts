@@ -73,6 +73,7 @@ export interface TaskBootstrapHandoff {
   readonly nativeReference?: Record<string, unknown> | undefined;
   readonly status: "pending" | "claimed" | "linked" | "acknowledged" | "cancelled";
   readonly claim?: {
+    readonly nonce?: string | undefined;
     readonly host: string;
     readonly session: string;
     readonly claimedAt: string;
@@ -83,6 +84,8 @@ export interface TaskBootstrapHandoff {
   } | undefined;
   readonly delivery?: {
     readonly deliveredAt: string;
+    readonly receiptSha256?: string | undefined;
+    readonly details?: string | undefined;
   } | undefined;
   readonly cancellation?: {
     readonly reason: string;
@@ -426,4 +429,59 @@ export async function readTaskBootstrapHandoff(
   }
 
   return handoff;
+}
+
+export interface UpdateTaskBootstrapHandoffOptions {
+  readonly stateRoot: string;
+  readonly projectId: string;
+  readonly pendingId: string;
+  readonly expectedContentDigest?: string | undefined;
+  readonly transition: (existing: TaskBootstrapHandoff) => TaskBootstrapHandoff;
+  readonly session?: MutationSession | undefined;
+}
+
+export async function updateTaskBootstrapHandoff(
+  options: UpdateTaskBootstrapHandoffOptions,
+): Promise<{ path: string; handoff: TaskBootstrapHandoff }> {
+  const storagePath = resolveBootstrapStoragePath(
+    options.stateRoot,
+    options.projectId,
+    options.pendingId,
+  );
+
+  const existing = await readTaskBootstrapHandoff({
+    stateRoot: options.stateRoot,
+    projectId: options.projectId,
+    pendingId: options.pendingId,
+    expectedContentDigest: options.expectedContentDigest,
+  });
+
+  const updated = options.transition(existing);
+  validateTaskBootstrapHandoffLimits(updated);
+
+  const serialized = JSON.stringify(updated, null, 2);
+  const totalBytes = Buffer.byteLength(serialized, "utf8");
+  if (totalBytes > MAX_RECORD_BYTES) {
+    throw new TaskBootstrapStoreError({
+      code: "record-too-large",
+      path: storagePath,
+      cause: `Updated record exceeds ${MAX_RECORD_BYTES} bytes limit (${totalBytes} bytes).`,
+      causeCategory: "byte-budget",
+      remediation: "Reduce record contents.",
+    });
+  }
+
+  await applyFileTransaction({
+    stateRoot: options.stateRoot,
+    allowedRoots: [resolve(options.stateRoot)],
+    operations: [
+      {
+        target: storagePath,
+        content: serialized,
+      },
+    ],
+    ...(options.session ? { session: options.session } : {}),
+  });
+
+  return { path: storagePath, handoff: updated };
 }

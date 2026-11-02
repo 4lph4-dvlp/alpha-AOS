@@ -139,6 +139,13 @@
     "nativeReference": {
       "type": "object"
     },
+    "claimNonce": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "deliveryReceipt": {
+      "type": "object"
+    },
     "reason": {
       "type": "string",
       "maxLength": 1024

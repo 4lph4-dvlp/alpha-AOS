@@ -2317,6 +2317,10 @@ async function main(): Promise<void> {
       const {
         prepareTaskBootstrap,
         inspectTaskBootstrap,
+        claimTaskBootstrap,
+        linkTaskBootstrapNativeReference,
+        acknowledgeTaskBootstrap,
+        cancelTaskBootstrap,
         formatTaskBootstrapResult,
       } = await import("./core/task-bootstrap.js");
 
@@ -2330,6 +2334,30 @@ async function main(): Promise<void> {
       let result;
       if (operation === "inspect") {
         result = await inspectTaskBootstrap({
+          input: packetData,
+          invocationPath: process.cwd(),
+          stateRoot,
+        });
+      } else if (operation === "claim") {
+        result = await claimTaskBootstrap({
+          input: packetData,
+          invocationPath: process.cwd(),
+          stateRoot,
+        });
+      } else if (operation === "link") {
+        result = await linkTaskBootstrapNativeReference({
+          input: packetData,
+          invocationPath: process.cwd(),
+          stateRoot,
+        });
+      } else if (operation === "acknowledge") {
+        result = await acknowledgeTaskBootstrap({
+          input: packetData,
+          invocationPath: process.cwd(),
+          stateRoot,
+        });
+      } else if (operation === "cancel") {
+        result = await cancelTaskBootstrap({
           input: packetData,
           invocationPath: process.cwd(),
           stateRoot,

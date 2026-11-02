@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 import {
   createIsolatedSandbox,
@@ -217,4 +217,96 @@ test("task bootstrap CLI tracer: prepare preview, positional operand rejection, 
   assert.equal(parsed.schemaVersion, 1);
   assert.equal(parsed.operation, "prepare");
   assert.equal(parsed.applied, false);
+});
+
+test("task bootstrap CLI: supports claim, link, and acknowledge operations through --input (BOOT-04)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "bootstrap-ops-project");
+  await mkdir(join(projectDir, ".planning"), { recursive: true });
+  await writeFile(join(projectDir, ".planning", "PROJECT.md"), "# Ops Project\n", "utf8");
+
+  // Mock gsd runtime
+  const fakeGsdTools = join(sandbox.home, "gsd-core", "bin", "gsd-tools.cjs");
+  await mkdir(dirname(fakeGsdTools), { recursive: true });
+  await writeFile(fakeGsdTools, "console.log(JSON.stringify({ packageName: '@opengsd/gsd-core', version: '1.18.0', planning_exists: true, init_incomplete: false, project_exists: true, requirements_exists: true, roadmap_exists: true, state_exists: true, agents_installed: true, project_root: process.cwd() }));", "utf8");
+
+  const env = {
+    ...sandbox.env,
+    CODEX_HOME: sandbox.home,
+  };
+
+  // 1. Prepare apply
+  const prepPacket = {
+    schemaVersion: 1,
+    operation: "prepare",
+    controller: "codex",
+    workflow: "quick",
+    pendingId: "pending-cli-ops",
+    projectRoot: projectDir,
+    request: { text: "Add webhook route" },
+  };
+  const prepPath = join(projectDir, "prep.json");
+  await writeFile(prepPath, JSON.stringify(prepPacket, null, 2), "utf8");
+
+  const previewRes = spawnSync(process.execPath, [cliPath, "task", "bootstrap", "--input", prepPath, "--json"], { cwd: projectDir, env, encoding: "utf8" });
+  assert.equal(previewRes.status, 0);
+  const previewJson = JSON.parse(previewRes.stdout);
+  assert.ok(previewJson.planDigest);
+
+  const applyRes = spawnSync(process.execPath, [cliPath, "task", "bootstrap", "--input", prepPath, "--plan-digest", previewJson.planDigest, "--apply", "--json"], { cwd: projectDir, env, encoding: "utf8" });
+  assert.equal(applyRes.status, 0);
+
+  // 2. Claim
+  const claimPacket = {
+    schemaVersion: 1,
+    operation: "claim",
+    controller: "codex",
+    workflow: "quick",
+    pendingId: "pending-cli-ops",
+    projectRoot: projectDir,
+    claimNonce: "cli-claim-nonce",
+  };
+  const claimPath = join(projectDir, "claim.json");
+  await writeFile(claimPath, JSON.stringify(claimPacket, null, 2), "utf8");
+
+  const claimRes = spawnSync(process.execPath, [cliPath, "task", "bootstrap", "--input", claimPath, "--json"], { cwd: projectDir, env, encoding: "utf8" });
+  assert.equal(claimRes.status, 0, claimRes.stderr);
+  const claimJson = JSON.parse(claimRes.stdout);
+  assert.equal(claimJson.operation, "claim");
+  assert.equal(claimJson.status, "claimed");
+  assert.equal(claimJson.dispatchAuthorized, true);
+
+  // 3. Link
+  const linkPacket = {
+    schemaVersion: 1,
+    operation: "link",
+    pendingId: "pending-cli-ops",
+    projectRoot: projectDir,
+    nativeReference: { kind: "quick", id: "task-01" },
+  };
+  const linkPath = join(projectDir, "link.json");
+  await writeFile(linkPath, JSON.stringify(linkPacket, null, 2), "utf8");
+
+  const linkRes = spawnSync(process.execPath, [cliPath, "task", "bootstrap", "--input", linkPath, "--json"], { cwd: projectDir, env, encoding: "utf8" });
+  assert.equal(linkRes.status, 0, linkRes.stderr);
+  const linkJson = JSON.parse(linkRes.stdout);
+  assert.equal(linkJson.operation, "link");
+  assert.equal(linkJson.status, "linked");
+
+  // 4. Acknowledge
+  const ackPacket = {
+    schemaVersion: 1,
+    operation: "acknowledge",
+    pendingId: "pending-cli-ops",
+    projectRoot: projectDir,
+    deliveryReceipt: { receiptSha256: "a".repeat(64) },
+  };
+  const ackPath = join(projectDir, "ack.json");
+  await writeFile(ackPath, JSON.stringify(ackPacket, null, 2), "utf8");
+
+  const ackRes = spawnSync(process.execPath, [cliPath, "task", "bootstrap", "--input", ackPath, "--json"], { cwd: projectDir, env, encoding: "utf8" });
+  assert.equal(ackRes.status, 0, ackRes.stderr);
+  const ackJson = JSON.parse(ackRes.stdout);
+  assert.equal(ackJson.operation, "acknowledge");
+  assert.equal(ackJson.status, "acknowledged");
 });

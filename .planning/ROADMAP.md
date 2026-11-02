@@ -195,7 +195,22 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. English and Korean documentation explains both modes, six styles, exception criteria, task boundaries, initialization and direct commands, including real support limitations.
   5. Targeted positive/negative checks and the final full regression have recorded actual outcomes. Failed/not-run prior regressions are not counted as passed or waived; required failures block affected acceptance and remediation must stay explicitly scoped.
 
-**Plans:** TBD — created by plan-phase after discussion.
+**Plans:** 5 plans in 4 waves
+
+Plans:
+
+**Wave 1** *(packaging hygiene & doctor owned-skill tamper foundation)*
+- [ ] 31-01-PLAN.md — Normalize packaged workstation paths, enforce fail-closed tarball text/surface auditing, and harden `runDoctor` 5-target owned-skill verification.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 31-02-PLAN.md — Deterministic 5-harness composed scenario journeys, `D-13` positive/negative pairs, 55-cell cross-harness proof index/ledger, and dual-context read-only verifier.
+
+**Wave 3** *(blocked on Wave 2 completion — zero `files_modified` overlap between 31-03 and 31-04)*
+- [ ] 31-03-PLAN.md — Packed tarball sandbox 5-target `alpha-aos-task` integrity, tamper refusal, meaningful discoverability, E2E CLI invocation, and zero `hostSnapshot` drift.
+- [ ] 31-04-PLAN.md — Symmetric English/Korean user guides (`docs/task-entry*.md`), repaired `README.md`/`README.ko.md` parity, complete 14-entry tarball allowlist, and doc contract suite.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 31-05-PLAN.md — Single-`HEAD` `D-14` final regression gate, preserved `261101-ww3` side-by-side ledger, and unwaived CI/canary/release/review hold verification.
 
 **Planning focus:** Define representative native receipts and paid-call-free fixtures before advertising parity. Previous release holds remain; this milestone does not implicitly authorize paid canaries, global reconciliation, push, CI repair or publication.
 **Validation emphasis:** Public CLI/skill/runner flows, native handoff receipts where authorized, packed install behavior, existing quick/phase compatibility, full regression and independent review.
@@ -210,7 +225,7 @@ Every requirement has exactly one owning phase. Later integration verification r
 | 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
 | 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
 | 30. Six Execution Styles and Quality Binding | 8/8 | Complete    | 2026-11-03 |
-| 31. Cross-Harness Proof and Distribution | 0/TBD | Not started | - |
+| 31. Cross-Harness Proof and Distribution | 0/5 | Planned | - |
 
 ## Planning and Execution Gates
 

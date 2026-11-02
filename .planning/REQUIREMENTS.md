@@ -27,13 +27,13 @@
 
 ### Predictable Task Intake
 
-- [ ] **ENTRY-01**: A user making a new substantial strict-mode request without an explicit style sees all six stable labels with concise descriptions and selects one before execution.
-- [ ] **ENTRY-02**: A user explicitly naming a task style proceeds with that style without the chooser; normal readiness and authority requirements still apply.
-- [ ] **ENTRY-03**: A user's choice applies only to that task: follow-up edits and verification continue without repeated selection, while later independent requests receive a fresh chooser.
-- [ ] **ENTRY-04**: A user requesting an operation with a clear target/result and no separate design, investigation or multi-stage implementation avoids chooser and forced initialization prompts; bounded push, simple rename and README translation/linking are acceptance examples.
-- [ ] **ENTRY-05**: A user can inspect a bounded reason for the intake decision; uncertain task scope receives a narrow clarification and a complex operation is not exempted by its task name alone.
-- [ ] **ENTRY-06**: A user choosing flexible mode receives existing adaptive conversational/autopilot intake behavior while explicit style and authority boundaries remain effective.
-- [ ] **ENTRY-07**: A user directly invoking a GSD command retains the selected workflow and timing without an unrelated six-style chooser; that command's native prerequisites and checkpoints remain intact.
+- [x] **ENTRY-01**: A user making a new substantial strict-mode request without an explicit style sees all six stable labels with concise descriptions and selects one before execution.
+- [x] **ENTRY-02**: A user explicitly naming a task style proceeds with that style without the chooser; normal readiness and authority requirements still apply.
+- [x] **ENTRY-03**: A user's choice applies only to that task: follow-up edits and verification continue without repeated selection, while later independent requests receive a fresh chooser.
+- [x] **ENTRY-04**: A user requesting an operation with a clear target/result and no separate design, investigation or multi-stage implementation avoids chooser and forced initialization prompts; bounded push, simple rename and README translation/linking are acceptance examples.
+- [x] **ENTRY-05**: A user can inspect a bounded reason for the intake decision; uncertain task scope receives a narrow clarification and a complex operation is not exempted by its task name alone.
+- [x] **ENTRY-06**: A user choosing flexible mode receives existing adaptive conversational/autopilot intake behavior while explicit style and authority boundaries remain effective.
+- [x] **ENTRY-07**: A user directly invoking a GSD command retains the selected workflow and timing without an unrelated six-style chooser; that command's native prerequisites and checkpoints remain intact.
 
 ### GSD Initialization and Request Continuity
 
@@ -100,13 +100,13 @@ All 27 approved requirements map to exactly one owning phase in the user-approve
 | MODE-03 | Phase 27 | Pending |
 | MODE-04 | Phase 27 | Pending |
 | MODE-05 | Phase 27 | Pending |
-| ENTRY-01 | Phase 28 | Pending |
-| ENTRY-02 | Phase 28 | Pending |
-| ENTRY-03 | Phase 28 | Pending |
-| ENTRY-04 | Phase 28 | Pending |
-| ENTRY-05 | Phase 28 | Pending |
-| ENTRY-06 | Phase 28 | Pending |
-| ENTRY-07 | Phase 28 | Pending |
+| ENTRY-01 | Phase 28 | Complete |
+| ENTRY-02 | Phase 28 | Complete |
+| ENTRY-03 | Phase 28 | Complete |
+| ENTRY-04 | Phase 28 | Complete |
+| ENTRY-05 | Phase 28 | Complete |
+| ENTRY-06 | Phase 28 | Complete |
+| ENTRY-07 | Phase 28 | Complete |
 | BOOT-01 | Phase 29 | Pending |
 | BOOT-02 | Phase 29 | Pending |
 | BOOT-03 | Phase 29 | Pending |

@@ -18,7 +18,7 @@ Users receive predictable task intake across Claude Code, Codex, Antigravity, Pi
 ## Phases
 
 - [ ] **Phase 27: Shared Project Behavior Policy** — One safe, current project authority for strict/flexible, including natural-language changes before GSD initialization.
-- [ ] **Phase 28: Predictable Strict and Flexible Intake** — Common decision reasons, task-scoped chooser, simple-operation exemptions and explicit-command precedence.
+- [x] **Phase 28: Predictable Strict and Flexible Intake** — Common decision reasons, task-scoped chooser, simple-operation exemptions and explicit-command precedence. (completed 2026-11-02)
 - [ ] **Phase 29: GSD Initialization and Request Continuity** — Native readiness diagnostics, non-destructive bootstrap/recovery and single resumption of the original request.
 - [ ] **Phase 30: Six Execution Styles and Quality Binding** — Real conversational/runner routing and contract-bound quick-full execution/evidence.
 - [ ] **Phase 31: Cross-Harness Proof and Distribution** — Cross-harness scenarios, packed guidance integrity, bilingual docs and actual final regression results.
@@ -66,24 +66,24 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. Bounded push, simple rename and README translation/linking skip chooser and forced bootstrap; a cross-subsystem rename needing investigation does not pass on its name alone. A user can see the decision reason and receives only necessary clarification for uncertain scope.
   5. Flexible mode preserves adaptive intake, while neither mode nor classification weakens normal effect authority, tree-off boundaries or exact autopilot consent.
 
-**Plans:** 6 plans in 6 sequential waves; checks complete, planning commit blocked by Git index write permission; execution pending.
+**Plans:** 6/6 plans complete in 6 sequential waves; checks complete, planning commit blocked by Git index write permission; execution pending.
 **Wave 1**
-- [ ] 28-01-PLAN.md — Strict intake CLI tracer, bounded versioned interchange and exact six-style chooser.
+- [x] 28-01-PLAN.md — Strict intake CLI tracer, bounded versioned interchange and exact six-style chooser.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 28-02-PLAN.md — Explicit GSD command/style precedence and narrow partial/conflicting intent.
+- [x] 28-02-PLAN.md — Explicit GSD command/style precedence and narrow partial/conflicting intent.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 28-03-PLAN.md — Exact current-task continuity and task-scoped pending-selection lifetime.
+- [x] 28-03-PLAN.md — Exact current-task continuity and task-scoped pending-selection lifetime.
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 28-04-PLAN.md — Evidence-backed simple operations, narrow clarification and WIP-preserving escalation.
+- [x] 28-04-PLAN.md — Evidence-backed simple operations, narrow clarification and WIP-preserving escalation.
 
 **Wave 5** *(blocked on Wave 4 completion)*
-- [ ] 28-05-PLAN.md — Common owned-skill routing across five targets, integrity and user contract.
+- [x] 28-05-PLAN.md — Common owned-skill routing across five targets, integrity and user contract.
 
 **Wave 6** *(blocked on Wave 5 completion)*
-- [ ] 28-06-PLAN.md — End-to-end acceptance, honest native evidence and final regression gate.
+- [x] 28-06-PLAN.md — End-to-end acceptance, honest native evidence and final regression gate.
 
 **Cross-cutting constraints:**
 - Every intake rereads the current canonical policy and grants no execution authority.
@@ -149,7 +149,7 @@ Every requirement has exactly one owning phase. Later integration verification r
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 27. Shared Project Behavior Policy | 0/TBD | Not started | - |
-| 28. Predictable Strict and Flexible Intake | 0/6 | Blocked (planning commit) | - |
+| 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
 | 29. GSD Initialization and Request Continuity | 0/TBD | Not started | - |
 | 30. Six Execution Styles and Quality Binding | 0/TBD | Not started | - |
 | 31. Cross-Harness Proof and Distribution | 0/TBD | Not started | - |

@@ -88,6 +88,10 @@
           "type": "string",
           "maxLength": 512
         },
+        "artifactPath": {
+          "type": "string",
+          "maxLength": 1024
+        },
         "relationship": {
           "type": "string",
           "enum": [

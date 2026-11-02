@@ -14,6 +14,7 @@ import { findPackageRoot } from "./paths.js";
 import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
 import type { ExplicitCommandRoute } from "./task-intake-explicit.js";
 import { normalizeExplicitTaskIntent } from "./task-intake-explicit.js";
+import { resolveTaskIntakeContinuity } from "./task-intake-continuity.js";
 
 export type TaskExecutionStyle =
   | "conversational-quick"
@@ -701,11 +702,178 @@ export async function inspectTaskIntake(
     };
   }
 
+  // 2. Check active task continuity (D-07, D-08, D-09, D-10, D-11, D-12)
+  const continuity = await resolveTaskIntakeContinuity({
+    canonicalRoot: policyView.canonicalRoot,
+    stateRoot: options.stateRoot,
+    request: inputObj.request,
+    currentTask: inputObj.currentTask,
+    answer: inputObj.answer,
+  });
+
+  if (continuity.outcome === "pending-mismatch") {
+    const reasons = ["pending-task-correlation-id-mismatch"];
+    const observations = [
+      continuity.reason ?? "Pending task correlation ID mismatch; answer ignored",
+    ];
+    const chooser = renderTaskStyleQuestion(
+      TASK_EXECUTION_STYLES,
+      inputObj.questionCapability,
+      inputObj.answer?.pendingTaskId,
+    );
+    return {
+      schemaVersion: 1,
+      kind: "substantial-work",
+      policy: policySummary,
+      nextAction: "choose-style",
+      executionAuthorized: false,
+      reasons,
+      observations,
+      chooser,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction: "choose-style",
+      },
+    };
+  }
+
+  if (continuity.outcome === "cancelled") {
+    const reasons = ["task-selection-cancelled-by-user"];
+    const observations = ["Pending task selection was cancelled"];
+    return {
+      schemaVersion: 1,
+      kind: "substantial-work",
+      policy: policySummary,
+      nextAction: "choose-style",
+      executionAuthorized: false,
+      reasons,
+      observations,
+      chooser: renderTaskStyleQuestion(
+        TASK_EXECUTION_STYLES,
+        inputObj.questionCapability,
+      ),
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction: "choose-style",
+      },
+    };
+  }
+
+  if (continuity.outcome === "status-query") {
+    const reasons = ["status-query-preserves-pending-choice"];
+    const observations = [
+      continuity.reason ?? "Status query preserves pending task choice",
+    ];
+    return {
+      schemaVersion: 1,
+      kind: "substantial-work",
+      policy: policySummary,
+      nextAction: "choose-style",
+      executionAuthorized: false,
+      reasons,
+      observations,
+      chooser: renderTaskStyleQuestion(
+        TASK_EXECUTION_STYLES,
+        inputObj.questionCapability,
+        inputObj.answer?.pendingTaskId,
+      ),
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction: "choose-style",
+      },
+    };
+  }
+
+  if (continuity.outcome === "uncertain") {
+    const clarification = {
+      question:
+        continuity.clarificationQuestion ??
+        "현재 활성 작업의 후속 작업인가요, 아니면 별도의 독립 작업인가요?",
+      missingFacts: ["task-relationship"],
+    };
+    return {
+      schemaVersion: 1,
+      kind: "clarification-needed",
+      policy: policySummary,
+      nextAction: "ask-clarification",
+      executionAuthorized: false,
+      taskReference: inputObj.currentTask?.taskId,
+      reasons: ["active-task-relationship-uncertain"],
+      observations: [
+        continuity.reason ?? "Active task relationship requires clarification",
+      ],
+      clarification,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction: "ask-clarification",
+      },
+    };
+  }
+
+  if (continuity.outcome === "active-related" && continuity.selectedStyle) {
+    const selectedStyle = continuity.selectedStyle;
+    const taskRef = continuity.taskReference;
+    const reasons = ["active-task-continuity-verified"];
+    const observations = [
+      continuity.reason ?? `Continuing verified active task ${taskRef}`,
+    ];
+
+    return {
+      schemaVersion: 1,
+      kind: "continuation",
+      policy: policySummary,
+      nextAction: "continue-task",
+      executionAuthorized: false,
+      selectedStyle,
+      taskReference: taskRef,
+      reasons,
+      observations,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        selectedStyle,
+        taskReference: taskRef,
+        policyRevision: policyView.revision,
+        nextAction: "continue-task",
+      },
+    };
+  }
+
   let selectedStyle: TaskExecutionStyle | undefined;
   let chooser: TaskIntakeChooserQuestion | undefined;
   let nextAction: TaskIntakeNextAction;
   const reasons: string[] = [];
   const observations: string[] = [];
+
+  if (continuity.outcome === "terminal") {
+    observations.push(
+      continuity.reason ??
+        "Previous task reached terminal status; starting fresh task intake",
+    );
+  }
 
   // Check answer if provided
   let answerResolution: TaskStyleAnswerResolution | undefined;

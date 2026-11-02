@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://alpha-aos.local/schemas/task-gsd-stage-receipt.schema.json",
+  "title": "alpha-AOS GSD stage receipt",
+  "description": "Closed contract for GSD quick full stage execution receipts (STYLE-05, D-09, D-10, D-11).",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "kind",
+    "receiptId",
+    "contractDigest",
+    "revision",
+    "runId",
+    "canonicalProjectRoot",
+    "quickId",
+    "stage",
+    "quality",
+    "harness",
+    "sessionId",
+    "runtimeVersion",
+    "workflowSha256",
+    "invocationLocator",
+    "invocationDigest",
+    "resultLocator",
+    "resultDigest",
+    "outcome",
+    "evaluatedCommit",
+    "inputArtifacts",
+    "outputArtifacts",
+    "observedAt",
+    "receiptDigest"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "artifactRef": {
+      "type": "object",
+      "required": ["path", "sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
+  },
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "task-gsd-stage-receipt" },
+    "receiptId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "contractDigest": { "$ref": "#/$defs/sha256" },
+    "revision": { "type": "integer", "minimum": 1 },
+    "runId": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "canonicalProjectRoot": { "type": "string", "minLength": 1 },
+    "quickId": { "type": "string", "pattern": "^[0-9]+-[0-9a-z-]+$" },
+    "stage": {
+      "enum": [
+        "discussion",
+        "research",
+        "planning",
+        "plan-check",
+        "implementation",
+        "verification",
+        "state-docs",
+        "code-review"
+      ]
+    },
+    "quality": { "const": "full" },
+    "harness": { "type": "string", "minLength": 1 },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "runtimeVersion": { "type": ["string", "null"] },
+    "workflowSha256": { "$ref": "#/$defs/sha256" },
+    "invocationLocator": { "type": "string", "minLength": 1 },
+    "invocationDigest": { "$ref": "#/$defs/sha256" },
+    "resultLocator": { "type": "string", "minLength": 1 },
+    "resultDigest": { "$ref": "#/$defs/sha256" },
+    "outcome": {
+      "enum": ["passed", "failed", "skipped", "needs-input", "unknown"]
+    },
+    "evaluatedCommit": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "inputArtifacts": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/artifactRef" }
+    },
+    "outputArtifacts": {
+      "type": "array",
+      "maxItems": 32,
+      "items": { "$ref": "#/$defs/artifactRef" }
+    },
+    "observedAt": { "type": "string", "minLength": 1 },
+    "detail": {
+      "type": ["string", "null"],
+      "maxLength": 1000
+    },
+    "receiptDigest": { "$ref": "#/$defs/sha256" }
+  }
+}

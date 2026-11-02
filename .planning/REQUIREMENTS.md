@@ -44,13 +44,13 @@
 
 ### Six Execution Styles
 
-- [ ] **STYLE-01**: A user selecting 대화형-quick receives native GSD quick in the current conversation with its documented optional-stage omissions and required state/commit gates.
-- [ ] **STYLE-02**: A user selecting 대화형-quick-full receives native GSD quick --full in the current conversation, including discussion, research, planning, plan checking, implementation and verification.
-- [ ] **STYLE-03**: A user selecting 대화형-phase receives GSD roadmap/phase progression in the current conversation with necessary user questions and native lifecycle gates.
-- [ ] **STYLE-04**: A user selecting 오토파일럿-quick receives ordinary quick through an approved exact contract and the existing isolated runner, with the selected style visible in the preview.
-- [ ] **STYLE-05**: A user selecting 오토파일럿-quick-full receives a contract-bound full quality pipeline: its preview/digest, dispatch and verification distinguish it from ordinary quick, and ordinary quick evidence alone cannot satisfy acceptance.
-- [ ] **STYLE-06**: A user selecting 오토파일럿-phase receives only approved roadmap/phase scope through the existing runner and GSD lifecycle bridge.
-- [ ] **STYLE-07**: A user's mode/style selection never substitutes for exact per-task autopilot contract approval and separate start, rewrites an approved running contract, or permits inline autopilot implementation/model substitution.
+- [x] **STYLE-01**: A user selecting 대화형-quick receives native GSD quick in the current conversation with its documented optional-stage omissions and required state/commit gates.
+- [x] **STYLE-02**: A user selecting 대화형-quick-full receives native GSD quick --full in the current conversation, including discussion, research, planning, plan checking, implementation and verification.
+- [x] **STYLE-03**: A user selecting 대화형-phase receives GSD roadmap/phase progression in the current conversation with necessary user questions and native lifecycle gates.
+- [x] **STYLE-04**: A user selecting 오토파일럿-quick receives ordinary quick through an approved exact contract and the existing isolated runner, with the selected style visible in the preview.
+- [x] **STYLE-05**: A user selecting 오토파일럿-quick-full receives a contract-bound full quality pipeline: its preview/digest, dispatch and verification distinguish it from ordinary quick, and ordinary quick evidence alone cannot satisfy acceptance.
+- [x] **STYLE-06**: A user selecting 오토파일럿-phase receives only approved roadmap/phase scope through the existing runner and GSD lifecycle bridge.
+- [x] **STYLE-07**: A user's mode/style selection never substitutes for exact per-task autopilot contract approval and separate start, rewrites an approved running contract, or permits inline autopilot implementation/model substitution.
 
 ### Cross-Harness Evidence and Distribution
 
@@ -111,13 +111,13 @@ All 27 approved requirements map to exactly one owning phase in the user-approve
 | BOOT-02 | Phase 29 | Complete |
 | BOOT-03 | Phase 29 | Complete |
 | BOOT-04 | Phase 29 | Complete |
-| STYLE-01 | Phase 30 | Pending |
-| STYLE-02 | Phase 30 | Pending |
-| STYLE-03 | Phase 30 | Pending |
-| STYLE-04 | Phase 30 | Pending |
-| STYLE-05 | Phase 30 | Pending |
-| STYLE-06 | Phase 30 | Pending |
-| STYLE-07 | Phase 30 | Pending |
+| STYLE-01 | Phase 30 | Complete |
+| STYLE-02 | Phase 30 | Complete |
+| STYLE-03 | Phase 30 | Complete |
+| STYLE-04 | Phase 30 | Complete |
+| STYLE-05 | Phase 30 | Complete |
+| STYLE-06 | Phase 30 | Complete |
+| STYLE-07 | Phase 30 | Complete |
 | PROVE-01 | Phase 31 | Pending |
 | PROVE-02 | Phase 31 | Pending |
 | PROVE-03 | Phase 31 | Pending |

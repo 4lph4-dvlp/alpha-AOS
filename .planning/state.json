@@ -21,7 +21,7 @@
     {
       "number": "30",
       "name": "Six Execution Styles and Quality Binding",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "31",
@@ -31,8 +31,8 @@
   ],
   "next": {
     "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 4 of 5 · 20% · executing"
+    "label": "Advance to the next step (verify)",
+    "reason": "Phase 3 of 5 · 40% · ready to verify"
   },
-  "updated_at": "2026-11-02T08:20:31.848Z"
+  "updated_at": "2026-11-02T15:31:23.159Z"
 }

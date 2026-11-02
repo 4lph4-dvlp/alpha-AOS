@@ -111,7 +111,45 @@ When a user expresses a task request (or invokes a direct command, style, or sim
      3. Separate execution start command (`alpha-aos task start <contract.json> --contract-digest <digest> --apply`).
    - The conversational agent MUST NOT perform inline implementation of autopilot tasks in chat.
 
-### 3. GSD Readiness & Project Initialization Gate (BOOT-01, BOOT-02, BOOT-03, BOOT-04, D-05–D-24)
+### 3. Execution Route Resolution & Six Native Routes (STYLE-01–STYLE-07, D-01–D-04, D-13–D-20)
+Once intake yields a decision, the `executionRoute` projection maps the confirmed style to exact native workflow commands and authority boundaries:
+
+1. **Conversational Quick (`대화형-quick` / `conversational-quick`)**:
+   - Executes in the current interactive conversation via native GSD quick: `$gsd-quick "<task description>"`.
+   - Follows installed GSD workflow: mandatory planning, atomic commit, and SUMMARY/STATE gates. Optional stages are skipped for fast resolution.
+   - Retains conversation-level confirmation without external runner or contract preview.
+
+2. **Conversational Quick-Full (`대화형-quick-full` / `conversational-quick-full`)**:
+   - Executes in the current interactive conversation via native full quick: `$gsd-quick "<task description>" --full`.
+   - Enforces all full stages: discussion, research, planning, plan checking, implementation, verification, state-docs, and active native gates (e.g. code review).
+   - Preserves interactive discussion questions with the user in the conversational thread; does not automatically answer or delegate discussion decisions without user authority.
+
+3. **Conversational Phase (`대화형-phase` / `conversational-phase`)**:
+   - Follows roadmap and phase progression natively in the current conversation.
+   - Preserves native GSD questions, checkpoints, and user approvals at phase boundaries.
+   - Direct command invocations (`gsd-discuss-phase`, `gsd-plan-phase`, `gsd-execute-phase`, `gsd-verify-work`, `gsd-debug`) preserve their exact target, workflow arguments, and stopping boundary (e.g. discuss-only stops after context commit; does not expand to plan or execute).
+
+4. **Autopilot Quick (`오토파일럿-quick` / `autopilot-quick`)**:
+   - Builds a task contract with `category: "development"`, `workflow: "gsd-quick"`, and standard quality (omitted or `"standard"`).
+   - Operates strictly on `surface: "isolated-runner"`.
+   - Requires full contract preview, exact 64-hex digest approval, and separate start command.
+
+5. **Autopilot Quick-Full (`오토파일럿-quick-full` / `autopilot-quick-full`)**:
+   - Builds a task contract with `category: "development"`, `workflow: "gsd-quick"`, and explicit `quickQuality: "full"`.
+   - Dispatches to isolated runner with native `--full` flag and required stage observations.
+   - Acceptance strictly requires verified evidence for all 7 mandatory stage categories (discussion, research, planning, plan-check, implementation, verification, state-docs). Missing or failed stages result in unsatisfied `full-quality-stages` precondition, refusing acceptance. Exit code 0 or worker claims alone are NOT acceptance.
+
+6. **Autopilot Phase (`오토파일럿-phase` / `autopilot-phase`)**:
+   - Builds a task contract with `category: "development"`, `workflow: "gsd-multi-phase"` or `"gsd"`, and optional `phaseSelection: { phaseIds, roadmapSha256 }`.
+   - Enforces approved phase selection and order at every lifecycle boundary. Live discovery cannot authorize an added or reordered phase (D-17).
+   - If any phase fails or requires human intervention, progression halts immediately fail-closed. Next-phase planning command count is strictly zero (D-18, D-19).
+
+7. **Prohibition: Chooser / Bootstrap Selection is Never Approval or Start**:
+   - Style selection, mode choice, and completed bootstrap handoffs carry `executionAuthorized: false`.
+   - They NEVER constitute contract approval or execution start authorization.
+   - Zero inline implementation in chat for autopilot tasks; implementation belongs exclusively to the isolated runner after explicit approval and separate start.
+
+### 4. GSD Readiness & Project Initialization Gate (BOOT-01, BOOT-02, BOOT-03, BOOT-04, D-05–D-24)
 Before substantial task execution or contract generation:
 
 1. **Exemptions (D-08, D-21)**:
@@ -204,6 +242,22 @@ After approval succeeds, and only when the user has explicitly requested start o
 alpha-aos task start <contract.json> --contract-digest <64-char-digest> --apply
 ```
 Do not hand a list of Node/CLI commands back to the user as the default execution path. Manual terminal execution remains an option if the user prefers it. If the host lacks process tools or denies launch, report the exact limitation and preserve the contract/digest; do not claim execution or silently bypass the host boundary.
+
+### Step 4: Full Quality Evidence, Exact Recovery & Continuation (STYLE-05, D-09, D-18, D-19)
+1. **Full Quality Evidence Verification**:
+   - For contracts with `quickQuality: "full"`, acceptance evaluates all stage observations via `verifyGsdFullEvidence`:
+     - Reads all native stage receipts, verifying root, contract digest, revision, runId, quickId, and workflow SHA-256.
+     - Confirms on-disk SHA-256 hashes of input and output artifacts.
+     - Adds a mandatory additive precondition `full-quality-stages` before verdict reduction.
+   - An ordinary quick run or missing stage receipt leaves `full-quality-stages` unsatisfied, resulting in verdict `unknown` or `rejected`.
+2. **Partial-Run Recovery & Dirty WIP Preservation**:
+   - Interrupted runs preserve uncommitted user WIP in the working directory and partial summaries.
+   - Same-run resume (`alpha-aos task resume <contract-id> --run <run-id> --apply`) verifies baseline, checkpoint, and intact artifacts.
+   - Reuses verified stages and resumes only pending native slices.
+   - Refuses multiple ambiguous quick directories and incompatible workflow modifications.
+3. **Active Task Continuity vs. Mode Policy**:
+   - Continuing an active task retains its verified style and quality binding.
+   - Later project mode changes (strict/flexible) take effect at the next task intake but never alter or overwrite an active task's contract, style, or plan.
 
 
 ### Optional progress panel and exact conversation controls

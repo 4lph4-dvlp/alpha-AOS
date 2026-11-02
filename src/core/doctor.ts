@@ -1,10 +1,39 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { parse as parseYaml } from "yaml";
 import type { DoctorFinding, Inventory, StackCatalog, StackLock } from "../types.js";
 import { codexConfigRoot, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
 import { globalClaudeSettingsPath } from "./skill-policy.js";
 import { ROUTING_CONTRACT_MISMATCH } from "./mcp-proxy.js";
 import { placeholder } from "./redaction.js";
+import { destinationFor, renderOwnedSkill } from "./owned-skills.js";
+import { packageRoot } from "./paths.js";
+
+function sha256(content: Uint8Array): string {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+function parseSkillFrontmatter(source: string): { name: string; description: string } | null {
+  const match = source.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/u);
+  if (!match || !match[1]) return null;
+  try {
+    const parsed = parseYaml(match[1]) as Record<string, unknown> | null;
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      typeof parsed.name === "string" &&
+      parsed.name.trim().length > 0 &&
+      typeof parsed.description === "string" &&
+      parsed.description.trim().length > 0
+    ) {
+      return { name: parsed.name.trim(), description: parsed.description.trim() };
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
 
 function major(version: string | null): number | null {
   if (!version) return null;
@@ -12,7 +41,12 @@ function major(version: string | null): number | null {
   return match ? Number(match[1]) : null;
 }
 
-export async function runDoctor(catalog: StackCatalog, lock: StackLock, inventory: Inventory): Promise<DoctorFinding[]> {
+export async function runDoctor(
+  catalog: StackCatalog,
+  lock: StackLock,
+  inventory: Inventory,
+  root: string = packageRoot(),
+): Promise<DoctorFinding[]> {
   const findings: DoctorFinding[] = [];
   const nodeTool = inventory.tools.node ?? { version: null, command: null };
   const npmTool = inventory.tools.npm ?? { version: null, command: null };
@@ -45,10 +79,99 @@ export async function runDoctor(catalog: StackCatalog, lock: StackLock, inventor
     }
     if (name === "ownedSkills") {
       for (const [skill, entry] of Object.entries(component as NonNullable<StackLock["components"]["ownedSkills"]>)) {
-        const targetHashesValid = Object.values(entry.targetSha256).every((hash) => /^[a-f0-9]{64}$/u.test(hash));
-        findings.push(/^[a-f0-9]{64}$/u.test(entry.sourceSha256) && targetHashesValid
-          ? { level: "ok", code: `lock.owned-skill.${skill}`, message: `${skill} has SHA-256 source lock` }
-          : { level: "error", code: `lock.owned-skill.${skill}`, message: `${skill} source hash is missing` });
+        const catalogSkill = catalog.components.ownedSkills.find((candidate) => candidate.id === skill);
+        if (!catalogSkill) {
+          findings.push({
+            level: "error",
+            code: `lock.owned-skill.${skill}`,
+            message: `${skill} catalog metadata is missing`,
+          });
+          continue;
+        }
+
+        const isHex64 = (val: string | undefined): boolean => typeof val === "string" && /^[a-f0-9]{64}$/u.test(val);
+        const sourceValid = isHex64(entry.sourceSha256);
+        const targetsValid = catalogSkill.targets.every((target) => isHex64(entry.targetSha256?.[target]));
+        if (!sourceValid || !targetsValid) {
+          findings.push({
+            level: "error",
+            code: `lock.owned-skill.${skill}`,
+            message: `${skill} source or target lock hash is missing or malformed`,
+          });
+          continue;
+        }
+
+        const sourcePath = join(root, catalogSkill.source);
+        if (!existsSync(sourcePath)) {
+          findings.push({
+            level: "error",
+            code: `lock.owned-skill.${skill}`,
+            message: `${skill} source file does not exist at ${catalogSkill.source}`,
+          });
+          continue;
+        }
+
+        const sourceText = readFileSync(sourcePath, "utf8");
+        const frontmatter = parseSkillFrontmatter(sourceText);
+        if (!frontmatter || frontmatter.name !== skill) {
+          findings.push({
+            level: "error",
+            code: `lock.owned-skill.${skill}`,
+            message: `${skill} frontmatter is invalid or missing name/description`,
+          });
+          continue;
+        }
+
+        const actualSourceHash = sha256(Buffer.from(sourceText, "utf8"));
+        if (actualSourceHash !== entry.sourceSha256) {
+          findings.push({
+            level: "error",
+            code: `lock.owned-skill.${skill}`,
+            message: `${skill} source hash mismatch: expected ${entry.sourceSha256}, got ${actualSourceHash}`,
+          });
+          continue;
+        }
+
+        let targetMismatch = false;
+        for (const target of catalogSkill.targets) {
+          const rendered = renderOwnedSkill(sourceText, target, catalogSkill.invocation, catalogSkill.argumentHint);
+          const renderedHash = sha256(Buffer.from(rendered, "utf8"));
+          const expectedHash = entry.targetSha256[target];
+          if (renderedHash !== expectedHash) {
+            targetMismatch = true;
+            findings.push({
+              level: "error",
+              code: `lock.owned-skill.${skill}`,
+              message: `${skill} rendered target hash mismatch for ${target}: expected ${expectedHash}, got ${renderedHash}`,
+            });
+            break;
+          }
+        }
+        if (!targetMismatch) {
+          findings.push({
+            level: "ok",
+            code: `lock.owned-skill.${skill}`,
+            message: `${skill} source and ${catalogSkill.targets.length} target hashes verified`,
+          });
+        }
+
+        for (const harness of inventory.harnesses) {
+          if (harness.detected && catalogSkill.targets.includes(harness.id)) {
+            const dest = destinationFor(harness.id, skill);
+            if (existsSync(dest)) {
+              const destContent = readFileSync(dest);
+              const destHash = sha256(destContent);
+              const expectedHash = entry.targetSha256[harness.id];
+              if (destHash !== expectedHash) {
+                findings.push({
+                  level: "warning",
+                  code: `policy.owned-skill.${skill}.${harness.id}`,
+                  message: `${skill} deployed for ${harness.displayName} differs from target lock; run owned-skills sync ${skill} --target ${harness.id}`,
+                });
+              }
+            }
+          }
+        }
       }
       continue;
     }

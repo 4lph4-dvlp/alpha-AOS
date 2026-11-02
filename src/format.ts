@@ -453,6 +453,17 @@ export function formatTaskIntakeDecision(decision: TaskIntakePublicDecision): st
     `Next action: ${decision.nextAction}`,
     `Execution authorized: ${decision.executionAuthorized ? "true" : "false"}`,
   ];
+  if (decision.commandRoute) {
+    lines.push(
+      `Command route: ${decision.commandRoute.command} (workflow: ${decision.commandRoute.workflow}${decision.commandRoute.phase ? `, phase: ${decision.commandRoute.phase}` : ""})`,
+    );
+    if (decision.commandRoute.arguments.length > 0) {
+      lines.push(`Arguments: ${decision.commandRoute.arguments.join(" ")}`);
+    }
+    if (decision.commandRoute.stoppingPoint) {
+      lines.push(`Stopping point: ${decision.commandRoute.stoppingPoint}`);
+    }
+  }
   if (decision.selectedStyle) {
     lines.push(`Selected style: ${decision.selectedStyle}`);
   }

@@ -250,6 +250,37 @@
             }
           }
         },
+        "commandRoute": {
+          "type": "object",
+          "required": ["command", "workflow", "arguments"],
+          "additionalProperties": false,
+          "properties": {
+            "command": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "workflow": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "phase": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "arguments": {
+              "type": "array",
+              "maxItems": 16,
+              "items": {
+                "type": "string",
+                "maxLength": 512
+              }
+            },
+            "stoppingPoint": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        },
         "selectedStyle": {
           "type": "string",
           "enum": [

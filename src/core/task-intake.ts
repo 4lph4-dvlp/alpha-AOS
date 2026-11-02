@@ -12,6 +12,8 @@ import { BehaviorPolicyError, resolveProjectBehavior } from "./behavior-policy.j
 import type { RootReason } from "./evidence.js";
 import { findPackageRoot } from "./paths.js";
 import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
+import type { ExplicitCommandRoute } from "./task-intake-explicit.js";
+import { normalizeExplicitTaskIntent } from "./task-intake-explicit.js";
 
 export type TaskExecutionStyle =
   | "conversational-quick"
@@ -168,6 +170,7 @@ export interface TaskIntakeHandoff {
   readonly shortGoal?: string | undefined;
   readonly shortScope?: string | undefined;
   readonly knownFacts: readonly TaskFactItem[];
+  readonly commandRoute?: ExplicitCommandRoute | undefined;
   readonly selectedStyle?: TaskExecutionStyle | undefined;
   readonly taskReference?: string | undefined;
   readonly policyRevision: string;
@@ -180,6 +183,7 @@ export interface TaskIntakePublicDecision {
   readonly policy: TaskIntakePolicySummary;
   readonly nextAction: TaskIntakeNextAction;
   readonly executionAuthorized: false;
+  readonly commandRoute?: ExplicitCommandRoute | undefined;
   readonly selectedStyle?: TaskExecutionStyle | undefined;
   readonly taskReference?: string | undefined;
   readonly reasons: readonly string[];
@@ -565,6 +569,137 @@ export async function inspectTaskIntake(
     source: policyView.source,
     revision: policyView.revision,
   };
+
+  // 1. Check explicit intent (D-02, D-03, D-04)
+  const explicitIntent = normalizeExplicitTaskIntent(inputObj);
+
+  if (explicitIntent.kind === "conflict") {
+    const clarification = {
+      question:
+        explicitIntent.clarificationQuestion ??
+        "명시된 의도가 상충됩니다. 진행 방식을 선택해 주세요.",
+      missingFacts: explicitIntent.missingFacts ?? ["explicit-intent-resolution"],
+    };
+    return {
+      schemaVersion: 1,
+      kind: "clarification-needed",
+      policy: policySummary,
+      nextAction: "ask-clarification",
+      executionAuthorized: false,
+      reasons: ["conflicting-explicit-intent"],
+      observations: [
+        explicitIntent.conflictReason ?? "Explicit command and style requests conflict",
+      ],
+      clarification,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction: "ask-clarification",
+      },
+    };
+  }
+
+  if (explicitIntent.kind === "command" && explicitIntent.commandRoute) {
+    const observations: string[] = [
+      `Direct GSD command invocation: ${explicitIntent.commandRoute.command}`,
+      `Workflow: ${explicitIntent.commandRoute.workflow}`,
+    ];
+    if (explicitIntent.commandRoute.phase) {
+      observations.push(`Target phase: ${explicitIntent.commandRoute.phase}`);
+    }
+    if (explicitIntent.commandRoute.arguments.length > 0) {
+      observations.push(`Arguments: ${explicitIntent.commandRoute.arguments.join(" ")}`);
+    }
+    if (explicitIntent.commandRoute.stoppingPoint) {
+      observations.push(`Stopping point: ${explicitIntent.commandRoute.stoppingPoint}`);
+    }
+    const reasons = [`explicit-gsd-command:${explicitIntent.commandRoute.command}`];
+
+    return {
+      schemaVersion: 1,
+      kind: "explicit-command",
+      policy: policySummary,
+      nextAction: "execute-explicit",
+      executionAuthorized: false,
+      commandRoute: explicitIntent.commandRoute,
+      selectedStyle: explicitIntent.selectedStyle,
+      reasons,
+      observations,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        commandRoute: explicitIntent.commandRoute,
+        selectedStyle: explicitIntent.selectedStyle,
+        policyRevision: policyView.revision,
+        nextAction: "execute-explicit",
+      },
+    };
+  }
+
+  if (explicitIntent.kind === "style" && explicitIntent.selectedStyle) {
+    const reasons = [`explicit-style-selected:${explicitIntent.selectedStyle}`];
+    const observations = [`Explicit task style specified: ${explicitIntent.selectedStyle}`];
+
+    return {
+      schemaVersion: 1,
+      kind: "explicit-style",
+      policy: policySummary,
+      nextAction: "execute-explicit",
+      executionAuthorized: false,
+      selectedStyle: explicitIntent.selectedStyle,
+      reasons,
+      observations,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        selectedStyle: explicitIntent.selectedStyle,
+        policyRevision: policyView.revision,
+        nextAction: "execute-explicit",
+      },
+    };
+  }
+
+  if (explicitIntent.kind === "partial") {
+    const reasons = ["partial-autopilot-style-specified-requires-depth-selection"];
+    const observations = [
+      "Autopilot mode requested; work depth (quick, quick-full, phase) requires selection",
+    ];
+    const autopilotOptions = TASK_EXECUTION_STYLES.filter((s) => s.id.startsWith("autopilot-"));
+    const chooser = renderTaskStyleQuestion(
+      autopilotOptions,
+      inputObj.questionCapability,
+      inputObj.answer?.pendingTaskId,
+    );
+    return {
+      schemaVersion: 1,
+      kind: "substantial-work",
+      policy: policySummary,
+      nextAction: "choose-style",
+      executionAuthorized: false,
+      reasons,
+      observations,
+      chooser,
+      handoff: {
+        schemaVersion: 1,
+        originalRequest: inputObj.request.text,
+        shortGoal: inputObj.request.shortGoal,
+        shortScope: inputObj.request.shortScope,
+        knownFacts: inputObj.facts ?? [],
+        policyRevision: policyView.revision,
+        nextAction: "choose-style",
+      },
+    };
+  }
 
   let selectedStyle: TaskExecutionStyle | undefined;
   let chooser: TaskIntakeChooserQuestion | undefined;

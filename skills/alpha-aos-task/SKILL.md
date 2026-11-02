@@ -100,7 +100,11 @@ When a user expresses a task request (or invokes a direct command, style, or sim
        - Uses adaptive conversational or autopilot intake without mandatory six-item chooser.
        - Does NOT silently default to autopilot or generate unnecessary autopilot contracts for conversational tasks.
 
-3. **Autopilot Boundary Invariant (D-04, D-05, D-09, D-10, D-19)**:
+3. **Precedence Invariant (No Ambient Shortcut Bypass)**:
+   - The agent **MUST NOT** bypass path confirmation by unilaterally jumping directly into execution shortcuts (such as bare `$gsd-quick`).
+   - Native shortcuts (`$gsd-quick`, `$gsd-debug`, `$gsd-execute-phase`) operate **downstream** of intake confirmation, never as a bypass around it. Explicit direct command invocations (`gsd-*`, `$gsd-*`, `/gsd:*`) with parameters are routed through `explicit-command`.
+
+4. **Autopilot Boundary Invariant (D-04, D-05, D-09, D-10, D-19)**:
    - Any chosen autopilot style (`오토파일럿-quick`, `오토파일럿-quick-full`, `오토파일럿-phase`) requires:
      1. Read-only contract preview (`alpha-aos task preview <contract.json> --json`).
      2. Exact-digest approval (`alpha-aos task approve <contract.json> --contract-digest <digest> --apply`).

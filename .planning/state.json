@@ -16,12 +16,12 @@
     {
       "number": "29",
       "name": "GSD Initialization and Request Continuity",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "30",
       "name": "Six Execution Styles and Quality Binding",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "31",
@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress",
-    "label": "Show progress",
-    "reason": "Unsure of state — showing progress"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 4 of 5 · 20% · executing"
   },
-  "updated_at": "2026-11-02T03:46:30.233Z"
+  "updated_at": "2026-11-02T08:20:31.848Z"
 }

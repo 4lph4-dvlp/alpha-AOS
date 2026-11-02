@@ -1,0 +1,64 @@
+[
+  {
+    "plan": "30-01-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "tasks": 2
+  },
+  {
+    "plan": "30-02-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [
+      "Task rated <reversibility rating=\"one-way\"> has no preceding checkpoint:decision — a one-way door must be confirmed before the agent walks through it (unless the decision is already settled in CONTEXT.md, an ingested ADR, or an answered checkpoint)"
+    ],
+    "tasks": 3
+  },
+  {
+    "plan": "30-03-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [
+      "Task rated <reversibility rating=\"one-way\"> has no preceding checkpoint:decision — a one-way door must be confirmed before the agent walks through it (unless the decision is already settled in CONTEXT.md, an ingested ADR, or an answered checkpoint)"
+    ],
+    "tasks": 2
+  },
+  {
+    "plan": "30-04-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "tasks": 2
+  },
+  {
+    "plan": "30-05-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [
+      "Task rated <reversibility rating=\"one-way\"> has no preceding checkpoint:decision — a one-way door must be confirmed before the agent walks through it (unless the decision is already settled in CONTEXT.md, an ingested ADR, or an answered checkpoint)"
+    ],
+    "tasks": 3
+  },
+  {
+    "plan": "30-06-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "tasks": 2
+  },
+  {
+    "plan": "30-07-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "tasks": 2
+  },
+  {
+    "plan": "30-08-PLAN.md",
+    "valid": true,
+    "errors": [],
+    "warnings": [],
+    "tasks": 1
+  }
+]

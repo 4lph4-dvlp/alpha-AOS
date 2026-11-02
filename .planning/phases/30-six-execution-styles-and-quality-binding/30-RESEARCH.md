@@ -86,6 +86,13 @@ No phase SPEC exists. Native edge probe input/output is retained in `30-EDGE-INP
 
 Prohibition recall generated candidates for each requirement, then filtered normal correctness into edge/tests and generic path/injection/credential risks into ASVS threat registers. Three bespoke product prohibitions survive: treating style/bootstrap as autopilot consent (plan 06), silent full→standard downgrade (plan 04), and expanding phase scope or bypassing a blocked phase (plan 05). They are projected descriptor-less using native `projectProhibitions`; verification must surface their unverified flags and obtain review, never silently dismiss them.
 
+## Open Questions (RESOLVED)
+
+1. **Quality representation** — RESOLVED: optional quickQuality, standard omitted from canonical bytes, full explicit; no legacy approval rewrite.
+2. **Checker evidence without a native file** — RESOLVED: observed native invocation/result plus evaluated input hash; unavailable observation blocks full. Actual host delivery is an execution proof obligation, not permission to invent a result.
+3. **Mutable phase candidates** — RESOLVED: explicit phaseSelection or reconstructable approved baseline receipt; no live roadmap scope expansion.
+4. **Unknown native adapter layouts** — RESOLVED: normalize only actual retained supported source shapes, record other layouts unsupported/unknown, and require plan 08 native proof before completion. No runtime upgrade or fallback is assumed.
+
 ## Sources and tool limitations
 
 - Local tracked modules and native 1.18.0 workflow slices cited above are the normative implementation sources.

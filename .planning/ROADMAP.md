@@ -150,7 +150,35 @@ Every requirement has exactly one owning phase. Later integration verification r
   4. A style selection never grants exact-contract approval or separate start, weakens approved harness/model assignments, authorizes inline autopilot implementation, or rewrites an already running contract when the project's mode changes.
   5. Autopilot-phase stays within the approved roadmap/phase scope and GSD lifecycle bridge; all six routes preserve GSD ownership and existing capability/review/verification gates, with unsupported routes reported explicitly rather than silently substituted.
 
-**Plans:** TBD — created by plan-phase after discussion.
+**Plans:** 8 plans in 8 sequential waves; 0 executed. Inline research/planning/checking was explicitly requested. Required native checkpoint remains in 30-08; this planning invocation stops before execute-phase.
+**Wave 1**
+- [ ] 30-01-PLAN.md — Public conversational route projection, exact direct commands and bootstrap continuity.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 30-02-PLAN.md — Compatible quick quality contract/digest/preview and full native dispatch/preflight.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 30-03-PLAN.md — Observed native stage receipts, bounded provenance and exact evaluated revisions.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 30-04-PLAN.md — Mandatory full acceptance and exact partial-run/WIP recovery.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+- [ ] 30-05-PLAN.md — Approved ordered phase scope and remaining-slice lifecycle progression.
+
+**Wave 6** *(blocked on Wave 5 completion)*
+- [ ] 30-06-PLAN.md — Owned six-route guidance, five-target integrity and operational boundaries.
+
+**Wave 7** *(blocked on Wave 6 completion)*
+- [ ] 30-07-PLAN.md — Composed six-route fixtures, native proof verifier and final regression gate.
+
+**Wave 8** *(blocked on Wave 7 completion)*
+- [ ] 30-08-PLAN.md — Blocking actual native six-route/full-stage verification checkpoint.
+
+**Cross-cutting constraints:**
+- GSD alone owns lifecycle/state; route projections and evidence receipts grant no execution authority.
+
+**Execution checkpoint:** 30-08 requires actual native invocation/result proof and applicable exact scratch authority; unsupported capability, missing approval/start or unverified full stages block completion. Fixture success does not defer this proof to Phase 31. Fresh independent implementation review remains mandatory. Planning authorization does not start any plan.
 
 **Planning focus:** Decide backward-compatible quality metadata and sufficient full-stage evidence; reuse task-contract, quick runner and phase lifecycle bridge. Update source/five-target owned-skill hashes whenever guidance changes.
 **Validation emphasis:** Six-route invocation matrix; tampered quality/digest; unsupported capability; missing full evidence; approval without start; mode change during an approved run; existing contract compatibility.
@@ -174,14 +202,14 @@ Every requirement has exactly one owning phase. Later integration verification r
 
 ## Progress
 
-**Execution Order:** 27 → 28 → 29 → 30 → 31. Phase 29 has six checked plans in six sequential waves. This planning update stops before execute-phase and does not plan later phases; historical phase completion and outstanding regression evidence remain in STATE and each phase's verification artifacts.
+**Execution Order:** 27 → 28 → 29 → 30 → 31. Phase 30 has eight checked plans in eight sequential waves. This planning update stops before execute-phase and does not plan later phases; historical phase completion and outstanding regression evidence remain in STATE and each phase's verification artifacts. The older Phase 27/29 progress rows below have not been reconciled in this Phase 30 planning slice; their recorded verification artifacts remain authoritative evidence.
 
 | Phase | Plans Complete | Status | Completed |
 |---|---|---|---|
 | 27. Shared Project Behavior Policy | 0/TBD | Not started | - |
 | 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
 | 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
-| 30. Six Execution Styles and Quality Binding | 0/TBD | Not started | - |
+| 30. Six Execution Styles and Quality Binding | 0/8 | Planned | - |
 | 31. Cross-Harness Proof and Distribution | 0/TBD | Not started | - |
 
 ## Planning and Execution Gates

@@ -37,10 +37,10 @@
 
 ### GSD Initialization and Request Continuity
 
-- [ ] **BOOT-01**: A user can distinguish missing GSD runtime, absent project, partial initialization and ready project from native prerequisite evidence before substantial workflow execution.
-- [ ] **BOOT-02**: A user requesting substantial work in an undefined project is guided into GSD new-project using facts already present in the request, with questions limited to missing information and required GSD decisions.
-- [ ] **BOOT-03**: A user with partial initialization receives the missing prerequisites and a GSD recovery path that preserves existing context instead of overwriting it or synthesizing placeholder artifacts.
-- [ ] **BOOT-04**: After initialization/recovery, a user's original request resumes once with its already selected style and known facts, without re-entering the request, repeating selection or bypassing remaining GSD checkpoints.
+- [x] **BOOT-01**: A user can distinguish missing GSD runtime, absent project, partial initialization and ready project from native prerequisite evidence before substantial workflow execution.
+- [x] **BOOT-02**: A user requesting substantial work in an undefined project is guided into GSD new-project using facts already present in the request, with questions limited to missing information and required GSD decisions.
+- [x] **BOOT-03**: A user with partial initialization receives the missing prerequisites and a GSD recovery path that preserves existing context instead of overwriting it or synthesizing placeholder artifacts.
+- [x] **BOOT-04**: After initialization/recovery, a user's original request resumes once with its already selected style and known facts, without re-entering the request, repeating selection or bypassing remaining GSD checkpoints.
 
 ### Six Execution Styles
 
@@ -107,10 +107,10 @@ All 27 approved requirements map to exactly one owning phase in the user-approve
 | ENTRY-05 | Phase 28 | Complete |
 | ENTRY-06 | Phase 28 | Complete |
 | ENTRY-07 | Phase 28 | Complete |
-| BOOT-01 | Phase 29 | Pending |
-| BOOT-02 | Phase 29 | Pending |
-| BOOT-03 | Phase 29 | Pending |
-| BOOT-04 | Phase 29 | Pending |
+| BOOT-01 | Phase 29 | Complete |
+| BOOT-02 | Phase 29 | Complete |
+| BOOT-03 | Phase 29 | Complete |
+| BOOT-04 | Phase 29 | Complete |
 | STYLE-01 | Phase 30 | Pending |
 | STYLE-02 | Phase 30 | Pending |
 | STYLE-03 | Phase 30 | Pending |

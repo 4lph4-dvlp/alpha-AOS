@@ -106,31 +106,31 @@ Every requirement has exactly one owning phase. Later integration verification r
 **Planning focus:** Keep GSD the sole lifecycle/state authority. Select a minimal bounded pending-request handoff that does not become a second phase/task lifecycle. Inspect version-specific readiness capabilities before implementation.
 **Validation emphasis:** One real conversational-quick bootstrap/resume tracer, incomplete-project negative fixtures, interruption/re-entry without duplication, and preserved style identity for all later dispatch routes.
 
-**Plans:** 6 plans in 6 sequential waves (planned 2026-11-02; execution not started).
+**Plans:** 6/6 plans executed and verified in 6 sequential waves (executed 2026-11-02; verification passed).
 
 **Wave 1**
 
-- [ ] 29-01-PLAN.md — Native readiness diagnosis through the public CLI, with workflow/version and compatibility checks.
+- [x] 29-01-PLAN.md — Native readiness diagnosis through the public CLI, with workflow/version and compatibility checks.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 29-02-PLAN.md — Bounded original-request handoff, known-fact native input and preview-bound persistence.
+- [x] 29-02-PLAN.md — Bounded original-request handoff, known-fact native input and preview-bound persistence.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 29-03-PLAN.md — Non-destructive partial/archive/history recovery and WIP preservation.
+- [x] 29-03-PLAN.md — Non-destructive partial/archive/history recovery and WIP preservation.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 29-04-PLAN.md — Exact claim/link/acceptance reconciliation, crash/cancel races and retained consent.
+- [x] 29-04-PLAN.md — Exact claim/link/acceptance reconciliation, crash/cancel races and retained consent.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 29-05-PLAN.md — Shared five-target routing, source/target integrity and minimal user guidance.
+- [x] 29-05-PLAN.md — Shared five-target routing, source/target integrity and minimal user guidance.
 
 **Wave 6** *(blocked on Wave 5 completion)*
 
-- [ ] 29-06-PLAN.md — Composed acceptance, blocking real native quick tracer and actual full regression.
+- [x] 29-06-PLAN.md — Composed acceptance, blocking real native quick tracer and actual full regression.
 
 **Cross-cutting constraints:**
 

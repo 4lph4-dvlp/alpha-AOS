@@ -142,3 +142,79 @@ test("task readiness CLI tracer: rejects --apply, rejects operands, distinguishe
   assert.equal(stateBefore.digest, stateAfter.digest, "sandbox state must have zero writes from readiness inspection");
   assert.equal(projectBefore.digest, projectAfter.digest, "sandbox project must have zero writes from readiness inspection");
 });
+
+test("task bootstrap CLI tracer: prepare preview, positional operand rejection, missing input rejection (BOOT-02)", async (context) => {
+  const sandbox = await createIsolatedSandbox(context);
+  const projectDir = join(sandbox.home, "bootstrap-cli-project");
+  await mkdir(projectDir, { recursive: true });
+
+  const packet = {
+    schemaVersion: 1,
+    operation: "prepare",
+    controller: "hermes",
+    workflow: "quick",
+    projectRoot: projectDir,
+    request: {
+      text: "Implement OAuth2 login provider",
+      shortGoal: "OAuth login",
+    },
+  };
+  const packetPath = join(projectDir, "bootstrap-packet.json");
+  await writeFile(packetPath, JSON.stringify(packet, null, 2), "utf8");
+
+  // 1. Positional operands rejection
+  const operandAttempt = spawnSync(
+    process.execPath,
+    [cliPath, "task", "bootstrap", "spurious-arg", "--input", packetPath],
+    {
+      cwd: projectDir,
+      env: sandbox.env,
+      encoding: "utf8",
+    },
+  );
+  assert.notEqual(operandAttempt.status, 0);
+  assert.match(operandAttempt.stderr, /does not accept positional operands/u);
+
+  // 2. Missing --input rejection
+  const missingAttempt = spawnSync(
+    process.execPath,
+    [cliPath, "task", "bootstrap"],
+    {
+      cwd: projectDir,
+      env: sandbox.env,
+      encoding: "utf8",
+    },
+  );
+  assert.notEqual(missingAttempt.status, 0);
+  assert.match(missingAttempt.stderr, /requires --input/u);
+
+  // 3. Prepare preview in text mode
+  const textQuery = spawnSync(
+    process.execPath,
+    [cliPath, "task", "bootstrap", "--input", packetPath],
+    {
+      cwd: projectDir,
+      env: sandbox.env,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(textQuery.status, 0, `text bootstrap query failed: ${textQuery.stderr}`);
+  assert.match(textQuery.stdout, /Operation: prepare/u);
+  assert.match(textQuery.stdout, /Applied: false/u);
+
+  // 4. Prepare preview in JSON mode
+  const jsonQuery = spawnSync(
+    process.execPath,
+    [cliPath, "task", "bootstrap", "--input", packetPath, "--json"],
+    {
+      cwd: projectDir,
+      env: sandbox.env,
+      encoding: "utf8",
+    },
+  );
+  assert.equal(jsonQuery.status, 0, `json bootstrap query failed: ${jsonQuery.stderr}`);
+  const parsed = JSON.parse(jsonQuery.stdout);
+  assert.equal(parsed.schemaVersion, 1);
+  assert.equal(parsed.operation, "prepare");
+  assert.equal(parsed.applied, false);
+});

@@ -4,12 +4,16 @@
   "title": "alpha-AOS task readiness and bootstrap interchange",
   "description": "Closed bounded task readiness and bootstrap interchange (BOOT-01..BOOT-04).",
   "type": "object",
-  "required": ["schemaVersion", "controller", "workflow"],
+  "required": ["schemaVersion"],
   "additionalProperties": false,
   "properties": {
     "schemaVersion": {
       "type": "integer",
       "const": 1
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["prepare", "inspect", "claim", "link", "acknowledge", "cancel"]
     },
     "controller": {
       "type": "string",
@@ -39,9 +43,105 @@
       "type": "string",
       "maxLength": 1024
     },
-    "operation": {
+    "pendingId": {
       "type": "string",
-      "enum": ["prepare", "inspect", "claim", "link", "acknowledge", "cancel"]
+      "maxLength": 64
+    },
+    "planDigest": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "contentDigest": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "intakeInput": {
+      "type": "object"
+    },
+    "intakeDecision": {
+      "type": "object"
+    },
+    "request": {
+      "type": "object",
+      "required": ["text"],
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "type": "string",
+          "maxLength": 8192
+        },
+        "shortGoal": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "shortScope": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "selectedStyle": {
+      "type": "string",
+      "enum": [
+        "conversational-quick",
+        "conversational-quick-full",
+        "conversational-phase",
+        "autopilot-quick",
+        "autopilot-quick-full",
+        "autopilot-phase"
+      ]
+    },
+    "commandRoute": {
+      "type": "object"
+    },
+    "facts": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "required": ["fact"],
+        "additionalProperties": false,
+        "properties": {
+          "fact": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "source": {
+            "type": "string",
+            "maxLength": 512
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 512
+          }
+        }
+      }
+    },
+    "sourceRefs": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 1024
+          },
+          "sha256": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      }
+    },
+    "nativeReference": {
+      "type": "object"
+    },
+    "reason": {
+      "type": "string",
+      "maxLength": 1024
     }
   }
 }

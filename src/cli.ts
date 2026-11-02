@@ -63,6 +63,7 @@ Usage:
   alpha-aos project run <harness> [path] [--apply] [-- <harness-args>]
   alpha-aos task intake --input <request.json> [--json]
   alpha-aos task readiness --input <request.json> [--json]
+  alpha-aos task bootstrap --input <packet.json> [--apply] [--json]
   alpha-aos task plan <contract.json> [--detail] [--json]
   alpha-aos task preview <contract.json> [--json]
   alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
@@ -2218,8 +2219,8 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering", "intake", "readiness"].includes(subcommand)) {
-      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait, intake, readiness. Also available: attach, dispatch, context, steer, steering.`);
+    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering", "intake", "readiness", "bootstrap"].includes(subcommand)) {
+      throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait, intake, readiness, bootstrap. Also available: attach, dispatch, context, steer, steering.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
     // approve, start, resume, and final-review alone.
@@ -2297,6 +2298,53 @@ async function main(): Promise<void> {
       });
       const formatted = formatGsdProjectReadiness(readiness);
       print(readiness, json, formatted, context);
+      return;
+    }
+    if (subcommand === "bootstrap") {
+      const parsed = parseClosedFlags(args.slice(2), {
+        valueFlags: ["--input", "--plan-digest"],
+        booleanFlags: ["--apply", "--json"],
+      });
+      if (parsed.operands.length > 0) {
+        throw new Error("task bootstrap does not accept positional operands; use --input <packet.json>");
+      }
+      const inputPath = parsed.options.get("--input");
+      if (typeof inputPath !== "string" || !inputPath) {
+        throw new Error("task bootstrap requires --input <packet.json>");
+      }
+      const apply = hasFlag(args, "--apply");
+      const planDigest = parsed.options.get("--plan-digest");
+      const {
+        prepareTaskBootstrap,
+        inspectTaskBootstrap,
+        formatTaskBootstrapResult,
+      } = await import("./core/task-bootstrap.js");
+
+      const raw = await readFile(resolve(inputPath), "utf8");
+      const packetData = JSON.parse(raw);
+      if (planDigest && !packetData.planDigest) {
+        packetData.planDigest = planDigest;
+      }
+      const operation = packetData.operation ?? "prepare";
+
+      let result;
+      if (operation === "inspect") {
+        result = await inspectTaskBootstrap({
+          input: packetData,
+          invocationPath: process.cwd(),
+          stateRoot,
+        });
+      } else {
+        result = await prepareTaskBootstrap({
+          input: packetData,
+          invocationPath: process.cwd(),
+          stateRoot,
+          apply,
+        });
+      }
+
+      const formatted = formatTaskBootstrapResult(result);
+      print(result, json, formatted, context);
       return;
     }
     if (subcommand === "context" || subcommand === "steering") {
@@ -3105,7 +3153,7 @@ async function serializeCliError(
 ): Promise<CliErrorEnvelope> {
   const TaskContractError = args[0] === "task" ? (await import("./core/task-contract.js")).TaskContractError : undefined;
   const TaskRunError = args[0] === "task" ? (await import("./core/task-run.js")).TaskRunError : undefined;
-  const BehaviorPolicyError = ((args[0] === "project" && args[1] === "mode") || (args[0] === "task" && (args[1] === "intake" || args[1] === "readiness")))
+  const BehaviorPolicyError = ((args[0] === "project" && args[1] === "mode") || (args[0] === "task" && (args[1] === "intake" || args[1] === "readiness" || args[1] === "bootstrap")))
     ? (await import("./core/behavior-policy.js")).BehaviorPolicyError
     : undefined;
   const TaskIntakeError = (args[0] === "task" && args[1] === "intake")
@@ -3113,6 +3161,9 @@ async function serializeCliError(
     : undefined;
   const TaskReadinessError = (args[0] === "task" && args[1] === "readiness")
     ? (await import("./core/task-gsd-readiness.js")).TaskReadinessError
+    : undefined;
+  const TaskBootstrapError = (args[0] === "task" && args[1] === "bootstrap")
+    ? (await import("./core/task-bootstrap.js")).TaskBootstrapError
     : undefined;
   const rawMessage = error instanceof Error ? error.message : String(error);
   const message = redactString(rawMessage, context);
@@ -3139,6 +3190,23 @@ async function serializeCliError(
   }
 
   if (TaskReadinessError && error instanceof TaskReadinessError) {
+    status = error.code === "input-too-large" || error.code === "not-a-file" ? "refused" : "failed";
+    reasonCode = error.code.toUpperCase().replace(/-/g, "_");
+    nextAction = error.remediation;
+    return {
+      status,
+      reasonCode,
+      code: error.code,
+      path: error.path,
+      cause: error.causeDescription,
+      causeCategory: error.causeCategory,
+      remediation: error.remediation,
+      reason: redactString(error.message, context),
+      nextAction: error.remediation,
+    };
+  }
+
+  if (TaskBootstrapError && error instanceof TaskBootstrapError) {
     status = error.code === "input-too-large" || error.code === "not-a-file" ? "refused" : "failed";
     reasonCode = error.code.toUpperCase().replace(/-/g, "_");
     nextAction = error.remediation;
@@ -3355,7 +3423,7 @@ async function serializeCliError(
 
   for (const arg of args) {
     if (arg.startsWith("-")) continue;
-    if (["task", "job", "plan", "preview", "approve", "start", "report", "status", "stop", "resume", "doctor", "answer", "final-review", "wait", "cancel", "worker", "help", "intake", "readiness"].includes(arg)) {
+    if (["task", "job", "plan", "preview", "approve", "start", "report", "status", "stop", "resume", "doctor", "answer", "final-review", "wait", "cancel", "worker", "help", "intake", "readiness", "bootstrap"].includes(arg)) {
       continue;
     }
     if (!runId && RUN_ID_REGEX.test(arg)) {

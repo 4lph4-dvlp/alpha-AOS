@@ -316,6 +316,7 @@ export interface TaskRunGsd {
   commits: TaskCommit[];
   missing: string[];
   workflowSha256: string | null;
+  fullEvidence?: import("./task-gsd-stages.js").TaskGsdFullEvidence | undefined;
 }
 
 /** Every path changed after the base commit, split by authority (D-03, AUTO-02, D-07). */
@@ -842,7 +843,7 @@ function executorBlock(result: ControllerDispatchResult): TaskRunExecutor {
   };
 }
 
-function gsdBlock(evidence: GsdEvidence | null, workflowSha256: string): TaskRunGsd {
+function gsdBlock(evidence: GsdEvidence | null, workflowSha256: string, fullEvidence?: import("./task-gsd-stages.js").TaskGsdFullEvidence | null): TaskRunGsd {
   if (evidence === null) {
     return {
       status: "not-run",
@@ -853,6 +854,7 @@ function gsdBlock(evidence: GsdEvidence | null, workflowSha256: string): TaskRun
       commits: [],
       missing: [],
       workflowSha256,
+      ...(fullEvidence ? { fullEvidence } : {}),
     };
   }
   return {
@@ -864,6 +866,7 @@ function gsdBlock(evidence: GsdEvidence | null, workflowSha256: string): TaskRun
     commits: evidence.commits.map((commit) => ({ sha: commit.sha, subject: commit.subject })),
     missing: [...evidence.missing],
     workflowSha256,
+    ...(fullEvidence ? { fullEvidence } : {}),
   };
 }
 
@@ -1720,45 +1723,6 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
     });
     record = { ...record, executor: executorBlock(dispatched) };
 
-    if (effectiveQuality === "full" && dispatched.stageObservation?.status === "observed" && dispatched.stageObservation.stages.length > 0) {
-      const claimQuickId = dispatched.claim?.gsdQuickId ?? `${runId}-quick`;
-      const { writeStageReceipt, computeStageReceiptDigest } = await import("./task-gsd-stages.js");
-      for (const st of dispatched.stageObservation.stages) {
-        const stageReceiptPayload = {
-          schemaVersion: 1 as const,
-          kind: "task-gsd-stage-receipt" as const,
-          receiptId: `stage-${contract.id}-${st.stage}`,
-          contractDigest: digest,
-          revision: contract.revision,
-          runId,
-          canonicalProjectRoot: resolve(contract.scope.projectRoot),
-          quickId: claimQuickId,
-          stage: st.stage,
-          quality: "full" as const,
-          harness: dispatched.harness,
-          sessionId: dispatched.sessionId ?? "unknown-session",
-          runtimeVersion: dispatched.version,
-          workflowSha256: outline.sourceSha256,
-          invocationLocator: st.invocationId,
-          invocationDigest: st.invocationDigest,
-          resultLocator: st.resultId,
-          resultDigest: st.resultDigest,
-          outcome: st.outcome,
-          evaluatedCommit: st.evaluatedCommit,
-          inputArtifacts: st.inputArtifacts,
-          outputArtifacts: st.outputArtifacts,
-          observedAt: st.observedAt,
-          detail: st.detail,
-        };
-        const receiptDigest = computeStageReceiptDigest(stageReceiptPayload);
-        await writeStageReceipt({
-          stateRoot: options.stateRoot,
-          receipt: { ...stageReceiptPayload, receiptDigest },
-          pkgRoot: options.packageRoot,
-        });
-      }
-    }
-
     const gitControlAfter = await snapshotGitControl({ projectRoot, gitDirectory: gitDirectoryForSnapshot });
     const changedControlLabels = diffGitControl(gitControlBefore, gitControlAfter);
     if (changedControlLabels.length > 0) {
@@ -1851,12 +1815,98 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
       claimQuickId: claim?.gsdQuickId ?? null,
       allowExistingClaimedQuick: contract.revision > 1 || prior.length > 0 || Boolean(options.allowPriorRun),
     });
-    record = { ...record, gsd: gsdBlock(evidence, outline.sourceSha256) };
+
+    const effectiveQuickId = evidence?.quickId ?? claim?.gsdQuickId ?? `${runId}-quick`;
+    if (effectiveQuality === "full" && dispatched.stageObservation?.status === "observed" && dispatched.stageObservation.stages.length > 0) {
+      const { writeStageReceipt, computeStageReceiptDigest } = await import("./task-gsd-stages.js");
+      for (const st of dispatched.stageObservation.stages) {
+        const stageReceiptPayload = {
+          schemaVersion: 1 as const,
+          kind: "task-gsd-stage-receipt" as const,
+          receiptId: `stage-${contract.id}-${st.stage}`,
+          contractDigest: digest,
+          revision: contract.revision,
+          runId,
+          canonicalProjectRoot: resolve(projectRoot),
+          quickId: effectiveQuickId,
+          stage: st.stage,
+          quality: "full" as const,
+          harness: dispatched.harness,
+          sessionId: dispatched.sessionId ?? "unknown-session",
+          runtimeVersion: dispatched.version,
+          workflowSha256: outline.sourceSha256,
+          invocationLocator: st.invocationId,
+          invocationDigest: st.invocationDigest,
+          resultLocator: st.resultId,
+          resultDigest: st.resultDigest,
+          outcome: st.outcome,
+          evaluatedCommit: st.evaluatedCommit,
+          inputArtifacts: st.inputArtifacts,
+          outputArtifacts: st.outputArtifacts,
+          observedAt: st.observedAt,
+          detail: st.detail,
+        };
+        const receiptDigest = computeStageReceiptDigest(stageReceiptPayload);
+        await writeStageReceipt({
+          stateRoot: options.stateRoot,
+          receipt: { ...stageReceiptPayload, receiptDigest },
+          pkgRoot: options.packageRoot,
+        });
+      }
+    }
+
+    let fullEvidence: import("./task-gsd-stages.js").TaskGsdFullEvidence | null = null;
+    if (effectiveQuality === "full") {
+      const { listStageReceipts, verifyGsdFullEvidence } = await import("./task-gsd-stages.js");
+      const receipts = await listStageReceipts({ stateRoot: options.stateRoot, runId, pkgRoot: options.packageRoot }).catch(() => []);
+      fullEvidence = await verifyGsdFullEvidence({
+        projectRoot,
+        baseCommit: baseline.baseCommit,
+        contractDigest: digest,
+        revision: contract.revision,
+        runId,
+        quickId: effectiveQuickId,
+        workflowSha256: outline.sourceSha256,
+        receipts,
+      });
+    }
+
+    record = { ...record, gsd: gsdBlock(evidence, outline.sourceSha256, fullEvidence) };
     const planningAfter = await snapshotPlanningState(projectRoot);
     const preconditions: TaskPrecondition[] = [
       gsdPrecondition(evidence, JSON.stringify(planningBefore) !== JSON.stringify(planningAfter)),
       { id: "effect-audit", satisfied: true, reason: "all changed paths within the approved authority", nextAction: "none" },
     ];
+
+    if (effectiveQuality === "full") {
+      const fullSatisfied = fullEvidence !== null && fullEvidence.status === "verified";
+      let fullReason = "all required full stages verified with valid native receipts and artifact hashes";
+      let fullNextAction = "none";
+      if (!fullSatisfied) {
+        if (!fullEvidence || fullEvidence.status === "missing") {
+          const missing = fullEvidence?.missingStages ?? ["all"];
+          fullReason = `missing required full stages: ${missing.join(", ")}`;
+          fullNextAction = `re-run or resume task to complete missing stages: ${missing.join(", ")}`;
+        } else if (fullEvidence.status === "failed") {
+          const failedDesc = fullEvidence.failedStages.map((f) => `${f.stage} (${f.outcome}: ${f.reason ?? "failed"})`).join("; ");
+          fullReason = `full stages failed: ${failedDesc}`;
+          fullNextAction = `inspect failed stages (${failedDesc}) and re-run with fixes`;
+        } else if (fullEvidence.status === "invalid") {
+          fullReason = `invalid or tampered stage receipts: ${fullEvidence.invalidReceipts.join(", ")} (${fullEvidence.issues.join("; ")})`;
+          fullNextAction = "inspect invalid stage receipts and ensure stage observation produces valid signed receipts";
+        } else {
+          fullReason = `full stage evidence verification failed: ${fullEvidence?.issues.join("; ") ?? "unknown"}`;
+          fullNextAction = "inspect full stage evidence";
+        }
+      }
+
+      preconditions.push({
+        id: "full-quality-stages",
+        satisfied: fullSatisfied,
+        reason: fullReason,
+        nextAction: fullNextAction,
+      });
+    }
 
     const obligations = selectStepObligations({
       contract,

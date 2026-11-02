@@ -1504,6 +1504,15 @@ export function formatTaskRunReport(run: TaskRunRecord): string {
     }
   }
 
+  const unmetPreconditions = (run.verdict?.preconditions ?? []).filter((p) => !p.satisfied);
+  if (unmetPreconditions.length > 0) {
+    lines.push(
+      "Unsatisfied Preconditions:",
+      ...unmetPreconditions.map((p) => `  ${p.id}: ${p.reason}${p.nextAction ? ` (${p.nextAction})` : ""}`),
+      "",
+    );
+  }
+
   if (passed.length > 0) {
     const passedTableRows = passed.map((row) => [
       row.criterionId,
@@ -1545,6 +1554,27 @@ export function formatTaskRunReport(run: TaskRunRecord): string {
     if (gsd.commits.length > 0) lines.push(`  commits: ${gsd.commits.map((commit) => commit.subject).join("; ")}`);
   } else {
     lines.push(`GSD: ${gsd.status}${gsd.missing.length > 0 ? ` — missing: ${gsd.missing.join("; ")}` : ""}`);
+  }
+  if (gsd?.fullEvidence) {
+    const fe = gsd.fullEvidence;
+    lines.push(`  Full quality stages: ${fe.status}`);
+    for (const st of fe.stages) {
+      const commitPart = st.evaluatedCommit ? ` at ${st.evaluatedCommit.slice(0, 7)}` : "";
+      const reasonPart = st.detail ? ` — ${st.detail}` : "";
+      lines.push(`    ${st.stage}: ${st.outcome}${commitPart}${reasonPart} [receipt: ${st.receiptId}]`);
+    }
+    if (fe.missingStages.length > 0) {
+      lines.push(`    missing stages: ${fe.missingStages.join(", ")}`);
+    }
+    if (fe.failedStages.length > 0) {
+      lines.push(`    failed stages: ${fe.failedStages.map((f) => `${f.stage} (${f.outcome}${f.reason ? `: ${f.reason}` : ""})`).join("; ")}`);
+    }
+    if (fe.invalidReceipts.length > 0) {
+      lines.push(`    invalid receipts: ${fe.invalidReceipts.join(", ")}`);
+    }
+    if (fe.issues.length > 0) {
+      lines.push(`    issues: ${fe.issues.join("; ")}`);
+    }
   }
 
   const effects = run.effects;

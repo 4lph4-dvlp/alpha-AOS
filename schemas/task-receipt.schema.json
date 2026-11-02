@@ -327,7 +327,31 @@
                 "stateRow": { "type": "boolean" },
                 "commits": { "type": "array", "items": { "$ref": "#/$defs/commit" } },
                 "missing": { "type": "array", "items": { "type": "string" } },
-                "workflowSha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] }
+                "workflowSha256": { "anyOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }] },
+                "fullEvidence": {
+                  "type": "object",
+                  "required": ["status", "quickId", "missingStages", "failedStages", "invalidReceipts", "issues"],
+                  "properties": {
+                    "status": { "enum": ["verified", "missing", "failed", "invalid"] },
+                    "quickId": { "type": "string" },
+                    "stages": { "type": "array" },
+                    "missingStages": { "type": "array", "items": { "type": "string" } },
+                    "failedStages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["stage", "outcome"],
+                        "properties": {
+                          "stage": { "type": "string" },
+                          "outcome": { "type": "string" },
+                          "reason": { "type": "string" }
+                        }
+                      }
+                    },
+                    "invalidReceipts": { "type": "array", "items": { "type": "string" } },
+                    "issues": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
               }
             },
             { "type": "null" }

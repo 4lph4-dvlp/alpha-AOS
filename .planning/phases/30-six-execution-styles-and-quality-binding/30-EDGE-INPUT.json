@@ -1,0 +1,30 @@
+[
+  {
+    "id": "STYLE-01",
+    "text": "A user selecting 대화형-quick receives native GSD quick in the current conversation with its documented optional-stage omissions and required state/commit gates."
+  },
+  {
+    "id": "STYLE-02",
+    "text": "A user selecting 대화형-quick-full receives native GSD quick --full in the current conversation, including discussion, research, planning, plan checking, implementation and verification."
+  },
+  {
+    "id": "STYLE-03",
+    "text": "A user selecting 대화형-phase receives GSD roadmap/phase progression in the current conversation with necessary user questions and native lifecycle gates."
+  },
+  {
+    "id": "STYLE-04",
+    "text": "A user selecting 오토파일럿-quick receives ordinary quick through an approved exact contract and the existing isolated runner, with the selected style visible in the preview."
+  },
+  {
+    "id": "STYLE-05",
+    "text": "A user selecting 오토파일럿-quick-full receives a contract-bound full quality pipeline: its preview/digest, dispatch and verification distinguish it from ordinary quick, and ordinary quick evidence alone cannot satisfy acceptance."
+  },
+  {
+    "id": "STYLE-06",
+    "text": "A user selecting 오토파일럿-phase receives only approved roadmap/phase scope through the existing runner and GSD lifecycle bridge."
+  },
+  {
+    "id": "STYLE-07",
+    "text": "A user's mode/style selection never substitutes for exact per-task autopilot contract approval and separate start, rewrites an approved running contract, or permits inline autopilot implementation/model substitution."
+  }
+]

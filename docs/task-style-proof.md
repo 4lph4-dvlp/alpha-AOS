@@ -56,3 +56,30 @@ The following holds remain in effect and are NOT cleared by local Windows fixtur
 - **Publication Hold**: `npm publish` and git tag release remain blocked until final milestone verification.
 - **Global Apply Hold**: No global reconciliation or automatic global skill installation is performed during local development.
 - **Separate Reviewer Mandate**: Independent code review remains mandatory in the phase verify stage with the approved fresh read-only reviewer; local test execution does not substitute for review.
+
+## 5. Plan 30-07 Full Regression Gate Evidence
+
+- **Base Source Commit**: `1f7acd87bc56261a90ce097620b7da7d542d6f30`
+- **Execution Environment**: Windows 11 / Node.js v24.7.0 / npm 10.8.3
+
+### Execution Results:
+1. `npm run check`: Exit code 0 (TypeScript strict noEmit check passed cleanly).
+2. `npm run build`: Exit code 0 (`dist/build-artifact.json` written with 345 inputs, 680 outputs).
+3. `node scripts/run-tests.mjs --files dist/test/task-style-acceptance.test.js dist/test/task-style-native-proof.test.js dist/test/task-gsd-full-run.test.js dist/test/task-style-routing.test.js`:
+   - Exit code: 0
+   - Passed: 25 / Failed: 0 / Skipped: 0
+   - Verified 6 composed route journeys and native proof verifier boundary/anti-spoofing checks.
+4. `npm test` (Full Test Suite):
+   - Exit code: 0
+   - All executed suites passed cleanly with 0 failures.
+   - Historical debt verification (suites from `261101-ww3` demonstrably executed in this run):
+     - `task-progress-integration.test.js`: 13 passed, 0 failed.
+     - `task-progress.test.js`: 15 passed, 0 failed.
+     - `verify-efficient-wait.test.js`: 19 passed, 1 skipped (Windows host symlink constraint), 0 failed.
+     - `tarball.test.js`: 10 passed, 0 failed.
+5. `npm run build:check`: Exit code 0 (all 345 inputs and 680 outputs verified against build artifact manifest).
+
+### Limitations and Unresolved Proof:
+- All Tier 1 fixture tests pass, but live Tier 3 native proof remains strictly required in Plan 30-08 before Phase 30 can be completed.
+- CI/macOS and release holds remain unchanged.
+

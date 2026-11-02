@@ -83,3 +83,15 @@ The following holds remain in effect and are NOT cleared by local Windows fixtur
 - All Tier 1 fixture tests pass, but live Tier 3 native proof remains strictly required in Plan 30-08 before Phase 30 can be completed.
 - CI/macOS and release holds remain unchanged.
 
+## 6. Plan 30-08 Native Checkpoint Disposition (human_needed)
+
+- **Date**: 2026-11-02
+- **Disposition Status**: `human_needed` (Awaiting live native execution evidence)
+- **Gate**: Blocking human verification checkpoint ([`30-08-PLAN.md`](file:///D:/dev/alpha-AOS/.planning/phases/30-six-execution-styles-and-quality-binding/30-08-PLAN.md))
+- **Current Findings**:
+  - All 6 canonical routes in [`docs/task-style-proof-index.json`](file:///D:/dev/alpha-AOS/docs/task-style-proof-index.json) are currently recorded as `unverified`.
+  - In accordance with D-21 and D-22, fixture test passes do not substitute for live native harness execution proof.
+  - Phase 30 execution is paused at Plan 30-08. No unilateral execution or synthetic proof creation is permitted.
+  - Phase 31 planning remains blocked until authentic native receipts are registered and verified via `scripts/verify-task-style-native.mjs`.
+
+

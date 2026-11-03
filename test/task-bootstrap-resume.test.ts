@@ -13,7 +13,7 @@ import {
 } from "../src/core/task-bootstrap.js";
 import type { GsdToolsRunner } from "../src/core/task-gsd-readiness.js";
 import type { ProcessResult, ProcessSpec } from "../src/core/process.js";
-import { createIsolatedSandbox } from "./helpers/packed-sandbox.js";
+import { createBootstrapSandbox as createIsolatedSandbox, createBootstrapArtifactFixture } from "./helpers/task-bootstrap-evidence.js";
 
 function mockReadyRunner(projectDir: string): GsdToolsRunner {
   return async (spec: ProcessSpec): Promise<ProcessResult> => {
@@ -124,16 +124,12 @@ test("full lifecycle: prepare -> claim -> link -> acknowledge delivery (BOOT-04,
     projectRoot: projectDir,
     invocationPath: projectDir,
     stateRoot: sandbox.state,
-    nativeReference: {
-      kind: "gsd-quick",
-      id: "quick-task-0042",
-      path: ".planning/quick/quick-task-0042.md",
-    },
+    nativeReference: await createBootstrapArtifactFixture({ projectRoot: projectDir, stateRoot: sandbox.state, pendingId: "pending-life-01" }),
   });
 
   assert.equal(linked.operation, "link");
   assert.equal(linked.status, "linked");
-  assert.equal((linked.nativeReference as Record<string, unknown>)?.id, "quick-task-0042");
+  assert.equal((linked.nativeReference as Record<string, unknown>)?.id, "001-pending-life-01");
 
   // 4. Acknowledge delivery
   const acknowledged = await acknowledgeTaskBootstrap({
@@ -142,7 +138,7 @@ test("full lifecycle: prepare -> claim -> link -> acknowledge delivery (BOOT-04,
     invocationPath: projectDir,
     stateRoot: sandbox.state,
     deliveryReceipt: {
-      receiptSha256: "b".repeat(64),
+      receiptSha256: linked.nativeReference?.artifactSha256,
     },
   });
 
@@ -151,7 +147,7 @@ test("full lifecycle: prepare -> claim -> link -> acknowledge delivery (BOOT-04,
   assert.ok(acknowledged.reasons.some((r) => r.includes("Delivery acceptance recorded")));
 });
 
-test("two processes competing for one pending transfer grant only one dispatch permission (BOOT-04, D-18)", async (context) => {
+test("sequential claimants grant one dispatch and withhold authority on same-nonce retry (BOOT-04, D-18)", async (context) => {
   const sandbox = await createIsolatedSandbox(context);
   const projectDir = join(sandbox.home, "race-project");
   await mkdir(join(projectDir, ".planning"), { recursive: true });
@@ -231,7 +227,7 @@ test("two processes competing for one pending transfer grant only one dispatch p
   });
 
   assert.equal(claimARetry.status, "claimed");
-  assert.equal(claimARetry.dispatchAuthorized, true);
+  assert.equal(claimARetry.dispatchAuthorized, false);
   assert.deepEqual(claimARetry.executionRoute, claimA.executionRoute);
 });
 
@@ -286,10 +282,7 @@ test("already linked handoff redirects to continue-existing without second quick
     projectRoot: projectDir,
     invocationPath: projectDir,
     stateRoot: sandbox.state,
-    nativeReference: {
-      kind: "gsd-quick",
-      id: "quick-task-continue-check",
-    },
+    nativeReference: await createBootstrapArtifactFixture({ projectRoot: projectDir, stateRoot: sandbox.state, pendingId: "pending-cont-01" }),
   });
 
   // Re-claiming an already linked task redirects to continue-existing
@@ -546,7 +539,7 @@ test("all autopilot styles withhold authority across initial, pre-link retry and
     }
     assert.deepEqual(retry.executionRoute, initial.executionRoute);
     await assert.rejects(claimTaskBootstrap({ ...claimOptions, claimNonce: "different-claimant" }), /already-claimed/u);
-    const nativeReference = { kind: phase ? "gsd-phase" : "gsd-quick", id: `${pendingId}-native`, path: `.planning/${pendingId}.md` };
+    const nativeReference = await createBootstrapArtifactFixture({ projectRoot: projectDir, stateRoot: sandbox.state, pendingId, phase });
     await linkTaskBootstrapNativeReference({ pendingId, projectRoot: projectDir, invocationPath: projectDir, stateRoot: sandbox.state, nativeReference });
     const linked = await claimTaskBootstrap(claimOptions);
     assert.equal(linked.status, "linked");

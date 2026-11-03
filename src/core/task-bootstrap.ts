@@ -36,6 +36,9 @@ import {
 } from "./task-style.js";
 import { parseManagedDocument, validateAgainstSchema } from "./validation.js";
 import type { MutationSession } from "./writer-lock.js";
+import { assertTaskBootstrapSession, withTaskBootstrapSession } from "./task-bootstrap-session.js";
+import { nativeBootstrapBinding, verifyBootstrapNativeReference } from "./task-bootstrap-evidence.js";
+import { runGitRead } from "./task-gsd.js";
 
 const MAX_INPUT_BYTES = 16 * 1024;
 const AUTOPILOT_CLAIM_NEXT_ACTION = "Autopilot style selected; requires separate contract preview, exact digest approval, and separate start command. Task bootstrap does not authorize autopilot execution or perform inline file mutations.";
@@ -292,6 +295,11 @@ export async function prepareTaskBootstrap(
   options: PrepareTaskBootstrapOptions,
 ): Promise<TaskBootstrapResult> {
   const packet = await loadAndValidatePacket(options);
+  if ((options.apply === true || packet.apply === true) && !options.session) {
+    return withTaskBootstrapSession({ stateRoot: options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos") },
+      (session) => prepareTaskBootstrap({ ...options, inputPath: undefined, input: packet, session }));
+  }
+  if (options.session) assertTaskBootstrapSession(options.session, options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos"));
   const invocationPath = options.invocationPath ?? process.cwd();
 
   const projectRoot = typeof packet.projectRoot === "string" ? packet.projectRoot : undefined;
@@ -687,12 +695,16 @@ export interface ClaimTaskBootstrapOptions {
   readonly host?: string | undefined;
   readonly session?: MutationSession | undefined;
   readonly runner?: GsdToolsRunner | undefined;
+  readonly nativeReference?: Record<string, unknown> | undefined;
 }
 
 export async function claimTaskBootstrap(
   options: ClaimTaskBootstrapOptions,
 ): Promise<TaskBootstrapResult> {
   const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  if (!options.session) return withTaskBootstrapSession({ stateRoot: options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos") },
+    (session) => claimTaskBootstrap({ ...options, inputPath: undefined, input: Object.keys(packet).length ? packet : undefined, session }));
+  assertTaskBootstrapSession(options.session, options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos"));
   const invocationPath = options.invocationPath ?? process.cwd();
 
   const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
@@ -777,6 +789,16 @@ export async function claimTaskBootstrap(
     });
   }
 
+  if (!readiness.ready) {
+    const recoveryPlan = await planNativeBootstrapRecovery({ canonicalRoot, readiness });
+    return { schemaVersion: 1, operation: "claim", canonicalRoot, projectId, pendingId,
+      contentDigest: existing.contentDigest, planDigest: null, applied: false, destinationPath,
+      status: "blocked", readinessDiagnosis: readiness.diagnosis, dispatchAuthorized: false,
+      nextAction: recoveryPlan.nativeAction, reasons: readiness.reasons, recoveryPlan,
+      selectedStyle: existing.canonicalSelectedStyle, commandRoute: existing.commandRoute,
+      executionRoute: resolveTaskExecutionRoute({ selectedStyle: existing.canonicalSelectedStyle, commandRoute: existing.commandRoute }) };
+  }
+
   if (existing.status === "cancelled") {
     throw new TaskBootstrapError({
       code: "already-cancelled",
@@ -786,6 +808,7 @@ export async function claimTaskBootstrap(
   }
 
   if (existing.status === "linked") {
+    await verifyBootstrapNativeReference(existing, existing.link?.nativeRef ?? existing.nativeReference ?? {});
     return {
       schemaVersion: 1,
       operation: "claim",
@@ -810,6 +833,7 @@ export async function claimTaskBootstrap(
   }
 
   if (existing.status === "acknowledged") {
+    await verifyBootstrapNativeReference(existing, existing.link?.nativeRef ?? existing.nativeReference ?? {});
     return {
       schemaVersion: 1,
       operation: "claim",
@@ -834,6 +858,14 @@ export async function claimTaskBootstrap(
   }
 
   if (existing.status === "claimed") {
+    const exactReference = options.nativeReference ?? (typeof packet.nativeReference === "object" && packet.nativeReference !== null ? packet.nativeReference as Record<string, unknown> : undefined);
+    if (exactReference) {
+      const linked = await linkTaskBootstrapNativeReference({ pendingId, projectRoot: canonicalRoot,
+        invocationPath: canonicalRoot, stateRoot, nativeReference: exactReference,
+        contentDigest: existing.contentDigest, session: options.session });
+      return { ...linked, operation: "claim", nextAction: "continue-existing", dispatchAuthorized: false,
+        readinessDiagnosis: readiness.diagnosis };
+    }
     if (existing.claim?.nonce === claimNonce) {
       const isAutopilot = existing.canonicalSelectedStyle?.startsWith("autopilot");
       return {
@@ -844,14 +876,14 @@ export async function claimTaskBootstrap(
         pendingId,
         contentDigest: existing.contentDigest,
         planDigest: null,
-        applied: true,
+        applied: false,
         destinationPath,
         status: "claimed",
         readinessDiagnosis: readiness.diagnosis,
-        nextAction: isAutopilot ? AUTOPILOT_CLAIM_NEXT_ACTION : "Link native task reference once allocated.",
-        dispatchAuthorized: !isAutopilot,
+        nextAction: isAutopilot ? AUTOPILOT_CLAIM_NEXT_ACTION : "Reconcile exact native artifact and commit evidence before continuing; durable intent cannot grant another dispatch.",
+        dispatchAuthorized: false,
         reasons: [
-          "Handoff claim re-verified idempotently for this claimant.",
+          "Durable claim exists; response loss or native allocation is ambiguous until exact evidence is linked.",
           ...(isAutopilot ? [AUTOPILOT_CLAIM_REASON] : []),
         ],
         selectedStyle: existing.canonicalSelectedStyle,
@@ -871,6 +903,7 @@ export async function claimTaskBootstrap(
 
   // existing.status === "pending" -> Transition to "claimed"
   const now = new Date().toISOString();
+  const baseCommit = await runGitRead(canonicalRoot, ["rev-parse", "--verify", "HEAD"]).then((text) => text.trim()).catch(() => null);
   let updatedHandoff: TaskBootstrapHandoff;
   try {
     const res = await updateTaskBootstrapHandoff({
@@ -878,6 +911,7 @@ export async function claimTaskBootstrap(
       projectId,
       pendingId,
       expectedContentDigest: expectedDigest,
+      canonicalRoot,
       session: options.session,
       transition: (cur) => {
         if (cur.status === "cancelled") {
@@ -910,6 +944,7 @@ export async function claimTaskBootstrap(
             host: options.host ?? "local-host",
             session: `sess-${randomBytes(6).toString("hex")}`,
             claimedAt: now,
+            baseCommit,
           },
           updatedAt: now,
         };
@@ -978,6 +1013,9 @@ export async function linkTaskBootstrapNativeReference(
   options: LinkTaskBootstrapNativeReferenceOptions,
 ): Promise<TaskBootstrapResult> {
   const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  if (!options.session) return withTaskBootstrapSession({ stateRoot: options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos") },
+    (session) => linkTaskBootstrapNativeReference({ ...options, inputPath: undefined, input: Object.keys(packet).length ? packet : undefined, session }));
+  assertTaskBootstrapSession(options.session, options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos"));
   const invocationPath = options.invocationPath ?? process.cwd();
 
   const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
@@ -1021,7 +1059,9 @@ export async function linkTaskBootstrapNativeReference(
       projectId,
       pendingId,
       session: options.session,
-      transition: (cur) => {
+      canonicalRoot,
+      expectedContentDigest: options.contentDigest ?? (typeof packet.contentDigest === "string" ? packet.contentDigest : undefined),
+      transition: async (cur) => {
         if (cur.status === "cancelled") {
           throw new TaskBootstrapStoreError({
             code: "already-cancelled",
@@ -1029,18 +1069,21 @@ export async function linkTaskBootstrapNativeReference(
             remediation: "Start a new task intake request.",
           });
         }
-        if (cur.status === "linked") {
-          const curId = (cur.link?.nativeRef as Record<string, unknown> | undefined)?.id;
-          const newId = (nativeRef as Record<string, unknown>).id;
-          if (curId && newId && curId === newId) return cur;
+        if (cur.status === "pending") {
+          throw new TaskBootstrapStoreError({ code: "not-claimed", cause: "Native allocation requires a durable claim first", remediation: "Claim only after fresh native readiness." });
+        }
+        await verifyBootstrapNativeReference(cur, nativeRef);
+        if (cur.status === "linked" || cur.status === "acknowledged") {
+          const currentRef = cur.link?.nativeRef ?? cur.nativeReference ?? {};
+          if (Object.keys(nativeRef).length === Object.keys(currentRef).length && Object.keys(nativeRef).every((key) => nativeRef[key] === currentRef[key])) {
+            await verifyBootstrapNativeReference(cur, currentRef);
+            return cur;
+          }
           throw new TaskBootstrapStoreError({
             code: "link-conflict",
             cause: "Pending handoff is already linked to a different native reference",
             remediation: "Use existing link reference.",
           });
-        }
-        if (cur.status === "acknowledged") {
-          return cur;
         }
         return {
           ...cur,
@@ -1078,9 +1121,10 @@ export async function linkTaskBootstrapNativeReference(
     planDigest: null,
     applied: true,
     destinationPath,
-    status: "linked",
+    status: updatedHandoff.status,
     readinessDiagnosis: null,
-    nextAction: "Execute native workflow and acknowledge delivery upon completion.",
+    nextAction: "Continue the exact native allocation and acknowledge request delivery evidence; this is not task completion.",
+    dispatchAuthorized: false,
     reasons: [
       `Linked exact native reference '${(nativeRef as Record<string, unknown>).id ?? (nativeRef as Record<string, unknown>).kind ?? "task"}'.`,
     ],
@@ -1110,6 +1154,9 @@ export async function acknowledgeTaskBootstrap(
   options: AcknowledgeTaskBootstrapOptions,
 ): Promise<TaskBootstrapResult> {
   const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  if (!options.session) return withTaskBootstrapSession({ stateRoot: options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos") },
+    (session) => acknowledgeTaskBootstrap({ ...options, inputPath: undefined, input: Object.keys(packet).length ? packet : undefined, session }));
+  assertTaskBootstrapSession(options.session, options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos"));
   const invocationPath = options.invocationPath ?? process.cwd();
 
   const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
@@ -1146,7 +1193,9 @@ export async function acknowledgeTaskBootstrap(
       projectId,
       pendingId,
       session: options.session,
-      transition: (cur) => {
+      canonicalRoot,
+      expectedContentDigest: options.contentDigest ?? (typeof packet.contentDigest === "string" ? packet.contentDigest : undefined),
+      transition: async (cur) => {
         if (cur.status === "cancelled") {
           throw new TaskBootstrapStoreError({
             code: "already-cancelled",
@@ -1154,15 +1203,20 @@ export async function acknowledgeTaskBootstrap(
             remediation: "Start a new task intake request.",
           });
         }
-        if (cur.status === "acknowledged") {
-          return cur;
-        }
-        if (cur.status !== "linked") {
+        if (cur.status !== "linked" && cur.status !== "acknowledged") {
           throw new TaskBootstrapStoreError({
             code: "not-linked",
             cause: "Cannot acknowledge unlinked handoff; link exact native reference first.",
             remediation: "Link native task reference before acknowledging delivery.",
           });
+        }
+        const ref = await verifyBootstrapNativeReference(cur, cur.link?.nativeRef ?? cur.nativeReference ?? {});
+        if (!receiptSha256 || receiptSha256 !== ref.artifactSha256) {
+          throw new TaskBootstrapStoreError({ code: "native-receipt-mismatch", cause: "Delivery acceptance requires the SHA-256 of the exact reopened linked native artifact", remediation: "Supply deliveryReceipt.receiptSha256 matching exact native evidence; do not invent receipts." });
+        }
+        if (cur.status === "acknowledged") {
+          if (cur.delivery?.receiptSha256 !== receiptSha256) throw new Error("native-receipt-mismatch: recorded acceptance differs");
+          return cur;
         }
         return {
           ...cur,
@@ -1231,6 +1285,9 @@ export async function cancelTaskBootstrap(
   options: CancelTaskBootstrapOptions,
 ): Promise<TaskBootstrapResult> {
   const packet = options.inputPath || options.input ? await loadAndValidatePacket(options) : {};
+  if (!options.session) return withTaskBootstrapSession({ stateRoot: options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos") },
+    (session) => cancelTaskBootstrap({ ...options, inputPath: undefined, input: Object.keys(packet).length ? packet : undefined, session }));
+  assertTaskBootstrapSession(options.session, options.stateRoot ?? join(process.env.HOME ?? process.cwd(), ".alpha-aos"));
   const invocationPath = options.invocationPath ?? process.cwd();
 
   const projectRoot = options.projectRoot ?? (typeof packet.projectRoot === "string" ? packet.projectRoot : undefined);
@@ -1267,15 +1324,20 @@ export async function cancelTaskBootstrap(
       projectId,
       pendingId,
       session: options.session,
+      canonicalRoot,
+      expectedContentDigest: options.contentDigest ?? (typeof packet.contentDigest === "string" ? packet.contentDigest : undefined),
       transition: (cur) => {
         if (cur.status === "acknowledged") {
           throw new TaskBootstrapStoreError({
             code: "cannot-cancel-acknowledged",
             cause: "Cannot cancel a task bootstrap handoff that has already been delivered and acknowledged.",
-            remediation: "The task was already completed natively.",
+            remediation: "Request delivery was already accepted; inspect the native workflow for actual task status.",
           });
         }
-        if (cur.status === "cancelled") return cur;
+        if (cur.status === "cancelled") {
+          inFlight = cur.claim !== undefined || cur.link !== undefined;
+          return cur;
+        }
         if (cur.status === "linked" || cur.status === "claimed") {
           inFlight = true;
         }
@@ -1342,6 +1404,10 @@ export function buildNativeBootstrapInput(
     "",
     `Goal: ${handoff.originalRequest.shortGoal ?? handoff.originalRequest.text.slice(0, 100)}`,
   ];
+  sections.push("", "## Exact Bootstrap Request Binding", nativeBootstrapBinding(handoff),
+    "Preserve only this hash binding exactly once in the native allocation PLAN for read-only reconciliation. It grants no approval or execution authority.",
+    "Keep the private request and facts in the native conversation; do not copy private payload into versioned artifacts solely as proof.",
+    "", "## Original Request (Private Host Context)", handoff.originalRequest.text);
 
   if (handoff.originalRequest.shortScope) {
     sections.push(`Scope: ${handoff.originalRequest.shortScope}`);

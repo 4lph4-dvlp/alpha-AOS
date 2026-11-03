@@ -3,6 +3,7 @@ import { spawnSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { createBootstrapArtifactFixture } from "./helpers/task-bootstrap-evidence.js";
 import {
   createIsolatedSandbox,
   fingerprintManifest,
@@ -277,12 +278,13 @@ test("task bootstrap CLI: supports claim, link, and acknowledge operations throu
   assert.equal(claimJson.dispatchAuthorized, true);
 
   // 3. Link
+  const nativeReference = await createBootstrapArtifactFixture({ projectRoot: projectDir, stateRoot: sandbox.state, pendingId: "pending-cli-ops" });
   const linkPacket = {
     schemaVersion: 1,
     operation: "link",
     pendingId: "pending-cli-ops",
     projectRoot: projectDir,
-    nativeReference: { kind: "quick", id: "task-01" },
+    nativeReference,
   };
   const linkPath = join(projectDir, "link.json");
   await writeFile(linkPath, JSON.stringify(linkPacket, null, 2), "utf8");
@@ -299,7 +301,7 @@ test("task bootstrap CLI: supports claim, link, and acknowledge operations throu
     operation: "acknowledge",
     pendingId: "pending-cli-ops",
     projectRoot: projectDir,
-    deliveryReceipt: { receiptSha256: "a".repeat(64) },
+    deliveryReceipt: { receiptSha256: nativeReference.artifactSha256 },
   };
   const ackPath = join(projectDir, "ack.json");
   await writeFile(ackPath, JSON.stringify(ackPacket, null, 2), "utf8");

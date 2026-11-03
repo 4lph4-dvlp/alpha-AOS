@@ -7,6 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { createIsolatedSandbox } from "./helpers/packed-sandbox.js";
 import { packageRoot } from "../src/core/paths.js";
+import { createBootstrapArtifactFixture } from "./helpers/task-bootstrap-evidence.js";
 
 const cliPath = join(import.meta.dirname, "..", "src", "cli.js");
 const verifierScript = join(packageRoot(), "scripts", "verify-task-bootstrap-native.mjs");
@@ -157,11 +158,8 @@ console.log(JSON.stringify({
   assert.equal(claimData.status, "claimed");
   assert.equal(claimData.dispatchAuthorized, true);
 
-  // 5. Link native reference (simulate quick task creation)
-  const quickDir = join(projectDir, ".planning", "quick", "001-health-check");
-  await mkdir(quickDir, { recursive: true });
-  const summaryPath = join(quickDir, "001-SUMMARY.md");
-  await writeFile(summaryPath, "# Health Check Summary\nImplemented health check.", "utf8");
+  // 5. Fixture-tier native-shaped committed PLAN, not a real native run.
+  const nativeReference = await createBootstrapArtifactFixture({ projectRoot: projectDir, stateRoot: sandbox.state, pendingId: "pending-composed-001" });
 
   const linkReqPath = join(projectDir, "req-link.json");
   await writeFile(
@@ -174,10 +172,7 @@ console.log(JSON.stringify({
       pendingId: "pending-composed-001",
       projectRoot: projectDir,
       claimNonce: "claim-nonce-composed-123",
-      nativeReference: {
-        type: "quick",
-        quickPath: summaryPath,
-      },
+      nativeReference,
     }),
     "utf8",
   );
@@ -191,7 +186,7 @@ console.log(JSON.stringify({
   const linkData = JSON.parse(linkRes.stdout);
   assert.equal(linkData.operation, "link");
   assert.equal(linkData.status, "linked");
-  assert.ok(linkData.nativeReference?.quickPath?.includes("001-SUMMARY.md"));
+  assert.ok(linkData.nativeReference?.path?.endsWith("001-PLAN.md"));
 
   // 6. Acknowledge delivery
   const ackReqPath = join(projectDir, "req-ack.json");
@@ -205,10 +200,8 @@ console.log(JSON.stringify({
       pendingId: "pending-composed-001",
       projectRoot: projectDir,
       claimNonce: "claim-nonce-composed-123",
-      nativeReference: {
-        type: "quick",
-        quickPath: summaryPath,
-      },
+      nativeReference,
+      deliveryReceipt: { receiptSha256: nativeReference.artifactSha256 },
     }),
     "utf8",
   );
@@ -233,8 +226,8 @@ console.log(JSON.stringify({
   assert.equal(reenterRes.status, 0);
   const reenterData = JSON.parse(reenterRes.stdout);
   assert.equal(reenterData.operation, "link");
-  assert.equal(reenterData.status, "linked");
-  assert.ok(reenterData.nativeReference?.quickPath?.includes("001-SUMMARY.md"));
+  assert.equal(reenterData.status, "acknowledged");
+  assert.ok(reenterData.nativeReference?.path?.endsWith("001-PLAN.md"));
 });
 
 test("proof verifier tool enforces native tier, disk artifacts, and single execution (D-23, D-24)", async (context) => {

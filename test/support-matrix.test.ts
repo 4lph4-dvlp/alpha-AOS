@@ -206,10 +206,16 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
   const root = await mkdtemp(join(tmpdir(), "alpha-aos-support-matrix-"));
   context.after(async () => rm(root, { recursive: true, force: true }));
   const cli = join(process.cwd(), "dist", "src", "cli.js");
-  const env = { ...process.env, ALPHA_AOS_STATE_DIR: join(root, "state"), NO_COLOR: "1" };
+  // Matrix rendering must not wait for unrelated installed harness CLIs.
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== "path")),
+    PATH: join(root, "bin"),
+    ALPHA_AOS_STATE_DIR: join(root, "state"),
+    NO_COLOR: "1",
+  };
 
   const tableResult = spawnSync(process.execPath, [cli, "doctor", "--matrix"], {
-    cwd: process.cwd(),
+    cwd: root,
     env,
     encoding: "utf8",
     timeout: 30_000,
@@ -223,7 +229,7 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
   assert.doesNotMatch(tableResult.stdout, /\u001b\[/u);
 
   const jsonResult = spawnSync(process.execPath, [cli, "doctor", "--matrix", "--json"], {
-    cwd: process.cwd(),
+    cwd: root,
     env,
     encoding: "utf8",
     timeout: 30_000,

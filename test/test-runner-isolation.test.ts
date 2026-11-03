@@ -13,7 +13,7 @@ test("test runner retains every file once and isolates Windows native suites bef
   await mkdir(join(root, "dist", "test"), { recursive: true });
   const repo = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
   await copyFile(join(repo, "scripts", "run-tests.mjs"), join(root, "scripts", "run-tests.mjs"));
-  const names = ["ordinary.test.js", "command-jobs.test.js", "process.test.js", "tarball-fixture.test.js"];
+  const names = ["ordinary.test.js", "command-jobs.test.js", "mcp-proxy.test.js", "process.test.js", "tarball-fixture.test.js"];
   for (const name of names) {
     await writeFile(join(root, "dist", "test", name), `
       const test = require('node:test');
@@ -24,7 +24,7 @@ test("test runner retains every file once and isolates Windows native suites bef
         const active = path.join(process.cwd(), 'native-active');
         const journal = path.join(process.cwd(), 'observed.jsonl');
         const name = ${JSON.stringify(name)};
-        const native = name === 'command-jobs.test.js' || name === 'process.test.js';
+        const native = name === 'command-jobs.test.js' || name === 'process.test.js' || name === 'mcp-proxy.test.js';
         if (native && process.platform === 'win32') {
           assert.ok(fs.existsSync(path.join(process.cwd(), 'ordinary-done')));
           fs.writeFileSync(active, name, { flag: 'wx' });
@@ -32,7 +32,7 @@ test("test runner retains every file once and isolates Windows native suites bef
           fs.unlinkSync(active);
         }
         if (name === 'tarball-fixture.test.js') {
-          assert.equal(fs.readFileSync(journal, 'utf8').trim().split('\\n').length, 3);
+          assert.equal(fs.readFileSync(journal, 'utf8').trim().split('\\n').length, 4);
           assert.equal(fs.existsSync(active), false);
         }
         fs.appendFileSync(journal, JSON.stringify(name) + '\\n');

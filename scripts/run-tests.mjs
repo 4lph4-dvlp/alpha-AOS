@@ -176,7 +176,7 @@ const packed = named === null ? files.filter((file) => file.endsWith("tarball-fi
 // Keep their real liveness/heartbeat assertions and execute every file once,
 // separately from the ordinary concurrent group. Explicit --files stays literal.
 const nativeNames = new Set(process.platform === "win32" ? [
-  "process.test.js", "protocol-session.test.js", "command-jobs.test.js",
+  "process.test.js", "protocol-session.test.js", "mcp-proxy.test.js", "command-jobs.test.js",
   "command-job-worker.test.js", "command-job-runtime.test.js", "efficient-wait-cli.test.js", "verify-efficient-wait.test.js",
   "task-cli.test.js", "task-progress-integration.test.js", "task-progress.test.js",
 ] : []);

@@ -2,7 +2,9 @@
 
 오토파일럿은 요청한 에이전트 대화에서 시작할 수 있습니다. 작업과 역할별 하네스·모델을 지정하고 계약·다이제스트를 검토한 뒤 승인과 시작을 명시적으로 요청하면, 에이전트가 `task approve`와 별도 `task start`를 순서대로 호출합니다. 승인만으로는 시작하지 않습니다. 현재 대화 모델은 사용자 창구로 유지되며, 기존 실행기가 승인된 추론·구현·검토 작업자를 호출합니다. 터미널 수동 실행은 선택 사항입니다. 프로세스 도구·인증·모델 지원·네이티브 기능 증거가 없으면 구체적인 차단 사유를 보고합니다.
 
-**0.5.0**에는 Claude, Codex, Antigravity, Pi, Hermes를 위한 선택형 공통 읽기 전용 진행 패널과 작업 컨텍스트, 조정 제안, 런타임 예산·프로세스·복구 제어가 추가되었습니다. 질문은 작업을 시작한 대화에서 하며, 네이티브 채팅 전달은 비활성화되어 있고 검증되지 않았습니다. 전용 기존 래퍼에서 제어된 모델 실행을 하려면 등록된 디스패치 경로가 필요합니다. [런타임 제어 문서](docs/task-runtime-controls.md)를 참고하세요.
+**0.6.0 릴리스 후보**에는 공유 strict/flexible 프로젝트 정책, 독립적인 주요 작업마다 새로 선택하는 6개 실행 방식, GSD 초기화 연속성, 패키지 교차 하네스 증거가 추가되었습니다. 네이티브 3-OS CI와 최종 릴리스 수용은 아직 완료되지 않았습니다.
+
+이전 **0.5.0** 작업에는 Claude, Codex, Antigravity, Pi, Hermes를 위한 선택형 공통 읽기 전용 진행 패널과 작업 컨텍스트, 조정 제안, 런타임 예산·프로세스·복구 제어가 추가되었습니다. 질문은 작업을 시작한 대화에서 하며, 네이티브 채팅 전달은 비활성화되어 있고 검증되지 않았습니다. 전용 기존 래퍼에서 제어된 모델 실행을 하려면 등록된 디스패치 경로가 필요합니다. [런타임 제어 문서](docs/task-runtime-controls.md)를 참고하세요.
 
 **0.4.5**에는 이벤트 기반 [효율적 대기 및 반응형 완료 런타임](docs/efficient-wait.md)(`alpha-aos job` 및 `alpha-aos task wait`)이 추가되었습니다.
 모델 경로에서의 반복적인 sleep/status 폴링 루프를 회피하고 분리된 프로세스 생명주기 관리와 단일 유한 관찰을 제공합니다(호스트 레이트 리밋 고갈 방지 보장이나 측정된 토큰 절감액은 주장하지 않음).
@@ -224,7 +226,7 @@ alpha-aos project status .
 | 5 | 오토파일럿-quick-full | `autopilot-quick-full` |
 | 6 | 오토파일럿-phase | `autopilot-phase` |
 
-상세 흐름은 [English](./docs/task-entry.md) / [한국어](./docs/task-entry.ko.md), 검증 결과는 [증명 원장](./docs/task-entry-proof.md), 운영 제어는 [런타임 문서](./docs/task-runtime-controls.md), 호환성은 [지원 매트릭스](./docs/SUPPORT_MATRIX.md)를 참고하세요. Hermes는 worker-only이며 GSD 컨트롤러를 지원하지 않습니다. Claude G-07-2 인증, 3-OS CI, 글로벌 재적용과 push·npm publish는 보류 중입니다. 소스 복제 개발용 패키지 버전 0.5.0은 유지합니다.
+상세 흐름은 [English](./docs/task-entry.md) / [한국어](./docs/task-entry.ko.md), 검증 결과는 [증명 원장](./docs/task-entry-proof.md), 운영 제어는 [런타임 문서](./docs/task-runtime-controls.md), 호환성은 [지원 매트릭스](./docs/SUPPORT_MATRIX.md)를 참고하세요. Hermes는 worker-only이며 GSD 컨트롤러를 지원하지 않습니다. 패키지 메타데이터는 0.6.0이며 네이티브 CI 수용, Claude G-07-2 인증, 글로벌 재적용과 push·npm publish는 보류 중입니다. macOS CI 문제는 수정 중이며 Windows 로컬 통과만으로 네이티브 CI 수용을 주장하지 않습니다.
 
 ## 실전 사용 시나리오 및 자주 묻는 질문 (FAQ)
 

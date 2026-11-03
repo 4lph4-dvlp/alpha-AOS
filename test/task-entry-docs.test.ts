@@ -31,7 +31,7 @@ test("task entry guides and README keep bilingual section, style and scenario pa
     }
     if (guides.includes(path)) {
       assert.deepEqual([...text.matchAll(/^## (\d)\./gmu)].map((match) => match[1]), ["1", "2", "3", "4", "5", "6", "7", "8"]);
-      for (const topic of ["strict", "flexible", "README", "public API", "fast-forward", "force push", "new-task", "continue-existing", "dispatchAuthorized: false", "G-07-2", "worker-only", "1–6", "3-OS/macOS CI", "0.5.0", "task approve", "task start", "quickQuality", "PROJECT.md"]) {
+      for (const topic of ["strict", "flexible", "README", "public API", "fast-forward", "force push", "new-task", "continue-existing", "dispatchAuthorized: false", "G-07-2", "worker-only", "1–6", "3-OS/macOS CI", "0.6.0", "task approve", "task start", "quickQuality", "PROJECT.md"]) {
         // The Korean guide uses the Korean term for a public API.
         assert.ok(text.includes(topic === "public API" && path.endsWith(".ko.md") ? "공개 API" : topic), `${path}: ${topic}`);
       }
@@ -63,7 +63,7 @@ test("task entry package contract requires 14 artifacts, preserves matrix and ve
   const audit = await import(url) as { REQUIRED_V060_ENTRIES: string[] };
   assert.equal(audit.REQUIRED_V060_ENTRIES.length, 14);
   for (const path of audit.REQUIRED_V060_ENTRIES) assert.ok(existsSync(join(root, path)), path);
-  assert.equal(JSON.parse(await readFile(join(root, "package.json"), "utf8")).version, "0.5.0");
+  assert.equal(JSON.parse(await readFile(join(root, "package.json"), "utf8")).version, "0.6.0");
   const diff = spawnSync("git", ["diff", "--", "docs/SUPPORT_MATRIX.md"], { cwd: root, encoding: "utf8", windowsHide: true });
   assert.equal(diff.status, 0);
   assert.equal(diff.stdout, "");

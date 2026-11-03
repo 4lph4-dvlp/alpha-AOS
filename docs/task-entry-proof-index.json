@@ -54,11 +54,11 @@
       },
       {
         "path": "docs/task-entry.md",
-        "sha256": "c1b5fb49ea1116ea9117145f6cea04c48bf1cb21bc366400977a4ffa853bf3b3"
+        "sha256": "21370144dd4d747e88588ab7925b979a80fd08c1f011295749a1de4bc344b271"
       },
       {
         "path": "docs/task-entry.ko.md",
-        "sha256": "038c9909dfa956c27df8ffe1908bba57618e02296cb84b7ad15ce4214cebad84"
+        "sha256": "82673b840265c41a5d8306e0a615ad5cf08dceda1d3dd8aa92afeca851f4fc36"
       }
     ]
   },
@@ -548,11 +548,6 @@
       },
       {
         "id": "npm-publish",
-        "status": "held",
-        "reasonCode": "npm-publish-hold"
-      },
-      {
-        "id": "version-bump",
         "status": "held",
         "reasonCode": "npm-publish-hold"
       },
@@ -1104,6 +1099,110 @@
       "reportSha256": "7d5a8d77d42d509fcc946e58c69639a06ea65acac1aaec1374ab6c2b1fea80ca",
       "scope": "corrected-source-and-measured-ledger",
       "modelPolicy": "user-approved-session-inheritance"
+    }
+  },
+  "candidateVerification": {
+    "packageVersion": "0.6.0",
+    "status": "local-remediation-prepared-native-ci-pending",
+    "authorization": "User amended P1 to local 0.6.0 metadata and P4 to effective macOS CI remediation on 2026-11-03; no publication authority.",
+    "historicalRegressionSource": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d",
+    "historicalRegressionDisposition": "Completed before the 0.6.0 metadata/panel-test amendment; not candidate-specific acceptance.",
+    "nativeCi": "pending",
+    "finalIndependentVerification": "pending",
+    "localEvidence": {
+      "platform": "win32/x64",
+      "node": "v24.22.1",
+      "undici": "7.30.1",
+      "passedGroups": [
+        {
+          "suite": "loopback-http",
+          "log": ".planning/tmp/macos-ci-loopback-http.log",
+          "total": 3,
+          "pass": 3,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        {
+          "suite": "task-progress-panel",
+          "log": ".planning/tmp/macos-ci-task-progress-panel.log",
+          "total": 18,
+          "pass": 18,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        {
+          "suite": "task-progress-integration",
+          "log": ".planning/tmp/macos-ci-task-progress-integration.log",
+          "total": 13,
+          "pass": 13,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        {
+          "suite": "task-progress",
+          "log": ".planning/tmp/macos-ci-task-progress.log",
+          "total": 15,
+          "pass": 15,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 0,
+          "todo": 0
+        },
+        {
+          "suite": "proof-docs-provenance",
+          "log": ".planning/tmp/macos-ci-proof-docs-provenance.log",
+          "total": 23,
+          "pass": 22,
+          "fail": 0,
+          "cancelled": 0,
+          "skipped": 1,
+          "todo": 0
+        }
+      ],
+      "initialCli": {
+        "log": ".planning/tmp/macos-ci-task-cli.log",
+        "total": 43,
+        "pass": 42,
+        "fail": 1,
+        "cancelled": 0,
+        "skipped": 0,
+        "todo": 0,
+        "disposition": "Extra POSIX-cleanup assertion was incorrectly applied to Windows; corrected and ready-cancel passed in exact preflight. This full receipt remains failed."
+      },
+      "exactPreflight": {
+        "groups": [
+          {
+            "log": ".planning/tmp/macos-ci-exact-preflight.log",
+            "total": 3,
+            "pass": 3,
+            "fail": 0,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          },
+          {
+            "log": ".planning/tmp/macos-ci-exact-preflight.log",
+            "total": 4,
+            "pass": 3,
+            "fail": 1,
+            "cancelled": 0,
+            "skipped": 0,
+            "todo": 0
+          }
+        ],
+        "disposition": "HTTP3/3 and three CLI cases passed. Public attach failed before panel launch at a5000ms detached-worker handshake. Intermittent Windows concern remains unwaived; full candidate/native CI not certified."
+      },
+      "workerProfile": {
+        "systemAckMs": 1229,
+        "ciVersionAckMs": 1259,
+        "disposition": "One bounded A/B control completed both jobs; it does not explain or waive the intermittent failure."
+      }
     }
   }
 }

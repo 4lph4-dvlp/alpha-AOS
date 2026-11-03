@@ -2,7 +2,7 @@
 
 [English](./task-entry.md) | [한국어](./task-entry.ko.md)
 
-Tell your agent what you want to accomplish. The shared project policy determines how it asks about execution; GSD owns planning, execution state and verification. This guide describes the source workflow currently packaged as **0.5.0**. Publication of the v0.6.0 work remains held.
+Tell your agent what you want to accomplish. The shared project policy determines how it asks about execution; GSD owns planning, execution state and verification. This guide describes the **0.6.0 release candidate** source workflow. Publication remains held until release acceptance.
 
 ## 1. Shared Project Modes (`strict` vs `flexible`)
 
@@ -106,6 +106,6 @@ Read the [55-cell proof ledger](./task-entry-proof.md) and [JSON index](./task-e
 node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json
 ```
 
-The packaged verifier works without `.git`, `.planning` or checkout tests, checking packaged hashes and archived evidence. It does not rerun native model turns. Package version remains **0.5.0** for source-clone development; official npm publish, version bump, git push, global reconciliation, Claude G-07-2 and **3-OS/macOS CI** remain held. A local Windows test pass cannot clear those holds.
+The packaged verifier works without `.git`, `.planning` or checkout tests, checking packaged hashes and archived evidence. It does not rerun native model turns. Package metadata is **0.6.0** by user decision; official npm publish, git push, global reconciliation, Claude G-07-2 and **3-OS/macOS CI** acceptance remain held. The macOS CI blocker is being remediated. A local Windows test pass cannot clear native CI or publication gates. Earlier 0.5.0 regression receipts remain historical and do not certify this candidate.
 
 Related: [runtime operator controls](./task-runtime-controls.md), [support matrix](./SUPPORT_MATRIX.md), [historical matrix](./SUPPORT_MATRIX_v0.2.0.md), [style proof](./task-style-proof.md).

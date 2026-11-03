@@ -1,6 +1,6 @@
 # Cross-harness task entry proof and regression ledger
 
-This v0.6.0 source-workflow evidence covers PROVE-01–PROVE-04. Package version remains 0.5.0; release and publication holds remain active.
+This v0.6.0 source-workflow evidence covers PROVE-01–PROVE-04. Package metadata now targets 0.6.0 by user decision. The measured full regression below was completed before this release-candidate amendment; it remains historical evidence. Candidate-specific native CI and final acceptance are pending; publication holds remain active.
 
 ## Evidence tiers and 55-cell matrix
 
@@ -72,9 +72,9 @@ Active holds: 3-OS/macOS CI, Claude G-07-2, global reconciliation, git push and 
 
 Related: [support matrix](./SUPPORT_MATRIX.md), [historical matrix](./SUPPORT_MATRIX_v0.2.0.md), [bootstrap proof](./task-bootstrap-proof.md), [style proof](./task-style-proof.md).
 
-The phase source review is clean. A separate milestone final review remains pending (independent-review-gate-pending), along with 3-os-ci-held, G-07-2, global-apply-hold, git-push-hold and npm-publish-hold, including the version bump beyond 0.5.0. None is included in passed test totals.
+The previous phase source review is clean at its recorded source. The user authorized local 0.6.0 metadata and macOS CI remediation; those changes require fresh candidate verification. A separate milestone final review remains pending (independent-review-gate-pending), along with native 3-os-ci-held acceptance, G-07-2, global-apply-hold, git-push-hold and npm-publish-hold. None is included in passed test totals.
 
-The final independent code review of source and measured ledger is clean at 1f444d8. The earlier clean review remains hash-bound to its archive commit; the final review has a separate receipt. No release hold was cleared.
+Completed independent phase source/ledger reviews remain bound to their recorded archive commits and report hashes in the index. They predate the 0.6.0 candidate amendment and do not replace its pending final independent verification. No publication hold was cleared.
 
 G-31-01 scoped source correction is independently reviewed clean at b961a0f. Corrected-source full regression has completed as recorded above; the earlier run remains historical evidence.
 

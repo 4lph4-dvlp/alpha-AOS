@@ -4,7 +4,9 @@ Autopilot can be launched from the initiating agent conversation. Describe the t
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
-Release **0.5.0** adds an optional shared read-only progress panel for Claude, Codex, Antigravity, Pi and Hermes, plus task context, steering proposals and runtime budget, process and recovery controls. Ask questions in the originating conversation; native chat delivery remains disabled and unverified. Dedicated legacy wrappers require the registered dispatch route for controlled model launches. See [runtime controls](docs/task-runtime-controls.md).
+The **0.6.0 release candidate** adds shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and packaged cross-harness evidence. Native three-OS CI and final release acceptance remain pending.
+
+The earlier **0.5.0** work adds an optional shared read-only progress panel for Claude, Codex, Antigravity, Pi and Hermes, plus task context, steering proposals and runtime budget, process and recovery controls. Ask questions in the originating conversation; native chat delivery remains disabled and unverified. Dedicated legacy wrappers require the registered dispatch route for controlled model launches. See [runtime controls](docs/task-runtime-controls.md).
 
 Release **0.4.5** adds event-driven [efficient waiting and reactive completion](docs/efficient-wait.md) (`alpha-aos job` and `alpha-aos task wait`):
 aims to eliminate model-driven polling loops on its execution path with detached command jobs, single finite observations, and canonical run tracking (without promising host rate-limit prevention or measured token savings).
@@ -208,7 +210,7 @@ The shared project policy uses strict by default with zero writes, or flexible a
 | 5 | 오토파일럿-quick-full | `autopilot-quick-full` |
 | 6 | 오토파일럿-phase | `autopilot-phase` |
 
-Read the [English guide](./docs/task-entry.md) / [한국어 가이드](./docs/task-entry.ko.md), [proof ledger](./docs/task-entry-proof.md), [runtime controls](./docs/task-runtime-controls.md) and [support matrix](./docs/SUPPORT_MATRIX.md). Hermes is worker-only with no GSD controller. Claude G-07-2 auth, 3-OS CI, global reconciliation, push and npm publish remain held. Source-clone development retains package version 0.5.0.
+Read the [English guide](./docs/task-entry.md) / [한국어 가이드](./docs/task-entry.ko.md), [proof ledger](./docs/task-entry-proof.md), [runtime controls](./docs/task-runtime-controls.md) and [support matrix](./docs/SUPPORT_MATRIX.md). Hermes is worker-only with no GSD controller. Package metadata is 0.6.0; native CI acceptance, Claude G-07-2 auth, global reconciliation, push and npm publish remain held. The macOS CI blocker is being remediated; a local Windows pass does not establish native CI acceptance.
 
 ## Practical Scenarios & Common Questions (FAQ)
 

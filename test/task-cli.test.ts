@@ -4,6 +4,7 @@ import { get } from "node:http";
 import { copyFile, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { delimiter, dirname, join, resolve } from "node:path";
 import test from "node:test";
+import { loopbackFetch as fetch } from "./helpers/loopback-http.js";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -13,7 +14,7 @@ import { aliasPath, createPathAliases } from "../src/core/paths.js";
 import { approveTaskContract, loadTaskContract, readTaskApprovals } from "../src/core/task-contract.js";
 import { readCheckpoint, writeCheckpoint, type TaskCheckpoint } from "../src/core/task-journal.js";
 import type { ControllerPort } from "../src/core/task-run.js";
-import { panelDeadline } from "../src/core/task-progress-launch.js";
+import { launchTaskProgressPanel, panelDeadline } from "../src/core/task-progress-launch.js";
 import { cancelAndConfirmOwnedJob } from "./helpers/command-job-runtime.js";
 import { readJobRecord } from "../src/core/command-jobs.js";
 import { createRedactionContext, redactDocument } from "../src/core/redaction.js";
@@ -100,6 +101,19 @@ test("phase26 panel launch uses argv and finite jobs", { timeout: 120000 }, asyn
     assert.equal(panelDeadline({ ...run, status: "executing", deadlineAt: new Date(now + 25 * 3600_000).toISOString() }, undefined, now), now + 24 * 3600_000);
     assert.throws(() => panelDeadline(run, 24 * 3600_000 + 1, now));
   });
+});
+
+test("phase26 ready panel cancels before any client request", { timeout: 120000 }, async (t) => {
+  const { fixture, digest } = await contractFixture(t);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  const { run } = await startFixtureTask(fixture, { ports: fixturePorts({ controller: referenceControllerPort("off-by-one"), reviewer: staticReviewerPort(passingReview) }), expectedDigest: digest });
+  const launch = await launchTaskProgressPanel({ stateRoot: fixture.stateRoot, timeoutMs: 60000,
+    binding: { schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision,
+      runId: run.runId, host: "codex", originatingSessionId: "ready-without-client" } });
+  await withPanelCleanup(fixture.stateRoot, launch, async () => {});
+  // Windows tree termination is unconditional; it does not run POSIX signal
+  // handlers/finally. The strict process-reaping check above applies on all OSes.
+  if (process.platform !== "win32") assert.deepEqual(await readdir(join(fixture.stateRoot, "panel-launches")), []);
 });
 
 test("phase26 attach refreshes only the exact observer", { timeout: 120000 }, async (t) => {

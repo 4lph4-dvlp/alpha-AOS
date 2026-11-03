@@ -1,6 +1,7 @@
 import { cancelAndConfirmOwnedJob } from "./helpers/command-job-runtime.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { loopbackFetch as fetch } from "./helpers/loopback-http.js";
 import { once } from "node:events";
 import { createTaskFixture, inventorySummaryContract, fixturePorts, passingReview, referenceControllerPort, startFixtureTask, staticReviewerPort, writeTaskContract } from "./helpers/task-fixture.js";
 import { createTaskSession, readTaskSessionEvents, validateTaskSessionBinding } from "../src/core/task-session.js";

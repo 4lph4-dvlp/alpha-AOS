@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { loopbackFetch as fetch } from "./helpers/loopback-http.js";
 import { createTaskFixture, inventorySummaryContract } from "./helpers/task-fixture.js";
 import { createTaskSession, validateTaskSessionBinding } from "../src/core/task-session.js";
 import { startTaskProgressPanel } from "../src/core/task-progress-panel.js";

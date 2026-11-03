@@ -98,7 +98,23 @@ jobs:
           const actual=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
           if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"
       - run: npm run check
-      - run: npm test
+      # Fail at the native panel boundary before the expensive full suite.
+      # This retains the actual HTTP/auth/SSE/cancel assertions: no retry or skip.
+      - name: Build native panel preflight
+        run: npm run build
+      - name: Native panel lifecycle preflight
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p .ci-diagnostics
+          node -e 'console.log(JSON.stringify({node:process.version,undici:process.versions.undici,platform:process.platform,arch:process.arch}))' | tee .ci-diagnostics/runtime.json
+          node scripts/run-tests.mjs --files dist/test/loopback-http.test.js 2>&1 | tee .ci-diagnostics/panel-http.log
+          node scripts/run-tests.mjs '--test-name-pattern=phase26 (panel launch uses|ready panel cancels|attach refreshes|public attach)' --files dist/test/task-cli.test.js 2>&1 | tee .ci-diagnostics/panel-cli.log
+      - name: Full regression
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee .ci-diagnostics/full-regression.log
       - name: Verify host-free computer use policy audit integration and research
         shell: bash
         run: |
@@ -158,3 +174,12 @@ jobs:
         run: |
           [void][scriptblock]::Create((Get-Content scripts/install.ps1 -Raw))
           [void][scriptblock]::Create((Get-Content scripts/update.ps1 -Raw))
+
+      - name: Retain native CI diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-ci-diagnostics-${{ matrix.os }}
+          path: .ci-diagnostics/
+          if-no-files-found: ignore
+          retention-days: 14

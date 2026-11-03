@@ -52,6 +52,7 @@ function isolatedEnvironment(root, home, prefix, state) {
     npm_config_userconfig: join(root, ".npmrc"),
     npm_config_audit: "false",
     npm_config_fund: "false",
+    npm_config_registry: "https://registry.npmjs.org",
     npm_config_update_notifier: "false",
     TMPDIR: join(root, "temp"),
     TEMP: join(root, "temp"),
@@ -93,6 +94,8 @@ export async function runSmokeTest(target, isRegistry = false) {
       prefix,
       "--no-audit",
       "--no-fund",
+      "--registry",
+      "https://registry.npmjs.org",
     ], { cwd: sandbox, env });
     if (install.status !== 0) {
       process.stderr.write(`Smoke install failed for ${isRegistry ? "registry package" : "local tarball"} (exit ${install.status}).\n`);

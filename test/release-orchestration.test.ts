@@ -8,6 +8,8 @@ import { pathToFileURL } from "node:url";
 const repositoryRoot = resolve(import.meta.dirname, "../..");
 interface ReleaseModule {
   runReleaseTests(checkout: string, env: NodeJS.ProcessEnv): void;
+  publicationEnvironment(isolated: NodeJS.ProcessEnv, source?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+  validateReleaseCiEvidence(head: string, remoteMain: string, evidence: unknown): void;
 }
 const release = await import(pathToFileURL(join(repositoryRoot, "scripts", "release.mjs")).href) as ReleaseModule;
 
@@ -71,7 +73,63 @@ test("release groups: an actual failing ordinary body prevents packed and all la
   assert.throws(() => {
     release.runReleaseTests(f.root, f.environment);
     laterAction = true;
-  }, /ordinary test group failed/u);
+  }, /release test groups failed/u);
   assert.equal(laterAction, false);
   assert.deepEqual(await f.rows(), []);
+});
+
+test("release groups: native shutdown fixtures exclude each other before packed lifecycle", async (context) => {
+  const f = await fixture(context);
+  const active = join(f.root, "native-active");
+  const ordinaryDone = join(f.root, "ordinary-done");
+  await f.add("ordinary.test.js", f.body("ordinary", `fs.writeFileSync(${JSON.stringify(ordinaryDone)}, 'done');`));
+  for (const name of ["process", "mcp-proxy"]) {
+    await f.add(`${name}.test.js`, f.body(name, `
+      if (process.platform === 'win32') {
+        assert.ok(fs.existsSync(${JSON.stringify(ordinaryDone)}));
+        const fd = fs.openSync(${JSON.stringify(active)}, 'wx');
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 50);
+        fs.closeSync(fd);
+        fs.unlinkSync(${JSON.stringify(active)});
+      }
+    `));
+  }
+  await f.add("tarball-fixture.test.js", f.body("packed", `
+    assert.equal(fs.readFileSync(${JSON.stringify(f.events)}, 'utf8').trim().split('\\n').length, 3);
+    assert.equal(fs.existsSync(${JSON.stringify(active)}), false);
+  `));
+  release.runReleaseTests(f.root, f.environment);
+  assert.deepEqual((await f.rows()).slice().sort(), ["mcp-proxy", "ordinary", "packed", "process"]);
+  assert.equal((await f.rows()).at(-1), "packed");
+});
+
+test("publication restores login config discovery without exposing it to isolated verification", () => {
+  const isolated = { PATH: "fixture-bin", npm_config_userconfig: "isolated/.npmrc", npm_config_cache: "isolated/cache" };
+  const defaults = release.publicationEnvironment(isolated, {});
+  assert.equal(defaults.npm_config_userconfig, undefined);
+  assert.equal(defaults.npm_config_cache, isolated.npm_config_cache);
+  const custom = release.publicationEnvironment(isolated, { NPM_CONFIG_USERCONFIG: "operator/.npmrc", npm_config_globalconfig: "operator/global.npmrc", npm_config_registry: "https://unreviewed.invalid" });
+  assert.equal(custom.NPM_CONFIG_USERCONFIG, "operator/.npmrc");
+  assert.equal(custom.npm_config_userconfig, undefined);
+  assert.equal(custom.npm_config_globalconfig, "operator/global.npmrc");
+  assert.equal(custom.npm_config_registry, "https://registry.npmjs.org");
+  assert.equal(isolated.npm_config_userconfig, "isolated/.npmrc");
+});
+
+test("publication requires authoritative main and successful package plus all native OS jobs at its exact SHA", () => {
+  const head = "a".repeat(40);
+  const evidence = {
+    headSha: head, status: "completed", conclusion: "success",
+    jobs: ["Authoritative Release Package (Linux)", "ubuntu-latest / Node 24", "macos-latest / Node 24", "windows-latest / Node 24"]
+      .map((name) => ({ name, status: "completed", conclusion: "success" })),
+  };
+  assert.doesNotThrow(() => release.validateReleaseCiEvidence(head, head, evidence));
+  assert.throws(() => release.validateReleaseCiEvidence(head, "b".repeat(40), evidence), /authoritative main/u);
+  assert.throws(() => release.validateReleaseCiEvidence(head, head, { ...evidence, headSha: "b".repeat(40) }), /exact commit/u);
+  assert.throws(() => release.validateReleaseCiEvidence(head, head, { ...evidence, status: "in_progress" }), /exact commit/u);
+  assert.throws(() => release.validateReleaseCiEvidence(head, head, { ...evidence, conclusion: "failure" }), /exact commit/u);
+  for (let index = 0; index < evidence.jobs.length; index++) {
+    assert.throws(() => release.validateReleaseCiEvidence(head, head, { ...evidence, jobs: evidence.jobs.filter((_, i) => i !== index) }), /missing.*job/u);
+    assert.throws(() => release.validateReleaseCiEvidence(head, head, { ...evidence, jobs: evidence.jobs.map((job, i) => i === index ? { ...job, conclusion: "skipped" } : job) }), /missing.*job/u);
+  }
 });

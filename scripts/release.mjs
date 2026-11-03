@@ -9,6 +9,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const COMMAND_TIMEOUT_MS = 20 * 60 * 1000;
+const PUBLIC_NPM_REGISTRY = "https://registry.npmjs.org";
 
 export function parseReleaseArguments(args, env = process.env) {
   const allowed = new Set(["--dry-run", "--publish", "--allow-dirty-test-only"]);
@@ -36,7 +37,7 @@ function run(executable, args, options = {}) {
     cwd: options.cwd ?? repositoryRoot,
     env: options.env ?? process.env,
     encoding: "utf8",
-    timeout: COMMAND_TIMEOUT_MS,
+    timeout: options.timeoutMs ?? COMMAND_TIMEOUT_MS,
     windowsHide: true,
     shell: false,
     stdio: ["ignore", "pipe", "pipe"],
@@ -47,7 +48,8 @@ function run(executable, args, options = {}) {
       .split(/\r?\n/u)
       .filter((line) => /^✖\s+[^\r\n]{1,200}$/u.test(line))
       .slice(0, 10);
-    const detail = failingTitles.length > 0 ? `; failing checks: ${failingTitles.join(" | ")}` : "";
+    const processDetail = result.error?.code ? `; process error ${result.error.code}` : result.signal ? `; signal ${result.signal}` : "";
+    const detail = processDetail + (failingTitles.length > 0 ? `; failing checks: ${failingTitles.join(" | ")}` : "");
     throw new Error(`${options.label ?? executable} failed with exit ${result.status ?? 1}${detail}`);
   }
   return typeof result.stdout === "string" ? result.stdout : "";
@@ -59,6 +61,28 @@ function assertReleaseCheckout(options) {
   const status = run("git", ["status", "--porcelain", "--untracked-files=all"], { label: "git clean-tree check" });
   if (status.trim().length > 0 && !options.allowDirtyTestOnly) {
     throw new Error("release requires a clean Git tree; no production dirty-tree bypass is available");
+  }
+  if (options.allowDirtyTestOnly) return;
+  const head = run("git", ["rev-parse", "HEAD"], { label: "release commit check" }).trim();
+  const repository = "4lph4-dvlp/alpha-AOS";
+  const remoteMain = run("gh", ["api", `repos/${repository}/git/ref/heads/main`, "--jq", ".object.sha"], { label: "authoritative main check" }).trim();
+  const runs = JSON.parse(run("gh", ["run", "list", "--repo", repository, "--workflow", "ci.yml", "--commit", head,
+    "--limit", "50", "--json", "databaseId,headSha,status,conclusion"], { label: "release CI lookup" }));
+  const candidate = runs.find((entry) => entry.headSha === head && entry.status === "completed" && entry.conclusion === "success");
+  if (!candidate) throw new Error("release requires successful three-OS CI on this exact commit");
+  const evidence = JSON.parse(run("gh", ["run", "view", String(candidate.databaseId), "--repo", repository,
+    "--json", "headSha,status,conclusion,jobs"], { label: "release CI evidence" }));
+  validateReleaseCiEvidence(head, remoteMain, evidence);
+}
+
+export function validateReleaseCiEvidence(head, remoteMain, evidence) {
+  if (!/^[a-f0-9]{40}$/u.test(head) || remoteMain !== head) throw new Error("release commit must equal authoritative main");
+  if (evidence?.headSha !== head || evidence.status !== "completed" || evidence.conclusion !== "success") {
+    throw new Error("release requires successful three-OS CI on this exact commit");
+  }
+  const required = ["Authoritative Release Package (Linux)", "ubuntu-latest / Node 24", "macos-latest / Node 24", "windows-latest / Node 24"];
+  if (!Array.isArray(evidence.jobs) || required.some((name) => !evidence.jobs.some((job) => job.name === name && job.status === "completed" && job.conclusion === "success"))) {
+    throw new Error("release CI evidence is missing a successful package or native OS job");
   }
 }
 
@@ -75,6 +99,20 @@ function cleanNpmEnvironment(root) {
     npm_config_fund: "false",
     npm_config_update_notifier: "false",
   });
+  return env;
+}
+
+export function publicationEnvironment(isolated, source = process.env) {
+  const env = { ...isolated };
+  for (const name of Object.keys(env)) {
+    if (/^npm_config_(userconfig|globalconfig)$/iu.test(name)) delete env[name];
+  }
+  // Let npm read the operator's login configuration only at publication.
+  // Keep credentials out of staging files and command arguments.
+  for (const [name, value] of Object.entries(source)) {
+    if (/^npm_config_(userconfig|globalconfig)$/iu.test(name) && value !== undefined) env[name] = value;
+  }
+  env.npm_config_registry = PUBLIC_NPM_REGISTRY;
   return env;
 }
 
@@ -146,12 +184,9 @@ export function runReleaseTests(checkout, env) {
   if (ordinary.length === 0 || packed.length !== 1) {
     throw new Error("Release requires nonempty ordinary and packed lifecycle compiled test groups");
   }
-  for (const [label, group] of [["ordinary", ordinary], ["packed", packed]]) {
-    run(process.execPath, [
-      join(checkout, "scripts", "run-tests.mjs"), "--files",
-      ...group.map((name) => join("dist", "test", name)),
-    ], { cwd: checkout, env, label: label + " test group" });
-  }
+  run(process.execPath, [join(checkout, "scripts", "run-tests.mjs")], {
+    cwd: checkout, env, label: "release test groups", timeoutMs: 45 * 60 * 1000,
+  });
 }
 
 export function runRelease(options) {
@@ -160,6 +195,12 @@ export function runRelease(options) {
   try {
     const npm = npmInvocation();
     const env = cleanNpmEnvironment(staging.root);
+    const publishEnv = publicationEnvironment(env);
+    if (options.publish) {
+      run(npm.executable, [...npm.argsPrefix, "whoami", "--registry", PUBLIC_NPM_REGISTRY], {
+        cwd: staging.checkout, env: publishEnv, label: "npm publication authentication",
+      });
+    }
     const npmRun = (script) => run(npm.executable, [...npm.argsPrefix, "run", script], {
       cwd: staging.checkout,
       env,
@@ -204,9 +245,9 @@ export function runRelease(options) {
       process.stdout.write(`Release preview PASSED without publishing.\nArtifact SHA-256: ${sha256(tarballPath)}\n`);
       return 0;
     }
-    run(npm.executable, [...npm.argsPrefix, "publish", tarballPath, "--access", "public"], {
+    run(npm.executable, [...npm.argsPrefix, "publish", tarballPath, "--access", "public", "--registry", PUBLIC_NPM_REGISTRY], {
       cwd: staging.checkout,
-      env,
+      env: publishEnv,
       label: "npm public publish",
     });
     const packageJson = JSON.parse(readFileSync(join(staging.checkout, "package.json"), "utf8"));

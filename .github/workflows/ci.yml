@@ -149,7 +149,7 @@ jobs:
       # `npm test` step reported fail 0 on the very same compiled files.
       - name: Safety boundary suites
         run: >
-          node scripts/run-tests.mjs --files
+          node scripts/run-tests.mjs --test-concurrency=1 --files
           dist/test/preview.test.js
           dist/test/path-boundary.test.js
           dist/test/transaction-crash.test.js

@@ -13,9 +13,9 @@ import {
   resolveBootstrapStoragePath,
 } from "../src/core/task-bootstrap-store.js";
 import {
-  createIsolatedSandbox,
   fingerprintManifest,
 } from "./helpers/packed-sandbox.js";
+import { createBootstrapSandbox as createIsolatedSandbox } from "./helpers/task-bootstrap-evidence.js";
 import type { GsdToolsRunner } from "../src/core/task-gsd-readiness.js";
 import type { ProcessResult, ProcessSpec } from "../src/core/process.js";
 import type { TaskExecutionStyle } from "../src/core/task-intake.js";
@@ -353,6 +353,11 @@ test("buildNativeBootstrapInput produces conversational prompt with known facts 
 
   const prompt = buildNativeBootstrapInput(handoff);
   assert.match(prompt, /Goal: Notifications service/u);
+  assert.ok(prompt.includes("## Original Request (Private Host Context)\nBuild a notifications service"));
+  const marker = prompt.split("## Exact Bootstrap Request Binding\n")[1]!.split("\n")[0]!;
+  assert.match(marker, /"requestSha256":"[a-f0-9]{64}"/u);
+  assert.doesNotMatch(marker, /Build a notifications service/u);
+  assert.match(prompt, /do not copy private payload into versioned artifacts solely as proof/u);
   assert.match(prompt, /Scope: Email and SMS delivery/u);
   assert.match(prompt, /\[user-request\] Use AWS SES for email/u);
   assert.match(prompt, /\[user-request\] Use Twilio for SMS/u);

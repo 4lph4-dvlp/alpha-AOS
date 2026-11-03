@@ -15,7 +15,8 @@ import {
   type TaskBootstrapResult,
 } from "../src/core/task-bootstrap.js";
 import type { GsdProjectReadiness } from "../src/core/task-gsd-readiness.js";
-import { createIsolatedSandbox, fingerprintManifest } from "./helpers/packed-sandbox.js";
+import { fingerprintManifest } from "./helpers/packed-sandbox.js";
+import { createBootstrapSandbox as createIsolatedSandbox } from "./helpers/task-bootstrap-evidence.js";
 import type { ProcessResult, ProcessSpec } from "../src/core/process.js";
 import type { GsdToolsRunner } from "../src/core/task-gsd-readiness.js";
 

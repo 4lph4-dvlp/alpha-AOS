@@ -137,14 +137,93 @@
       }
     },
     "nativeReference": {
-      "type": "object"
+      "type": "object",
+      "description": "Exact existing native allocation proof. Legacy label-only references require reconciliation; no proof is fabricated.",
+      "required": [
+        "kind",
+        "id",
+        "path",
+        "artifactSha256",
+        "commit",
+        "canonicalRoot",
+        "projectId",
+        "pendingId",
+        "contentDigest",
+        "requestSha256",
+        "claimNonce",
+        "claimSession"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "gsd-quick",
+            "gsd-phase"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "maxLength": 108
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "artifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{40,64}$"
+        },
+        "canonicalRoot": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "projectId": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "pendingId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "contentDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "claimNonce": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "claimSession": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "phaseDirectory": {
+          "type": "string",
+          "maxLength": 128
+        }
+      }
     },
     "claimNonce": {
       "type": "string",
       "maxLength": 64
     },
     "deliveryReceipt": {
-      "type": "object"
+      "type": "object",
+      "description": "Acceptance hash of the exact linked native artifact reopened at acknowledgement; not task completion or a fabricated native receipt.",
+      "required": ["receiptSha256"],
+      "additionalProperties": false,
+      "properties": {
+        "receiptSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
     },
     "reason": {
       "type": "string",

@@ -6,6 +6,8 @@ import type { ExplicitCommandRoute } from "./task-intake-explicit.js";
 import type { TaskExecutionStyle } from "./task-intake.js";
 import { applyFileTransaction } from "./transaction.js";
 import { parseManagedDocument } from "./validation.js";
+import { withTaskBootstrapSession } from "./task-bootstrap-session.js";
+import { provePathBoundary, recheckPathProof } from "./path-boundary.js";
 import {
   acquireMutationSession,
   type MutationSession,
@@ -77,6 +79,7 @@ export interface TaskBootstrapHandoff {
     readonly host: string;
     readonly session: string;
     readonly claimedAt: string;
+    readonly baseCommit?: string | null | undefined;
   } | undefined;
   readonly link?: {
     readonly nativeRef: Record<string, unknown>;
@@ -248,7 +251,13 @@ export interface PersistTaskBootstrapHandoffOptions {
 export async function persistTaskBootstrapHandoff(
   options: PersistTaskBootstrapHandoffOptions,
 ): Promise<{ readonly path: string; readonly handoff: TaskBootstrapHandoff }> {
+  if (!options.session) return withTaskBootstrapSession(options, (session) => persistTaskBootstrapHandoff({ ...options, session }));
+  options.session.assertOwned();
+  if (resolve(options.session.stateRoot) !== resolve(options.stateRoot)) throw new Error("Bootstrap mutation session state root mismatch");
   validateTaskBootstrapHandoffLimits(options.handoff);
+  if (computeHandoffContentDigest(options.handoff) !== options.handoff.contentDigest) {
+    throw new TaskBootstrapStoreError({ code: "record-integrity-mismatch", cause: "Prepared handoff content digest does not match immutable content", remediation: "Re-preview the exact original request." });
+  }
 
   const storagePath = resolveBootstrapStoragePath(
     options.stateRoot,
@@ -333,6 +342,9 @@ export async function readTaskBootstrapHandoff(
     options.projectId,
     options.pendingId,
   );
+  const proof = await provePathBoundary({ role: "source", path: storagePath, allowedRoots: [resolve(options.stateRoot)] });
+  if (!proof.proven) throw new TaskBootstrapStoreError({ code: "record-path-boundary", path: storagePath,
+    cause: "Stored handoff path is outside its proven state root", remediation: "Inspect the exact state root and record path." });
 
   let fileLstat;
   try {
@@ -407,6 +419,14 @@ export async function readTaskBootstrapHandoff(
   }
 
   const handoff = parseResult.value as TaskBootstrapHandoff;
+  if (!(await recheckPathProof(proof)).ok) throw new TaskBootstrapStoreError({ code: "record-path-changed", path: storagePath,
+    cause: "Stored handoff ancestor changed during read", remediation: "Inspect the exact state root and record path." });
+
+  if (handoff.projectId !== options.projectId || handoff.pendingId !== options.pendingId ||
+      computeHandoffContentDigest(handoff) !== handoff.contentDigest) {
+    throw new TaskBootstrapStoreError({ code: "record-integrity-mismatch", path: storagePath,
+      cause: "Stored handoff identity or immutable content digest does not match", remediation: "Inspect the exact original transfer; do not redispatch." });
+  }
 
   if (options.expectedContentDigest && handoff.contentDigest !== options.expectedContentDigest) {
     throw new TaskBootstrapStoreError({
@@ -436,13 +456,17 @@ export interface UpdateTaskBootstrapHandoffOptions {
   readonly projectId: string;
   readonly pendingId: string;
   readonly expectedContentDigest?: string | undefined;
-  readonly transition: (existing: TaskBootstrapHandoff) => TaskBootstrapHandoff;
+  readonly canonicalRoot?: string | undefined;
+  readonly transition: (existing: TaskBootstrapHandoff) => TaskBootstrapHandoff | Promise<TaskBootstrapHandoff>;
   readonly session?: MutationSession | undefined;
 }
 
 export async function updateTaskBootstrapHandoff(
   options: UpdateTaskBootstrapHandoffOptions,
 ): Promise<{ path: string; handoff: TaskBootstrapHandoff }> {
+  if (!options.session) return withTaskBootstrapSession(options, (session) => updateTaskBootstrapHandoff({ ...options, session }));
+  options.session.assertOwned();
+  if (resolve(options.session.stateRoot) !== resolve(options.stateRoot)) throw new Error("Bootstrap mutation session state root mismatch");
   const storagePath = resolveBootstrapStoragePath(
     options.stateRoot,
     options.projectId,
@@ -454,9 +478,13 @@ export async function updateTaskBootstrapHandoff(
     projectId: options.projectId,
     pendingId: options.pendingId,
     expectedContentDigest: options.expectedContentDigest,
+    canonicalRoot: options.canonicalRoot,
   });
 
-  const updated = options.transition(existing);
+  const updated = await options.transition(existing);
+  if (computeHandoffContentDigest(updated) !== existing.contentDigest || updated.contentDigest !== existing.contentDigest) {
+    throw new TaskBootstrapStoreError({ code: "immutable-content-change", cause: "Transition changed original handoff identity or content", remediation: "Preserve original request/style/digest." });
+  }
   validateTaskBootstrapHandoffLimits(updated);
 
   const serialized = JSON.stringify(updated, null, 2);

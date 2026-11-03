@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -14,7 +14,7 @@ import {
 import type { ProcessResult, ProcessSpec } from "../src/core/process.js";
 
 async function scratchDir(context: TestContext, name: string): Promise<string> {
-  const root = await mkdtemp(join(tmpdir(), `alpha-aos-readiness-${name}-`));
+  const root = await realpath(await mkdtemp(join(tmpdir(), `alpha-aos-readiness-${name}-`)));
   context.after(() => rm(root, { recursive: true, force: true }));
   return root;
 }
@@ -464,7 +464,7 @@ test("inspectGsdProjectReadiness: ready project when all artifacts and agents ar
     runner,
   });
 
-  assert.equal(readiness.diagnosis, "ready");
+  assert.equal(readiness.diagnosis, "ready", JSON.stringify(readiness.reasons));
   assert.equal(readiness.ready, true);
   assert.equal(readiness.executionAuthorized, false);
   assert.ok(readiness.satisfiedPrerequisites.includes("ROADMAP.md"));
@@ -521,7 +521,7 @@ test("inspectGsdProjectReadiness: follows safe bounded @file: target (BOOT-01)",
     runner,
   });
 
-  assert.equal(readiness.diagnosis, "ready");
+  assert.equal(readiness.diagnosis, "ready", JSON.stringify(readiness.reasons));
   assert.equal(readiness.ready, true);
 });
 

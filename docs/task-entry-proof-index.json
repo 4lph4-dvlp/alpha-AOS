@@ -26,7 +26,7 @@
       },
       {
         "path": "schemas/task-bootstrap.schema.json",
-        "sha256": "e66829b3ccd3ad2e189d60271ebf1cde43477ca1e9f299c75f2bddca36bb2ae7"
+        "sha256": "58ffb3b2b17d144a679eeb85dcba50db260796df4756c350f805bfe66ec9844d"
       },
       {
         "path": "schemas/task-contract.schema.json",
@@ -54,11 +54,11 @@
       },
       {
         "path": "docs/task-entry.md",
-        "sha256": "98859acf5bf3b1dae4695b66752c3820a2b68562005c8650385e2caefe2a78c9"
+        "sha256": "05ec66278a670af785b7dd9dc52e9d89e8752358585dcdd807eeb9807569991c"
       },
       {
         "path": "docs/task-entry.ko.md",
-        "sha256": "d8a7e2612d6c9ecf37978ee2b7ded7999aba846e4c345ed55a55cef90e7f580b"
+        "sha256": "a15f463a7afa6f621cea385626252f3804a71c12e5d4d1366c808347c18d47ab"
       }
     ]
   },
@@ -511,7 +511,12 @@
     }
   ],
   "regressionLedger": {
-    "gateStatus": "passed",
+    "gateStatus": "pending-final-wave",
+    "pendingRun": {
+      "status": "awaiting-frozen-source-full-regression-and-three-os-ci",
+      "reason": "BOOT-04 remediation changes measured bootstrap source bytes. currentRun and priorCompletedRuns remain historical receipts; they do not accept the v0.6.0 release candidate.",
+      "historicalCurrentRunSource": "3215bca7540a964b02d5a7e636a8d5dcadf0ca3d"
+    },
     "historicalDebt261101Ww3": {
       "status": "historical-unwaived",
       "jobId": "job-8aff6aa5e58e46ea",

@@ -74,6 +74,10 @@ Readiness distinguishes missing runtime, `absent-project` (no planning setup), `
 
 The autopilot bootstrap claim retains `dispatchAuthorized: false`. Restoring GSD readiness does not replace exact contract approval and separate start. See the [bootstrap evidence ledger](./task-bootstrap-proof.md).
 
+Claiming requires a fresh `ready` diagnosis. If a response is lost after the durable claim, retrying the same nonce withholds dispatch until the exact native allocation is reconciled. A name or task label alone cannot establish delivery. Linking reopens the allocation's regular PLAN file and checks its SHA-256, exact Git commit, project and fresh claim/session binding. Acknowledgement rechecks that artifact and requires its matching `deliveryReceipt.receiptSha256`.
+
+The private native host input supplies the original request and a hash-only bootstrap binding. The native GSD producer must preserve that binding exactly once in its committed allocation PLAN; private request bytes must remain in the conversation rather than being copied into versioned proof. Legacy, uncommitted or unbound allocations remain `native-evidence-blocked`; alpha-AOS does not manufacture a native artifact or infer receipt from readiness.
+
 ## 7. Direct GSD Commands & Autopilot Approval / Start Boundary
 
 | Direct invocation | Mention in prose |

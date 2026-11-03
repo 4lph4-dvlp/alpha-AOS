@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -207,9 +207,15 @@ test("compiled doctor exposes table and structured matrix diagnostics", async (c
   context.after(async () => rm(root, { recursive: true, force: true }));
   const cli = join(process.cwd(), "dist", "src", "cli.js");
   // Matrix rendering must not wait for unrelated installed harness CLIs.
+  const bin = join(root, "bin");
+  await mkdir(bin);
+  if (process.platform !== "win32") {
+    // The POSIX discovery protocol needs a locator even when no harness exists.
+    await writeFile(join(bin, "which"), "#!/bin/sh\nexit 1\n", { mode: 0o700 }); // path-literal-ok: POSIX fixture interpreter
+  }
   const env = {
     ...Object.fromEntries(Object.entries(process.env).filter(([name]) => name.toLowerCase() !== "path")),
-    PATH: join(root, "bin"),
+    PATH: bin,
     ALPHA_AOS_STATE_DIR: join(root, "state"),
     NO_COLOR: "1",
   };

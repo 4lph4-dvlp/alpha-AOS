@@ -74,6 +74,10 @@ Full quick은 **discussion, research, planning, plan-check, implementation, veri
 
 오토파일럿 bootstrap claim은 `dispatchAuthorized: false`를 유지합니다. GSD 준비 상태 복구는 정확한 계약 승인과 별도 시작을 대체하지 않습니다. [복구 증명 원장](./task-bootstrap-proof.md)을 참고하세요.
 
+claim 직전에 새로 확인한 진단이 `ready`여야 합니다. 영속 claim 뒤 응답을 잃었다면 같은 nonce로 재시도해도 정확한 네이티브 할당을 대조하기 전에는 실행 권한을 다시 주지 않습니다. 이름이나 작업 라벨만으로 전달을 확정할 수 없습니다. link는 할당된 일반 PLAN 파일을 다시 열어 SHA-256, 정확한 Git commit, 프로젝트와 새 claim/session 바인딩을 검사합니다. ack도 해당 파일을 재검사하며 일치하는 `deliveryReceipt.receiptSha256`을 요구합니다.
+
+비공개 네이티브 호스트 입력은 원래 요청과 해시로만 요청을 식별하는 bootstrap 바인딩을 전달합니다. 네이티브 GSD 생산자는 커밋된 할당 PLAN에 그 바인딩을 정확히 한 번 보존해야 합니다. 비공개 요청 원문은 대화에 유지하고 증명용 버전 관리 파일로 복사하지 않습니다. 기존의 바인딩 없는 할당이나 미커밋 할당은 `native-evidence-blocked`로 남습니다. alpha-AOS는 네이티브 파일을 만들어 내거나 준비 상태를 전달 영수증으로 추정하지 않습니다.
+
 ## 7. 직접 GSD 명령 우선순위와 오토파일럿 승인·시작 경계
 
 | 직접 호출 | 설명 문장 속 언급 |

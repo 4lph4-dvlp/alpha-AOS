@@ -54,11 +54,11 @@
       },
       {
         "path": "docs/task-entry.md",
-        "sha256": "21370144dd4d747e88588ab7925b979a80fd08c1f011295749a1de4bc344b271"
+        "sha256": "98859acf5bf3b1dae4695b66752c3820a2b68562005c8650385e2caefe2a78c9"
       },
       {
         "path": "docs/task-entry.ko.md",
-        "sha256": "82673b840265c41a5d8306e0a615ad5cf08dceda1d3dd8aa92afeca851f4fc36"
+        "sha256": "d8a7e2612d6c9ecf37978ee2b7ded7999aba846e4c345ed55a55cef90e7f580b"
       }
     ]
   },
@@ -1203,6 +1203,7 @@
         "ciVersionAckMs": 1259,
         "disposition": "One bounded A/B control completed both jobs; it does not explain or waive the intermittent failure."
       }
-    }
+    },
+    "snapshot": "Historical pre-release remediation checkpoint; pending values describe that snapshot, not current tagged delivery. See the exact-commit CI and assets on the GitHub release."
   }
 }

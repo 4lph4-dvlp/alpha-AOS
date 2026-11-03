@@ -14,6 +14,30 @@ function sha256(content: string | Buffer): string {
   return createHash("sha256").update(content).digest("hex");
 }
 
+test("verify-task-style-native: missing observation bindings cannot manufacture native verification", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-native-binding-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  const source = JSON.stringify({ invocation: "native" });
+  const result = JSON.stringify({ outcome: "passed" });
+  await writeFile(join(root, "source.json"), source);
+  await writeFile(join(root, "result.json"), result);
+  const complete: Record<string, unknown> = {
+    route: "conversational-quick", evidenceTier: "native", provenance: "native", harness: "codex", projectRoot: root,
+    sourceLocator: "source.json", sourceSha256: sha256(source), resultLocator: "result.json", resultSha256: sha256(result),
+  };
+  for (const field of ["sourceLocator", "sourceSha256", "resultLocator", "resultSha256", "harness", "provenance"]) {
+    const row = { ...complete };
+    delete row[field];
+    const path = join(root, "index.json");
+    await writeFile(path, JSON.stringify({ schemaVersion: 1, routes: [row] }));
+    const run = spawnSync(process.execPath, [verifierScript, "--index", path, "--json"], { encoding: "utf8", timeout: 30_000, windowsHide: true });
+    assert.equal(run.status, 0, run.stderr);
+    const proof = JSON.parse(run.stdout);
+    assert.equal(proof.routes["conversational-quick"].status, "blocked", field);
+    assert.equal(proof.valid, false, field);
+  }
+});
+
 test("verify-task-style-native: boundary validations on index file (D-21, D-24)", async (context) => {
   const baseTemp = await mkdtemp(join(tmpdir(), "alpha-aos-native-proof-test-"));
   context.after(async () => rm(baseTemp, { recursive: true, force: true }));

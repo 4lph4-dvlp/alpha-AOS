@@ -13,6 +13,81 @@ function jsonl(...events: Record<string, unknown>[]): string {
   return events.map((e) => JSON.stringify(e)).join("\n");
 }
 
+test("observeCodexStages: preserves direct native artifact arrays for downstream freshness checks", () => {
+  const input = { path: ".planning/PLAN.md", sha256: "a".repeat(64) };
+  const output = { path: "src/index.ts", sha256: "b".repeat(64) };
+  const result = observeCodexStages(jsonl(
+    { type: "thread.started", thread_id: "artifact-array-session" },
+    { type: "item.created", item: { id: "call", type: "function_call", name: "gsd_implementation", arguments: "{}" } },
+    { type: "item.completed", item: { id: "result", type: "function_call_output", call_id: "call", output: { outcome: "passed", inputArtifacts: [input], outputArtifacts: [output] } } },
+  ), { projectRoot: process.cwd() });
+  assert.equal(result.status, "observed");
+  assert.deepEqual(result.stages[0]?.inputArtifacts, [input]);
+  assert.deepEqual(result.stages[0]?.outputArtifacts, [output]);
+});
+
+test("observeCodexStages: failure and unresolved input override positive completion text", () => {
+  for (const [output, expected] of [
+    ["0 passed, 1 failed", "failed"],
+    ["verification failed; previous checks passed", "failed"],
+    ["12 passed, 2 errors", "failed"],
+    ["not passed", "failed"],
+    ["not all tests passed", "failed"],
+    [{ status: "completed", success: false }, "failed"],
+    [{ outcome: "passed", passed: false }, "failed"],
+    ['{"passed":false}', "failed"],
+    ['{"success":false,"message":"previous checks passed"}', "failed"],
+    [{ success: true, needsInput: true }, "needs-input"],
+    ["12 passed, 0 failed, 0 errors", "passed"],
+    ["0 passed, 0 failed", "unknown"],
+    ["passed: 0, failed: 0", "unknown"],
+  ] as const) {
+    const result = observeCodexStages(jsonl(
+      { type: "thread.started", thread_id: "outcome-session" },
+      { type: "item.created", item: { id: "call", type: "function_call", name: "gsd_verification", arguments: "{}" } },
+      { type: "item.completed", item: { id: "result", type: "function_call_output", call_id: "call", output } },
+    ), { projectRoot: process.cwd() });
+    assert.equal(result.stages[0]?.outcome, expected, JSON.stringify(output));
+  }
+});
+
+test("observeCodexStages: serialized native results retain bindings and malformed JSON is refused", () => {
+  const artifact = { path: "src/index.ts", sha256: "a".repeat(64) };
+  const observe = (output: string) => observeCodexStages(jsonl(
+    { type: "thread.started", thread_id: "serialized-result-session" },
+    { type: "item.created", item: { id: "call", type: "function_call", name: "gsd_implementation", arguments: "{}" } },
+    { type: "item.completed", item: { id: "result", type: "function_call_output", call_id: "call", output } },
+  ), { projectRoot: process.cwd() });
+  const passed = observe(JSON.stringify({ outcome: "passed", outputArtifacts: [artifact] }));
+  assert.equal(passed.stages[0]?.outcome, "passed");
+  assert.deepEqual(passed.stages[0]?.outputArtifacts, [artifact]);
+  assert.equal(observe('{"passed":false').status, "failed");
+});
+
+test("observeCodexStages: malformed and excessive native references cannot be silently dropped", () => {
+  for (const refs of [
+    [{ path: "file.txt", sha256: "invalid" }],
+    [null],
+    "not-an-array",
+    Array.from({ length: 33 }, (_, i) => ({ path: `file-${i}.txt`, sha256: "a".repeat(64) })),
+  ]) {
+    const result = observeCodexStages(jsonl(
+      { type: "thread.started", thread_id: "invalid-artifact-session" },
+      { type: "item.created", item: { id: "call", type: "function_call", name: "gsd_implementation", arguments: "{}" } },
+      { type: "item.completed", item: { id: "result", type: "function_call_output", call_id: "call", output: { outcome: "passed", outputArtifacts: refs } } },
+    ), { projectRoot: process.cwd() });
+    assert.equal(result.status, "failed");
+    assert.equal(result.stages.length, 0);
+  }
+  const malformed = observeCodexStages(jsonl(
+    { type: "thread.started", thread_id: "malformed-invocation-session" },
+    { type: "item.created", item: { id: "call", type: "function_call", name: "gsd_implementation", arguments: '{"artifacts":' } },
+    { type: "item.completed", item: { id: "result", type: "function_call_output", call_id: "call", output: { outcome: "passed" } } },
+  ), { projectRoot: process.cwd() });
+  assert.equal(malformed.status, "failed");
+  assert.equal(malformed.stages.length, 0);
+});
+
 test("codexStageObservationCapability: supported only for codex controller", () => {
   const codexPolicy = {
     controller: "codex" as const,

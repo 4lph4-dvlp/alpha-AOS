@@ -2,7 +2,7 @@
 
 [English](./task-entry.md) | [한국어](./task-entry.ko.md)
 
-에이전트에게 원하는 작업을 말하면 공유 프로젝트 정책에 따라 실행 방식을 확인합니다. 계획·실행 상태·검증은 GSD가 관리합니다. 이 가이드는 **0.6.0 릴리스 후보**의 소스 작업 흐름을 설명합니다. 정식 배포는 릴리스 수용까지 보류 중입니다.
+에이전트에게 원하는 작업을 말하면 공유 프로젝트 정책에 따라 실행 방식을 확인합니다. 계획·실행 상태·검증은 GSD가 관리합니다. 이 가이드는 **0.6.0**의 소스 작업 흐름을 설명합니다. GitHub 정식 배포에는 동일 커밋의 3개 OS CI와 최종 검증이 필요합니다.
 
 ## 1. 공유 프로젝트 모드 (`strict` vs `flexible`)
 
@@ -106,6 +106,6 @@ alpha-aos task start <contract.json> --contract-digest <64-hex-digest> --apply
 node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json
 ```
 
-패키지 검증기는 `.git`, `.planning`, checkout 테스트 없이 패키지 해시와 보존 증거를 확인합니다. 네이티브 모델 턴을 다시 실행하지 않습니다. 사용자 결정으로 패키지 메타데이터를 **0.6.0**으로 변경했습니다. 정식 npm publish·git push·글로벌 재적용·Claude G-07-2·**3-OS/macOS CI** 수용은 보류 중이며 macOS CI 문제는 수정 중입니다. Windows 로컬 통과만으로 네이티브 CI나 배포 게이트를 해제하지 않습니다. 이전 0.5.0 회귀 영수증은 과거 증거이며 이 후보의 수용을 인증하지 않습니다.
+패키지 검증기는 `.git`, `.planning`, checkout 테스트 없이 패키지 해시와 보존 증거를 확인합니다. 네이티브 모델 턴을 다시 실행하지 않습니다. 패키지 메타데이터는 **0.6.0**입니다. **3-OS/macOS CI** 수용은 정확한 태그 커밋의 결과로 판단하며 최신 증거와 체크섬이 있는 파일은 GitHub 릴리스에 첨부합니다. npm publish·글로벌 재적용·Claude G-07-2는 별도 작업입니다. Windows 로컬 통과만으로 네이티브 CI나 배포 게이트를 해제하지 않습니다. 이전 0.5.0 회귀 영수증은 과거 증거로 보존합니다.
 
 관련 문서: [런타임 운영 제어](./task-runtime-controls.md), [지원 매트릭스](./SUPPORT_MATRIX.md), [과거 매트릭스](./SUPPORT_MATRIX_v0.2.0.md), [실행 스타일 증거](./task-style-proof.md).

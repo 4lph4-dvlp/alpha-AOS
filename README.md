@@ -4,7 +4,7 @@ Autopilot can be launched from the initiating agent conversation. Describe the t
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
-The **0.6.0 release candidate** adds shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and packaged cross-harness evidence. Native three-OS CI and final release acceptance remain pending.
+**0.6.0** adds shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and packaged cross-harness evidence. GitHub release delivery requires successful exact-commit Linux, macOS and Windows CI; verification links and checksummed downloads accompany the tagged release.
 
 The earlier **0.5.0** work adds an optional shared read-only progress panel for Claude, Codex, Antigravity, Pi and Hermes, plus task context, steering proposals and runtime budget, process and recovery controls. Ask questions in the originating conversation; native chat delivery remains disabled and unverified. Dedicated legacy wrappers require the registered dispatch route for controlled model launches. See [runtime controls](docs/task-runtime-controls.md).
 
@@ -210,7 +210,7 @@ The shared project policy uses strict by default with zero writes, or flexible a
 | 5 | 오토파일럿-quick-full | `autopilot-quick-full` |
 | 6 | 오토파일럿-phase | `autopilot-phase` |
 
-Read the [English guide](./docs/task-entry.md) / [한국어 가이드](./docs/task-entry.ko.md), [proof ledger](./docs/task-entry-proof.md), [runtime controls](./docs/task-runtime-controls.md) and [support matrix](./docs/SUPPORT_MATRIX.md). Hermes is worker-only with no GSD controller. Package metadata is 0.6.0; native CI acceptance, Claude G-07-2 auth, global reconciliation, push and npm publish remain held. The macOS CI blocker is being remediated; a local Windows pass does not establish native CI acceptance.
+Read the [English guide](./docs/task-entry.md) / [한국어 가이드](./docs/task-entry.ko.md), [proof ledger](./docs/task-entry-proof.md), [runtime controls](./docs/task-runtime-controls.md) and [support matrix](./docs/SUPPORT_MATRIX.md). Hermes is worker-only with no GSD controller. Package metadata is 0.6.0. Current GitHub delivery evidence accompanies the tagged release; a local Windows pass cannot establish native CI acceptance. Claude G-07-2 auth, global reconciliation and npm publication remain separate operations.
 
 ## Practical Scenarios & Common Questions (FAQ)
 

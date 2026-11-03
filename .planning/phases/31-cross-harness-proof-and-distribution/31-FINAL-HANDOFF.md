@@ -11,7 +11,15 @@ remaining: [local-version-060, macos-ci-remediation, final-independent-goal-veri
 
 # Phase 31 final verification handoff
 
-All six implementation plans are summarized and committed. Do not restart completed plans, waves or the full test suite without a new source change/failure. No test or controller process remains active.
+## Latest GitHub-only release continuation — 2026-11-03
+
+The user requested remaining work, all required CI and official release, then explicitly selected **GitHub official release only**, excluding npm publication. Current source is `3f38a03`; 28 scoped release/runner/matrix/provenance tests passed and independent release review found no remaining blocker for the intended publication path. Mandatory current push/full gate is still active in native session `14378`; finite deterministic continuation `job-9f4197cd38b14e0c` waits for exact successful push, then dispatches and retains one exact-SHA three-OS CI result. Neither is completed merely because transport yielded. **Read `31-RELEASE-060-CONTINUATION.md` first** for exact state root, handles, evidence, scope and remaining GSD/main/tag/release gates. Do not restart completed plans or duplicate the active test process. Earlier limitations below are historical unless explicitly retained in that continuation.
+
+All six implementation plans are summarized and committed. Do not restart completed plans, waves or the full test suite without a new source change/failure.
+
+## Candidate push blocked — 2026-11-03
+
+The user explicitly approved candidate push and three-OS CI. `git push --set-upstream origin release/0.6.0` terminated **exit 1** in native session 77970 because the mandatory pre-push full test failed; `.planning/tmp/31-060-push.log` contains the full receipt. Exact candidate SHA: `9e379adb8e5c6a74a62dd9e02afd73c0e135c45b`. The remote branch does not exist and no CI was dispatched. The ordinary group ran 1955 tests: 1940 passed, two failed, 13 skipped; isolated Windows and packed groups were not run after the failure. Failures: MCP oversized-frame transport did not close within 30000ms and compiled doctor matrix process timed out at 30000ms. A focused run of these exact two cases passed 2/2 (`.planning/tmp/31-push-failures-targeted.log`); that does not explain the full-run failures or certify the gate. Investigate timing/contention with evidence before changing timeouts, weakening tests or retrying the full gate. The user's approval does not include main, tags, npm publication or global apply.
 
 ## User-amended 0.6.0 candidate — current resume priority
 

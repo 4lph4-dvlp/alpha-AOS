@@ -76,6 +76,7 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   } });
   if (observed.status !== "completed") throw new Error(`Panel handoff ${observed.status}; observer job ${job.jobId} remains the exact handle`);
   await unlink(paths.handoff);
+  await unlink(paths.spec);
   return { jobId: job.jobId, binding, deadlineAt, url: observed.value };
 }
 async function hydrateTaskProgress(options: { stateRoot: string; binding: TaskSessionBinding; run: TaskRunRecord; workflow: string | undefined; dedicated: Awaited<ReturnType<typeof exactRun>>["dedicated"] }): Promise<void> {

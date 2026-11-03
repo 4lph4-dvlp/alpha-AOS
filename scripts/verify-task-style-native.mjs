@@ -131,7 +131,7 @@ function verifyEntry(entry, indexDir) {
     };
   }
 
-  if (entry.harness && !SUPPORTED_HARNESSES.has(entry.harness)) {
+  if (!SUPPORTED_HARNESSES.has(entry.harness)) {
     return {
       route,
       status: "blocked",
@@ -139,6 +139,8 @@ function verifyEntry(entry, indexDir) {
       issues: [`Unsupported harness '${entry.harness}'`],
     };
   }
+
+  if (entry.provenance !== "native") issues.push("Missing or invalid native provenance");
 
   // Project root validation
   if (!entry.projectRoot || typeof entry.projectRoot !== "string") {
@@ -149,10 +151,15 @@ function verifyEntry(entry, indexDir) {
     issues.push(`Referenced projectRoot directory does not exist: ${entry.projectRoot}`);
   }
 
-  const projRoot = isAbsolute(entry.projectRoot || "") ? entry.projectRoot : resolve(indexDir, entry.projectRoot || "");
+  if (typeof entry.projectRoot !== "string" || !entry.projectRoot) {
+    return { route, status: "blocked", reason: issues[0], issues };
+  }
+  const projRoot = isAbsolute(entry.projectRoot) ? entry.projectRoot : resolve(indexDir, entry.projectRoot);
 
   // Reopen and verify source locator
-  if (entry.sourceLocator) {
+  if (typeof entry.sourceLocator !== "string" || !entry.sourceLocator.trim()) {
+    issues.push("Missing or invalid sourceLocator");
+  } else {
     const srcPath = isAbsolute(entry.sourceLocator) ? entry.sourceLocator : resolve(projRoot, entry.sourceLocator);
     if (!existsSync(srcPath)) {
       issues.push(`Source observation file does not exist: ${srcPath}`);
@@ -160,7 +167,9 @@ function verifyEntry(entry, indexDir) {
       const stat = lstatSync(srcPath);
       if (stat.isSymbolicLink() || !stat.isFile()) {
         issues.push(`Source observation path is not a regular file: ${srcPath}`);
-      } else if (entry.sourceSha256) {
+      } else if (typeof entry.sourceSha256 !== "string" || !/^[a-f0-9]{64}$/iu.test(entry.sourceSha256)) {
+        issues.push("Missing or invalid sourceSha256");
+      } else {
         const actualSha = computeFileSha256(srcPath);
         if (actualSha !== entry.sourceSha256) {
           issues.push(`Source SHA-256 mismatch for ${srcPath}: expected ${entry.sourceSha256}, got ${actualSha}`);
@@ -170,7 +179,9 @@ function verifyEntry(entry, indexDir) {
   }
 
   // Reopen and verify result locator
-  if (entry.resultLocator) {
+  if (typeof entry.resultLocator !== "string" || !entry.resultLocator.trim()) {
+    issues.push("Missing or invalid resultLocator");
+  } else {
     const resPath = isAbsolute(entry.resultLocator) ? entry.resultLocator : resolve(projRoot, entry.resultLocator);
     if (!existsSync(resPath)) {
       issues.push(`Result observation file does not exist: ${resPath}`);
@@ -178,7 +189,9 @@ function verifyEntry(entry, indexDir) {
       const stat = lstatSync(resPath);
       if (stat.isSymbolicLink() || !stat.isFile()) {
         issues.push(`Result observation path is not a regular file: ${resPath}`);
-      } else if (entry.resultSha256) {
+      } else if (typeof entry.resultSha256 !== "string" || !/^[a-f0-9]{64}$/iu.test(entry.resultSha256)) {
+        issues.push("Missing or invalid resultSha256");
+      } else {
         const actualSha = computeFileSha256(resPath);
         if (actualSha !== entry.resultSha256) {
           issues.push(`Result SHA-256 mismatch for ${resPath}: expected ${entry.resultSha256}, got ${actualSha}`);
@@ -201,7 +214,9 @@ function verifyEntry(entry, indexDir) {
         const stat = lstatSync(artPath);
         if (stat.isSymbolicLink() || !stat.isFile()) {
           issues.push(`Artifact is not a regular file: ${artPath}`);
-        } else if (art.sha256) {
+        } else if (typeof art.sha256 !== "string" || !/^[a-f0-9]{64}$/iu.test(art.sha256)) {
+          issues.push("Artifact entry missing or invalid sha256");
+        } else {
           const actualSha = computeFileSha256(artPath);
           if (actualSha !== art.sha256) {
             issues.push(`Artifact SHA-256 mismatch for ${artPath}: expected ${art.sha256}, got ${actualSha}`);
@@ -217,6 +232,8 @@ function verifyEntry(entry, indexDir) {
     const gitCheck = spawnSync("git", ["cat-file", "-t", commitSha], {
       cwd: projRoot,
       encoding: "utf8",
+      timeout: 10_000,
+      windowsHide: true,
     });
     if (gitCheck.status !== 0 || gitCheck.stdout.trim() !== "commit") {
       issues.push(`Referenced git commit SHA not found in repository: ${commitSha}`);

@@ -1,15 +1,15 @@
 ---
 phase: "30"
 slug: "six-execution-styles-and-quality-binding"
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: validated
+nyquist_compliant: true
+wave_0_complete: true
 created: "2026-11-02"
 ---
 
 # Phase 30 — Validation Strategy
 
-This is a planning contract, not executed test evidence. Inline planning/checking is explicitly authorized; independent implementation review remains a later mandatory gate.
+The original planning contract is retained below. The 2026-11-03 coverage audit reconciled all 17 task rows and 26 compiled suites with the successful full pre-push gate at 3f38a03047f1e0fe2470735eac55d53101cc24c4. Independent goal verification and final release acceptance remain separate gates.
 
 ## Test infrastructure
 
@@ -37,23 +37,23 @@ This is a planning contract, not executed test evidence. Inline planning/checkin
 
 | Task ID | Plan | Wave | Requirements | Threat ref | Test type | Automated command | Creation status | Outcome |
 |---|---|---|---|---|---|---|---|---|
-| 30-01-01 | 01 | 1 | STYLE-01, STYLE-02, STYLE-03, STYLE-07 | T-30-01/02 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style.test.js dist/test/task-intake-cli.test.js dist/test/task-intake-explicit.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-01-02 | 01 | 1 | STYLE-01, STYLE-02, STYLE-03, STYLE-07 | T-30-01/02 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style.test.js dist/test/task-bootstrap-resume.test.js dist/test/task-intake-continuity.test.js dist/test/task-intake-acceptance.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-02-01 | 02 | 2 | STYLE-04, STYLE-05, STYLE-07 | T-30-03/04 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-quick-quality.test.js dist/test/task-contract.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-02-02 | 02 | 2 | STYLE-04, STYLE-05, STYLE-07 | T-30-03/04 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-quick-quality.test.js dist/test/task-gsd.test.js dist/test/task-harness-adapters.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-02-03 | 02 | 2 | STYLE-04, STYLE-05, STYLE-07 | T-30-03/04 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-quick-quality.test.js dist/test/task-contract.test.js dist/test/task-gsd-readiness.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-03-01 | 03 | 3 | STYLE-05, STYLE-07 | T-30-05/06/07 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-stages.test.js dist/test/task-gsd-adversarial.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-03-02 | 03 | 3 | STYLE-05, STYLE-07 | T-30-05/06/07 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-stage-observation.test.js dist/test/task-gsd-stages.test.js dist/test/task-quick-quality.test.js dist/test/task-harness-adapters.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-04-01 | 04 | 4 | STYLE-04, STYLE-05, STYLE-07 | T-30-08/09/10 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-full-run.test.js dist/test/task-gsd-stages.test.js dist/test/task-gsd-adversarial.test.js dist/test/task-contract.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-04-02 | 04 | 4 | STYLE-04, STYLE-05, STYLE-07 | T-30-08/09/10 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-full-run.test.js dist/test/task-supervisor-recovery.test.js dist/test/task-gsd-lifecycle.test.js dist/test/task-intake-continuity.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-05-01 | 05 | 5 | STYLE-06, STYLE-07 | T-30-11/12 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-phase-scope.test.js dist/test/task-contract.test.js dist/test/task-gsd-multi-phase.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-05-02 | 05 | 5 | STYLE-06, STYLE-07 | T-30-11/12 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-phase-scope.test.js dist/test/task-gsd-lifecycle.test.js dist/test/task-gsd-multi-phase.test.js dist/test/task-gsd-discovery.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-05-03 | 05 | 5 | STYLE-06, STYLE-07 | T-30-11/12 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-phase-scope.test.js dist/test/task-gsd-lifecycle.test.js dist/test/task-gsd-multi-phase.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-06-01 | 06 | 6 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-13/14 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style-routing.test.js dist/test/owned-skills.test.js dist/test/task-intake-routing.test.js dist/test/task-bootstrap-routing.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-06-02 | 06 | 6 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-13/14 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style-routing.test.js dist/test/task-intake-acceptance.test.js dist/test/task-quick-quality.test.js dist/test/task-phase-scope.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-07-01 | 07 | 7 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-15/16 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style-acceptance.test.js dist/test/task-style-native-proof.test.js dist/test/task-gsd-full-run.test.js dist/test/task-style-routing.test.js` | new tests created by owning task; existing regressions tracked | pending |
-| 30-07-02 | 07 | 7 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-15/16 | behavioral integration | `npm run build:check` | new tests created by owning task; existing regressions tracked | pending |
-| 30-08-01 | 08 | 8 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-17/18 | native checkpoint | `node scripts/verify-task-style-native.mjs --index docs/task-style-proof-index.json --json` | verifier created in 07 | pending |
+| 30-01-01 | 01 | 1 | STYLE-01, STYLE-02, STYLE-03, STYLE-07 | T-30-01/02 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style.test.js dist/test/task-intake-cli.test.js dist/test/task-intake-explicit.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-01-02 | 01 | 1 | STYLE-01, STYLE-02, STYLE-03, STYLE-07 | T-30-01/02 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style.test.js dist/test/task-bootstrap-resume.test.js dist/test/task-intake-continuity.test.js dist/test/task-intake-acceptance.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-02-01 | 02 | 2 | STYLE-04, STYLE-05, STYLE-07 | T-30-03/04 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-quick-quality.test.js dist/test/task-contract.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-02-02 | 02 | 2 | STYLE-04, STYLE-05, STYLE-07 | T-30-03/04 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-quick-quality.test.js dist/test/task-gsd.test.js dist/test/task-harness-adapters.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-02-03 | 02 | 2 | STYLE-04, STYLE-05, STYLE-07 | T-30-03/04 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-quick-quality.test.js dist/test/task-contract.test.js dist/test/task-gsd-readiness.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-03-01 | 03 | 3 | STYLE-05, STYLE-07 | T-30-05/06/07 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-stages.test.js dist/test/task-gsd-adversarial.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-03-02 | 03 | 3 | STYLE-05, STYLE-07 | T-30-05/06/07 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-stage-observation.test.js dist/test/task-gsd-stages.test.js dist/test/task-quick-quality.test.js dist/test/task-harness-adapters.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-04-01 | 04 | 4 | STYLE-04, STYLE-05, STYLE-07 | T-30-08/09/10 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-full-run.test.js dist/test/task-gsd-stages.test.js dist/test/task-gsd-adversarial.test.js dist/test/task-contract.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-04-02 | 04 | 4 | STYLE-04, STYLE-05, STYLE-07 | T-30-08/09/10 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-gsd-full-run.test.js dist/test/task-supervisor-recovery.test.js dist/test/task-gsd-lifecycle.test.js dist/test/task-intake-continuity.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-05-01 | 05 | 5 | STYLE-06, STYLE-07 | T-30-11/12 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-phase-scope.test.js dist/test/task-contract.test.js dist/test/task-gsd-multi-phase.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-05-02 | 05 | 5 | STYLE-06, STYLE-07 | T-30-11/12 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-phase-scope.test.js dist/test/task-gsd-lifecycle.test.js dist/test/task-gsd-multi-phase.test.js dist/test/task-gsd-discovery.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-05-03 | 05 | 5 | STYLE-06, STYLE-07 | T-30-11/12 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-phase-scope.test.js dist/test/task-gsd-lifecycle.test.js dist/test/task-gsd-multi-phase.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-06-01 | 06 | 6 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-13/14 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style-routing.test.js dist/test/owned-skills.test.js dist/test/task-intake-routing.test.js dist/test/task-bootstrap-routing.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-06-02 | 06 | 6 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-13/14 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style-routing.test.js dist/test/task-intake-acceptance.test.js dist/test/task-quick-quality.test.js dist/test/task-phase-scope.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-07-01 | 07 | 7 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-15/16 | behavioral integration | `node scripts/run-tests.mjs --files dist/test/task-style-acceptance.test.js dist/test/task-style-native-proof.test.js dist/test/task-gsd-full-run.test.js dist/test/task-style-routing.test.js` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-07-02 | 07 | 7 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-15/16 | behavioral integration | `npm run build:check` | new tests created by owning task; existing regressions tracked | COVERED — full gate 3f38a03 |
+| 30-08-01 | 08 | 8 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | T-30-17/18 | native checkpoint | `node scripts/verify-task-style-native.mjs --index docs/task-style-proof-index.json --json` | verifier created in 07 | COVERED — full gate 3f38a03 |
 
 The targeted row is a sampling summary. Every task's complete automated list, acceptance criteria and native trust checks remain binding in its PLAN.md.
 
@@ -92,9 +92,17 @@ No dependency installation, framework setup or empty test scaffolding is require
 - [x] Every new compiled test target has an explicit owning creation task.
 - [x] No watch commands or unbounded model polling loops are planned.
 - [x] Security L1/high threats have test/review coverage and unique IDs.
-- [ ] Implementation suites executed and actual timings/counts recorded.
-- [ ] Full regression/provenance green.
+- [x] Implementation suites executed and actual timings/counts recorded.
+- [x] Full regression/provenance green.
 - [ ] Required native proof and fresh independent review complete.
-- [ ] Nyquist validate-phase sets actual validated/compliant state.
+- [x] Nyquist validate-phase sets actual validated/compliant state.
 
-**Approval:** planning validated structurally only; implementation/native sign-off pending.
+**Coverage audit:** 2157 tests / 2143 passed / 0 failed / 14 explicit host-permission skips in .planning/tmp/060-release-push.log; separate locked upstream ECC 1/1; build artifact 350 inputs / 690 outputs verified. All 26 mapped compiled suites exist and are included in canonical runner enumeration. No coverage gaps require new tests. Native-style verifier independently returned valid/allVerified in .planning/tmp/060-style-verifier.json; these are archival receipt checks, not fresh paid model turns. Independent source review is in progress; its sign-off checkbox above remains open until its actual result.
+
+## Validation Audit 2026-11-03
+
+| Metric | Count |
+|---|---|
+| Gaps found | 0 |
+| Resolved | 0 |
+| Escalated | 0 |

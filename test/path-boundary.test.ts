@@ -47,7 +47,7 @@ interface Fixture {
 }
 
 async function createFixture(context: { after: (fn: () => Promise<unknown> | unknown) => void }): Promise<Fixture> {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-path-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-path-")));
   context.after(async () => rm(root, { recursive: true, force: true }));
   const allowed = join(root, "allowed");
   const outsideDirectory = join(root, "outside");

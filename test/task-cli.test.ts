@@ -110,10 +110,10 @@ test("phase26 ready panel cancels before any client request", { timeout: 120000 
   const launch = await launchTaskProgressPanel({ stateRoot: fixture.stateRoot, timeoutMs: 60000,
     binding: { schemaVersion: 1, contractId: run.contractId, contractDigest: digest, revision: run.revision,
       runId: run.runId, host: "codex", originatingSessionId: "ready-without-client" } });
-  await withPanelCleanup(fixture.stateRoot, launch, async () => {});
-  // Windows tree termination is unconditional; it does not run POSIX signal
-  // handlers/finally. The strict process-reaping check above applies on all OSes.
-  if (process.platform !== "win32") assert.deepEqual(await readdir(join(fixture.stateRoot, "panel-launches")), []);
+  await withPanelCleanup(fixture.stateRoot, launch, async () => {
+    assert.deepEqual(await readdir(join(fixture.stateRoot, "panel-launches")), []);
+  });
+  assert.deepEqual(await readdir(join(fixture.stateRoot, "panel-launches")), []);
 });
 
 test("phase26 attach refreshes only the exact observer", { timeout: 120000 }, async (t) => {

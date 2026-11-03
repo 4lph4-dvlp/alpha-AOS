@@ -1,6 +1,6 @@
 # Cross-harness task entry proof and regression ledger
 
-This v0.6.0 source-workflow evidence covers PROVE-01–PROVE-04. Package metadata now targets 0.6.0 by user decision. The measured full regression below was completed before this release-candidate amendment; it remains historical evidence. Candidate-specific native CI and final acceptance are pending; publication holds remain active.
+This v0.6.0 source-workflow evidence covers PROVE-01–PROVE-04. Package metadata now targets 0.6.0 by user decision. The measured full regression below was completed before this release-candidate amendment; it remains historical evidence. This ledger preserves its historical candidate checkpoints. Current exact-commit native CI, final verification and checksummed artifacts accompany the [GitHub release](https://github.com/4lph4-dvlp/alpha-AOS/releases/tag/v0.6.0); historical test totals alone do not certify release delivery.
 
 ## Evidence tiers and 55-cell matrix
 
@@ -68,14 +68,14 @@ Prior completed local regressions remain inspectable in priorCompletedRuns: 9b66
 
 Historical 261101-ww3 debt remains unwaived: command-job-runtime.test.js job-8aff6aa5e58e46ea hit a worker-start handshake timeout. task-progress-integration.test.js, task-progress.test.js, verify-efficient-wait.test.js and tarball-fixture.test.js were not run in that historical attempt. A current pass is recorded alongside that history, never by deleting it.
 
-Active holds: 3-OS/macOS CI, Claude G-07-2, global reconciliation, git push and npm publish. Local tests cannot clear these holds or count them as passed. The fresh independent read-only phase review is clean at source 2dde9db after resolving CR-01, CR-02, CR-03 and WR-01. This does not clear the separate milestone/release holds. The configured unavailable reviewer/verifier model was replaced only with user-approved current-session inheritance.
+Historical checkpoint holds: 3-OS/macOS CI, Claude G-07-2, global reconciliation, git push and npm publish. Local tests cannot clear these holds or count them as passed. The fresh independent read-only phase review is clean at source 2dde9db after resolving CR-01, CR-02, CR-03 and WR-01. This does not clear the separate milestone/release holds. The configured unavailable reviewer/verifier model was replaced only with user-approved current-session inheritance.
 
 Related: [support matrix](./SUPPORT_MATRIX.md), [historical matrix](./SUPPORT_MATRIX_v0.2.0.md), [bootstrap proof](./task-bootstrap-proof.md), [style proof](./task-style-proof.md).
 
-The previous phase source review is clean at its recorded source. The user authorized local 0.6.0 metadata and macOS CI remediation; those changes require fresh candidate verification. A separate milestone final review remains pending (independent-review-gate-pending), along with native 3-os-ci-held acceptance, G-07-2, global-apply-hold, git-push-hold and npm-publish-hold. None is included in passed test totals.
+The previous phase source review is clean at its recorded source. The user authorized local 0.6.0 metadata and macOS CI remediation; those changes require fresh candidate verification. At that recorded checkpoint, a separate milestone final review remained pending (independent-review-gate-pending), along with native 3-os-ci-held acceptance, G-07-2, global-apply-hold, git-push-hold and npm-publish-hold. None is included in passed test totals.
 
 Completed independent phase source/ledger reviews remain bound to their recorded archive commits and report hashes in the index. They predate the 0.6.0 candidate amendment and do not replace its pending final independent verification. No publication hold was cleared.
 
 G-31-01 scoped source correction is independently reviewed clean at b961a0f. Corrected-source full regression has completed as recorded above; the earlier run remains historical evidence.
 
-The final independent review of corrected source and measured ledger is clean at 2a16e9d, including G-31-01. Four original prohibition judgments remain a separate end-of-phase human checkpoint; no release hold is cleared.
+The final independent review of corrected source and measured ledger is clean at 2a16e9d, including G-31-01. The four original prohibition judgments were subsequently resolved by the user with a 0.6.0 version amendment and required native CI remediation; current release acceptance is recorded separately. npm publication and global rollout are outside the GitHub-only delivery scope.

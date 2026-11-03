@@ -4,12 +4,14 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
-### 0.6.0 release candidate
+## [0.6.0] - 2026-11-03
 
 - Shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and quality binding.
 - Bilingual task-entry guidance, a hash-bound cross-harness proof ledger and packaged skill/privacy verification. Historical native evidence remains distinct from fixtures and unverified capabilities.
 - Panel HTTP regression tests use native loopback HTTP to avoid the Node 24 bundled-undici macOS QoS crash, retaining real authentication, SSE and cancellation checks. Native CI now checks panel lifecycle first and retains diagnostic logs before the full release gate.
-- Package metadata targets 0.6.0. Native three-OS CI and final release acceptance are pending; this entry does not claim npm publication.
+- Native stage observation retains artifact bindings, rejects malformed/oversized metadata and failed or unresolved outcomes, and requires hash-bound native proof observations.
+- Panel readiness consumes its launch specification before returning, so forced cancellation leaves no launch residue. Windows test fixtures use canonical temporary paths; CI diagnostics are stored outside the checkout.
+- GitHub release delivery is gated on exact-commit three-OS CI and checksummed artifacts. npm publication and global rollout remain separate.
 
 ## [0.5.0] - 2026-11-01
 

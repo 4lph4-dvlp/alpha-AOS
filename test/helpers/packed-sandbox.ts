@@ -24,7 +24,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import type { TestContext } from "node:test";
@@ -217,7 +217,7 @@ export async function openSandbox(root: string): Promise<FixtureSandbox> {
 }
 
 export async function createIsolatedSandbox(context: TestContext): Promise<FixtureSandbox> {
-  const root = await mkdtemp(join(tmpdir(), "alpha-aos-fixture-"));
+  const root = await realpath(await mkdtemp(join(tmpdir(), "alpha-aos-fixture-")));
   context.after(async () => rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 50 }));
   return openSandbox(root);
 }

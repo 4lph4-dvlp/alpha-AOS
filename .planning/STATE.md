@@ -5,11 +5,11 @@ milestone_name: Predictable Task Entry and Shared Project Policy
 current_phase: 31
 current_phase_name: Cross-Harness Proof and Distribution
 status: executing
-stopped_at: Phase31 0.6.0 candidate prepared; native CI checkpoint, intermittent Windows worker concern and fresh independent review/verification pending; no active tests
-last_updated: "2026-11-03T01:52:38.675Z"
+stopped_at: "v0.6.0 GitHub-only: source 3f38a03; mandatory push session 14378 active; continuation job-9f4197cd38b14e0c waits exact push then runs one exact-SHA native CI; final verifier/main/tag/release pending"
+last_updated: "2026-11-03T08:05:28.781Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 31 execution resumed (wave continue)
-state_head: 5a39b800287a6073244069a89f4841e369c39cef
+state_head: 3f38a03047f1e0fe2470735eac55d53101cc24c4
 progress:
   total_phases: 5
   completed_phases: 4
@@ -447,9 +447,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-11-03T01:52:35.605Z
-Stopped at: Phase31 0.6.0 candidate prepared; native CI checkpoint, intermittent Windows worker concern and fresh independent review/verification pending; no active tests
-Resume file: .planning/phases/31-cross-harness-proof-and-distribution/31-FINAL-HANDOFF.md
+Last session: 2026-11-03T07:29:35.689Z
+Stopped at: v0.6.0 GitHub-only: source 3f38a03; mandatory push session 14378 active; continuation job-9f4197cd38b14e0c waits exact push then runs one exact-SHA native CI; final verifier/main/tag/release pending
+Resume file: .planning/phases/31-cross-harness-proof-and-distribution/31-RELEASE-060-CONTINUATION.md
 
 ## Operator Next Steps
 

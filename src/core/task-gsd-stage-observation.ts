@@ -75,6 +75,8 @@ function normalizeStageName(name: string): GsdQuickStage | null {
 function parseOutcome(output: unknown): GsdStageOutcome {
   if (typeof output === "object" && output !== null) {
     const rec = output as Record<string, unknown>;
+    if (rec.outcome === "failed" || rec.passed === false || rec.success === false || rec.verdict === "fail" || rec.status === "failed") return "failed";
+    if (rec.status === "needs-input" || rec.needsInput === true) return "needs-input";
     if (typeof rec.outcome === "string") {
       const o = rec.outcome.toLowerCase();
       if (["passed", "failed", "skipped", "needs-input", "unknown"].includes(o)) {
@@ -82,46 +84,54 @@ function parseOutcome(output: unknown): GsdStageOutcome {
       }
     }
     if (rec.passed === true || rec.success === true || rec.verdict === "pass" || rec.status === "completed") return "passed";
-    if (rec.passed === false || rec.success === false || rec.verdict === "fail" || rec.status === "failed") return "failed";
-    if (rec.status === "needs-input" || rec.needsInput === true) return "needs-input";
     if (rec.status === "skipped") return "skipped";
   }
   if (typeof output === "string") {
-    const s = output.toLowerCase();
-    if (s.includes("verification passed") || s.includes("status: completed") || s.includes("passed")) return "passed";
-    if (s.includes("verification failed") || s.includes("failed") || s.includes("error")) return "failed";
+    const s = output.toLowerCase().replace(/\b0\s+(?:failed|errors?)\b|\b(?:failed|errors?)\s*:\s*0\b/gu, "");
+    if (/\b(?:failed|errors?)\b|\b(?:not|never)\b[^.;\n]*\bpass(?:ed)?\b/u.test(s)) return "failed";
     if (s.includes("needs input") || s.includes("clarification needed")) return "needs-input";
+    if (/\bpassed\b/u.test(s.replace(/\b0\s+passed\b|\bpassed\s*:\s*0\b/gu, "")) || s.includes("status: completed")) return "passed";
   }
   return "unknown";
 }
 
 function extractArtifacts(data: unknown): GsdArtifactReference[] {
   const refs: GsdArtifactReference[] = [];
-  if (typeof data !== "object" || data === null) return refs;
+  if (data === undefined) return refs;
+  if (typeof data !== "object" || data === null) throw new Error("Invalid native artifact metadata");
 
   const rec = data as Record<string, unknown>;
-  const list = Array.isArray(rec.artifacts)
-    ? rec.artifacts
-    : Array.isArray(rec.files)
-      ? rec.files
-      : [];
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(rec.artifacts)
+      ? rec.artifacts
+      : Array.isArray(rec.files)
+        ? rec.files
+        : [];
+
+  if ((!Array.isArray(data) && rec.artifacts !== undefined && !Array.isArray(rec.artifacts))
+    || (rec.files !== undefined && !Array.isArray(rec.files))
+    || list.length > MAX_ARTIFACT_REFS_PER_RECEIPT) throw new Error("Invalid or excessive native artifact references");
 
   for (const item of list) {
     if (typeof item === "object" && item !== null) {
       const art = item as Record<string, unknown>;
       if (typeof art.path === "string" && typeof art.sha256 === "string" && /^[0-9a-f]{64}$/u.test(art.sha256)) {
-        if (art.path.length <= MAX_RELATIVE_PATH_LENGTH && refs.length < MAX_ARTIFACT_REFS_PER_RECEIPT) {
+        if (art.path.length > 0 && art.path.length <= MAX_RELATIVE_PATH_LENGTH) {
           refs.push({ path: art.path, sha256: art.sha256 });
+          continue;
         }
       }
     }
+    throw new Error("Invalid native artifact reference");
   }
 
   // Also check direct path/hash on the record itself
-  if (typeof rec.path === "string" && typeof rec.sha256 === "string" && /^[0-9a-f]{64}$/u.test(rec.sha256)) {
-    if (rec.path.length <= MAX_RELATIVE_PATH_LENGTH && refs.length < MAX_ARTIFACT_REFS_PER_RECEIPT) {
+  if (rec.path !== undefined || rec.sha256 !== undefined) {
+    if (typeof rec.path === "string" && rec.path.length > 0 && rec.path.length <= MAX_RELATIVE_PATH_LENGTH
+      && typeof rec.sha256 === "string" && /^[0-9a-f]{64}$/u.test(rec.sha256) && refs.length < MAX_ARTIFACT_REFS_PER_RECEIPT) {
       refs.push({ path: rec.path, sha256: rec.sha256 });
-    }
+    } else throw new Error("Invalid or excessive native artifact reference");
   }
 
   return refs;
@@ -212,7 +222,13 @@ export function observeCodexStages(
         if (stage && id) {
           let args: Record<string, unknown> | undefined;
           if (typeof item.arguments === "string") {
-            try { args = JSON.parse(item.arguments) as Record<string, unknown>; } catch { /* ignore */ }
+            try {
+              const parsed = JSON.parse(item.arguments) as unknown;
+              if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new Error("Invalid arguments");
+              args = parsed as Record<string, unknown>;
+            } catch {
+              return { status: "failed", sessionId: threadId, stages: [], reason: "Malformed native invocation arguments" };
+            }
           } else if (typeof item.arguments === "object" && item.arguments !== null) {
             args = item.arguments as Record<string, unknown>;
           }
@@ -282,6 +298,10 @@ export function observeCodexStages(
     }
 
     if (result) {
+      if (typeof result.output === "string" && /^[\s]*[\[{]/u.test(result.output)) {
+        try { result.output = JSON.parse(result.output) as unknown; }
+        catch { return { status: "failed", sessionId: threadId, stages: [], reason: "Malformed native tool result JSON" }; }
+      }
       if (resultsByCallId.has(result.callId)) {
         duplicateIds.add(result.callId);
       } else {
@@ -295,8 +315,14 @@ export function observeCodexStages(
           detail = result.output.slice(0, MAX_STAGE_DETAIL_LENGTH);
         }
 
-        const inputArtifacts = extractArtifacts((result.output as Record<string, unknown>)?.inputArtifacts ?? (result.output as Record<string, unknown>)?.inputs);
-        const outputArtifacts = extractArtifacts((result.output as Record<string, unknown>)?.outputArtifacts ?? (result.output as Record<string, unknown>)?.outputs ?? result.output);
+        let inputArtifacts: GsdArtifactReference[], outputArtifacts: GsdArtifactReference[];
+        try {
+          const record = typeof result.output === "object" && result.output !== null ? result.output as Record<string, unknown> : undefined;
+          inputArtifacts = extractArtifacts(record?.inputArtifacts ?? record?.inputs);
+          outputArtifacts = extractArtifacts(record?.outputArtifacts ?? record?.outputs ?? record);
+        } catch {
+          return { status: "failed", sessionId: threadId, stages: [], reason: "Invalid or excessive native artifact references" };
+        }
 
         resultsByCallId.set(result.callId, {
           id: result.id,
@@ -352,12 +378,21 @@ export function observeCodexStages(
     // Inherit input artifacts from invocation arguments if present
     const inputs = [...res.inputArtifacts];
     if (inv.arguments) {
-      const invInputs = extractArtifacts(inv.arguments);
+      let invInputs: GsdArtifactReference[];
+      try { invInputs = extractArtifacts(inv.arguments); }
+      catch { return { status: "failed", sessionId: threadId, stages: [], reason: "Invalid or excessive invocation artifact references" }; }
       for (const item of invInputs) {
-        if (!inputs.some((existing) => existing.path === item.path)) {
+        const existing = inputs.find((value) => value.path === item.path);
+        if (existing && existing.sha256 !== item.sha256) {
+          return { status: "failed", sessionId: threadId, stages: [], reason: "Conflicting invocation and result artifact bindings" };
+        }
+        if (!existing) {
           inputs.push(item);
         }
       }
+    }
+    if (inputs.length > MAX_ARTIFACT_REFS_PER_RECEIPT) {
+      return { status: "failed", sessionId: threadId, stages: [], reason: "Excessive combined input artifact references" };
     }
 
     stages.push({

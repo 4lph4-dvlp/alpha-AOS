@@ -5,11 +5,11 @@ milestone_name: Predictable Task Entry and Shared Project Policy
 current_phase: 31
 current_phase_name: Cross-Harness Proof and Distribution
 status: executing
-stopped_at: 31-06 corrected-source objective work complete; final review/goal and four human judgments pending
-last_updated: "2026-11-02T20:58:49.926Z"
+stopped_at: Phase31 objective work complete; final verifier quota-blocked and four human decisions pending; no reruns
+last_updated: "2026-11-03T01:06:23.680Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 31 execution resumed (wave continue)
-state_head: 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d
+state_head: f893afe11134b374aa32d07b1e1594aa114fa60b
 progress:
   total_phases: 5
   completed_phases: 4
@@ -399,6 +399,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - [Phase 19]: [19-01]: Checkpoint decision v2-audit-v1 adopted: task review report schema upgraded to schemaVersion 2 requiring targetRevisionSha and typed locator; v1 reports accepted only for audit views and rejected as stale for mandatory reviews.
 - [Phase 19]: [19-01]: D-03 all-or-nothing binding strictly enforced: missing criteria or invalid locators fail the entire review report as malformed, preventing cherry-picking.
 - Quick 261021-mcn complete/Verified through the authorized ordinary conversational GSD recovery: full release1820total1809pass0fail11skip, fresh completion7/safety17/integration4, final package/provenance/Stage1 and independent goal/delivery verification passed. OriginalD locally integrated and rebuilt0.4.5. Historical native autopilot7c176c2f5feeda16-8b4be419 remains auth-blocked; no global login/config/permission change or native acceptance was forged. Package sourcec4b1abb remains distinct from later GSD records. No newGUI/3OSCI/registryStage2/publish/kernel-or-quota-fix claim.
+- Final Phase31 goal-verifier refresh is quota-blocked; no retry or model substitution. Corrected-source implementation/full tests and independent code review are complete. Historical 31-VERIFICATION.md still predates the fixed G-31-01 and must not trigger duplicate replanning. Resume final verifier after quota availability; four original per-item human prohibition decisions remain. See31-FINAL-HANDOFF.md.
 
 ## Deferred Items
 
@@ -446,9 +447,9 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ## Session Continuity
 
-Last session: 2026-11-02T20:58:48.735Z
-Stopped at: 31-06 corrected-source objective work complete; final review/goal and four human judgments pending
-Resume file: .planning/phases/31-cross-harness-proof-and-distribution/31-VERIFICATION.md
+Last session: 2026-11-03T01:06:22.152Z
+Stopped at: Phase31 objective work complete; final verifier quota-blocked and four human decisions pending; no reruns
+Resume file: .planning/phases/31-cross-harness-proof-and-distribution/31-FINAL-HANDOFF.md
 
 ## Operator Next Steps
 

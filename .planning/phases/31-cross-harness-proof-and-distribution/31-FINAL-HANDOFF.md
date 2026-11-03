@@ -3,12 +3,25 @@ phase: 31-cross-harness-proof-and-distribution
 status: verification-pending
 updated: 2026-11-03
 tested_source: 3215bca7540a964b02d5a7e636a8d5dcadf0ca3d
-remaining: [final-independent-goal-verification, four-human-prohibition-decisions, phase-complete]
+candidate_implementation: 5a39b80
+candidate_ci: pending
+candidate_full_regression: pending
+remaining: [local-version-060, macos-ci-remediation, final-independent-goal-verification, phase-complete]
 ---
 
 # Phase 31 final verification handoff
 
 All six implementation plans are summarized and committed. Do not restart completed plans, waves or the full test suite without a new source change/failure. No test or controller process remains active.
+
+## User-amended 0.6.0 candidate — current resume priority
+
+The user accepted P1 privacy/sandbox boundaries, P2 archival tiers and P3 wording, amended the local version to **0.6.0**, and requested effective repair of the actual 0.5.0 macOS CI blocker (P4). Local branch is `release/0.6.0`; implementation commits are `c3dfb98` (CI/test remediation) and `5a39b80` (version/docs/evidence). See `31-PROHIBITION-RESOLUTION.md` and `.planning/debug/macos-release-panel-ci.md`.
+
+Package/lock root metadata now agree at0.6.0. Guides/README/changelog and their bindings distinguish the candidate from historical full-regression evidence. The proven Node24.22.1/undici7.30.1 macOS QoS crash is covered by a failing control and a test-only native HTTP fix; production browser code and runtime timeouts are unchanged. Native CI now runs focused lifecycle checks first and retains failure logs.
+
+Completed local scoped groups: HTTP3/3, panel18/18, five-host integration13/13, progress15/15, proof/docs/provenance22passed/1permission-skip. Package451-entry audit and build350-input/690-output checks pass. The initial full CLI receipt is43total/42pass/1fail from an incorrect new Windows/POSIX cleanup assertion; that assertion is corrected and immediate cancellation passed in the later preflight. Preserve that contrary receipt. The exact new preflight passed HTTP3/3 and three CLI cases but **failed public dispatch before panel launch at a5000ms Windows worker handshake**. A bounded A/B profile measured actual acknowledgement1229ms on Node24.13.1 and1259ms on Node24.22.1; it does not explain/waive the intermittent failure. **Do not claim all local/native candidate gates passed.** Raw receipts: `.planning/tmp/macos-ci-*` and `.ci-diagnostics/`.
+
+Next is the concrete remote checkpoint because the previous release session explicitly said no push/CI until a subsequent explicit instruction. Present the prepared candidate for candidate-branch push plus one native three-OS CI attempt. Standard pre-push gates remain mandatory and may block upload; do not duplicate that full gate beforehand or bypass it. Actual native acceptance and fresh independent goal/review evidence are still required. Main/tag/npm/global rollout/paid canaries are not part of this checkpoint.
 
 ## Current authoritative implementation evidence
 
@@ -30,7 +43,7 @@ Only actual fresh verifier evidence may change the canonical verdict. No phase-c
 
 ## Four end-of-phase human decisions
 
-The original five plans contain four deduplicated flagged-unverified prohibitions. Their objective evidence is complete, but installed verifier instructions require explicit per-item human resolution in interactive verification. No such answer has yet been supplied.
+The user has now answered the four-item checkpoint. See `31-PROHIBITION-RESOLUTION.md`: privacy/tier/wording/history boundaries are accepted; target package version changes to **0.6.0**, and the actual macOS CI release blocker must be remediated under `.planning/debug/macos-release-panel-ci.md`. The table below preserves the original proposal as historical context; its 0.5.0-only hold is superseded by that explicit amendment. CI is not silently waived, and no release success is claimed.
 
 | Item | Bounded proposed resolution |
 |---|---|
@@ -41,4 +54,4 @@ The original five plans contain four deduplicated flagged-unverified prohibition
 
 Authority: `C:/Users/alpha/.codex/agents/gsd-verifier.toml:152–155`: “Interactive verify requires explicit human resolution per item” and a flagged prohibition “must never be silently absorbed into a passed verdict.” `gsd-execute-phase/SKILL.md` requires preserving all verification/checkpoint gates.
 
-After explicit answers, record each resolution without granting new execution/release authority and supply it to the final verifier. Once the refreshed owner verdict is passed, run GSD `phase.complete 31`, commit lifecycle tracking and perform the bounded post-completion transition. Do not archive/publish the milestone or clear any hold.
+The explicit answers are now recorded in `31-PROHIBITION-RESOLUTION.md`; do not ask P1-P4 again. Supply those amendments and the candidate/native CI results to the fresh final verifier. Only once the refreshed owner verdict is passed may GSD `phase.complete 31` commit lifecycle tracking and perform the bounded post-completion transition. Do not archive/publish the milestone or clear unrelated holds.

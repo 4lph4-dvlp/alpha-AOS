@@ -143,3 +143,7 @@ Phase 27의 공유 `strict`/`flexible` 정책 권위, Phase 28의 6개 고정 �
 
 *Phase: 31-cross-harness-proof-and-distribution*
 *Context gathered: 2026-11-03*
+
+## User amendment at final checkpoint — 2026-11-03
+
+The user explicitly replaced the local package-version 0.5.0 hold with target **0.6.0** and requested effective remediation of the repeated 0.5.0 macOS CI failures. P2/P3 and privacy/history boundaries were accepted. These decisions supersede only the corresponding deferred local version/CI-remediation scope above. See `31-PROHIBITION-RESOLUTION.md` and `.planning/debug/macos-release-panel-ci.md`. Paid canaries, global reconciliation and npm publication are not authorized by this amendment; native CI acceptance and independent final verification remain required. Earlier failed CI and completed local regression receipts are preserved at their original source states.

@@ -11,17 +11,18 @@
 `alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs`로 백그라운드 잡을 시작하고, `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`으로 단일 대기를 수행합니다.
 `f5af5ab` 로컬 릴리스 검증: 전체 1,820건 중 1,809 통과·0 실패·11 skip(ordinary 1,810·packed 10), completion/safety/integration 실제 기준 7/17/4건 및 provenance·Stage 1 통과. macOS/Linux GUI 실기와 3OS CI는 미실행입니다. 과거의 짧은 Codex 비교는 [BUG-06](docs/research/efficient-wait/BUG-06.md)에 한계를 명시하며, 호스트 wakeup 억제·구독 절감·쿼터 문제 해결은 보장하지 않습니다.
 
-**0.4.0**에는 선택형 [작업 범위 컴퓨터 제어](docs/computer-use.md)가 추가되었습니다.
-다섯 하네스는 동일한 CLI/MCP 브로커를 통해 정확한 대상·작업 다이제스트·권한·예산을
-검증하며, 긴급 중지와 변경 전후 스크린샷 해시 감사 및 읽기 전용 재생을 제공합니다.
-`alpha-aos computer-use plan --json`에서 자동/수동 검증 방식을 선택합니다.
-일반 GSD와 quick은 선택을 제시하고, autopilot은 이미 승인된 가역적·결정론적 검증만
-자동 실행합니다. 사람의 판단이 필요한 검증은 수동으로 유지합니다.
+Cua Driver **0.38.0**을 다섯 하네스의 기본 [GUI 도구](docs/computer-use.md)로 제공합니다.
+`alpha-aos mcp sync --target <harness> --apply`로 네이티브 standard 권한의 `cua`를 등록합니다.
+작업 중 GUI 접근을 허가하면 alpha-AOS의 Cua 사용을 선택한 것으로 이해하며,
+CLI/API로 처리하기 어려운 작업에 적극 사용하고 같은 범위의 허가를 재질문하지 않습니다.
+일반 GSD와 quick의 GUI 작업에는 autopilot 계약이 필요하지 않습니다.
+Autopilot 검증은 **0.4.0**에서 도입한 정확한 대상·다이제스트·권한·예산 검사,
+긴급 중지, 변경 전후 스크린샷 감사와 읽기 전용 재생을 계속 사용합니다.
 
-애플리케이션 CLI/API를 우선 사용합니다. Cua Driver 0.37.0은 별도 선택 런타임이며
-안정 의존성 잠금에 승격되지 않습니다. 정확한 배포 파일·게시자·실행 파일·도구 스키마
-검증과 작업 승인이 필요합니다. 프로젝트 팩이나 가이드 설치만으로 GUI 권한이 생기지
-않습니다. 비밀 입력, 전체 화면 캡처, 임의 도구 전달, 자동 전경 전환은 허용하지 않습니다.
+적합한 애플리케이션 CLI/API를 사용하되 GUI가 필요한 부분은 Cua로 이어갑니다.
+정확한 배포 파일·게시자·실행 파일을 별도 검증하며 안정 npm 의존성 잠금에 승격하지 않습니다.
+도구 설치만으로 GUI 권한이 생기지 않으며, 네이티브 권한 확인과 OS 권한은 유지합니다.
+기본 연결은 비밀 입력, 전체 화면 캡처, 셸 실행, 클립보드, 자동 전경 전환을 허용하지 않습니다.
 공개 데이터로 검토된 대상만 캡처하고, 불확실한 화면은 저장 전에 거부합니다.
 
 증거 보존 기본 권고는 7일이며 자동 삭제하지 않습니다. 검토된 만료 처리만 tombstone을

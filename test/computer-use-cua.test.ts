@@ -22,8 +22,8 @@ test("an intact approved archive and companions cannot authorize a different ent
     await mkdir(join(root, "wayland-helper", "winrects@cua"), { recursive: true });
     await writeFile(join(root, extension), "verified-extension");
     await writeFile(join(root, main), "verified-main"); await writeFile(join(root, helper), "verified-helper"); await writeFile(join(root, "archive"), "verified-archive");
-    const publisherIdentity = "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.37.0";
-    const a: CuaRuntimeApproval = { version: "0.37.0", sourceCommit: "2d2f99228d4d2508dc6fcc84c176b296e146714a", platform: process.platform, arch: process.arch, executable: join(root, main), executableHash: hash("verified-main"), archive: join(root, "archive"), archiveHash: hash("verified-archive"), schemaHash: "a".repeat(64), publisherVerified: true, publisherIdentity };
+    const publisherIdentity = "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.38.0";
+    const a: CuaRuntimeApproval = { version: "0.38.0", sourceCommit: "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19", platform: process.platform, arch: process.arch, executable: join(root, main), executableHash: hash("verified-main"), archive: join(root, "archive"), archiveHash: hash("verified-archive"), schemaHash: "a".repeat(64), publisherVerified: true, publisherIdentity };
     const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
     const pin = { publisherIdentity, assets: [{ os, arch: process.arch, sha256: a.archiveHash, entrypoint: main, files: { [main]: a.executableHash, [helper]: hash("verified-helper"), [extension]: hash("verified-extension") } }] };
     await assert.doesNotReject(verifyCuaRuntime(a, pin, root));
@@ -33,8 +33,8 @@ test("an intact approved archive and companions cannot authorize a different ent
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("native argument mappings satisfy the actual pinned Windows 0.37.0 closed schemas", async () => {
-  const tools = JSON.parse((await readFile(join(packageRoot(), "test/fixtures/cua-0.37.0-windows-tools.json"), "utf8")).replace(/^\uFEFF/, "")) as Array<{ name: string; inputSchema: object }>;
+test("native argument mappings satisfy the actual pinned Windows 0.38.0 closed schemas", async () => {
+  const tools = JSON.parse((await readFile(join(packageRoot(), "test/fixtures/cua-0.38.0-windows-tools.json"), "utf8")).replace(/^\uFEFF/, "")) as Array<{ name: string; inputSchema: object }>;
   const a = validateComputerAuthority(authorityFixture());
   a.target.windowId = "42";
   const observation = { target: a.target, captureId: "capture-1", png: pngFixture, width: 1, height: 1, state: "test", safe: true, foreground: false };

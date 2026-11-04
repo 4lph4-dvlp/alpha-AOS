@@ -15,7 +15,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const stamp = Date.now(); const scratch = join(root, ".gsd", `computer-use-live-${stamp}`);
 const runtimeRoot = join(userStateRoot(), "computer-use/runtime"); const evidenceRoot = join(userStateRoot(), "computer-use/evidence");
 const option = (name) => { const i = process.argv.indexOf(name); return i < 0 ? undefined : process.argv[i + 1]; };
-const receipt = { schemaVersion: 1, at: new Date().toISOString(), platform: process.platform, arch: process.arch, backend: "Cua Driver 0.37.0", level: "unavailable", stage: "preflight", operations: [], actionsAttempted: 0, liveAction: false, reason: "" };
+const receipt = { schemaVersion: 1, at: new Date().toISOString(), platform: process.platform, arch: process.arch, backend: "Cua Driver 0.38.0", level: "unavailable", stage: "preflight", operations: [], actionsAttempted: 0, liveAction: false, reason: "" };
 const json = async (path) => JSON.parse(await readFile(path, "utf8"));
 const save = (path, value) => writeFile(path, JSON.stringify(value, null, 2) + "\n");
 const sha = (bytes) => createHash("sha256").update(bytes).digest("hex");

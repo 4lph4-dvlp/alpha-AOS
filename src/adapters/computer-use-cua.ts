@@ -13,7 +13,7 @@ import type { ComputerObservation, ComputerUseTransport } from "../core/computer
 import { safeComputerPath } from "../core/computer-use-audit.js";
 
 export interface CuaRuntimeApproval {
-  version: "0.37.0"; sourceCommit: string; platform: string; arch: string;
+  version: "0.38.0"; sourceCommit: string; platform: string; arch: string;
   executable: string; executableHash: string; archive: string; archiveHash: string; schemaHash: string;
   publisherVerified: boolean; publisherIdentity: string;
 }
@@ -44,7 +44,7 @@ async function hashFile(path: string, maximum: number): Promise<string> {
   return createHash("sha256").update(await readFile(path)).digest("hex");
 }
 export async function verifyCuaRuntime(approval: CuaRuntimeApproval, pin: Record<string, unknown>, ownedRoot: string): Promise<void> {
-  if (approval.version !== "0.37.0" || approval.sourceCommit !== "2d2f99228d4d2508dc6fcc84c176b296e146714a" || approval.platform !== process.platform || approval.arch !== process.arch) throw new Error("Computer runtime version/source/platform mismatch");
+  if (approval.version !== "0.38.0" || approval.sourceCommit !== "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19" || approval.platform !== process.platform || approval.arch !== process.arch) throw new Error("Computer runtime version/source/platform mismatch");
   const assets = pin.assets as Array<{ os: string; arch: string; sha256: string }>;
   const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
   if (!assets?.some((v) => v.os === os && (v.arch === approval.arch || v.arch === "universal") && v.sha256 === approval.archiveHash)) throw new Error("Computer runtime archive is outside pinned provenance");
@@ -171,7 +171,7 @@ export class CuaComputerTransport implements ComputerUseTransport {
   async dispatch(action: ComputerAction, observation: ComputerObservation, signal: AbortSignal): Promise<void> {
     if (!computerActions.includes(action.kind)) throw new Error("Cua raw passthrough denied");
     // right_click/drag use this private runtime's latest exact-window pixel
-    // context; unlike click their 0.37.0 schemas do not accept capture_id.
+    // context; unlike click their 0.38.0 schemas do not accept capture_id.
     const result = await this.#call(action.kind, cuaActionArguments(this.#authority, action, observation), signal);
     if (action.kind === "launch_app" && Number((result.structuredContent as Record<string, unknown> | undefined)?.pid) !== this.#authority.target.pid) throw new Error("Cua launch returned an unbound process; new target authority required, outcome remains unknown");
   }

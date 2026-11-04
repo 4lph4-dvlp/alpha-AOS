@@ -564,11 +564,11 @@ export async function buildTaskCapabilityInventory(
 
   const computerNative = resolveNativeUseForCapability("control:computer-use", "computer-use", options.harness, ledger);
   items.push({
-    id: "control:computer-use", name: "computer-use", kind: "control-command", scope: "project",
-    version: "0.37.0", source: "src/core/computer-use.ts", sourceHash: null,
-    targetHarnesses: ALL_HARNESSES, applicable: true, selected: false,
-    applicabilityReason: "Optional explicit project pack and digest-bound desktop authority required.",
-    exclusionReason: "No implicit GUI authority", unavailableReason: "Requires task-local verified native invocation and exact-target permissions",
+    id: "control:computer-use", name: "computer-use", kind: "control-command", scope: "global",
+    version: "0.38.0", source: "src/core/computer-use-native.ts", sourceHash: null,
+    targetHarnesses: ALL_HARNESSES, applicable: true, selected: true,
+    applicabilityReason: "Default Cua GUI tool for every task; native standard permissions for ordinary work and digest-bound desktop authority for autopilot.",
+    exclusionReason: null, unavailableReason: "Requires verified native invocation and task-scoped GUI permission; availability grants no implicit GUI authority",
     deployment: "CURRENT", nativeUse: computerNative.nativeUse, support: "supported",
     nativeUseReason: computerNative.nativeUseReason, supportReason: "All harnesses route through the same local broker; native OS support remains separately unverified",
   });

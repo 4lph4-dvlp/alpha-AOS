@@ -74,6 +74,7 @@ export interface McpSyncPlan {
   currentHash: string | null;
   expectedHash: string;
   entries: McpSyncEntry[];
+  nativeCua: { version: string; permissionMode: "standard"; command: string; args: string[] };
   piBridgeRequired: boolean;
   piBridge: LockedPackage | null;
   piBridgeCurrent: boolean;
@@ -84,6 +85,20 @@ export interface McpSyncPlan {
 interface StdioCommand {
   command: string;
   args: string[];
+}
+
+export function cuaMcpCommand(): StdioCommand {
+  return { command: process.execPath, args: [mcpProxyEntrypoint(), "computer-use", "native-mcp"] };
+}
+
+function cuaJsonServer(harness: HarnessId): Record<string, unknown> {
+  const command = cuaMcpCommand();
+  return {
+    ...(harness === "claude" ? { type: "stdio" } : {}),
+    command: command.command, args: command.args,
+    ...(harness === "pi" ? { lifecycle: "lazy", directTools: false } : {}),
+    ...(harness === "hermes" ? { enabled: true, connect_timeout: 40 } : {}),
+  };
 }
 
 function sha256(content: string | Uint8Array): string {
@@ -144,6 +159,8 @@ export interface McpStdioOptions {
 }
 
 export interface McpRenderOptions extends McpStdioOptions {
+  /** Isolated observers must not inherit ordinary desktop access. */
+  readonly nativeCua?: boolean;
   /**
    * Render each server's credential NAME as a `${NAME}` reference.
    *
@@ -230,6 +247,8 @@ function renderJsonConfig(harness: "claude" | "antigravity" | "pi", existing: st
     ? { ...(rawServers as Record<string, unknown>) }
     : {};
   for (const id of selected) servers[id] = jsonServer(mcpStdioCommand(id, locks[id], options), definitions[id], harness, options);
+  if (options.nativeCua ?? options.front !== "observe") servers.cua = cuaJsonServer(harness);
+  else delete servers.cua;
   root.mcpServers = servers;
   if (harness === "pi") {
     const rawSettings = root.settings;
@@ -272,7 +291,7 @@ function managedJsonIsCurrent(
   const desiredServers = desired.mcpServers;
   if (typeof currentServers !== "object" || currentServers === null || Array.isArray(currentServers)) return false;
   if (typeof desiredServers !== "object" || desiredServers === null || Array.isArray(desiredServers)) return false;
-  for (const id of selected) {
+  for (const id of [...selected, "cua"]) {
     const currentEntry = (currentServers as Record<string, unknown>)[id];
     const desiredEntry = (desiredServers as Record<string, unknown>)[id];
     if (canonicalJson(currentEntry) !== canonicalJson(desiredEntry)) return false;
@@ -310,7 +329,7 @@ function managedHermesIsCurrent(
       : undefined;
     if (typeof currentServers !== "object" || currentServers === null || Array.isArray(currentServers)) return false;
     if (typeof desiredServers !== "object" || desiredServers === null || Array.isArray(desiredServers)) return false;
-    for (const id of selected) {
+    for (const id of [...selected, "cua"]) {
       const currentEntry = (currentServers as Record<string, unknown>)[id];
       const desiredEntry = (desiredServers as Record<string, unknown>)[id];
       if (canonicalJson(currentEntry) !== canonicalJson(desiredEntry)) return false;
@@ -319,7 +338,7 @@ function managedHermesIsCurrent(
     const currentSkills = currentSkillsNode && typeof currentSkillsNode === "object" && "toJSON" in currentSkillsNode
       ? (currentSkillsNode as { toJSON: () => unknown }).toJSON()
       : currentSkillsNode;
-    if (!Array.isArray(currentSkills) || !currentSkills.includes("alpha-aos-task")) return false;
+    if (!Array.isArray(currentSkills) || !["alpha-aos-task", "computer-use"].every((skill) => currentSkills.includes(skill))) return false;
     return true;
   } catch {
     return false;
@@ -332,7 +351,7 @@ function tomlString(value: string): string {
 
 export function stripManagedToml(text: string): string {
   let result = text.replace(/(?:^|\r?\n)# alpha-aos:start mcp[\s\S]*?# alpha-aos:end mcp(?:\r?\n|$)/gu, "\n");
-  for (const id of serverOrder) {
+  for (const id of [...serverOrder, "cua"]) {
     const lines = result.split(/\r?\n/u);
     const kept: string[] = [];
     let skip = false;
@@ -378,6 +397,10 @@ function renderCodexConfig(existing: string, locks: Record<McpServerId, LockedPa
       for (const [name, value] of Object.entries(definition.fixedEnv)) blocks.push(`${name} = ${tomlString(value)}`);
     }
     blocks.push("");
+  }
+  if (options.nativeCua ?? options.front !== "observe") {
+    const cua = cuaMcpCommand();
+    blocks.push("[mcp_servers.cua]", `command = ${tomlString(cua.command)}`, `args = [${cua.args.map(tomlString).join(", ")}]`, "startup_timeout_sec = 40", "");
   }
   blocks.push("# alpha-aos:end mcp");
   return `${base ? `${base}\n\n` : ""}${blocks.join("\n")}\n`;
@@ -436,7 +459,10 @@ function renderHermesConfig(existing: string, locks: Record<McpServerId, LockedP
       enabled: true,
     });
   }
-  ensureHermesAutoLoadSkill(document, "alpha-aos-task");
+  const nativeCua = options.nativeCua ?? options.front !== "observe";
+  if (nativeCua) document.setIn(["mcp_servers", "cua"], cuaJsonServer("hermes"));
+  else document.deleteIn(["mcp_servers", "cua"]);
+  ensureHermesAutoLoadSkill(document, nativeCua ? ["alpha-aos-task", "computer-use"] : ["alpha-aos-task"]);
   return document.toString({ lineWidth: 0 });
 }
 
@@ -618,11 +644,13 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
     }
   }
   const notes = [
+    "Cua is registered as the default GUI MCP tool with native standard permissions; install the reviewed Cua Driver and grant task-scoped GUI access before input. No autopilot contract is required for ordinary native GUI work.",
     "No credential value is written to the config, lock, journal, or command arguments.",
     harness === "antigravity"
       ? "The global Antigravity config is shared by GUI, IDE, and CLI; restart those processes after changing user environment variables."
       : "Restart the harness after changing user environment variables.",
   ];
+  const cuaPin = JSON.parse(await readFile(join(packageRoot(), "catalog", "computer-use-runtime.json"), "utf8")) as { version: string };
   if (harness === "pi") notes.push("Pi requires the separately pinned pi-mcp-adapter package before this config can load.");
   if (entries.some((entry) => entry.credentialRequiredForCalls && !entry.credentialPresent)) notes.push("At least one server can be registered but cannot complete authenticated calls until its required environment variable is set.");
   const plan: McpSyncPlan = {
@@ -632,6 +660,7 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
     currentHash,
     expectedHash,
     entries,
+    nativeCua: { version: cuaPin.version, permissionMode: "standard", ...cuaMcpCommand() },
     piBridgeRequired: harness === "pi",
     piBridge,
     piBridgeCurrent,
@@ -690,7 +719,7 @@ export async function planMcpOperation(harness: HarnessId, lock: StackLock, opti
 
   const locks = lockedServers(lock, selected);
   const ownRoot = resolve(packageRoot());
-  const sources = [mcpProxyEntrypoint()];
+  const sources = [mcpProxyEntrypoint(), join(ownRoot, "catalog", "computer-use-runtime.json"), fileURLToPath(new URL("./computer-use-native.js", import.meta.url))];
   if (harness === "pi" && sync.piBridge) sources.push(piBridgeManifestPath(configPath, sync.piBridge));
 
   const inputs: OperationPathInput[] = [
@@ -733,6 +762,7 @@ export async function planMcpOperation(harness: HarnessId, lock: StackLock, opti
     piBridge: sync.piBridge,
     piBridgeCurrent: sync.piBridgeCurrent,
     entries: sync.entries,
+    nativeCua: sync.nativeCua,
     boundary: { code: proofs.code, roles: proofs.proofs.map((proof) => [proof.role, proof.configured, proof.proven]) },
   });
 

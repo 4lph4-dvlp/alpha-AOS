@@ -88,7 +88,11 @@ export async function checkResearch() {
   const initial = await readFile(join(evidenceRoot, e.providers.exa.receipt.split("#")[0]), "utf8"); assert.match(initial, /401/);
   for (const provider of ["firecrawl", "context7"]) { const receipt = await readFile(join(evidenceRoot, e.providers[provider].receipt.split("#")[0]), "utf8"); assert.ok(receipt.length > 1000); }
   const pin = JSON.parse(await readFile(join(root, "catalog/computer-use-runtime.json"), "utf8"));
-  assert.equal(pin.version, "0.37.0"); assert.equal(pin.sourceCommit, e.optionalRuntime.sourceCommit); assert.deepEqual(pin.assets, e.optionalRuntime.assets); assert.equal(pin.stableLockPromotion, false);
+  const current = JSON.parse(await readFile(join(evidenceRoot, "cua-0.38.0-provenance.json"), "utf8"));
+  assert.equal(e.optionalRuntime.sourceCommit, "2d2f99228d4d2508dc6fcc84c176b296e146714a");
+  assert.equal(pin.version, "0.38.0"); assert.equal(pin.sourceCommit, current.sourceCommit); assert.deepEqual(pin.assets, current.assets); assert.equal(pin.stableLockPromotion, false);
+  assert.equal(current.signatureVerified, true);
+  assert.equal(current.liveGuiVerified, false);
   for (const asset of pin.assets) { assert.match(asset.sha256, /^[a-f0-9]{64}$/); assert.ok(asset.url.startsWith(`https://github.com/trycua/cua/releases/download/${pin.tag}/`)); assert.equal(asset.liveVerified, false); }
   const report = await readFile(join(root, "docs/research/computer-use.md"), "utf8"); assert.match(report, /No apples-to-apples/); assert.match(report, /interest proxy/);
 }

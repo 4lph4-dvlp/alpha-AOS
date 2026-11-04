@@ -96,7 +96,7 @@ test("MCP config sync is transactional and idempotent", async (context) => {
   assert.ok(first.operationId);
   const content = await readFile(configPath, "utf8");
   const parsed = JSON.parse(content) as { mcpServers?: Record<string, unknown> };
-  assert.deepEqual(Object.keys(parsed.mcpServers ?? {}), ["context7", "exa", "firecrawl"]);
+  assert.deepEqual(Object.keys(parsed.mcpServers ?? {}), ["context7", "exa", "firecrawl", "cua"]);
   const second = await applyMcpSync("claude", lock, { configPath, stateRoot, env: {} });
   assert.equal(second.operationId, null);
   assert.equal(second.plan.action, "current");
@@ -312,7 +312,7 @@ test("a nested MCP apply consumes the caller session and takes no second writer 
   const result = await applyMcpSync("claude", lock, { plan, session, configPath, stateRoot, env: {} });
   assert.equal(result.operationId, session.operationId);
   const parsed = JSON.parse(await readFile(configPath, "utf8")) as { mcpServers?: Record<string, unknown> };
-  assert.deepEqual(Object.keys(parsed.mcpServers ?? {}), ["context7", "exa", "firecrawl"]);
+  assert.deepEqual(Object.keys(parsed.mcpServers ?? {}), ["context7", "exa", "firecrawl", "cua"]);
 
   assert.equal((await inspectWriterState(stateRoot)).status, "active", "the callee must not release the caller's writer");
   await session.close();
@@ -423,12 +423,12 @@ skills:
 `;
   const rendered1 = renderMcpConfig("hermes", existingWithCoursepilot, lock);
   const parsed1 = parse(rendered1) as { skills?: { auto_load?: string[] } };
-  assert.deepEqual(parsed1.skills?.auto_load, ["coursepilot", "alpha-aos-task"]);
+  assert.deepEqual(parsed1.skills?.auto_load, ["coursepilot", "alpha-aos-task", "computer-use"]);
 
   // Idempotency: re-rendering does not duplicate alpha-aos-task
   const rendered2 = renderMcpConfig("hermes", rendered1, lock);
   const parsed2 = parse(rendered2) as { skills?: { auto_load?: string[] } };
-  assert.deepEqual(parsed2.skills?.auto_load, ["coursepilot", "alpha-aos-task"]);
+  assert.deepEqual(parsed2.skills?.auto_load, ["coursepilot", "alpha-aos-task", "computer-use"]);
 
   // Scalar auto_load converted to list
   const existingScalar = `
@@ -437,11 +437,11 @@ skills:
 `;
   const renderedScalar = renderMcpConfig("hermes", existingScalar, lock);
   const parsedScalar = parse(renderedScalar) as { skills?: { auto_load?: string[] } };
-  assert.deepEqual(parsedScalar.skills?.auto_load, ["custom-skill", "alpha-aos-task"]);
+  assert.deepEqual(parsedScalar.skills?.auto_load, ["custom-skill", "alpha-aos-task", "computer-use"]);
 
   // Empty config initializes skills.auto_load
   const renderedEmpty = renderMcpConfig("hermes", "", lock);
   const parsedEmpty = parse(renderedEmpty) as { skills?: { auto_load?: string[] } };
-  assert.deepEqual(parsedEmpty.skills?.auto_load, ["alpha-aos-task"]);
+  assert.deepEqual(parsedEmpty.skills?.auto_load, ["alpha-aos-task", "computer-use"]);
 });
 

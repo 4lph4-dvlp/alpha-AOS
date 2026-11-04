@@ -73,13 +73,14 @@ test("autopilot executes the hash-bound deterministic GUI request without a user
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("actual CLI reports unavailable native runtime without claiming installed proof", () => {
+test("actual CLI reports default GUI availability without claiming native invocation proof", () => {
   const result = JSON.parse(execFileSync(process.execPath, [join(packageRoot(), "dist/src/cli.js"), "computer-use", "doctor", "--json"], { encoding: "utf8" }));
-  assert.equal(result.nativeUse, "unverified"); assert.equal(result.enabled, false);
+  assert.equal(result.nativeUse, "unverified"); assert.equal(result.enabled, true); assert.equal(result.optional, false); assert.equal(result.permissionMode, "standard");
   assert.throws(() => execFileSync(process.execPath, [join(packageRoot(), "dist/src/cli.js"), "computer-use", "action", "--apply"], { stdio: "pipe" }));
 });
 
-test("real MCP server reaches shared broker and rejects raw native tools", async () => {
+test("real MCP server reaches shared broker and rejects raw native tools", async (context) => {
+  context.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const root = await mkdtemp(join(tmpdir(), "computer-mcp-")); const a = validateComputerAuthority(authorityFixture()); let observed = 0; let value = "before"; let effects = 0;
   const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => ({ target: a.target, captureId: String(++observed), png: pngFixture, width: 1, height: 1, state: value, safe: true, foreground: false }), dispatch: async () => { effects++; value = "after"; }, close: async () => {} }, root);
   const server = createComputerMcpServer(session); const client = new Client({ name: "test", version: "1" }); const [downstream, upstream] = InMemoryTransport.createLinkedPair();
@@ -106,7 +107,7 @@ test("all five harnesses preview hash-pinned owned guide without GUI authority",
     }
     const packs = await loadPackCatalogStrict(root); assert.ok(packs.value.packs.some((p) => p.id === "COMPUTER_USE"));
     const inventory = await buildTaskCapabilityInventory({ packageRoot: root, projectRoot: scratch, catalog, lock });
-    const item = inventory.items.find((v) => v.id === "control:computer-use"); assert.equal(item?.nativeUse, "unverified"); assert.equal(item?.selected, false);
+    const item = inventory.items.find((v) => v.id === "control:computer-use"); assert.equal(item?.nativeUse, "unverified"); assert.equal(item?.selected, true);
     assert.equal(JSON.parse(await readFile(join(root, "catalog/computer-use-runtime.json"), "utf8")).stableLockPromotion, false);
   } finally { await rm(scratch, { recursive: true, force: true }); }
 });

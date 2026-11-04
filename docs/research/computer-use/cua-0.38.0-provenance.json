@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-04T14:07:30.6311533Z",
+  "version": "0.38.0",
+  "tag": "cua-driver-rs-v0.38.0",
+  "sourceCommit": "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19",
+  "publisherIdentity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.38.0",
+  "signatureVerified": true,
+  "verifier": "cosign 3.1.4",
+  "verifierSha256": "cbe953787074611f1334cbf37dc1cf953995bb8c45398eb4fc7bb781d29c1f2a",
+  "checksumListSha256": "a2c338d608ded32fe3e41918cc571a2769a38fc5a1316bab7d14a9b615590645",
+  "signatureBundleSha256": "1518860b2b424558d40d81b625ebf64c316913ebeb033aff502bf469473a5d3f",
+  "signatureScope": "Official Sigstore signed SHA256SUMS, exact workflow identity and GitHub Actions OIDC issuer; each archive matched, companions hashed after extraction",
+  "assets": [
+    {
+      "os": "windows",
+      "arch": "x64",
+      "name": "cua-driver-rs-0.38.0-windows-x86_64-binary.zip",
+      "sha256": "5edaa74d0afa1b55a9668dbc4f32736507bd2bd4d75b18ca1dc8881bb12402b5",
+      "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.38.0/cua-driver-rs-0.38.0-windows-x86_64-binary.zip",
+      "proof": "host-verified-checksum-signature-and-file-manifest",
+      "liveVerified": false,
+      "files": {
+        "cua_driver_abi.h": "c17169f41da321baa5e7e953323c3ad660b00790176ba381e93189fba3506587",
+        "cua_driver_node_runtime.node": "3306eb003a0c57c0c0f58a488fb9cc052630fb800a0db611d3459a76531aec87",
+        "cua_driver_sdk.dll": "68c5540cc99eeb725352db3f3a944679f9d6e1757923b2d8d8ee441b39cd78d9",
+        "cua-cursor-theme.exe": "ffaf56a62b0f3bdaf65f2bc30612e5d6ed408362d4868d6f20e8db93be851f0c",
+        "cua-driver-uia.exe": "69aa6ea0049ce59dfd14593be77c0632f12f6eda3d4a2f4bab1a00e3a72a9754",
+        "cua-driver.exe": "ffa58d88779ee219304b0c307f4cfa970fe822f830c6ecf9254eda5c29e22bf2"
+      },
+      "entrypoint": "cua-driver.exe"
+    },
+    {
+      "os": "windows",
+      "arch": "arm64",
+      "name": "cua-driver-rs-0.38.0-windows-arm64-binary.zip",
+      "sha256": "d25c8ebfffb34e4c095ea170baf47b87c35dc0d1116f42e46b39df2bcbff8700",
+      "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.38.0/cua-driver-rs-0.38.0-windows-arm64-binary.zip",
+      "proof": "host-verified-checksum-signature-and-file-manifest",
+      "liveVerified": false,
+      "entrypoint": "cua-driver.exe",
+      "files": {
+        "cua_driver_abi.h": "c17169f41da321baa5e7e953323c3ad660b00790176ba381e93189fba3506587",
+        "cua_driver_node_runtime.node": "5d860e5f0b23e505d420d2ba31a60edc4fcb34403dc7ab34fcea1ed6ca5a0d4c",
+        "cua_driver_sdk.dll": "16c298d530fb743fc5d1a05d600e9a2cd303f5dc0d592b0644db3a35b0ec1f5b",
+        "cua-cursor-theme.exe": "7b2e64ccd1ee6198b5b76ea49f793e2f7dfc48823bf829cdab6562c41a2b4908",
+        "cua-driver-uia.exe": "51971aa82f70b4a0eebd55ed8e7e628c979399317ec07bd41107d7203d0630c7",
+        "cua-driver.exe": "2d6a0822be887a8a51678f57682d7362d484d4049b769ef964f0c2dffda29de1"
+      }
+    },
+    {
+      "os": "macos",
+      "arch": "universal",
+      "name": "cua-driver-rs-0.38.0-darwin-universal-binary.tar.gz",
+      "sha256": "2bb8dc4a7e69185ffd04c4a9c0eab590bd2c54b72c2c1be13ab675be4f487732",
+      "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.38.0/cua-driver-rs-0.38.0-darwin-universal-binary.tar.gz",
+      "proof": "host-verified-checksum-signature-and-file-manifest",
+      "liveVerified": false,
+      "entrypoint": "cua-driver",
+      "files": {
+        "cua_driver_abi.h": "e952620e41ac81b2d900886c7b0a24ebc6268a4edb8df88cc9971ae34af4ba0d",
+        "cua_driver_node_runtime.node": "67862e4fdeea00e5bc15495c709851eaad94d67aa7e679966e8c08001514903a",
+        "cua-cursor-theme": "270514e576b41b81f7c986ed310fedc5e36c7421fa86734804c76068ad7e642d",
+        "cua-driver": "92067848d0eeb9de76929fbd06a137af801b0ff6caedbb3109bd7a6cc84a1f9f",
+        "libcua_driver_sdk.dylib": "f627aa1c08544d954624b36ba2ddc76f08fea20f9b1d7ff0d0724c22c348354a"
+      }
+    },
+    {
+      "os": "linux",
+      "arch": "x64",
+      "name": "cua-driver-rs-0.38.0-linux-x86_64-binary.tar.gz",
+      "sha256": "31ab9709dd91ce73677e49b9f3e75c6f0d3e4d9625c286c9e58262bfbea698dd",
+      "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.38.0/cua-driver-rs-0.38.0-linux-x86_64-binary.tar.gz",
+      "proof": "host-verified-checksum-signature-and-file-manifest",
+      "liveVerified": false,
+      "entrypoint": "cua-driver",
+      "files": {
+        "cua_driver_abi.h": "e952620e41ac81b2d900886c7b0a24ebc6268a4edb8df88cc9971ae34af4ba0d",
+        "cua_driver_node_runtime.node": "b63caaebdacbc1f70e4de6c8ad757148e55ae72764194c9aa090a7a1e1dac98f",
+        "cua-cursor-theme": "5e203a2ce6ed0abe575884030f04973e96858ef586679297fe171a74a1c1c0e8",
+        "cua-driver": "bf57b2f3778a0a7daa9388e241f20ce948b32a7a2f4dd102e497f34e54137934",
+        "libcua_driver_sdk.so": "dbd45b0846995f9f1f2134108a13ef8febc0a82d3a825b04e1222b8d07b784bc",
+        "wayland-helper/install.sh": "1f36c163562d8d7a3a711e69625adc33895a511a1ca0f2bb8f516c3aca0906fb",
+        "wayland-helper/README.md": "17ed58c871ef71f42afbd29c4d086536cf2619e5aed0bd98e336a55c8a6f52e4",
+        "wayland-helper/winrects@cua/extension.js": "bb20be8157365e486dc7d08ed0d60cd4f46396363ab57fa94546df8111b05a2d",
+        "wayland-helper/winrects@cua/metadata.json": "5f6896ea8dc0f9dfdd4619f4b727a1d28af4ffbab2cb9782b42c245a57f8c175"
+      }
+    },
+    {
+      "os": "linux",
+      "arch": "arm64",
+      "name": "cua-driver-rs-0.38.0-linux-arm64-binary.tar.gz",
+      "sha256": "80c9ae66bc7322052dd426c6133c96086b33894bf06c972bca8215384400b33d",
+      "url": "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.38.0/cua-driver-rs-0.38.0-linux-arm64-binary.tar.gz",
+      "proof": "host-verified-checksum-signature-and-file-manifest",
+      "liveVerified": false,
+      "entrypoint": "cua-driver",
+      "files": {
+        "cua_driver_abi.h": "e952620e41ac81b2d900886c7b0a24ebc6268a4edb8df88cc9971ae34af4ba0d",
+        "cua_driver_node_runtime.node": "212c6265b73ce93538d0b04f48be4dfa54d11c7cad8a6ee1c0d99473588a8f43",
+        "cua-cursor-theme": "62677c2e25678a2a55278fe68179b92435c1d3b376871caa64912a02ebf70c97",
+        "cua-driver": "26e9eee8165e9ce7b614b5e3d68e5d963231385a82b65236406718b5ce1ff936",
+        "libcua_driver_sdk.so": "11a8fa2ca9674767256596f45e965aed55e665a5b761d0c74a748c94dde02847",
+        "wayland-helper/install.sh": "1f36c163562d8d7a3a711e69625adc33895a511a1ca0f2bb8f516c3aca0906fb",
+        "wayland-helper/README.md": "17ed58c871ef71f42afbd29c4d086536cf2619e5aed0bd98e336a55c8a6f52e4",
+        "wayland-helper/winrects@cua/extension.js": "bb20be8157365e486dc7d08ed0d60cd4f46396363ab57fa94546df8111b05a2d",
+        "wayland-helper/winrects@cua/metadata.json": "5f6896ea8dc0f9dfdd4619f4b727a1d28af4ffbab2cb9782b42c245a57f8c175"
+      }
+    }
+  ],
+  "liveGuiVerified": false,
+  "limits": "Archive provenance for five assets; no macOS/Linux live execution claim"
+}

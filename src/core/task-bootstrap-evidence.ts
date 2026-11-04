@@ -52,8 +52,8 @@ export async function verifyBootstrapNativeReference(handoff: TaskBootstrapHando
     if (ref.phaseDirectory !== undefined) fail("quick reference includes phase directory");
     expectedPath = `.planning/quick/${ref.id}/${ref.id.split("-")[0]}-PLAN.md`;
   } else if (ref.kind === "gsd-phase") {
-    const directory = typeof ref.phaseDirectory === "string" ? /^([0-9]{1,6}[a-z]?(?:\.[0-9]{1,6})*)-([a-zA-Z0-9_-]{1,100})$/u.exec(ref.phaseDirectory) : null;
-    const allocation = /^([0-9]{1,6}[a-z]?(?:\.[0-9]{1,6})*)-([0-9]{1,6})$/u.exec(ref.id);
+    const directory = typeof ref.phaseDirectory === "string" ? /^([0-9]{1,6}[a-zA-Z]?(?:\.[0-9]{1,6})*)-([a-zA-Z0-9_-]{1,100})$/u.exec(ref.phaseDirectory) : null;
+    const allocation = /^([0-9]{1,6}[a-zA-Z]?(?:\.[0-9]{1,6})*)-([0-9]{1,6})$/u.exec(ref.id);
     if (!directory || !allocation || directory[1] !== allocation[1]) fail("invalid phase allocation");
     if (handoff.commandRoute?.phase !== undefined && directory![1] !== handoff.commandRoute.phase) fail("native phase differs from preserved request target");
     expectedPath = `.planning/phases/${ref.phaseDirectory}/${ref.id}-PLAN.md`;

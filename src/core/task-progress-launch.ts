@@ -1,11 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, unlink } from "node:fs/promises";
+import { lstat, mkdir, rmdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readTaskApprovals, reservedRunIdForApproval } from "./task-contract.js";
 import type { TaskRunRecord } from "./task-run.js";
 import { appendTaskSessionEvent, createTaskSession, hasTaskSessionSourceEvent, validateTaskSessionBinding, type TaskSessionBinding } from "./task-session.js";
-import { getCommandJobStatus, readBoundedFile, startCommandJob, writeAtomicPrivateFile } from "./command-jobs.js";
+import { getCommandJobStatus, readBoundedFile, startCommandJob, writeAtomicPrivateFile, type CommandJobPathBarrier } from "./command-jobs.js";
 import { waitForCompletion } from "./completion-wait.js";
 import { startTaskProgressPanel } from "./task-progress-panel.js";
 
@@ -15,7 +15,27 @@ type PanelSpec = { schemaVersion: 1; binding: TaskSessionBinding; deadlineAt: nu
 function launchPaths(stateRoot: string, id: string) {
   if (!LAUNCH_ID.test(id)) throw new Error("Invalid panel launch identifier");
   const dir = join(stateRoot, "panel-launches");
-  return { dir, spec: join(dir, `${id}.json`), handoff: join(dir, `${id}.handoff`) };
+  return { dir, spec: join(dir, `${id}.json`), handoff: join(dir, `${id}.handoff`), ready: join(dir, `${id}.ready`) };
+}
+
+export async function publishTaskPanelHandoff(stateRoot: string, id: string, value: { url: string; deadlineAt: number }, barrier?: CommandJobPathBarrier): Promise<void> {
+  const paths = launchPaths(stateRoot, id);
+  await writeAtomicPrivateFile(paths.handoff, JSON.stringify(value), 8192, stateRoot,
+    { exclusive: true, ...(barrier ? { barrier } : {}) });
+  // Atomic file publication is visible before its identity checks/temp cleanup
+  // finish. Announce readiness only after that writer has fully returned.
+  await mkdir(paths.ready, { mode: 0o700 });
+}
+
+export async function readTaskPanelHandoff(stateRoot: string, id: string, deadlineAt: number): Promise<string> {
+  const paths = launchPaths(stateRoot, id);
+  const ready = await lstat(paths.ready);
+  if (!ready.isDirectory() || ready.isSymbolicLink()) throw new Error("Invalid observer readiness marker");
+  const data = JSON.parse(await readBoundedFile(paths.handoff, stateRoot, 8192, undefined, true)) as { url?: unknown; deadlineAt?: unknown };
+  if (typeof data.url !== "string" || data.deadlineAt !== deadlineAt) throw new Error("Invalid observer handoff");
+  const url = new URL(data.url);
+  if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !/^#[A-Za-z0-9_-]{43}$/u.test(url.hash)) throw new Error("Invalid observer handoff");
+  return data.url;
 }
 export function panelDeadline(run: TaskRunRecord, explicitMs?: number, now = Date.now()): number {
   if (explicitMs !== undefined) {
@@ -62,13 +82,9 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   const cli = fileURLToPath(new URL("../cli.js", import.meta.url));
   const job = await startCommandJob({ stateRoot: options.stateRoot, cwd: projectRoot, executable: process.execPath,
     args: [cli, "task", "panel-serve", "--launch-id", id, "--state-root", options.stateRoot], deadlineMs: Math.min(MAX_OBSERVER_MS, Math.max(1, deadlineAt - Date.now() + 10_000)) });
-  const observed = await waitForCompletion({ targetPath: paths.handoff, timeoutMs: Math.min(10000, Math.max(1, deadlineAt - Date.now())), check: async () => {
+  const observed = await waitForCompletion({ targetPath: paths.ready, timeoutMs: Math.min(10000, Math.max(1, deadlineAt - Date.now())), check: async () => {
     try {
-      const data = JSON.parse(await readBoundedFile(paths.handoff, options.stateRoot, 8192, undefined, true)) as { url?: unknown; deadlineAt?: unknown };
-      if (typeof data.url !== "string" || data.deadlineAt !== deadlineAt) return { state: "refused" as const, code: "PANEL_HANDOFF_INVALID", reason: "Invalid observer handoff" };
-      const url = new URL(data.url);
-      if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !/^#[A-Za-z0-9_-]{43}$/u.test(url.hash)) return { state: "refused" as const, code: "PANEL_HANDOFF_INVALID", reason: "Invalid observer handoff" };
-      return { state: "terminal" as const, value: data.url };
+      return { state: "terminal" as const, value: await readTaskPanelHandoff(options.stateRoot, id, deadlineAt) };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return { state: "pending" as const };
       return { state: "refused" as const, code: "PANEL_HANDOFF_INVALID", reason: "Observer handoff could not be read" };
@@ -77,6 +93,7 @@ export async function launchTaskProgressPanel(options: { stateRoot: string; bind
   if (observed.status !== "completed") throw new Error(`Panel handoff ${observed.status}; observer job ${job.jobId} remains the exact handle`);
   await unlink(paths.handoff);
   await unlink(paths.spec);
+  await rmdir(paths.ready);
   return { jobId: job.jobId, binding, deadlineAt, url: observed.value };
 }
 async function hydrateTaskProgress(options: { stateRoot: string; binding: TaskSessionBinding; run: TaskRunRecord; workflow: string | undefined; dedicated: Awaited<ReturnType<typeof exactRun>>["dedicated"] }): Promise<void> {
@@ -122,7 +139,7 @@ export async function serveTaskProgressPanel(stateRoot: string, id: string): Pro
     process.once("SIGINT", finish);
   });
   try {
-    await writeAtomicPrivateFile(paths.handoff, JSON.stringify({ url: panel.url, deadlineAt: spec.deadlineAt }), 8192, stateRoot, { exclusive: true });
+    await publishTaskPanelHandoff(stateRoot, id, { url: panel.url, deadlineAt: spec.deadlineAt });
     await stopped;
   } finally {
     clearTimeout(timer);
@@ -132,6 +149,7 @@ export async function serveTaskProgressPanel(stateRoot: string, id: string): Pro
     finally {
       await unlink(paths.handoff).catch(() => {});
       await unlink(paths.spec).catch(() => {});
+      await rmdir(paths.ready).catch(() => {});
     }
   }
 }

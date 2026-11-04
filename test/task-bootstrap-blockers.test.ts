@@ -40,7 +40,7 @@ async function prepare(context: Parameters<typeof createIsolatedSandbox>[0], pha
   return { sandbox, options, applied };
 }
 
-for (const phase of ["30", "30.1", "30.01", "30a.1"]) {
+for (const phase of ["30", "30.1", "30.01", "30a.1", "30A.1"]) {
   test(`native allocation must match preserved phase ${phase}, including acknowledgement and reentry`, async (context) => {
     const { options, applied } = await prepare(context, phase);
     await claimTaskBootstrap({ ...options, claimNonce: "phase-claim" });

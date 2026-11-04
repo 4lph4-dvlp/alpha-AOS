@@ -13,6 +13,7 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 - Panel readiness consumes its launch specification before returning, so forced cancellation leaves no launch residue. Windows test fixtures use canonical temporary paths; CI diagnostics are stored outside the checkout.
 - GitHub release delivery is gated on exact-commit three-OS CI and checksummed artifacts. npm publication and global rollout remain separate.
 - Bootstrap fixtures no longer depend on developer-installed runtimes. Native reconciliation binds the requested phase, including decimal identifiers; cancellation publication, owned-marker cleanup and terminal writes share one job writer.
+- Panel readiness is announced only after handoff publication, identity checks and temporary-file cleanup finish, preventing immediate cancellation from racing the producer.
 - A resumable GitHub Actions release workflow publishes the original CI artifact, verifies all four required jobs and checks uploaded bytes before making a draft public. Published assets and existing tag targets cannot be replaced.
 
 ## [0.5.0] - 2026-11-01

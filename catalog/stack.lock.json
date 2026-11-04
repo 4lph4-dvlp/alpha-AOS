@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "channel": "stable",
-  "generatedAt": "2026-10-25T18:01:16.999Z",
+  "generatedAt": "2026-11-04T17:03:42.343Z",
   "components": {
     "gsd": {
       "package": "@opengsd/gsd-core",
-      "version": "1.18.0",
-      "integrity": "sha512-00b29mvlQMmUcR8wkvJFf/okGDWRB1kiHR4Pg921N+Q8nFwXehRhHEGAusQn+oM/p7SMGM4sAdPAbiECGaozwg==",
+      "version": "1.20.0",
+      "integrity": "sha512-fGpLYbkjSVBKB9xrgFqOzY3+dfLYlJdfqDoIpGohnqHMl9riBbHzi7JmdvZrtexLcKV1fjzKcY3kcnqSYEcVnQ==",
       "profile": "full"
     },
     "ecc": {
@@ -88,25 +88,25 @@
     "mcp": {
       "context7": {
         "package": "@upstash/context7-mcp",
-        "version": "4.4.4",
-        "integrity": "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA=="
+        "version": "4.5.0",
+        "integrity": "sha512-BTMM4j2ZuZdAHE1sERUCcty1eRcom4LCE04iv2XIi9b9RKhJKQsXMG7gZLgx7FX5uyyaW6xki7ReuhRM4bphZQ=="
       },
       "exa": {
         "package": "exa-mcp-server",
-        "version": "3.4.2",
-        "integrity": "sha512-2pqkOuXnABXrwVkB6VyMYA9ywr1aqjBGKlLtcgTBMkWtIn74yY+pMPn8Km2SAGfLeENfWaIHv1L7/kF0b+E5BQ=="
+        "version": "3.4.3",
+        "integrity": "sha512-2tHYSFH5BfrsGwbaGqiMLe1yS9Tbr3M0cr7kJwHISF6rdsbjA9dEXH3N8F9YVOHU4mVdPWOel3Pbhyo5rsaxVg=="
       },
       "firecrawl": {
         "package": "firecrawl-mcp",
-        "version": "3.34.1",
-        "integrity": "sha512-ccQgYHk+NDw7bQRkITfwmiqU212HAE8Dll8A4PsIIx8UKBouj11Eu2o06eQoWCVznlqEtjEepQdyyazSyBK7Cg=="
+        "version": "3.37.0",
+        "integrity": "sha512-1SVtn+sJnYKmqi8C0WmLOgiVn7UzXKQZwmnoIDGQr5/FW22eI9tHN9eWZLcc6YAtBUxcs7iGrxqbHcmCIcxS8Q=="
       }
     },
     "mcpBridges": {
       "pi": {
         "package": "pi-mcp-adapter",
-        "version": "6.0.0",
-        "integrity": "sha512-pmCLEaxsvElxahdevTpocmaou6SVMRgNSc/L3b1xZIGtw9t6M56yZxP6SO21mdu9SZiUUeQR50aKmY54WflpKA=="
+        "version": "7.0.1",
+        "integrity": "sha512-hLmB6v2NxzZLUcgnVP4EKxWPBQGPXK5DRvL48UP1lZeyfjzhZbB+3zcawOdIIxHujxE9eqrVNapx6Hh5YmDFrA=="
       }
     },
     "ownedSkills": {

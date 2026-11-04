@@ -1,26 +1,43 @@
 ---
-phase: 29-gsd-initialization-and-request-continuity
-verified: 2026-11-02T16:30:00Z
-status: passed
-score: 12/12 must-haves verified
-behavior_unverified: 0
-overrides_applied: 0
-human_verification:
-  - "Native execution is proven for Codex runtime in scratch directory (cd05fd60-ce7b-4655-ae1a-e794d0b88c1c) with @opengsd/gsd-core 1.18.0, producing verified disk artifacts (.planning/PROJECT.md, STATE.md, and quick SUMMARY.md) and git commit 3adb72549623865abc4187715bc344b346f8acc9, verified via scripts/verify-task-bootstrap-native.mjs. Live paid model calls for Claude/Codex/Antigravity/Pi/Hermes are reserved for user check per D-23."
+phase: "29-gsd-initialization-and-request-continuity"
+verified: "2026-11-03T15:14:31Z"
+status: "gaps_found"
+score: "7/13 must-haves verified"
 covered_files: [
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-01-PLAN.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-01-SUMMARY.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-02-PLAN.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-02-SUMMARY.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-03-PLAN.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-03-SUMMARY.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-04-PLAN.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-04-SUMMARY.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-05-PLAN.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-05-SUMMARY.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-06-PLAN.md",
+  ".planning/phases/29-gsd-initialization-and-request-continuity/29-06-SUMMARY.md",
   "catalog/stack.lock.json",
   "docs/task-bootstrap-proof.md",
+  "docs/task-entry-proof-index.json",
   "docs/task-runtime-controls.md",
   "schemas/task-bootstrap.schema.json",
   "scripts/verify-task-bootstrap-native.mjs",
+  "scripts/verify-task-entry-proof.mjs",
   "skills/alpha-aos-task/SKILL.md",
   "src/cli.ts",
+  "src/core/behavior-policy.ts",
+  "src/core/owned-skills.ts",
+  "src/core/path-boundary.ts",
   "src/core/task-bootstrap-recovery.ts",
   "src/core/task-bootstrap-store.ts",
   "src/core/task-bootstrap.ts",
+  "src/core/task-gsd-discovery.ts",
   "src/core/task-gsd-lifecycle.ts",
   "src/core/task-gsd-readiness.ts",
   "src/core/task-gsd.ts",
+  "src/core/task-style.ts",
+  "src/core/transaction.ts",
+  "src/core/writer-lock.ts",
   "src/format.ts",
   "test/task-bootstrap-acceptance.test.ts",
   "test/task-bootstrap-cli.test.ts",
@@ -29,111 +46,480 @@ covered_files: [
   "test/task-bootstrap-resume.test.ts",
   "test/task-bootstrap-routing.test.ts",
   "test/task-cli.test.ts",
+  "test/task-entry-cross-harness.test.ts",
   "test/task-gsd-readiness.test.ts"
 ]
-covered_digest: "v3:sha256:765bca77af88780cbf7c9e1a10d4ba33a64d535a2b57b1709e6312352503120b"
+covered_digest: "v3:sha256:f2c4bdca9085e761c394bbc905368d3ebd439069e7978908613e0117e5a80e6f"
+behavior_unverified: 0
+overrides_applied: 0
+re_verification: {
+  "previous_status": "passed",
+  "previous_score": "12/12 must-haves verified",
+  "mode": "fresh goal verification; previous report has no gaps section",
+  "gaps_closed": [],
+  "gaps_remaining": [
+    "Fresh readiness must withhold requested-task dispatch until native initialization/recovery is ready.",
+    "One held mutation session covers handoff read/compare/intent write for prepare, claim, link, acknowledge and cancel.",
+    "After durable claim intent or lost response, ambiguous reentry blocks redispatch and reconciles only exact native artifacts.",
+    "Linking and acknowledging delivery validate exact native artifact/request/root and bounded Git evidence."
+  ],
+  "regressions": []
+}
+must_haves: {
+  "truths": [
+    "A user can distinguish missing runtime, absent project, partial initialization and ready project using the installed GSD's prerequisites rather than directory or PROJECT.md presence alone.",
+    "For an absent project, GSD new-project receives facts already supplied in the original request and asks only for missing information and native mandatory decisions.",
+    "Partial initialization names missing prerequisites and invokes a GSD recovery path that preserves existing context; no empty placeholders or silent overwrites manufacture readiness.",
+    "After bootstrap/recovery, the original request and its selected style resume once without retyping, a second chooser or duplicate implementation. Required GSD checkpoints and autopilot review remain intact.",
+    "A simple exempt operation or policy-only change avoids forced initialization, while cancellation/interruption of substantive initialization leaves an honest resumable checkpoint and does not start the pending task.",
+    "The original request/style/command is private, bounded, root/content-bound and survives known-fact native handoff without becoming a project style setting.",
+    "Preview creates no handoff; concurrent preparation cannot overwrite a different request for the same pending ID.",
+    "One held read/compare/intent session serializes genuinely competing processes and cancellation, with at most one new dispatcher.",
+    "Lost response or crash after durable intent blocks ambiguous redispatch and reconciles only exact native artifacts/commits.",
+    "Native reference linking and acknowledgement validate actual artifact/request/root/commit evidence rather than caller-supplied labels.",
+    "Autopilot bootstrap restores identity while withholding exact-contract approval/start/inline execution, including same-nonce pre-link retry.",
+    "Five rendered guidance targets preserve selected routes, direct-command timing, exemptions, current policy and explicit unsupported Hermes controller status.",
+    "Existing native bootstrap evidence and final regression outcomes are inspectable and tiered honestly."
+  ],
+  "artifacts": [
+    {
+      "path": "src/core/task-gsd-readiness.ts",
+      "provides": "Version-aware native prerequisite interpretation"
+    },
+    {
+      "path": "schemas/task-bootstrap.schema.json",
+      "provides": "Closed readiness input variant"
+    },
+    {
+      "path": "test/task-bootstrap-cli.test.ts",
+      "provides": "Real compiled CLI, zero-write and error behavior"
+    },
+    {
+      "path": "src/core/task-bootstrap.ts",
+      "provides": "Prepare/inspect route and native input builder"
+    },
+    {
+      "path": "src/core/task-bootstrap-store.ts",
+      "provides": "Atomic immutable delivery intent and exact native linkage"
+    },
+    {
+      "path": "test/task-bootstrap-handoff.test.ts",
+      "provides": "Private/public boundary and byte/count limits"
+    },
+    {
+      "path": "src/core/task-bootstrap-recovery.ts",
+      "provides": "Typed native recovery plan, preservation and evidence checks"
+    },
+    {
+      "path": "test/task-bootstrap-recovery.test.ts",
+      "provides": "Partial/archive/corrupt/history byte-preservation matrix"
+    },
+    {
+      "path": "test/task-bootstrap-resume.test.ts",
+      "provides": "Crash-boundary and two-process resume/cancel behavioral proof"
+    },
+    {
+      "path": "skills/alpha-aos-task/SKILL.md",
+      "provides": "User-facing native initialization/resume procedure"
+    },
+    {
+      "path": "catalog/stack.lock.json",
+      "provides": "Source and five rendered target hashes"
+    },
+    {
+      "path": "test/task-bootstrap-routing.test.ts",
+      "provides": "Rendered-target scenario driver"
+    },
+    {
+      "path": "test/task-bootstrap-acceptance.test.ts",
+      "provides": "Composed public-entry positive/negative journeys"
+    },
+    {
+      "path": "scripts/verify-task-bootstrap-native.mjs",
+      "provides": "Read-only verifier of separately captured native receipt and referenced evidence"
+    },
+    {
+      "path": "docs/task-bootstrap-proof.md",
+      "provides": "Native versus fixture result ledger with actual limitations"
+    }
+  ],
+  "key_links": [
+    {
+      "from": "src/cli.ts",
+      "to": "src/core/task-gsd-readiness.ts",
+      "via": "task readiness --input request.json --json"
+    },
+    {
+      "from": "src/core/task-gsd.ts",
+      "to": "src/core/task-gsd-readiness.ts",
+      "via": "Backward-compatible quick readiness projection"
+    },
+    {
+      "from": "src/cli.ts",
+      "to": "src/core/task-bootstrap.ts",
+      "via": "task bootstrap --input packet.json [--apply] [--json]"
+    },
+    {
+      "from": "src/core/task-bootstrap-store.ts",
+      "to": "src/core/transaction.ts",
+      "via": "One held mutation session covers compare/read/write"
+    },
+    {
+      "from": "src/core/task-bootstrap.ts",
+      "to": "src/core/task-bootstrap-recovery.ts",
+      "via": "prepare/inspect delegates recovery projection"
+    },
+    {
+      "from": "src/core/task-bootstrap-recovery.ts",
+      "to": "src/core/task-gsd-readiness.ts",
+      "via": "Fresh native init.resume/new-project evidence"
+    },
+    {
+      "from": "src/core/task-bootstrap.ts",
+      "to": "src/core/task-bootstrap-store.ts",
+      "via": "claim/link/acknowledge/cancel within one serialized mutation session"
+    },
+    {
+      "from": "src/core/task-bootstrap.ts",
+      "to": "src/core/task-gsd-discovery.ts",
+      "via": "Exact referenced native artifact reconciliation"
+    },
+    {
+      "from": "skills/alpha-aos-task/SKILL.md",
+      "to": "src/cli.ts",
+      "via": "Actual task readiness and bootstrap inputs/outputs"
+    },
+    {
+      "from": "catalog/stack.lock.json",
+      "to": "src/core/owned-skills.ts",
+      "via": "renderOwnedSkill hashes for claude/codex/antigravity/pi/hermes"
+    },
+    {
+      "from": "test/task-bootstrap-acceptance.test.ts",
+      "to": "src/cli.ts",
+      "via": "Real compiled public-entry sequences and isolated roots"
+    },
+    {
+      "from": "scripts/verify-task-bootstrap-native.mjs",
+      "to": "docs/task-bootstrap-proof.md",
+      "via": "Receipt schema and concrete native artifact/commit references"
+    }
+  ],
+  "prohibitions": [
+    {
+      "statement": "Transfer records must not become a second GSD lifecycle or project execution-style default.",
+      "verification": "judgment",
+      "status": "unverified"
+    },
+    {
+      "statement": "Known-fact reuse must not silently broaden a bounded change into a new product or imply native decision approval.",
+      "verification": "judgment",
+      "status": "unverified"
+    }
+  ]
+}
+decision_coverage: {
+  "skipped": false,
+  "blocking": false,
+  "total": 24,
+  "honored": 24,
+  "not_honored": [],
+  "message": "All trackable CONTEXT.md decisions are honored by shipped artifacts."
+}
+unverified_prohibitions: [
+  {
+    "id": "P29-1",
+    "source_plan": "29-04:23",
+    "statement": "Transfer records must not become a second GSD lifecycle or project execution-style default.",
+    "verification": "judgment",
+    "status": "unverified",
+    "classification": "WARNING",
+    "human_decision_required": true
+  },
+  {
+    "id": "P29-2",
+    "source_plan": "29-02:23",
+    "statement": "Known-fact reuse must not silently broaden a bounded change into a new product or imply native decision approval.",
+    "verification": "judgment",
+    "status": "unverified",
+    "classification": "WARNING",
+    "human_decision_required": true
+  }
+]
+human_verification: []
+gaps: [
+  {
+    "truth": "Fresh readiness must withhold requested-task dispatch until native initialization/recovery is ready.",
+    "status": "failed",
+    "reason": "claimTaskBootstrap permits absent-project/partial-project through the rejection guard and returns conversational dispatch authorization with requested-task execution nextAction.",
+    "artifacts": [
+      {
+        "path": "src/core/task-bootstrap.ts",
+        "issue": "Lines725-746 do not require readiness.ready; lines944-955 authorize native task execution."
+      }
+    ],
+    "missing": [
+      "Require ready requested-task prerequisites before first dispatch; preserve harmless pending/status/recovery inspection and exact autopilot false guard.",
+      "Add a targeted negative check for prepare→claim before init and partial init, proving no dispatch/claim advancement."
+    ]
+  },
+  {
+    "truth": "One held mutation session covers handoff read/compare/intent write for prepare, claim, link, acknowledge and cancel.",
+    "status": "failed",
+    "reason": "Store collision/transition decisions happen before the transaction's default writer session; the public CLI supplies no pre-held session, and operations carry no expected prior revision.",
+    "artifacts": [
+      {
+        "path": "src/core/task-bootstrap-store.ts",
+        "issue": "persist:271-314 and update:452-483 compute stale decisions/content outside the write lock."
+      },
+      {
+        "path": "src/core/transaction.ts",
+        "issue": "FileWriteOperation:96 has target/content only; session acquisition:313-319 protects write, not prior comparison."
+      },
+      {
+        "path": "test/task-bootstrap-resume.test.ts",
+        "issue": "The :154 two-process test awaits A then B in one process and cannot prove the race."
+      }
+    ],
+    "missing": [
+      "Own one compatible state session across read/compare/transition/write and reuse it in applyFileTransaction.",
+      "Exercise two separate CLI processes and cancel/claim races with deterministic coordination; exactly one new-dispatch winner."
+    ]
+  },
+  {
+    "truth": "After durable claim intent or lost response, ambiguous reentry blocks redispatch and reconciles only exact native artifacts.",
+    "status": "failed",
+    "reason": "The same-nonce conversational claimed branch reissues dispatchAuthorized:true without inspecting whether native work was already allocated/executed before a lost link/response.",
+    "artifacts": [
+      {
+        "path": "src/core/task-bootstrap.ts",
+        "issue": "Lines837-861 return new dispatch permission without exact native reconciliation; no task-gsd-discovery call."
+      }
+    ],
+    "missing": [
+      "Treat ambiguous after-intent reentry as blocked until exact native allocation/delivery evidence resolves it; do not guess latest or recreate work.",
+      "Add deterministic after-intent/before-response and after-native-allocation/before-link interruption checks; preserve original request/style and WIP."
+    ]
+  },
+  {
+    "truth": "Linking and acknowledging delivery validate exact native artifact/request/root and bounded Git evidence.",
+    "status": "failed",
+    "reason": "Current link accepts a caller object/id; acknowledgement can accept no receipt hash. Neither opens/correlates the claimed native artifact or commit.",
+    "artifacts": [
+      {
+        "path": "src/core/task-bootstrap.ts",
+        "issue": "Lines995-1056 link unchecked object;1139-1183 optionally copy receiptSha256 without native artifact validation."
+      }
+    ],
+    "missing": [
+      "Use existing task-gsd-discovery/task-gsd exact reference helpers or equivalent bounded validator to reopen actual artifact and correlate root/request/commit before acceptance.",
+      "Refuse missing/tampered/cross-root/ambiguous native references and empty acknowledgement evidence; preserve idempotent exact linked reentry."
+    ]
+  }
+]
+pending_human_verification: [
+  {
+    "test": "Disposition P29-1: Transfer records must not become a second GSD lifecycle or project execution-style default.",
+    "expected": "After BOOT-04 repair, explicitly accept transfer-only bookkeeping and native lifecycle ownership, or identify a violation.",
+    "why_human": "29-04-PLAN.md:23 unresolved descriptor-less prohibition; automated transfer tests cannot replace its independent human semantics judgment."
+  },
+  {
+    "test": "Disposition P29-2: Known-fact reuse must not silently broaden a bounded change into a new product or imply native decision approval.",
+    "expected": "Accept bounded fact reuse/conflict disclosure with native mandatory decisions retained, or specify a missing semantic case.",
+    "why_human": "29-02-PLAN.md:23 unresolved descriptor-less prohibition; P2 archival-tier and P3 label approvals do not address this scope/consent item."
+  }
+]
 ---
 
 # Phase 29: GSD Initialization and Request Continuity Verification Report
 
-**Phase Goal:** A user requesting substantial work in an undefined or partially initialized project can understand native readiness, complete GSD initialization/recovery, and resume the original request once with its already selected style.  
-**Verified:** 2026-11-02T16:30:00Z  
-**Status:** `passed` (Automated verification: 100% PASS across 45 phase tests and 2,046 full repository tests; native scratch execution verified via `scripts/verify-task-bootstrap-native.mjs`).  
-**Re-verification:** No — initial verification of Phase 29 execution.
+**Phase Goal:** A user requesting substantial work in an absent or incomplete GSD project is guided through the appropriate native initialization/recovery and resumes the original request without duplication or context loss.
 
----
+**Verified:** 2026-11-03T15:14:31Z  
+**Status:** gaps_found  
+**Previous report:** preserved as 29-VERIFICATION-PRE-RELEASE-060.md. Prior claims were not implementation evidence.
 
-## Goal Achievement & Observable Truths
+## Goal Achievement
 
-All twelve observable truths and acceptance criteria defined across Plans 29-01 through 29-06 have been verified against the live repository codebase, schemas, CLI entrypoints, unit/acceptance test suites, and regression gates.
+### Observable Truths
 
-| # | Truth / Acceptance Criterion | Status | Evidence |
-|---|---|---|---|
-| 1 | Native GSD readiness evaluates real installed toolchain (`gsd-tools init --query`, etc.) and accurately discriminates six diagnostic classes (`missing-runtime`, `absent-project`, `partial-project`, `ready`, `probe-error`, `unsupported`) without writing any files or synthesizing fake `.planning`. | **VERIFIED** | `src/core/task-gsd-readiness.ts:250-410`, `test/task-gsd-readiness.test.ts`, `test/task-bootstrap-cli.test.ts`. |
-| 2 | Readiness output provides root, runtime info, workflow, satisfied/missing prerequisites, reasons, and next action while strictly enforcing the zero authority expansion invariant (`executionAuthorized: false`). | **VERIFIED** | `src/core/task-gsd-readiness.ts:60-75`, `src/format.ts:formatGsdProjectReadiness`, `test/task-gsd-readiness.test.ts`. |
-| 3 | Absent-project request preparation parses input up to 16 KiB pre-parse budget, rejects duplicate keys, redacts credentials, extracts original goal/scope/facts, and previews with zero disk mutations (`applied: false`, `destinationPath: null`). | **VERIFIED** | `src/core/task-bootstrap.ts:280-420`, `test/task-bootstrap-handoff.test.ts`, `test/task-bootstrap-cli.test.ts`. |
-| 4 | Applied bootstrap handoff creates an immutable transfer record persisted solely under `userStateRoot()/bootstrap/<projectId>/<pendingId>.json`, isolated from project Git repositories, bounded by strict byte and count limits. | **VERIFIED** | `src/core/task-bootstrap-store.ts:120-210`, `test/task-bootstrap-handoff.test.ts`. |
-| 5 | Partial project recovery inspects existing on-disk planning state, identifies the first missing stage (`REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`), and routes to the exact native recovery action (`new-project` resume, `new-milestone`, or `reconstruct-state`). | **VERIFIED** | `src/core/task-bootstrap-recovery.ts:110-230`, `test/task-bootstrap-recovery.test.ts`. |
-| 6 | Non-destructive recovery strictly preserves existing artifact bytes, partial summaries, and dirty WIP; blocks empty/corrupt artifacts and rejects destructive resets or placeholder synthesis. | **VERIFIED** | `src/core/task-bootstrap-recovery.ts:240-350`, `test/task-bootstrap-recovery.test.ts`. |
-| 7 | Once-only claim serialization uses atomic file locks and cryptographic nonces (`claimNonce`), guaranteeing that two racing processes competing for one pending handoff grant exactly one dispatch permission. | **VERIFIED** | `src/core/task-bootstrap.ts:480-600`, `src/core/task-bootstrap-store.ts:240-310`, `test/task-bootstrap-resume.test.ts`. |
-| 8 | Native reference linking binds completed GSD quick summary artifacts (`001-SUMMARY.md`) with SHA-256 byte verification; subsequent entry on the same reference redirects to `continue-existing` without second task dispatch. | **VERIFIED** | `src/core/task-bootstrap.ts:610-740`, `test/task-bootstrap-resume.test.ts`, `test/task-bootstrap-acceptance.test.ts`. |
-| 9 | Cancellation marks handoff cancelled and blocks subsequent claim or link; cancellation of an in-flight claimed handoff reports delivery-in-flight and routes to native stop. | **VERIFIED** | `src/core/task-bootstrap.ts:850-930`, `test/task-bootstrap-resume.test.ts`. |
-| 10 | Autopilot style claim restores task identity but strictly withholds dispatch authorization (`dispatchAuthorized: false`), enforcing separate contract approval and isolated runner launch. | **VERIFIED** | `src/core/task-bootstrap.ts:540-580`, `test/task-bootstrap-resume.test.ts`. |
-| 11 | Owned skill `alpha-aos-task` routes general requests through readiness and bootstrap across `claude`, `codex`, `antigravity`, `pi`, and `hermes` with identical source and rendered SHA-256 integrity (`e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0`). | **VERIFIED** | `skills/alpha-aos-task/SKILL.md:1-120`, `catalog/stack.lock.json`, `test/task-bootstrap-routing.test.ts`. |
-| 12 | Composed end-to-end acceptance proves the full lifecycle from absent-project to single-execution quick with idempotent reentry; `scripts/verify-task-bootstrap-native.mjs` verifies real live scratch run with native tier proof, disk artifacts, and commit evidence. | **VERIFIED** | `test/task-bootstrap-acceptance.test.ts`, `scripts/verify-task-bootstrap-native.mjs`, `docs/task-bootstrap-proof.md`. |
+Rows1–5 preserve the roadmap success criteria verbatim. Remaining rows merge additional plan detail; the next table maps every original PLAN truth to one resolved obligation. Repeated cross-cutting obligations count once.
 
----
+| # | Truth | Status | Direct evidence |
+| --- | --- | --- | --- |
+| 1 | A user can distinguish missing runtime, absent project, partial initialization and ready project using the installed GSD's prerequisites rather than directory or PROJECT.md presence alone. | VERIFIED | task-gsd-readiness.ts:325-1008 queries runtime-identity, init.resume and target prerequisites; readiness tests in 0261 log:1477-1489 assert diagnostic/error/archive/agent-install distinctions. |
+| 2 | For an absent project, GSD new-project receives facts already supplied in the original request and asks only for missing information and native mandatory decisions. | VERIFIED | prepareTaskBootstrap/buildNativeBootstrapInput preserve original bounded request/facts and conflicts without auto-answering native decisions; handoff/routing tests and reverified historical bootstrap receipt. |
+| 3 | Partial initialization names missing prerequisites and invokes a GSD recovery path that preserves existing context; no empty placeholders or silent overwrites manufacture readiness. | VERIFIED | planNativeBootstrapRecovery scans substantive existing artifacts, distinguishes interrupted/archive/history/corrupt state and supplies native action; recovery tests assert exact preserved bytes/WIP. |
+| 4 | After bootstrap/recovery, the original request and its selected style resume once without retyping, a second chooser or duplicate implementation. Required GSD checkpoints and autopilot review remain intact. | FAILED — BLOCKER | Requested-task claim accepts absent/partial readiness, stale claim updates are computed outside the write session, and same-nonce conversational retry grants permission without native reconciliation. See G29-01..04. |
+| 5 | A simple exempt operation or policy-only change avoids forced initialization, while cancellation/interruption of substantive initialization leaves an honest resumable checkpoint and does not start the pending task. | FAILED — BLOCKER | Simple exemptions and sequential cancellation work, but after-intent interruption can return dispatchAuthorized:true on same nonce rather than blocked exact reconciliation; cancel/claim comparison is outside a shared session. |
+| 6 | The original request/style/command is private, bounded, root/content-bound and survives known-fact native handoff without becoming a project style setting. | VERIFIED | task-bootstrap-store.ts content digest:98-110 binds originalRequest, knownFacts and selected identity; schema/byte/count/privacy tests exercise the private/public boundary. |
+| 7 | Preview creates no handoff; concurrent preparation cannot overwrite a different request for the same pending ID. | FAILED — BLOCKER | persistTaskBootstrapHandoff reads/collision-checks at store.ts:271-303 before transaction-owned lock. There is no held default session or expected-before-content predicate; same stale-read schedule as G29-02 applies. |
+| 8 | One held read/compare/intent session serializes genuinely competing processes and cancellation, with at most one new dispatcher. | FAILED — BLOCKER | updateTaskBootstrapHandoff:452-483 reads/transitions/serializes before applyFileTransaction; CLI supplies no session. The named two-process test is sequential awaited function calls, not two processes. |
+| 9 | Lost response or crash after durable intent blocks ambiguous redispatch and reconciles only exact native artifacts/commits. | FAILED — BLOCKER | task-bootstrap.ts:837-861 same-nonce conversational retry returns dispatchAuthorized:true. No exact native discovery/reconciliation call occurs before that return. |
+| 10 | Native reference linking and acknowledgement validate actual artifact/request/root/commit evidence rather than caller-supplied labels. | FAILED — BLOCKER | link:995-1056 accepts nativeReference object/id without reopening an artifact; acknowledge:1139-1183 can record linked→acknowledged with no receipt hash. The planned discovery/artifact-validation link is absent. |
+| 11 | Autopilot bootstrap restores identity while withholding exact-contract approval/start/inline execution, including same-nonce pre-link retry. | VERIFIED | The corrected e3ead95 guard remains at task-bootstrap.ts:837-861/944-960; dedicated autopilot initial→same-nonce→different claimant→linked tests assert false throughout. G31-01 is not reopened. |
+| 12 | Five rendered guidance targets preserve selected routes, direct-command timing, exemptions, current policy and explicit unsupported Hermes controller status. | VERIFIED | Real target deploy/routing tests pass; skill readiness/bootstrap sections call public CLI and retain manual native lifecycle ownership. |
+| 13 | Existing native bootstrap evidence and final regression outcomes are inspectable and tiered honestly. | VERIFIED | Fresh verifier of the recorded Codex scratch receipt exited0: valid/gitCommitVerified/singleTaskExecutionVerified true. Checkout proof verifier independently reports seven archival native cells; 0261 raw regression verified unchanged production source. |
 
-## Required Artifacts Verification
+**Score:** 7/13 merged truths verified; 0 present-and-wired but behavior-unverified.
 
-| Artifact | Purpose | Status | Details |
-|---|---|---|---|
-| `schemas/task-bootstrap.schema.json` | JSON Schema for readiness & bootstrap interchange | **VERIFIED** | Closed interchange schema enforcing v1 specification, 6 operations (`prepare`, `inspect`, `claim`, `link`, `acknowledge`, `cancel`), and bounded limits. |
-| `src/core/task-gsd-readiness.ts` | GSD readiness evaluator | **VERIFIED** | Exports `inspectGsdProjectReadiness`, discriminating 6 diagnostic classes with real toolchain queries and zero file mutations. |
-| `src/core/task-bootstrap-store.ts` | Atomic state storage for handoff records | **VERIFIED** | Exports atomic handoff persistence, limit validation, cryptographic hashing, and race-safe claim locks under user state root. |
-| `src/core/task-bootstrap-recovery.ts` | Non-destructive recovery planner | **VERIFIED** | Exports `planNativeBootstrapRecovery` and `verifyNativeBootstrapRecovery`, enforcing byte-for-byte preservation. |
-| `src/core/task-bootstrap.ts` | Core bootstrap lifecycle orchestrator | **VERIFIED** | Implements `prepareTaskBootstrap`, `claimTaskBootstrap`, `linkTaskBootstrap`, `acknowledgeTaskBootstrap`, and `cancelTaskBootstrap`. |
-| `src/cli.ts` | Public CLI command dispatch | **VERIFIED** | Implements `alpha-aos task readiness [--json]` and `alpha-aos task bootstrap --operation <op> --input <file> [--apply] [--json]`. |
-| `src/format.ts` | Terminal output formatter | **VERIFIED** | Implements `formatGsdProjectReadiness` and `formatTaskBootstrapResult`. |
-| `skills/alpha-aos-task/SKILL.md` | Five-target task intake & bootstrap skill | **VERIFIED** | Sections 1 and 2 updated to guide absent and partial projects through native GSD initialization and once-only handoff. |
-| `catalog/stack.lock.json` | Lockfile synchronization | **VERIFIED** | SHA-256 `e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0` synchronized across all 5 targets. |
-| `scripts/verify-task-bootstrap-native.mjs` | Read-only native proof verifier | **VERIFIED** | Strictly enforces `evidenceTier: "native"`, verifies disk artifacts, Git commits via `git cat-file`, and single execution. |
-| `docs/task-bootstrap-proof.md` | Evidence ledger | **VERIFIED** | Documents proof tier boundaries, trust limits, schema contracts, and Task 29-06-02 live verification receipts. |
-| `docs/task-runtime-controls.md` | Operational reference | **VERIFIED** | Documents readiness diagnosis, bootstrap operations, non-destructive recovery, and reentry redirection. |
+### PLAN Detail Traceability
 
----
+| Plan / truth | Original obligation | Merged row / status |
+| --- | --- | --- |
+| 29-01 T1 | D-01, D-02, D-04: Public text/JSON distinguishes missing-runtime, absent-project, partial-project, ready, probe-error and unsupported without writes. | 1: VERIFIED |
+| 29-01 T2 | D-03: Native init_incomplete/milestones evidence distinguishes interrupted bootstrap from archived milestones and shared PROJECT/workstream paths. | 1: VERIFIED |
+| 29-01 T3 | D-21: Policy-only and proven simple operations require no readiness bootstrap; direct commands retain target, arguments and native timing. | 12: VERIFIED |
+| 29-01 T4 | GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval. | 11: VERIFIED |
+| 29-02 T1 | D-05, D-06, D-07, D-08: Known facts feed the ordinary native conversation, with missing/conflicting facts and mandatory decisions still asked. | 6: VERIFIED |
+| 29-02 T2 | D-13, D-14, D-15: Exact root/pending/content references recover only the bounded original request and its chosen style/command. | 6: VERIFIED |
+| 29-02 T3 | D-16: Concurrent preparation with the same pending ID cannot overwrite a different request; preview/status creates no record. | 7: FAILED |
+| 29-02 T4 | GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval. | 11: VERIFIED |
+| 29-03 T1 | D-09, D-10: Partial bootstrap resumes native new-project at its first missing artifact while preserving PROJECT/REQUIREMENTS/config and unrelated WIP bytes. | 3: VERIFIED |
+| 29-03 T2 | D-11, D-12: History-backed state loss and normal archive get their supported native paths; corrupt/unknown recovery remains blocked. | 3: VERIFIED |
+| 29-03 T3 | D-19: Interruption preserves completed native steps and exact pending reference; status does not advance work. | 5: FAILED |
+| 29-03 T4 | GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval. | 11: VERIFIED |
+| 29-04 T1 | D-15, D-16, D-17: Fresh readiness and exact root/pending/content/native references hand the original request to its existing style once without chooser repetition. | 4: FAILED |
+| 29-04 T2 | D-18: Lost response or crash after claim is reconciled with exact native artifacts; ambiguous delivery blocks automatic redispatch. | 9: FAILED |
+| 29-04 T3 | D-19, D-20: Cancellation/status never start work and restored autopilot identity retains exact contract preview/approval/separate start/runner/model boundaries. | 11: VERIFIED |
+| 29-04 T4 | BOOT-04 concurrency: two processes claiming the same pending transfer yield at most one new dispatch permission; cancel racing claim yields a documented serialized outcome. | 8: FAILED |
+| 29-04 T5 | GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval. | 11: VERIFIED |
+| 29-05 T1 | D-22: Five rendered owned-skill targets use the same readiness/bootstrap CLI and preserve exact task/style/native command identity. | 12: VERIFIED |
+| 29-05 T2 | D-08, D-20, D-21: Mandatory native decisions, simple/policy-only exemptions, explicit-command timing and separate autopilot approval/start remain intact. | 12: VERIFIED |
+| 29-05 T3 | D-23, D-24: Rendered fixtures and real native proof are distinct; unsupported controller and unverified receipt remain visible. | 12: VERIFIED |
+| 29-05 T4 | GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval. | 11: VERIFIED |
+| 29-06 T1 | D-23: A real native conversational-quick bootstrap/resume tracer has exactly one original implementation and native quick plan/summary/state/commit evidence. | 13: VERIFIED |
+| 29-06 T2 | D-24: Targeted tests and final full suite have actual outcomes; fixture, native, unsupported and unverified evidence are distinct. | 13: VERIFIED |
+| 29-06 T3 | D-10, D-18, D-19: Partial/WIP/crash/cancel/status scenarios preserve valid data and cannot duplicate work. | 5: FAILED |
+| 29-06 T4 | D-20, D-21: All six identities and explicit commands preserve native checkpoints and exact autopilot authority. | 11: VERIFIED |
+| 29-06 T5 | GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval. | 11: VERIFIED |
 
-## Key Link & Data Flow Verification
+### Required Artifacts
 
-1. **Readiness & Prerequisite Check Flow:**
-   User Natural Request → `alpha-aos-task` Skill → `alpha-aos task readiness --json` → Query real installed GSD toolchain (`gsd-tools init --query`) → Inspect canonical root & `.planning` state → Determine diagnosis (`missing-runtime`, `absent-project`, `partial-project`, `ready`, `probe-error`, `unsupported`) → Return typed diagnostic with `executionAuthorized: false`.
-2. **Absent-Project Bootstrap Handoff Flow:**
-   Absent Project Detected → User confirms native initialization → `alpha-aos task bootstrap --operation prepare --input <packet.json> --apply --json` → Pre-parse budget check (16 KiB) → Redact credentials → Store immutable handoff under `~/.alpha-aos/bootstrap/<projectId>/<pendingId>.json` → Emit prompt payload with known facts and selected style → Guide user into native GSD `new-project`.
-3. **Partial Initialization Recovery Flow:**
-   Partial Project Detected (`init_incomplete: true` or missing artifacts) → `planNativeBootstrapRecovery` inspects disk state → Identifies first missing stage (`REQUIREMENTS.md` / `ROADMAP.md` / `STATE.md`) → Prepares recovery prompt instructions → Preserves existing file bytes, partial summaries, and dirty WIP → Guides native resumption without destructive reset.
-4. **Once-Only Claim & Reentry Flow:**
-   Native Initialization Completed → Fresh readiness inspection verifies `ready: true` → Harness invokes `task bootstrap --operation claim --pending-id <id> --apply` → Atomic lock verifies state and sets `claimNonce` → Permission granted (`dispatchAuthorized: true`) → Native GSD quick executes → Harness links artifact via `task bootstrap --operation link --native-ref <summary-path>` → Harness acknowledges delivery → Subsequent entry on same pending ID returns `route: "continue-existing"` with zero second execution.
+Owner verify.artifacts ran for every PLAN: all declared artifacts passed existence/substance checks, exit0. Direct wiring/data inspection below determines whether they actually meet the goal.
 
----
+| Artifact | Expected | Substance/wiring |
+| --- | --- | --- |
+| src/core/task-gsd-readiness.ts | Version-aware native prerequisite interpretation | VERIFIED — substantive and consumed by production/test/proof path above |
+| schemas/task-bootstrap.schema.json | Closed readiness input variant | VERIFIED — substantive and consumed by production/test/proof path above |
+| test/task-bootstrap-cli.test.ts | Real compiled CLI, zero-write and error behavior | VERIFIED — substantive and consumed by production/test/proof path above |
+| src/core/task-bootstrap.ts | Prepare/inspect route and native input builder | PARTIAL / BLOCKER — required session/readiness/reconciliation/native-validation wiring absent |
+| src/core/task-bootstrap-store.ts | Atomic immutable delivery intent and exact native linkage | PARTIAL / BLOCKER — required session/readiness/reconciliation/native-validation wiring absent |
+| test/task-bootstrap-handoff.test.ts | Private/public boundary and byte/count limits | VERIFIED — substantive and consumed by production/test/proof path above |
+| src/core/task-bootstrap-recovery.ts | Typed native recovery plan, preservation and evidence checks | VERIFIED — substantive and consumed by production/test/proof path above |
+| test/task-bootstrap-recovery.test.ts | Partial/archive/corrupt/history byte-preservation matrix | VERIFIED — substantive and consumed by production/test/proof path above |
+| test/task-bootstrap-resume.test.ts | Crash-boundary and two-process resume/cancel behavioral proof | PARTIAL — sequential test does not exercise required concurrent/failpoint behavior |
+| skills/alpha-aos-task/SKILL.md | User-facing native initialization/resume procedure | VERIFIED — substantive and consumed by production/test/proof path above |
+| catalog/stack.lock.json | Source and five rendered target hashes | VERIFIED — substantive and consumed by production/test/proof path above |
+| test/task-bootstrap-routing.test.ts | Rendered-target scenario driver | VERIFIED — substantive and consumed by production/test/proof path above |
+| test/task-bootstrap-acceptance.test.ts | Composed public-entry positive/negative journeys | VERIFIED — substantive and consumed by production/test/proof path above |
+| scripts/verify-task-bootstrap-native.mjs | Read-only verifier of separately captured native receipt and referenced evidence | VERIFIED — substantive and consumed by production/test/proof path above |
+| docs/task-bootstrap-proof.md | Native versus fixture result ledger with actual limitations | VERIFIED — substantive and consumed by production/test/proof path above |
 
-## Regression & Test Suite Execution
+### Key Link Verification
 
-- **Phase 29 Dedicated Test Suites (45 tests):**
-  - `dist/test/task-gsd-readiness.test.js`: 13 tests passed.
-  - `dist/test/task-bootstrap-cli.test.js`: 3 tests passed.
-  - `dist/test/task-bootstrap-handoff.test.js`: 7 tests passed.
-  - `dist/test/task-bootstrap-recovery.test.js`: 11 tests passed.
-  - `dist/test/task-bootstrap-resume.test.js`: 6 tests passed.
-  - `dist/test/task-bootstrap-routing.test.js`: 3 tests passed.
-  - `dist/test/task-bootstrap-acceptance.test.js`: 2 tests passed.
-  - Total: **45 tests, 45 passed, 0 failed, 0 skipped** (duration: 24.1s).
-- **Full Regression Suite (`npm test`):**
-  - Results: **2,046 passed, 0 failed, 13 skipped** (unprivileged Windows symlinks) across the entire repository test corpus.
-- **Artifact Build Gate (`npm run build:check`):**
-  - Results: **332 inputs, 654 outputs verified cleanly**.
-- **TypeScript Static Verification (`npm run check`):**
-  - Results: **0 errors**.
+Owner verify.key-links ran for every PLAN and returned exit1: literal target-path heuristics mostly miss relative .js imports of .ts source and indirect schema/data consumers. Every JSON was inspected and semantic links independently traced below. Actual missing behavior stays explicit.
 
----
+| From | To | Via | Status | Direct evidence |
+| --- | --- | --- | --- | --- |
+| CLI/skill | readiness/bootstrap | Public dynamic imports and command calls | WIRED | cli.ts:2306,2331-2387; shared skill readiness/claim protocol. |
+| readiness | native GSD queries | runtime-identity/init.resume/target query + installed workflow/agents | WIRED | task-gsd-readiness.ts actual process calls and bounded native JSON parsing. |
+| bootstrap | recovery/record store/style | Fresh policy/readiness and typed recovery projection | WIRED | Imports/calls in prepare/inspect/claim; original request persisted externally and exact style projected. |
+| record store | transaction writer session | Read/compare/intent write inside one held session | NOT_WIRED | Only transaction's write owns a default session; store reads/transitions happen first. Optional session is not supplied by CLI. |
+| claim | ready requested-task dispatch | Ready-before-dispatch guard | NOT_WIRED | 739 rejects only missing-runtime/probe-error/unsupported; absent-project/partial-project reach claimed/dispatchAuthorized:true. |
+| claim/link/ack | task-gsd-discovery/actual native artifacts | Exact lost-response reconciliation and delivery acceptance | NOT_WIRED | No discovery import/call; arbitrary nativeReference and optional receipt hash are not actual artifact correlation. |
+| owned-skills/catalog | all five fixture homes | Real renderer/hash/deployment and common CLI invocation | WIRED | task-bootstrap-routing.test.ts and catalog owned-skill integrity. |
+| native receipt verifier | recorded scratch artifact/Git commit | Reopen hash + git cat-file + once-only receipt checks | WIRED | Fresh readonly native receipt verifier exit0; historical proof is not a race/claim-negative proof. |
 
-## Independent Code Review & Nyquist Validation
+### Data-Flow Trace (Level4)
 
-- **Independent Code Review (`29-REVIEW.md`):**
-  - Completed with status `passed_with_warnings` (0 critical, 1 warning, 2 info).
-  - Scope: 22 files reviewed across readiness inspection, handoff store, recovery planner, claim concurrency, schemas, skills, formatting, and acceptance suites.
-  - WARN-01: Documented Hermes controller unsupported status for local GSD lifecycle orchestration per project boundaries.
-  - INFO-01: Confirmed zero execution authority expansion during handoff preparation (`executionAuthorized: false`).
-  - INFO-02: Verified atomic file lock and nonce claim serialization preventing race condition duplicate task execution.
-- **Nyquist Validation Gate (`29-VALIDATION.md`):**
-  - `nyquist_compliant: true` achieved with all 13 planned task suites created and passing.
-  - TypeScript static verification: 0 errors (`npm run check`).
-  - Provenance check: 332 inputs / 654 outputs verified (`npm run build:check`).
-  - Full regression suite: 2,046 passed, 0 failed, 13 skipped (`npm test`).
+| Output | Data | Actual source | Status |
+| --- | --- | --- | --- |
+| Readiness | diagnosis/missingPrerequisites | Real installed native runtime/target query output | FLOWING |
+| Original task handoff | request/facts/style/contentDigest | Bounded immutable prepare packet and external record read | FLOWING |
+| Claim transition | new dispatch permission | Record read/transition precedes lock; missing ready guard | DISCONNECTED |
+| Native link/ack | claimed artifact/delivery receipt | Caller-supplied object/hash; no actual artifact read/correlation | HOLLOW |
 
----
+### Behavioral Spot-Checks / Completed Regression
 
-## Native Evidence & Human-Needed Boundary
+No tests/build/server/mutation probe/global write/paid model turn was executed here. The orchestrator provided the completed mandatory0261 regression and prohibited duplicating the active ce38 full gate. Fresh read-only git diff --name-only 0261dfdeec85268f4cf35769a4d9a7a9ec36c77c HEAD returned only .github/workflows/ci.yml and .planning/debug/release-060-final-gates.md. All production source/schema/script/test/package/doc evidence is byte-identical. Named pass records in the immutable raw log were matched to actual assertion source. This is reused completed behavioral execution evidence, not a new run or SUMMARY claim.
 
-Per Decisions **D-23** and **D-24**:
-- **Live Scratch Verification (Task 29-06-02):** **PROVEN** in active working session using Codex native runtime (`@opengsd/gsd-core` 1.18.0) in scratch directory `C:\Users\alpha\.gemini\antigravity-cli\brain\cd05fd60-ce7b-4655-ae1a-e794d0b88c1c\scratch\native-bootstrap-project`. Generated real `.planning/PROJECT.md`, `ROADMAP.md`, `STATE.md`, implemented health check feature in `.planning/quick/261102-leh-health-check/261102-leh-SUMMARY.md`, and committed to Git (`3adb72549623865abc4187715bc344b346f8acc9`). Verified via `node scripts/verify-task-bootstrap-native.mjs` with `valid: true`, `gitCommitVerified: true`, `singleTaskExecutionVerified: true`.
-- **Claude Code, Antigravity, Pi Agent, Hermes Agent:** Multi-target deployment, schema parity, exact hash equality (`e16c934ac51b43fb893a59706691e864c588b4b91600bacf187a131d034988f0`), and cross-target visibility are 100% verified via offline fixtures in `test/task-bootstrap-routing.test.ts`. Chargeable paid model calls and global package mutations are intentionally excluded from automated test runners.
+| Check | Actual evidence | Result |
+| --- | --- | --- |
+| Full regression | .planning/tmp/060-0261-push.stdout.log, .stderr.log and060-0261-full-counts.json | 2162total /2148pass /0fail /14 explicit host-permission skips |
+| Upstream ECC | Same raw log | 1/1 pass |
+| Artifact consistency | Same log final build:check | 350 inputs/690 outputs verified |
+| Requirement behavior | Per-row named test source and actual raw-log pass records | PASS only for exercised invariants |
+
+The 'two processes competing' test at task-bootstrap-resume.test.ts:154 awaits A then B in one process. It is not concurrent process or crash/failpoint evidence. Missing BOOT-04 behavior below is not certified by the happy-path archive.
+
+### Fresh Read-Only Probe Execution
+
+No conventional scripts/*/tests/probe-*.sh was declared. Applicable native proof verifiers were freshly executed without model turns or writes.
+
+| Command | Result | Exit |
+| --- | --- | --- |
+| node scripts/verify-task-bootstrap-native.mjs --receipt <recorded scratch>/native-bootstrap-receipt.json --json | valid/native; artifact677f47e8… verified; Git3adb7254… verified; singleTaskExecutionVerified:true | 0 |
+| node scripts/verify-task-entry-proof.mjs --index docs/task-entry-proof-index.json --json | 55cells:7 archival-native/19 fixture/7 unsupported/21 unverified/1 blocked; gateStatus:passed | 0 |
+
+### Requirements Coverage
+
+All assigned requirement IDs appear in this phase's PLAN frontmatter: no orphaned ID. Requirement checkbox state was not evidence or changed.
+
+| Requirement | Source plans | Merged rows | Status |
+| --- | --- | --- | --- |
+| BOOT-01 | 29-01, 29-03, 29-05, 29-06 | 1 | SATISFIED |
+| BOOT-02 | 29-02, 29-05, 29-06 | 2, 6, 7 | BLOCKED |
+| BOOT-03 | 29-03, 29-05, 29-06 | 3 | SATISFIED |
+| BOOT-04 | 29-02, 29-04, 29-05, 29-06 | 4, 5, 8, 9, 10, 11 | BLOCKED |
+
+### Anti-Patterns and Test Quality Audit
+
+Declared implementation/schema/proof artifacts were scanned for unreferenced TBD/FIXME/XXX and linked disabled/todo tests: none found in the scanned artifacts. Fixture writes supply inputs, not expected outputs generated by the implementation. Linked tests assert values/behavior, not existence alone. Fixed labels and strict-when-missing are intended product constants. Dynamic data sources are traced above.
+
+BLOCKER: The advertised race test is sequential; required session/readiness/reconciliation/native-correlation implementations are absent. These are Steps3–5 contract failures, not unevidenced new-scope architectural opinions. No red execution is claimed.
+
+### Decision Coverage
+
+All trackable CONTEXT.md decisions are honored by shipped artifacts. Honored24/24, owner query exit0. Advisory substring coverage does not prove runtime behavior or resolve human items.
+
+### Prohibitions and Existing Human Dispositions
+
+| Item/source | Exact statement | Disposition |
+| --- | --- | --- |
+| P29-1 / 29-04:23 | Transfer records must not become a second GSD lifecycle or project execution-style default. | WARNING — per-item human semantics judgment required; source/test judge is non-authoritative |
+| P29-2 / 29-02:23 | Known-fact reuse must not silently broaden a bounded change into a new product or imply native decision approval. | WARNING — per-item human semantics judgment required; source/test judge is non-authoritative |
+
+The happy-path native archive and green regression do not falsify the missing negative paths: its once-only counts are declared receipt fields and a single completed path. The sequential test titled 'two processes competing' does not exercise the required concurrent invariant. This is goal verification of explicit 29-04 must-haves, not a new-scope Step7 architecture preference.
+
+### Human Verification Required
+
+#### 1. Disposition P29-1: Transfer records must not become a second GSD lifecycle or project execution-style default.
+
+**Expected:** After BOOT-04 repair, explicitly accept transfer-only bookkeeping and native lifecycle ownership, or identify a violation.
+
+**Why human:** 29-04-PLAN.md:23 unresolved descriptor-less prohibition; automated transfer tests cannot replace its independent human semantics judgment.
+
+#### 2. Disposition P29-2: Known-fact reuse must not silently broaden a bounded change into a new product or imply native decision approval.
+
+**Expected:** Accept bounded fact reuse/conflict disclosure with native mandatory decisions retained, or specify a missing semantic case.
+
+**Why human:** 29-02-PLAN.md:23 unresolved descriptor-less prohibition; P2 archival-tier and P3 label approvals do not address this scope/consent item.
+
+### Gaps, Deferred Items and Advisory Scope
+
+**G29-01: Fresh readiness must withhold requested-task dispatch until native initialization/recovery is ready.** claimTaskBootstrap permits absent-project/partial-project through the rejection guard and returns conversational dispatch authorization with requested-task execution nextAction.
+
+**G29-02: One held mutation session covers handoff read/compare/intent write for prepare, claim, link, acknowledge and cancel.** Store collision/transition decisions happen before the transaction's default writer session; the public CLI supplies no pre-held session, and operations carry no expected prior revision.
+
+**G29-03: After durable claim intent or lost response, ambiguous reentry blocks redispatch and reconciles only exact native artifacts.** The same-nonce conversational claimed branch reissues dispatchAuthorized:true without inspecting whether native work was already allocated/executed before a lost link/response.
+
+**G29-04: Linking and acknowledging delivery validate exact native artifact/request/root and bounded Git evidence.** Current link accepts a caller object/id; acknowledgement can accept no receipt hash. Neither opens/correlates the claimed native artifact or commit.
+
+**Minimal reproduction recipes (not executed here):** G29-01: In an authorized disposable absent project with installed native runtime, prepare/apply a conversational-quick handoff, then claim the same pendingId before new-project. Source predicts claimed/dispatchAuthorized:true and 'Proceed to native task execution'; expected blocked/pending with initialization next action. G29-02 schedule: B reads pending and serializes claimB, pause before applyFileTransaction/proof; A claims/writes/releases; resume B, whose new path proof sees A's current inode and whose stale content has no expected revision. Both can return permission. Run actual separate processes with a test-owned barrier during repair; this verifier did not execute it. G29-03: Claim conversational nonce N; lose the response or allocate native work before linking; retry N. Current branch grants dispatch again. G29-04: Link nativeReference:{id:'missing'} then acknowledge with no receipt hash; code records delivered without reading native evidence. Existing helpers: resolvePhaseDirectory, verifyPlanTripleCorrelation and discoverPhaseProgression in task-gsd-discovery.ts, verifyGsdEvidence/runGitRead in task-gsd.ts, and acquireMutationSession/applyFileTransaction with passed ownership. Select exact helper APIs during repair; no new writes/tests were performed here.
+
+No current must-have is deferred to Phase31: later integration/distribution cannot remove Phase27's native checkpoint or Phase29's BOOT-04 safety requirements. No unrelated architectural advisory added.
+
+This report does not certify current native CI/macOS/three-OS acceptance, publication, paid canaries or global rollout; those belong to the release orchestrator. No implementation/test/lifecycle edit or commit was made.
+
+_Verifier: gsd-verifier; source ce38cb5fbab9cb134012d0c7bf7a7ba93bd71047. Fingerprint fields copied verbatim from owner query._

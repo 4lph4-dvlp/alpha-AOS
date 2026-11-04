@@ -5,7 +5,7 @@ milestone_name: Predictable Task Entry and Shared Project Policy
 current_phase: 31
 current_phase_name: Cross-Harness Proof and Distribution
 status: executing
-stopped_at: "v0.6.0 GitHub-only: source 3f38a03; mandatory push session 14378 active; continuation job-9f4197cd38b14e0c waits exact push then runs one exact-SHA native CI; final verifier/main/tag/release pending"
+stopped_at: "v0.6.0 GitHub-only: ce38 CI 41663274313 failed after local full passed; BOOT remediation d98bdd8 integrated; cancellation race and T30 controls in progress; final full/3-OS CI and main/tag/release pending"
 last_updated: "2026-11-04T16:15:46.317Z"
 last_activity: 2026-11-03
 last_activity_desc: Phase 31 execution resumed (wave continue)
@@ -449,8 +449,8 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 ## Session Continuity
 
 Last session: 2026-11-03T07:29:35.689Z
-Stopped at: v0.6.0 GitHub-only: source 3f38a03; mandatory push session 14378 active; continuation job-9f4197cd38b14e0c waits exact push then runs one exact-SHA native CI; final verifier/main/tag/release pending
-Resume file: .planning/phases/31-cross-harness-proof-and-distribution/31-RELEASE-060-CONTINUATION.md
+Stopped at: v0.6.0 GitHub-only: ce38 CI 41663274313 failed after local full passed; BOOT remediation d98bdd8 integrated; cancellation race and T30 controls in progress; final full/3-OS CI and main/tag/release pending
+Resume file: .planning/debug/boot04-release-blockers.md
 
 ## Operator Next Steps
 

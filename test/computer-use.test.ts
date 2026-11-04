@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { ComputerSession, stopComputerSession } from "../src/core/computer-use.js";
 import type { ComputerUseTransport } from "../src/core/computer-use.js";
@@ -8,6 +8,11 @@ import { authorityFixture, pngFixture } from "./fixtures/computer-use.js";
 import { mkdtemp, rm, readFile, writeFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+beforeEach((context) => {
+  if (!("mock" in context)) throw new Error("Computer broker fixtures require a test clock context");
+  context.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+});
 
 test("production broker records intent before effect and verifies fresh observation", async () => {
   const root = await mkdtemp(join(tmpdir(), "computer-session-"));
@@ -68,7 +73,7 @@ test("lost native response plus failed audit result still permanently revokes in
   const append = session.audit.append.bind(session.audit);
   try {
     session.audit.append = async (kind, data) => { if (kind === "result") throw new Error("storage failed"); return append(kind, data); };
-    await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true })); assert.ok(closed > 0);
+    await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true }), /storage failed/); assert.equal(effects, 1); assert.ok(closed > 0);
     session.audit.append = append;
     await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true })); assert.equal(effects, 1);
     assert.equal((await verifyComputerAudit(root, a.runId, await session.audit.checkpoint())).pending.length, 1);
@@ -104,8 +109,29 @@ test("out-of-band persistent stop interrupts in-flight input without retry", asy
     dispatch: async () => { effects++; entered(); await new Promise<void>(() => {}); }, close: async () => {} }, root);
   try {
     const action = session.action({ kind: "click", x: 0, y: 0 }, { changed: true });
-    await started; await stopComputerSession(root, a.runId); await assert.rejects(action, /interrupted/);
+    await Promise.race([started, action.then(() => { throw new Error("Input unexpectedly completed before stop"); })]);
+    await stopComputerSession(root, a.runId); await assert.rejects(action, /interrupted/);
     await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true })); assert.equal(effects, 1);
     assert.equal((await verifyComputerAudit(root, a.runId, await session.audit.checkpoint())).events.at(-1)?.data.outcome, "interrupted");
+  } finally { await session.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test("expired observation still refuses input before dispatch with a controlled clock", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "computer-stale-clock-"));
+  const a = validateComputerAuthority(authorityFixture()); let effects = 0;
+  const session = await ComputerSession.open(a, {
+    identity: a.runtime,
+    observe: async () => ({ target: a.target, captureId: "capture", png: pngFixture, width: 1, height: 1, state: "before", safe: true, foreground: false }),
+    dispatch: async () => { effects++; }, close: async () => {},
+  }, root);
+  const append = session.audit.append.bind(session.audit);
+  session.audit.append = async (kind, data) => {
+    const record = await append(kind, data);
+    if (kind === "intent") context.mock.timers.tick(1001);
+    return record;
+  };
+  try {
+    await assert.rejects(session.action({ kind: "click", x: 0, y: 0 }, { changed: true }), /observation expired/);
+    assert.equal(effects, 0);
   } finally { await session.close(); await rm(root, { recursive: true, force: true }); }
 });

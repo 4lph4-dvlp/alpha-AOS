@@ -79,7 +79,8 @@ test("actual CLI reports default GUI availability without claiming native invoca
   assert.throws(() => execFileSync(process.execPath, [join(packageRoot(), "dist/src/cli.js"), "computer-use", "action", "--apply"], { stdio: "pipe" }));
 });
 
-test("real MCP server reaches shared broker and rejects raw native tools", async () => {
+test("real MCP server reaches shared broker and rejects raw native tools", async (context) => {
+  context.mock.timers.enable({ apis: ["Date"], now: Date.now() });
   const root = await mkdtemp(join(tmpdir(), "computer-mcp-")); const a = validateComputerAuthority(authorityFixture()); let observed = 0; let value = "before"; let effects = 0;
   const session = await ComputerSession.open(a, { identity: a.runtime, observe: async () => ({ target: a.target, captureId: String(++observed), png: pngFixture, width: 1, height: 1, state: value, safe: true, foreground: false }), dispatch: async () => { effects++; value = "after"; }, close: async () => {} }, root);
   const server = createComputerMcpServer(session); const client = new Client({ name: "test", version: "1" }); const [downstream, upstream] = InMemoryTransport.createLinkedPair();

@@ -108,6 +108,6 @@
   "license": "MIT",
   "perception": "disabled; separately licensed",
   "publisherIdentity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.38.0",
-  "schemaApproval": "Exact tools/list hash must be retained and reviewed with executable hash",
-  "verificationScope": "Five immutable archive signatures and entrypoint/companion hashes; not GUI live support for every host"
+  "schemaApproval": "Bounded broker requires the exact retained tools/list hash; ordinary native mode verifies reviewed release bytes and discovers native schemas",
+  "verificationScope": "Official Sigstore-signed checksum list authenticates five immutable archives; entrypoint/companion hashes verified; no all-host GUI proof"
 }

@@ -56,7 +56,8 @@ test("job-fences: storage running claim cannot be cleared or reassigned by null 
   } finally { await f.cleanup(); }
 });
 
-test("job-fences: exact identity comparator and terminal wait reject every seeded metadata and claim drift", async () => {
+test("job-fences: exact identity comparator and terminal wait reject every seeded metadata and claim drift", { timeout: 60_000 }, async (context) => {
+  context.mock.timers.enable({ apis: ["Date", "setTimeout"], now: Date.now() });
   const f = await fixture();
   try {
     const now = new Date().toISOString();

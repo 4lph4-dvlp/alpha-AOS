@@ -480,25 +480,25 @@
       "id": "chain-policy-transition",
       "path": "test/task-entry-cross-harness.test.ts",
       "checkoutOnly": true,
-      "sha256": "5d121b2828e8a232a352812fbd0ea61f94f0db9377051c3b8919426ed477b99f"
+      "sha256": "9018f7e7d56bdc2dfd0ee37955953a585d024e0db286cac38deebc563c8c4be8"
     },
     {
       "id": "chain-task-boundary",
       "path": "test/task-entry-cross-harness.test.ts",
       "checkoutOnly": true,
-      "sha256": "5d121b2828e8a232a352812fbd0ea61f94f0db9377051c3b8919426ed477b99f"
+      "sha256": "9018f7e7d56bdc2dfd0ee37955953a585d024e0db286cac38deebc563c8c4be8"
     },
     {
       "id": "chain-bootstrap-continuity",
       "path": "test/task-entry-cross-harness.test.ts",
       "checkoutOnly": true,
-      "sha256": "5d121b2828e8a232a352812fbd0ea61f94f0db9377051c3b8919426ed477b99f"
+      "sha256": "9018f7e7d56bdc2dfd0ee37955953a585d024e0db286cac38deebc563c8c4be8"
     },
     {
       "id": "chain-quality-and-tamper-guards",
       "path": "test/task-entry-cross-harness.test.ts",
       "checkoutOnly": true,
-      "sha256": "5d121b2828e8a232a352812fbd0ea61f94f0db9377051c3b8919426ed477b99f"
+      "sha256": "9018f7e7d56bdc2dfd0ee37955953a585d024e0db286cac38deebc563c8c4be8"
     }
   ],
   "priorObservations": [

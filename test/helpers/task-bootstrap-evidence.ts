@@ -35,15 +35,16 @@ export function runBootstrapFixtureGit(projectRoot: string, args: string[]): str
 
 /** Fixture-tier native-shaped artifact, never an invocation or native receipt. */
 export async function createBootstrapArtifactFixture(options: {
-  projectRoot: string; stateRoot: string; pendingId: string; phase?: boolean;
+  projectRoot: string; stateRoot: string; pendingId: string; phase?: boolean; phaseId?: string;
 }): Promise<Record<string, unknown>> {
   const policy = await resolveProjectBehavior({ invocationPath: options.projectRoot, projectRoot: options.projectRoot, stateRoot: options.stateRoot });
   const handoff = await readTaskBootstrapHandoff({ stateRoot: options.stateRoot, projectId: policy.projectId,
     pendingId: options.pendingId, canonicalRoot: policy.canonicalRoot });
   const git = (args: string[]) => runBootstrapFixtureGit(options.projectRoot, args);
   if (!existsSync(join(options.projectRoot, ".git"))) git(["init"]);
-  const id = options.phase ? "31-01" : `001-${options.pendingId}`;
-  const path = options.phase ? `.planning/phases/31-fixture/${id}-PLAN.md` : `.planning/quick/${id}/001-PLAN.md`;
+  const phaseId = options.phaseId ?? "31";
+  const id = options.phase ? `${phaseId}-01` : `001-${options.pendingId}`;
+  const path = options.phase ? `.planning/phases/${phaseId}-fixture/${id}-PLAN.md` : `.planning/quick/${id}/001-PLAN.md`;
   const artifact = `# Fixture-tier native-shaped plan\n\n${nativeBootstrapBinding(handoff)}\n`;
   await mkdir(dirname(join(options.projectRoot, path)), { recursive: true });
   await writeFile(join(options.projectRoot, path), artifact);
@@ -55,5 +56,5 @@ export async function createBootstrapArtifactFixture(options: {
     canonicalRoot: handoff.canonicalRoot, projectId: handoff.projectId, pendingId: handoff.pendingId,
     contentDigest: handoff.contentDigest, claimNonce: handoff.claim?.nonce, claimSession: handoff.claim?.session,
     requestSha256: createHash("sha256").update(handoff.originalRequest.text, "utf8").digest("hex"),
-    ...(options.phase ? { phaseDirectory: "31-fixture" } : {}) };
+    ...(options.phase ? { phaseDirectory: `${phaseId}-fixture` } : {}) };
 }

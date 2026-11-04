@@ -229,7 +229,6 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
   let cancelRequestedAt: string | null = null;
   let cancelDelivered: boolean | null = null;
   let cancelConfirmed = false;
-  let cancelFileOwned = false;
   let childPid: number | null = null;
   let acknowledgementFailed = false;
   let acknowledgementError: Error | null = null;
@@ -265,8 +264,6 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
         ownerToken: currentRec.ownerToken,
         specDigest: currentRec.specDigest,
       });
-
-      cancelFileOwned = true;
 
       if (!childActive || generation !== activeGeneration) return;
 
@@ -399,7 +396,6 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
         ownerToken: current.ownerToken,
         specDigest: current.specDigest,
       });
-      cancelFileOwned = true;
       if (!cancelRequested) {
         cancelRequested = true;
         cancelRequestedAt = cancelPayload.requestedAt;
@@ -407,12 +403,6 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void> 
     } catch {
       // Ignore invalid or foreign cancel request
     }
-  }
-
-  // Only remove cancel file if verified as owned by this job; never delete foreign cancel marker
-  if (cancelFileOwned) {
-    await assertNoSymlinksInAncestors(cancelFile, stateRoot).catch(() => undefined);
-    await unlink(cancelFile).catch(() => undefined);
   }
 
   const durationMs = Date.now() - startedAt;

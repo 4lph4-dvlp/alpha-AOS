@@ -17,10 +17,11 @@ test("authority is closed and grants nothing by omission", () => {
 });
 
 test("exact target, digest, budget and finite geometry refuse before dispatch", () => {
-  const authority = validateComputerAuthority(authorityFixture());
-  const state = { runId: authority.runId, contractDigest: authority.contractDigest, target: authority.target, runtime: authority.runtime, now: Date.now(), startedAt: Date.now(), lastActivityAt: Date.now(), actions: 0, captures: 0, bytes: 0, stopped: false };
+  const now = 1_000_000;
+  const authority = validateComputerAuthority({ ...authorityFixture(), expiresAt: now + 60_000 });
+  const state = { runId: authority.runId, contractDigest: authority.contractDigest, target: authority.target, runtime: authority.runtime, now, startedAt: now, lastActivityAt: now, actions: 0, captures: 0, bytes: 0, stopped: false };
   assert.doesNotThrow(() => authorizeComputerAction(authority, state, { kind: "click", x: 0, y: 0 }));
-  for (const change of [{ stopped: true }, { actions: 5 }, { contractDigest: "f".repeat(64) }, { target: { ...authority.target, pid: 43 } }, { now: authority.expiresAt + 1 }]) {
+  for (const change of [{ stopped: true }, { actions: 5 }, { contractDigest: "f".repeat(64) }, { target: { ...authority.target, pid: 43 } }, { now: authority.expiresAt + 1 }, { startedAt: now + 1 }, { lastActivityAt: now + 1 }, { now: NaN }]) {
     assert.throws(() => authorizeComputerAction(authority, { ...state, ...change }, { kind: "click", x: 0, y: 0 }));
   }
   assert.throws(() => authorizeComputerAction(authority, state, { kind: "click", x: NaN, y: 0 }));

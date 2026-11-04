@@ -23,6 +23,7 @@ import {
 } from "../src/core/task-run.js";
 import type { HarnessId } from "../src/types.js";
 import { createIsolatedSandbox } from "./helpers/packed-sandbox.js";
+import { createBootstrapArtifactFixture } from "./helpers/task-bootstrap-evidence.js";
 import {
   createTaskFixture,
   fixturePorts,
@@ -826,12 +827,21 @@ console.log(JSON.stringify({
     "utf8",
   );
 
+  const legacyLinkRes = spawnSync(
+    process.execPath,
+    [cliPath, "task", "bootstrap", "--input", linkReqPath, "--apply", "--json"],
+    { cwd: partialDir, env, encoding: "utf8" },
+  );
+  assert.notEqual(legacyLinkRes.status, 0, "legacy label-only evidence must remain refused");
+  const nativeReference = await createBootstrapArtifactFixture({ projectRoot: partialDir, stateRoot: sandbox.state, pendingId: "pending-partial-001" });
+  const linkPacket = JSON.parse(await readFile(linkReqPath, "utf8"));
+  await writeFile(linkReqPath, JSON.stringify({ ...linkPacket, nativeReference }), "utf8");
   const linkRes = spawnSync(
     process.execPath,
     [cliPath, "task", "bootstrap", "--input", linkReqPath, "--apply", "--json"],
     { cwd: partialDir, env, encoding: "utf8" },
   );
-  assert.equal(linkRes.status, 0);
+  assert.equal(linkRes.status, 0, linkRes.stderr);
   const linkData = JSON.parse(linkRes.stdout);
   assert.equal(linkData.operation, "link");
   assert.equal(linkData.status, "linked");

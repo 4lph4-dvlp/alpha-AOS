@@ -12,6 +12,7 @@ import {
   getCommandJobStatus,
   waitCommandJob,
   cancelCommandJob,
+  clearOwnedCancelRequest,
   jobRecordPath,
   jobDirectory,
   launchSpecPath,
@@ -673,6 +674,38 @@ test("command-jobs storage: observer timeout leaves synthetic running receipt un
 
     const status = await getCommandJobStatus(stateRoot, jobId);
     assert.equal(status.status, "running");
+  } finally {
+    await cleanup();
+  }
+});
+
+test("command-jobs storage: cancellation cleanup cannot unlink a marker during publication", async () => {
+  const { stateRoot, cleanup } = await createJobTestState();
+  try {
+    const initial = makeInitialRecord("job-0000000000000031");
+    await createJobRecord(stateRoot, initial);
+    let settling: Promise<CommandJobRecord> | undefined;
+    let checked = false;
+    const result = await cancelCommandJob({ stateRoot, jobId: initial.jobId, timeoutMs: 3000,
+      _testBarrier: async (stage) => {
+        if (stage !== "write:after-rename") return;
+        settling = updateJobRecord(stateRoot, { jobId: initial.jobId, ownerToken: initial.ownerToken, specDigest: initial.specDigest, stateRevision: 0 },
+          { ...storageClaim(), status: "completed", finishedAt: new Date().toISOString(), durationMs: 0, exitCode: 0 });
+        assert.equal(await Promise.race([settling.then(() => "unlinked"), delay(200).then(() => "writer-held")]), "writer-held");
+        assert.equal(existsSync(cancelRequestPath(stateRoot, initial.jobId)), true);
+        checked = true;
+      },
+    });
+    assert.equal(result.status, "completed");
+    assert.equal(checked, true);
+    await settling;
+    assert.equal(existsSync(cancelRequestPath(stateRoot, initial.jobId)), false);
+    const foreign = { schemaVersion: 1, kind: "command-job-cancel", jobId: initial.jobId,
+      ownerToken: "foreign-owner", specDigest: initial.specDigest, requestedAt: new Date().toISOString() };
+    const foreignBytes = JSON.stringify(foreign);
+    await writeFile(cancelRequestPath(stateRoot, initial.jobId), foreignBytes);
+    await assert.rejects(clearOwnedCancelRequest(stateRoot, initial), /owner token|OWNER_TOKEN/iu);
+    assert.equal(await readFile(cancelRequestPath(stateRoot, initial.jobId), "utf8"), foreignBytes);
   } finally {
     await cleanup();
   }

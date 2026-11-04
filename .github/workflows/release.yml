@@ -1,0 +1,112 @@
+name: GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Stable package version, without v.
+        required: true
+        type: string
+      source_sha:
+        description: Exact main commit already verified by CI.
+        required: true
+        type: string
+      ci_run_id:
+        description: Successful CI run that produced the release tarball.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_VERSION: ${{ inputs.version }}
+      RELEASE_SHA: ${{ inputs.source_sha }}
+      CI_RUN_ID: ${{ inputs.ci_run_id }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: Validate inputs and retrieve exact CI evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          [[ "$RELEASE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$CI_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+          test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID" > release-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100" > release-jobs.json
+          gh run download "$CI_RUN_ID" --repo "$GITHUB_REPOSITORY" --name release-tarball
+          export RELEASE_MAIN_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
+          tar -xOf "alpha-aos-$RELEASE_VERSION.tgz" package/package.json > release-package.json
+          node scripts/github-release-check.mjs
+          sha256sum "alpha-aos-$RELEASE_VERSION.tgz" "alpha-aos-$RELEASE_VERSION.tgz.sha256" release-evidence.json > release-assets.sha256
+      - name: Stage exact tag and draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$RELEASE_SHA"
+          tag="v$RELEASE_VERSION"
+          # Existing tags are immutable; an interrupted draft can be resumed.
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            test "$(git rev-parse "$tag^{commit}")" = "$RELEASE_SHA"
+          else
+            gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST -f "ref=refs/tags/$tag" -f "sha=$RELEASE_SHA"
+          fi
+          cp "docs/releases/v$RELEASE_VERSION.md" release-notes.md
+          printf '\nCI: https://github.com/%s/actions/runs/%s\nSource: `%s`\n' "$GITHUB_REPOSITORY" "$CI_RUN_ID" "$RELEASE_SHA" >> release-notes.md
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" > releases.json
+          existing="$(jq -r --arg tag "$tag" '.[] | select(.tag_name == $tag) | .id' releases.json)"
+          if [ -n "$existing" ]; then
+            if [ "$(jq -r --arg tag "$tag" '.[] | select(.tag_name == $tag) | .draft' releases.json)" = true ]; then
+              gh release upload "$tag" "alpha-aos-$RELEASE_VERSION.tgz" "alpha-aos-$RELEASE_VERSION.tgz.sha256" release-evidence.json release-assets.sha256 --clobber
+              gh release edit "$tag" --notes-file release-notes.md
+            fi
+          else
+            gh release create "$tag" "alpha-aos-$RELEASE_VERSION.tgz" "alpha-aos-$RELEASE_VERSION.tgz.sha256" release-evidence.json release-assets.sha256 --verify-tag --draft --title "alpha-AOS $tag" --notes-file release-notes.md
+          fi
+      - name: Verify uploaded bytes and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          gh release download "$tag" --dir uploaded --pattern "alpha-aos-$RELEASE_VERSION.tgz" --pattern "alpha-aos-$RELEASE_VERSION.tgz.sha256" --pattern release-evidence.json --pattern release-assets.sha256
+          cmp release-assets.sha256 uploaded/release-assets.sha256
+          (cd uploaded && sha256sum --check release-assets.sha256)
+          test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)" = "$RELEASE_SHA"
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          test "$(git rev-parse "$tag^{commit}")" = "$RELEASE_SHA"
+          gh release edit "$tag" --draft=false --prerelease=false --latest
+          gh release view "$tag" --json url,isDraft,isPrerelease,assets > published-release.json
+          jq -e '.isDraft == false and .isPrerelease == false and (.assets | length) == 4' published-release.json
+          gh release view "$tag" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain publication diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: github-release-diagnostics
+          path: |
+            release-run.json
+            release-jobs.json
+            release-evidence.json
+            release-assets.sha256
+            published-release.json
+          if-no-files-found: ignore

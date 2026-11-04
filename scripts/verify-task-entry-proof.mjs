@@ -23,7 +23,7 @@ const REQUIRED_FILES = [
   "docs/task-entry.md", "docs/task-entry.ko.md",
 ];
 const FINAL_GATES = ["check", "build", "targeted", "audit", "full", "build-check", "style-proof", "entry-proof"];
-const WINDOWS_SUITES = ["command-job-runtime.test.js", "command-job-worker.test.js", "command-jobs.test.js", "efficient-wait-cli.test.js", "process.test.js", "protocol-session.test.js", "task-cli.test.js", "task-progress-integration.test.js", "task-progress.test.js", "verify-efficient-wait.test.js"];
+const WINDOWS_SUITES = ["command-job-runtime.test.js", "command-job-worker.test.js", "command-jobs.test.js", "efficient-wait-cli.test.js", "mcp-proxy.test.js", "process.test.js", "protocol-session.test.js", "task-cli.test.js", "task-progress-integration.test.js", "task-progress.test.js", "verify-efficient-wait.test.js"];
 const SOURCE_FILES = ["scripts/verify-task-entry-proof.mjs", "scripts/audit-tarball.mjs", "src/core/doctor.ts", "src/core/task-bootstrap.ts", "test/tarball-fixture.test.ts"];
 const SCENARIOS = ["chain-policy-transition", "chain-task-boundary", "chain-bootstrap-continuity", "chain-quality-and-tamper-guards"];
 const HOLDS = ["3-os-macos-ci", "claude-g-07-2", "global-reconcile", "git-push", "npm-publish"];

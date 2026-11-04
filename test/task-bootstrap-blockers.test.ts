@@ -25,18 +25,37 @@ function runnerFor(projectRoot: string, diagnosis = "ready-project"): GsdToolsRu
   };
 }
 
-async function prepare(context: Parameters<typeof createIsolatedSandbox>[0]) {
+async function prepare(context: Parameters<typeof createIsolatedSandbox>[0], phase?: string) {
   const sandbox = await createIsolatedSandbox(context);
   const projectRoot = join(sandbox.home, "blocker-project");
   await mkdir(join(projectRoot, ".planning"), { recursive: true });
   await writeFile(join(projectRoot, ".planning", "PROJECT.md"), "# Context\n");
   const runner = runnerFor(projectRoot);
   const options = { invocationPath: projectRoot, projectRoot, stateRoot: sandbox.state, runner, pendingId: "blocker" };
-  const input = { schemaVersion: 1, operation: "prepare", controller: "codex", workflow: "quick", projectRoot,
-    pendingId: options.pendingId, request: { text: "Add an exact audited endpoint" }, selectedStyle: "conversational-quick" };
+  const input = { schemaVersion: 1, operation: "prepare", controller: "codex", workflow: phase ? "execute-phase" : "quick", projectRoot,
+    pendingId: options.pendingId, request: { text: "Add an exact audited endpoint" }, selectedStyle: phase ? "conversational-phase" : "conversational-quick",
+    ...(phase ? { commandRoute: { command: "gsd-execute-phase", workflow: "execute-phase", phase, arguments: [phase], stoppingPoint: "execute:post" } } : {}) };
   const preview = await prepareTaskBootstrap({ ...options, input });
   const applied = await prepareTaskBootstrap({ ...options, input: { ...input, planDigest: preview.planDigest }, apply: true });
   return { sandbox, options, applied };
+}
+
+for (const phase of ["30", "30.1", "30.01", "30a.1"]) {
+  test(`native allocation must match preserved phase ${phase}, including acknowledgement and reentry`, async (context) => {
+    const { options, applied } = await prepare(context, phase);
+    await claimTaskBootstrap({ ...options, claimNonce: "phase-claim" });
+    const wrong = await createBootstrapArtifactFixture({ ...options, phase: true, phaseId: phase === "30.01" ? "30.1" : "31" });
+    const before = await readFile(applied.destinationPath!, "utf8");
+    await assert.rejects(linkTaskBootstrapNativeReference({ ...options, nativeReference: wrong }), /native phase differs/u);
+    assert.equal(await readFile(applied.destinationPath!, "utf8"), before);
+    const correct = await createBootstrapArtifactFixture({ ...options, phase: true, phaseId: phase });
+    assert.equal((await linkTaskBootstrapNativeReference({ ...options, nativeReference: correct })).status, "linked");
+    const deliveryReceipt = { receiptSha256: correct.artifactSha256 };
+    assert.equal((await acknowledgeTaskBootstrap({ ...options, deliveryReceipt })).status, "acknowledged");
+    const reentry = await claimTaskBootstrap({ ...options, claimNonce: "phase-claim" });
+    assert.equal(reentry.dispatchAuthorized, false);
+    assert.equal(reentry.nextAction, "task-already-acknowledged");
+  });
 }
 
 for (const diagnosis of ["absent-project", "partial-project"]) {

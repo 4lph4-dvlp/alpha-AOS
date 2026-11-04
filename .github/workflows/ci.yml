@@ -113,6 +113,14 @@ jobs:
           node -e 'console.log(JSON.stringify({node:process.version,undici:process.versions.undici,platform:process.platform,arch:process.arch}))' | tee "$diagnostics/runtime.json"
           node scripts/run-tests.mjs --files dist/test/loopback-http.test.js 2>&1 | tee "$diagnostics/panel-http.log"
           node scripts/run-tests.mjs '--test-name-pattern=phase26 (panel launch uses|ready panel cancels|attach refreshes|public attach)' --files dist/test/task-cli.test.js 2>&1 | tee "$diagnostics/panel-cli.log"
+      - name: Clean bootstrap and cancellation regression preflight
+        shell: bash
+        env:
+          CODEX_HOME: ${{ runner.temp }}/absent-codex-runtime
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/absent-claude-runtime
+        run: |
+          set -o pipefail
+          node scripts/run-tests.mjs --test-concurrency=1 --files dist/test/task-bootstrap-blockers.test.js dist/test/task-bootstrap-handoff.test.js dist/test/task-bootstrap-resume.test.js dist/test/task-bootstrap-recovery.test.js dist/test/task-gsd-readiness.test.js dist/test/support-matrix.test.js dist/test/github-release.test.js 2>&1 | tee "$RUNNER_TEMP/alpha-aos-ci-diagnostics/bootstrap-release.log"
       - name: Full regression
         shell: bash
         run: |

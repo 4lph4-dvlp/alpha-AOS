@@ -4,7 +4,7 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-11-03
+## [0.6.0] - 2026-11-04
 
 - Shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and quality binding.
 - Bilingual task-entry guidance, a hash-bound cross-harness proof ledger and packaged skill/privacy verification. Historical native evidence remains distinct from fixtures and unverified capabilities.
@@ -12,6 +12,8 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 - Native stage observation retains artifact bindings, rejects malformed/oversized metadata and failed or unresolved outcomes, and requires hash-bound native proof observations.
 - Panel readiness consumes its launch specification before returning, so forced cancellation leaves no launch residue. Windows test fixtures use canonical temporary paths; CI diagnostics are stored outside the checkout.
 - GitHub release delivery is gated on exact-commit three-OS CI and checksummed artifacts. npm publication and global rollout remain separate.
+- Bootstrap fixtures no longer depend on developer-installed runtimes. Native reconciliation binds the requested phase, including decimal identifiers; cancellation publication, owned-marker cleanup and terminal writes share one job writer.
+- A resumable GitHub Actions release workflow publishes the original CI artifact, verifies all four required jobs and checks uploaded bytes before making a draft public. Published assets and existing tag targets cannot be replaced.
 
 ## [0.5.0] - 2026-11-01
 

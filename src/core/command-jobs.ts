@@ -1013,6 +1013,29 @@ export function cancelRequestPath(stateRoot: string, jobId: string): string {
   return join(jobDirectory(stateRoot, jobId), "cancel.request");
 }
 
+export async function clearOwnedCancelRequest(stateRoot: string, expected: ExpectedJobIdentity): Promise<void> {
+  await withJobWriteLock(stateRoot, expected.jobId, async () => {
+    const current = await readJobRecord(stateRoot, expected.jobId);
+    assertJobIdentityMatch(current, expected, "cancel");
+    await clearOwnedCancelRequestUnderWriter(stateRoot, expected);
+  });
+}
+
+async function clearOwnedCancelRequestUnderWriter(stateRoot: string, expected: ExpectedJobIdentity): Promise<void> {
+  const path = cancelRequestPath(stateRoot, expected.jobId);
+  const parentProof = await provePlainJobPath(dirname(path), stateRoot, "state");
+  await recheckJobPath(parentProof);
+  const info = await lstat(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return null;
+    throw error;
+  });
+  await recheckJobPath(parentProof);
+  if (info === null) return;
+  const identity = jobFileIdentity(info);
+  validateCancelRequest(JSON.parse(await readBoundedFile(path, stateRoot, MAX_CANCEL_REQUEST_BYTES)), expected);
+  await unlinkOwnedJobFile(path, identity, parentProof);
+}
+
 async function withJobWriteLock<T>(
   stateRoot: string,
   jobId: string,
@@ -1724,6 +1747,11 @@ export async function updateJobRecord(
 
     const content = `${JSON.stringify(candidate, null, 2)}\n`;
     const target = jobRecordPath(stateRoot, expected.jobId);
+    if (TERMINAL_STATUSES.has(candidate.status)) {
+      // Cleanup and terminal publication share the writer with cancel publishers.
+      // Foreign or unprovable markers are preserved, never treated as delivery.
+      await clearOwnedCancelRequestUnderWriter(stateRoot, identityOfJob(current)).catch(() => undefined);
+    }
     await writeAtomicPrivateFile(target, content, MAX_RECORD_BYTES, stateRoot);
 
     return candidate;
@@ -2209,6 +2237,7 @@ export async function cancelCommandJob(options: {
   stateRoot: string;
   jobId: string;
   timeoutMs?: number;
+  _testBarrier?: CommandJobPathBarrier;
 }): Promise<CommandJobRecord> {
   const { stateRoot, jobId } = options;
   validateJobId(jobId);
@@ -2220,7 +2249,13 @@ export async function cancelCommandJob(options: {
     schemaVersion: 1, kind: "command-job-cancel", jobId,
     ownerToken: current.ownerToken, specDigest: current.specDigest, requestedAt: new Date().toISOString(),
   }, expected);
-  await writeAtomicPrivateFile(cancelRequestPath(stateRoot, jobId), `${JSON.stringify(cancelPayload, null, 2)}\n`, MAX_CANCEL_REQUEST_BYTES, stateRoot);
+  await withJobWriteLock(stateRoot, jobId, async () => {
+    const fresh = await readJobRecord(stateRoot, jobId);
+    assertJobIdentityMatch(fresh, expected, "cancel");
+    if (TERMINAL_STATUSES.has(fresh.status)) return;
+    await writeAtomicPrivateFile(cancelRequestPath(stateRoot, jobId), `${JSON.stringify(cancelPayload, null, 2)}\n`, MAX_CANCEL_REQUEST_BYTES, stateRoot,
+      options._testBarrier ? { barrier: options._testBarrier } : {});
+  });
   const settlement = await waitCommandJob({ stateRoot, jobId, timeoutMs, expectedIdentity: expected });
   if (settlement.status === "completed") {
     assertJobIdentityMatch(settlement.value, expected, "cancel");

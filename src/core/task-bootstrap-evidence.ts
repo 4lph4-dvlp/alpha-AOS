@@ -46,14 +46,16 @@ export async function verifyBootstrapNativeReference(handoff: TaskBootstrapHando
   }
   if (ref.requestSha256 !== createHash("sha256").update(handoff.originalRequest.text, "utf8").digest("hex")) fail("wrong original request hash");
   if (ref.claimNonce !== handoff.claim?.nonce || ref.claimSession !== handoff.claim?.session) fail("wrong claim identity");
-  if (!/^[0-9]{1,6}-[a-zA-Z0-9_-]{1,100}$/u.test(ref.id) && !/^[0-9]{1,6}$/u.test(ref.id)) fail("invalid native allocation id");
   let expectedPath = "";
   if (ref.kind === "gsd-quick") {
+    if (!/^[0-9]{1,6}-[a-zA-Z0-9_-]{1,100}$/u.test(ref.id) && !/^[0-9]{1,6}$/u.test(ref.id)) fail("invalid native allocation id");
     if (ref.phaseDirectory !== undefined) fail("quick reference includes phase directory");
     expectedPath = `.planning/quick/${ref.id}/${ref.id.split("-")[0]}-PLAN.md`;
   } else if (ref.kind === "gsd-phase") {
-    if (typeof ref.phaseDirectory !== "string" || !/^[0-9]{1,6}-[a-zA-Z0-9_-]{1,100}$/u.test(ref.phaseDirectory) ||
-        !ref.id.startsWith(`${ref.phaseDirectory.split("-")[0]}-`)) fail("invalid phase allocation");
+    const directory = typeof ref.phaseDirectory === "string" ? /^([0-9]{1,6}[a-z]?(?:\.[0-9]{1,6})*)-([a-zA-Z0-9_-]{1,100})$/u.exec(ref.phaseDirectory) : null;
+    const allocation = /^([0-9]{1,6}[a-z]?(?:\.[0-9]{1,6})*)-([0-9]{1,6})$/u.exec(ref.id);
+    if (!directory || !allocation || directory[1] !== allocation[1]) fail("invalid phase allocation");
+    if (handoff.commandRoute?.phase !== undefined && directory![1] !== handoff.commandRoute.phase) fail("native phase differs from preserved request target");
     expectedPath = `.planning/phases/${ref.phaseDirectory}/${ref.id}-PLAN.md`;
   } else fail("unsupported reference kind");
   const expectedKind = handoff.commandRoute?.workflow.includes("phase") || handoff.canonicalSelectedStyle?.endsWith("phase") ? "gsd-phase" : "gsd-quick";

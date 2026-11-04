@@ -155,7 +155,7 @@ test("entry proof requires both guide hashes in checkout and packed contexts", a
 
 test("entry proof refuses zero tests, omitted/duplicate suites, inconsistent totals and nonexistent source commits", async (context) => {
   const copy = await packedCopy(context);
-  const names = ["ordinary", "command-job-runtime.test.js", "command-job-worker.test.js", "command-jobs.test.js", "efficient-wait-cli.test.js", "process.test.js", "protocol-session.test.js", "task-cli.test.js", "task-progress-integration.test.js", "task-progress.test.js", "verify-efficient-wait.test.js", "tarball-fixture.test.js"];
+  const names = ["ordinary", "command-job-runtime.test.js", "command-job-worker.test.js", "command-jobs.test.js", "efficient-wait-cli.test.js", "mcp-proxy.test.js", "process.test.js", "protocol-session.test.js", "task-cli.test.js", "task-progress-integration.test.js", "task-progress.test.js", "verify-efficient-wait.test.js", "tarball-fixture.test.js"];
   const sourceBindings = await Promise.all(["scripts/verify-task-entry-proof.mjs", "scripts/audit-tarball.mjs", "src/core/doctor.ts", "src/core/task-bootstrap.ts", "test/tarball-fixture.test.ts"].map(async (path) => ({ path, sha256: createHash("sha256").update(await readFile(join(root, path))).digest("hex"), checkoutOnly: !path.startsWith("scripts/") })));
   const run = {
     sourceHead: "a".repeat(40), platform: "win32/x64", total: names.length, passed: names.length, failed: 0, skipped: 0, notRun: 0,

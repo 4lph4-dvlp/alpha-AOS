@@ -13,11 +13,14 @@ aims to eliminate model-driven polling loops on its execution path with detached
 Start a background job with `alpha-aos job start --cwd . --deadline-ms 1200000 --apply --json -- node scripts/run-tests.mjs` and wait via `alpha-aos job wait <job-id> --timeout-ms 1205000 --json`.
 Local release verification at `f5af5ab` passed: 1,820 total, 1,809 passed, 0 failed, 11 skipped (ordinary 1,810; packed 10), exact completion/safety/integration criteria (7/17/4 named tests), provenance and Stage 1. macOS/Linux live GUI and 3OS CI remain unrun. A historical short Codex comparison is scoped in [BUG-06](docs/research/efficient-wait/BUG-06.md); host wakeups, subscription savings and quota remediation are not guaranteed.
 
-Release **0.4.0** adds optional [task-bound computer use](docs/computer-use.md):
-bounded GUI authority, stop, immutable screenshot/action evidence and read-only
-replay through the same CLI/MCP broker for all five harnesses. Start with
-`alpha-aos computer-use plan --json` to choose automatic/manual verification.
-The runtime is opt-in. A controlled Windows CLI/MCP run verified six actions, twenty audit events, and ten validated captures with screenshot replay; [see the visual evidence](docs/research/computer-use/windows-live/report.html).
+Cua Driver **0.38.0** is the default [GUI tool](docs/computer-use.md) for all five
+harnesses. `alpha-aos mcp sync --target <harness> --apply` registers managed `cua`
+with native standard permissions. GUI permission within a task selects managed
+Cua; use it proactively when CLI/API work is impractical, without repeating the
+same permission question. Ordinary GUI work needs no autopilot contract.
+Autopilot verification keeps the bounded broker, exact approved grant, stop,
+immutable screenshot/action evidence and read-only replay introduced in **0.4.0**.
+The historical 0.37.0 Windows run verified six actions, twenty audit events, and ten validated captures with screenshot replay; [see the visual evidence](docs/research/computer-use/windows-live/report.html).
 macOS/Linux GUI actions and 3OS CI remain untested and unrun here. Configuration and portable fixtures are not live platform proof.
 
 Declarative, cross-platform installer and updater for a small, consistent AI-agent workflow stack.

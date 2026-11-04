@@ -28,10 +28,16 @@ export async function requireComputerGrant(contractPath: string, a: ComputerAuth
 }
 export async function computerDoctor(root = packageRoot()): Promise<Record<string, unknown>> {
   const pin = await readComputerJson(join(root, "catalog", "computer-use-runtime.json")) as Record<string, unknown>;
-  return { capability: "computer-use", version: pin.version, optional: true, enabled: false, nativeUse: "unverified", platform: process.platform, arch: process.arch, reason: "Task-local verified runtime and approved exact-target authority required; configuration is not invocation proof", stableLockPromotion: false };
+  const { nativeCuaStatus } = await import("./computer-use-native.js");
+  return { capability: "computer-use", version: pin.version, optional: false, enabled: true, permissionMode: "standard", runtime: await nativeCuaStatus(root), nativeUse: "unverified", platform: process.platform, arch: process.arch, reason: "Default GUI tool; use native-mcp for ordinary task-authorized GUI work, bounded mcp for exact approved autopilot grants. Configuration is not invocation proof", stableLockPromotion: false };
 }
 export async function runComputerCommand(args: string[], context: { stateRoot?: string } = {}): Promise<unknown> {
   const operation = args[0] ?? "doctor";
+  if (operation === "native-mcp") {
+    if (args.length !== 1) throw new Error("Native Cua MCP has fixed standard permissions and accepts no permission overrides");
+    const { serveNativeCua } = await import("./computer-use-native.js");
+    await serveNativeCua(); return undefined;
+  }
   const option = (name: string): string | undefined => { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; };
   if (operation === "doctor" && !option("--runtime")) return computerDoctor();
   if (operation === "plan" && !option("--authority")) return { dryRun: true, authorityRequired: true, decision: decideComputerVerification({ mode: "ordinary", deterministic: true, reversible: true, covered: true }), preference: "Use an application CLI/API when available" };

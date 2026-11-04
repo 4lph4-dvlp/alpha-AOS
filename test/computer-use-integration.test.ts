@@ -73,9 +73,9 @@ test("autopilot executes the hash-bound deterministic GUI request without a user
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-test("actual CLI reports unavailable native runtime without claiming installed proof", () => {
+test("actual CLI reports default GUI availability without claiming native invocation proof", () => {
   const result = JSON.parse(execFileSync(process.execPath, [join(packageRoot(), "dist/src/cli.js"), "computer-use", "doctor", "--json"], { encoding: "utf8" }));
-  assert.equal(result.nativeUse, "unverified"); assert.equal(result.enabled, false);
+  assert.equal(result.nativeUse, "unverified"); assert.equal(result.enabled, true); assert.equal(result.optional, false); assert.equal(result.permissionMode, "standard");
   assert.throws(() => execFileSync(process.execPath, [join(packageRoot(), "dist/src/cli.js"), "computer-use", "action", "--apply"], { stdio: "pipe" }));
 });
 
@@ -106,7 +106,7 @@ test("all five harnesses preview hash-pinned owned guide without GUI authority",
     }
     const packs = await loadPackCatalogStrict(root); assert.ok(packs.value.packs.some((p) => p.id === "COMPUTER_USE"));
     const inventory = await buildTaskCapabilityInventory({ packageRoot: root, projectRoot: scratch, catalog, lock });
-    const item = inventory.items.find((v) => v.id === "control:computer-use"); assert.equal(item?.nativeUse, "unverified"); assert.equal(item?.selected, false);
+    const item = inventory.items.find((v) => v.id === "control:computer-use"); assert.equal(item?.nativeUse, "unverified"); assert.equal(item?.selected, true);
     assert.equal(JSON.parse(await readFile(join(root, "catalog/computer-use-runtime.json"), "utf8")).stableLockPromotion, false);
   } finally { await rm(scratch, { recursive: true, force: true }); }
 });

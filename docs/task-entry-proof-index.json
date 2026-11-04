@@ -2,19 +2,19 @@
   "schemaVersion": 1,
   "packageBindings": {
     "ownedSkill": {
-      "sourceSha256": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
+      "sourceSha256": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675",
       "targetSha256": {
-        "claude": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
-        "codex": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
-        "antigravity": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
-        "pi": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb",
-        "hermes": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb"
+        "claude": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675",
+        "codex": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675",
+        "antigravity": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675",
+        "pi": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675",
+        "hermes": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675"
       }
     },
     "files": [
       {
         "path": "skills/alpha-aos-task/SKILL.md",
-        "sha256": "7a90355b8d2c68a3836c937edaf619b2c0874c49d534b5ddf2bb9fbbde87cadb"
+        "sha256": "7417f64804fc843f08828bcccf27bae988bfd51020859d7456d385a0201b2675"
       },
       {
         "path": "schemas/behavior-policy.schema.json",
@@ -893,7 +893,7 @@
       "platform": "win32/x64",
       "node": "v24.13.1",
       "npm": "11.8.0",
-      "startedAt": "2026-11-02T20:25:52.8458180Z",
+      "startedAt": "2026-11-02T20:25:52.845818Z",
       "finishedAt": "2026-11-02T20:57:26.4929218Z",
       "total": 2150,
       "passed": 2136,

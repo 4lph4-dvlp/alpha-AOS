@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { dirname } from "node:path";
+import { nativeCapabilityPort } from "./task-native-capability.js";
 import type { HarnessId } from "../types.js";
 import type { TaskAgentPolicy } from "../core/task-contract.js";
 import {
@@ -256,6 +258,7 @@ export function createDynamicTaskPorts(
 /** The default task ports using dynamic port dispatch based on contract policy. */
 export function nativeTaskPorts(options: NativeTaskPortOptions = {}): TaskPorts {
   return {
+    capability: nativeCapabilityPort(options.receiptsRoot ? dirname(options.receiptsRoot) : undefined),
     stageObservation: (policy) => codexStageObservationCapability(policy),
     finalReview: { isolation: "native-read-only", evaluateMilestoneFinal: (request) => createDynamicFinalReviewPort(request.contract.agentPolicy, options).evaluateMilestoneFinal(request) },
     controller: {

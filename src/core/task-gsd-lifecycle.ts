@@ -509,6 +509,9 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
       phaseId: options.phaseId, step: options.step, currentSha: options.targetRevisionSha, artifactDigest: options.workingTreeDigest,
       allowedRoots: options.contract.allowedRoots, allowedEffects: options.contract.allowedEffects,
       agentPolicy: options.contract.agentPolicy, resourcePolicy: options.contract.resourcePolicy,
+      goal: options.contract.goal, taskInstructions: options.contract.scope.summary,
+      capabilityEvidence: capabilityReceipts.filter((receipt) => /^[a-f0-9]{64}$/u.test(receipt.observationId ?? "")).map((receipt) =>
+        options.stateRoot ? join(options.stateRoot, "capabilities", "native-results", `${receipt.observationId}.json`) : receipt.observationId),
       usage: dispatchUsage(records), pendingPlans: progress.pendingPlans, completedPlans: progress.completedPlans.map((plan) => plan.planId),
       previousFailure: records.findLast((record) => record.status === "failed" || record.status === "interrupted")?.reason ?? null });
     if (Buffer.byteLength(packet) > 8192) throw new Error("Native GSD task packet exceeds its 8 KiB bound");

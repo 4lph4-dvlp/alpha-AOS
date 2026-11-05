@@ -58,6 +58,7 @@ const ONE_MIB = 1024 * 1024;
 export type GsdStepKind = "discuss" | "plan" | "execute" | "verify";
 
 export interface GsdStepResult {
+  readonly failureReason?: string;
   readonly step: GsdStepKind;
   readonly phaseId: string;
   readonly exitCode: number;
@@ -429,6 +430,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     });
     if (!capabilityVerification.satisfied) {
       return {
+        failureReason: `Required capability evidence missing at ${options.step}: ${obligations.filter((ob) => ob.required).map((ob) => ob.capabilityId).join(", ")}; native capability adapter ${options.capabilityPort ? "returned no satisfactory evidence" : "is not configured"}`,
         step: options.step,
         phaseId: options.phaseId,
         exitCode: 1,
@@ -740,6 +742,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
 export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
   success: boolean;
   finalStep: string;
+  failureReason?: string;
   receipts: readonly string[];
 }> {
   const phaseDir = await resolvePhaseDirectory(options.projectRoot, options.phaseId);
@@ -822,6 +825,7 @@ export async function runPhaseLifecycle(options: RunPhaseOptions): Promise<{
 
     if (result.nextStep === "failed" || result.exitCode !== 0) {
       return {
+        ...(result.failureReason ? { failureReason: result.failureReason } : {}),
         success: false,
         finalStep: step,
         receipts,
@@ -979,7 +983,7 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       return {
         completedPhases,
         finalStatus: lifecycleResult.finalStep === "needs-input" ? "needs-input" : "failed",
-        stopReason: `Phase ${phaseId} stopped at step ${lifecycleResult.finalStep}`,
+        stopReason: lifecycleResult.failureReason ?? `Phase ${phaseId} stopped at step ${lifecycleResult.finalStep}`,
         phaseSelection: approvedSelection,
       };
     }

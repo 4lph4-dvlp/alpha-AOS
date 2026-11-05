@@ -364,6 +364,7 @@ export interface TaskRunRecord {
 }
 
 export type TaskRunErrorCode =
+  | "capability-port-unavailable"
   | "approval-consumed"
   | "unsupported-agent-pair"
   | "unsupported-stage-observation"
@@ -1494,10 +1495,23 @@ async function executeMultiPhaseTask(params: {
  * A dirty or non-git project and a project GSD quick cannot run in are refused
  * before that record exists, so the approval stays usable once fixed (RUN-01).
  */
+export function assertTaskCapabilityPorts(contract: TaskContract, ports: TaskPorts): void {
+  if (contract.category !== "development" || !["gsd", "gsd-multi-phase"].includes(contract.scope.workflow ?? "")) return;
+  const required = ["discuss", "plan", "execute", "verify"] as const;
+  const missing = required.flatMap((step) => selectStepObligations({ contract, step,
+    projectRoot: contract.scope.projectRoot, priorReceipts: [] }))
+    .filter((obligation) => obligation.required);
+  if (missing.length > 0 && !ports.capability) {
+    throw new TaskRunError("capability-port-unavailable",
+      `Runtime has no native capability invocation adapter for ${[...new Set(missing.map((item) => item.capabilityId))].join(", ")}. No run was created and approval was not consumed. Repair the runtime adapter; changing the contract cannot repair this runtime failure.`);
+  }
+}
+
 export async function startTask(options: StartTaskOptions): Promise<{ run: TaskRunRecord; recordPath: string }> {
   const clock = options.now ?? (() => new Date());
   const { loaded, approval } = await assertTaskStartable(options);
   const { contract, digest } = loaded;
+  assertTaskCapabilityPorts(contract, options.ports);
 
   const nativePorts = options.ports;
   let quickBoundary: { binding: import("./task-session.js").TaskSessionBinding; contract: TaskContract; lease: ControllerLease; projectRoot: string; boundary: string } | null = null;

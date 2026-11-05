@@ -2922,7 +2922,8 @@ async function main(): Promise<void> {
         // AUTO-01, AUTO-03: the one call site that launches the supervisor, bound
         // to this task's own approved, unconsumed digest. Every refusal is thrown.
         const reservedRunId = reservedRunIdForApproval({ contractDigest: supplied });
-        const { run } = await startTask({
+        const { startTaskWithRecovery } = await import("./core/task-supervisor.js");
+        const { run } = await startTaskWithRecovery({
           contractPath: operand,
           expectedDigest: supplied,
           stateRoot,

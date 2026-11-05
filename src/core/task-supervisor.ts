@@ -37,6 +37,8 @@ import {
 import { readTaskStopState, recordTaskStopConfirmation } from "./task-control.js";
 import {
   startTask,
+  assertTaskCapabilityPorts,
+  listTaskRuns,
   type StartTaskOptions,
   type TaskPorts,
   type TaskRunRecord,
@@ -58,6 +60,7 @@ import {
 } from "./task-review-findings.js";
 
 export interface SuperviseTaskOptions {
+  initialRunId?: string;
   contractPath: string;
   expectedDigest?: string;
   stateRoot: string;
@@ -77,6 +80,28 @@ export interface SupervisorResult {
   usage: TaskUsageBreakdown;
   ledger: TaskEffectLedger;
   blockedReport: BlockedReport | null;
+}
+
+/** Preserve the start CLI's run record while using durable recovery attempts. */
+export async function startTaskWithRecovery(options: StartTaskOptions): Promise<{ run: TaskRunRecord }> {
+  const loaded = await loadTaskContract(options.contractPath);
+  if (!["gsd", "gsd-multi-phase"].includes(loaded.contract.scope.workflow ?? "")) return startTask(options);
+  assertTaskCapabilityPorts(loaded.contract, options.ports);
+  const prior = await listTaskRuns({ stateRoot: options.stateRoot, contractId: loaded.contract.id, packageRoot: options.packageRoot });
+  if (prior.some((run) => run.contractDigest === loaded.digest && run.status === "accepted")) throw new Error("Task already accepted; recovery cannot create a second execution");
+  let observedRunId: string | null = null;
+  const result = await superviseTask({
+    contractPath: options.contractPath, expectedDigest: options.expectedDigest,
+    stateRoot: options.stateRoot, packageRoot: options.packageRoot, ports: options.ports,
+    ...(options.runId && !prior.some((run) => run.runId === options.runId) ? { initialRunId: options.runId } : {}),
+    ...(options.gsd ? { gsd: options.gsd } : {}),
+    ...(options.now ? { now: options.now } : {}),
+    onRunReady: async (run, path) => { observedRunId = run.runId; await options.onRunReady?.(run, path); },
+  });
+  const runs = await listTaskRuns({ stateRoot: options.stateRoot, contractId: loaded.contract.id, packageRoot: options.packageRoot });
+  const run = runs.find((entry) => entry.runId === observedRunId);
+  if (!run) throw new Error(result.checkpoint.stopReason ?? "Recovery stopped before any task dispatch");
+  return { run };
 }
 
 export interface TaskResumeReadiness {
@@ -287,6 +312,7 @@ export async function superviseTask(options: SuperviseTaskOptions): Promise<Supe
   const { contract, digest } = loaded;
   const projectRoot = resolve(contract.scope.projectRoot);
 
+  assertTaskCapabilityPorts(contract, options.ports);
   // Fail-closed cost meter check (D-14, RUN-04)
   const meterReadiness = await checkCostMeterReadiness(contract.agentPolicy, options.ports);
   if (contract.resourcePolicy.maxCostUsd !== undefined && !meterReadiness.supported) {
@@ -636,6 +662,7 @@ async function runSupervisorLoop(
     let attemptError: unknown = null;
 
     const startOptions: StartTaskOptions = {
+      ...(attemptIndex === 1 && options.initialRunId ? { runId: options.initialRunId } : {}),
       contractPath: options.contractPath,
       expectedDigest: digest,
       stateRoot: options.stateRoot,
@@ -748,7 +775,7 @@ async function runSupervisorLoop(
     const criterionId = failingRow?.criterionId ?? contract.criterion[0]?.id ?? "unknown";
     const reviewerCriterion = attemptResult?.run.reviewer?.report?.criteria.find((c) => c.criterionId === criterionId);
     const repro = reviewerCriterion?.finding?.reproduction;
-    const rawError = reviewerCriterion?.finding?.summary ?? failingRow?.reason ?? errorMsg ?? "Rejected";
+    const rawError = reviewerCriterion?.finding?.summary ?? failingRow?.reason ?? attemptResult?.run.stopReason ?? (errorMsg || "Rejected");
     const cause = failingRow?.review?.severity ?? failingRow?.measured.cause ?? "fail";
     const fingerprint = computeFailureFingerprint(criterionId, cause, rawError);
 

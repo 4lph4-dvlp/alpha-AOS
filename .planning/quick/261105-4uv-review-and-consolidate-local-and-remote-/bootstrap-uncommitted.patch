@@ -1,0 +1,180 @@
+diff --git a/src/core/command-job-worker.ts b/src/core/command-job-worker.ts
+index 9e718c5..dd43223 100644
+--- a/src/core/command-job-worker.ts
++++ b/src/core/command-job-worker.ts
+@@ -7,6 +7,7 @@ import {
+   budgetJobOutput,
+   buildOrdinaryCommandEnvironment,
+   cancelRequestPath,
++  consumeCommandJobCancelRequest,
+   jobDirectory,
+   launchSpecPath,
+   readBoundedFile,
+@@ -33,6 +34,8 @@ export interface JobWorkerTestSeams {
+   readonly onBeforeCancelDelivery?: () => Promise<void> | void;
+   readonly onProcessSettled?: () => void;
+   readonly onProcessOutcome?: (result: ProcessResult) => void;
++  readonly onBeforeCancelCleanup?: () => Promise<void> | void;
++  readonly onCancelCleanupContended?: () => Promise<void> | void;
+ }
+ 
+ export interface RunJobWorkerOptions {
+@@ -411,8 +414,9 @@ export async function runJobWorker(options: RunJobWorkerOptions): Promise<void>
+ 
+   // Only remove cancel file if verified as owned by this job; never delete foreign cancel marker
+   if (cancelFileOwned) {
+-    await assertNoSymlinksInAncestors(cancelFile, stateRoot).catch(() => undefined);
+-    await unlink(cancelFile).catch(() => undefined);
++    await _testSeams?.onBeforeCancelCleanup?.();
++    await consumeCommandJobCancelRequest({ stateRoot, expectedIdentity: pinnedIdentity,
++      _onContention: _testSeams?.onCancelCleanupContended }).catch(() => undefined);
+   }
+ 
+   const durationMs = Date.now() - startedAt;
+diff --git a/src/core/command-jobs.ts b/src/core/command-jobs.ts
+index 39f7db2..5bbac21 100644
+--- a/src/core/command-jobs.ts
++++ b/src/core/command-jobs.ts
+@@ -1017,6 +1017,7 @@ async function withJobWriteLock<T>(
+   stateRoot: string,
+   jobId: string,
+   fn: () => Promise<T>,
++  onContention?: (() => void | Promise<void>) | undefined,
+ ): Promise<T> {
+   validateJobId(jobId);
+   const dir = jobDirectory(stateRoot, jobId);
+@@ -1036,6 +1037,7 @@ async function withJobWriteLock<T>(
+       break;
+     } catch (error) {
+       if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
++      await onContention?.();
+       await new Promise((resume) => setTimeout(resume, 20));
+     }
+   }
+@@ -2209,18 +2211,26 @@ export async function cancelCommandJob(options: {
+   stateRoot: string;
+   jobId: string;
+   timeoutMs?: number;
++  _testBarrier?: CommandJobPathBarrier;
+ }): Promise<CommandJobRecord> {
+   const { stateRoot, jobId } = options;
+   validateJobId(jobId);
+   const timeoutMs = validateNumericFlag(options.timeoutMs ?? 5000, "timeoutMs", 1, MAX_JOB_DEADLINE_MS);
+-  const current = await readJobRecord(stateRoot, jobId);
++  const observed = await readJobRecord(stateRoot, jobId);
++  if (TERMINAL_STATUSES.has(observed.status)) return observed;
++  const expected = identityOfJob(observed);
++  const current = await withJobWriteLock(stateRoot, jobId, async () => {
++    const record = await readJobRecord(stateRoot, jobId);
++    assertJobIdentityMatch(record, expected, "cancel");
++    if (TERMINAL_STATUSES.has(record.status)) return record;
++    const cancelPayload = validateCancelRequest({
++      schemaVersion: 1, kind: "command-job-cancel", jobId,
++      ownerToken: record.ownerToken, specDigest: record.specDigest, requestedAt: new Date().toISOString(),
++    }, identityOfJob(record));
++    await writeAtomicPrivateFile(cancelRequestPath(stateRoot, jobId), `${JSON.stringify(cancelPayload, null, 2)}\n`, MAX_CANCEL_REQUEST_BYTES, stateRoot, { barrier: options._testBarrier });
++    return record;
++  });
+   if (TERMINAL_STATUSES.has(current.status)) return current;
+-  const expected = identityOfJob(current);
+-  const cancelPayload = validateCancelRequest({
+-    schemaVersion: 1, kind: "command-job-cancel", jobId,
+-    ownerToken: current.ownerToken, specDigest: current.specDigest, requestedAt: new Date().toISOString(),
+-  }, expected);
+-  await writeAtomicPrivateFile(cancelRequestPath(stateRoot, jobId), `${JSON.stringify(cancelPayload, null, 2)}\n`, MAX_CANCEL_REQUEST_BYTES, stateRoot);
+   const settlement = await waitCommandJob({ stateRoot, jobId, timeoutMs, expectedIdentity: expected });
+   if (settlement.status === "completed") {
+     assertJobIdentityMatch(settlement.value, expected, "cancel");
+@@ -2236,3 +2246,24 @@ export async function cancelCommandJob(options: {
+   }
+   throw new Error(`Cancellation confirmation was not observed: code=${settlement.status === "timeout" ? "CANCEL_OBSERVATION_TIMEOUT" : "CANCEL_OBSERVATION_ABORTED"}`);
+ }
++
++/** Publication must finish its inode checks before the owner consumes a marker. */
++export async function consumeCommandJobCancelRequest(options: {
++  stateRoot: string;
++  expectedIdentity: ExpectedJobIdentity;
++  _onContention?: (() => void | Promise<void>) | undefined;
++}): Promise<CancelRequestPayload | null> {
++  const { stateRoot, expectedIdentity } = options;
++  return withJobWriteLock(stateRoot, expectedIdentity.jobId, async () => {
++    const path = cancelRequestPath(stateRoot, expectedIdentity.jobId);
++    if (!existsSync(path)) return null;
++    const parentProof = await provePlainJobPath(dirname(path), stateRoot, "state");
++    const identity = jobFileIdentity(await lstat(path));
++    const raw = await readBoundedFile(path, stateRoot, MAX_CANCEL_REQUEST_BYTES);
++    const current = await readJobRecord(stateRoot, expectedIdentity.jobId);
++    assertJobIdentityMatch(current, expectedIdentity, "cancel");
++    const payload = validateCancelRequest(JSON.parse(raw), current);
++    await unlinkOwnedJobFile(path, identity, parentProof);
++    return payload;
++  }, options._onContention);
++}
+diff --git a/test/command-job-worker.test.ts b/test/command-job-worker.test.ts
+index d3b71a6..abce472 100644
+--- a/test/command-job-worker.test.ts
++++ b/test/command-job-worker.test.ts
+@@ -7,6 +7,7 @@ import { basename, join, resolve } from "node:path";
+ import test from "node:test";
+ import {
+   cancelRequestPath,
++  cancelCommandJob,
+   computeSpecDigest,
+   createJobRecord,
+   jobRecordPath,
+@@ -25,6 +26,55 @@ import {
+   type JobWorkerTestSeams,
+ } from "../src/core/command-job-worker.js";
+ 
++test("cancel publication keeps its inode until a contending worker consumes it, then observes pinned terminal cancellation", { timeout: 30_000 }, async () => {
++  const savedExitCode = process.exitCode;
++  const { stateRoot, cleanup } = await createWorkerTestState();
++  let worker: Promise<void> | undefined;
++  let timer: NodeJS.Timeout | undefined;
++  try {
++    const jobId = "job-0000000000000042";
++    const { ownerToken, specDigest } = await setupJobFixture({ stateRoot, jobId, args: ["-e", "setInterval(()=>{},1000)"] });
++    let acknowledge!: (record: CommandJobRecord) => void;
++    const running = new Promise<CommandJobRecord>((resolve) => { acknowledge = resolve; });
++    let decide!: (outcome: "serialized" | "consumed") => void;
++    const consumption = new Promise<"serialized" | "consumed">((resolve) => { decide = resolve; });
++    const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("cancel interleaving barrier deadline")), 12_000); });
++    let observedClosure = false;
++    worker = runJobWorker({ stateRoot, jobId, ownerToken, _testSeams: {
++      onAfterAck: (record) => { acknowledge(record); },
++      onCancelCleanupContended: () => { decide("serialized"); },
++      onBeforeTerminalWrite: () => { decide("consumed"); },
++      onProcessOutcome: (result) => { observedClosure = result.closeConfirmed === true && (result.exitCode !== null || result.signal !== null); },
++    } });
++    const acknowledged = await Promise.race([running, deadline]);
++    let publicationFenced = false;
++    const receipt = await cancelCommandJob({ stateRoot, jobId, timeoutMs: 10_000, _testBarrier: async (phase, path) => {
++      if (phase !== "write:after-rename") return;
++      const outcome = await Promise.race([consumption, deadline]);
++      if (outcome === "serialized") {
++        assert.equal(existsSync(path), true, "worker must retain published inode until publisher finishes its identity assertions");
++        publicationFenced = true;
++      }
++    } });
++    await worker;
++    assert.equal(publicationFenced, true, "worker must contend with the publisher's per-job writer");
++    assert.equal(observedClosure, true);
++    assert.equal(receipt.status, "cancelled");
++    assert.equal(receipt.ownerToken, ownerToken);
++    assert.equal(receipt.specDigest, specDigest);
++    assert.equal(receipt.childPid, acknowledged.childPid);
++    assert.equal(receipt.workerPid, acknowledged.workerPid);
++    assert.equal(receipt.cancelDelivered, true);
++    assert.ok(receipt.cancelConfirmedAt);
++    assert.equal(existsSync(cancelRequestPath(stateRoot, jobId)), false);
++  } finally {
++    clearTimeout(timer);
++    await worker?.catch(() => undefined);
++    process.exitCode = savedExitCode;
++    await cleanup();
++  }
++});
++
+ async function createWorkerTestState(): Promise<{ stateRoot: string; cleanup: () => Promise<void> }> {
+   const dir = join(canonicalFixturePath(tmpdir()), `test-job-worker-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+   await mkdir(dir, { recursive: true, mode: 0o700 });

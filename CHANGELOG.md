@@ -4,6 +4,14 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-05
+
+- Managed Cua support and native discovery integrated into main.
+- Direct pushes, build/startup/link local deployment, and optional manual release builds without CI prerequisites.
+- Automated CI triggers and scheduled dependency promotion disabled; full tests remain optional.
+- Branch histories consolidated while retaining stable dependency pins and preserving unfinished alternative work.
+- Build and CLI startup checked on Windows; no release test suite or cross-platform CI run.
+
 ## [0.6.0] - 2026-11-04
 
 - Shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and quality binding.

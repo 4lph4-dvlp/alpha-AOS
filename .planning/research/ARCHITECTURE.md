@@ -1,63 +1,64 @@
 # Architecture Research
 
-**Milestone:** v0.6.0
-**Researched:** 2026-11-02
-**Confidence:** HIGH locally; MEDIUM for native all-five-host coverage
+**Milestone:** v0.7.0 Autopilot Reliability & Recovery
+**Researched:** 2026-11-05
+**Confidence:** HIGH for existing integration points; proposed design requires phase planning.
 
-## Proposed Components
+## Existing Structure
 
-| Component | Responsibility | Integration |
-|---|---|---|
-| Behavior policy service | Fresh strict/flexible read and safe update | project.ts, paths.ts, transaction.ts, CLI |
-| Intake decision service | Ordered decision, reasons and task choice | alpha-aos-task skill, CLI |
-| GSD readiness adapter | Native prerequisite evidence and partial-state diagnostics | task-gsd.ts, installed GSD queries |
-| Pending request handoff | Retain request, known facts and selection through initialization | GSD-owned context; no second state spine |
-| Style dispatch | Native/conversational or approved runner, including quality flags | task-contract.ts, task-gsd.ts, task-run.ts, task-gsd-lifecycle.ts |
-| Harness guidance | Invoke shared authority and render chooser/text fallback | owned-skills.ts and existing adapters |
-| Evidence verification | Verify actual selected workflow and required quality | task-gsd.ts, task-gsd-gates.ts, tests |
+- Contract validation and approval: task-contract.ts and CLI readiness.
+- Native dispatch and MCP adapter: task-agents.ts, task-codex.ts, task-native-capability.ts.
+- Attempt supervision, limits and effects: task-supervisor.ts, task-strategy.ts, task-journal.ts and task-effects.ts.
+- Durable session events and panel: task-session.ts, task-progress-launch.ts, task-progress-panel.ts.
+- Observation: task-wait.ts, completion-wait.ts and command-jobs.ts.
+- GSD remains the sole owner of phase, plan, verification and project-state transitions.
 
-These are recommendations, not implementation already delivered.
+## Confirmed Integration Gaps
 
-## Request Flow
+1. readTaskStartReadiness computes readiness without task-specific capability invocation readiness; assertTaskCapabilityPorts only proves that a port object exists.
+2. Native MCP errors are collapsed to a tool-name message and thrown before their failed result is retained.
+3. publishTaskSessionEvent returns when no binding exists. CLI start creates origin binding via the optional progress-panel callback. There is no equivalent demonstrated default host wakeup in this path.
+4. readTaskSessionPacket exposes nativeDelivery unknown; taskPanelCapabilities reports native delivery disabled and wakeup unknown.
+5. The supervisor chooses prompt-injection strategies from repeated fingerprints. This is not a typed contract/runtime repair mechanism.
 
-1. Resolve project root and preserve tree-off, trust and authority boundaries.
-2. Read current policy; absence means strict without writing state.
-3. Honor direct GSD commands; handle policy-only requests without starting work.
-4. Honor an explicit style, or identify continuation of the active task.
-5. Exempt clearly simple operations with a reason and normal authority checks.
-6. Ask six styles for a new substantial strict task; flexible preserves adaptive intake.
-7. Establish GSD readiness. GSD new-project initializes; GSD recovery handles partial state.
-8. Resume the selected task. Conversational routes use native GSD; autopilot routes retain preview, exact approval, separate start and isolated execution.
-9. Close the task selection on completion; new work receives a fresh choice.
+## Proposed Flow
 
-Readiness and selection can be presented together; an existing choice must survive initialization. Phase 29 must define the minimal pending-request representation without authorizing premature execution.
+Approved intent -> obligation-aware contract preparation -> explicit execution/repair grant -> durable origin binding -> supervised attempt -> typed outcome.
 
-## State Ownership
+From the typed outcome:
+- Accepted: verify GSD evidence and process closure, persist final outcome, deliver and acknowledge.
+- Recoverable: diagnose -> authorized corrective action -> verify delta -> checkpoint -> next attempt.
+- Authority expansion or genuine external stop: preserve evidence and deliver the exact required user action.
+- Observer disconnect: runtime continues within authority; reconnect replays the durable outcome without re-executing work.
 
-| State | Authority |
+These are responsibilities, not a second GSD lifecycle.
+
+## Components to Modify or Add
+
+| Component | Change |
 |---|---|
-| strict/flexible | Shared project alpha-AOS policy |
-| Task style | Task-scoped selection; exact approved contract for autopilot |
-| Initialization and lifecycle | GSD only |
-| Approval, runs, effects and recovery | Existing task runtime |
-| Cross-session context | ECC memory as non-authoritative evidence |
+| Contract planner/readiness | Shared obligation/adapter/schema validation; explicit states for executable, blocked and needs-input. Do not consume approval during a refused start. |
+| Native capability adapter | Structured scrubbed error taxonomy and useful failure evidence; task-aware source selection; truthful successful receipts. |
+| Session binding/outcome store | Bind origin before work starts; retain contract/digest/revision, chain and attempt identities; distinguish attempt from chain outcomes. |
+| Origin delivery adapter | Register real host completion/continuation handles, persist pending outcomes and acknowledgements, reconcile reconnects and duplicate delivery. |
+| Recovery controller | Choose and execute contract, environment or code repair under an explicit grant; record verification and revision ancestry before retry. |
+| Guidance distribution | Align skill source, generated guidance and packaged documentation with the implemented continuation protocol. |
 
-Mode changes affect future intake. Active approved runs remain bound to their contracts. The selected style is not a persistent project preference.
+## Host Truth
 
-## Quality Binding
+Codex app-server provides notifications to connected clients and thread resume APIs. That alone does not establish a supported route for an unrelated process to inject a turn into the currently open Codex app session. Phase work must prove the origin host path before promising completion-driven continuation. [App-server](https://learn.chatgpt.com/docs/app-server).
 
-The current schema has workflow routing but no quick-full quality binding, and the controller invokes bare quick. Add backward-compatible quality metadata, show it in previews, bind it to the digest/reapproval comparison, pass --full, and verify its additional required outcomes. A display-only label cannot satisfy the requirement.
+Antigravity headless output can carry a terminal result, and streaming input can keep a process conversation alive. This is a useful reference interface, not evidence that the user's previously observed Antigravity repairs happened through this implementation. [Headless mode](https://antigravity.google/docs/cli/headless/).
 
-Reuse existing discuss/plan/execute/verify phase routing and capability gates. Scope autopilot-phase to approved roadmap phases, using the existing runner rather than a new orchestration loop.
+## Build Order Suggested for Roadmap
 
-## Host Refresh and Limits
+35: Executable contracts and actionable capability failures.
+36: Durable origin-session completion delivery and recovery-chain outcome identity.
+37: Authorized diagnosis, corrective action, revision handling and rerun.
+38: Installed guidance alignment and end-to-end evidence under the workstation delivery policy.
 
-[Codex guidance](https://developers.openai.com/codex/guides/agents-md) is assembled per run/session. [Claude documentation](https://code.claude.com/docs/en/memory) describes instruction files as contextual guidance rather than enforced configuration. Therefore stable routing guidance must call the live policy reader at each task entry. Do not promise that editing a file automatically refreshes an existing host. Verify real behavior and report unsupported cells.
-
-## Recommended Build Order
-
-27: shared policy and CLI → 28: intake and task boundaries → 29: bootstrap/resumption → 30: six-route quality binding → 31: native/fixture proof and distribution.
+This is a proposal, not an approved roadmap. Host feasibility should be investigated at the start of Phase 36 before spending on a bridge that cannot reach the originating session.
 
 ## Sources
 
-Local: project.ts; transaction.ts; task-gsd.ts; task-contract.ts; task-contract.schema.json; task-run.ts; task-gsd-lifecycle.ts; owned-skills.ts; task-skill.test.ts. Official host sources are linked above. Upstream GSD semantics were compared with installed workflows.
+[EVIDENCE.md](EVIDENCE.md) links local symbols and records. No production runtime changes or old external task restart occurred during research.

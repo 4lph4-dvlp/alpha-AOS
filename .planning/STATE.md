@@ -20,7 +20,7 @@ progress:
 See: .planning/PROJECT.md (updated 2026-11-05)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** v0.7.0 Autopilot Reliability & Recovery — research selection, requirements and roadmap pending; next phase number 35. Outgoing Phase 27-34 status is preserved in milestones/v0.6.0-ROLLOVER.md and its linked archives.
+**Current focus:** v0.7.0 Autopilot Reliability & Recovery — research complete; 16 draft requirements await user confirmation, then roadmap approval. Next phase number 35. Outgoing Phase 27-34 status is preserved in milestones/v0.6.0-ROLLOVER.md and its linked archives.
 
 ## Current Position
 

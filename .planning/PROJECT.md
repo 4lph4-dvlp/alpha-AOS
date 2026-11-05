@@ -25,7 +25,7 @@ A user can enter any supported project on any supported operating system and get
 - Remove premature handoff defaults across runtime, installed guidance and skills; handoff records must not substitute for available authorized recovery.
 - Investigate Codex behavior against Antigravity reference behavior and prove the corrected lifecycle with observable evidence.
 
-**Planning status:** Owner approved milestone goals, preservation of unfinished work and Phase 35 onward on 2026-11-05. Research selection, detailed requirements approval and roadmap approval are pending. No implementation or product-level autopilot execution is authorized by milestone initialization.
+**Planning status:** Owner approved milestone goals, preservation of unfinished work and Phase 35 onward on 2026-11-05, then selected research first. Research is complete in research/SUMMARY.md, with exact historical evidence in research/EVIDENCE.md. Sixteen draft requirements await confirmation; roadmap approval is pending. No implementation or product-level autopilot execution is authorized by milestone initialization.
 
 **Outgoing work:** v0.6.0 Phase 27-34 artifacts and pre-switch state are preserved under [milestone archives](milestones/v0.6.0-ROLLOVER.md). Archival does not mark incomplete phases complete. Package version 0.6.2 and historical milestone records are not rewritten as release evidence.
 
@@ -146,4 +146,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-05 after owner approval of v0.7.0 milestone goals; research selection pending*
+*Last updated: 2026-11-05 after v0.7.0 research; detailed requirements confirmation pending*

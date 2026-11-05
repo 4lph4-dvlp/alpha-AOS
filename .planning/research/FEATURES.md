@@ -1,66 +1,50 @@
 # Feature Research
 
-**Milestone:** v0.6.0
-**Researched:** 2026-11-02
-**Confidence:** HIGH for user decisions; MEDIUM for semantic classification
-
-## Locked User Decisions
-
-- Persist strict/flexible across harnesses; default to strict when never configured.
-- Every independent substantial strict task receives a fresh choice. The selected style is never a project default: the user explicitly corrected that earlier interpretation.
-- Continue the chosen style for follow-up edits and verification within the same active task.
-- Exempt simple requests using common criteria: clear target/result and no separate design, investigation or multi-stage implementation.
-- Explicit style requests bypass the chooser; direct GSD commands preserve user control.
-- Guide uninitialized substantial tasks through GSD new-project, reusing the original request.
-
-## Six Styles
-
-| Label | Meaning |
-|---|---|
-| 대화형-quick | Small task in the current conversation with optional quality stages omitted |
-| 대화형-quick-full | Discussion, research, planning, plan checking, execution and verification |
-| 대화형-phase | Interactive roadmap/phase workflow and necessary user checkpoints |
-| 오토파일럿-quick | Small task through approved contract and isolated runner |
-| 오토파일럿-quick-full | Full small-task quality pipeline under the approved contract |
-| 오토파일럿-phase | Approved roadmap/phase scope through the isolated runner |
-
-Installed quick.md confirms --full enables discussion, research, plan checking and verification. These are styles over existing GSD workflows, not six new lifecycle engines.
+**Milestone:** v0.7.0 Autopilot Reliability & Recovery
+**Researched:** 2026-11-05
 
 ## Feature Landscape
 
-| Category | Table stakes | Complexity |
-|---|---|---|
-| Shared policy | Read/change/inspect strict/flexible across harnesses | Medium |
-| Strict intake | Stable chooser and task-scoped selection | High |
-| Exceptions | Explainable common criteria and negative examples | Medium |
-| Explicit control | Respect named style and direct commands | Medium |
-| Initialization | Absent/partial/ready checks and request resumption | High |
-| Dispatch | Actual six-route and quick-full quality binding | High |
-| Proof | Cross-harness scenarios, packed guidance and bilingual docs | High |
+| Category | Required behavior | Complexity | Dependency |
+|---|---|---|---|
+| Executable contracts | Distinguish bad contract/schema from unavailable runtime, authentication, quota and service errors; expose a specific remedy before approval/start. | Medium | Capability inventory, actual native invocation path |
+| Capability proof | Successful task-relevant tool output, source evidence and linkage; discovery or configuration alone is insufficient. | Medium | Receipt validation and source policy |
+| Automatic completion | Persist and deliver success, rejection, failure, interruption and observer loss to the exact originating session. | High | Host-specific continuation capability |
+| Recovery | Diagnose, perform a scoped corrective action, verify the change and retry without another user request for routine same-scope recovery. | High | Failure classification, explicit repair grant, checkpoints |
+| Final acceptance | Report GSD acceptance and process closure separately; a failed attempt is not the terminal result of an active recovery chain. | Medium | Supervisor identity and final outcome |
+| Continuity | Restore delivery after reconnect, avoid duplicate attempts, retain completed phases and useful evidence. | High | Durable identity, cursor and acknowledgement |
+| Guidance | Installed skills and source guidance continue authorized recovery; handoff documents explain genuine blockers rather than ending recoverable work. | Medium | Runtime recovery implementation |
 
-## Task and Exemption Boundaries
+## Expected Behavior
 
-Use a shared typed decision with bounded evidence/reasons: explicit command, policy change, explicit style, continuation, simple operation, substantial task, or clarification needed. Keyword lists alone cannot establish semantic scope. Uncertain scope must not silently qualify as simple.
+1. The user requests and authorizes an autopilot task.
+2. Contract construction names real obligations and a supported invocation path.
+3. The runner persists origin identity independently of whether a progress panel is open.
+4. Each attempt has a distinct ID under one auditable recovery lineage.
+5. A recoverable failure produces an actual scoped change before another equivalent attempt.
+6. The originating session resumes automatically through a proven host path and reports accepted work or the specific external/user boundary.
+7. Reconnect and event redelivery do not repeat completed work.
 
-A release can use autopilot-phase, and a later independent bug fix must ask again and may use autopilot-quick-full. A test repair within the active release task is a continuation. Completed or cancelled task choices do not carry into new work.
+## Differentiators
 
-A bounded push, display-name change or README translation/linking can skip the chooser. A rename across packages, imports, deployment and remotes may require discovery and is not automatically exempt. Exemption removes selection overhead, never normal effect authority or required checks. An explicitly requested full style must be honored even if the task could otherwise be simple.
+- Evidence explaining why another attempt should succeed, rather than a retry counter alone.
+- A common outcome envelope across Codex and Antigravity without pretending their native transports are identical.
+- Explicit distinction among failed attempt, blocked recovery chain, lost observer and accepted task.
 
-## Initialization Experience
+## Anti-features
 
-For substantial six-style work, distinguish missing runtime, absent project, partial project and ready project. Reuse facts from the initial request; ask only for missing decisions; let GSD initialize or recover without overwriting context. Then resume the original request once, retaining any already selected style.
+- Unlimited retries, quota bypass, silent model substitution, scope/root expansion.
+- Automatic reapproval of arbitrary changed digests without a prior repair grant.
+- Mock success receipts or removing research requirements after a tool error.
+- Calling a progress panel, status file or desktop notification proof that the conversation continued.
+- A handoff as the routine result of a recoverable failure.
 
-## Anti-Features / Deferred
+## Scope and Validation
 
-- Persistent preferred style or blanket future autopilot consent.
-- Rewriting approved active contracts when mode changes.
-- Memory/transcript inference as authoritative policy.
-- A new GUI picker, execution engine or automatic GSD installation.
-- Perfect intent classification or unapproved paid native calls.
+Prioritize the user's current Codex origin-session experience and existing Codex child execution. Use Antigravity as a behavioral reference and preserve other harness behavior. Which installed host surfaces support automatic continuation requires implementation-time proof; do not silently narrow acceptance to headless child completion.
+
+Tests, fixtures and live runs were not executed during research. Future validation must follow the owner's personal-workstation delivery policy and explicitly authorized invocation scope.
 
 ## Sources
 
-- Authoritative product decisions: user request and correction in this conversation, 2026-11-02.
-- [GSD quick](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/quick.md).
-- [GSD new-project](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/new-project.md).
-- Local: alpha-aos-task/SKILL.md; installed quick.md; task-skill.test.ts; task-governance-hierarchy.test.ts.
+The user report, exact historical evidence in [EVIDENCE.md](EVIDENCE.md), and [Architecture](ARCHITECTURE.md). Antigravity documents programmatic streaming results, not this product's automatic repair guarantees: [Headless mode](https://antigravity.google/docs/cli/headless/).

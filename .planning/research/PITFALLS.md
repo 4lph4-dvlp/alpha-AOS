@@ -1,53 +1,59 @@
 # Pitfalls Research
 
-**Milestone:** v0.6.0
-**Researched:** 2026-11-02
-**Confidence:** HIGH for observed gaps; MEDIUM for semantic boundaries
+**Milestone:** v0.7.0 Autopilot Reliability & Recovery
+**Researched:** 2026-11-05
 
 ## Critical Pitfalls
 
-| Pitfall | Prevention | Proposed phase |
-|---|---|---|
-| Style becomes project preference | Persist mode only; release and later bug fix ask separately | 28 |
-| Existing session retains stale mode | Read policy at intake; test A changes then B continues | 27, 31 |
-| Simple keyword permits arbitrary bypass | Common reasoned criteria, positive/negative twins, uncertainty handling | 28 |
-| Every minor operation starts new-project | Exempt simple requests before substantive workflow readiness | 29 |
-| File presence mistaken for readiness | Native GSD prerequisites and partial-state diagnostics | 29 |
-| Fake initialization via placeholder files | GSD owns initialization/recovery; never overwrite context | 29 |
-| quick-full only renames ordinary quick | Digest/argv/evidence binding and missing-quality negatives | 30 |
-| Project policy grants autopilot consent | Exact preview, approval and separate start per task | 30 |
-| Pending intake duplicates GSD state | Separate handoff context; GSD remains lifecycle writer | 29, 30 |
-| Owned skill integrity drifts | Update source/five-target hashes and packed checks | 30, 31 |
-| Old regression gaps silently become green | Record actual runs and preserve not-run/failed results | 31 |
+### 1. Naming a tool is mistaken for having an executable contract
 
-## Acceptance Scenarios
+The obligation selector derives requirements from words in the goal and criteria; the contract may mention Exa as a product being updated rather than a research action. Readiness must explain why a capability is required for that step and whether the intended invocation is supported. Preserve genuinely required research; do not suppress it to avoid errors.
 
-1. Missing policy defaults to strict and presents six choices for substantial work.
-2. Codex sets flexible; Antigravity reads it without repeated mode instructions.
-3. Pi sets strict; an existing Codex session sees it on the next task intake.
-4. Release uses autopilot-phase; later bug fix asks again and uses autopilot-quick-full.
-5. Follow-up edits and verification within an active task do not ask again.
-6. Bounded push, simple display rename and README translation/linking avoid chooser/bootstrap prompts.
-7. Cross-subsystem rename requiring discovery does not qualify as simple by name alone.
-8. Named style skips chooser, not readiness or exact autopilot consent.
-9. Absent project reuses the request through new-project and resumes once.
-10. Partial project reports missing context and uses GSD recovery without overwriting it.
-11. Invalid policy/stale selection produces a diagnostic, not silent fallback.
-12. quick-full cannot pass with ordinary quick evidence only.
-13. Direct GSD commands retain user-selected workflow/timing.
+### 2. Tool failure details are discarded
 
-## Carried Verification Debt
+nativeCapabilityPort checks isError and replaces the response with a generic exception before adding it to retained calls. Four inspected recovery attempts show the same generic Exa failure. The underlying reason is not recoverable from those receipts. Preserve bounded, scrubbed diagnostics before classification and retry.
 
-Quick 261101-ww3 remains incomplete: broader regression hit a Phase 26 worker handshake timeout; four later suites were not run. Existing release/macOS CI/push/publication holds remain. This planning rollover neither repairs nor clears them.
+MCP distinguishes protocol failure from tool execution errors, supplies input schemas, and supports structured results. Use those surfaces rather than guessing from an undifferentiated rejection. [MCP Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools).
 
-## Evidence Limits
+### 3. A working chat connector proves the runner works
 
-Four official pages were read using Exa/Firecrawl: GSD quick, GSD new-project, Codex guidance and Claude memory guidance. No paid model canary or native all-five-host test was run. Upstream next is mutable and not the stable lock. Installed local workflow is the implementation baseline.
+This session's Exa calls succeeded. The historical runner used a separately launched pinned npm server. Authentication, schema, tool filtering and environment can differ. Probe the actual path under the intended identity; never copy chat credentials into a contract.
+
+### 4. No visible panel means no origin binding
+
+The inspected start callback is conditional on progress=panel; publishing an event without a binding returns quietly. Create the session identity and delivery registration independently of UI. Test reconnect-before-terminal, terminal-before-subscribe and duplicate delivery.
+
+### 5. Prompt escalation is treated as repair
+
+The current strategy changes prompts at repeat counts two and three, then blocks at four. A tool failure before useful model work can exhaust that strategy without a corrective action. Classify the failure, change the relevant layer, verify the change, and suppress unchanged retries. Keep quota and resource stops genuine.
+
+### 6. Domain filters make valid official research impossible
+
+The native adapter accepts a fixed host set including docs.exa.ai but not exa.ai, developers.openai.com, learn.chatgpt.com or antigravity.google, and requires at least two allowed URLs. The official pages used in this research can be rejected by that filter. This is a current code-level incompatibility risk, not the proven cause of the historical Exa tool error. Choose and validate sources according to the task and reviewed source policy; preserve URL and network safeguards.
+
+### 7. A receipt factory can manufacture confidence
+
+createFreshSessionCapabilityPort has a default mock-success branch without an invoker. The native default currently uses nativeCapabilityPort, so reachability must be traced before calling this a production incident. Keep synthetic success isolated to explicit test fixtures and require real successful invocation evidence on production paths.
+
+### 8. A handoff document becomes the terminal product
+
+Source guidance says ONE finite runtime wait and allows handoff on host limitations. These instructions may bias session behavior, but causality is not proven. Replace blanket stopping rules with a runtime-owned continuation protocol. Keep durable notes useful while authorized recovery proceeds.
+
+## Other Integration Risks
+
+- Codex exec dotted terminals and app-server slash-separated notifications are not interchangeable.
+- A child turn completing is not a GSD task acceptance.
+- An attempt rejection is not final while a recovery chain is active.
+- A new digest is not automatically authorized merely because its goal sounds similar.
+- Failed observers cannot claim task failure or success without reconciling authoritative records.
+- Hashing any nonempty response does not establish relevant research content.
+- Installed skill pin mismatch, missing source schemas and unavailable credentials need distinct remedies.
+- Existing historical notes are stale: the inspected digest now has a four-attempt supervisor checkpoint even though an older handoff said checkpoints were absent.
+
+## Pitfall-to-Phase Mapping
+
+Proposed: Phase 35 handles capability and contract failures; Phase 36 handles delivery/identity races; Phase 37 handles corrective action and authority; Phase 38 handles misleading guidance and scenario evidence.
 
 ## Sources
 
-- [GSD quick](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/quick.md).
-- [GSD new-project](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/new-project.md).
-- [Codex guidance](https://developers.openai.com/codex/guides/agents-md).
-- [Claude memory](https://code.claude.com/docs/en/memory).
-- Local: task-gsd.ts; task-run.ts; task-skill.test.ts; task-governance-hierarchy.test.ts; archived Phase 26; quick 261101-ww3 summary.
+Local source and historical record details: [EVIDENCE.md](EVIDENCE.md). External protocol support: [MCP Tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools). No failing live task was rerun for this research.

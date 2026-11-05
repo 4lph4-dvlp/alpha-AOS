@@ -1,47 +1,37 @@
 # Stack Research
 
-**Milestone:** v0.6.0 — Predictable Task Entry and Shared Project Policy
-**Researched:** 2026-11-02
-**Confidence:** HIGH for local integration; MEDIUM for native host behavior
+**Milestone:** v0.7.0 Autopilot Reliability & Recovery
+**Researched:** 2026-11-05
+**Confidence:** HIGH for inspected code and historical records; MEDIUM for host integration feasibility.
 
 ## Recommended Stack
 
-| Existing technology | Purpose | Decision |
+Retain Node.js >=24, TypeScript, the existing MCP SDK, transactional state, command jobs and GSD lifecycle. No new dependency or model change is established by this research. Versions remain those in package.json and the stable lock; current upstream documentation is guidance, not proof that every pinned server exposes the same schema.
+
+| Concern | Existing component | Recommended change |
 |---|---|---|
-| Node.js >=24, TypeScript | Policy reader, classifier and CLI | Reuse; no upgrade |
-| Existing JSON/schema validation | Versioned policy and task selections | Reuse validators |
-| applyFileTransaction | Preview, bounded writes, snapshot and rollback | Reuse transaction service |
-| GSD full, stable lock 1.18.0 | Sole initialization and task lifecycle owner | Inspect installed workflow; do not patch upstream |
-| node:test | Observable CLI, routing and boundary scenarios | Reuse test runner |
+| Contract readiness | src/cli.ts readTaskStartReadiness; task-contract.ts | Evaluate task-specific obligations against the actual invocation adapter, transport, schema and credential availability before presenting a runnable contract. Separate pure inspection from authorized service calls. |
+| Tool execution | src/adapters/task-native-capability.ts | Preserve scrubbed protocol/tool error details; validate actual response content and task relevance. Bind evidence to the actual invocation context. |
+| Completion | completion-wait.ts; command-jobs.ts; task-session.ts | Reuse bounded runtime observers and durable event storage; add proven origin-session delivery and acknowledgement instead of another state spine. |
+| Recovery | task-supervisor.ts; task-strategy.ts | Add typed recovery actions for contract, runtime and external failures, not only repeated prompt injection. |
+| Authority | task-contract.ts; task-effects.ts; task-journal.ts | Explicit repair authorization and revision lineage, preserving models, allowed roots, budget and GSD ownership. |
 
-Versions: package.json and catalog/stack.lock.json. No new dependency or library API is required by the proposed design; no dependency install or Context7 lookup was needed.
+## Native Integration Boundaries
 
-## Integration Findings
+Codex exec JSONL and app-server JSON-RPC are different protocols. The CLI exposes dotted terminal events; app-server exposes slash-separated turn notifications. Do not feed one parser the other wire format. [Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode), [App-server](https://learn.chatgpt.com/docs/app-server).
 
-- src/core/project.ts reads pack/isolation manifests. Intake policy must not imply pack trust or isolation authority.
-- src/core/task-gsd.ts probes native query init.quick, checking planning_exists and roadmap_exists; this alone is not complete initialization proof.
-- schemas/task-contract.schema.json accepts gsd-quick, gsd-multi-phase, gsd and generic-connector. There is no distinct quick-full quality binding.
-- The quick controller prompt currently invokes bare $gsd-quick. Full mode requires contract, prompt and evidence changes.
-- src/core/task-run.ts already routes quick and multi-phase work. Extend these paths with backward compatibility.
+The inspected task-codex.ts already parses exec terminals. This makes the missing origin-session continuation a separate integration problem, not a reason to replace all Codex execution code.
 
-## Storage Recommendation
-
-Use one versioned project-root policy accessible before .planning exists. Persist strict/flexible only. The filename and whether to extend .alpha-aos/stack.yaml are Phase 27 decisions. A separate policy avoids coupling bootstrap to pack manifests; extending the manifest reduces the number of project documents.
-
-Read current policy at every task intake. Missing means strict without writing files; invalid means an actionable diagnostic, not silent flexible fallback. Expose effective mode, root, source and revision/digest.
+Exa's hosted endpoint and pinned local npm process are distinct transports. The native adapter launches the pinned npm package through upstreamProcessSpec. Working Exa tools in this chat do not prove that process has the same authentication, configuration or surface. [Exa MCP](https://exa.ai/docs/get-started/exa-mcp).
 
 ## Alternatives Considered
 
-| Avoid | Reason |
-|---|---|
-| Harness-local mode copies | Divergent authority and stale sessions |
-| GSD config as sole mode storage | GSD-owned and unavailable before initialization |
-| ECC memory as policy | Recall is context, not authoritative configuration |
-| LLM-only workflow classification | Recreates unpredictable routing |
-| New workflow framework | Duplicates GSD lifecycle ownership |
+- A new workflow engine: unnecessary; GSD already owns project lifecycle.
+- Permanent model-driven status loops: do not repair missing delivery and consume inference on unchanged state.
+- A separate app-server process as an assumed connection to this existing desktop conversation: not established by public documentation. Prove the actual host integration first.
+- Removing mandatory capability obligations to make runs green: hides the failure instead of repairing it.
+- Broad dependency upgrades: not justified by the observed failure.
 
 ## Sources
 
-- Local: package.json; catalog/stack.lock.json; project.ts; transaction.ts; task-contract.ts; task-gsd.ts; task-run.ts.
-- [GSD quick](https://github.com/open-gsd/gsd-core/blob/next/commands/gsd/quick.md): quality semantics; mutable upstream next is not the locked runtime.
-- [Codex instructions](https://developers.openai.com/codex/guides/agents-md): per-run/session discovery supports a live policy lookup.
+Local: src/adapters/task-agents.ts, task-native-capability.ts, task-codex.ts; src/core/task-session.ts, completion-wait.ts, task-contract.ts and task-supervisor.ts. Historical record identities and limitations: [EVIDENCE.md](EVIDENCE.md).

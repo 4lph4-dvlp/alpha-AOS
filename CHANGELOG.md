@@ -6,8 +6,8 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [0.6.2] - 2026-11-05
 
-- Managed installation downloads the reviewed platform-specific Cua Driver archive, verifies archive and companion hashes, and journals runtime files with rollback support.
-- Managed Cua discovery uses the user state directory without manual PATH setup; native standard approvals and OS permissions still apply.
+- Managed installation reuses unchanged, source/hash-pinned official Cua installers and helpers at an exact release, including native layout and PATH setup. Native installer changes are reported as external and are not automatically rolled back.
+- Cua discovery uses official install locations and plain MCP, preserving macOS CuaDriver.app permission identity. Pinned installed-file verification, native standard approvals and OS permissions remain enforced.
 - Clarified that Pi installations already include the pinned MCP bridge, with fixture and post-install verification.
 
 

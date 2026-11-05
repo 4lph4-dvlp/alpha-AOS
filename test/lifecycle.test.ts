@@ -1,3 +1,4 @@
+import { planCuaInstall } from "../src/core/computer-use-install.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -197,6 +198,7 @@ test("stable-lock reconciliation against already-applied stack is idempotent and
     ...options,
     plan: {
       kind: "managed-install",
+      cua: await planCuaInstall(),
       root: repositoryRoot,
       stateRoot: fixture.stateRoot,
       targets: ["codex"],
@@ -242,6 +244,7 @@ test("idempotent repetition produces identical results without accumulating jour
 
   const mockPlan = {
     kind: "managed-install" as const,
+    cua: await planCuaInstall(),
     root: repositoryRoot,
     stateRoot: fixture.stateRoot,
     targets: ["codex"] as const,

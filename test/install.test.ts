@@ -142,7 +142,7 @@ test("the managed install operation plan enumerates every fixture and component 
   assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "cli-anything"), true);
 
   // Every external installer is declared before it runs.
-  assert.deepEqual(plan.external.map((step) => step.id).sort(), ["ecc:runtime", "gsd:codex"]);
+  assert.deepEqual(plan.external.map((step) => step.id).sort(), ["cua:runtime", "ecc:runtime", "gsd:codex"]);
   assert.equal(plan.external.every((step) => step.spec.args.length > 0), true);
   assert.equal(JSON.stringify(plan.external).includes("\"source\""), false, "a declared spec carries names, never ambient values");
 

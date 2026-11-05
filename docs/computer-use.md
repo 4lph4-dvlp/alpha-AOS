@@ -11,24 +11,45 @@ effects, foreground takeover and OS permissions still need relevant authority.
 
 ## Ordinary GUI setup
 
-Run `alpha-aos install --apply` for detected harnesses, or select a target with
-`alpha-aos install --target pi --apply`. Managed installation includes the reviewed
-Cua Driver **0.38.0** and registers `cua`; selecting Pi also installs its pinned
-MCP bridge. Runtime files are verified and journaled under the user state directory;
-no PATH edit is needed. Reload the harness after installation.
+Run `alpha-aos install --apply` for detected harnesses, or select Pi with
+`alpha-aos install --target pi --apply`. Pi includes its pinned MCP bridge.
+The Cua step runs the unchanged official installer and sibling helpers shipped
+with alpha-AOS, hash-pinned to reviewed source commit
+`85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19`, with release **0.38.0** explicitly selected.
+It does not fetch and execute a moving installer or silently select latest.
 
-Run `alpha-aos computer-use doctor --json` to inspect local runtime availability.
-If only reconciling configuration, use `alpha-aos mcp sync --target <harness> --apply`;
-that command does not install the driver. GUI task requests authorize the intended
-GUI operations; agents may proactively use Cua within existing permission, or ask
-for missing GUI permission. Native prompts and OS grants still apply.
+Official locations:
+
+- Windows: `%LOCALAPPDATA%\Programs\Cua\cua-driver\bin\cua-driver.exe`,
+  backed by `%USERPROFILE%\.cua-driver\packages` version directories/junctions.
+- macOS: `/Applications/CuaDriver.app`, with CLI symlink in `~/.local/bin`.
+- Linux: `~/.cua-driver/packages`, with CLI symlink in `~/.local/bin`.
+
+The official installer performs platform layout, native code-signature checks
+where supported, published checksum checks and PATH setup. Its Sigstore check
+runs when cosign is available; alpha-AOS additionally verifies pinned installed
+file hashes. Telemetry and version garbage collection are disabled; Windows
+scheduled-task autostart is explicitly disabled. Installation may stop existing
+Cua daemons. If old official layout directories exist, alpha-AOS requires migration review before invoking an installer that could delete them. These are external installer
+changes: alpha-AOS does not journal or automatically roll them back. Use the
+same official installer with a reviewed previous version for native rollback;
+PATH/profile changes may require separate review. Old alpha-AOS private runtime
+files are preserved but are no longer the preferred discovery path.
+
+Reload the harness and open a new terminal after installation to pick up PATH
+changes. alpha-AOS also knows the official executable location, so its MCP can
+connect before a new terminal inherits PATH. Run
+`alpha-aos computer-use doctor --json` for byte availability. `mcp sync` alone
+only reconciles harness configuration. On macOS, run `cua-driver permissions grant`
+and approve Accessibility and Screen Recording for CuaDriver in System Settings;
+installation cannot silently grant these OS permissions.
 
 The connection runs `alpha-aos computer-use native-mcp`: a private native MCP
 runtime with fixed `standard` permissions, verified executable/companion hashes,
 an environment allowlist, disabled telemetry/update checks and an explicit GUI
 tool allowlist. Ordinary GUI work requires no autopilot contract. Native approval
-prompts and macOS TCC remain binding. No unrestricted profile, global daemon or
-autostart is installed. Browser/native state and input tools are available;
+prompts and macOS TCC remain binding. No unrestricted profile or autostart is enabled. On macOS, plain `mcp` uses
+the official CuaDriver.app daemon for native permission attribution. Browser/native state and input tools are available;
 shell/eval, clipboard, file transfers, recording and whole-desktop tools are not.
 Use fresh window/browser state, a consistent session label, and observed
 postconditions. End your session without stopping a shared daemon or user's app.
@@ -138,7 +159,7 @@ success. Applications with ambiguous/insufficient read-back remain unverified.
 For meaningful acceptance, also inspect a domain postcondition independently.
 The controlled fixture reads its own action state separately from the driver.
 
-Task-local approvals and manifests do not install a global daemon. Runtime bytes live under `<state-root>/computer-use/runtime`; evidence and the shared desktop lease live under `<state-root>/computer-use/evidence`, outside project Git trees. One grant opens one session; use persistent MCP for multiple gestures. Existing application CLIs/process tools open an app first, then bind its returned process/window for GUI verification. `launch_app` is limited to an already bound application and does not authorize arbitrary program arguments.
+Task-local approvals and manifests do not install a global daemon. Bounded-verification runtime bytes live under `<state-root>/computer-use/runtime`; evidence and the shared desktop lease live under `<state-root>/computer-use/evidence`, outside project Git trees. One grant opens one session; use persistent MCP for multiple gestures. Existing application CLIs/process tools open an app first, then bind its returned process/window for GUI verification. `launch_app` is limited to an already bound application and does not authorize arbitrary program arguments.
 
 Autopilot contracts may also include `computerUse.verification` with project-relative `authorityFile`, `runtimeFile`, `requestFile` and their `runtimeReceiptHash`/`requestHash`. The task verification boundary executes this request through the same broker without another prompt when deterministic, reversible and covered. A missing or failed check blocks acceptance; an old contract grants nothing.
 
@@ -209,3 +230,11 @@ precise unavailable stage without touching unrelated applications, permissions,
 accounts or credentials. No unavailable platform is promoted to live support.
 
 The selected native executable must match the pinned archive entrypoint path/name and file hash. Every companion file is rehashed before native calls. All five OS/architecture archives were checksum- and Sigstore-verified and inspected without extraction; see [provenance](research/computer-use/all-platform-provenance.json). This does not supply GUI live proof on another OS. Active journal bytes and referenced captures are checked against the in-memory trusted checkpoint before input. Corruption revokes the session; result-storage failure cannot suppress cancellation. Retention preserves any blob with a reference newer than its cutoff.
+
+## Official installation references
+
+- [Official quickstart](https://cua.ai/docs/cua-driver/quickstart)
+- [Runtime ownership and macOS app identity](https://cua.ai/docs/cua-driver/concepts/how-cua-driver-works)
+- [Pinned official installer source](https://github.com/trycua/cua/tree/85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19/libs/cua-driver/scripts)
+
+The earlier private archive installation in the initial 0.6.2 change is superseded.

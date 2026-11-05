@@ -486,4 +486,4 @@ npm run audit-tarball
 
 ### 0.6.2: GUI와 Pi MCP 기본 설치
 
-`alpha-aos install --apply`는 검토된 Cua Driver를 설치하고 선택한 하네스에 Cua를 등록합니다. Pi를 선택하면 고정된 MCP 브리지도 자동 설치합니다. 설치 후 하네스를 다시 불러오세요. GUI 작업을 명시한 요청 또는 기존 작업 허용 범위에 따라 사용할 수 있으며, 네이티브 승인과 OS 권한은 계속 적용됩니다. `mcp sync`만 실행하면 설정만 동기화합니다.
+`alpha-aos install --apply`는 검토된 Cua Driver를 설치하고 선택한 하네스에 Cua를 등록합니다. Pi를 선택하면 고정된 MCP 브리지도 자동 설치합니다. 고정된 공식 Cua 설치 프로그램이 플랫폼별 배치와 PATH를 처리합니다. 설치 후 하네스와 터미널을 다시 열어 주세요. macOS에서는 CuaDriver.app의 OS 권한 승인도 필요합니다. GUI 작업을 명시한 요청 또는 기존 작업 허용 범위에 따라 사용할 수 있으며, 네이티브 승인과 OS 권한은 계속 적용됩니다. `mcp sync`만 실행하면 설정만 동기화합니다.

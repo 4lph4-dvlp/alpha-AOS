@@ -148,13 +148,13 @@
         }
       },
       "computer-use": {
-        "sourceSha256": "a88322351179d4f85a78e3b6b68b510cb02c4c651b27aa3f2a043e81ab623513",
+        "sourceSha256": "58439d81e9e7aefb3fa2257777055a579d5fd447b6ecb374bb982982bd2229c8",
         "targetSha256": {
-          "claude": "a88322351179d4f85a78e3b6b68b510cb02c4c651b27aa3f2a043e81ab623513",
-          "codex": "a88322351179d4f85a78e3b6b68b510cb02c4c651b27aa3f2a043e81ab623513",
-          "antigravity": "a88322351179d4f85a78e3b6b68b510cb02c4c651b27aa3f2a043e81ab623513",
-          "pi": "a88322351179d4f85a78e3b6b68b510cb02c4c651b27aa3f2a043e81ab623513",
-          "hermes": "a88322351179d4f85a78e3b6b68b510cb02c4c651b27aa3f2a043e81ab623513"
+          "claude": "58439d81e9e7aefb3fa2257777055a579d5fd447b6ecb374bb982982bd2229c8",
+          "codex": "58439d81e9e7aefb3fa2257777055a579d5fd447b6ecb374bb982982bd2229c8",
+          "antigravity": "58439d81e9e7aefb3fa2257777055a579d5fd447b6ecb374bb982982bd2229c8",
+          "pi": "58439d81e9e7aefb3fa2257777055a579d5fd447b6ecb374bb982982bd2229c8",
+          "hermes": "58439d81e9e7aefb3fa2257777055a579d5fd447b6ecb374bb982982bd2229c8"
         }
       }
     }

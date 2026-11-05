@@ -491,4 +491,4 @@ Licensed under the [Apache License 2.0](./LICENSE).
 
 ### 0.6.2: ready-to-use GUI and Pi MCP
 
-`alpha-aos install --apply` installs the reviewed Cua Driver and registers Cua for selected harnesses. Pi selection also installs the pinned MCP bridge automatically. Reload the harness after installation. GUI task requests or existing task permission authorize scoped use; native approvals and OS permissions still apply. `mcp sync` alone only reconciles configuration.
+`alpha-aos install --apply` installs the reviewed Cua Driver and registers Cua for selected harnesses. Pi selection also installs the pinned MCP bridge automatically. The pinned official Cua installer handles platform layout and PATH; reload the harness and open a new terminal afterward. macOS also requires CuaDriver.app OS permission grants. GUI task requests or existing task permission authorize scoped use; native approvals and OS permissions still apply. `mcp sync` alone only reconciles configuration.

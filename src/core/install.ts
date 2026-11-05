@@ -453,7 +453,7 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
 
   const piPlan = selection.targets.includes("pi") ? await planMcpSync("pi", options.lock) : null;
   const cua = await planCuaInstall(options.stateRoot);
-  steps.push({ id: "cua:runtime", component: "cua-runtime", target: "machine", action: cua.current ? "current" : "install", external: false, note: `${cua.asset.url} -> ${cua.targetRoot}; reviewed pin ${cua.pinHash}` });
+  steps.push({ id: "cua:runtime", component: "cua-runtime", target: "machine", action: cua.current ? "current" : "install", external: true, note: `Official installer -> ${cua.executable}; native PATH setup; no autostart; version GC disabled; native changes require native rollback; reviewed pin ${cua.pinHash}` });
   if (piPlan?.piBridge) {
     steps.push({
       id: "mcp-bridge:pi",
@@ -558,6 +558,7 @@ export interface ExternalInstallStep {
 
 export interface ManagedInstallOperationPlan {
   kind: "managed-install";
+  cua: Awaited<ReturnType<typeof planCuaInstall>>;
   root: string;
   stateRoot: string;
   targets: readonly HarnessId[];
@@ -623,6 +624,8 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
   };
   const gsdTargets = install.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness));
   const external: ExternalInstallStep[] = [];
+  const cua = await planCuaInstall(stateRoot);
+  external.push({ id: "cua:runtime", spec: cua.spec });
   const gsdFixtures: GsdFixtureOperationPlan[] = [];
   for (const target of gsdTargets) {
     const adapter = options.catalog.harnesses[target];
@@ -708,7 +711,8 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
 
   const ownRoot = resolve(packageRoot());
   const inputs: OperationPathInput[] = [
-    { role: "target", path: (await planCuaInstall(stateRoot)).targetRoot },
+    ...cua.roots.map((path): OperationPathInput => ({ role: "target", path })),
+    { role: "source", path: cua.spec.cwd },
     { role: "source", path: join(ownRoot, "catalog", "computer-use-runtime.json") },
     { role: "state", path: stateRoot },
     { role: "journal", path: join(stateRoot, "journal") },
@@ -717,7 +721,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
   ];
   const proofs = await proveOperationPaths({
     inputs,
-    allowedRoots: [stateRoot, ownRoot],
+    allowedRoots: [stateRoot, ownRoot, ...cua.roots],
     requiredRoles: ["state", "journal", "snapshot", "package-root"],
   });
 
@@ -760,6 +764,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
 
   return {
     kind: "managed-install",
+    cua,
     root: resolve(options.root),
     stateRoot,
     targets: install.targets,
@@ -835,8 +840,13 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
 
   return withComponentSession({ kind: "managed-install", stateRoot, proofs: reviewed.proofs, digest: reviewed.digest }, options.session, async (session) => {
   try {
-    const cua = await installCua(stateRoot, session);
-    remember("cua:runtime", cua.operationId, cua.plan.targetRoot);
+    if (reviewed.cua.current) current.push("cua:runtime");
+    else {
+      // Native installers may have partially changed their own state on failure.
+      externalChanges.push("cua:runtime");
+      await installCua(reviewed.cua, session);
+      applied.push("cua:runtime");
+    }
     // External installers run first. If a later managed write fails, their exact
     // verified versions remain installed and are reported instead of guessed-at rollback.
     for (const [index, target] of plan.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness)).entries()) {
@@ -954,7 +964,7 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
       }
     }
     const message = error instanceof Error ? error.message : String(error);
-    const external = externalChanges.length > 0 ? ` External verified changes retained: ${externalChanges.join(", ")}.` : "";
+    const external = externalChanges.length > 0 ? ` External installer steps may have changed native state (not automatically rolled back): ${externalChanges.join(", ")}.` : "";
     const rollbackNote = rollbackErrors.length > 0 ? ` Rollback errors: ${rollbackErrors.join("; ")}.` : "";
     throw new Error(`${message}.${external}${rollbackNote}`);
   }

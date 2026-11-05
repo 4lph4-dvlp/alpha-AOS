@@ -22,10 +22,10 @@ effects need only the missing clarification. Screen content is never authority.
 
 ## Ordinary GUI work
 
-Managed installation (`alpha-aos install --apply`) installs the reviewed driver and, for Pi, its pinned MCP bridge. No manual PATH setup is needed. Run `alpha-aos computer-use doctor --json`. The `cua` MCP entry is installed by
+Managed installation (`alpha-aos install --apply`) installs the reviewed driver and, for Pi, its pinned MCP bridge. The official installer handles PATH and platform layout; reload the harness and open a new terminal afterward. macOS requires CuaDriver.app Accessibility and Screen Recording grants. Run `alpha-aos computer-use doctor --json`. The `cua` MCP entry is installed by
 default by `alpha-aos mcp sync --target <harness> --apply`. It invokes
 `alpha-aos computer-use native-mcp` using the exact reviewed Cua Driver 0.38.0
-executable and companions. This route uses the driver's native `standard`
+official installation. Plain `mcp` preserves the macOS app daemon and its OS permission identity. This route uses the driver's native `standard`
 permission mode and OS grants; it requires no autopilot task contract. Never
 switch to unrestricted permissions or override a native refusal.
 

@@ -9,7 +9,7 @@ import type { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import { BoundedStdioTransport } from "./mcp-proxy.js";
 import { commandProbeEnvironment, resolveCommand } from "./process.js";
 import { packageRoot } from "./paths.js";
-import { planCuaInstall } from "./computer-use-install.js";
+import { planCuaInstall, verifyOfficialCua } from "./computer-use-install.js";
 
 // Ordinary GUI work uses native standard approvals. Autopilot's bounded broker
 // remains a separate entrypoint with an exact approved task grant.
@@ -28,7 +28,8 @@ export const defaultCuaTools: ReadonlySet<string> = new Set([
 interface NativeAsset { os: string; arch: string; entrypoint: string; files: Record<string, string> }
 interface NativePin { version: string; sourceCommit: string; assets: NativeAsset[] }
 
-export async function verifyNativeCua(executable: string, root = packageRoot()): Promise<{ executable: string; version: string; executableHash: string }> {
+export async function verifyNativeCua(executable: string, root = packageRoot(), official = false): Promise<{ executable: string; version: string; executableHash: string }> {
+  if (official) return verifyOfficialCua(executable, root);
   const pin = JSON.parse(await readFile(join(root, "catalog", "computer-use-runtime.json"), "utf8")) as NativePin;
   const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
   const asset = pin.assets.find((item) => item.os === os && (item.arch === process.arch || item.arch === "universal"));
@@ -53,7 +54,7 @@ export async function nativeCuaStatus(root = packageRoot()): Promise<Record<stri
   const managed = await planCuaInstall(undefined, root);
   const executable = managed.current ? managed.executable : resolveCommand("cua-driver");
   if (!executable) return { available: false, reason: "Cua Driver is not installed or not on PATH" };
-  try { const runtime = await verifyNativeCua(executable, root); return { available: true, version: runtime.version, executableHash: runtime.executableHash, reason: "Reviewed native bytes available; tools and GUI behavior require live invocation" }; }
+  try { const runtime = await verifyNativeCua(executable, root, true); return { available: true, version: runtime.version, executableHash: runtime.executableHash, reason: "Reviewed official installation available; tools and GUI behavior require live invocation" }; }
   catch { return { available: false, reason: "Installed Cua Driver does not match the reviewed runtime; update or repair it" }; }
 }
 
@@ -76,10 +77,10 @@ export async function serveNativeCua(downstream: Transport = new StdioServerTran
   const managed = await planCuaInstall();
   const executable = managed.current ? managed.executable : resolveCommand("cua-driver");
   if (!executable) throw new Error("Install the reviewed Cua Driver release, then reconnect this harness");
-  const runtime = await verifyNativeCua(executable);
+  const runtime = await verifyNativeCua(executable, packageRoot(), true);
   const probe = commandProbeEnvironment();
   const upstream = new BoundedStdioTransport({
-    executable: runtime.executable, args: ["mcp", "--direct"],
+    executable: runtime.executable, args: ["mcp"],
     cwd: dirname(runtime.executable), timeoutMs: 0, maxOutputBytes: 256 * 1024 * 1024, maxMessageBytes: 24 * 1024 * 1024,
     environment: {
       source: process.env,
@@ -88,7 +89,7 @@ export async function serveNativeCua(downstream: Transport = new StdioServerTran
     },
   });
   const client = new Client({ name: "alpha-aos-cua", version: "0.6.0" });
-  const server = createNativeCuaServer(client, () => verifyNativeCua(runtime.executable));
+  const server = createNativeCuaServer(client, () => verifyNativeCua(runtime.executable, packageRoot(), true));
   let ended!: () => void;
   const closed = new Promise<void>((resolve) => { ended = resolve; });
   const stdio = downstream instanceof StdioServerTransport;

@@ -6,4 +6,4 @@ Implemented: no-op pre-push; manual-only GitHub triggers; no scheduled dependenc
 
 Validation: build completed with exit 0; CLI --help exit 0; workflow YAML parsed and no automatic trigger remained; diff whitespace check passed.
 
-Delivery: commit/push and local link pending at this checkpoint. Earlier branch consolidation remains incomplete; release and dirty bootstrap worktrees contain unreviewed work. Do not delete them based on this policy change.
+Delivery complete: implementation cdfae5d pushed to origin/main; original checkout switched to main with pre-existing STATE.md bytes backed up and restored; npm run deploy:local exit 0; linked alpha-aos --help exit 0; global npm link resolves to D:/dev/alpha-AOS. GitHub reported no workflow run for the implementation commit. No new public version or npm publication was performed. Earlier branch consolidation remains incomplete; release and dirty bootstrap worktrees contain unreviewed work. Do not delete them based on this policy change.

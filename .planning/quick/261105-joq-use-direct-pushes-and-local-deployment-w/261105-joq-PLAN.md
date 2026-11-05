@@ -1,6 +1,6 @@
 ---
 type: quick
-status: in-progress
+status: complete
 ---
 
 # Direct pushes and personal workstation delivery

@@ -1429,6 +1429,7 @@ async function executeMultiPhaseTask(params: {
     ...(options.gsd?.lifecycle?.hookCommand ? { hookCommand: options.gsd.lifecycle.hookCommand } : {}),
     ...(options.gsd?.lifecycle?.hookArgs ? { hookArgs: options.gsd.lifecycle.hookArgs } : {}),
     finalReviewPort: options.ports.finalReview,
+    capabilityPort: options.ports.capability,
     projectRoot,
     contract,
     baseCommit: baseline.baseCommit,

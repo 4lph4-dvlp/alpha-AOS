@@ -1,6 +1,6 @@
 # Branch consolidation handoff
 
-Status: in progress; do not mark complete.
+Status: complete as of 2026-11-05. Earlier entries below are historical; see 261105-4uv-SUMMARY.md for final results.
 
 - Original checkout: release/0.6.0, with pre-existing unstaged .planning/STATE.md changes; untouched.
 - Integration worktree: D:/dev/alpha-AOS-branch-review-261105-4uv, detached commit 2860dd2, based on origin/main a2328ca. It integrates Cua changes while preserving the verified external dependency lock. Targeted checks: npm run check, build, and 71 tests passed / 1 host skip.
@@ -20,3 +20,7 @@ The full test recheck of 2860dd2 completed exit 0. The later review push failed 
 The owner subsequently explicitly changed delivery policy: direct pushes with no CI or test gates; optional manual tests and workflows; no scheduled dependency promotion. Implementation cdfae5d (including 2860dd2) was pushed to main successfully. D:/dev/alpha-AOS is now on main, locally built and globally npm-linked, with original user STATE.md changes and showlock.py preserved. Original STATE snapshot: %TEMP%/alpha-aos-state-before-main-b4c642daf686428bb72955852b6607a1.md. Old test/push handles above are no longer active.
 
 Branch consolidation remains incomplete: release/0.6.0, bootstrap worktree and dependency branches still retain unique or unreviewed work. Delivery gate requirements above are superseded by the owner's latest policy; preserve unresolved data.
+
+## Final checkpoint
+
+All branch consolidation and GitHub Release delivery steps completed. Only main remains locally and on origin. v0.6.1 was publicly published from fecea035a8abb2215bbc55766352dc0de1d1b008 with matching package digest, and local alpha-aos reports 0.6.1. User changes and the dirty detached bootstrap worktree were preserved. No active test/push/deploy handles remain. See 261105-4uv-SUMMARY.md.

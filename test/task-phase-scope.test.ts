@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import {
@@ -450,70 +451,35 @@ test("resolveApprovedPhaseSelection: legacy contract derives selection from git 
   }
 });
 
-test("verifyPhaseScopeBoundary: allows progress edits but blocks live additions and unapproved phases", async (context) => {
+test("phase boundaries retain unrelated baseline phases while refusing scope drift", async (context) => {
   const fixture = await createTaskFixture(context);
-  const approvedSelection: TaskPhaseSelection = {
-    phaseIds: ["01", "02"],
-    roadmapSha256: VALID_ROADMAP_SHA,
-  };
-
   const planningDir = join(fixture.projectRoot, ".planning");
   await mkdir(planningDir, { recursive: true });
-  await writeFile(
-    join(planningDir, "ROADMAP.md"),
-    ["# Roadmap", "", "- [ ] **Phase 01: Core**", "- [ ] **Phase 02: Verification**", ""].join("\n"),
-    "utf8",
-  );
-
-  // 1. Phase in approved selection: allowed
-  const check1 = await verifyPhaseScopeBoundary({
-    phaseId: "01",
-    approvedSelection,
-    projectRoot: fixture.projectRoot,
-  });
-  assert.equal(check1.allowed, true);
-
-  // 2. Phase NOT in approved selection: rejected
-  const checkUnknown = await verifyPhaseScopeBoundary({
-    phaseId: "03",
-    approvedSelection,
-    projectRoot: fixture.projectRoot,
-  });
-  assert.equal(checkUnknown.allowed, false);
-  assert.ok(checkUnknown.reason?.includes("not in approved phase selection"));
-
-  // 3. Native GSD progress edit (marking Phase 01 complete): allowed
-  await writeFile(
-    join(planningDir, "ROADMAP.md"),
-    ["# Roadmap", "", "- [x] **Phase 01: Core**", "- [ ] **Phase 02: Verification**", ""].join("\n"),
-    "utf8",
-  );
-  const checkProgress = await verifyPhaseScopeBoundary({
-    phaseId: "02",
-    approvedSelection,
-    projectRoot: fixture.projectRoot,
-  });
-  assert.equal(checkProgress.allowed, true);
-
-  // 4. Live addition of an unapproved phase in ROADMAP.md: rejected
-  await writeFile(
-    join(planningDir, "ROADMAP.md"),
-    [
-      "# Roadmap",
-      "",
-      "- [x] **Phase 01: Core**",
-      "- [ ] **Phase 02: Verification**",
-      "- [ ] **Phase 03: Rogue Phase**",
-      "",
-    ].join("\n"),
-    "utf8",
-  );
-  const checkAdded = await verifyPhaseScopeBoundary({
-    phaseId: "02",
-    approvedSelection,
-    projectRoot: fixture.projectRoot,
-  });
-  assert.equal(checkAdded.allowed, false);
-  assert.ok(checkAdded.reason?.includes("contains unauthorized phase \"03\""));
+  const path = join(planningDir, "ROADMAP.md");
+  const lines = ["# Roadmap", "", "- [ ] **Phase 01: Existing work**", "- [ ] **Phase 02: Selected work**", "- [ ] **Phase 03: Other work**", ""];
+  const baseline = lines.join("\n");
+  await writeFile(path, baseline, "utf8");
+  gitCommand(fixture.projectRoot, ["add", ".planning/ROADMAP.md"]);
+  gitCommand(fixture.projectRoot, ["commit", "-m", "docs: bind roadmap"]);
+  const baseCommit = gitCommand(fixture.projectRoot, ["rev-parse", "HEAD"]).stdout.trim();
+  const approvedSelection = { phaseIds: ["02"], roadmapSha256: createHash("sha256").update(baseline).digest("hex") };
+  const options = { phaseId: "02", approvedSelection, projectRoot: fixture.projectRoot, baseCommit };
+  assert.equal((await verifyPhaseScopeBoundary(options)).allowed, true);
+  assert.equal((await verifyPhaseScopeBoundary({ ...options, phaseId: "01" })).allowed, false);
+  await writeFile(path, baseline.replace("[ ]", "[x]"), "utf8");
+  assert.equal((await verifyPhaseScopeBoundary(options)).allowed, true);
+  assert.equal((await verifyPhaseScopeBoundary({ ...options, baseCommit: undefined })).allowed, false);
+  for (const changed of [
+    baseline + "- [ ] **Phase 04: Added**\n",
+    lines.filter((line) => !line.includes("Phase 01")).join("\n"),
+    [lines[0], lines[1], lines[3], lines[2], lines[4], lines[5]].join("\n"),
+  ]) {
+    await writeFile(path, changed, "utf8");
+    assert.equal((await verifyPhaseScopeBoundary(options)).allowed, false);
+  }
+  assert.equal((await verifyPhaseScopeBoundary({ ...options, approvedSelection: { ...approvedSelection, roadmapSha256: "0".repeat(64) } })).allowed, false);
+  await writeFile(path, baseline, "utf8");
+  assert.equal((await verifyPhaseScopeBoundary({ ...options, approvedSelection: { ...approvedSelection, phaseIds: ["03", "02"] } })).allowed, false);
+  await rm(path);
+  assert.equal((await verifyPhaseScopeBoundary(options)).allowed, false);
 });
-

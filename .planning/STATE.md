@@ -401,6 +401,10 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 - Quick 261021-mcn complete/Verified through the authorized ordinary conversational GSD recovery: full release1820total1809pass0fail11skip, fresh completion7/safety17/integration4, final package/provenance/Stage1 and independent goal/delivery verification passed. OriginalD locally integrated and rebuilt0.4.5. Historical native autopilot7c176c2f5feeda16-8b4be419 remains auth-blocked; no global login/config/permission change or native acceptance was forged. Package sourcec4b1abb remains distinct from later GSD records. No newGUI/3OSCI/registryStage2/publish/kernel-or-quota-fix claim.
 - Phase31 amended0.6.0 candidate is prepared on release/0.6.0 (c3dfb98,5a39b80). P1-P4 human decisions are recorded. Mac QoS HTTP regression passes and package/build/proof checks pass, but the exact local preflight remains blocked by a distinct intermittent Windows5000ms worker handshake; contrary evidence is preserved. Prior explicit no-push/no-CI checkpoint remains before remote candidate validation. No tests/controllers remain active. Candidate full/native gates and fresh independent review/goal-verification are pending; previous verifier was quota-blocked. Resume31-FINAL-HANDOFF.md and macos-release-panel-ci.md; do not restart completed waves or claim all gates passed.
 
+### Roadmap Evolution
+
+- Phases 32-34 added: user-approved latest tool lifecycle, compatibility adapters and no-test delivery scope. Existing phase status preserved.
+
 ## Deferred Items
 
 | Category | Item | Status | Deferred At | Milestone |
@@ -417,6 +421,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 | # | Description | Date | Commit | Status | Directory |
 | --- | ------------- | ------ | -------- | -------- | ----------- |
+| 261105-mk8 | Fix phase subset boundaries and prepare latest-tool phases 32-34 | 2026-11-05 | see task commit | Complete; tests not run | [261105-mk8](./quick/261105-mk8-fix-approved-phase-selection-boundaries-/) |
 | 261105-kl0 | Reuse pinned official Cua installers, native paths and plain MCP | 2026-11-05 | see task commit | Complete | [261105-kl0](./quick/261105-kl0-cua-mcp/) |
 | 261105-k8p | Default verified Cua installation, confirm automatic Pi bridge, v0.6.2 | 2026-11-05 | see task commit | Complete | [261105-k8p](./quick/261105-k8p-cua-pi-mcp-0-6-2/) |
 | 260911-w4s | Portable Codex execution guidance and bounded usage validation | 2026-09-12 | 6605c55 | — | [260911-w4s](./quick/260911-w4s-make-codex-gsd-execution-context-bounded/) |

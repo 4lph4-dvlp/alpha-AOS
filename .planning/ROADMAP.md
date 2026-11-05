@@ -241,3 +241,37 @@ Plans:
 - Run targeted checks during implementation and the full suite at final acceptance, repeating only when justified. Do not mark incomplete evidence complete.
 
 *Approved: 2026-11-02. Requirements and roadmap user approval complete; phase implementation pending.*
+
+## User-approved tool management expansion
+
+Approved scope on 2026-11-05: execute only phases 32-34 for latest tool updates and compatibility. Existing phases 27-31 retain their recorded status. For phases 32-34, explicit user instructions supersede historical test/CI gates: do not run tests, fixtures, smoke checks, canaries or CI unless separately requested. Build, static review, schema/integrity/path checks are permitted. No push, release publication, GUI input or global tool reconciliation is granted by phase planning. Exact autopilot approval/start remain separate.
+
+### Phase 32: Unified Latest Tool Version Management
+
+**Goal:** Resolve latest official stable releases from npm and GitHub through a shared tool lifecycle; snapshot exact versions and integrity per update without historical stable promotion gates.
+**Requirements**: LATEST-01, LATEST-02, LATEST-03
+**Depends on:** None (independent user-approved scope; preserve unfinished Phase 31)
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run $gsd-plan-phase 32 to break down)
+
+### Phase 33: Explicit Tool and Harness Compatibility Adapters
+
+**Goal:** Make tool/harness compatibility explicit and deterministic, minimize upstream text rewrites, document adapter applicability/removal, and report unsupported upgrades without AI self-patching.
+**Requirements**: COMPAT-01, COMPAT-02, COMPAT-03
+**Depends on:** Phase 32
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run $gsd-plan-phase 33 to break down)
+
+### Phase 34: No-Test Update Delivery and Documentation
+
+**Goal:** Apply no-tests-by-default policy to install/update and delivery, preserve integrity/root/secret/rollback safeguards, and document unified updates and unverified runtime behavior.
+**Requirements**: POLICY-01, POLICY-02, DOCS-01
+**Depends on:** Phase 33
+**Plans:** 0 plans
+
+Plans:
+- [ ] TBD (run $gsd-plan-phase 34 to break down)

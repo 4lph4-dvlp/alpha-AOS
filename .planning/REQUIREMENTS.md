@@ -126,3 +126,15 @@ All 27 approved requirements map to exactly one owning phase in the user-approve
 **Coverage:** 27 defined; 27 mapped exactly once; 0 unmapped. Requirements and roadmap approved. No implementation claimed.
 
 *Last updated: 2026-11-02 after user approval of all 27 requirements and the five-phase roadmap.*
+
+## User-approved tool management expansion (2026-11-05)
+
+- [ ] **LATEST-01**: One lifecycle/catalog for GSD, ECC, Context7, Exa, Firecrawl, Pi MCP adapter and Cua, with npm/GitHub discovery adapters. Phase 32.
+- [ ] **LATEST-02**: Install/update resolve latest official stable releases (exclude prereleases unless explicitly selected); exact versions/integrity remain recorded for reproducibility and rollback, without stable-promotion waiting. Phase 32.
+- [ ] **LATEST-03**: Preview distinguishes discovery from installation, includes Cua, and retains safe interrupted-update evidence. Phase 32.
+- [ ] **COMPAT-01**: Explicit per-tool/harness adapter rationale, applicability and removal conditions. Phase 33.
+- [ ] **COMPAT-02**: Prefer official installations and separate alpha-AOS guidance over brittle upstream body replacement where practical. Phase 33.
+- [ ] **COMPAT-03**: Unsupported upgrades report actionable failure; no silent downgrade, AI self-repair or false compatibility claim. Phase 33.
+- [ ] **POLICY-01**: No tests/fixtures/smoke/canary/CI execution without explicit request; integrity, path, secret and rollback safeguards remain. Phase 34.
+- [ ] **POLICY-02**: Separate installation/configuration evidence from live compatibility validation; preserve old unresolved evidence and user WIP. Phase 34.
+- [ ] **DOCS-01**: CLI, skills and bilingual docs consistently describe latest updates, Cua, native installer side effects and unsupported cases. Phase 34.

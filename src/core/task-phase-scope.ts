@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import type { TaskContract, TaskPhaseSelection } from "./task-contract.js";
-import { runGitRead } from "./task-gsd.js";
+import { runGitReadEvidence } from "./task-gsd.js";
 import { parsePhasesFromRoadmap } from "./task-gsd-lifecycle.js";
 
 export type ResolvedPhaseSelection =
@@ -94,8 +94,11 @@ export async function resolveApprovedPhaseSelection(
   }
 
   let baselineRoadmapText: string;
+  let baselineRoadmapSha256: string;
   try {
-    baselineRoadmapText = await runGitRead(projectRoot, ["show", `${baseCommit}:.planning/ROADMAP.md`]);
+    const baseline = await runGitReadEvidence(projectRoot, ["show", `${baseCommit}:.planning/ROADMAP.md`]);
+    baselineRoadmapText = baseline.text;
+    baselineRoadmapSha256 = baseline.sha256;
   } catch (error) {
     return {
       status: "blocked",
@@ -113,7 +116,6 @@ export async function resolveApprovedPhaseSelection(
     };
   }
 
-  const baselineRoadmapSha256 = createHash("sha256").update(baselineRoadmapText).digest("hex");
   const derivedSelection: TaskPhaseSelection = {
     phaseIds: baselinePhases,
     roadmapSha256: baselineRoadmapSha256,
@@ -159,6 +161,7 @@ export interface VerifyPhaseScopeBoundaryOptions {
   readonly phaseId: string;
   readonly approvedSelection: TaskPhaseSelection;
   readonly projectRoot: string;
+  readonly baseCommit?: string | undefined;
 }
 
 /**
@@ -178,7 +181,8 @@ export async function verifyPhaseScopeBoundary(
   }
 
   const roadmapPath = join(projectRoot, ".planning", "ROADMAP.md");
-  if (existsSync(roadmapPath)) {
+  if (!existsSync(roadmapPath)) return { allowed: false, reason: "Live ROADMAP.md is missing; approved phase scope cannot be verified." };
+  {
     let currentRoadmapText: string;
     try {
       currentRoadmapText = await readFile(roadmapPath, "utf8");
@@ -186,13 +190,25 @@ export async function verifyPhaseScopeBoundary(
       return { allowed: false, reason: "Failed to read live .planning/ROADMAP.md at phase boundary." };
     }
     const currentPhases = parsePhasesFromRoadmap(currentRoadmapText);
-    for (const pid of currentPhases) {
-      if (!approvedSelection.phaseIds.includes(pid)) {
-        return {
-          allowed: false,
-          reason: `Live ROADMAP.md contains unauthorized phase "${pid}" not present in approved selection [${approvedSelection.phaseIds.join(", ")}]. Live discovery cannot authorize an added phase (D-17, T-30-11).`,
-        };
+    let baselinePhases = currentPhases;
+    if (createHash("sha256").update(currentRoadmapText).digest("hex") !== approvedSelection.roadmapSha256) {
+      if (!options.baseCommit || !/^[a-f0-9]{40,64}$/iu.test(options.baseCommit)) {
+        return { allowed: false, reason: "Roadmap changed and no trusted baseline is available; phase scope requires re-approval." };
       }
+      try {
+        const baseline = await runGitReadEvidence(projectRoot, ["show", `${options.baseCommit}:.planning/ROADMAP.md`]);
+        if (baseline.sha256 !== approvedSelection.roadmapSha256) return { allowed: false, reason: "Approved roadmap digest does not match the git baseline." };
+        baselinePhases = parsePhasesFromRoadmap(baseline.text);
+      } catch {
+        return { allowed: false, reason: "Approved roadmap baseline cannot be read." };
+      }
+    }
+    const selectedIndices = approvedSelection.phaseIds.map((id) => baselinePhases.indexOf(id));
+    if (selectedIndices.some((index, position) => index < 0 || (position > 0 && index <= selectedIndices[position - 1]!))) {
+      return { allowed: false, reason: "Approved phase selection is missing from the bound roadmap or violates its order." };
+    }
+    if (currentPhases.length !== baselinePhases.length || currentPhases.some((id, index) => id !== baselinePhases[index])) {
+      return { allowed: false, reason: "Live roadmap phase membership or order changed from the approved baseline; re-approval required." };
     }
   }
 

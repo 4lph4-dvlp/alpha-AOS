@@ -931,6 +931,7 @@ export async function orchestrateMultiPhaseProgression(options: MultiPhaseOption
       phaseId,
       approvedSelection,
       projectRoot: options.projectRoot,
+      baseCommit: options.baseCommit,
     });
     if (!boundaryCheck.allowed) {
       return {

@@ -82,6 +82,11 @@ let gitExecutable: string | null | undefined;
  * process starts, so this module cannot synthesize GSD's commits.
  */
 export async function runGitRead(projectRoot: string, args: readonly string[]): Promise<string> {
+  return (await runGitReadEvidence(projectRoot, args)).text;
+}
+
+/** Keep the raw stream digest separate from the redacted display text. */
+export async function runGitReadEvidence(projectRoot: string, args: readonly string[]): Promise<{ text: string; sha256: string }> {
   const subcommand = args[0];
   if (subcommand === undefined || !GIT_READ_SUBCOMMANDS.has(subcommand)) {
     throw new Error(
@@ -105,7 +110,7 @@ export async function runGitRead(projectRoot: string, args: readonly string[]): 
   if (result.outputCapped || result.stdout.capped) {
     throw new Error(`git ${subcommand} printed more than ${ONE_MIB} bytes; the task run refuses a truncated read.`);
   }
-  return result.stdout.excerpt;
+  return { text: result.stdout.excerpt, sha256: result.stdout.sha256 };
 }
 
 async function readBounded(path: string): Promise<string> {

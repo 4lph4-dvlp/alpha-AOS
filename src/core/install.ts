@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { installCua, planCuaInstall } from "./computer-use-install.js";
 import { applyCodexPolicy, planCodexPolicy, type CodexPolicyOperationPlan } from "./codex-policy.js";
 import { readFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
@@ -451,6 +452,8 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
   }
 
   const piPlan = selection.targets.includes("pi") ? await planMcpSync("pi", options.lock) : null;
+  const cua = await planCuaInstall(options.stateRoot);
+  steps.push({ id: "cua:runtime", component: "cua-runtime", target: "machine", action: cua.current ? "current" : "install", external: false, note: `${cua.asset.url} -> ${cua.targetRoot}; reviewed pin ${cua.pinHash}` });
   if (piPlan?.piBridge) {
     steps.push({
       id: "mcp-bridge:pi",
@@ -705,6 +708,8 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
 
   const ownRoot = resolve(packageRoot());
   const inputs: OperationPathInput[] = [
+    { role: "target", path: (await planCuaInstall(stateRoot)).targetRoot },
+    { role: "source", path: join(ownRoot, "catalog", "computer-use-runtime.json") },
     { role: "state", path: stateRoot },
     { role: "journal", path: join(stateRoot, "journal") },
     { role: "snapshot", path: join(stateRoot, "snapshots") },
@@ -830,6 +835,8 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
 
   return withComponentSession({ kind: "managed-install", stateRoot, proofs: reviewed.proofs, digest: reviewed.digest }, options.session, async (session) => {
   try {
+    const cua = await installCua(stateRoot, session);
+    remember("cua:runtime", cua.operationId, cua.plan.targetRoot);
     // External installers run first. If a later managed write fails, their exact
     // verified versions remain installed and are reported instead of guessed-at rollback.
     for (const [index, target] of plan.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness)).entries()) {

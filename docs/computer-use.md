@@ -11,11 +11,17 @@ effects, foreground takeover and OS permissions still need relevant authority.
 
 ## Ordinary GUI setup
 
-Install reviewed stable Cua Driver **0.38.0** from the official tagged release.
-Run `alpha-aos computer-use doctor --json`, then
-`alpha-aos mcp sync --target <claude|codex|antigravity|pi|hermes> --apply`.
-Reload the harness so its new `cua` MCP connection becomes visible. Pi also needs
-the existing pinned MCP bridge. Hermes auto-loads the managed guide.
+Run `alpha-aos install --apply` for detected harnesses, or select a target with
+`alpha-aos install --target pi --apply`. Managed installation includes the reviewed
+Cua Driver **0.38.0** and registers `cua`; selecting Pi also installs its pinned
+MCP bridge. Runtime files are verified and journaled under the user state directory;
+no PATH edit is needed. Reload the harness after installation.
+
+Run `alpha-aos computer-use doctor --json` to inspect local runtime availability.
+If only reconciling configuration, use `alpha-aos mcp sync --target <harness> --apply`;
+that command does not install the driver. GUI task requests authorize the intended
+GUI operations; agents may proactively use Cua within existing permission, or ask
+for missing GUI permission. Native prompts and OS grants still apply.
 
 The connection runs `alpha-aos computer-use native-mcp`: a private native MCP
 runtime with fixed `standard` permissions, verified executable/companion hashes,

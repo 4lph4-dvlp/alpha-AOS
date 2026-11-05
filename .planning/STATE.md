@@ -417,6 +417,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 | # | Description | Date | Commit | Status | Directory |
 | --- | ------------- | ------ | -------- | -------- | ----------- |
+| 261105-k8p | Default verified Cua installation, confirm automatic Pi bridge, v0.6.2 | 2026-11-05 | see task commit | Complete | [261105-k8p](./quick/261105-k8p-cua-pi-mcp-0-6-2/) |
 | 260911-w4s | Portable Codex execution guidance and bounded usage validation | 2026-09-12 | 6605c55 | — | [260911-w4s](./quick/260911-w4s-make-codex-gsd-execution-context-bounded/) |
 | 260914-x2c | Rebaseline v0.1.0 around active non-Claude harnesses | 2026-09-17 | pending | — | [260914-x2c](./quick/260914-x2c-exclude-claude-from-the-v0-1-0-active-de/) |
 | 260922-47e | Fix Windows Firecrawl fixture environment propagation and add regression coverage | 2026-09-22 | 57e70d1 | — | [260922-47e](./quick/260922-47e-fix-windows-firecrawl-fixture-environmen/) |

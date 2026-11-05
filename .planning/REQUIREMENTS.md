@@ -1,140 +1,92 @@
-# Requirements: alpha-AOS v0.6.0
+# Requirements: alpha-AOS v0.7.0
 
-**Milestone:** Predictable Task Entry and Shared Project Policy
-**Defined:** 2026-11-02
-**Status:** APPROVED — all 27 requirements and Phase 27–31 assignments approved by the user on 2026-11-02
+**Milestone:** Autopilot Reliability & Recovery
+**Defined:** 2026-11-05
+**Status:** APPROVED — all 16 requirements confirmed by the owner on 2026-11-05; roadmap assignments await separate approval.
 **Core value:** Consistent, intentional agent workflows and capability boundaries across supported projects, operating systems and harnesses.
 
-## Locked Scope Decisions
+## Scope Decisions
 
-- Persist only project strict/flexible; missing policy defaults to strict.
-- Every independent substantial strict task receives a fresh choice. A style is NEVER a project default. This supersedes the earlier interpretation explicitly corrected by the user.
-- Continue a selected style within the same active task; later independent bug fixes receive a fresh chooser even if the release used another style.
-- Exempt simple requests using common criteria, not only a closed list of task names.
-- Preserve explicit style requests and direct GSD commands.
-- Require real GSD initialization before substantial six-style execution, reusing the initial request.
-- Retain exact autopilot consent, separate start, isolated runner, model policy and GSD single-writer ownership.
+- Address the three reported failures: unusable capability contracts, missing Codex completion/repair continuity, and premature handoff.
+- Develop this repository with native agent tools and standalone GSD, without alpha-AOS governing its own development.
+- Preserve previous Phase 27-34 status and evidence; new phases start at 35. Archival is not completion.
+- Prioritize the actual originating Codex session, not only completion of a headless child. Compare Antigravity behavior without claiming unverified host parity.
+- Existing exact-digest, scope, root, secret, model and resource boundaries remain until an explicitly reviewed repair-authorization design changes their handling.
+- Follow the 2026-11-05 workstation delivery policy. This document does not start live tasks, tests, fixtures, CI, publication or global configuration changes.
 
-## v0.6.0 Requirements
+## v0.7.0 Requirements
 
-### Shared Project Mode
+### Executable Contracts and Capability Evidence
 
-- [ ] **MODE-01**: A user entering a project without a behavior policy receives strict intake by default, without an implicit configuration write.
-- [ ] **MODE-02**: A user can change the project's strict/flexible mode through a natural-language request in any supported harness or the CLI, including before GSD initialization, and all harnesses consume that one project setting.
-- [ ] **MODE-03**: A user can inspect the resolved project root, effective mode and configuration source/revision; the next task intake re-reads current policy rather than relying on a stale session value.
-- [ ] **MODE-04**: A user can preview, apply and roll back mode changes through bounded, snapshotted transactions that preserve unrelated project settings.
-- [ ] **MODE-05**: A user receives an actionable diagnostic for invalid or unreadable policy instead of silently falling back to flexible or another project.
+- [ ] **ACON-01**: The user receives capability obligations justified by the actual task and workflow step; mentioning Exa or another tool as an object being updated does not by itself require invoking that tool.
+- [ ] **ACON-02**: Before a contract is presented as runnable or started, the user receives readiness for the actual native adapter, transport, required tool/schema and service prerequisites; a refused start does not consume execution approval.
+- [ ] **ACON-03**: When a capability fails, the user and recovery controller receive bounded, secret-safe diagnostics distinguishing invalid arguments, unavailable tools/runtime, authentication, quota and service/transport failures, retaining an unknown classification when evidence is insufficient.
+- [ ] **ACON-04**: The user can inspect capability evidence tied to actual task-relevant successful calls and sources; empty, irrelevant, failed or synthetic results cannot satisfy a production obligation.
 
-### Predictable Task Intake
+### Origin-Session Completion Delivery
 
-- [x] **ENTRY-01**: A user making a new substantial strict-mode request without an explicit style sees all six stable labels with concise descriptions and selects one before execution.
-- [x] **ENTRY-02**: A user explicitly naming a task style proceeds with that style without the chooser; normal readiness and authority requirements still apply.
-- [x] **ENTRY-03**: A user's choice applies only to that task: follow-up edits and verification continue without repeated selection, while later independent requests receive a fresh chooser.
-- [x] **ENTRY-04**: A user requesting an operation with a clear target/result and no separate design, investigation or multi-stage implementation avoids chooser and forced initialization prompts; bounded push, simple rename and README translation/linking are acceptance examples.
-- [x] **ENTRY-05**: A user can inspect a bounded reason for the intake decision; uncertain task scope receives a narrow clarification and a complex operation is not exempted by its task name alone.
-- [x] **ENTRY-06**: A user choosing flexible mode receives existing adaptive conversational/autopilot intake behavior while explicit style and authority boundaries remain effective.
-- [x] **ENTRY-07**: A user directly invoking a GSD command retains the selected workflow and timing without an unrelated six-style chooser; that command's native prerequisites and checkpoints remain intact.
+- [ ] **ADEL-01**: The originating session is durably bound to the exact contract, digest, revision, recovery chain and attempt before execution, whether or not a progress panel is opened.
+- [ ] **ADEL-02**: The originating Codex session automatically receives and continues from task acceptance, final failure, interruption or a genuine needs-input state without the user requesting a status check; intermediate attempt rejection remains distinguishable from the final recovery outcome.
+- [ ] **ADEL-03**: After a connection loss or event redelivery, the originating session receives the retained outcome through replay and acknowledgement without duplicate continuation or duplicate work.
+- [ ] **ADEL-04**: Before autopilot starts, the user receives the verified continuation capability of the selected host/surface and the path that will deliver the outcome; an unsupported path cannot silently become status-file or panel-only operation advertised as full autopilot.
 
-### GSD Initialization and Request Continuity
+### Effective Authorized Recovery
 
-- [x] **BOOT-01**: A user can distinguish missing GSD runtime, absent project, partial initialization and ready project from native prerequisite evidence before substantial workflow execution.
-- [x] **BOOT-02**: A user requesting substantial work in an undefined project is guided into GSD new-project using facts already present in the request, with questions limited to missing information and required GSD decisions.
-- [x] **BOOT-03**: A user with partial initialization receives the missing prerequisites and a GSD recovery path that preserves existing context instead of overwriting it or synthesizing placeholder artifacts.
-- [x] **BOOT-04**: After initialization/recovery, a user's original request resumes once with its already selected style and known facts, without re-entering the request, repeating selection or bypassing remaining GSD checkpoints.
+- [ ] **AREC-01**: Recoverable failures automatically route to a corrective action appropriate to the contract, capability environment, implementation or transport layer rather than only stronger prompts to the same failed step.
+- [ ] **AREC-02**: Before retrying the same failure, the recovery controller records a relevant corrective change and its verification; repeated unchanged attempts cannot stand in for repair.
+- [ ] **AREC-03**: The user can approve a bounded recovery grant that explicitly defines permitted contract revisions and reruns, records old/new digest ancestry, and requests new approval only when a change exceeds that grant; arbitrary changed digests never inherit approval implicitly.
+- [ ] **AREC-04**: All attempts share the approved cumulative resource limits, model assignments and authority boundaries; a genuine quota/resource limit, user stop or required authority expansion ends automatic retry with a specific explanation.
+- [ ] **AREC-05**: Recovery resumes from verified checkpoints and reconciled effects without rerunning completed phases or executing an already accepted task again.
 
-### Six Execution Styles
+### Persistent Execution and Honest Reporting
 
-- [x] **STYLE-01**: A user selecting 대화형-quick receives native GSD quick in the current conversation with its documented optional-stage omissions and required state/commit gates.
-- [x] **STYLE-02**: A user selecting 대화형-quick-full receives native GSD quick --full in the current conversation, including discussion, research, planning, plan checking, implementation and verification.
-- [x] **STYLE-03**: A user selecting 대화형-phase receives GSD roadmap/phase progression in the current conversation with necessary user questions and native lifecycle gates.
-- [x] **STYLE-04**: A user selecting 오토파일럿-quick receives ordinary quick through an approved exact contract and the existing isolated runner, with the selected style visible in the preview.
-- [x] **STYLE-05**: A user selecting 오토파일럿-quick-full receives a contract-bound full quality pipeline: its preview/digest, dispatch and verification distinguish it from ordinary quick, and ordinary quick evidence alone cannot satisfy acceptance.
-- [x] **STYLE-06**: A user selecting 오토파일럿-phase receives only approved roadmap/phase scope through the existing runner and GSD lifecycle bridge.
-- [x] **STYLE-07**: A user's mode/style selection never substitutes for exact per-task autopilot contract approval and separate start, rewrites an approved running contract, or permits inline autopilot implementation/model substitution.
+- [ ] **ACONT-01**: Repository-owned skills, generated harness guidance and packaged documentation direct agents to continue available authorized recovery after a yielded transport or recoverable rejection, rather than ending after a single wait by default.
+- [ ] **ACONT-02**: Handoff notes preserve useful evidence while recovery continues; they become the stopping result only for a demonstrated external/user/authority/resource boundary, with the missing action clearly identified.
+- [ ] **ACONT-03**: The user can review scenario evidence for success, recoverable tool failure, contract revision, final failure, reconnect and explicit stop, separating process closure, GSD acceptance, origin-session delivery and repair progress; unrun checks remain explicitly unverified.
 
-### Cross-Harness Evidence and Distribution
+## Future and Preserved Work
 
-- [ ] **PROVE-01**: A user can inspect scenario evidence for policy transitions and fresh independent-task selection across Claude, Codex, Antigravity, Pi and Hermes; native proof, fixture proof and unsupported/unverified behavior are reported distinctly.
-- [x] **PROVE-02**: A user installing the packed artifact receives integrity-locked guidance for the shared policy and six routes, with discoverability and meaningful invocation evidence rather than file presence alone.
-- [x] **PROVE-03**: A user can follow English and Korean documentation explaining both modes, all six styles, simple-operation criteria, initialization, task boundaries and direct-command behavior.
-- [ ] **PROVE-04**: A user can inspect targeted positive/negative behavioral checks and the final full regression outcome, with failed/not-run existing regressions preserved honestly rather than reported as passing.
-
-## Stable Labels and Descriptions
-
-| Label | Short explanation |
-|---|---|
-| 대화형-quick | 현재 대화에서 작은 작업을 간소화된 GSD 절차로 처리 |
-| 대화형-quick-full | 작은 작업에 토론·조사·계획 검사·구현·검증 적용 |
-| 대화형-phase | 로드맵과 Phase를 따라 필요한 사항을 질문하며 진행 |
-| 오토파일럿-quick | 승인된 계약과 별도 실행기로 작은 작업 처리 |
-| 오토파일럿-quick-full | 승인된 범위에서 작은 작업의 전체 품질 절차 수행 |
-| 오토파일럿-phase | 승인된 로드맵 범위의 Phase들을 자율 진행 |
-
-## Future Requirements
-
-- Configurable custom style catalogs or project style defaults are not requested; any future proposal requires explicit new scope.
-- Additional host-specific UI conveniences can follow only after the common intake behavior and native capability evidence are established.
+- Unfinished v0.6.0 and earlier work remains in [rollover records](milestones/v0.6.0-ROLLOVER.md), not silently absorbed or marked complete by this milestone.
+- Additional host surfaces beyond the verified supported path can be added later with explicit capability and delivery evidence.
+- The historical latest-tools task/clone is an investigation source. Restarting or integrating it is not an effect of this milestone initialization.
 
 ## Out of Scope
 
-| Item | Reason |
+| Feature | Reason |
 |---|---|
-| Persisting the selected style as project default | Explicitly rejected by user correction |
-| Blanket future autopilot consent | Each task retains exact approval and separate start |
-| A new lifecycle/state engine | GSD remains sole lifecycle owner |
-| Dependency/GSD upgrades | Existing stack supports this change; unrelated promotion policy remains |
-| Automatic installation/authentication of harnesses | Existing project boundary |
-| Perfect semantic classification from arbitrary prose | Use common evidence, reasons and narrow clarification |
-| New GUI/dashboard | Existing question UI and numbered text fallback suffice |
-| Publishing, pushing, CI repair or global reconciliation | Prior holds remain; milestone planning does not authorize them |
-| Silently clearing prior regression debt | Quick 261101-ww3 remains incomplete |
+| Replacing GSD or creating a second project lifecycle owner | Existing single-writer/state ownership remains authoritative. |
+| Unlimited retry or quota bypass | Autonomous recovery must stay within the approved budget and actual service availability. |
+| Automatic broad credential/configuration changes or scope/model expansion | These are not routine same-grant corrective actions. |
+| Mock success receipts or dropping genuine capability requirements | These conceal failure rather than deliver working autopilot. |
+| Automatic tests/CI/push/publication/global deployment | The workstation policy and separately authorized action scope govern delivery. |
 
 ## Traceability
 
-All 27 approved requirements map to exactly one owning phase in the user-approved roadmap. Phase assignments were approved on 2026-11-02; implementation remains pending.
+Assignments will be filled by the roadmap step after requirements confirmation. Proposed research sequence is Phase 35-38; no phase assignments are approved yet.
 
 | Requirement | Phase | Status |
 |---|---|---|
-| MODE-01 | Phase 27 | Pending |
-| MODE-02 | Phase 27 | Pending |
-| MODE-03 | Phase 27 | Pending |
-| MODE-04 | Phase 27 | Pending |
-| MODE-05 | Phase 27 | Pending |
-| ENTRY-01 | Phase 28 | Complete |
-| ENTRY-02 | Phase 28 | Complete |
-| ENTRY-03 | Phase 28 | Complete |
-| ENTRY-04 | Phase 28 | Complete |
-| ENTRY-05 | Phase 28 | Complete |
-| ENTRY-06 | Phase 28 | Complete |
-| ENTRY-07 | Phase 28 | Complete |
-| BOOT-01 | Phase 29 | Complete |
-| BOOT-02 | Phase 29 | Complete |
-| BOOT-03 | Phase 29 | Complete |
-| BOOT-04 | Phase 29 | Complete |
-| STYLE-01 | Phase 30 | Complete |
-| STYLE-02 | Phase 30 | Complete |
-| STYLE-03 | Phase 30 | Complete |
-| STYLE-04 | Phase 30 | Complete |
-| STYLE-05 | Phase 30 | Complete |
-| STYLE-06 | Phase 30 | Complete |
-| STYLE-07 | Phase 30 | Complete |
-| PROVE-01 | Phase 31 | Pending |
-| PROVE-02 | Phase 31 | Complete |
-| PROVE-03 | Phase 31 | Complete |
-| PROVE-04 | Phase 31 | Pending |
+| ACON-01 | Unassigned | Draft |
+| ACON-02 | Unassigned | Draft |
+| ACON-03 | Unassigned | Draft |
+| ACON-04 | Unassigned | Draft |
+| ADEL-01 | Unassigned | Draft |
+| ADEL-02 | Unassigned | Draft |
+| ADEL-03 | Unassigned | Draft |
+| ADEL-04 | Unassigned | Draft |
+| AREC-01 | Unassigned | Draft |
+| AREC-02 | Unassigned | Draft |
+| AREC-03 | Unassigned | Draft |
+| AREC-04 | Unassigned | Draft |
+| AREC-05 | Unassigned | Draft |
+| ACONT-01 | Unassigned | Draft |
+| ACONT-02 | Unassigned | Draft |
+| ACONT-03 | Unassigned | Draft |
 
-**Coverage:** 27 defined; 27 mapped exactly once; 0 unmapped. Requirements and roadmap approved. No implementation claimed.
+**Coverage:** 16 requirements; 0 mapped; 16 awaiting roadmap creation after approval.
 
-*Last updated: 2026-11-02 after user approval of all 27 requirements and the five-phase roadmap.*
+## Evidence and Uncertainty
 
-## User-approved tool management expansion (2026-11-05)
+See [research summary](research/SUMMARY.md) and [evidence inventory](research/EVIDENCE.md). Four historical later attempts demonstrate an Exa tool error and ineffective retries; the discarded original error content prevents a precise Exa root-cause claim. A supported bridge into the actual originating Codex session requires proof, not inference from child execution APIs.
 
-- [ ] **LATEST-01**: One lifecycle/catalog for GSD, ECC, Context7, Exa, Firecrawl, Pi MCP adapter and Cua, with npm/GitHub discovery adapters. Phase 32.
-- [ ] **LATEST-02**: Install/update resolve latest official stable releases (exclude prereleases unless explicitly selected); exact versions/integrity remain recorded for reproducibility and rollback, without stable-promotion waiting. Phase 32.
-- [ ] **LATEST-03**: Preview distinguishes discovery from installation, includes Cua, and retains safe interrupted-update evidence. Phase 32.
-- [ ] **COMPAT-01**: Explicit per-tool/harness adapter rationale, applicability and removal conditions. Phase 33.
-- [ ] **COMPAT-02**: Prefer official installations and separate alpha-AOS guidance over brittle upstream body replacement where practical. Phase 33.
-- [ ] **COMPAT-03**: Unsupported upgrades report actionable failure; no silent downgrade, AI self-repair or false compatibility claim. Phase 33.
-- [ ] **POLICY-01**: No tests/fixtures/smoke/canary/CI execution without explicit request; integrity, path, secret and rollback safeguards remain. Phase 34.
-- [ ] **POLICY-02**: Separate installation/configuration evidence from live compatibility validation; preserve old unresolved evidence and user WIP. Phase 34.
-- [ ] **DOCS-01**: CLI, skills and bilingual docs consistently describe latest updates, Cua, native installer side effects and unsupported cases. Phase 34.
+*Last updated: 2026-11-05 after owner approval of all 16 requirements; roadmap creation next.*

@@ -41,7 +41,8 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "prepack": "npm run build && node scripts/audit-tarball.mjs --prepack",
     "test": "npm run build && node scripts/run-tests.mjs",
-    "start": "node dist/src/cli.js"
+    "start": "node dist/src/cli.js",
+    "deploy:local": "npm run build && node dist/src/cli.js --help && npm link --ignore-scripts"
   },
   "engines": {
     "node": ">=24.0.0",

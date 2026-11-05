@@ -1,10 +1,15 @@
 # alpha-AOS
 
+## Personal workstation delivery
+
+Push directly without CI or tests. Run `npm run deploy:local` to build, confirm CLI startup, and link this checkout. Automated GitHub triggers and scheduled dependency promotion are disabled. CI and full tests remain available for optional manual use. GitHub Release builds manually from main without a CI run ID; see [release procedure](docs/releases/README.md). Build/CLI startup checks do not establish cross-platform compatibility.
+
+
 Autopilot can be launched from the initiating agent conversation. Describe the task and role-specific harness/model choices, review the contract and digest, then explicitly approve and request start. The agent invokes `task approve` and the separate `task start` command for you; the existing runner dispatches the contracted workers. Approval alone does not start work. Your chat model remains the coordination surface while reasoning, implementation and review can use different approved harnesses/models. Manual terminal execution is optional. Missing process tools, authentication, model support or native capability proof are reported as blockers.
 
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
-**0.6.0** adds shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and packaged cross-harness evidence. GitHub release delivery requires successful exact-commit Linux, macOS and Windows CI; verification links and checksummed downloads accompany the tagged release.
+**0.6.0** adds shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and packaged cross-harness evidence. GitHub releases are built manually without a CI prerequisite and include a package checksum.
 
 The earlier **0.5.0** work adds an optional shared read-only progress panel for Claude, Codex, Antigravity, Pi and Hermes, plus task context, steering proposals and runtime budget, process and recovery controls. Ask questions in the originating conversation; native chat delivery remains disabled and unverified. Dedicated legacy wrappers require the registered dispatch route for controlled model launches. See [runtime controls](docs/task-runtime-controls.md).
 

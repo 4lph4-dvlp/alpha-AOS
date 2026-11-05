@@ -1,10 +1,10 @@
-# GitHub release procedure
+# Local delivery and optional GitHub releases
 
-1. Finish source changes on a review branch. Run the `CI` workflow on that exact commit and require the package job plus Linux, macOS and Windows jobs to succeed.
-2. Fast-forward `main` to that exact verified commit. A merge commit or any new source change requires its own CI run.
-3. Dispatch `GitHub Release` from `main`, supplying the stable package version, exact source SHA and successful CI run ID. For example: `gh workflow run release.yml --ref main -f version=0.6.0 -f source_sha=FULL_SHA -f ci_run_id=RUN_ID`.
-4. Verify the workflow succeeded and the public release contains the package, its checksum, `release-evidence.json` and `release-assets.sha256`.
+The owner selected personal workstation delivery on 2026-11-05. This supersedes earlier mandatory CI release procedures.
 
-Publication downloads the original CI package; it does not rebuild it. It refuses mismatched source, version, repository, workflow, required jobs or checksums. It verifies the uploaded bytes while the release is still a draft. Repeating the same inputs can resume an interrupted draft or verify an already published release. A published release with different bytes is refused rather than overwritten. Never retarget an existing tag or replace a published package.
+- Push directly to main. No CI or tests run in the pre-push hook.
+- Run `npm run deploy:local` to build, confirm CLI startup, and link the checkout. Managed harness configurations are not changed by this command.
+- Full tests (`npm test`) and GitHub CI are optional manual operations. Scheduled dependency promotion is disabled.
+- For an optional public release, set a new package version and dispatch `gh workflow run release.yml --ref main -f version=NEW_VERSION`. It builds, checks CLI startup, packages and publishes a checksum without tests or a CI run ID. Existing tags are refused. npm registry publication is separate.
 
-The procedure uses GitHub Actions, Git, Node.js and GitHub CLI. It requires no agent workflow controller, lifecycle-state operation, model call or local/global harness installation. Product tests may exercise isolated tool fixtures; they do not manage the release process. npm registry publication is a separate operation.
+Manual builds do not establish test success or compatibility with other operating systems. Historical release evidence describes the original release.

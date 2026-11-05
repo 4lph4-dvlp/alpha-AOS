@@ -1,3 +1,7 @@
+## Delivery policy (2026-11-05)
+
+The owner explicitly chose personal workstation delivery. Pushes require no CI, tests, or local pre-push verification. Use `npm run deploy:local` to build, check CLI startup, and link the local checkout. Full tests and cross-platform checks are optional manual operations. Scheduled dependency updates and automatic promotion are disabled. Runtime approval, filesystem, secret and rollback safeguards remain in force. Do not describe unrun checks as passed. This decision supersedes earlier mandatory push/release CI and keep-green requirements; historical evidence remains historical.
+
 # alpha-AOS
 
 ## What This Is

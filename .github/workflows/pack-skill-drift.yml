@@ -1,3 +1,4 @@
+# Personal-use policy (2026-11-05): manual execution only.
 name: Pack skill drift
 
 # `catalog/stack.lock.json` pins the source hash of every skill a declared pack
@@ -25,13 +26,11 @@ name: Pack skill drift
 # check nobody acts on.
 
 on:
-  schedule:
-    - cron: "17 4 * * 1"
   workflow_dispatch:
 
-# Read-only. Unlike `dependency-candidate.yml` this job opens no pull request
-# and pushes no branch, so it gets neither `contents: write` nor
-# `pull-requests: write`.
+    # Read-only. Unlike `dependency-candidate.yml` this job opens no pull request
+    # and pushes no branch, so it gets neither `contents: write` nor
+    # `pull-requests: write`.
 permissions:
   contents: read
 

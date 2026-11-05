@@ -1,11 +1,9 @@
+# Personal-use policy (2026-11-05): manual execution only.
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-  workflow_dispatch:
-  # The dependency promotion workflows call this suite against the exact
+  workflow_dispatch: # The dependency promotion workflows call this suite against the exact
+
   # promotion commit; every other trigger leaves ref empty and checks out the
   # triggering commit.
   workflow_call:
@@ -48,9 +46,7 @@ jobs:
         run: node scripts/audit-tarball.mjs "$TARBALL"
       - name: Generate SHA-256 checksum
         run: >
-          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file=process.env.TARBALL;
-          const digest=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-          fs.writeFileSync(file+'.sha256',digest+'  '+file+'\n');"
+          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file=process.env.TARBALL; const digest=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); fs.writeFileSync(file+'.sha256',digest+'  '+file+'\n');"
       - name: Upload release tarball artifact
         uses: actions/upload-artifact@v4
         with:
@@ -75,7 +71,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -95,10 +91,7 @@ jobs:
         env:
           TARBALL: ${{ needs.package.outputs.tarball }}
         run: >
-          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file=process.env.TARBALL;
-          const expected=fs.readFileSync(file+'.sha256','utf8').trim().split(/\s+/u)[0].toLowerCase();
-          const actual=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
-          if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"
+          node -e "const fs=require('node:fs'),crypto=require('node:crypto'),file=process.env.TARBALL; const expected=fs.readFileSync(file+'.sha256','utf8').trim().split(/\s+/u)[0].toLowerCase(); const actual=crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex'); if(actual!==expected)throw new Error('Checksum mismatch: expected '+expected+', got '+actual);"
       - run: npm run check
       # Fail at the native panel boundary before the expensive full suite.
       # This retains the actual HTTP/auth/SSE/cancel assertions: no retry or skip.
@@ -161,17 +154,7 @@ jobs:
       # `npm test` step reported fail 0 on the very same compiled files.
       - name: Safety boundary suites
         run: >
-          node scripts/run-tests.mjs --test-concurrency=1 --files
-          dist/test/preview.test.js
-          dist/test/path-boundary.test.js
-          dist/test/transaction-crash.test.js
-          dist/test/redaction.test.js
-          dist/test/validation.test.js
-          dist/test/process.test.js
-          dist/test/protocol-session.test.js
-          dist/test/mcp-proxy.test.js
-          dist/test/install.test.js
-          dist/test/update.test.js
+          node scripts/run-tests.mjs --test-concurrency=1 --files dist/test/preview.test.js dist/test/path-boundary.test.js dist/test/transaction-crash.test.js dist/test/redaction.test.js dist/test/validation.test.js dist/test/process.test.js dist/test/protocol-session.test.js dist/test/mcp-proxy.test.js dist/test/install.test.js dist/test/update.test.js
 
       # Wrapper behaviour is asserted inside preview.test.js above, which runs
       # each family natively on this OS and records a not-run entry rather

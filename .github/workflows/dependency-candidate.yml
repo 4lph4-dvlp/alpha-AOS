@@ -1,3 +1,4 @@
+# Personal-use policy (2026-11-05): manual execution only.
 name: Dependency candidate
 
 # Monday half of the unattended weekly dependency promotion.
@@ -10,8 +11,6 @@ name: Dependency candidate
 # GitHub sends the failure notification.
 
 on:
-  schedule:
-    - cron: "17 3 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -69,7 +68,7 @@ jobs:
 
   record:
     name: Record verified candidate
-    needs: [stage, verify]
+    needs: [ stage, verify ]
     runs-on: ubuntu-latest
     steps:
       - name: Write the verified commit and summary

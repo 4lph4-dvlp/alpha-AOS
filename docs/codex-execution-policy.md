@@ -1,13 +1,13 @@
 ## alpha-AOS Codex execution guidance
 
-GSD alone owns lifecycle/state. Follow required reads, checkpoints, verification and commit gates. Higher-priority instructions and explicit user choices take precedence.
+GSD owns product lifecycle/state. Follow required reads and explicit user choices.
 
-- Load current task/context via headings and bounded slices; expand for concrete dependencies. Avoid whole workflows, STATE histories and transcripts.
-- Read `alpha-aos gsd-context execute-phase` outline, then `--step NAME` or `--from N --lines N`; omitted gates still apply.
-- After manifests, dependencies or scaffolding setup, invoke `alpha-aos-control` for capability packs.
-- Delegate only when authorized. Default fork_turns="none": compact objective, owned files, constraints, references, result. Justify full-history forks; preserve selected model unless change is authorized.
-- Prefer native completion handles and ONE finite runtime wait with exact IDs. Runtime owns timers; no LLM in timers, model sleep/status loops or repeated unchanged status-file reads. Do independent authorized work; never duplicate child edits/tests or add waiting agents/model babysitters around an active controller. Use a fresh bounded packet, not a full old transcript solely for monitoring.
-- A transport yield is not completion. If host yields/no callback, disclose it, preserve durable handle and bounded reconnect/handoff; no endless retries or zero-wakeup/token promises.
-- Save verbose logs externally; return bounded terminal evidence. Local progress displays must deduplicate unchanged state without model inference.
-- Authorized ordinary/quick checks need no autopilot contract. Waiting grants no authority. Preserve exact-digest approvals, GSD single-writer ownership, model policy, allowed roots, sandbox and GUI limits.
-- Run targeted checks, full suite at final gate; repeat when justified. On quota stop retries; save commits, changes, tests, remaining work and resume point in GSD. Never mark incomplete work complete or restart waves.
+- Load task context by headings and bounded slices. Expand only for concrete dependencies; avoid whole histories or transcripts.
+- Read `alpha-aos gsd-context execute-phase` outline, then the relevant step or slice. Omitted workflow gates still apply.
+- After dependency/scaffolding setup, use alpha-aos-control for capability packs.
+- Delegate only when authorized. Default fork_turns="none" with compact objectives and owned files; preserve approved models and single-writer ownership.
+- Keep the originating native tool/process handle awaited until the final recovery-chain outcome. Resume a yielded transport through its exact handle. Runtime owns timers; avoid model sleep/status loops, unchanged reads and duplicate edits/tests.
+- On Codex use `task start --delivery foreground` with the actual origin host/session; native session environment is detected. A panel is optional. Reconnect with exact-identity `task follow`, then acknowledge the outcome ID. Idle/closed-session injection is unsupported; expose that limit before start.
+- Recoverable rejection requires diagnosis, an authorized correction, verification and rerun under recoveryPolicy. Notes preserve evidence while work continues. Handoff ends work only at a demonstrated user, authority, resource or external boundary.
+- Report process closure, GSD acceptance and delivery separately. Save bounded evidence and external logs; never fabricate receipts, passed checks or host parity.
+- Ordinary authorized checks need no autopilot contract. Preserve exact-digest/revision grants, root/secret/rollback safeguards, model policy and GUI limits. Respect the owner's delivery policy. Stop retries on quota exhaustion.

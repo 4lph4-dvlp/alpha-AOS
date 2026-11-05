@@ -474,7 +474,7 @@ export function createFreshSessionCapabilityPort(options: {
         return { receipt };
       }
 
-      // Default mock invocation
+      // Discovery cannot stand in for an invocation, even in a fresh session.
       const receipt = createCapabilityReceipt({
         runId: request.runId,
         step: request.step,
@@ -482,8 +482,8 @@ export function createFreshSessionCapabilityPort(options: {
         obligationId: request.obligation.id,
         question: request.obligation.question,
         selected: true,
-        invoked: true,
-        outcome: "ok",
+        invoked: false,
+        outcome: "failed",
         invokedAt: new Date().toISOString(),
         toolName,
         harness: options.session.harness,
@@ -492,12 +492,12 @@ export function createFreshSessionCapabilityPort(options: {
         sessionId: options.session.sessionId,
         source: request.obligation.source,
         sourceVersion: request.obligation.version,
-        observationId: `obs-ok-${randomUUID()}`,
-        rawResultSha256: createHash("sha256").update("ok", "utf8").digest("hex"),
+        observationId: `obs-unavailable-${randomUUID()}`,
+        rawResultSha256: "",
         isReused: false,
         originalReceiptId: null,
-        isError: false,
-        errorMessage: null,
+        isError: true,
+        errorMessage: "No capability invoker was supplied; discovery alone is not invocation evidence",
       });
       return { receipt };
     },

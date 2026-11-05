@@ -131,6 +131,7 @@ export interface ExecutorClaim {
 }
 
 export interface ControllerDispatchRequest {
+  readOnly?: boolean;
   onProcess?: ((evidence: import("./task-runtime.js").TaskProcessEvidence) => void) | undefined;
   onTelemetry?: ((meter: import("./task-telemetry.js").NormalizedTelemetry) => void) | undefined;
   onSpawn?: ((child: { pid: number }) => void) | undefined;
@@ -389,6 +390,8 @@ export class TaskRunError extends Error {
  * readiness, the baseline and the approval state. Built without writing.
  */
 export interface TaskStartReadiness {
+  delivery?: ReturnType<typeof import("./task-delivery.js").nativeOriginReadiness>;
+  capabilities?: import("./task-capability-health.js").TaskCapabilityReadiness[];
   contractId: string;
   revision: number;
   contractDigest: string;
@@ -1598,7 +1601,7 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
   let recoveredBaseline: { baseCommit: string } | null = null;
   const isApprovedMultiPhase = ["gsd", "gsd-multi-phase"].includes(contract.scope.workflow ?? "");
   const isApprovedFullQuick = contract.scope.workflow === "gsd-quick" && effectiveQuality === "full";
-  if (baseline.status === "dirty" && options.allowPriorRun && (isApprovedMultiPhase || isApprovedFullQuick)) {
+  if (baseline.status === "dirty" && options.allowPriorRun && (isApprovedMultiPhase || isApprovedFullQuick || contract.recoveryPolicy?.allowWorkspaceRepair)) {
     const { readCheckpoint } = await import("./task-journal.js");
     const checkpoint = await readCheckpoint(options.stateRoot, digest);
     const currentHead = (await runGitRead(projectRoot, ["rev-parse", "HEAD"])).trim();

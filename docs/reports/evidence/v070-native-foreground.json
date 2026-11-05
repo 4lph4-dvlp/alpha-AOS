@@ -1,0 +1,11 @@
+{
+  "kind": "native-foreground-return",
+  "observedAt": "2026-11-05T10:31:44.723Z",
+  "exitCode": 0,
+  "processCode": "ok",
+  "terminal": "completed",
+  "sessionObserved": true,
+  "replyObserved": true,
+  "closeConfirmed": true,
+  "scope": "Read-only native Codex in an isolated temporary Git repository; no product contract restarted; no idle-session injection claim"
+}

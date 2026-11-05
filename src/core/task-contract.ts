@@ -98,7 +98,20 @@ export interface TaskComputerUseGrant {
   verification?: { authorityFile: string; runtimeFile: string; requestFile: string; requestHash: string; runtimeReceiptHash: string };
 }
 
+export interface TaskRecoveryPolicy {
+  maxRepairs: number;
+  allowWorkspaceRepair: boolean;
+  allowQuestionRepair: boolean;
+}
+
+export interface TaskCapabilityQuestions {
+  documentation?: string;
+  research?: string;
+}
+
 export interface TaskContract {
+  recoveryPolicy?: TaskRecoveryPolicy;
+  capabilityQuestions?: TaskCapabilityQuestions;
   computerUse?: TaskComputerUseGrant | undefined;
   schemaVersion: 1;
   id: string;
@@ -154,6 +167,8 @@ export interface DigestableTaskCriterion {
 
 /** Everything a reviewer approves, in one fixed key order. */
 export interface DigestableTaskContract {
+  recoveryPolicy?: TaskRecoveryPolicy;
+  capabilityQuestions?: TaskCapabilityQuestions;
   computerUse?: TaskComputerUseGrant | undefined;
   schemaVersion: 1;
   id: string;
@@ -206,7 +221,8 @@ export interface TaskApprovalRecord {
    * approved before git-directory binding still load.
    */
   gitDirectory?: string | null;
-  consent: { mode: "autopilot"; grant: "explicit-cli-approval"; scope: "single-run" };
+  consent: { mode: "autopilot"; grant: "explicit-cli-approval" | "bounded-recovery"; scope: "single-run" };
+  recovery?: { rootDigest: string; parentDigest: string; repairIndex: number };
   contract: DigestableTaskContract;
 }
 
@@ -683,6 +699,11 @@ export function digestableTaskContract(contract: TaskContract): DigestableTaskCo
     contract.scope.workflow ?? (contract.category === "development" ? "gsd-quick" : "generic-connector");
   const effectiveQuality = resolveTaskQuickQuality(contract);
   return {
+    ...(contract.recoveryPolicy ? { recoveryPolicy: { maxRepairs: contract.recoveryPolicy.maxRepairs, allowWorkspaceRepair: contract.recoveryPolicy.allowWorkspaceRepair, allowQuestionRepair: contract.recoveryPolicy.allowQuestionRepair } } : {}),
+    ...(contract.capabilityQuestions ? { capabilityQuestions: {
+      ...(contract.capabilityQuestions.documentation ? { documentation: contract.capabilityQuestions.documentation.normalize("NFC") } : {}),
+      ...(contract.capabilityQuestions.research ? { research: contract.capabilityQuestions.research.normalize("NFC") } : {}),
+    } } : {}),
     schemaVersion: contract.schemaVersion,
     id: contract.id,
     revision: contract.revision,
@@ -793,6 +814,8 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
   compare("mode", before.mode, after.mode);
   compare("category", before.category, after.category);
   compare("goal", before.goal, after.goal);
+  compare("recoveryPolicy", before.recoveryPolicy ?? null, after.recoveryPolicy ?? null);
+  compare("capabilityQuestions", before.capabilityQuestions ?? null, after.capabilityQuestions ?? null);
   compare("scope.projectRoot", before.scope.projectRoot, after.scope.projectRoot);
   compare("scope.workflow", before.scope.workflow, after.scope.workflow);
   compare("scope.summary", before.scope.summary, after.scope.summary);
@@ -836,7 +859,7 @@ export function changedContractFields(before: DigestableTaskContract, after: Dig
  * view spells as null or false are dropped again, so the snapshot can be
  * re-validated and re-digested exactly as a contract file would be.
  */
-function contractFromView(view: unknown): unknown {
+export function contractFromView(view: unknown): unknown {
   const copy = JSON.parse(JSON.stringify(view)) as Record<string, unknown>;
   const criteria = Array.isArray(copy.criterion) ? copy.criterion : [];
   for (const criterion of criteria) {
@@ -912,6 +935,17 @@ export async function readTaskApprovals(options: { stateRoot: string; contractId
   const records: TaskApprovalRecord[] = [];
   for (const name of names.filter((entry) => entry.endsWith(".json")).sort()) {
     records.push(await readApprovalRecord(join(directory, name), options.contractId));
+  }
+  for (const record of records) {
+    if (record.consent.grant === "bounded-recovery") {
+      const lineage = record.recovery;
+      const root = records.find((item) => item.contractDigest === lineage?.rootDigest && item.consent.grant === "explicit-cli-approval");
+      const parent = records.find((item) => item.contractDigest === lineage?.parentDigest);
+      if (!lineage || !root || !parent || record.revision <= parent.revision || lineage.repairIndex <= (parent.recovery?.repairIndex ?? 0) ||
+        (parent.recovery && parent.recovery.rootDigest !== root.contractDigest) || record.canonicalProjectRoot !== root.canonicalProjectRoot || record.gitDirectory !== root.gitDirectory) throw new Error("Invalid bounded recovery approval ancestry");
+      const { assertRecoveryRevision } = await import("./task-recovery-grant.js");
+      assertRecoveryRevision(root.contract, record.contract, lineage.repairIndex);
+    } else if (record.recovery) throw new Error("Explicit approvals cannot impersonate delegated recovery lineage");
   }
   return records;
 }

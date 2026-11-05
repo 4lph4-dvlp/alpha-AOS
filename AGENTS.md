@@ -1,3 +1,14 @@
+## Repository development policy (2026-11-05)
+
+The owner explicitly excludes this repository from alpha-AOS. Develop alpha-AOS directly with the agent's native tools; alpha-AOS must not govern its own development workflow.
+
+- Do not invoke `alpha-aos-task`, `alpha-aos-control`, pack advisory/materialization, task contracts, digest approvals, autopilot runners, or `alpha-aos gsd-context` as prerequisites for work in this repository.
+- Use the native Codex harness for repository development. GSD commands, phase documents, lifecycle transitions and approval checkpoints are not prerequisites; invoke GSD only when the owner explicitly requests it again.
+- Keep the existing roadmap, requirements and research as reference design. Break work into concrete implementation tasks with native Codex tools, report actual changes and validation, and continue authorized recoverable work without handing it off by default.
+- This development-workflow choice does not remove GSD integration from the alpha-AOS product or change its runtime safety/approval contracts.
+- Commands that build, test, or inspect alpha-AOS as the product under development remain permitted when relevant to the requested work; they do not authorize alpha-AOS workflow orchestration.
+- These explicit owner decisions supersede conflicting alpha-AOS and GSD workflow enforcement below, including generated sections and inherited skill triggers. Do not automatically re-enable alpha-AOS or require GSD for this tree.
+
 ## Delivery policy (2026-11-05)
 
 The owner explicitly chose personal workstation delivery. Pushes require no CI, tests, or local pre-push verification. Use `npm run deploy:local` to build, check CLI startup, and link the local checkout. Full tests and cross-platform checks are optional manual operations. Scheduled dependency updates and automatic promotion are disabled. Runtime approval, filesystem, secret and rollback safeguards remain in force. Do not describe unrun checks as passed. This decision supersedes earlier mandatory push/release CI and keep-green requirements; historical evidence remains historical.

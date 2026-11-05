@@ -73,8 +73,8 @@ export interface StepObligationsDecision {
   readonly missingEvidence?: readonly string[] | undefined;
 }
 
-const DOC_LOOKUP_PATTERN = /\b(?:documentation-lookup|context7|api\s+docs?|documentation|library\s+version|version-specific)\b/iu;
-const DEEP_RESEARCH_PATTERN = /\b(?:deep-research|exa|firecrawl|external\s+examples?|recent\s+cases?|web\s+research|industry\s+patterns?)\b/iu;
+const DOC_LOOKUP_PATTERN = /\b(?:documentation-lookup|api\s+docs?|(?:api|library|framework|official|version-specific)\s+documentation|(?:use|using|via|with|invoke|consult|look\s+up)\s+(?:the\s+)?context7|(?:query|consult|read|look(?:ing)?\s+up)\s+(?:[\w@/.-]+\s+){0,2}documentation)\b/iu;
+const DEEP_RESEARCH_PATTERN = /\b(?:deep-research|external\s+examples?|recent\s+cases?|web\s+research|industry\s+patterns?|(?:use|using|via|with|invoke|consult|search(?:ing)?)\s+(?:the\s+)?(?:exa|firecrawl))\b/iu;
 const AMBIGUOUS_PATTERN = /\b(?:if\s+needed|optional|consider\s+looking|unclear\s+whether\s+required)\b/iu;
 
 function extractQuestionFromContract(contract: TaskContract, pattern: RegExp, step?: CapabilityBoundary): string | null {
@@ -174,8 +174,8 @@ export function evaluateStepObligations(
       docQuestion = options.question;
     }
   } else if (options.contract) {
-    docQuestion = extractQuestionFromContract(options.contract, DOC_LOOKUP_PATTERN, options.step);
-    researchQuestion = extractQuestionFromContract(options.contract, DEEP_RESEARCH_PATTERN, options.step);
+    docQuestion = options.contract.capabilityQuestions?.documentation ?? extractQuestionFromContract(options.contract, DOC_LOOKUP_PATTERN, options.step);
+    researchQuestion = options.contract.capabilityQuestions?.research ?? extractQuestionFromContract(options.contract, DEEP_RESEARCH_PATTERN, options.step);
   }
 
   // Check inventory for approved project skills that might supersede global skills (D-07)

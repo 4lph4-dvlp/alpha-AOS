@@ -226,6 +226,7 @@ export async function writeCodexRunGitConfig(options: {
  * arrives on stdin (`-`), never in the argument vector.
  */
 export function codexControllerArgs(paths: {
+  readOnly?: boolean;
   durable?: boolean | undefined;
   projectRoot: string;
   outputSchemaPath: string;
@@ -239,7 +240,7 @@ export function codexControllerArgs(paths: {
     "--json",
     ...(paths.durable ? [] : ["--ephemeral"]),
     "--ignore-rules",
-    ...(paths.gitDirectory === null ? ["--sandbox", "workspace-write"] : codexGitAuthorityOverrides(paths.gitDirectory)),
+    ...(paths.readOnly ? ["--sandbox", "read-only"] : paths.gitDirectory === null ? ["--sandbox", "workspace-write"] : codexGitAuthorityOverrides(paths.gitDirectory)),
     "-C",
     paths.projectRoot,
     ...(paths.model !== undefined && paths.model.trim().length > 0 ? ["-m", paths.model.trim()] : []),
@@ -547,6 +548,7 @@ export async function runCodexController(
         outputSchemaPath,
         lastMessagePath,
         gitDirectory: request.gitDirectory,
+        ...(request.readOnly ? { readOnly: true } : {}),
         model: resolvedModel,
         effort: request.contract.agentPolicy.controllerEffort,
       }),

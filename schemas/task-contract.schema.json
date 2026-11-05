@@ -110,6 +110,22 @@
     "protocolVersion": { "const": 1 },
     "manifestDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "goal": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "recoveryPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["maxRepairs", "allowWorkspaceRepair", "allowQuestionRepair"],
+      "properties": {
+        "maxRepairs": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "allowWorkspaceRepair": { "type": "boolean" },
+        "allowQuestionRepair": { "type": "boolean" }
+      }
+    },
+    "capabilityQuestions": {
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "documentation": { "type": "string", "minLength": 10, "maxLength": 2000, "pattern": "\\S" },
+        "research": { "type": "string", "minLength": 10, "maxLength": 2000, "pattern": "\\S" }
+      }
+    },
     "scope": {
       "type": "object",
       "required": ["projectRoot", "summary"],

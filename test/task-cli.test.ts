@@ -643,7 +643,8 @@ test("startTask is limited to the runner and only the task skill describes sessi
   for (const file of await filesUnder(join(repositoryRoot, "src"), (path) => path.endsWith(".ts"))) {
     if ((await readFile(join(repositoryRoot, "src", file), "utf8")).includes("startTask(")) callers.push(`src/${file}`);
   }
-  assert.deepEqual(callers, ["src/cli.ts", "src/core/task-run.ts", "src/core/task-supervisor.ts"]);
+  assert.deepEqual(callers, ["src/core/task-run.ts", "src/core/task-supervisor.ts"]);
+  assert.match(await readFile(join(repositoryRoot, "src", "cli.ts"), "utf8"), /startTaskWithRecovery\(/u);
 
   const skills = await filesUnder(join(repositoryRoot, "skills"), (path) => path.endsWith("SKILL.md"));
   assert.ok(skills.length > 0);

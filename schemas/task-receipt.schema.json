@@ -151,8 +151,17 @@
           "additionalProperties": false,
           "properties": {
             "mode": { "const": "autopilot" },
-            "grant": { "const": "explicit-cli-approval" },
+            "grant": { "enum": ["explicit-cli-approval", "bounded-recovery"] },
             "scope": { "const": "single-run" }
+          }
+        },
+        "recovery": {
+          "type": "object", "additionalProperties": false,
+          "required": ["rootDigest", "parentDigest", "repairIndex"],
+          "properties": {
+            "rootDigest": { "$ref": "#/$defs/sha256" },
+            "parentDigest": { "$ref": "#/$defs/sha256" },
+            "repairIndex": { "type": "integer", "minimum": 1, "maximum": 10 }
           }
         },
         "contract": {

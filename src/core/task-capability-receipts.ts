@@ -65,6 +65,8 @@ export interface CapabilityInvocationResult {
 
 export interface TaskCapabilityPort {
   invoke(request: CapabilityInvocationRequest): Promise<CapabilityInvocationResult>;
+  /** Read-only native invocation proof; must not emit a reusable step receipt. */
+  preflight?(request: CapabilityInvocationRequest): Promise<void>;
 }
 
 export function computeCapabilityReceiptDigest(payload: Omit<TaskCapabilityReceipt, "receiptDigest"> | TaskCapabilityReceipt): string {

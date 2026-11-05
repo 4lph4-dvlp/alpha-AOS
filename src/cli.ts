@@ -67,7 +67,9 @@ Usage:
   alpha-aos task plan <contract.json> [--detail] [--json]
   alpha-aos task preview <contract.json> [--json]
   alpha-aos task approve <contract.json> [--contract-digest <digest>] [--apply] [--json]
-  alpha-aos task start <contract.json> [--contract-digest <digest>] [--apply] [--json]
+  alpha-aos task start <contract.json> [--contract-digest <digest>] [--delivery foreground] [--origin-host codex --origin-session <id>] [--apply] [--json]
+  alpha-aos task follow <contract-id> --run <run-id> --contract-digest <digest> --revision <n> --origin-host <host> --origin-session <id> [--timeout-ms <ms>] [--json]
+  alpha-aos task acknowledge <contract-id> --run <run-id> --contract-digest <digest> --revision <n> --origin-host <host> --origin-session <id> --outcome-id <id> --apply [--json]
   alpha-aos task report <contract-id> [--run <run-id>] [--json]
   alpha-aos task resume <contract.json> [--contract-digest <digest>] [--apply] [--json]
   alpha-aos task final-review <contract.json> [--contract-digest <digest>] [--artifact-digest <digest>] [--milestone <id>] [--reviewer <claude|codex|antigravity|pi|hermes>] [--apply] [--json]
@@ -435,9 +437,9 @@ async function readTaskStartReadiness(
   contractPath: string,
   supplied: string | null,
   stateRoot: string,
-  options?: { reprobeOnDrift?: boolean; probeMissing?: boolean },
+  options?: { reprobeOnDrift?: boolean; probeMissing?: boolean; originHost?: string; originSession?: string },
 ): Promise<{ readiness: TaskStartReadiness; command: string }> {
-  const { assertTaskStartable, loadTaskContract, previewTaskContract, resolveTaskQuickQuality } = await import("./core/task-contract.js");
+  const { assertTaskStartable, loadTaskContract, previewTaskContract, resolveTaskQuickQuality, reservedRunIdForApproval } = await import("./core/task-contract.js");
   const { listTaskRuns } = await import("./core/task-run.js");
   const { probeGsdQuickReadiness, resolveInstalledGsdTools } = await import("./core/task-gsd.js");
   const { readTaskBaseline } = await import("./core/task-effects.js");
@@ -481,6 +483,11 @@ async function readTaskStartReadiness(
     missingProof.push(...meterCheck.missingMeters);
   }
   const effectiveQuality = resolveTaskQuickQuality(contract);
+  const { inspectTaskCapabilities } = await import("./core/task-capability-health.js");
+  const { nativeCapabilityPort } = await import("./adapters/task-native-capability.js");
+  const capabilities = await inspectTaskCapabilities(contract, nativeCapabilityPort(stateRoot), reservedRunIdForApproval({ contractDigest: digest }));
+  const delivery = (await import("./core/task-delivery.js")).nativeOriginReadiness(options?.originHost, options?.originSession);
+  missingProof.push(...capabilities.filter((item) => !item.ready).map((item) => `capability:${item.capabilityId}:${item.failureKind}: ${item.detail}`));
   let stageObservation: TaskStartReadiness["stageObservation"] | undefined;
   if (effectiveQuality === "full") {
     const { codexStageObservationCapability } = await import("./core/task-gsd-stage-observation.js");
@@ -505,8 +512,10 @@ async function readTaskStartReadiness(
     missingProof,
     gsd,
     baseline,
+    capabilities,
+    delivery,
     ...(stageObservation !== undefined ? { stageObservation } : {}),
-    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean" && meterCheck.ready && (effectiveQuality !== "full" || (stageObservation?.supported ?? false)),
+    ready: approved && consumedBy === null && agents.supported && gsd.ready && baseline.status === "clean" && meterCheck.ready && capabilities.every((item) => item.ready) && (effectiveQuality !== "full" || (stageObservation?.supported ?? false)),
   };
   return { readiness, command: await taskStartCommand(loaded.sourcePath, digest) };
 }
@@ -2233,7 +2242,7 @@ async function main(): Promise<void> {
     const subcommand = args[1] ?? "";
     // D-02: previewing, approving, starting, resuming, reading, reporting and stopping are separate verbs.
     // Only `start --apply` or `resume --apply` with the task's own approved digest launches agents.
-    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "context", "steer", "steering", "intake", "readiness", "bootstrap"].includes(subcommand)) {
+    if (!["plan", "preview", "approve", "start", "attach", "panel-serve", "dispatch", "report", "resume", "status", "stop", "doctor", "answer", "final-review", "wait", "follow", "acknowledge", "context", "steer", "steering", "intake", "readiness", "bootstrap"].includes(subcommand)) {
       throw new Error(`Unknown task command: ${subcommand || "(none)"}. Use one of: plan, preview, approve, start, report, resume, status, stop, doctor, answer, final-review, wait, intake, readiness, bootstrap. Also available: attach, dispatch, context, steer, steering.`);
     }
     // D-01: looking and consenting are different acts, so --apply belongs to
@@ -2267,6 +2276,21 @@ async function main(): Promise<void> {
     }
     const context = observableContext();
     const stateRoot = userStateRoot();
+    if (subcommand === "follow" || subcommand === "acknowledge") {
+      const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--run", "--contract-digest", "--revision", "--origin-host", "--origin-session", "--outcome-id", "--timeout-ms"], booleanFlags: ["--json", "--apply"] });
+      if (parsed.operands.length !== 1) throw new Error(`task ${subcommand} requires one contract id`);
+      const value = (key: string): string => { const item = parsed.options.get(key); if (typeof item !== "string" || !item) throw new Error(`Missing ${key}`); return item; };
+      const { validateTaskSessionBinding } = await import("./core/task-session.js");
+      const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: parsed.operands[0], contractDigest: value("--contract-digest"), revision: Number(value("--revision")),
+        runId: value("--run"), host: value("--origin-host"), originatingSessionId: value("--origin-session") });
+      const { followTaskOrigin, acknowledgeTaskOrigin } = await import("./core/task-delivery.js");
+      if (subcommand === "follow" && hasFlag(args, "--apply")) throw new Error("task follow observes only; --apply is invalid");
+      if (subcommand === "acknowledge" && !hasFlag(args, "--apply")) throw new Error("task acknowledge requires --apply and the exact outcome id");
+      const result = subcommand === "follow" ? await followTaskOrigin({ stateRoot, binding, timeoutMs: Number(parsed.options.get("--timeout-ms") ?? 300000) })
+        : await acknowledgeTaskOrigin(stateRoot, binding, value("--outcome-id"));
+      print(result, json, JSON.stringify(result, null, 2), context);
+      return;
+    }
     if (subcommand === "intake") {
       const parsed = parseClosedFlags(args.slice(2), {
         valueFlags: ["--input"],
@@ -2880,6 +2904,35 @@ async function main(): Promise<void> {
             `task resume --apply requires the contract digest. The current contract digest is ${loaded.digest}. Run: ${taskResumeCommand(loaded.sourcePath, loaded.digest)}`,
           );
         }
+        const loaded = await loadTaskContract(operand);
+        if (loaded.digest !== supplied) throw new Error("Resume contract digest drifted");
+        if (loaded.contract.recoveryPolicy) {
+          const { startTaskWithRecovery } = await import("./core/task-supervisor.js");
+          const { nativeOriginReadiness, registerTaskOrigin, settleTaskOrigin, taskOriginProcessClosed } = await import("./core/task-delivery.js");
+          const { TaskCapabilityPreflightError } = await import("./core/task-capability-health.js");
+          const origin = nativeOriginReadiness(optionValue(args, "--origin-host") ?? undefined, optionValue(args, "--origin-session") ?? undefined);
+          const { validateTaskSessionBinding, createTaskSession } = await import("./core/task-session.js");
+          const binding = origin.supported ? validateTaskSessionBinding({ schemaVersion: 1, contractId: loaded.contract.id, contractDigest: loaded.digest,
+            revision: loaded.contract.revision, runId: `resume-${Date.now().toString(36)}`, host: origin.host, originatingSessionId: origin.originatingSessionId }) : null;
+          if (binding) await registerTaskOrigin(stateRoot, binding);
+          let observedRun: import("./core/task-run.js").TaskRunRecord | null = null;
+          const resumed = await startTaskWithRecovery({ contractPath: operand, expectedDigest: supplied, stateRoot, packageRoot: packageRoot(),
+            ports: nativeTaskPorts({ receiptsRoot: join(stateRoot, "receipts"), reprobeOnDrift: true, probeMissing: probe }),
+            ...(binding ? { onRunReady: async (run) => { observedRun = run; await createTaskSession(stateRoot, { ...binding, runId: run.runId, contractDigest: run.contractDigest, revision: run.revision }); } } : {}),
+          }).catch(async (error: unknown) => {
+            if (binding) await settleTaskOrigin({ stateRoot, binding, finalRunId: observedRun?.runId ?? null,
+              finalDigest: (error instanceof TaskCapabilityPreflightError ? error.contractDigest : undefined) ?? observedRun?.contractDigest ?? loaded.digest,
+              status: error instanceof TaskCapabilityPreflightError ? error.status : "unknown", reason: error instanceof Error ? error.message : String(error) });
+            throw error;
+          });
+          const status = resumed.supervision?.status ?? resumed.run.status;
+          const delivery = binding ? await settleTaskOrigin({ stateRoot, binding, finalRunId: resumed.run.runId, finalDigest: resumed.run.contractDigest,
+            status: status === "running" || status === "pending" || status === "executing" ? "unknown" : status,
+            reason: resumed.supervision?.checkpoint.stopReason ?? resumed.run.stopReason, processClosed: await taskOriginProcessClosed(stateRoot, loaded.contract) }) : null;
+          print({ ...resumed, delivery }, json, `Recovery chain: ${status}\n${formatTaskRunReport(resumed.run)}`, context);
+          process.exitCode = status === "accepted" ? 0 : 1;
+          return;
+        }
         const result = await resumeTask({
           contractPath: operand,
           expectedDigest: supplied,
@@ -2899,11 +2952,17 @@ async function main(): Promise<void> {
     }
 
     if (subcommand === "start") {
-      const parsedStart = parseClosedFlags(args.slice(2), { valueFlags: ["--contract-digest", "--progress", "--origin-host", "--origin-session", "--observer-timeout-ms"], booleanFlags: ["--apply", "--json", "--probe"] });
+      const parsedStart = parseClosedFlags(args.slice(2), { valueFlags: ["--contract-digest", "--progress", "--delivery", "--origin-host", "--origin-session", "--observer-timeout-ms"], booleanFlags: ["--apply", "--json", "--probe"] });
       if (parsedStart.operands.length !== 1) throw new Error("task start requires exactly one contract file");
       const progress = parsedStart.options.get("--progress"), host = parsedStart.options.get("--origin-host"), originSession = parsedStart.options.get("--origin-session"), timeout = parsedStart.options.get("--observer-timeout-ms");
       if (progress !== undefined && progress !== "panel") throw new Error("Invalid progress mode");
-      if ((progress === "panel" && (typeof host !== "string" || typeof originSession !== "string")) || (progress === undefined && (host !== undefined || originSession !== undefined || timeout !== undefined))) throw new Error("Panel progress requires an origin host and logical session");
+      const { nativeOriginReadiness, registerTaskOrigin, settleTaskOrigin, taskOriginProcessClosed } = await import("./core/task-delivery.js");
+      const origin = nativeOriginReadiness(typeof host === "string" ? host : undefined, typeof originSession === "string" ? originSession : undefined);
+      const deliveryMode = parsedStart.options.get("--delivery");
+      if (deliveryMode !== undefined && deliveryMode !== "foreground") throw new Error("Only awaited foreground native delivery is supported; idle-session injection is unavailable");
+      if (progress === "panel" && !origin.registered) throw new Error("Panel progress requires an origin host and session before task start");
+      if (deliveryMode === "foreground" && !origin.supported) throw new Error("Verified native foreground delivery requires a Codex origin; this host has no verified continuation path");
+      if (progress === undefined && timeout !== undefined) throw new Error("Observer timeout requires panel progress");
       if (typeof timeout === "string" && (!Number.isSafeInteger(Number(timeout)) || Number(timeout) < 1 || Number(timeout) > 24 * 60 * 60_000)) throw new Error("Invalid observer timeout");
       const supplied = optionValue(args, "--contract-digest");
       const probe = hasFlag(args, "--probe");
@@ -2914,7 +2973,12 @@ async function main(): Promise<void> {
             `task start --apply requires the approved digest. The current contract digest is ${preview.digest}${preview.approved ? "" : ", which is not approved yet"}. Run: ${await taskStartCommand(preview.sourcePath, preview.digest)}`,
           );
         }
-        const loaded = await loadTaskContract(operand);
+        const { assertTaskStartable } = await import("./core/task-contract.js");
+        const loaded = (await assertTaskStartable({ contractPath: operand, expectedDigest: supplied, stateRoot })).loaded;
+        const { inspectTaskCapabilities, TaskCapabilityPreflightError } = await import("./core/task-capability-health.js");
+        const taskPorts = nativeTaskPorts({ receiptsRoot: join(stateRoot, "receipts"), reprobeOnDrift: true, probeMissing: probe });
+        const capabilityReadiness = loaded.contract.recoveryPolicy ? [] : await inspectTaskCapabilities(loaded.contract, taskPorts.capability, reservedRunIdForApproval({ contractDigest: supplied }));
+        if (capabilityReadiness.some((item) => !item.ready)) throw new Error(`CAPABILITY_PREFLIGHT_FAILED: ${capabilityReadiness.filter((item) => !item.ready).map((item) => item.detail).join("; ")}. Approval was not consumed.`);
         const meterCheck = checkCostMeterReadiness(loaded.contract.agentPolicy, loaded.contract.resourcePolicy);
         if (!meterCheck.ready) {
           throw new Error(`MISSING_TELEMETRY_METER: ${meterCheck.missingMeters.join("; ")}`);
@@ -2922,28 +2986,52 @@ async function main(): Promise<void> {
         // AUTO-01, AUTO-03: the one call site that launches the supervisor, bound
         // to this task's own approved, unconsumed digest. Every refusal is thrown.
         const reservedRunId = reservedRunIdForApproval({ contractDigest: supplied });
+        const { validateTaskSessionBinding, createTaskSession } = await import("./core/task-session.js");
+        const originBinding = origin.registered ? validateTaskSessionBinding({ schemaVersion: 1, contractId: loaded.contract.id,
+          contractDigest: loaded.digest, revision: loaded.contract.revision, runId: reservedRunId, host: origin.host, originatingSessionId: origin.originatingSessionId }) : null;
+        if (originBinding) {
+          await registerTaskOrigin(stateRoot, originBinding);
+          if (deliveryMode === "foreground") process.stdout.write(json ? `${JSON.stringify({ type: "origin-registered", binding: originBinding, delivery: origin })}\n` : `Native origin registered: ${originBinding.originatingSessionId}; chain ${originBinding.contractDigest}; run ${originBinding.runId}\n`);
+        }
         const { startTaskWithRecovery } = await import("./core/task-supervisor.js");
-        const { run } = await startTaskWithRecovery({
+        let outcome: import("./core/task-delivery.js").TaskOriginOutcome | null = null;
+        let ownsRun = false;
+        let observedRun: import("./core/task-run.js").TaskRunRecord | null = null;
+        const execution = await startTaskWithRecovery({
           contractPath: operand,
           expectedDigest: supplied,
           stateRoot,
           packageRoot: packageRoot(),
-          ports: nativeTaskPorts({ receiptsRoot: join(stateRoot, "receipts"), reprobeOnDrift: true, probeMissing: probe }),
+          ports: taskPorts,
           runId: reservedRunId,
-          ...(progress === "panel" ? { onRunReady: async (actual: import("./core/task-run.js").TaskRunRecord) => {
-            const { validateTaskSessionBinding } = await import("./core/task-session.js");
+          ...(originBinding ? { onRunReady: async (actual: import("./core/task-run.js").TaskRunRecord) => {
+            ownsRun = true;
+            observedRun = actual;
             const binding = validateTaskSessionBinding({ schemaVersion: 1, contractId: actual.contractId, contractDigest: actual.contractDigest,
-              revision: actual.revision, runId: actual.runId, host, originatingSessionId: originSession });
+              revision: actual.revision, runId: actual.runId, host: origin.host, originatingSessionId: origin.originatingSessionId });
+            await createTaskSession(stateRoot, binding);
+            if (progress !== "panel") return;
             const { launchTaskProgressPanel } = await import("./core/task-progress-launch.js");
             const result = await launchTaskProgressPanel({ stateRoot, binding, ...(typeof timeout === "string" ? { timeoutMs: Number(timeout) } : {}) });
             process.stdout.write(json ? `${JSON.stringify({ type: "panel-launch", ...result })}\n` : `Panel URL (contains a temporary secret): ${result.url}\nObserver job: ${result.jobId}\n`);
           } } : {}),
+        }).catch(async (error: unknown) => {
+          if (originBinding && (ownsRun || error instanceof TaskCapabilityPreflightError)) await settleTaskOrigin({ stateRoot, binding: originBinding, finalRunId: observedRun?.runId ?? null,
+            finalDigest: (error instanceof TaskCapabilityPreflightError ? error.contractDigest : undefined) ?? observedRun?.contractDigest ?? loaded.digest,
+            status: error instanceof TaskCapabilityPreflightError ? error.status : "unknown", reason: error instanceof Error ? error.message : String(error) });
+          throw error;
         });
+        const { run } = execution;
+        const finalStatus = execution.supervision?.status ?? run.status;
+        if (originBinding) outcome = await settleTaskOrigin({ stateRoot, binding: originBinding, finalRunId: run.runId,
+          finalDigest: run.contractDigest, status: finalStatus === "running" || finalStatus === "pending" || finalStatus === "executing" ? "unknown" : finalStatus,
+          reason: execution.supervision?.checkpoint.stopReason ?? run.stopReason, processClosed: await taskOriginProcessClosed(stateRoot, loaded.contract) });
         const statusCmd = taskStatusCommand(run.contractId, run.runId);
         const stopCmd = taskStopCommand(run.contractId, run.runId);
         const resumeCmd = taskResumeCommand(resolve(operand), run.contractDigest);
         const runOutput = [
           formatTaskRunReport(run),
+          `Recovery chain outcome: ${finalStatus}`,
           "",
           "Operator control commands (durable across chat sessions):",
           `  Status: ${statusCmd}`,
@@ -2952,6 +3040,9 @@ async function main(): Promise<void> {
         ].join("\n");
         const jsonPayload = {
           ...run,
+          ...(execution.supervision ? { supervision: execution.supervision } : {}),
+          ...(execution.recovery ? { recovery: execution.recovery } : {}),
+          delivery: { ...origin, outcome },
           commands: {
             status: statusCmd,
             stop: stopCmd,
@@ -2959,12 +3050,14 @@ async function main(): Promise<void> {
           },
         };
         print(jsonPayload, json, runOutput, context);
-        process.exitCode = run.status === "accepted" ? 0 : 1;
+        process.exitCode = finalStatus === "accepted" ? 0 : 1;
         return;
       }
       const { readiness, command: startCommand } = await readTaskStartReadiness(operand, supplied, stateRoot, {
         reprobeOnDrift: true,
         probeMissing: probe,
+        ...(origin.host ? { originHost: origin.host } : {}),
+        ...(origin.originatingSessionId ? { originSession: origin.originatingSessionId } : {}),
       });
       print({ applied: false, readiness, command: startCommand }, json, formatTaskStartReadiness(readiness, startCommand), context);
       if (!readiness.ready) process.exitCode = 2;

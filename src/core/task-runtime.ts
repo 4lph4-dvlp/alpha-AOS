@@ -163,6 +163,47 @@ export function dispatchUsage(records: readonly TaskDispatchObservation[]) {
   return totals;
 }
 
+/** Keep each approved digest's identity checks intact before combining chain budgets. */
+export function chainDispatchUsage(records: readonly TaskDispatchObservation[]) {
+  const groups = new Map<string, TaskDispatchObservation[]>();
+  const sessionOwners = new Map<string, string>();
+  let ambiguous = false;
+  for (const record of records) {
+    const group = groups.get(record.contractDigest) ?? [];
+    group.push(record); groups.set(record.contractDigest, group);
+    for (const session of [record.sessionId, ...(record.nativeObservations ?? []).map((item) => item.sessionId)]) {
+      if (!session) continue;
+      const owner = sessionOwners.get(session);
+      if (owner && owner !== record.contractDigest) ambiguous = true;
+      sessionOwners.set(session, record.contractDigest);
+    }
+  }
+  const total = dispatchUsage([]);
+  for (const group of groups.values()) {
+    const usage = dispatchUsage(group);
+    total.tokens = total.tokens === null || usage.tokens === null ? null : total.tokens + usage.tokens;
+    total.costUsd = total.costUsd === null || usage.costUsd === null ? null : total.costUsd + usage.costUsd;
+    total.observedModelCalls = total.observedModelCalls === null || usage.observedModelCalls === null ? null : total.observedModelCalls + usage.observedModelCalls;
+    total.knownTokens += usage.knownTokens; total.knownCostUsd += usage.knownCostUsd;
+    total.sessions += usage.sessions; total.excludedDescendants += usage.excludedDescendants;
+    for (const role of ["controller", "executor", "reviewer"] as const) if (usage.byRole[role] !== undefined) total.byRole[role] = (total.byRole[role] ?? 0) + usage.byRole[role]!;
+  }
+  if (ambiguous) { total.tokens = null; total.costUsd = null; total.observedModelCalls = null; total.knownTokens = 0; total.knownCostUsd = 0; }
+  return total;
+}
+
+/** A delegated revision does not reset the original task's native usage budget. */
+export async function readTaskChainDispatches(stateRoot: string, contract: TaskContract): Promise<TaskDispatchObservation[]> {
+  const { readTaskApprovals, taskContractDigest } = await import("./task-contract.js");
+  const digest = taskContractDigest(contract);
+  if (!contract.recoveryPolicy) return readTaskDispatches(stateRoot, digest);
+  const approvals = await readTaskApprovals({ stateRoot, contractId: contract.id });
+  const current = approvals.find((item) => item.contractDigest === digest);
+  const root = current?.recovery?.rootDigest ?? digest;
+  const digests = [...new Set([root, ...approvals.filter((item) => item.recovery?.rootDigest === root).map((item) => item.contractDigest)])];
+  return (await Promise.all(digests.map((item) => readTaskDispatches(stateRoot, item)))).flat();
+}
+
 async function publishObservation(stateRoot: string, record: TaskDispatchObservation, contract: TaskContract): Promise<void> {
   try { const { publishTaskSessionDispatch } = await import("./task-session.js"); await publishTaskSessionDispatch(stateRoot, record, contract); }
   catch { process.emitWarning("Task progress delivery failed; dispatch remains authoritative", { code: "AOS_PROGRESS_DELIVERY" }); }
@@ -203,9 +244,11 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
     await writeAtomicPrivateFile(join(root, `${record.dispatchId}.json`), `${JSON.stringify(record)}\n`, 64 * 1024, options.stateRoot);
   };
   try {
-    const prior = await readTaskDispatches(options.stateRoot, options.digest);
+    const prior = options.contract.recoveryPolicy
+      ? await readTaskChainDispatches(options.stateRoot, options.contract)
+      : await readTaskDispatches(options.stateRoot, options.digest);
     if (prior.some((entry) => entry.status === "running" || entry.status === "interrupted")) throw new TaskResourceError("runtime_dispatch_unresolved");
-    const usage = dispatchUsage(prior);
+    const usage = chainDispatchUsage(prior);
     const started = clock();
     const first = prior.reduce((value, entry) => Math.min(value, Date.parse(entry.startedAt)), started.getTime());
     const check = evaluateResourceLimits(options.contract.resourcePolicy, { cycles: options.cycleBoundary ? prior.filter((entry) => entry.cycleBoundary).length : 0,
@@ -273,7 +316,7 @@ export async function meteredTaskDispatch<T extends { sessionId: string | null; 
     await recoverNativeUsage(record, clock());
     await persist();
     await publishObservation(options.stateRoot, record, options.contract);
-    const observed = dispatchUsage([...prior, record]);
+    const observed = chainDispatchUsage([...prior, record]);
     if (record.status === "completed" && ((options.contract.resourcePolicy.maxTokens !== undefined && observed.tokens === null) ||
       (options.contract.resourcePolicy.maxCostUsd !== undefined && observed.costUsd === null))) {
       throw new TaskResourceError("telemetry_unavailable");

@@ -1349,7 +1349,8 @@ export function formatTaskContractPreview(preview: TaskContractPreview, command:
   lines.push(
     `Task: ${contract.id} (revision ${contract.revision})`,
     `Contract digest: ${preview.digest}`,
-    `Mode: ${contract.mode} — approving authorizes one single run of this revision only; autopilot stays off for every other task.`,
+    `Mode: ${contract.mode} — approving authorizes ${contract.recoveryPolicy ? "this bounded recovery chain" : "a single run of this revision only"}; autopilot stays off for every other task.`,
+    `Recovery grant: ${contract.recoveryPolicy ? `up to ${contract.recoveryPolicy.maxRepairs} verified repairs; workspace=${contract.recoveryPolicy.allowWorkspaceRepair}, capability questions=${contract.recoveryPolicy.allowQuestionRepair}. Goal, acceptance, roots, models and cumulative limits remain fixed.` : "none; changed contracts require explicit approval"}`,
     `Goal: ${contract.goal}`,
     "Mandatory criteria:",
     ...contract.criterion.map((criterion) => {
@@ -1663,6 +1664,8 @@ export function formatTaskStartReadiness(readiness: TaskStartReadiness, command:
     role("Controller", readiness.controller),
     role("Executor", readiness.executor),
     role("Reviewer", readiness.reviewer),
+    ...(readiness.capabilities?.map((item) => `Capability ${item.capabilityId}: ${item.ready ? "verified read-only invocation" : `${item.failureKind}: ${item.detail}`}`) ?? []),
+    ...(readiness.delivery ? [`Native delivery: ${readiness.delivery.supported ? "awaited foreground return" : "no verified origin continuation"}; automatic idle wakeup: unavailable`, readiness.delivery.continuation] : []),
     ...(readiness.missingProof.length === 0 ? [] : ["Missing proof:", ...readiness.missingProof.map((entry) => `  ${entry}`)]),
     `GSD quick: ${readiness.gsd.ready ? "ready" : "not ready"} — ${readiness.gsd.reason}`,
     `Baseline: ${baselineText}`,

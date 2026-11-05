@@ -1,0 +1,21 @@
+{
+  "observedAt": "2026-11-05T15:13:21.160Z",
+  "nativeForegroundOrigin": true,
+  "proof": [
+    {
+      "status": "accepted",
+      "actualOriginMatched": true,
+      "publicFollowReturned": true,
+      "firstAcknowledgement": true,
+      "kind": "controlled-delivery-event"
+    },
+    {
+      "status": "blocked",
+      "actualOriginMatched": true,
+      "publicFollowReturned": true,
+      "firstAcknowledgement": true,
+      "kind": "controlled-delivery-event"
+    }
+  ],
+  "scope": "Actual parent Codex session, public follow/acknowledge CLI, controlled terminal events in temporary user state; not a claim that a live product contract or worker task was accepted"
+}

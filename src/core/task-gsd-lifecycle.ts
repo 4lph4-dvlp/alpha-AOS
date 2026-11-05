@@ -378,6 +378,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
           step: options.step,
           obligation,
           projectRoot: options.projectRoot,
+          harness: options.contract.agentPolicy.controller,
           sessionId: options.sessionId,
         });
         capabilityReceipts.push(invocation.receipt);
@@ -430,7 +431,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
     });
     if (!capabilityVerification.satisfied) {
       return {
-        failureReason: `Required capability evidence missing at ${options.step}: ${obligations.filter((ob) => ob.required).map((ob) => ob.capabilityId).join(", ")}; native capability adapter ${options.capabilityPort ? "returned no satisfactory evidence" : "is not configured"}`,
+        failureReason: `Required capability evidence missing at ${options.step}: ${capabilityReceipts.filter((receipt) => receipt.isError).map((receipt) => `${receipt.capabilityId}: ${receipt.errorMessage}`).join("; ") || (options.capabilityPort ? "adapter returned no satisfactory evidence" : "native adapter is not configured")}`.slice(0, 1600),
         step: options.step,
         phaseId: options.phaseId,
         exitCode: 1,

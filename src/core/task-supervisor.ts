@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { dispatchUsage, readTaskDispatches, reconcileTaskRuntime } from "./task-runtime.js";
-import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
+import { isProcessAlive } from "./writer-lock.js";
+import { dispatchUsage, chainDispatchUsage, readTaskDispatches, readTaskChainDispatches, reconcileTaskRuntime, TaskResourceError } from "./task-runtime.js";
+import { mkdir, open, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import {
   assertTaskStartable,
@@ -83,7 +85,13 @@ export interface SupervisorResult {
 }
 
 /** Preserve the start CLI's run record while using durable recovery attempts. */
-export async function startTaskWithRecovery(options: StartTaskOptions): Promise<{ run: TaskRunRecord }> {
+export async function startTaskWithRecovery(options: StartTaskOptions): Promise<{ run: TaskRunRecord; supervision?: SupervisorResult; recovery?: { rootDigest: string; repairs: import("./task-autorepair.js").TaskRepairEvidence[] } }> {
+  const initial = await loadTaskContract(options.contractPath);
+  if (initial.contract.recoveryPolicy) return runGrantedRecoveryChain(options);
+  return startLegacyTaskWithRecovery(options);
+}
+
+async function startLegacyTaskWithRecovery(options: StartTaskOptions): Promise<{ run: TaskRunRecord; supervision?: SupervisorResult }> {
   const loaded = await loadTaskContract(options.contractPath);
   if (!["gsd", "gsd-multi-phase"].includes(loaded.contract.scope.workflow ?? "")) return startTask(options);
   assertTaskCapabilityPorts(loaded.contract, options.ports);
@@ -101,7 +109,189 @@ export async function startTaskWithRecovery(options: StartTaskOptions): Promise<
   const runs = await listTaskRuns({ stateRoot: options.stateRoot, contractId: loaded.contract.id, packageRoot: options.packageRoot });
   const run = runs.find((entry) => entry.runId === observedRunId);
   if (!run) throw new Error(result.checkpoint.stopReason ?? "Recovery stopped before any task dispatch");
-  return { run };
+  return { run, supervision: result };
+}
+
+async function runGrantedRecoveryChain(options: StartTaskOptions) {
+  const { readTaskApprovals, contractFromView, parseTaskContract } = await import("./task-contract.js");
+  const { readBoundedFile, writeAtomicPrivateFile, assertNoSymlinksInPathAndAncestors } = await import("./command-jobs.js");
+  const { repairTaskFailure } = await import("./task-autorepair.js");
+  const { recordRecoveryRevision } = await import("./task-recovery-grant.js");
+  const { capabilityDiagnostic, inspectTaskCapabilities, TaskCapabilityPreflightError } = await import("./task-capability-health.js");
+  const initial = (await assertTaskStartable(options)).loaded;
+  const approvals = await readTaskApprovals({ stateRoot: options.stateRoot, contractId: initial.contract.id });
+  const approved = approvals.find((item) => item.contractDigest === initial.digest)!;
+  const rootDigest = approved.recovery?.rootDigest ?? initial.digest;
+  const rootApproval = approvals.find((item) => item.contractDigest === rootDigest && item.consent.grant === "explicit-cli-approval");
+  if (!rootApproval) throw new Error("Recovery chain has no explicit root approval");
+  const rootContract = await parseTaskContract(JSON.stringify(contractFromView(rootApproval.contract)), options.contractPath);
+  const grant = rootContract.recoveryPolicy!;
+  const root = join(options.stateRoot, "runs", rootDigest);
+  const statePath = join(root, "recovery.json");
+  await assertNoSymlinksInPathAndAncestors(root);
+  await mkdir(root, { recursive: true });
+  await assertNoSymlinksInPathAndAncestors(root);
+  const lockPath = join(root, "recovery.lock");
+  const lockText = JSON.stringify({ rootDigest, host: hostname(), pid: process.pid, claim: randomUUID() });
+  let lock;
+  try { lock = await open(lockPath, "wx", 0o600); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    const reclaimPath = join(root, "recovery-reclaim.lock");
+    const reclaim = await open(reclaimPath, "wx", 0o600).catch(() => { throw new Error("Recovery claim reconciliation is already active"); });
+    try {
+      const priorLock = JSON.parse(await readBoundedFile(lockPath, options.stateRoot, 4096, undefined, true)) as { rootDigest?: string; host?: string; pid?: number };
+      const active = await readTaskChainDispatches(options.stateRoot, initial.contract);
+      if (priorLock.rootDigest !== rootDigest || priorLock.host !== hostname() || !Number.isInteger(priorLock.pid) || priorLock.pid! <= 0 || isProcessAlive(priorLock.pid!) ||
+        active.some((entry) => entry.childPid !== null && isProcessAlive(entry.childPid))) throw new Error("Recovery chain still has an active or unprovable controller; duplicate execution refused");
+      await assertNoSymlinksInPathAndAncestors(lockPath);
+      await unlink(lockPath);
+      lock = await open(lockPath, "wx", 0o600);
+    } finally { await reclaim.close(); await unlink(reclaimPath); }
+  }
+  await lock.writeFile(lockText);
+  await lock.sync();
+  try {
+    type State = { schemaVersion: 1; rootDigest: string; currentDigest: string; startedAt: string; attempts: string[]; repairs: import("./task-autorepair.js").TaskRepairEvidence[]; accepted: boolean };
+    let state: State;
+    try { state = JSON.parse(await readBoundedFile(statePath, options.stateRoot, 128 * 1024, undefined, true)) as State; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; state = { schemaVersion: 1, rootDigest, currentDigest: initial.digest, startedAt: new Date().toISOString(), attempts: [], repairs: [], accepted: false }; }
+    if (state.schemaVersion !== 1 || state.rootDigest !== rootDigest || !Array.isArray(state.attempts) || !Array.isArray(state.repairs) || state.repairs.length > grant.maxRepairs || !Number.isFinite(Date.parse(state.startedAt))) throw new Error("Recovery chain state is inconsistent with the approved contract");
+    if (state.currentDigest !== initial.digest) {
+      if (approved.recovery?.parentDigest !== state.currentDigest || approved.recovery.rootDigest !== rootDigest || approved.recovery.repairIndex !== state.repairs.length) throw new Error("Recovery revision cannot be reconciled with durable ancestry");
+      const parentCheckpoint = await readCheckpoint(options.stateRoot, state.currentDigest);
+      if (state.attempts.length > 0 && (!parentCheckpoint || !(await verifyGsdStateConsistency(initial.contract.scope.projectRoot, parentCheckpoint)).consistent)) throw new Error("Recovery checkpoint ancestry cannot be verified");
+      if (parentCheckpoint) await writeCheckpoint(options.stateRoot, { ...parentCheckpoint, contractDigest: initial.digest, revision: initial.contract.revision, status: "running", stopReason: null });
+      state.currentDigest = initial.digest;
+    }
+    if (state.accepted) throw new Error("Recovery chain already accepted; duplicate execution refused");
+    const persist = () => writeAtomicPrivateFile(statePath, JSON.stringify(state), 128 * 1024, options.stateRoot);
+    const rootBudget = async () => {
+      const native = chainDispatchUsage(await readTaskChainDispatches(options.stateRoot, initial.contract));
+      return evaluateResourceLimits(rootContract.resourcePolicy, { cycles: state.attempts.length + state.repairs.length,
+        wallTimeMs: Date.now() - Date.parse(state.startedAt), tokens: native.tokens, costUsd: native.costUsd });
+    };
+    await persist();
+    let loaded = initial;
+    let lastRun: TaskRunRecord | null = null;
+    let supervision: SupervisorResult;
+    execution: for (;;) {
+      const prior = await listTaskRuns({ stateRoot: options.stateRoot, contractId: loaded.contract.id, packageRoot: options.packageRoot });
+      if (prior.some((item) => [rootDigest, state.currentDigest].includes(item.contractDigest) && item.status === "accepted")) throw new Error("Task already accepted; recovery cannot execute it again");
+      let capabilities = await inspectTaskCapabilities(loaded.contract, options.ports.capability, options.runId ?? `preflight-${rootDigest.slice(0, 16)}`);
+      while (capabilities.some((item) => !item.ready)) {
+        const reason = capabilities.filter((item) => !item.ready).map((item) => item.detail).join("; ");
+        const limits = await rootBudget();
+        if (limits.exceeded) throw new TaskCapabilityPreflightError("stopped", limits.stopCode ?? "Approved resource limit exceeded", loaded.digest);
+        const stop = await readTaskStopState({ stateRoot: options.stateRoot, contractId: rootContract.id, contractDigest: rootDigest });
+        if (stop.status === "pending") throw new TaskCapabilityPreflightError("stopped", stop.reason ?? "operator_halt", loaded.digest);
+        if (state.repairs.length >= grant.maxRepairs) throw new TaskCapabilityPreflightError("blocked", `repair_budget_exhausted: ${reason}`, loaded.digest);
+        const { readTaskBaseline } = await import("./task-effects.js");
+        const baseline = await readTaskBaseline({ projectRoot: loaded.contract.scope.projectRoot });
+        const checkpoint = await readCheckpoint(options.stateRoot, loaded.digest);
+        const baseCommit = checkpoint?.baseCommit ?? (baseline.status === "clean" ? baseline.baseCommit : null);
+        if (!baseCommit) throw new TaskCapabilityPreflightError("needs-input", "Capability repair requires a clean or verified existing project baseline", loaded.digest);
+        const previousDigest = loaded.digest;
+        let repaired: import("./task-autorepair.js").TaskRepairEvidence;
+        try {
+          repaired = await repairTaskFailure({ contract: loaded.contract, rootContract, stateRoot: options.stateRoot, ports: options.ports,
+            failure: `capability-evidence: ${reason}`, runId: options.runId ?? `preflight-${rootDigest.slice(0, 16)}`, repairIndex: state.repairs.length + 1, baseCommit });
+        } catch (error) {
+          if (!(error instanceof TaskResourceError) && !detectQuotaExhaustion(String(error))) throw error;
+          throw new TaskCapabilityPreflightError("stopped", error instanceof TaskResourceError ? error.stopCode : "quota_exhausted", loaded.digest);
+        }
+        state.repairs.push(repaired);
+        await persist();
+        if (repaired.status === "needs-input" || repaired.status === "stopped") throw new TaskCapabilityPreflightError(repaired.status, repaired.reason, loaded.digest);
+        if (repaired.status === "repaired" && repaired.candidate) {
+          await recordRecoveryRevision({ stateRoot: options.stateRoot, contractPath: options.contractPath, rootDigest, parentDigest: previousDigest, candidate: repaired.candidate, repairIndex: state.repairs.length });
+          loaded = await loadTaskContract(options.contractPath);
+          state.currentDigest = loaded.digest;
+          if (checkpoint) await writeCheckpoint(options.stateRoot, { ...checkpoint, contractDigest: loaded.digest, revision: loaded.contract.revision });
+          await persist();
+        }
+        capabilities = await inspectTaskCapabilities(loaded.contract, options.ports.capability, options.runId ?? `preflight-${rootDigest.slice(0, 16)}`);
+      }
+      let observedRunId: string | null = null;
+      const existingCheckpoint = await readCheckpoint(options.stateRoot, loaded.digest);
+      const continueTask = existingCheckpoint && state.attempts.length > 0 ? resumeTask : superviseTask;
+      supervision = await continueTask({ contractPath: options.contractPath, expectedDigest: loaded.digest,
+        stateRoot: options.stateRoot, packageRoot: options.packageRoot, ports: options.ports,
+        ...(state.attempts.length === 0 && options.runId ? { initialRunId: options.runId } : {}),
+        ...(options.gsd ? { gsd: options.gsd } : {}), ...(options.now ? { now: options.now } : {}),
+        onRunReady: async (run, path) => { observedRunId = run.runId; if (!state.attempts.includes(run.runId)) state.attempts.push(run.runId); await persist(); await options.onRunReady?.(run, path); },
+      });
+      const runs = await listTaskRuns({ stateRoot: options.stateRoot, contractId: loaded.contract.id, packageRoot: options.packageRoot });
+      lastRun = runs.find((item) => item.runId === observedRunId) ?? lastRun;
+      if (supervision.status === "accepted") { state.accepted = true; await persist(); break; }
+      if (supervision.status === "stopped" || supervision.status === "needs-input" || state.repairs.length >= grant.maxRepairs) break;
+      if (!lastRun?.baseCommit) break;
+      const chainUsage = chainDispatchUsage(await readTaskChainDispatches(options.stateRoot, loaded.contract));
+      const budget = evaluateResourceLimits(rootContract.resourcePolicy, { cycles: state.attempts.length + state.repairs.length,
+        wallTimeMs: Date.now() - Date.parse(state.startedAt), tokens: chainUsage.tokens, costUsd: chainUsage.costUsd });
+      if (budget.exceeded) { supervision.status = "stopped"; supervision.stopCode = budget.stopCode; supervision.checkpoint.status = "stopped"; supervision.checkpoint.stopReason = budget.stopCode; await writeCheckpoint(options.stateRoot, supervision.checkpoint); break; }
+      const stop = await readTaskStopState({ stateRoot: options.stateRoot, contractId: rootContract.id, contractDigest: rootDigest });
+      if (stop.status === "pending") { supervision.status = "stopped"; supervision.checkpoint.status = "stopped"; supervision.checkpoint.stopReason = stop.reason ?? "operator_halt"; await writeCheckpoint(options.stateRoot, supervision.checkpoint); break; }
+      let repair: import("./task-autorepair.js").TaskRepairEvidence;
+      let repairFailure = supervision.checkpoint.stopReason ?? lastRun.stopReason ?? "Rejected";
+      for (;;) {
+        const limits = await rootBudget();
+        const stop = await readTaskStopState({ stateRoot: options.stateRoot, contractId: rootContract.id, contractDigest: rootDigest });
+        if (limits.exceeded || stop.status === "pending") {
+          supervision.status = "stopped"; supervision.checkpoint.status = "stopped";
+          supervision.checkpoint.stopReason = limits.stopCode ?? stop.reason ?? "operator_halt";
+          await writeCheckpoint(options.stateRoot, supervision.checkpoint);
+          break execution;
+        }
+        try {
+          repair = await repairTaskFailure({ contract: loaded.contract, rootContract, stateRoot: options.stateRoot, ports: options.ports,
+            failure: repairFailure, runId: lastRun.runId, repairIndex: state.repairs.length + 1, baseCommit: lastRun.baseCommit });
+        } catch (error) {
+          if (!(error instanceof TaskResourceError) && !detectQuotaExhaustion(String(error))) throw error;
+          supervision.status = "stopped"; supervision.checkpoint.status = "stopped";
+          supervision.checkpoint.stopReason = error instanceof TaskResourceError ? error.stopCode : "quota_exhausted";
+          await writeCheckpoint(options.stateRoot, supervision.checkpoint);
+          break execution;
+        }
+        state.repairs.push({ ...repair, reason: capabilityDiagnostic(repair.reason) });
+        await persist();
+        if (repair.status !== "retry-repair") break;
+        if (state.repairs.length >= grant.maxRepairs) {
+          supervision.status = "blocked";
+          supervision.checkpoint.status = "blocked";
+          supervision.checkpoint.stopReason = `repair_budget_exhausted: ${grant.maxRepairs} authorized correction attempts; ${repair.reason}`;
+          await writeCheckpoint(options.stateRoot, supervision.checkpoint);
+          break execution;
+        }
+        repairFailure = `${supervision.checkpoint.stopReason ?? lastRun.stopReason}\nThe previous correction failed independent verification: ${repair.reason}. Perform a different concrete correction; do not rerun the unchanged task.`;
+      }
+      if (repair.status !== "repaired" || repair.before === repair.after) {
+        supervision.status = repair.status === "stopped" ? "stopped" : "needs-input";
+        supervision.checkpoint.status = supervision.status;
+        supervision.checkpoint.stopReason = repair.reason;
+        await writeCheckpoint(options.stateRoot, supervision.checkpoint);
+        break;
+      }
+      if (repair.candidate) {
+        await recordRecoveryRevision({ stateRoot: options.stateRoot, contractPath: options.contractPath, rootDigest, parentDigest: loaded.digest,
+          candidate: repair.candidate, repairIndex: state.repairs.length });
+        loaded = await loadTaskContract(options.contractPath);
+        state.currentDigest = loaded.digest;
+      }
+      // Preserve verified progress and cumulative cycles across the authorized revision.
+      const checkpoint = { ...supervision.checkpoint, contractDigest: loaded.digest, revision: loaded.contract.revision, status: "running" as const,
+        stopReason: null, usage: { ...supervision.checkpoint.usage, cycles: state.attempts.length + state.repairs.length,
+          wallTimeMs: Date.now() - Date.parse(state.startedAt) } };
+      await writeCheckpoint(options.stateRoot, checkpoint);
+      await persist();
+    }
+    if (!lastRun) throw new Error(supervision!.checkpoint.stopReason ?? "Recovery stopped before a run was created");
+    return { run: lastRun, supervision: supervision!, recovery: { rootDigest, repairs: state.repairs } };
+  } finally {
+    await lock.close();
+    if (await readBoundedFile(lockPath, options.stateRoot, 4096, undefined, true) !== lockText) throw new Error("Recovery controller claim changed; refusing to remove another owner's lock");
+    await unlink(lockPath);
+  }
 }
 
 export interface TaskResumeReadiness {
@@ -583,8 +773,8 @@ async function runSupervisorLoop(
     }
 
     // 2. Evaluate resource limits
-    const dispatches = await readTaskDispatches(options.stateRoot, digest);
-    const aggregate = dispatchUsage(dispatches);
+    const dispatches = await readTaskChainDispatches(options.stateRoot, contract);
+    const aggregate = chainDispatchUsage(dispatches);
     checkpoint.usage.tokens = aggregate.tokens;
     checkpoint.usage.costUsd = aggregate.costUsd;
     const limitCheck = evaluateResourceLimits(contract.resourcePolicy, checkpoint.usage);
@@ -684,7 +874,7 @@ async function runSupervisorLoop(
     const duration = Date.now() - attemptStart;
     checkpoint.usage.cycles += 1;
     checkpoint.usage.wallTimeMs += duration;
-    const observedUsage = dispatchUsage(await readTaskDispatches(options.stateRoot, digest));
+    const observedUsage = chainDispatchUsage(await readTaskChainDispatches(options.stateRoot, contract));
     checkpoint.usage.tokens = observedUsage.tokens;
     checkpoint.usage.costUsd = observedUsage.costUsd;
     if (contract.category !== "general") {
@@ -857,5 +1047,12 @@ async function runSupervisorLoop(
 
     checkpoint.updatedAt = (options.now ?? (() => new Date()))().toISOString();
     await writeCheckpoint(options.stateRoot, checkpoint);
+    if (contract.recoveryPolicy || /capability-|capability evidence/iu.test(rawError)) {
+      checkpoint.status = "blocked";
+      checkpoint.stopReason = rawError;
+      await writeCheckpoint(options.stateRoot, checkpoint);
+      return { status: "blocked", contractDigest: digest, checkpoint, stopCode: null,
+        usage: evaluateResourceLimits(contract.resourcePolicy, checkpoint.usage).usageBreakdown, ledger, blockedReport: null };
+    }
   }
 }

@@ -7,6 +7,8 @@ Push directly without CI or tests. Run `npm run deploy:local` to build, confirm 
 
 Autopilot can be launched from the initiating agent conversation. Describe the task and role-specific harness/model choices, review the contract and digest, then explicitly approve and request start. The agent invokes `task approve` and the separate `task start` command for you; the existing runner dispatches the contracted workers. Approval alone does not start work. Your chat model remains the coordination surface while reasoning, implementation and review can use different approved harnesses/models. Manual terminal execution is optional. Missing process tools, authentication, model support or native capability proof are reported as blockers.
 
+Native autopilot keeps the initiating completion handle awaited, binds the origin without requiring a panel, and supports exact-outcome replay/acknowledgement. Optional digest-bound recovery grants enable verified corrections and bounded reruns. Idle-session injection is not supported. See [completion and recovery](docs/how-to/autopilot-recovery.md).
+
 [English](./README.md) | [한국어 (Korean)](./README.ko.md)
 
 **0.6.0** adds shared strict/flexible project intake, a fresh six-style choice for each substantial task, GSD bootstrap continuity and packaged cross-harness evidence. GitHub releases are built manually without a CI prerequisite and include a package checksum.

@@ -2,276 +2,124 @@
 
 ## Milestones
 
-- ✅ **v0.1.0 Vertical MVP** — historical closeout; [archived roadmap](milestones/v0.1.0-ROADMAP.md).
-- ✅ **v0.1.1 CI Green & Dependency Promotion** — historical closeout; [archived roadmap](milestones/v0.1.1-ROADMAP.md).
-- **v0.2.0 Universal Autonomous Work** — outgoing Phases 14–26 archived under [roadmap](milestones/v0.2.0-ROADMAP.md) and `milestones/v0.2.0-phases/`; archival is not a new release/verification claim. Prior release holds and quick-task regression debt remain.
-- 📋 **v0.6.0 Predictable Task Entry and Shared Project Policy** — Phases 27–31; requirements and roadmap approved on 2026-11-02; implementation not started.
+- **v0.1.0 Vertical MVP** — historical closeout; [archived roadmap](milestones/v0.1.0-ROADMAP.md).
+- **v0.1.1 CI Green & Dependency Promotion** — historical closeout; [archived roadmap](milestones/v0.1.1-ROADMAP.md).
+- **v0.2.0 Universal Autonomous Work** — preserved historical work and outstanding evidence; [archived roadmap](milestones/v0.2.0-ROADMAP.md).
+- **v0.6.0 Predictable Task Entry and Shared Project Policy** — Phase 27-34 work preserved with its unfinished status; [rollover](milestones/v0.6.0-ROLLOVER.md), [roadmap](milestones/v0.6.0-ROADMAP.md).
+- **v0.7.0 Autopilot Reliability & Recovery** — all 16 requirements approved on 2026-11-05; the completed four-section roadmap is retained for native Codex development.
 
-## v0.6.0 Predictable Task Entry and Shared Project Policy
+## v0.7.0 Autopilot Reliability & Recovery
 
-### Overview
+**Goal:** Codex autopilot carries an authorized task from executable contract creation through automatic origin-session outcome detection, effective repair, rerun and final evidence-based reporting.
 
-Users receive predictable task intake across Claude Code, Codex, Antigravity, Pi and Hermes. One project setting persists strict/flexible, defaulting to strict. Each independent substantial strict task asks for one of six styles; a prior choice never becomes a project default. Simple operations and explicit user choices avoid unnecessary questions. Substantial work enters real GSD initialization/recovery when needed and then resumes the original request. Six conversational/autopilot routes reuse GSD and the existing runtime, including actual quick-full quality binding.
+**Roadmap status:** Fully drafted reference design — all 16 requirements are approved. The owner selected native Codex development instead of GSD execution on 2026-11-05. The separate GSD roadmap-approval checkpoint is not being pursued; this is not a claim of formal GSD roadmap approval. Sections 35–38 are implemented. See [validation report](../docs/reports/autopilot-reliability-v070.md) for evidence and host limits.
 
-**Status:** APPROVED — all 27 requirements and this five-phase roadmap approved by the user on 2026-11-02. No phase implementation or detailed execution plans have started. Milestone numbering follows the approved v0.6.0 scope; this does not bump package.json or authorize publication.
+Research: [summary](research/SUMMARY.md), [evidence](research/EVIDENCE.md). Requirements: [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Phases
 
-- [x] **Phase 27: Shared Project Behavior Policy** — One safe, current project authority for strict/flexible, including natural-language changes before GSD initialization. (completed 2026-11-02)
-- [x] **Phase 28: Predictable Strict and Flexible Intake** — Common decision reasons, task-scoped chooser, simple-operation exemptions and explicit-command precedence. (completed 2026-11-02)
-- [ ] **Phase 29: GSD Initialization and Request Continuity** — Native readiness diagnostics, non-destructive bootstrap/recovery and single resumption of the original request.
-- [x] **Phase 30: Six Execution Styles and Quality Binding** — Real conversational/runner routing and contract-bound quick-full execution/evidence. (completed 2026-11-03)
-- [ ] **Phase 31: Cross-Harness Proof and Distribution** — Cross-harness scenarios, packed guidance integrity, bilingual docs and actual final regression results.
+- [x] **Phase 35: Executable Contracts and Capability Diagnostics** — prevent known-unexecutable starts and expose actionable capability evidence.
+- [x] **Phase 36: Origin-Session Completion Delivery** — connect runner outcomes to automatic continuation in the actual originating session.
+- [x] **Phase 37: Authorized Repair and Rerun** — perform verified corrective changes and resume within approved authority and cumulative limits.
+- [x] **Phase 38: Persistent Guidance and Lifecycle Evidence** — align installed behavior and demonstrate the complete user journey without premature handoff.
 
 ## Phase Map
 
-| Phase | Requirements | Count | Depends on |
-|---|---|---:|---|
-| 27 | MODE-01, MODE-02, MODE-03, MODE-04, MODE-05 | 5 | Existing transaction, project-root and owned-skill services |
-| 28 | ENTRY-01, ENTRY-02, ENTRY-03, ENTRY-04, ENTRY-05, ENTRY-06, ENTRY-07 | 7 | 27 |
-| 29 | BOOT-01, BOOT-02, BOOT-03, BOOT-04 | 4 | 27, 28 |
-| 30 | STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07 | 7 | 28, 29 |
-| 31 | PROVE-01, PROVE-02, PROVE-03, PROVE-04 | 4 | 27, 28, 29, 30 |
-
-Every requirement has exactly one owning phase. Later integration verification reuses earlier behavior without changing requirement ownership.
+| Phase | Goal | Requirements | Success criteria |
+|---|---|---|---|
+| 35 | Runnable contracts and useful capability diagnostics | ACON-01, ACON-02, ACON-03, ACON-04 | 4 |
+| 36 | Durable outcomes delivered to the originating Codex session | ADEL-01, ADEL-02, ADEL-03, ADEL-04 | 4 |
+| 37 | Real correction, revision authority and safe rerun | AREC-01, AREC-02, AREC-03, AREC-04, AREC-05 | 5 |
+| 38 | Consistent continuation guidance and honest scenario evidence | ACONT-01, ACONT-02, ACONT-03 | 3 |
 
 ## Phase Details
 
-### Phase 27: Shared Project Behavior Policy
+### Phase 35: Executable Contracts and Capability Diagnostics
 
-**Goal:** A user can inspect and change one project-scoped strict/flexible setting from any supported harness, including before project initialization, and the next intake sees the current value.
-**Depends on:** Nothing in this milestone; reuse existing transaction, path-boundary, validation and owned-skill services.
-**Requirements:** MODE-01, MODE-02, MODE-03, MODE-04, MODE-05
-**Success Criteria** (what must be TRUE):
-  1. A project with no policy resolves to strict without creating configuration or GSD files; only the mode, never a selected style, is a project preference.
-  2. A user can request a mode change in natural language or CLI before GSD initialization, and a second harness resolves the same project setting without repeating the instruction.
-  3. A user can inspect effective mode, canonical root and source/revision; an existing session re-reads a later change at its next task intake.
-  4. Mode mutations are previewable, root-bounded, snapshotted and rollback-aware, preserve unrelated settings, and reject stale reviewed input where applicable.
-  5. Invalid/unreadable policy and wrong-root conditions produce actionable errors instead of silent flexible or cross-project fallback.
+**Goal:** Users receive task-relevant, executable capability contracts and actionable failure evidence before wasting execution approval or repeating an unusable path.
+**Depends on:** None (first phase of this milestone).
+**Requirements:** ACON-01, ACON-02, ACON-03, ACON-04
+**Success Criteria:**
+1. A user asking to update Exa as a managed product receives only the capability obligations justified by that task and stage, while a task genuinely requiring web research retains its required invocation.
+2. Before a contract is advertised as runnable or started, the user can inspect readiness of the actual adapter, transport, required tool/schema and service prerequisites. A refused start leaves approval unconsumed.
+3. A failed capability exposes bounded, secret-safe detail useful for distinguishing argument, discovery/runtime, authentication, quota and service/transport problems; insufficient evidence is explicitly unknown rather than guessed.
+4. Successful capability evidence is traceable to actual relevant calls and useful sources. Empty, irrelevant, failed or synthetic results cannot produce a satisfied production obligation.
+**Delivery:** Implemented: task-specific obligations, discovered-schema checks, actual native preflight, scrubbed typed diagnostics and evidence validation.
 
-**Plans:** TBD — created by plan-phase after discussion.
+Evidence: [implementation report](../docs/reports/autopilot-reliability-v070.md). No GSD plan execution is claimed.
 
-**Planning focus:** Decide policy filename/schema and actual project-root resolution without coupling behavior configuration to GSD initialization or pack trust. Include minimal native mode-change routing and owned-skill integrity updates in this phase; do not defer MODE-02 to final proof.
-**Validation emphasis:** Missing-policy read with zero writes; policy-only request in an uninitialized project; two-host mode handoff; stale-session re-read; malformed/wrong-root inputs; rollback preserving unrelated bytes.
+**Research focus:** Preserve the underlying Exa error before choosing its remedy. The four historical failed calls establish a tool error, not a proven bad contract argument. Trace mock-success reachability and task-specific source policy without weakening required evidence.
 
-### Phase 28: Predictable Strict and Flexible Intake
+### Phase 36: Origin-Session Completion Delivery
 
-**Goal:** A user can predict why alpha-AOS asks for a task style, reuses a current selection, honors an explicit instruction or skips the chooser for a simple operation.
-**Depends on:** Phase 27
-**Requirements:** ENTRY-01, ENTRY-02, ENTRY-03, ENTRY-04, ENTRY-05, ENTRY-06, ENTRY-07
-**Success Criteria** (what must be TRUE):
-  1. A new substantial strict task presents all six exact labels with concise descriptions; a user's selection applies to that task, and a later independent task asks again.
-  2. Follow-up edits and verification within the active task retain its style without repeated questions; completion/cancellation does not leave a default for future work.
-  3. A named style skips selection while a directly invoked GSD command preserves its selected workflow/timing and native prerequisites; an explicit full-style request is not downgraded by a simple-operation exemption.
-  4. Bounded push, simple rename and README translation/linking skip chooser and forced bootstrap; a cross-subsystem rename needing investigation does not pass on its name alone. A user can see the decision reason and receives only necessary clarification for uncertain scope.
-  5. Flexible mode preserves adaptive intake, while neither mode nor classification weakens normal effect authority, tree-off boundaries or exact autopilot consent.
+**Goal:** The user who requested autopilot receives automatic, durable outcome handling in that same Codex session instead of needing to ask for status.
+**Depends on:** Phase 35.
+**Requirements:** ADEL-01, ADEL-02, ADEL-03, ADEL-04
+**Success Criteria:**
+1. Starting a task persists its origin and exact contract/digest/revision/chain/attempt identity before execution, including when no progress panel is opened.
+2. The actual originating Codex session automatically receives acceptance, final failure, interruption or genuine needs-input and continues outcome handling without a manual status request; an intermediate rejected attempt is not reported as a finished recovery chain.
+3. A disconnect/reconnect or redelivered terminal event replays and acknowledges the correct result without duplicate continuation or duplicate work.
+4. Before launch the user can see verified continuation support for the selected host/surface and its real delivery path. An unsupported surface is reported before start, and panel/status-file availability is never presented as proven session continuation.
+**Delivery:** Implemented: durable panel-independent origin, foreground final-chain delivery, exact-identity follow and atomic acknowledgement. Active native Codex handle only; idle/closed-session injection is unsupported.
 
-**Plans:** 6/6 plans complete in 6 sequential waves; checks complete, planning commit blocked by Git index write permission; execution pending.
-**Wave 1**
-- [x] 28-01-PLAN.md — Strict intake CLI tracer, bounded versioned interchange and exact six-style chooser.
+Evidence: [implementation report](../docs/reports/autopilot-reliability-v070.md). No GSD plan execution is claimed.
 
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 28-02-PLAN.md — Explicit GSD command/style precedence and narrow partial/conflicting intent.
+**Early feasibility checkpoint:** Prove a supported path into the current originating Codex host before committing to a bridge. Child exec terminal events and a separately launched app-server are not proof of access to the already open app session. Unsupported reporting alone does not complete this phase: the targeted originating-session continuation behavior must work or remain explicitly incomplete.
 
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 28-03-PLAN.md — Exact current-task continuity and task-scoped pending-selection lifetime.
+### Phase 37: Authorized Repair and Rerun
 
-**Wave 4** *(blocked on Wave 3 completion)*
-- [x] 28-04-PLAN.md — Evidence-backed simple operations, narrow clarification and WIP-preserving escalation.
+**Goal:** Recoverable failures produce a verified corrective action and a safe rerun within the user's approved repair grant, without another request for routine recovery.
+**Depends on:** Phase 36 (and Phase 35 diagnostics).
+**Requirements:** AREC-01, AREC-02, AREC-03, AREC-04, AREC-05
+**Success Criteria:**
+1. A recoverable contract, capability environment, implementation or transport failure selects and performs a correction at the appropriate layer; merely strengthening the same failed prompt is not classified as repair.
+2. Before retrying the same failure, the user can inspect the relevant corrective change and its verification. Unchanged retries cannot exhaust the run while being reported as progress.
+3. The user can approve an explicit bounded repair grant covering permitted contract revisions and reruns, inspect old/new digest ancestry, and receive a new approval request only for changes outside that grant.
+4. Retry attempts share cumulative resource limits, approved models and scope/root/secret boundaries. User stop, real quota/resource exhaustion and required authority expansion stop automatic retry with a specific reason.
+5. Recovery resumes from verified checkpoints and reconciled effects, preserving completed phases and preventing duplicate execution of an already accepted task.
+**Delivery:** Implemented: bounded repair grant, read-only question correction and measured workspace correction, transactional revision ancestry, cumulative usage and verified checkpoint reuse.
 
-**Wave 5** *(blocked on Wave 4 completion)*
-- [x] 28-05-PLAN.md — Common owned-skill routing across five targets, integrity and user contract.
+Evidence: [implementation report](../docs/reports/autopilot-reliability-v070.md). No GSD plan execution is claimed.
 
-**Wave 6** *(blocked on Wave 5 completion)*
-- [x] 28-06-PLAN.md — End-to-end acceptance, honest native evidence and final regression gate.
+**Authority checkpoint:** Design permitted revision handling explicitly before enabling it. Similar goals, changed digests or a waiting session do not silently grant new authority. Reuse GSD state ownership and the existing supervisor/effect ledger rather than creating a second lifecycle.
 
-**Cross-cutting constraints:**
-- Every intake rereads the current canonical policy and grants no execution authority.
+### Phase 38: Persistent Guidance and Lifecycle Evidence
 
-**Planning focus:** Define the shared typed decision and evidence criteria, including explicit command, explicit style, continuation, simple operation, substantial work and clarification-needed. Define current-task identity without persisting style as a project preference or relying on unbounded transcripts.
-**Validation emphasis:** Release uses autopilot-phase, later independent bug fix asks again and chooses autopilot-quick-full; active-task test repair does not ask; meaningful simple/complex twins; native question UI and numbered text fallback.
+**Goal:** Distributed agent instructions and observable product behavior sustain authorized recovery through the final user-visible outcome, with handoff reserved for real intervention boundaries.
+**Depends on:** Phase 37.
+**Requirements:** ACONT-01, ACONT-02, ACONT-03
+**Success Criteria:**
+1. Repository-owned skills, generated harness instructions and packaged documentation consistently continue available authorized recovery after transport yield or recoverable rejection, without a blanket single-wait stopping rule.
+2. A recoverable failure keeps progressing while useful notes are preserved. A terminal handoff identifies a demonstrated external, user, authority or resource boundary and the specific missing action.
+3. The user can review scenario evidence covering success, recoverable tool failure, contract revision, final failure, reconnect and explicit stop, with process closure, GSD acceptance, origin-session delivery and corrective progress reported separately; unrun checks stay unverified.
+**Delivery:** Implemented: source/packaged continuation guidance, reviewable recovery instructions and scenario evidence with explicit unrun boundaries.
 
-### Phase 29: GSD Initialization and Request Continuity
+Evidence: [implementation report](../docs/reports/autopilot-reliability-v070.md). No GSD plan execution is claimed.
 
-**Goal:** A user requesting substantial work in an absent or incomplete GSD project is guided through the appropriate native initialization/recovery and resumes the original request without duplication or context loss.
-**Depends on:** Phase 27, Phase 28
-**Requirements:** BOOT-01, BOOT-02, BOOT-03, BOOT-04
-**Success Criteria** (what must be TRUE):
-  1. A user can distinguish missing runtime, absent project, partial initialization and ready project using the installed GSD's prerequisites rather than directory or PROJECT.md presence alone.
-  2. For an absent project, GSD new-project receives facts already supplied in the original request and asks only for missing information and native mandatory decisions.
-  3. Partial initialization names missing prerequisites and invokes a GSD recovery path that preserves existing context; no empty placeholders or silent overwrites manufacture readiness.
-  4. After bootstrap/recovery, the original request and its selected style resume once without retyping, a second chooser or duplicate implementation. Required GSD checkpoints and autopilot review remain intact.
-  5. A simple exempt operation or policy-only change avoids forced initialization, while cancellation/interruption of substantive initialization leaves an honest resumable checkpoint and does not start the pending task.
-
-**Planning focus:** Keep GSD the sole lifecycle/state authority. Select a minimal bounded pending-request handoff that does not become a second phase/task lifecycle. Inspect version-specific readiness capabilities before implementation.
-**Validation emphasis:** One real conversational-quick bootstrap/resume tracer, incomplete-project negative fixtures, interruption/re-entry without duplication, and preserved style identity for all later dispatch routes.
-
-**Plans:** 6/6 plans executed and verified in 6 sequential waves (executed 2026-11-02; verification passed).
-
-**Wave 1**
-
-- [x] 29-01-PLAN.md — Native readiness diagnosis through the public CLI, with workflow/version and compatibility checks.
-
-**Wave 2** *(blocked on Wave 1 completion)*
-
-- [x] 29-02-PLAN.md — Bounded original-request handoff, known-fact native input and preview-bound persistence.
-
-**Wave 3** *(blocked on Wave 2 completion)*
-
-- [x] 29-03-PLAN.md — Non-destructive partial/archive/history recovery and WIP preservation.
-
-**Wave 4** *(blocked on Wave 3 completion)*
-
-- [x] 29-04-PLAN.md — Exact claim/link/acceptance reconciliation, crash/cancel races and retained consent.
-
-**Wave 5** *(blocked on Wave 4 completion)*
-
-- [x] 29-05-PLAN.md — Shared five-target routing, source/target integrity and minimal user guidance.
-
-**Wave 6** *(blocked on Wave 5 completion)*
-
-- [x] 29-06-PLAN.md — Composed acceptance, blocking real native quick tracer and actual full regression.
-
-**Cross-cutting constraints:**
-
-- GSD alone owns lifecycle/state; readiness and a restored style grant no execution or autopilot approval.
-
-**Execution checkpoint:** 29-06 retains required native invocation proof. Missing capability/authority/receipt blocks Phase 29 completion; fixture success does not defer that proof to Phase 31. This planning run stops before execute-phase.
-
-### Phase 30: Six Execution Styles and Quality Binding
-
-**Goal:** Each selected style controls actual GSD workflow, execution surface and required evidence; full-quality autopilot work cannot silently execute or pass as ordinary quick.
-**Depends on:** Phase 28, Phase 29
-**Requirements:** STYLE-01, STYLE-02, STYLE-03, STYLE-04, STYLE-05, STYLE-06, STYLE-07
-**Success Criteria** (what must be TRUE):
-  1. 대화형-quick, 대화형-quick-full and 대화형-phase invoke their actual native workflows in the current conversation, including required questions, state/commit gates and full-mode quality stages.
-  2. 오토파일럿-quick, 오토파일럿-quick-full and 오토파일럿-phase expose the selected route/scope in a concrete contract preview and execute only through the existing approved isolated runner.
-  3. Autopilot quick-full binds quality selection into contract/digest, drift/reapproval comparison and --full dispatch; acceptance refuses ordinary-quick-only or incomplete full-stage evidence, without breaking existing approved contract semantics.
-  4. A style selection never grants exact-contract approval or separate start, weakens approved harness/model assignments, authorizes inline autopilot implementation, or rewrites an already running contract when the project's mode changes.
-  5. Autopilot-phase stays within the approved roadmap/phase scope and GSD lifecycle bridge; all six routes preserve GSD ownership and existing capability/review/verification gates, with unsupported routes reported explicitly rather than silently substituted.
-
-**Plans:** 8/8 plans complete in 8 sequential waves; 0 executed. Inline research/planning/checking was explicitly requested. Required native checkpoint remains in 30-08; this planning invocation stops before execute-phase.
-**Wave 1**
-- [x] 30-01-PLAN.md — Public conversational route projection, exact direct commands and bootstrap continuity.
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 30-02-PLAN.md — Compatible quick quality contract/digest/preview and full native dispatch/preflight.
-
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 30-03-PLAN.md — Observed native stage receipts, bounded provenance and exact evaluated revisions.
-
-**Wave 4** *(blocked on Wave 3 completion)*
-- [x] 30-04-PLAN.md — Mandatory full acceptance and exact partial-run/WIP recovery.
-
-**Wave 5** *(blocked on Wave 4 completion)*
-- [x] 30-05-PLAN.md — Approved ordered phase scope and remaining-slice lifecycle progression.
-
-**Wave 6** *(blocked on Wave 5 completion)*
-- [x] 30-06-PLAN.md — Owned six-route guidance, five-target integrity and operational boundaries.
-
-**Wave 7** *(blocked on Wave 6 completion)*
-- [x] 30-07-PLAN.md — Composed six-route fixtures, native proof verifier and final regression gate.
-
-**Wave 8** *(blocked on Wave 7 completion)*
-- [x] 30-08-PLAN.md — Blocking actual native six-route/full-stage verification checkpoint.
-
-**Cross-cutting constraints:**
-- GSD alone owns lifecycle/state; route projections and evidence receipts grant no execution authority.
-
-**Execution checkpoint:** 30-08 requires actual native invocation/result proof and applicable exact scratch authority; unsupported capability, missing approval/start or unverified full stages block completion. Fixture success does not defer this proof to Phase 31. Fresh independent implementation review remains mandatory. Planning authorization does not start any plan.
-
-**Planning focus:** Decide backward-compatible quality metadata and sufficient full-stage evidence; reuse task-contract, quick runner and phase lifecycle bridge. Update source/five-target owned-skill hashes whenever guidance changes.
-**Validation emphasis:** Six-route invocation matrix; tampered quality/digest; unsupported capability; missing full evidence; approval without start; mode change during an approved run; existing contract compatibility.
-
-### Phase 31: Cross-Harness Proof and Distribution
-
-**Goal:** A user can install and understand the new behavior and inspect honest evidence that project mode, per-task selection, initialization and execution compose across supported harnesses.
-**Depends on:** Phase 27, Phase 28, Phase 29, Phase 30
-**Requirements:** PROVE-01, PROVE-02, PROVE-03, PROVE-04
-**Success Criteria** (what must be TRUE):
-  1. An inspectable matrix covers Claude, Codex, Antigravity, Pi and Hermes, including Codex sets flexible → Antigravity consumes it → Pi sets strict → an existing Codex session sees strict; native, fixture and unsupported/unverified results are clearly distinguished.
-  2. A release task followed by an independent bug fix proves a fresh choice; the composed absent/partial-project scenarios preserve request/style identity and exact autopilot authority.
-  3. The packed artifact contains integrity-locked shared guidance and all six routes, with meaningful discovery/invocation checks rather than file-presence-only claims.
-  4. English and Korean documentation explains both modes, six styles, exception criteria, task boundaries, initialization and direct commands, including real support limitations.
-  5. Targeted positive/negative checks and the final full regression have recorded actual outcomes. Failed/not-run prior regressions are not counted as passed or waived; required failures block affected acceptance and remediation must stay explicitly scoped.
-
-**Plans:** 6/6 plans executed in 5 sequential waves
-
-Plans:
-- [x] 31-06-PLAN.md
-
-**Wave 1** *(packaging hygiene & doctor owned-skill tamper foundation)*
-- [x] 31-01-PLAN.md — Normalize packaged workstation paths, enforce fail-closed tarball text/surface auditing, and harden `runDoctor` 5-target owned-skill verification.
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 31-02-PLAN.md — Deterministic 5-harness composed scenario journeys, `D-13` positive/negative pairs, 55-cell cross-harness proof index/ledger, and dual-context read-only verifier.
-
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 31-04-PLAN.md — Symmetric English/Korean user guides (`docs/task-entry*.md`), repaired `README.md`/`README.ko.md` parity, complete 14-entry tarball allowlist, and doc contract suite.
-
-**Wave 4** *(blocked on Wave 3 completion — packs finalized 14-entry release surface without `build`/`audit-tarball` write races)*
-- [x] 31-03-PLAN.md — Packed tarball sandbox 5-target `alpha-aos-task` integrity, tamper refusal, meaningful discoverability, E2E CLI invocation, and zero `hostSnapshot` drift.
-
-**Wave 5** *(blocked on Wave 4 completion)*
-- [x] 31-05-PLAN.md — Single-`HEAD` `D-14` final regression gate, preserved `261101-ww3` side-by-side ledger, and unwaived CI/canary/release/review hold verification.
-
-**Planning focus:** Define representative native receipts and paid-call-free fixtures before advertising parity. Previous release holds remain; this milestone does not implicitly authorize paid canaries, global reconciliation, push, CI repair or publication.
-**Validation emphasis:** Public CLI/skill/runner flows, native handoff receipts where authorized, packed install behavior, existing quick/phase compatibility, full regression and independent review.
+**Evidence checkpoint:** Prioritize the actual Codex origin-session journey and compare Antigravity behavior from observable evidence. Do not claim untested cross-host or cross-platform parity. Follow the workstation delivery policy; neither CI nor a full suite is made a push prerequisite by this roadmap.
 
 ## Progress
 
-**Execution Order:** 27 → 28 → 29 → 30 → 31. Phase 30 has eight checked plans in eight sequential waves. This planning update stops before execute-phase and does not plan later phases; historical phase completion and outstanding regression evidence remain in STATE and each phase's verification artifacts. The older Phase 27/29 progress rows below have not been reconciled in this Phase 30 planning slice; their recorded verification artifacts remain authoritative evidence.
+**Execution Order:** 35 → 36 → 37 → 38. These numbers identify work sections delivered through native Codex development.
 
-| Phase | Plans Complete | Status | Completed |
+| Section | GSD plans | Native implementation | Date |
 |---|---|---|---|
-| 27. Shared Project Behavior Policy | 0/TBD | Not started | - |
-| 28. Predictable Strict and Flexible Intake | 6/6 | Complete    | 2026-11-02 |
-| 29. GSD Initialization and Request Continuity | 0/6 | Planned | - |
-| 30. Six Execution Styles and Quality Binding | 8/8 | Complete    | 2026-11-03 |
-| 31. Cross-Harness Proof and Distribution | 6/6 | In Progress | - |
+| 35. Executable Contracts and Capability Diagnostics | Not used | Implemented; validation scoped below | 2026-11-06 |
+| 36. Origin-Session Completion Delivery | Not used | Implemented; validation scoped below | 2026-11-06 |
+| 37. Authorized Repair and Rerun | Not used | Implemented; validation scoped below | 2026-11-06 |
+| 38. Persistent Guidance and Lifecycle Evidence | Not used | Implemented; validation scoped below | 2026-11-06 |
 
-## Planning and Execution Gates
+## Coverage
 
-- Only the corrected 27 approved v0.6.0 requirements define this roadmap. Every requirement maps to one phase; no scope expansion is implied by research suggestions.
-- Each phase follows GSD discussion → research as applicable → plan → plan check → execute → verify/review and required project gates. This roadmap does not waive checkpoints or authorize autopilot execution.
-- Use existing code, versioned schemas, native adapters and transaction services. No dependency/manifest changes are planned; if setup changes become necessary, invoke alpha-aos-control under its own scope.
-- GSD alone owns lifecycle/state. ECC memory carries inspectable handoff context, never authoritative policy or approval. Project policy stores only strict/flexible, never selected style.
-- Check actual host capabilities. Unsupported parity remains explicit. Missing authority, native proof or quality evidence cannot be simulated.
-- Preserve the prior quick 261101-ww3 worker-startup failure and four not-run suites until actually resolved/validated under scoped work. Keep release/macOS CI/push/global-apply/publication holds.
-- Run targeted checks during implementation and the full suite at final acceptance, repeating only when justified. Do not mark incomplete evidence complete.
+All 16 approved requirements map to exactly one work section. No additional requirements or previously unfinished work have been silently added. Native Codex development uses this mapping as reference design; a GSD roadmap checkpoint is not required.
 
-*Approved: 2026-11-02. Requirements and roadmap user approval complete; phase implementation pending.*
+## Planning and Delivery Boundaries
 
-## User-approved tool management expansion
+- Native Codex owns this repository's implementation workflow. Use Phases 35-38 as ordered work sections with their existing goals and success criteria; GSD commands, PLAN/SUMMARY artifacts and GSD approval checkpoints are not prerequisites.
+- Implementation and validation evidence is recorded in the delivery report; keep the idle-session boundary and historical Exa root-cause uncertainty visible. Existing GSD records remain historical/reference context, not an active controller.
+- Personal workstation delivery follows the owner's 2026-11-05 policy: no mandatory push/release CI, tests or local pre-push gate. Do not describe unrun checks as passed.
+- Runtime approvals, root bounds, secret handling, rollback safeguards and model/resource policy remain in force.
+- Preserve earlier Phase 27-34 work and historical failed contracts. This milestone does not restart the old latest-tools clone or external task.
+- Roadmap approval alone does not start a product-level autopilot contract, change global harness settings, publish or deploy.
 
-Approved scope on 2026-11-05: execute only phases 32-34 for latest tool updates and compatibility. Existing phases 27-31 retain their recorded status. For phases 32-34, explicit user instructions supersede historical test/CI gates: do not run tests, fixtures, smoke checks, canaries or CI unless separately requested. Build, static review, schema/integrity/path checks are permitted. No push, release publication, GUI input or global tool reconciliation is granted by phase planning. Exact autopilot approval/start remain separate.
-
-### Phase 32: Unified Latest Tool Version Management
-
-**Goal:** Resolve latest official stable releases from npm and GitHub through a shared tool lifecycle; snapshot exact versions and integrity per update without historical stable promotion gates.
-**Requirements**: LATEST-01, LATEST-02, LATEST-03
-**Depends on:** None (independent user-approved scope; preserve unfinished Phase 31)
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run $gsd-plan-phase 32 to break down)
-
-### Phase 33: Explicit Tool and Harness Compatibility Adapters
-
-**Goal:** Make tool/harness compatibility explicit and deterministic, minimize upstream text rewrites, document adapter applicability/removal, and report unsupported upgrades without AI self-patching.
-**Requirements**: COMPAT-01, COMPAT-02, COMPAT-03
-**Depends on:** Phase 32
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run $gsd-plan-phase 33 to break down)
-
-### Phase 34: No-Test Update Delivery and Documentation
-
-**Goal:** Apply no-tests-by-default policy to install/update and delivery, preserve integrity/root/secret/rollback safeguards, and document unified updates and unverified runtime behavior.
-**Requirements**: POLICY-01, POLICY-02, DOCS-01
-**Depends on:** Phase 33
-**Plans:** 0 plans
-
-Plans:
-- [ ] TBD (run $gsd-plan-phase 34 to break down)
+*Drafted: 2026-11-05 after approval of the 16 requirements. Execution workflow changed to native Codex at the owner's request; formal GSD roadmap approval was not performed.*

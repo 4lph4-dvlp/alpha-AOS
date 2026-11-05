@@ -25,6 +25,8 @@ progress:
 
 Sections 35–38 / 16 requirements are implemented with native Codex tools. The YAML GSD fields above remain the historical planning position; no GSD phase or milestone completion was invoked. Current implementation, targeted checks, real native delivery probes and unverified host boundaries are in [the delivery report](../docs/reports/autopilot-reliability-v070.md). No old contract was restarted and no global install, publication or push was performed.
 
+**Follow-up (2026-11-06):** Real Codex/MCP testing found further defects. The latest task stopped on provider quota without accepted GSD work; live acceptance remains unverified. See [follow-up evidence](../docs/reports/autopilot-live-followup-v070.md).
+
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-11-05)

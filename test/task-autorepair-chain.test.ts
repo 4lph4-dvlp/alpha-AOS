@@ -12,6 +12,7 @@ import { createCapabilityReceipt } from "../src/core/task-capability-receipts.js
 import { listTaskRuns } from "../src/core/task-run.js";
 import { repairTaskFailure } from "../src/core/task-autorepair.js";
 import { readTaskBaseline } from "../src/core/task-effects.js";
+import { normalizeHarnessTelemetry } from "../src/core/task-telemetry.js";
 
 function repairResult(summary: string): ControllerDispatchResult {
   return { harness: "codex", version: "fixture", executable: null, sessionId: "repair-session", exitCode: 0, processCode: "ok", terminal: "completed", closeConfirmed: true,
@@ -117,7 +118,7 @@ test("unverified repair claims consume only the bounded repair grant without rer
 test("approved preflight question repair restores invocation before creating any execution run", async (context) => {
   const fixture = await createTaskFixture(context);
   const contract = inventorySummaryContract(fixture.projectRoot, { goal: "Use Exa for web research about CSV parsing, then implement inventory summary.",
-    capabilityQuestions: { research: "Invalid oversized search question for CSV parsing" },
+    capabilityQuestions: { research: "Invalid oversized search question for CSV parsing", documentation: "Node.js fs.readFile documentation for CSV input" },
     recoveryPolicy: { maxRepairs: 2, allowWorkspaceRepair: false, allowQuestionRepair: true }, resourcePolicy: { maxCycles: 6 } });
   await writeTaskContract(fixture.contractPath, contract);
   const digest = taskContractDigest(contract);
@@ -133,7 +134,7 @@ test("approved preflight question repair restores invocation before creating any
     return referenceControllerPort("correct").dispatch(request);
   } }, reviewer: staticReviewerPort(passingReview) });
   ports.capability = {
-    preflight: async (request) => { if (!request.obligation.question.startsWith("Official CSV")) throw new Error("Invalid arguments: query too long"); },
+    preflight: async (request) => { if (request.obligation.capabilityId === "deep-research" && !request.obligation.question.startsWith("Official CSV")) throw new Error("Invalid arguments: query too long"); },
     invoke: async (request) => ({ receipt: createCapabilityReceipt({ runId: request.runId, step: request.step, capabilityId: request.obligation.capabilityId,
       obligationId: request.obligation.id, question: request.obligation.question, selected: true, invoked: true, toolName: "fixture-web-search",
       harness: "codex", harnessVersion: "fixture", harnessExecutable: process.execPath, sessionId: request.sessionId ?? "fixture-native-capability",
@@ -144,7 +145,37 @@ test("approved preflight question repair restores invocation before creating any
   assert.equal(result.supervision?.status, "accepted");
   assert.equal(corrected, 1);
   assert.equal((await loadTaskContract(fixture.contractPath)).contract.revision, 2);
+  assert.equal((await loadTaskContract(fixture.contractPath)).contract.capabilityQuestions?.documentation, contract.capabilityQuestions?.documentation);
   const approvals = await readTaskApprovals({ stateRoot: fixture.stateRoot, contractId: contract.id });
   assert.equal(approvals.find((item) => item.revision === 2)?.consent.grant, "bounded-recovery");
   assert.notEqual(result.run.contractDigest, digest);
+});
+
+test("native usage spent correcting preflight is checked before task execution consumes approval", async (context) => {
+  const fixture = await createTaskFixture(context);
+  const contract = inventorySummaryContract(fixture.projectRoot, { goal: "Use Exa for web research on CSV parsing.",
+    capabilityQuestions: { research: "Invalid original CSV parsing search question" },
+    recoveryPolicy: { maxRepairs: 1, allowWorkspaceRepair: false, allowQuestionRepair: true }, resourcePolicy: { maxTokens: 10, maxCycles: 4 } });
+  await writeTaskContract(fixture.contractPath, contract);
+  const digest = taskContractDigest(contract);
+  await approveTaskContract({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot });
+  let dispatches = 0;
+  const ports = fixturePorts({ controller: { dispatch: async () => {
+    dispatches++;
+    return { ...repairResult(JSON.stringify({ capabilityQuestions: { research: "Official Node.js CSV parsing documentation" } })),
+      telemetry: normalizeHarnessTelemetry("codex", { usage: { input_tokens: 20, output_tokens: 5 } }) };
+  } }, reviewer: staticReviewerPort(passingReview) });
+  ports.capability = { preflight: async (request) => { if (!request.obligation.question.startsWith("Official Node")) throw new Error("Invalid arguments: query"); },
+    invoke: async () => { throw new Error("Task execution must not begin"); } };
+  await assert.rejects(startTaskWithRecovery({ contractPath: fixture.contractPath, expectedDigest: digest, stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(), ports, gsd: { configRoot: fixture.gsdConfigRoot } }), (error: unknown) => {
+    assert.ok(error instanceof TaskCapabilityPreflightError);
+    assert.equal(error.status, "stopped");
+    assert.match(error.message, /token_limit_exceeded/u);
+    return true;
+  });
+  assert.equal(dispatches, 1);
+  assert.equal((await listTaskRuns({ stateRoot: fixture.stateRoot, contractId: contract.id })).length, 0);
+  const revised = await loadTaskContract(fixture.contractPath);
+  await assertTaskStartable({ contractPath: fixture.contractPath, expectedDigest: revised.digest, stateRoot: fixture.stateRoot });
 });

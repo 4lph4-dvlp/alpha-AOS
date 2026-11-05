@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { HarnessId } from "../types.js";
 import { taskComputerUseRoute } from "../adapters/task-agent-launch.js";
+import { failedCapabilityInvocation } from "./task-capability-health.js";
 import { packageRoot as defaultPackageRoot } from "./paths.js";
 import { acquireControllerLease, type ControllerLease } from "./controller-lease.js";
 import { taskReviewBasis } from "./task-review-basis.js";
@@ -1982,8 +1983,11 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
             });
             capabilityReceipts.push(invocation.receipt);
             await writeCapabilityReceipt(invocation.receipt, options.stateRoot);
-          } catch {
-            // invocation error or thrown exception handled by verification
+          } catch (error) {
+            const receipt = failedCapabilityInvocation({ runId, step: "execute", obligation, projectRoot, sessionId: dispatched.sessionId,
+              harness: contract.agentPolicy.controller, harnessVersion: dispatched.version, harnessExecutable: dispatched.executable }, error);
+            capabilityReceipts.push(receipt);
+            await writeCapabilityReceipt(receipt, options.stateRoot);
           }
         }
         const persisted = await readCapabilityReceipts(options.stateRoot, runId);
@@ -2355,8 +2359,11 @@ export async function startTask(options: StartTaskOptions): Promise<{ run: TaskR
             });
             reviewCapabilityReceipts.push(invocation.receipt);
             await writeCapabilityReceipt(invocation.receipt, options.stateRoot);
-          } catch {
-            // invocation error or thrown exception handled by verification
+          } catch (error) {
+            const receipt = failedCapabilityInvocation({ runId, step: "review", obligation, projectRoot, sessionId: request.sessionId,
+              harness: contract.agentPolicy.reviewer, harnessVersion: reviewed.version, harnessExecutable: reviewed.executable }, error);
+            reviewCapabilityReceipts.push(receipt);
+            await writeCapabilityReceipt(receipt, options.stateRoot);
           }
         }
         const persistedReview = await readCapabilityReceipts(options.stateRoot, runId);

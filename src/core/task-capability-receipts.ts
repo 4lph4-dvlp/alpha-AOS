@@ -509,7 +509,7 @@ export function verifyRequiredCapabilityReceipts(
   const reason = satisfied
     ? "All required capability obligations have verified receipts from actual invocation."
     : missingObligations.length > 0
-      ? `Missing verified receipts for required obligations: ${missingObligations.map((o) => o.capabilityId).join(", ")}`
+      ? `Missing verified receipts for required obligations: ${missingObligations.map((o) => o.capabilityId).join(", ")}${failedReceipts.length ? `; ${failedReceipts.map((r) => r.errorMessage ?? r.outcome).join("; ")}` : ""}`
       : `Capability invocations failed: ${failedReceipts.map((r) => r.errorMessage ?? r.outcome).join(", ")}`;
 
   const nextAction = satisfied

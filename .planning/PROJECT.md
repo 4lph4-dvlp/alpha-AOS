@@ -29,7 +29,7 @@ A user can enter any supported project on any supported operating system and get
 - Remove premature handoff defaults across runtime, installed guidance and skills; handoff records must not substitute for available authorized recovery.
 - Investigate Codex behavior against Antigravity reference behavior and prove the corrected lifecycle with observable evidence.
 
-**Planning status:** Owner approved milestone goals, research and all 16 requirements on 2026-11-05. Research and the four-section roadmap are fully drafted. The owner then selected native Codex implementation rather than GSD execution; a separate GSD roadmap approval is no longer required and was not performed. Preserve the requirements, work order and success criteria as reference design. The 16 requirements in sections 35–38 are now implemented through native Codex. See [implementation and validation report](../docs/reports/autopilot-reliability-v070.md); supported delivery is an active awaited Codex foreground handle. Idle-session wakeup, a full live task/model recovery and other-host parity are not claimed.
+**Planning status:** Owner approved milestone goals, research and all 16 requirements on 2026-11-05. Research and the four-section roadmap are fully drafted. The owner then selected native Codex implementation rather than GSD execution; a separate GSD roadmap approval is no longer required and was not performed. Preserve the requirements, work order and success criteria as reference design. Implementation across sections 35–38 exists, but live acceptance remains unverified after provider quota exhaustion; see docs/reports/autopilot-live-followup-v070.md. See [implementation and validation report](../docs/reports/autopilot-reliability-v070.md); supported delivery is an active awaited Codex foreground handle. Idle-session wakeup, a full live task/model recovery and other-host parity are not claimed.
 
 **Outgoing work:** v0.6.0 Phase 27-34 artifacts and pre-switch state are preserved under [milestone archives](milestones/v0.6.0-ROLLOVER.md). Archival does not mark incomplete phases complete. Package version 0.6.2 and historical milestone records are not rewritten as release evidence.
 
@@ -61,7 +61,7 @@ Historical keep-green requirement is superseded by the owner's 2026-11-05 person
 
 ### Active
 
-- [x] Implement the 16 v0.7.0 requirements through section 38 using native Codex; scoped validation is in docs/reports/autopilot-reliability-v070.md (no publication or global deployment)
+- [ ] Complete live verification of the 16 v0.7.0 requirements through section 38 using native Codex; scoped validation is in docs/reports/autopilot-reliability-v070.md (no publication or global deployment)
 - [ ] Preserve unfinished v0.6.0 Phases 27-34 and recovery evidence without asserting completion; see milestones/v0.6.0-ROLLOVER.md
 - [ ] Preserve outgoing v0.2.0 verification evidence and unresolved release work; the planning rollover is not publication or a new full-suite pass
 - [ ] Resolve the named managed-lifecycle gaps in the archived Phase 6 verification report; v0.1.1 Phase 11 created formal evidence and did not declare every LIFE requirement verified

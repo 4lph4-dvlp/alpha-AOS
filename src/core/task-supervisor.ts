@@ -212,6 +212,8 @@ async function runGrantedRecoveryChain(options: StartTaskOptions) {
         }
         capabilities = await inspectTaskCapabilities(loaded.contract, options.ports.capability, options.runId ?? `preflight-${rootDigest.slice(0, 16)}`);
       }
+      const launchLimits = await rootBudget();
+      if (launchLimits.exceeded) throw new TaskCapabilityPreflightError("stopped", launchLimits.stopCode ?? "Approved resource limit exceeded", loaded.digest);
       let observedRunId: string | null = null;
       const existingCheckpoint = await readCheckpoint(options.stateRoot, loaded.digest);
       const continueTask = existingCheckpoint && state.attempts.length > 0 ? resumeTask : superviseTask;

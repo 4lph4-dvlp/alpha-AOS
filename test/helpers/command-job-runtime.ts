@@ -77,7 +77,8 @@ export async function runtimeFixture(context: TestContext) {
       ...(cliPath ? { cliPath } : {}),
     }),
     finish: async (jobId: string) => {
-      const result = await waitCommandJob({ stateRoot, jobId, timeoutMs: 6000 });
+      // Observe through the 10-second child deadline and its final private-state writes.
+      const result = await waitCommandJob({ stateRoot, jobId, timeoutMs: 15000 });
       assert.equal(result.status, "completed");
       if (result.status !== "completed") throw new Error("No canonical terminal result.");
       return result.value;

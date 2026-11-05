@@ -21,6 +21,38 @@ test("command-job-runtime: fast zero exit returns real acknowledgement and child
   await assertRuntimeReaped(result);
 });
 
+test("command-job-runtime: cold worker startup beyond five seconds still returns proven child acknowledgement", { timeout: 25000 }, async (context) => {
+  const f = await runtimeFixture(context);
+  const adapter = join(f.projectRoot, "slow-worker.mjs");
+  const workerUrl = new URL("../src/core/command-job-worker.js", import.meta.url).href;
+  await writeFile(adapter, [
+    "await new Promise(resolve=>setTimeout(resolve,6000));",
+    `const {runJobWorker}=await import(${JSON.stringify(workerUrl)});`,
+    "const flag=n=>process.argv[process.argv.indexOf(n)+1];",
+    "await runJobWorker({stateRoot:flag('--state-root'),jobId:flag('--job-id'),ownerToken:flag('--owner-token')});",
+  ].join("\n"));
+  const handle = await f.start(["-e", "process.stdout.write('COLD_START_CONFIRMED')"], adapter);
+  const result = await f.finish(handle.jobId);
+  assert.equal(result.status, "completed");
+  assert.equal(result.output?.stdout, "COLD_START_CONFIRMED");
+  assert.ok(result.childPid && result.acknowledgedAt && result.workerPid);
+  await assertRuntimeReaped(result);
+});
+
+test("command-job-runtime: a pre-spawn refusal reports its actual error without inventing child acknowledgement", async (context) => {
+  const f = await runtimeFixture(context);
+  const adapter = join(f.projectRoot, "refusing-worker.mjs");
+  const workerUrl = new URL("../src/core/command-job-worker.js", import.meta.url).href;
+  await writeFile(adapter, [
+    "import {unlink} from 'node:fs/promises';",
+    `const {runJobWorker}=await import(${JSON.stringify(workerUrl)});`,
+    "const flag=n=>process.argv[process.argv.indexOf(n)+1];",
+    "await unlink(flag('--state-root')+'/jobs/'+flag('--job-id')+'/launch-spec.json');",
+    "await runJobWorker({stateRoot:flag('--state-root'),jobId:flag('--job-id'),ownerToken:flag('--owner-token')});",
+  ].join("\n"));
+  await assert.rejects(f.start(["-e", "process.exit(91)"], adapter), /Worker rejected launch before child start \(LAUNCH_SPEC_MISSING\)/u);
+});
+
 test("command-job-runtime: observer expiry leaves the actual child alive to execute its release marker", async (context) => {
   const f = await runtimeFixture(context);
   const ready = join(f.projectRoot, "ready"), release = join(f.projectRoot, "release"), survived = join(f.projectRoot, "survived");

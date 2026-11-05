@@ -1443,6 +1443,6 @@ export async function checkCostMeterReadiness(
 export function detectQuotaExhaustion(output: string, exitCode?: number | null): boolean {
   if (exitCode === 429) return true;
   const pattern =
-    /(?:429|rate_limit_exceeded|insufficient_quota|usage limit exceeded|hit your usage limit|quota[_\s-]?exhausted|credit balance is too low|exceeded your current quota)/iu;
+    /(?:\b429\b|rate_limit_exceeded|insufficient_quota|usage limit exceeded|hit your usage limit|quota[_\s-]?exhausted|credit balance is too low|exceeded your current quota)/iu;
   return pattern.test(output);
 }

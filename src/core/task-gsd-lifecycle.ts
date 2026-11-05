@@ -600,7 +600,7 @@ export async function executeGsdStep(options: ExecuteStepOptions): Promise<GsdSt
         timeoutMs: Math.min(processSpec.timeoutMs, remaining), onSpawn,
         ...(collector ? { onStdoutChunk: (chunk: Buffer) => collector.push(chunk) } : {}) });
       const result = detectedHarness === "codex" ? await withCodexTaskEnvironment({ projectRoot: options.projectRoot,
-        gitDirectory: options.gitDirectory ?? null }, invoke) : await invoke(processSpec.environment);
+        gitDirectory: options.gitDirectory ?? null, contract: options.contract }, invoke) : await invoke(processSpec.environment);
       return { sessionId: collector?.sessionId ?? null, result,
         processCode: result.code, exitCode: result.exitCode, closeConfirmed: result.closeConfirmed ?? result.exitCode !== null,
         terminal: collector?.terminal ?? (result.code === "ok" ? "completed" : "failed"),

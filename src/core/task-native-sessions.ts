@@ -15,10 +15,16 @@ export async function collectCodexSessionFamily(options: {
   if (!/^[a-f0-9-]{36}$/u.test(options.sessionId)) return null;
   const sessionRoot = options.sessionRoot ?? join(process.env.CODEX_HOME ?? join(homedir(), ".codex"), "sessions");
   const now = options.now ?? new Date();
-  const days = new Set([now.toISOString().slice(0, 10)]);
+  const days = new Set<string>();
+  const includeDateBoundary = (date: Date) => {
+    // Native date directories can use local calendar dates while UUIDv7 and
+    // dispatch timestamps are UTC. Inspect adjacent days without relaxing IDs.
+    for (const offset of [-1, 0, 1]) days.add(new Date(date.getTime() + offset * 86_400_000).toISOString().slice(0, 10));
+  };
+  includeDateBoundary(now);
   if (options.sessionId[14] === "7") {
     const created = new Date(Number.parseInt(options.sessionId.replaceAll("-", "").slice(0, 12), 16));
-    if (Number.isFinite(created.getTime())) days.add(created.toISOString().slice(0, 10));
+    if (Number.isFinite(created.getTime())) includeDateBoundary(created);
   }
   const candidates = new Map<string, { path: string; parent: string | null }>();
   let visited = 0;

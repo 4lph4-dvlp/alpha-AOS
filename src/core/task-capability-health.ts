@@ -1,8 +1,21 @@
 import { createRedactionContext, redactString, redactValue } from "./redaction.js";
-import { validateAgainstSchema } from "./validation.js";
+import AjvModule from "ajv";
+import Ajv2020Module from "ajv/dist/2020.js";
+import addFormatsModule from "ajv-formats";
+import type { ValidateFunction } from "ajv";
 import type { TaskContract } from "./task-contract.js";
-import type { TaskCapabilityPort } from "./task-capability-receipts.js";
+import { createCapabilityReceipt, type CapabilityInvocationRequest, type TaskCapabilityPort } from "./task-capability-receipts.js";
 import { evaluateStepObligations } from "./task-capability-obligations.js";
+
+const Ajv = ((AjvModule as unknown as { default?: unknown }).default ?? AjvModule) as typeof import("ajv").default;
+const Ajv2020 = ((Ajv2020Module as unknown as { default?: unknown }).default ?? Ajv2020Module) as typeof import("ajv/dist/2020.js").default;
+const addFormats = ((addFormatsModule as unknown as { default?: unknown }).default ?? addFormatsModule) as typeof import("ajv-formats").default;
+const schemaOptions = { strict: false, allErrors: true, addUsedSchema: false, coerceTypes: false, useDefaults: false, removeAdditional: false };
+const draft7Arguments = new Ajv(schemaOptions);
+const modernArguments = new Ajv2020(schemaOptions);
+addFormats(draft7Arguments);
+addFormats(modernArguments);
+const toolValidators = new WeakMap<Record<string, unknown>, ValidateFunction>();
 
 export type CapabilityFailureKind = "arguments" | "unavailable" | "authentication" | "quota" | "transport" | "service" | "evidence" | "unknown";
 
@@ -43,9 +56,23 @@ export class TaskCapabilityPreflightError extends Error {
   }
 }
 
+export function failedCapabilityInvocation(request: CapabilityInvocationRequest, error: unknown) {
+  return createCapabilityReceipt({ runId: request.runId, step: request.step, capabilityId: request.obligation.capabilityId,
+    obligationId: request.obligation.id, question: request.obligation.question, selected: true, attempted: true, invoked: false,
+    outcome: "failed", toolName: "unconfirmed", harness: request.harness ?? "unknown", harnessVersion: request.harnessVersion ?? null,
+    harnessExecutable: request.harnessExecutable ?? null, sessionId: request.sessionId ?? null, source: request.obligation.source,
+    sourceVersion: request.obligation.version, skillActivationReceiptId: null, mcpObservationId: null, observationId: null,
+    skillActivatedAt: null, mcpObservedAt: null, rawResultSha256: "", resultDigest: "", isReused: false, originalReceiptId: null,
+    isError: true, errorMessage: capabilityDiagnostic(error) });
+}
+
 export function requireToolArguments(server: string, tool: { name: string; inputSchema: Record<string, unknown> }, args: Record<string, unknown>): void {
-  const issues = validateAgainstSchema(args, tool.inputSchema);
-  if (issues.length) throw new CapabilityInvocationError(server, tool.name, `Invalid arguments for discovered input schema: ${issues.map((issue) => `${issue.code} at ${issue.documentPath}`).join(", ")}`);
+  try {
+    const validator = /^https?:\/\/json-schema\.org\/draft-07\/schema#?$/u.test(String(tool.inputSchema.$schema ?? "")) ? draft7Arguments : modernArguments;
+    let validate = toolValidators.get(tool.inputSchema);
+    if (!validate) { validate = validator.compile(tool.inputSchema); toolValidators.set(tool.inputSchema, validate); }
+    if (!validate(args)) throw new Error(`Invalid arguments for discovered input schema: ${(validate.errors ?? []).map((issue) => `${issue.keyword} at ${issue.instancePath || "/"}`).join(", ")}`);
+  } catch (error) { throw new CapabilityInvocationError(server, tool.name, error); }
 }
 
 export function toolResultText(result: unknown): string {

@@ -280,6 +280,25 @@ test("the codex child environment with a run git config adds exactly one literal
   assert.ok(!JSON.stringify(granted.literal).includes("openai-value-for-test"));
 });
 
+test("Codex forwards only credential names selected by required task capabilities", () => {
+  const source = { EXA_API_KEY: "synthetic-exa-credential", CONTEXT7_API_KEY: "synthetic-context7-credential",
+    FIRECRAWL_API_KEY: "synthetic-firecrawl-credential", SERVICE_TOKEN: "unrelated-service-credential" };
+  const base = inventorySummaryContract(process.cwd());
+  const ordinary = materializeEnvironment(codexTaskEnvironment(source, { contract: base }));
+  assert.equal(ordinary.EXA_API_KEY, undefined);
+  assert.equal(ordinary.CONTEXT7_API_KEY, undefined);
+  const docs = materializeEnvironment(codexTaskEnvironment(source, { contract: { ...base, goal: "Consult Node.js API documentation." } }));
+  assert.equal(docs.CONTEXT7_API_KEY, source.CONTEXT7_API_KEY);
+  assert.equal(docs.EXA_API_KEY, undefined);
+  const researchPolicy = codexTaskEnvironment(source, { contract: { ...base, goal: "Use Exa for web research." } });
+  const research = materializeEnvironment(researchPolicy);
+  assert.equal(research.EXA_API_KEY, source.EXA_API_KEY);
+  assert.equal(research.FIRECRAWL_API_KEY, source.FIRECRAWL_API_KEY);
+  assert.equal(research.CONTEXT7_API_KEY, undefined);
+  assert.equal(research.SERVICE_TOKEN, undefined);
+  assert.equal(researchPolicy.literal, undefined);
+});
+
 test("the codex child environment declares names only and passes no unrelated credential", () => {
   const source: NodeJS.ProcessEnv = {
     PATH: "/usr/bin",

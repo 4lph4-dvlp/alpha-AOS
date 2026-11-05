@@ -1,0 +1,132 @@
+{
+  "consolidatedAt": "2026-11-05T18:04:08.692Z",
+  "nativeCapability": {
+    "scope": "Actual pinned MCP adapter; real read-only Context7, Exa and Firecrawl calls",
+    "before": {
+      "documentationReady": true,
+      "researchReady": false,
+      "error": "no schema with key or ref http://json-schema.org/draft-07/schema#"
+    },
+    "after": {
+      "elapsedMs": 29505,
+      "result": [
+        {
+          "capabilityId": "documentation-lookup",
+          "step": "discuss",
+          "ready": true,
+          "failureKind": null,
+          "detail": "Actual native read-only invocation and useful output verified; not a reusable step receipt"
+        },
+        {
+          "capabilityId": "deep-research",
+          "step": "discuss",
+          "ready": true,
+          "failureKind": null,
+          "detail": "Actual native read-only invocation and useful output verified; not a reusable step receipt"
+        }
+      ]
+    }
+  },
+  "startup": {
+    "scope": "Real Node processes with controlled native-role fixture, not model acceptance",
+    "ordinary": [
+      {
+        "n": 0,
+        "elapsedMs": 2600,
+        "status": "running",
+        "trace": [
+          {
+            "stage": "boot",
+            "elapsedMs": 799
+          },
+          {
+            "stage": "imported",
+            "elapsedMs": 1322
+          },
+          {
+            "stage": "before-ack",
+            "elapsedMs": 1714
+          },
+          {
+            "stage": "acked",
+            "elapsedMs": 2083
+          },
+          {
+            "stage": "terminal",
+            "elapsedMs": 2085
+          },
+          {
+            "stage": "exit",
+            "elapsedMs": 2595
+          }
+        ]
+      },
+      {
+        "n": 1,
+        "elapsedMs": 2602,
+        "status": "running",
+        "trace": [
+          {
+            "stage": "boot",
+            "elapsedMs": 783
+          },
+          {
+            "stage": "imported",
+            "elapsedMs": 1323
+          },
+          {
+            "stage": "before-ack",
+            "elapsedMs": 1717
+          },
+          {
+            "stage": "acked",
+            "elapsedMs": 2088
+          },
+          {
+            "stage": "terminal",
+            "elapsedMs": 2090
+          }
+        ]
+      }
+    ],
+    "registered": {
+      "elapsedMs": 5313,
+      "trace": [
+        {
+          "stage": "boot",
+          "elapsedMs": 833
+        },
+        {
+          "stage": "imported",
+          "elapsedMs": 1337
+        },
+        {
+          "stage": "before-ack",
+          "elapsedMs": 4514
+        },
+        {
+          "stage": "acked",
+          "elapsedMs": 4881
+        },
+        {
+          "stage": "terminal",
+          "elapsedMs": 4915
+        },
+        {
+          "stage": "exit",
+          "elapsedMs": 5276
+        }
+      ],
+      "workerAcknowledged": true
+    }
+  },
+  "firstLiveOutcome": {
+    "observedAt": "2026-11-05T17:47:56.307Z",
+    "kind": "actual-native-preflight-stop",
+    "nativeTaskRunCreated": false,
+    "outcome": "stopped",
+    "reason": "CAPABILITY_PREFLIGHT_FAILED: telemetry_unavailable. This preflight check did not create a new task run.",
+    "replayReturned": true,
+    "firstAcknowledgement": true
+  }
+}

@@ -32,6 +32,7 @@ import {
 
 export const DEFAULT_JOB_DEADLINE_MS = 20 * 60 * 1000; // 20 minutes
 export const MAX_JOB_DEADLINE_MS = 24 * 60 * 60 * 1000; // 24 hours
+export const JOB_STARTUP_TIMEOUT_MS = 30_000;
 export const MAX_RECORD_BYTES = 512 * 1024; // 512 KiB
 export const MAX_COMBINED_OUTPUT_BYTES = 64 * 1024; // 64 KiB
 export const MAX_LAUNCH_SPEC_BYTES = 64 * 1024; // 64 KiB
@@ -246,6 +247,7 @@ export interface JobFence {
 
 export interface StartCommandJobOptions {
   readonly task?: import("./task-native-job.js").TaskJobBinding | undefined;
+  readonly taskEnvironment?: EnvironmentPolicy | undefined;
   readonly stateRoot: string;
   readonly cwd: string;
   readonly executable: string;
@@ -1799,6 +1801,7 @@ export async function startCommandJob(
   _testBarrier?: CommandJobPathBarrier,
 ): Promise<StartCommandJobResult> {
   const { stateRoot, cwd, executable, args } = options;
+  if (options.taskEnvironment && !options.task) throw new Error("Task credentials require a registered approved task route");
 
   // 1. Bound aggregate args BEFORE any state creation
   let aggregateBytes = 0;
@@ -1962,9 +1965,9 @@ export async function startCommandJob(
       executable: process.execPath,
       args: [cliPath, "job-worker", "--state-root", stateRoot, "--job-id", jobId, "--owner-token", ownerToken],
       cwd: resolvedCwd,
-      environment: buildOrdinaryCommandEnvironment(process.env, {
-        ALPHA_AOS_STATE_DIR: stateRoot,
-      }),
+      environment: options.taskEnvironment
+        ? { ...options.taskEnvironment, literal: { ...options.taskEnvironment.literal, ALPHA_AOS_STATE_DIR: stateRoot } }
+        : buildOrdinaryCommandEnvironment(process.env, { ALPHA_AOS_STATE_DIR: stateRoot }),
       onError: (err) => {
         workerSpawnError = err;
       },
@@ -1977,7 +1980,7 @@ export async function startCommandJob(
 
   // 12. Handshake: wait for worker to assume ownership and transition to running (or fast completion)
   const startTime = Date.now();
-  const HANDSHAKE_TIMEOUT_MS = 5000;
+  const HANDSHAKE_TIMEOUT_MS = JOB_STARTUP_TIMEOUT_MS;
   let runningRecord: (Omit<CommandJobRecord, "status"> & { status: StartCommandJobResult["status"] }) | null = null;
 
   try {
@@ -1994,7 +1997,7 @@ export async function startCommandJob(
         try {
           assertJobIdentityMatch(current, {
             ...identityOfJob(initialRecord),
-            ...(current.status !== "pending" ? { workerPid: workerHandle?.pid ?? -1, workerHost: hostname() } : {}),
+            ...(current.workerPid !== null ? { workerPid: workerHandle?.pid ?? -1, workerHost: hostname() } : {}),
           }, "handshake");
         } catch (err: unknown) {
           throw new Error(`Job identity drift during start handshake: code=IDENTITY_DRIFT; ${(err as Error).message}`);
@@ -2054,6 +2057,10 @@ export async function startCommandJob(
           break;
         }
 
+        if (current.status === "failed" && current.acknowledgedAt === null) {
+          throw new Error(`Worker rejected launch before child start (${current.error?.code ?? "unknown"}): ${current.error?.message ?? "unknown failure"}; job ${jobId}`);
+        }
+        if (workerHandle?.exited && current.status === "pending") throw new Error(`Worker exited before launch acknowledgement; job ${jobId} remains unresolved`);
         if (current.status === "orphaned") {
           throw new Error(`Worker orphaned during start handshake: ${current.error?.message ?? "unknown error"}`);
         }
@@ -2061,6 +2068,8 @@ export async function startCommandJob(
         if (
           (err as Error).message.includes("Worker spawn failed") ||
           (err as Error).message.includes("Worker orphaned") ||
+          (err as Error).message.includes("Worker rejected launch") ||
+          (err as Error).message.includes("Worker exited before") ||
           (err as Error).message.includes("IDENTITY_DRIFT")
         ) {
           throw err;
@@ -2089,11 +2098,9 @@ export async function startCommandJob(
       }
 
       if (runningRecord === null) {
-        await cleanupOwnedLaunch();
-
-        if (reconciled && reconciled.workerPid !== null && isProcessAlive(reconciled.workerPid)) {
+        if (workerHandle && !workerHandle.exited) {
           throw new Error(
-            `Worker handshake timed out for job ${jobId}; worker process ${reconciled.workerPid} is active but unacknowledged (status: ${reconciled.status})`,
+            `Worker startup observation timed out for job ${jobId}; spawned worker ${workerHandle.pid} has not exited. Launch payload retained; reconnect with job wait instead of launching duplicate work (status: ${reconciled?.status ?? "unknown"})`,
           );
         }
 
@@ -2103,7 +2110,7 @@ export async function startCommandJob(
       }
     }
   } catch (err: unknown) {
-    await cleanupOwnedLaunch();
+    if (!workerHandle || workerHandle.exited || getSpawnError()) await cleanupOwnedLaunch();
     throw err;
   }
 
@@ -2124,14 +2131,14 @@ export async function getCommandJobStatus(stateRoot: string, jobId: string): Pro
   // Check pre-ack dead pending worker
   if (record.status === "pending") {
     const ageMs = Date.now() - Date.parse(record.createdAt);
-    if (ageMs > 10000) {
+    if (ageMs > JOB_STARTUP_TIMEOUT_MS) {
       return {
         ...record,
         status: "orphaned",
         finishedAt: new Date().toISOString(),
         error: {
           code: "WORKER_ORPHANED",
-          message: "Worker failed to acknowledge job within handshake window",
+          message: "Startup acknowledgement was not observed within the bounded startup window; execution is unresolved",
         },
       };
     }

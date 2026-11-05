@@ -2,6 +2,8 @@ import { lstat, mkdir, mkdtemp, open, readFile, rm, writeFile } from "node:fs/pr
 import { homedir, tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, resolve } from "node:path";
 import { canonicalizeWithMissingTail } from "../core/path-boundary.js";
+import { taskCapabilityEnvironmentNames } from "./task-capability-environment.js";
+import type { TaskContract } from "../core/task-contract.js";
 import { packageRoot as defaultPackageRoot } from "../core/paths.js";
 import { ProcessPolicyError, runProcess, type EnvironmentPolicy, type ProcessResult } from "../core/process.js";
 import { observeCodexStages, codexStageObservationCapability } from "../core/task-gsd-stage-observation.js";
@@ -117,9 +119,9 @@ interface ExecutorResultDocument {
  */
 export function codexTaskEnvironment(
   source: NodeJS.ProcessEnv = process.env,
-  options: { gitConfigGlobal?: string } = {},
+  options: { gitConfigGlobal?: string; contract?: TaskContract } = {},
 ): EnvironmentPolicy {
-  const policy = nameOnlyEnvironment(CODEX_TASK_ENVIRONMENT_NAMES, source);
+  const policy = nameOnlyEnvironment(uniqueNames([...CODEX_TASK_ENVIRONMENT_NAMES, ...(options.contract ? taskCapabilityEnvironmentNames(options.contract) : [])]), source);
   if (options.gitConfigGlobal === undefined) return policy;
   return { ...policy, literal: { GIT_CONFIG_GLOBAL: options.gitConfigGlobal } };
 }
@@ -127,13 +129,14 @@ export function codexTaskEnvironment(
 /** The same approved git trust used by the controller, scoped to one native
  * invocation. Ordinary command jobs never load this adapter. */
 export async function withCodexTaskEnvironment<T>(options: {
-  projectRoot: string; gitDirectory: string | null; source?: NodeJS.ProcessEnv;
+  projectRoot: string; gitDirectory: string | null; source?: NodeJS.ProcessEnv; contract?: TaskContract;
 }, invoke: (environment: EnvironmentPolicy) => Promise<T>): Promise<T> {
-  if (options.gitDirectory === null) return invoke(codexTaskEnvironment(options.source));
+  const contract = options.contract ? { contract: options.contract } : {};
+  if (options.gitDirectory === null) return invoke(codexTaskEnvironment(options.source, contract));
   const scratch = await mkdtemp(join(tmpdir(), "alpha-aos-codex-git-"));
   try {
     const gitConfigGlobal = await writeCodexRunGitConfig({ workDirectory: scratch, projectRoot: options.projectRoot });
-    return await invoke(codexTaskEnvironment(options.source, { gitConfigGlobal }));
+    return await invoke(codexTaskEnvironment(options.source, { gitConfigGlobal, ...contract }));
   } finally {
     if (dirname(resolve(scratch)) === resolve(tmpdir()) && basename(scratch).startsWith("alpha-aos-codex-git-")) await rm(scratch, { recursive: true, force: true });
   }
@@ -501,7 +504,7 @@ export async function runCodexController(
   const clock = options.now ?? (() => new Date());
   const runner = options.runner ?? runProcess;
   const source = options.source ?? process.env;
-  const environment = codexTaskEnvironment(source);
+  const environment = codexTaskEnvironment(source, { contract: request.contract });
 
   const launch = resolveTaskAgentLaunch("codex", options.resolve === undefined ? {} : { resolve: options.resolve });
   if (launch.status !== "ok") return notLaunched("unsupported-executable", launch.reason);
@@ -557,7 +560,7 @@ export async function runCodexController(
       // git compares safe.directory with the real path it discovers, so the trust names the canonical root.
       const root = await canonicalizeWithMissingTail(request.projectRoot);
       const gitConfigGlobal = await writeCodexRunGitConfig({ workDirectory, projectRoot: root.canonical });
-      launchEnvironment = codexTaskEnvironment(source, { gitConfigGlobal });
+      launchEnvironment = codexTaskEnvironment(source, { gitConfigGlobal, contract: request.contract });
     }
   } catch (error) {
     return notLaunched(
@@ -664,7 +667,7 @@ export async function runCodexReviewer(
   const clock = options.now ?? (() => new Date());
   const runner = options.runner ?? runProcess;
   const source = options.source ?? process.env;
-  const environment = codexTaskEnvironment(source);
+  const environment = codexTaskEnvironment(source, { contract: request.contract });
 
   const launch = resolveTaskAgentLaunch("codex", options.resolve === undefined ? {} : { resolve: options.resolve });
   if (launch.status !== "ok") {
@@ -818,7 +821,7 @@ export async function runCodexFinalReviewer(
   const clock = options.now ?? (() => new Date());
   const runner = options.runner ?? runProcess;
   const source = options.source ?? process.env;
-  const environment = codexTaskEnvironment(source);
+  const environment = codexTaskEnvironment(source, { contract: request.contract });
 
   const launch = resolveTaskAgentLaunch("codex", options.resolve === undefined ? {} : { resolve: options.resolve });
   if (launch.status !== "ok") {

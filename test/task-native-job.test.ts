@@ -131,6 +131,24 @@ test("native local cumulative fixtures join exact parent/child ancestry and dedu
   assert.equal(JSON.stringify(observations).includes("PRIVATE_NARRATIVE_SENTINEL"), false);
 });
 
+test("native usage finds the exact session across local/UTC date boundaries without absorbing unrelated sessions", async (t) => {
+  const fixture = await createTaskFixture(t);
+  const sessionRoot = join(fixture.scratch, "native-date-sessions");
+  const id = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  for (const [date, sessionId] of [["2026/11/06", id], ["2026/11/04", "11111111-2222-4333-8444-555555555555"]]) {
+    const directory = join(sessionRoot, date!);
+    await mkdir(directory, { recursive: true });
+    const events = [{ type: "session_meta", payload: { id: sessionId, cwd: fixture.projectRoot, source: "exec" } },
+      { type: "event_msg", payload: { type: "token_count", info: { total_token_usage: { input_tokens: 100, output_tokens: 10 } } } }];
+    await writeFile(join(directory, `${sessionId}.jsonl`), events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+  }
+  const observations = await collectCodexSessionFamily({ sessionId: id, projectRoot: fixture.projectRoot, contractDigest: "e".repeat(64),
+    runId: "date-boundary", attemptId: "attempt", role: "controller", sessionRoot, now: new Date("2026-11-05T17:00:00Z") });
+  assert.equal(observations?.length, 1);
+  assert.equal(observations?.[0]?.sessionId, id);
+  assert.equal(aggregateTaskUsage(observations!).tokens, 110);
+});
+
 test("Windows reproduces unquoted PowerShell shim separator loss and typed native argv preserves it", { skip: process.platform !== "win32" }, async (t) => {
   const fixture = await createTaskFixture(t);
   const echo = join(fixture.scratch, "argv echo 한글.mjs"), shim = join(fixture.scratch, "npm shim fixture.ps1");

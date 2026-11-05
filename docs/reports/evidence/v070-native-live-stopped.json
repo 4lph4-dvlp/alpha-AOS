@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "began": "2026-11-05T17:56:51.151Z",
+  "finished": "2026-11-05T18:09:52.025Z",
+  "exitCode": 1,
+  "actualOriginMatched": true,
+  "initialDigest": "c19e9c998b9f86ba548185f944e4aeea4a2dd8a5eec534eef6b37e96b2e3c952",
+  "finalDigest": "9f145da2d80c786c411193dd0fed31d4fbe65e85b066f44683c8ed05e808b0dd",
+  "finalStatus": "stopped",
+  "runStatus": "unknown",
+  "gsdStatus": "missing",
+  "attemptCount": 2,
+  "measuredCriteria": [],
+  "repairCount": 2,
+  "repairs": [
+    {
+      "status": "repaired",
+      "kind": "evidence",
+      "verification": "Revised questions passed actual native preflight"
+    },
+    {
+      "status": "repaired",
+      "kind": "unknown",
+      "verification": "Revised questions passed actual native preflight"
+    }
+  ],
+  "deliveryStatus": "stopped",
+  "processClosure": "confirmed",
+  "replayReturned": true,
+  "acknowledgement": {
+    "firstAcknowledgement": true
+  },
+  "nativeResultDigest": "e91b440c3c76ea060c6bf8456c73a0c35bcbdb4716b989466f928b9cea034a1d"
+}

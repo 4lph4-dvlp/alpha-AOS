@@ -436,7 +436,7 @@ export function evaluateCapabilityRecovery(options: EvaluateRecoveryOptions): Ca
   }
 
   // D-13: 4. No actionable path remains -> blocked
-  const blockReason = options.blockingReason ?? `No viable recovery or equivalent alternate path for ${failedObligation.capabilityId}.`;
+  const blockReason = options.blockingReason ?? `No viable recovery or equivalent alternate path for ${failedObligation.capabilityId}. Failure: ${failedReceipt.errorMessage ?? failedReceipt.outcome}`;
   return {
     status: "blocked",
     obligationId: failedObligation.id,

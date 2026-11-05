@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { assertTaskStartable, detectQuotaExhaustion, reservedRunIdForApproval, type TaskContract } from "./task-contract.js";
 import { resolveTaskAgentLaunch, type TaskAgentResolver } from "../adapters/task-agent-launch.js";
-import { codexEffortArgs, codexGitAuthorityOverrides, withCodexTaskEnvironment } from "../adapters/task-codex.js";
+import { codexEffortArgs, codexGitAuthorityOverrides, codexTaskEnvironment, withCodexTaskEnvironment } from "../adapters/task-codex.js";
 import { CodexUsageCollector } from "./task-native-usage.js";
 import { meteredTaskDispatch, readTaskDispatches, TaskResourceError } from "./task-runtime.js";
 import type { PrivateLaunchSpec, StartCommandJobResult } from "./command-jobs.js";
@@ -57,6 +57,7 @@ export async function startApprovedTaskJob(options: { binding: TaskJobBinding; s
   const { startCommandJob } = await import("./command-jobs.js");
   return startCommandJob({ stateRoot: options.stateRoot, cwd: launch.contract.scope.projectRoot,
     executable: launch.executable, args: launch.args, task: options.binding, cliPath: options.cliPath,
+    taskEnvironment: codexTaskEnvironment(process.env, { contract: launch.contract }),
     deadlineMs: Math.min(24 * 60 * 60_000, (launch.contract.resourcePolicy.maxWallTimeMinutes ?? 60) * 60_000) });
 }
 
@@ -79,7 +80,7 @@ export async function runApprovedTaskJobProcess(options: {
         const collector = new CodexUsageCollector(onTelemetry);
         const remaining = deadlineAt === null ? options.processSpec.timeoutMs : Date.parse(deadlineAt) - Date.now();
         if (remaining !== undefined && remaining <= 0) throw new TaskResourceError("wall_time_exceeded");
-        const result = await withCodexTaskEnvironment({ projectRoot: approved.contract.scope.projectRoot, gitDirectory: approved.gitDirectory },
+        const result = await withCodexTaskEnvironment({ projectRoot: approved.contract.scope.projectRoot, gitDirectory: approved.gitDirectory, contract: approved.contract },
           (environment) => (options.runner ?? runProcess)({ ...options.processSpec,
           executable: options.launch.executable, args: options.launch.args, cwd: options.launch.cwd, environment,
           ...(remaining === undefined ? {} : { timeoutMs: Math.min(options.processSpec.timeoutMs ?? remaining, remaining) }),

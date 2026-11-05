@@ -225,6 +225,7 @@ export function buildGsdControllerPrompt(options: {
           ]
         : []),
       "GSD writes `.planning/` (the quick directory, its PLAN and SUMMARY, the STATE.md row and the docs(quick-<id>) commit). Never edit `.planning/` by hand.",
+      "GSD may write its own `.gsd/dispatch-isolation-sentinel.json` and `.gsd/.gitignore`, including temporary siblings needed for atomic writes. Other project paths still require approved roots.",
     ],
     [
       "# Task",
@@ -248,11 +249,11 @@ export function buildGsdControllerPrompt(options: {
     [
       "# Waiting and completion",
       "Never enter repetitive MODEL sleep or polling status loops (e.g. repeated sleep, busy-wait delay loops, or polling status checks).",
-      "Prefer existing persistent native completion handles: do independent authorized work within allowed roots while a child task runs, then perform ONE runtime observation with a finite deadline covering the expected work.",
+      "Retain and await the existing native completion handle until the child task's final outcome; resume yielded transports through that exact handle. Do independent authorized work within allowed roots while a child task runs.",
       "Runtime owns the finite wait and timers; no LLM inside timers, repeated unchanged status-file reads, or model-driven babysitter around an active controller. Do not carry a full old transcript into a fresh bounded stage solely for monitoring.",
       "Save verbose logs externally and return bounded terminal evidence. Any local progress display must deduplicate unchanged state without model inference.",
       "Always use exact IDs (exact contract ID, run ID, or job ID), never moving 'latest' or redundant waiting agents.",
-      "A transport yield is not task completion. If the host forces yields or a native callback is unavailable, state the limitation, preserve the durable handle and bounded reconnect or handoff; do not endlessly retry or promise zero model wakeups or zero tokens.",
+      "A transport yield is not task completion. Preserve the exact durable handle and reconnect through a bounded runtime observation. Continue authorized work after recoverable failures; handoff may end execution only at a demonstrated user, authority, resource or external boundary. Do not promise idle-session wakeup or zero tokens.",
       "Ordinary or quick work does not need an autopilot contract just to run an already-authorized build or test.",
       "Waiting grants no new process, delegation, or GUI authority. All existing authority boundaries, GSD sole workflow spine ownership, single-writer model inheritance, sandbox isolation, and GUI restrictions remain strictly preserved.",
     ],

@@ -26,23 +26,23 @@
 ### Origin-Session Completion Delivery
 
 - [x] **ADEL-01**: The originating session is durably bound to the exact contract, digest, revision, recovery chain and attempt before execution, whether or not a progress panel is opened.
-- [x] **ADEL-02**: The originating Codex session automatically receives and continues from task acceptance, final failure, interruption or a genuine needs-input state without the user requesting a status check; intermediate attempt rejection remains distinguishable from the final recovery outcome.
+- [ ] **ADEL-02**: The originating Codex session automatically receives and continues from task acceptance, final failure, interruption or a genuine needs-input state without the user requesting a status check; intermediate attempt rejection remains distinguishable from the final recovery outcome.
 - [x] **ADEL-03**: After a connection loss or event redelivery, the originating session receives the retained outcome through replay and acknowledgement without duplicate continuation or duplicate work.
 - [x] **ADEL-04**: Before autopilot starts, the user receives the verified continuation capability of the selected host/surface and the path that will deliver the outcome; an unsupported path cannot silently become status-file or panel-only operation advertised as full autopilot.
 
 ### Effective Authorized Recovery
 
-- [x] **AREC-01**: Recoverable failures automatically route to a corrective action appropriate to the contract, capability environment, implementation or transport layer rather than only stronger prompts to the same failed step.
+- [ ] **AREC-01**: Recoverable failures automatically route to a corrective action appropriate to the contract, capability environment, implementation or transport layer rather than only stronger prompts to the same failed step.
 - [x] **AREC-02**: Before retrying the same failure, the recovery controller records a relevant corrective change and its verification; repeated unchanged attempts cannot stand in for repair.
 - [x] **AREC-03**: The user can approve a bounded recovery grant that explicitly defines permitted contract revisions and reruns, records old/new digest ancestry, and requests new approval only when a change exceeds that grant; arbitrary changed digests never inherit approval implicitly.
 - [x] **AREC-04**: All attempts share the approved cumulative resource limits, model assignments and authority boundaries; a genuine quota/resource limit, user stop or required authority expansion ends automatic retry with a specific explanation.
-- [x] **AREC-05**: Recovery resumes from verified checkpoints and reconciled effects without rerunning completed phases or executing an already accepted task again.
+- [ ] **AREC-05**: Recovery resumes from verified checkpoints and reconciled effects without rerunning completed phases or executing an already accepted task again.
 
 ### Persistent Execution and Honest Reporting
 
 - [x] **ACONT-01**: Repository-owned skills, generated harness guidance and packaged documentation direct agents to continue available authorized recovery after a yielded transport or recoverable rejection, rather than ending after a single wait by default.
 - [x] **ACONT-02**: Handoff notes preserve useful evidence while recovery continues; they become the stopping result only for a demonstrated external/user/authority/resource boundary, with the missing action clearly identified.
-- [x] **ACONT-03**: The user can review scenario evidence for success, recoverable tool failure, contract revision, final failure, reconnect and explicit stop, separating process closure, GSD acceptance, origin-session delivery and repair progress; unrun checks remain explicitly unverified.
+- [ ] **ACONT-03**: The user can review scenario evidence for success, recoverable tool failure, contract revision, final failure, reconnect and explicit stop, separating process closure, GSD acceptance, origin-session delivery and repair progress; unrun checks remain explicitly unverified.
 
 ## Future and Preserved Work
 
@@ -71,23 +71,23 @@ All requirements were approved on 2026-11-05. Phase 35-38 assignments identify w
 | ACON-03 | Phase 35 | Implemented; see evidence report |
 | ACON-04 | Phase 35 | Implemented; see evidence report |
 | ADEL-01 | Phase 36 | Implemented; see evidence report |
-| ADEL-02 | Phase 36 | Implemented; see evidence report |
+| ADEL-02 | Phase 36 | Live acceptance unverified |
 | ADEL-03 | Phase 36 | Implemented; see evidence report |
 | ADEL-04 | Phase 36 | Implemented; see evidence report |
-| AREC-01 | Phase 37 | Implemented; see evidence report |
+| AREC-01 | Phase 37 | Live acceptance unverified |
 | AREC-02 | Phase 37 | Implemented; see evidence report |
 | AREC-03 | Phase 37 | Implemented; see evidence report |
 | AREC-04 | Phase 37 | Implemented; see evidence report |
-| AREC-05 | Phase 37 | Implemented; see evidence report |
+| AREC-05 | Phase 37 | Live acceptance unverified |
 | ACONT-01 | Phase 38 | Implemented; see evidence report |
 | ACONT-02 | Phase 38 | Implemented; see evidence report |
-| ACONT-03 | Phase 38 | Implemented; see evidence report |
+| ACONT-03 | Phase 38 | Live acceptance unverified |
 
 **Coverage:** 16 approved requirements; 16 mapped to exactly one reference work section; 0 unmapped.
 
 ## Implementation evidence
 
-The 16 requirements are implemented using native Codex development. These checks refer to the active awaited foreground Codex path, controlled recovery fixtures and targeted regression evidence, not idle-session wakeup or a live multi-host acceptance matrix. See [implementation and validation report](../docs/reports/autopilot-reliability-v070.md). No GSD lifecycle completion, publication or global installation is asserted.
+Implementation and earlier fixture evidence are recorded in the [implementation report](../docs/reports/autopilot-reliability-v070.md). Subsequent real native testing found further defects and stopped on provider quota before GSD acceptance; see the [follow-up report](../docs/reports/autopilot-live-followup-v070.md). Unchecked requirements retain their outstanding live verification. No GSD lifecycle completion, publication or global installation is asserted.
 
 ## Evidence and Uncertainty
 

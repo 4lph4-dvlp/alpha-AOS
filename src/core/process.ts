@@ -1203,6 +1203,7 @@ export interface DetachedProcessSpec {
 
 export interface DetachedProcessHandle {
   pid: number | undefined;
+  readonly exited: boolean;
   unref(): void;
 }
 
@@ -1232,6 +1233,7 @@ export function spawnDetachedProcess(spec: DetachedProcessSpec): DetachedProcess
   child.once("error", spec.onError);
   return {
     pid: child.pid,
+    get exited() { return child.exitCode !== null || child.signalCode !== null; },
     unref: () => child.unref(),
   };
 }

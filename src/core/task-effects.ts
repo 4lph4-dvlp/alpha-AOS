@@ -199,7 +199,7 @@ function underRoot(path: string, root: string): boolean {
  * every `query dispatch-isolation` decision in this project-root file. Exact
  * paths only, so any other `.gsd/` write still fails closed.
  */
-export const GSD_RUNTIME_STATE_PATHS: readonly string[] = [".gsd/dispatch-isolation-sentinel.json"];
+export const GSD_RUNTIME_STATE_PATHS: readonly string[] = [".gsd/dispatch-isolation-sentinel.json", ".gsd/.gitignore"];
 
 /**
  * alpha-AOS's own project-local control plane runtime state (e.g. controller lock

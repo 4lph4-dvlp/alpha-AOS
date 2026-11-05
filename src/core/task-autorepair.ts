@@ -65,11 +65,14 @@ export async function repairTaskFailure(options: { contract: TaskContract; rootC
       const prompt = [
         "Perform ONE bounded repair for the already approved task. Do not run GSD commands, edit lifecycle state, change models, credentials or global configuration, or broaden scope.",
         `Approved goal: ${contract.goal}`,
+        `Existing capability questions: ${JSON.stringify(contract.capabilityQuestions ?? {})}`,
         `Allowed project-relative roots: ${JSON.stringify(contract.allowedRoots)}. Effects: ${JSON.stringify(contract.allowedEffects)}.`,
         `Failure: ${capabilityDiagnostic(options.failure)}`,
         workspaceRepair ? "You may correct implementation files within the approved roots. Run a relevant bounded verification. Do not edit .planning or commit." : "Do not modify implementation files.",
         grant.allowQuestionRepair ? "You may propose corrections to existing required capability questions. Return JSON {capabilityQuestions:{documentation?:string,research?:string}} in the result summary. Do not write the contract or change goal, acceptance criteria, authority or resources." : "Contract changes are not authorized.",
-        "Return the normal executor result with completed only when a concrete repair and verification were performed; otherwise return needs-authority or failed with the actual missing action. A stronger prompt or handoff file is not a repair.",
+        workspaceRepair
+          ? "Return the normal executor result with completed only when a concrete repair and verification were performed; otherwise return needs-authority or failed with the actual missing action. A stronger prompt or handoff file is not a repair."
+          : "Read the declared project manifest and propose only the corrected question. Do not invoke MCP tools or perform the full task in this correction call. Return completed with the proposed JSON summary. The runtime will apply the proposal only after actual native MCP preflight succeeds; do not claim that verification yourself.",
       ].join("\n");
       const result = await meteredTaskDispatch({ stateRoot: options.stateRoot, contract, digest: taskContractDigest(contract), runId: options.runId, role: "controller", cycleBoundary: true,
         invoke: (observer) => options.ports.controller.dispatch({ ...observer, readOnly: !workspaceRepair, runId: options.runId, contract,
@@ -93,7 +96,7 @@ export async function repairTaskFailure(options: { contract: TaskContract; rootC
       let proposed: { capabilityQuestions?: TaskContract["capabilityQuestions"] } = {};
       try { proposed = JSON.parse(result.claim.summary) as typeof proposed; } catch { /* Workspace-only repairs may return a text summary. */ }
       if (proposed.capabilityQuestions) {
-        const candidate = { ...contract, revision: contract.revision + 1, capabilityQuestions: proposed.capabilityQuestions };
+        const candidate = { ...contract, revision: contract.revision + 1, capabilityQuestions: { ...contract.capabilityQuestions, ...proposed.capabilityQuestions } };
         assertRecoveryRevision(digestableTaskContract(options.rootContract), digestableTaskContract(candidate), options.repairIndex);
         const readiness = await inspectTaskCapabilities(candidate, options.ports.capability, options.runId);
         if (!readiness.length || readiness.some((item) => !item.ready)) return refused(`Proposed question repair did not restore invocation: ${readiness.filter((item) => !item.ready).map((item) => item.detail).join("; ")}`, "retry-repair");

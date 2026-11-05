@@ -1,7 +1,7 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v0.6.0 — Predictable Task Entry and Shared Project Policy",
+  "milestone": "v0.7.0",
   "phases": [
     {
       "number": "27",
@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "$gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 5 of 8 · 80% · executing"
+    "command": "$gsd-discuss-phase",
+    "label": "Discuss the first phase",
+    "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-11-05T07:16:43.699Z"
+  "updated_at": "2026-11-05T08:49:35.782Z"
 }

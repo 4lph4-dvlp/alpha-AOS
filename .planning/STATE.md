@@ -1,38 +1,33 @@
 ---
 gsd_state_version: "1.0"
-milestone: v0.6.0
-milestone_name: Predictable Task Entry and Shared Project Policy
-current_phase: 31
-current_phase_name: Cross-Harness Proof and Distribution
-status: executing
-stopped_at: "v0.6.0 GitHub-only: source 3f38a03; mandatory push session 14378 active; continuation job-9f4197cd38b14e0c waits exact push then runs one exact-SHA native CI; final verifier/main/tag/release pending"
-last_updated: "2026-11-03T08:05:28.781Z"
-last_activity: 2026-11-03
-last_activity_desc: Phase 31 execution resumed (wave continue)
-state_head: 3f38a03047f1e0fe2470735eac55d53101cc24c4
+milestone: v0.7.0
+milestone_name: Autopilot Reliability & Recovery
+status: planning
+last_updated: "2026-11-05T08:49:35.772Z"
+last_activity: 2026-11-05
 progress:
-  total_phases: 5
-  completed_phases: 4
-  total_plans: 31
-  completed_plans: 31
-  percent: 80
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-09-29)
+See: .planning/PROJECT.md (updated 2026-11-05)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 31 — Cross-Harness Proof and Distribution
+**Current focus:** v0.7.0 Autopilot Reliability & Recovery — research selection, requirements and roadmap pending; next phase number 35. Outgoing Phase 27-34 status is preserved in milestones/v0.6.0-ROLLOVER.md and its linked archives.
 
 ## Current Position
 
-Phase: 31 (Cross-Harness Proof and Distribution) — EXECUTING
-Plan: 5 of 5
-Status: Ready to execute
-Last activity: 2026-11-03 — Phase 31 execution resumed (wave continue)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-11-05 — Milestone v0.7.0 started
 
 ### Completed Phases
 
@@ -403,7 +398,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 
 ### Roadmap Evolution
 
-- Phases 32-34 added: user-approved latest tool lifecycle, compatibility adapters and no-test delivery scope. Existing phase status preserved.
+- Phase 32 added: User-approved latest tool lifecycle expansion; phases 32-34 only, no tests or CI
 
 ## Deferred Items
 
@@ -451,12 +446,15 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 | 261028-mmk | Validate existing full GSD contract workflow identifiers; final suite tracked by job-927acc9961894ba8 | 2026-10-28 | 062c7f6 | verification-pending | [261028-mmk-repair-full-gsd-multi-phase-task-contrac](./quick/261028-mmk-repair-full-gsd-multi-phase-task-contrac/) |
 | 261028-nac | Released alpha-AOS 0.4.8: integrated lv9/mmk repairs, complete local and three-OS validation, all five local harnesses current | 2026-10-28 | 9fae6cf | Verified | [261028-nac-integrate-contract-and-ci-fixes-verify-r](./quick/261028-nac-integrate-contract-and-ci-fixes-verify-r/) |
 | 261101-ww3 | GSD full default and local milestone activation; wider regression gap recorded | 2026-11-02 | d657e8f | Gaps | [261101-ww3-make-milestone-capable-gsd-full-profile-](./quick/261101-ww3-make-milestone-capable-gsd-full-profile-/) |
+| 261104-vy6 | Cua 0.38.0 default GUI tooling across five harnesses; task-scoped consent and composed validation | 2026-11-05 | 4b69d1f | Verified (composed) | [261104-vy6-upgrade-cua-and-enable-default-task-scop](./quick/261104-vy6-upgrade-cua-and-enable-default-task-scop/) |
+| 261105-joq | Direct pushes and local deployment; manual-only workflows, automatic dependency promotion stopped | 2026-11-05 | cdfae5d | Build/startup/link verified; tests intentionally not run | [261105-joq](./quick/261105-joq-use-direct-pushes-and-local-deployment-w/) |
+| 261105-4uv | Consolidated all branches into main and published GitHub v0.6.1; retained histories and user changes | 2026-11-05 | fecea03 | Build/startup/local deployment verified; CI/tests waived | [261105-4uv](./quick/261105-4uv-review-and-consolidate-local-and-remote-/) |
 
 ## Session Continuity
 
-Last session: 2026-11-03T07:29:35.689Z
-Stopped at: v0.6.0 GitHub-only: source 3f38a03; mandatory push session 14378 active; continuation job-9f4197cd38b14e0c waits exact push then runs one exact-SHA native CI; final verifier/main/tag/release pending
-Resume file: .planning/phases/31-cross-harness-proof-and-distribution/31-RELEASE-060-CONTINUATION.md
+Last session: 2026-11-04T17:38:14.903Z
+Stopped at: context exhaustion at 79% (2026-11-05)
+Resume file: .planning/debug/boot04-release-blockers.md
 
 ## Operator Next Steps
 

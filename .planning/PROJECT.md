@@ -14,21 +14,20 @@ The system manages capability scope as well as installation: broadly useful, low
 
 A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
 
-## Current Milestone: v0.6.0 Predictable Task Entry and Shared Project Policy
+## Current Milestone: v0.7.0 Autopilot Reliability & Recovery
 
-**Goal:** A user can predict how alpha-AOS handles a request across all five supported harnesses: a shared project policy defaults to strict, each independent substantial task receives an explicit execution-style choice, and uninitialized projects are guided through GSD initialization before execution.
+**Goal:** Codex autopilot carries an authorized task from executable contract creation through automatic terminal detection, failure repair, rerun and verified final reporting without requiring the user to rediscover completion or request routine recovery.
 
 **Target features:**
-- Project-scoped strict/flexible policy, defaulting to strict, readable and changeable from every supported harness without harness-local divergence
-- Six stable task-scoped choices: 대화형-quick, 대화형-quick-full, 대화형-phase, 오토파일럿-quick, 오토파일럿-quick-full, 오토파일럿-phase, each with a concise explanation
-- A fresh choice for each independent strict-mode task; a previous choice never becomes a project default or consent for later work
-- Explicit style requests bypass the chooser for that task; direct GSD commands retain their selected workflow and timing
-- Explainable common criteria exempt simple, clearly bounded operations from the chooser and unnecessary project-initialization prompts
-- GSD readiness diagnostics distinguish absent, partial and ready projects; new-project reuses the original request, collects missing information and returns to the pending task
-- Autopilot choices retain exact-contract review, approval, separate start, model policy, isolated runner and GSD single-writer boundaries
-- Cross-harness scenario evidence, meaningful regressions, packaged guidance and English/Korean documentation
+- Generate contracts grounded in actual Exa/Context7 MCP invocation paths and validate capability readiness before approval or dispatch.
+- Deliver success, rejection, failure and interruption to the originating session; distinguish process exit from GSD acceptance.
+- Diagnose and repair recoverable contract/runtime failures, then rerun and verify within explicit purpose, authority, model and budget boundaries; design digest approval handling for revisions.
+- Remove premature handoff defaults across runtime, installed guidance and skills; handoff records must not substitute for available authorized recovery.
+- Investigate Codex behavior against Antigravity reference behavior and prove the corrected lifecycle with observable evidence.
 
-**Planning status:** Corrected milestone scope, research-first path, all 27 requirements and the five-phase roadmap approved on 2026-11-02. Research and milestone initialization are complete. Phase 27 discussion is next; detailed phase plans and implementation have not started. Outgoing v0.2.0 planning artifacts are preserved under `milestones/`; this planning rollover does not claim a release or close outstanding verification.
+**Planning status:** Owner approved milestone goals, preservation of unfinished work and Phase 35 onward on 2026-11-05. Research selection, detailed requirements approval and roadmap approval are pending. No implementation or product-level autopilot execution is authorized by milestone initialization.
+
+**Outgoing work:** v0.6.0 Phase 27-34 artifacts and pre-switch state are preserved under [milestone archives](milestones/v0.6.0-ROLLOVER.md). Archival does not mark incomplete phases complete. Package version 0.6.2 and historical milestone records are not rewritten as release evidence.
 
 ## Requirements
 
@@ -54,11 +53,12 @@ A user can enter any supported project on any supported operating system and get
 
 ### Active (keep-green)
 
-- [ ] Keep `main` green on all three OS legs so the dependency-candidate guard remains a trustworthy promotion signal (implemented in v0.1.1 Phase 12)
+Historical keep-green requirement is superseded by the owner's 2026-11-05 personal-workstation delivery policy. Scheduled dependency updates and automatic promotion remain disabled; tests and CI are optional unless separately requested.
 
 ### Active
 
-- [ ] Deliver v0.6.0 Predictable Task Entry and Shared Project Policy according to the new milestone requirements and roadmap; current task-entry behavior is not yet changed
+- [ ] Deliver v0.7.0 Autopilot Reliability & Recovery after requirements and roadmap approval
+- [ ] Preserve unfinished v0.6.0 Phases 27-34 and recovery evidence without asserting completion; see milestones/v0.6.0-ROLLOVER.md
 - [ ] Preserve outgoing v0.2.0 verification evidence and unresolved release work; the planning rollover is not publication or a new full-suite pass
 - [ ] Resolve the named managed-lifecycle gaps in the archived Phase 6 verification report; v0.1.1 Phase 11 created formal evidence and did not declare every LIFE requirement verified
 - [ ] Validate every active supported harness on at least one real host; Claude Code's own real-host invocation receipt is the outstanding item (G-07-2, REL-02)
@@ -146,4 +146,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-02 after v0.6.0 requirements and roadmap approval; milestone initialized*
+*Last updated: 2026-11-05 after owner approval of v0.7.0 milestone goals; research selection pending*

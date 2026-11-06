@@ -1,7 +1,7 @@
 ---
 phase: "39"
 slug: "tool-inventory-and-local-release-records"
-status: draft
+status: partial
 nyquist_compliant: false
 wave_0_complete: false
 created: "2026-11-06"
@@ -9,7 +9,7 @@ created: "2026-11-06"
 
 # Phase 39 — Validation Strategy
 
-> Final planning contract; execution has not started. Every row below maps to a written plan/task and real or task-produced test path. No implementation tests, build or live-host checks have run during planning.
+> The table below is the original planned verification map, not a record that each listed command was rerun verbatim. Execution evidence and unresolved gaps are recorded in the audit below.
 
 ## Test Infrastructure
 
@@ -80,7 +80,7 @@ Every `npm run build` failure (including build-artifact generation) is a task fa
 - [x] Planned checks have no watch flags, real-home mutations or external installer/network dependencies.
 - [ ] Execution evidence recorded before setting `nyquist_compliant: true` or `wave_0_complete: true`.
 
-**Approval:** Planning map complete; implementation and validation evidence remain unexecuted. `status: draft`, `nyquist_compliant: false` and `wave_0_complete: false` intentionally remain unchanged.
+**Approval:** Partial audit. Execution summaries report fixture results, but the uncovered assertions and unresolved flags below prevent a compliant sign-off. `nyquist_compliant: false` and `wave_0_complete: false` remain unchanged.
 
 ## Threat and Edge Coverage
 
@@ -91,3 +91,25 @@ Every `npm run build` failure (including build-artifact generation) is a task fa
 - A-39-EDGE-01: LOC-01 unclassified remains an unresolved flagged assumption. It is not silently resolved by adjacent fixtures; phase verification must report the classification gap.
 - P39-1/P39-2/P39-3 are projected descriptor-less prohibitions in 39-01/39-04 and remain flagged-unverified. Contract tests alone do not satisfy the separate prohibition-enforcement disposition. Preserve honest later human_needed/gaps outcomes.
 - Full source/decision coverage, raw probe dispositions, canon-referral breadcrumbs and contribution gate verdicts are in 39-SOURCE-AUDIT.md; no external API integration declaration is in COVERAGE.md.
+
+
+## Validation Audit — 2026-11-06
+
+**Result: PARTIAL.** The `not run` cells in the original table describe the planning baseline; they do not negate the later execution reports. Conversely, a summary's passing command does not prove every assertion in the planned row. No tests were rerun by this audit; the phase summaries below report their own historical Windows fixture runs. The parent is running the full suite separately.
+
+| Tasks | Recorded execution evidence | Audit limitation |
+|---|---|---|
+| 39-01-01, 39-01-02 | 39-01-SUMMARY reports build and records/CLI/validation suite passing (26 tests). | Real host and other OS remain unverified; the prohibition P39-1 has no enforcement descriptor. |
+| 39-02-01, 39-02-02 | 39-02-SUMMARY reports build and store/records/CLI/transaction suite passing (22 tests), including a terminal-rename child fault and Windows junction. | Fault simulation is not actual power loss; unsupported directory sync was simulated. |
+| 39-03-01, 39-03-02 | 39-03-SUMMARY reports build and bindings/observers/CLI suite passing (8 tests). | The child-process sentinel covers collector calls; no explicit network sentinel was found. Candidate discovery is bounded. |
+| 39-04-01, 39-04-02 | 39-04-SUMMARY reports build and targeted handoff/inventory/record/observer suite passing (26 tests), plus tarball audit. | The official npm policy ships empty; synthetic keys are not real-host proof. P39-2 and P39-3 lack enforcement descriptors. |
+| 39-05-01, 39-05-02 | 39-05-SUMMARY reports build, type check, phase suite (32 tests), consumer regression (46 tests), and narrower post-change reruns. | The compatibility fixture tests synchronous selection and a shallow directory listing, not every planned installer/apply/resolver/writer sentinel. CLI fixture hashes files in its isolated tree; it does not prove network calls cannot occur. |
+
+### Unresolved verification gaps
+
+- **T-39-20 / 39-05-02 — partial:** the observer fixture blocks `child_process` and the CLI fixture checks a tree file-hash snapshot, but explicit apply, resolver, writer and network invocation sentinels promised by the plan were not found. Source inspection is not a substitute for those behavioral assertions. The audit assignment prohibits test edits, so these missing tests are escalated for the test owner, not marked green.
+- **P39-1 / P39-2 / P39-3 — flagged-unverified:** no prohibition enforcement descriptors were authored. Adjacent read-only, health projection and handoff tests do not establish their separate disposition.
+- **A-39-EDGE-01 — flagged-unverified:** LOC-01 edge classification remains unresolved.
+- **Real-host / cross-platform:** fixture results do not prove host discovery, real tool invocation, official provenance, actual crash durability or macOS/Linux behavior.
+
+Security threat dispositions require a separate threat-by-threat evidence review; this validation record does not claim that all T-39 mitigations are closed.

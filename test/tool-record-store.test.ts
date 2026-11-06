@@ -74,3 +74,16 @@ test("checkout ancestor replacement is rejected before lock creation", async () 
     await assert.rejects(access(stateRoot));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("reader reports a started operation as interrupted after the writer closes", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aos-record-interrupted-"));
+  try {
+    const checkout = join(root, "checkout"), stateRoot = join(root, "state");
+    await mkdir(checkout);
+    const plan = await planToolRecordOperation({ stateRoot, packageRoot: checkout, operationId: "interrupted", occurredAt: "2026-01-01T00:00:00Z", requests: [{ toolId: "gsd", selector: "1.2.3", exact: true }] });
+    await withToolRecordSession(plan, async (session) => { await beginToolOperation(plan, session); });
+    const store = await readToolRecordStore({ stateRoot, packageRoot: checkout });
+    const operations = (store as unknown as { operations?: Array<{ operationId: string; status: string }> }).operations;
+    assert.equal(operations?.find((operation) => operation.operationId === "interrupted")?.status, "interrupted");
+  } finally { await rm(root, { recursive: true, force: true }); }
+});

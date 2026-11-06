@@ -3,18 +3,18 @@ gsd_state_version: "1.0"
 milestone: v0.8.0
 current_phase: 39
 current_phase_name: Tool Inventory and Local Release Records
-status: executing
-stopped_at: Phase 39 plans 01-03 complete; plan 04 incomplete pending trusted publisher key policy; plan 05 not started
-last_updated: "2026-11-06T06:03:54.007Z"
+status: verifying
+stopped_at: Phase 39 all five plans implemented; human_needed for P39-1/2/3 and A-39-EDGE-01; resume with gsd-verify-work 39
+last_updated: "2026-11-06T11:37:44Z"
 last_activity: 2026-11-06
-last_activity_desc: "Phase 39 execution: plans 01-03 complete; plan 04 decision checkpoint; plan 05 blocked by dependency"
+last_activity_desc: "Phase 39: 5/5 plans implemented; 79 targeted tests passed; verification human_needed (4 UAT items)"
 state_head: 6e628027f13595d6a204caa22668f3ef0b166dbf
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 5
+  percent: 100
 milestone_name: Unified Tool Updates & Compatibility
 ---
 
@@ -33,14 +33,14 @@ Sections 35–38 / 16 requirements have native implementation evidence. The outg
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** v0.8.0 Unified Tool Updates & Compatibility — Phase 39 plans 01-03 implemented and targeted checks passed; plan 04 implementation has a production trust-policy gap recorded in 39-04-SUMMARY.md. Plan 05 has not started. Phase verification, full suite and requirement completion remain pending. Execution uses the user-approved gpt-6.1-terra/high on gsd/phase-39-tool-inventory-and-local-release-records.
+**Current focus:** v0.8.0 Unified Tool Updates & Compatibility — Phase 39 all five plans implemented. Final targeted phase and legacy suite passed 79 tests; build, type check and tarball audit passed. Review findings resolved and security threats_open=0. Independent verification is human_needed: positive conditions 33/33, but descriptor-less P39-1/2/3 and A-39-EDGE-01 require separate review. Four items are persisted in 39-UAT.md. Phase and requirements are not marked complete; full npm test was interrupted and is not a pass. Execution used approved gpt-6.1-terra/high on gsd/phase-39-tool-inventory-and-local-release-records.
 
 ## Current Position
 
-Phase: 39 (Tool Inventory and Local Release Records) — DECISION CHECKPOINT
-Plan: 39-04 (incomplete)
-Status: Awaiting trusted publisher key provisioning/revocation policy for production retained-chain loading
-Last activity: 2026-11-06 — Plans 01-03 complete; 39-04 build and 20 targeted tests passed, production trust-policy gap persists; 39-05 pending
+Phase: 39 (Tool Inventory and Local Release Records) — HUMAN VERIFICATION
+Plan: 5/5 implemented
+Status: human_needed; resume with $gsd-verify-work 39
+Last activity: 2026-11-06 — Independent verification 33/33 positive conditions, 4 review items pending; final targeted suite 79/79 passed
 
 ### Completed Phases
 

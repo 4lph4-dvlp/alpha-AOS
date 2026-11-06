@@ -46,19 +46,19 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. Requested, resolved, installed and verified identities remain distinguishable, and interrupted or failed operations do not overwrite prior accepted identity with false success.
 4. Maintainers can see which components are alpha-AOS-owned skills/bundled libraries or external prerequisites rather than managed tool installations; the record contract defines how old stable/Cua identities will be adopted without assuming trust in arbitrary current bytes.
 
-**Plans:** 5 plans / 10 tasks; independently reviewed after one targeted revision. Implementation and live verification have not run.
+**Plans:** 5/5 plans implemented; final targeted tests 79/79, type check and package audit passed. Independent verification: human_needed (33/33 positive conditions; four separate review items in 39-UAT.md). Live host verification remains unclaimed.
 **Wave 1**
-- [ ] 39-01-PLAN.md — Actual Cua read-only inventory tracer and versioned record reader.
+- [x] 39-01-PLAN.md — Actual Cua read-only inventory tracer and versioned record reader.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 39-02-PLAN.md — Explicit safe record writer and failure/interruption history.
-- [ ] 39-03-PLAN.md — Full managed-tool observation and per-harness installation attribution.
+- [x] 39-02-PLAN.md — Explicit safe record writer and failure/interruption history.
+- [x] 39-03-PLAN.md — Full managed-tool observation and per-harness installation attribution.
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 39-04-PLAN.md — Evidence-bounded legacy handoff contract and current/accepted/latest-result reconciliation.
+- [x] 39-04-PLAN.md — Evidence-bounded legacy handoff contract and current/accepted/latest-result reconciliation.
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 39-05-PLAN.md — Default/detail/tool-and-operation-history output and consumer compatibility checks.
+- [x] 39-05-PLAN.md — Default/detail/tool-and-operation-history output and consumer compatibility checks.
 
 ### Phase 40: Local Official Release Updates
 

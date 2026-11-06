@@ -68,10 +68,10 @@ The approved roadmap allocates each requirement to exactly one phase, continuing
 
 | Requirement | Phase | Status |
 |---|---|---|
-| LOC-01 | Phase 39 | Not started |
+| LOC-01 | Phase 39 | Implemented; human verification pending |
 | LOC-02 | Phase 40 | Not started |
 | LOC-03 | Phase 40 | Not started |
-| LOC-04 | Phase 39 | Not started |
+| LOC-04 | Phase 39 | Implemented; human verification pending |
 | ADAPT-01 | Phase 41 | Not started |
 | ADAPT-02 | Phase 41 | Not started |
 | ADAPT-03 | Phase 41 | Not started |

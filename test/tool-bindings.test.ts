@@ -23,7 +23,7 @@ test("harness bindings identify shared exact package targets without exposing co
     await writeFile(join(home, ".pi", "agent", "mcp.json"), JSON.stringify({ mcpServers: { exa: { command: join(pkg, "cli.js") }, context7: { command: "npx", args: ["@upstash/context7-mcp"] } } }));
     await mkdir(join(home, ".hermes"), { recursive: true });
     await writeFile(join(home, ".hermes", "config.yaml"), JSON.stringify({ mcp_servers: { exa: { command: join(pkg, "cli.js") } } }));
-    const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home, env: { npm_config_prefix: join(root, "global"), PATH: "" } });
+    const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home, platform: process.platform === "darwin" ? "linux" : process.platform, env: { npm_config_prefix: join(root, "global"), PATH: "" } });
     const observation = result.observations.find((item) => item.toolId === "mcp:exa") as unknown as { bindings?: Array<{ harness: string; status: string }> };
     for (const harness of ["claude", "codex", "antigravity", "pi", "hermes"]) assert.equal(observation.bindings?.find((item) => item.harness === harness)?.status, "active", harness);
     const exa = result.observations.find((item) => item.toolId === "mcp:exa")!;
@@ -47,7 +47,7 @@ test("version split is informational and wrappers remain unresolved", async () =
     await writeFile(join(home, ".claude.json"), JSON.stringify({ mcpServers: { exa: { command: join(first, "cli.js") } } }));
     await writeFile(join(home, ".codex", "config.toml"), `[mcp_servers.exa]\ncommand = ${JSON.stringify(join(second, "cli.js"))}\n`);
     await writeFile(join(home, ".pi", "agent", "mcp.json"), JSON.stringify({ mcpServers: { exa: { command: "sh", args: ["-c", "SECRET_WRAPPER"] } } }));
-    const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home, env: { npm_config_prefix: join(root, "global"), PATH: "" } });
+    const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home, platform: process.platform === "darwin" ? "linux" : process.platform, env: { npm_config_prefix: join(root, "global"), PATH: "" } });
     const exa = result.observations.find((item) => item.toolId === "mcp:exa")!;
     assert.ok(exa.diagnostics?.some((diagnostic) => diagnostic.code === "version-split" && diagnostic.severity === "info"));
     assert.equal(exa.bindings?.find((binding) => binding.harness === "pi")?.status, "unresolved");

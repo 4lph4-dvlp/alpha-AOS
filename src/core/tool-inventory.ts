@@ -23,9 +23,10 @@ export interface ToolObservation {
 }
 export interface ToolInventory { observations: ToolObservation[]; records: Awaited<ReturnType<typeof readToolRecordStore>> }
 
-export async function collectToolInventory(options: { catalog: StackCatalog; lock: StackLock; packageRoot: string; stateRoot: string; home?: string; env?: NodeJS.ProcessEnv }): Promise<ToolInventory> {
+export async function collectToolInventory(options: { catalog: StackCatalog; lock: StackLock; packageRoot: string; stateRoot: string; home?: string; env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; architecture?: string; candidateRoots?: string[] }): Promise<ToolInventory> {
   const home = options.home ?? homedir(), env = options.env ?? process.env;
-  const executable = officialCuaPaths(process.platform, home, env.LOCALAPPDATA).executable;
+  const platform = options.platform ?? process.platform, architecture = options.architecture ?? process.arch;
+  const executable = officialCuaPaths(platform, home, env.LOCALAPPDATA).executable;
   let selected: ToolObservation["selected"] = null;
   let reason = "Checks have not been performed";
   try {
@@ -40,14 +41,14 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
     } finally { await pinFile.close(); }
     const pin = JSON.parse(source.toString()) as { version?: unknown; assets?: Array<{ os?: unknown; arch?: unknown; entrypoint?: unknown; sha256?: unknown }> };
     if (typeof pin.version !== "string" || !/^\d+\.\d+\.\d+$/.test(pin.version) || !Array.isArray(pin.assets)) throw new Error("invalid");
-    const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
-    const asset = pin.assets.find((item) => item && item.os === os && (item.arch === process.arch || item.arch === "universal"));
+    const os = platform === "win32" ? "windows" : platform === "darwin" ? "macos" : platform;
+    const asset = pin.assets.find((item) => item && item.os === os && (item.arch === architecture || item.arch === "universal"));
     if (!asset || typeof asset.entrypoint !== "string" || !/^[A-Za-z0-9._-]+$/.test(asset.entrypoint) || typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw new Error("unsupported or invalid asset");
     selected = { version: pin.version, source: "reviewed-pin" };
   } catch { reason = "Reviewed pin is unavailable or invalid"; }
   let installation: ToolObservation["installation"] = "unknown";
   let installed: ToolObservation["installed"] = null;
-  if (!["win32", "linux", "darwin"].includes(process.platform)) reason = "Platform is unsupported";
+  if (!["win32", "linux", "darwin"].includes(platform)) reason = "Platform is unsupported";
   else if (selected !== null) try {
     const file = await open(executable, "r");
     try {

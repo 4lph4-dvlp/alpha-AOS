@@ -50,7 +50,7 @@ function shallowJson(text: string): boolean {
   }
   return true;
 }
-function safeSource(result: ToolResult): boolean {
+export function safeToolRecordSource(result: ToolResult): boolean {
   if (result.toolId !== result.requested.toolId) return false;
   if (!result.resolved) return true;
   try {
@@ -121,7 +121,7 @@ export async function readToolRecordStore(options: { stateRoot: string; packageR
         const event = validated.value;
         const details = event.kind === "started" ? (event.requests ?? []).map((r) => r.toolId) : event.kind === "finished" ? (event.results ?? []).map((r) => r.toolId) : [event.result?.toolId];
         const results = event.kind === "finished" ? event.results ?? [] : event.result ? [event.result] : [];
-        if (operation !== event.operationId || name !== `${event.sequence}-${event.eventId}.json` || !Number.isFinite(Date.parse(event.occurredAt)) || new Set(details).size !== details.length || results.some((r) => !safeSource(r))) { result.status = "invalid"; result.diagnostics.push("event-identity-invalid"); continue; }
+        if (operation !== event.operationId || name !== `${event.sequence}-${event.eventId}.json` || !Number.isFinite(Date.parse(event.occurredAt)) || new Set(details).size !== details.length || results.some((r) => !safeToolRecordSource(r))) { result.status = "invalid"; result.diagnostics.push("event-identity-invalid"); continue; }
         const normalized = canonical(event), key = `${event.operationId}:${event.sequence}:${event.eventId}`, prior = seen.get(key);
         if (prior !== undefined) { if (prior !== normalized) { result.status = "invalid"; result.diagnostics.push("event-conflict"); } continue; }
         if ([...seen.keys()].some((k) => k.startsWith(`${event.operationId}:${event.sequence}:`) || k.endsWith(`:${event.eventId}`))) { result.status = "invalid"; result.diagnostics.push("event-conflict"); continue; }

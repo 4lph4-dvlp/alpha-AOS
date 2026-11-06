@@ -140,7 +140,7 @@ const FAILPOINTS: readonly TransactionFailpoint[] = [
   "after-final-sync",
 ];
 
-function configuredFailpoint(explicit?: TransactionFailpoint): TransactionFailpoint | null {
+function configuredFailpoint(explicit?: TransactionFailpoint | null): TransactionFailpoint | null {
   if (explicit !== undefined) return explicit;
   const fromEnvironment = process.env.ALPHA_AOS_FAILPOINT?.trim();
   if (fromEnvironment === undefined || fromEnvironment.length === 0) return null;
@@ -210,7 +210,7 @@ export interface FileTransactionOptions {
    */
   session?: MutationSession | undefined;
   /** Test-only deterministic interruption point. */
-  failpoint?: TransactionFailpoint | undefined;
+  failpoint?: TransactionFailpoint | null | undefined;
   policyOperation?: PolicyOperationMetadata | undefined;
   policyContext?: PolicyMutationContext | undefined;
 }
@@ -355,7 +355,7 @@ export async function applyFileTransaction(options: FileTransactionOptions): Pro
       const snapshot = existed ? join(snapshotRoot, `${index}.bin`) : null;
       if (snapshot && before) {
         // Recovery bytes are durable before the target is touched.
-        await writeDurable(snapshot, before, 0o600);
+        journal.directorySyncSupported = (await writeDurable(snapshot, before, 0o600)) && journal.directorySyncSupported;
       }
       trip("after-snapshot-sync", failpoint);
 
@@ -373,7 +373,7 @@ export async function applyFileTransaction(options: FileTransactionOptions): Pro
         afterHash: content === null ? null : sha256(content),
         proofDigest: createHash("sha256").update(JSON.stringify(proof.components), "utf8").digest("hex"),
       });
-      await writeJsonDurable(journalPath, journal);
+      journal.directorySyncSupported = (await writeJsonDurable(journalPath, journal)) && journal.directorySyncSupported;
       trip("after-intent-journal-sync", failpoint);
 
       // The ancestor chain is re-read immediately before the mutation, so a
@@ -385,18 +385,21 @@ export async function applyFileTransaction(options: FileTransactionOptions): Pro
 
       if (content === null) {
         await rm(target, { force: true });
-        await syncDirectory(dirname(target));
+        journal.directorySyncSupported = (await syncDirectory(dirname(target))) && journal.directorySyncSupported;
       } else {
-        await writeDurable(target, content, 0o600);
+        journal.directorySyncSupported = (await writeDurable(target, content, 0o600)) && journal.directorySyncSupported;
       }
       trip("after-target-rename", failpoint);
 
-      await writeJsonDurable(journalPath, journal);
+      journal.directorySyncSupported = (await writeJsonDurable(journalPath, journal)) && journal.directorySyncSupported;
       trip("after-step-sync", failpoint);
     }
 
     journal.status = "applied";
-    await writeJsonDurable(journalPath, journal);
+    if (!(await writeJsonDurable(journalPath, journal))) {
+      journal.directorySyncSupported = false;
+      await writeJsonDurable(journalPath, journal);
+    }
     trip("after-final-sync", failpoint);
     return journal;
   } catch (error) {

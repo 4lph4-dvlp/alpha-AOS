@@ -12,16 +12,16 @@
 
 **Goal:** Codex autopilot carries an authorized task from executable contract creation through automatic origin-session outcome detection, effective repair, rerun and final evidence-based reporting.
 
-**Roadmap status:** The owner selected native Codex development. Implementation exists across sections 35–38; subsequent live verification exposed and corrected additional defects, but the complete live acceptance journey remains unverified after provider quota exhaustion. See [follow-up evidence](../docs/reports/autopilot-live-followup-v070.md). No formal GSD phase completion is asserted.
+**Roadmap status:** The owner selected native Codex development. Implementation across sections 35–38 is complete. Subsequent live verification exposed and corrected additional defects; final live acceptance remains a separately tracked validation item after provider quota exhaustion. See [follow-up evidence](../docs/reports/autopilot-live-followup-v070.md). No formal GSD phase completion is asserted.
 
 Research: [summary](research/SUMMARY.md), [evidence](research/EVIDENCE.md). Requirements: [REQUIREMENTS.md](REQUIREMENTS.md).
 
 ## Phases
 
 - [x] **Phase 35: Executable Contracts and Capability Diagnostics** — prevent known-unexecutable starts and expose actionable capability evidence.
-- [ ] **Phase 36: Origin-Session Completion Delivery** — live accepted-task delivery remains unverified.
-- [ ] **Phase 37: Authorized Repair and Rerun** — real correction was observed; final accepted rerun remains unverified.
-- [ ] **Phase 38: Persistent Guidance and Lifecycle Evidence** — full live journey remains unverified.
+- [x] **Phase 36: Origin-Session Completion Delivery** — implementation complete; live accepted-task delivery remains unverified.
+- [x] **Phase 37: Authorized Repair and Rerun** — implementation complete; final accepted rerun remains unverified.
+- [x] **Phase 38: Persistent Guidance and Lifecycle Evidence** — implementation complete; full live journey remains unverified.
 
 ## Phase Map
 
@@ -104,10 +104,10 @@ Evidence: [implementation report](../docs/reports/autopilot-reliability-v070.md)
 
 | Section | GSD plans | Native implementation | Date |
 |---|---|---|---|
-| 35. Executable Contracts and Capability Diagnostics | Not used | Implemented; live acceptance unverified | 2026-11-06 |
-| 36. Origin-Session Completion Delivery | Not used | Implemented; live acceptance unverified | 2026-11-06 |
-| 37. Authorized Repair and Rerun | Not used | Implemented; live acceptance unverified | 2026-11-06 |
-| 38. Persistent Guidance and Lifecycle Evidence | Not used | Implemented; live acceptance unverified | 2026-11-06 |
+| 35. Executable Contracts and Capability Diagnostics | Not used | Implementation complete; live verification pending | 2026-11-06 |
+| 36. Origin-Session Completion Delivery | Not used | Implementation complete; live verification pending | 2026-11-06 |
+| 37. Authorized Repair and Rerun | Not used | Implementation complete; live verification pending | 2026-11-06 |
+| 38. Persistent Guidance and Lifecycle Evidence | Not used | Implementation complete; live verification pending | 2026-11-06 |
 
 ## Coverage
 

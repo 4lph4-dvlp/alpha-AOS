@@ -2,28 +2,28 @@
 gsd_state_version: "1.0"
 milestone: v0.7.0
 milestone_name: Autopilot Reliability & Recovery
-current_phase_name: roadmap approval pending; first phase 35
-status: Planning (roadmap approval pending)
-stopped_at: Awaiting owner approval of the proposed v0.7.0 Phase 35-38 roadmap; implementation not started
-last_updated: "2026-11-05T09:09:08.838Z"
-last_activity: 2026-11-05
-last_activity_desc: Requirements approved; four-phase roadmap drafted
-state_head: 478887a4a97b7316ce25bc8914455871069732ea
+current_phase_name: phases 35-38 implemented; live acceptance verification pending
+status: Implementation complete; live acceptance verification pending
+stopped_at: Native implementation of phases 35-38 complete; live acceptance verification stopped by provider quota
+last_updated: "2026-11-06T00:33:09.031Z"
+last_activity: 2026-11-06
+last_activity_desc: Native implementation complete; provider quota blocked final live acceptance verification
+state_head: 551e41d847b08d2eac07dd63ac6d845e283e76fc
 progress:
   total_phases: 4
-  completed_phases: 0
+  completed_phases: 4
   total_plans: 0
   completed_plans: 0
-  percent: 0
+  percent: 100
 ---
 
 # Project State
 
-**Workflow change (2026-11-05):** The owner selected native Codex development without GSD orchestration. The GSD position, approval checkpoint and session-continuity fields below are retained historical tracking, not active prerequisites. Requirements and the completed Phase 35-38 reference roadmap remain the development scope; native implementation is recorded below. See AGENTS.md and PROJECT.md for the current workflow.
+**Workflow change (2026-11-05):** The owner selected native Codex development without GSD orchestration. The GSD position records native implementation progress; live acceptance remains a separate outstanding validation item. Requirements and the completed Phase 35-38 reference roadmap remain the development scope; native implementation is recorded below. See AGENTS.md and PROJECT.md for the current workflow.
 
 ## Native delivery (2026-11-06)
 
-Sections 35–38 / 16 requirements are implemented with native Codex tools. The YAML GSD fields above remain the historical planning position; no GSD phase or milestone completion was invoked. Current implementation, targeted checks, real native delivery probes and unverified host boundaries are in [the delivery report](../docs/reports/autopilot-reliability-v070.md). No old contract was restarted and no global install, publication or push was performed.
+Sections 35–38 / 16 requirements are implemented with native Codex tools. The YAML progress counts implementation of the four roadmap sections; it does not assert live acceptance or formal milestone completion. Current implementation, targeted checks, real native delivery probes and unverified host boundaries are in [the delivery report](../docs/reports/autopilot-reliability-v070.md). No old contract was restarted and no global install, publication or push was performed.
 
 **Follow-up (2026-11-06):** Real Codex/MCP testing found further defects. The latest task stopped on provider quota without accepted GSD work; live acceptance remains unverified. See [follow-up evidence](../docs/reports/autopilot-live-followup-v070.md).
 
@@ -32,14 +32,14 @@ Sections 35–38 / 16 requirements are implemented with native Codex tools. The 
 See: .planning/PROJECT.md (updated 2026-11-05)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** v0.7.0 Autopilot Reliability & Recovery — research and all 16 requirements approved; proposed Phases 35-38 await roadmap approval. No implementation started. Outgoing Phase 27-34 status is preserved in milestones/v0.6.0-ROLLOVER.md and its linked archives.
+**Current focus:** v0.7.0 Autopilot Reliability & Recovery — phases 35–38 implemented; final live acceptance verification remains pending after provider quota exhaustion. Outgoing Phase 27-34 status is preserved in milestones/v0.6.0-ROLLOVER.md and its linked archives.
 
 ## Current Position
 
-Phase: Not started (roadmap approval pending; first phase 35)
+Phase: 35–38 implementation complete; live verification pending
 Plan: —
-Status: Planning (roadmap approval pending)
-Last activity: 2026-11-05 — Requirements approved; four-phase roadmap drafted
+Status: Implementation complete; live acceptance verification pending
+Last activity: 2026-11-06 — Native implementation and targeted checks completed; live acceptance blocked by provider quota
 
 ### Completed Phases
 
@@ -465,7 +465,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 ## Session Continuity
 
 Last session: 2026-11-05T09:09:08.756Z
-Stopped at: Awaiting owner approval of the proposed v0.7.0 Phase 35-38 roadmap; implementation not started
+Stopped at: Native implementation complete; live acceptance verification stopped by provider quota
 Resume file: .planning/ROADMAP.md
 
 ## Operator Next Steps

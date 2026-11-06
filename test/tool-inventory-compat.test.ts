@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -18,9 +18,12 @@ test("legacy selection accepts synchronous inventory and new observation leaves 
     const catalog = await loadCatalog(resolve(".")), lock = await loadLock(resolve("."));
     const inventory: Inventory = { schemaVersion: 1, generatedAt: new Date(0).toISOString(), platform: process.platform, architecture: process.arch, tools: { node: { version: null, command: null }, npm: { version: null, command: null }, git: { version: null, command: null } }, harnesses: [{ id: "codex", displayName: "Codex", command: "codex", version: null, configRoots: [], detected: true, notes: [] }] };
     assert.deepEqual(selectInstallTargets(inventory), { targets: ["codex"], selection: "detected" });
+    await writeFile(join(root, process.platform === "win32" ? "python.exe" : "python"), "fixture");
     const before = await readdir(root);
-    const observed = await collectToolInventory({ catalog, lock, packageRoot: resolve("."), stateRoot: join(root, "state"), home: root, env: { PATH: "", npm_config_prefix: join(root, "prefix") }, platform: process.platform === "darwin" ? "linux" : process.platform });
+    const observed = await collectToolInventory({ catalog, lock, packageRoot: resolve("."), stateRoot: join(root, "state"), home: root, env: { PATH: root, npm_config_prefix: join(root, "prefix") }, platform: process.platform === "darwin" ? "linux" : process.platform });
     assert.ok(observed.observations.length >= 7);
+    assert.equal(observed.components?.find((component) => component.id === "python")?.status, "installed");
+    assert.equal(observed.components?.find((component) => component.id === "python")?.version, null);
     assert.deepEqual(await readdir(root), before);
   } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -1,7 +1,7 @@
 import { open, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import { officialCuaPaths } from "./computer-use-install.js";
 import { readToolRecordStore } from "./tool-records.js";
 import { evaluateLegacyHandoff, type LegacyHandoffAssessment } from "./tool-handoff.js";
@@ -178,8 +178,14 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
       components.push({ category: "bundled-library", id: name, status, version, reason: status === "installed" ? "package manifest observed" : "package manifest absent or unreadable" });
     }
   } catch { components.push({ category: "bundled-library", id: "package-manifest", status: "unknown", version: null, reason: "dependency list unavailable" }); }
-  for (const id of ["node", "npm", "git", "python", "uv", "pipx", "cli-hub"]) components.push({ category: "external-prerequisite", id, status: "unknown", version: null, reason: "version not observed; no executable invoked" });
-  for (const id of toolHarnesses) components.push({ category: "harness-application", id, status: "unknown", version: null, reason: "application version not observed" });
+  const pathEntries = (env.PATH ?? "").split(delimiter).filter((entry) => entry.length > 0 && entry.length <= 4096).slice(0, 128);
+  const observeCommand = async (id: string): Promise<InventoryComponent["status"]> => {
+    const names = platform === "win32" ? [`${id}.exe`, `${id}.cmd`, `${id}.bat`, id] : [id];
+    for (const directory of pathEntries) for (const name of names) try { if ((await stat(join(directory, name))).isFile()) return "installed"; } catch { /* bounded discovery does not prove absence */ }
+    return "unknown";
+  };
+  for (const id of ["node", "npm", "git", "python", "uv", "pipx", "cli-hub"]) { const status = await observeCommand(id); components.push({ category: "external-prerequisite", id, status, version: null, reason: status === "installed" ? "command file observed; version not checked" : "command not established within bounded PATH; version not checked" }); }
+  for (const id of toolHarnesses) { const status = await observeCommand(id); components.push({ category: "harness-application", id, status, version: null, reason: status === "installed" ? "command file observed; version not checked" : "application not established within bounded PATH" }); }
   const categories: ComponentCategory[] = ["alpha-aos-owned-skill", "bundled-library", "external-prerequisite", "harness-application"];
   const categorySummaries = categories.map((category) => { const entries = components.filter((item) => item.category === category); return { category, count: entries.length, statuses: { installed: entries.filter((item) => item.status === "installed").length, absent: entries.filter((item) => item.status === "absent").length, unknown: entries.filter((item) => item.status === "unknown").length } }; });
   for (const item of observations) {

@@ -1,0 +1,10 @@
+{
+  "actual": "only Cua is returned",
+  "command": "node --test --test-reporter=tap dist/test/tool-observers.test.js",
+  "exitCode": 1,
+  "semanticAssessment": "Target assertion executed and failed because only Cua was returned.",
+  "targetTest": "inventory seeds every managed tool even when candidates are absent",
+  "expected": "seven managed tool IDs",
+  "output": "TAP version 13\r\n# Subtest: inventory seeds every managed tool even when candidates are absent\r\nnot ok 1 - inventory seeds every managed tool even when candidates are absent\r\n  ---\r\n  duration_ms: 2171.4265\r\n  type: 'test'\r\n  location: 'D:\\\\dev\\\\alpha-AOS\\\\dist\\\\test\\\\tool-observers.test.js:7:1'\r\n  failureType: 'testCodeFailure'\r\n  error: |-\r\n    Expected values to be strictly deep-equal:\r\n    + actual - expected\r\n    \r\n      [\r\n        'cua-driver',\r\n    -   'gsd',\r\n    -   'ecc',\r\n    -   'mcp:context7',\r\n    -   'mcp:exa',\r\n    -   'mcp:firecrawl',\r\n    -   'bridge:pi'\r\n      ]\r\n    \r\n  code: 'ERR_ASSERTION'\r\n  name: 'AssertionError'\r\n  expected:\r\n    0: 'cua-driver'\r\n    1: 'gsd'\r\n    2: 'ecc'\r\n    3: 'mcp:context7'\r\n    4: 'mcp:exa'\r\n    5: 'mcp:firecrawl'\r\n    6: 'bridge:pi'\r\n  actual:\r\n    0: 'cua-driver'\r\n  operator: 'deepStrictEqual'\r\n  stack: |-\r\n    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-observers.test.js:14:16)\r\n    async Test.run (node:internal/test_runner/test:1110:7)\r\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)\r\n  ...\r\n1..1\r\n# tests 1\r\n# suites 0\r\n# pass 0\r\n# fail 1\r\n# cancelled 0\r\n# skipped 0\r\n# todo 0\r\n# duration_ms 2384.8821\r\n",
+  "targetFile": "test/tool-observers.test.ts"
+}

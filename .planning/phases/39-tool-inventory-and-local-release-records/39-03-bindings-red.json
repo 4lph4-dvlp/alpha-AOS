@@ -1,0 +1,10 @@
+{
+  "targetTest": "harness bindings identify shared exact package targets without exposing configuration",
+  "command": "node --test --test-reporter=tap dist/test/tool-bindings.test.js",
+  "expected": "Claude exact package binding is active",
+  "actual": "binding absent",
+  "exitCode": 1,
+  "output": "TAP version 13\r\n# Subtest: harness bindings identify shared exact package targets without exposing configuration\r\nnot ok 1 - harness bindings identify shared exact package targets without exposing configuration\r\n  ---\r\n  duration_ms: 968.9178\r\n  type: 'test'\r\n  location: 'D:\\\\dev\\\\alpha-AOS\\\\dist\\\\test\\\\tool-bindings.test.js:8:1'\r\n  failureType: 'testCodeFailure'\r\n  error: |-\r\n    Expected values to be strictly equal:\r\n    + actual - expected\r\n    \r\n    + undefined\r\n    - 'active'\r\n    \r\n  code: 'ERR_ASSERTION'\r\n  name: 'AssertionError'\r\n  expected: 'active'\r\n  operator: 'strictEqual'\r\n  stack: |-\r\n    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-bindings.test.js:19:16)\r\n    async Test.run (node:internal/test_runner/test:1110:7)\r\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)\r\n  ...\r\n1..1\r\n# tests 1\r\n# suites 0\r\n# pass 0\r\n# fail 1\r\n# cancelled 0\r\n# skipped 0\r\n# todo 0\r\n# duration_ms 1765.8084\r\n",
+  "targetFile": "test/tool-bindings.test.ts",
+  "semanticAssessment": "Target assertion ran and failed on missing binding."
+}

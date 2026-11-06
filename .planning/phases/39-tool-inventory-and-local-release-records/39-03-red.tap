@@ -1,0 +1,49 @@
+TAP version 13
+# Subtest: inventory seeds every managed tool even when candidates are absent
+not ok 1 - inventory seeds every managed tool even when candidates are absent
+  ---
+  duration_ms: 2171.4265
+  type: 'test'
+  location: 'D:\\dev\\alpha-AOS\\dist\\test\\tool-observers.test.js:7:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+    
+      [
+        'cua-driver',
+    -   'gsd',
+    -   'ecc',
+    -   'mcp:context7',
+    -   'mcp:exa',
+    -   'mcp:firecrawl',
+    -   'bridge:pi'
+      ]
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0: 'cua-driver'
+    1: 'gsd'
+    2: 'ecc'
+    3: 'mcp:context7'
+    4: 'mcp:exa'
+    5: 'mcp:firecrawl'
+    6: 'bridge:pi'
+  actual:
+    0: 'cua-driver'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-observers.test.js:14:16)
+    async Test.run (node:internal/test_runner/test:1110:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 2384.8821

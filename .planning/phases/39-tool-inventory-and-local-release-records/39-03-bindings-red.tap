@@ -1,0 +1,33 @@
+TAP version 13
+# Subtest: harness bindings identify shared exact package targets without exposing configuration
+not ok 1 - harness bindings identify shared exact package targets without exposing configuration
+  ---
+  duration_ms: 968.9178
+  type: 'test'
+  location: 'D:\\dev\\alpha-AOS\\dist\\test\\tool-bindings.test.js:8:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+    
+    + undefined
+    - 'active'
+    
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'active'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-bindings.test.js:19:16)
+    async Test.run (node:internal/test_runner/test:1110:7)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1765.8084

@@ -72,7 +72,7 @@ test("PATH candidates follow bounded real targets to package manifests", async (
     await writeFile(join(root, "custom-package", "package.json"), JSON.stringify({ name: "exa-mcp-server", version: "8.0.0" }));
     await writeFile(join(bin, "exa-mcp-server"), "fixture");
     const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home: join(root, "home"), platform: process.platform === "darwin" ? "linux" : process.platform, env: { npm_config_prefix: join(root, "prefix"), PATH: bin } });
-    assert.equal(result.observations.find((item) => item.toolId === "mcp:exa")?.candidates?.[0]?.version, "8.0.0");
+    assert.ok(result.observations.find((item) => item.toolId === "mcp:exa")?.candidates?.some((candidate) => candidate.version === "8.0.0"));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

@@ -67,7 +67,7 @@ export async function attributeToolInstallations(observations: ToolObservation[]
   for (const item of observations) {
     for (const candidate of item.candidates ?? []) {
       const matched = records.events.flatMap((event) => event.results ?? (event.result ? [event.result] : [])).find((result) => result.toolId === item.toolId && result.installed?.pathAlias === candidate.path && records.accepted?.[`${item.toolId}/${result.installed.installationId}`]);
-      candidate.installationOwner = matched ? "alpha-aos" : records.status === "absent" || (records.status === "current" && !records.incomplete) ? "external" : "unknown";
+      candidate.installationOwner = matched ? "alpha-aos" : candidate.evidence === "path-name-unverified" ? "unknown" : records.status === "absent" || (records.status === "current" && !records.incomplete) ? "external" : "unknown";
     }
     const bindings: ToolBinding[] = [];
     for (const intent of intents.filter((entry) => entry.toolId === item.toolId)) {

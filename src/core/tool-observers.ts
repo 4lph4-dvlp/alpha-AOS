@@ -1,5 +1,5 @@
 import { open, realpath } from "node:fs/promises";
-import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
+import { delimiter, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import { officialCuaPaths } from "./computer-use-install.js";
 import { globalGsdConfigRoot } from "./install.js";
 import { globalEccSkillRoot } from "./ecc-skills.js";
@@ -94,6 +94,9 @@ export async function observeManagedTools(context: ToolObserverContext, cua: Too
     for (const entry of pathEntries) for (const name of binaries[spec.id] ?? []) {
       try {
         const target = await realpath(join(entry, name));
+        const state = await observeFile(target);
+        if (state === "ok") candidates.push({ path: target, version: null, identity: `${spec.id}:unverified`, installationOwner: "unknown", evidence: "path-name-unverified" });
+        else uncertain = true;
         let directory = dirname(target);
         for (let i = 0; i < 5; i++) { manifests.push(join(directory, "package.json")); const parent = dirname(directory); if (parent === directory) break; directory = parent; }
       } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") uncertain = true; }
@@ -118,7 +121,7 @@ export async function observeManagedTools(context: ToolObserverContext, cua: Too
       const metadata = await Promise.all([boundedText(join(root, ".gsd-profile"), 4096), boundedText(join(root, "gsd-core", ".gsd-runtime"), 4096)]);
       if (metadata.some((item) => item.state === "unknown")) uncertain = true;
       if (file.state === "unknown") uncertain = true;
-      if (file.state === "ok") try { candidates.push({ path: await realpath(dirname(path)), version: safeVersion(file.text!.trim()), identity: "@opengsd/gsd-core", installationOwner: "unknown", evidence: "gsd-version" }); } catch { uncertain = true; }
+      if (file.state === "ok" || metadata.some((item) => item.state === "ok")) try { candidates.push({ path: await realpath(dirname(path)), version: file.state === "ok" ? safeVersion(file.text!.trim()) : null, identity: "@opengsd/gsd-core", installationOwner: "unknown", evidence: file.state === "ok" ? "gsd-version" : "gsd-metadata" }); } catch { uncertain = true; }
     }
     if (spec.id === "ecc" && lock.components.ecc) for (const harness of toolHarnesses) for (const skill of lock.components.ecc.skills) {
       if (!/^[a-z0-9-]{1,128}$/.test(skill)) { uncertain = true; continue; }
@@ -128,8 +131,10 @@ export async function observeManagedTools(context: ToolObserverContext, cua: Too
       if (file.state === "unknown") uncertain = true;
       if (file.state === "ok") try { candidates.push({ path: await realpath(path), version: null, identity: "ecc-universal", installationOwner: "unknown", evidence: "skill-file" }); } catch { uncertain = true; }
     }
-    const unique = [...new Map(candidates.map((candidate) => [candidate.path, candidate])).values()].sort((a, b) => a.path.localeCompare(b.path));
-    results.push({ toolId: spec.id, installation: unique.length ? "installed" : uncertain ? "unknown" : "absent", installed: unique.length === 1 ? { version: unique[0]!.version, source: "observed-file" } : null, selected: spec.pkg ? { version: spec.pkg.version, source: "reviewed-pin" } : null, integrity: "unverified", integration: "unverified", reason: uncertain ? "Some candidates could not be observed" : "Only listed candidates were checked; other installations are unobserved", nextAction: "Inspect candidates and run explicit verification", candidates: unique, checkedRoots, scope: "bounded-candidates; outside scope unobserved" });
+    const distinct = candidates.filter((candidate) => candidate.evidence !== "path-name-unverified" || !candidates.some((other) => other.evidence === "package-manifest" && candidate.path.startsWith(`${other.path}${sep}`)));
+    const unique = [...new Map(distinct.map((candidate) => [candidate.path, candidate])).values()].sort((a, b) => a.path.localeCompare(b.path));
+    const identified = unique.filter((candidate) => candidate.evidence !== "path-name-unverified");
+    results.push({ toolId: spec.id, installation: identified.length ? "installed" : uncertain || unique.length ? "unknown" : "absent", installed: identified.length === 1 ? { version: identified[0]!.version, source: "observed-file" } : null, selected: spec.pkg ? { version: spec.pkg.version, source: "reviewed-pin" } : null, integrity: "unverified", integration: "unverified", reason: uncertain ? "Some candidates could not be observed" : "Only listed candidates were checked; other installations are unobserved", nextAction: "Inspect candidates and run explicit verification", candidates: unique, checkedRoots, scope: "bounded-candidates; outside scope unobserved" });
   }
   return results;
 }

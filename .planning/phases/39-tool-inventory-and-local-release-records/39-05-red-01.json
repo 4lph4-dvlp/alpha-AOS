@@ -1,0 +1,10 @@
+{
+  "command": "node --test --test-reporter=tap --test-name-pattern inventory formatter shows category summaries dist/test/tool-inventory.test.js",
+  "exitCode": 1,
+  "output": "TAP version 13\n# Subtest: inventory formatter shows category summaries\nnot ok 1 - inventory formatter shows category summaries\n  ---\n  duration_ms: 352.3622\n  type: 'test'\n  location: 'D:\\\\dev\\\\alpha-AOS\\\\dist\\\\test\\\\tool-inventory.test.js:5:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    The input did not match the regular expression /bundled-library.*2/. Input:\n    \n    ''\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected:\n  actual: ''\n  operator: 'match'\n  stack: |-\n    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-inventory.test.js:8:12)\n    async Test.run (node:internal/test_runner/test:1110:7)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 0\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 1866.856\n",
+  "targetTest": "inventory formatter shows category summaries",
+  "targetFile": "dist/test/tool-inventory.test.js",
+  "expected": "category summary appears",
+  "actual": "empty output",
+  "semanticAssessment": "Target executed and failed its category summary assertion."
+}

@@ -4,6 +4,12 @@ import test from "node:test";
 import { reconcileToolState, type ToolObservation } from "../src/core/tool-inventory.js";
 import type { ToolRecordEvent, ToolRecordStore, ToolResult } from "../src/core/tool-records.js";
 
+test("inventory formatter shows category summaries", async () => {
+  const { formatToolInventory } = await import("../src/format.js");
+  const inventory = { observations: [], records: { status: "absent" as const, events: [], accepted: null, diagnostics: [], incomplete: false, operations: [] }, categorySummaries: [{ category: "bundled-library", count: 2, statuses: { installed: 1, absent: 0, unknown: 1 } }] };
+  assert.match(formatToolInventory(inventory), /bundled-library.*2/);
+});
+
 test("prior acceptance and a later failure do not promote the observed installation", () => {
   const result: ToolResult = { toolId: "cua-driver", requested: { toolId: "cua-driver", selector: "1.0.0", exact: true }, resolved: { release: "1.0.0", artifact: "cua.zip", architecture: "x64", digest: "a".repeat(64), sourceId: "driver-release", sourceUrl: "https://github.com/trycua/cua/releases/download/v1/cua.zip", platform: "windows" }, installed: { installationId: "old", version: "1.0.0", pathAlias: "cua" }, verified: null, evidence: [], outcome: "succeeded" };
   const accepted: ToolRecordEvent = { schemaVersion: 1, eventId: "old-finish", operationId: "old", sequence: 2, occurredAt: "2026-01-01T00:00:00Z", kind: "finished", results: [result], outcome: "succeeded", acceptedTransitions: [] };

@@ -64,15 +64,17 @@ async function exactPackageTarget(candidate: ToolCandidate, target: string): Pro
 
 export async function attributeToolInstallations(observations: ToolObservation[], intents: BindingIntent[], records: ToolRecordStore, context: ToolObserverContext): Promise<void> {
   for (const item of observations) {
+    const acceptedResults = records.events.flatMap((event) => event.results ?? (event.result ? [event.result] : [])).filter((result) => result.toolId === item.toolId && result.installed && records.accepted?.[`${item.toolId}/${result.installed.installationId}`]);
     for (const candidate of item.candidates ?? []) {
-      const matched = records.events.flatMap((event) => event.results ?? (event.result ? [event.result] : [])).find((result) => result.toolId === item.toolId && result.installed?.pathAlias === candidate.path && records.accepted?.[`${item.toolId}/${result.installed.installationId}`]);
-      candidate.installationOwner = matched ? "alpha-aos" : candidate.evidence === "path-name-unverified" ? "unknown" : records.status === "absent" || (records.status === "current" && !records.incomplete) ? "external" : "unknown";
+      const matched = acceptedResults.find((result) => result.installed?.pathAlias === candidate.path);
+      const unresolvedRecord = acceptedResults.some((result) => !isAbsolute(result.installed!.pathAlias));
+      candidate.installationOwner = matched ? "alpha-aos" : candidate.evidence === "path-name-unverified" || unresolvedRecord ? "unknown" : records.status === "absent" || (records.status === "current" && !records.incomplete) ? "external" : "unknown";
     }
     const bindings: ToolBinding[] = [];
     for (const intent of intents.filter((entry) => entry.toolId === item.toolId)) {
       const matches: ToolCandidate[] = [];
       if (intent.target) for (const candidate of item.candidates ?? []) if (await exactPackageTarget(candidate, intent.target)) matches.push(candidate);
-      bindings.push({ harness: intent.harness, status: matches.length === 1 ? "active" : intent.reason.startsWith("config-") ? "unknown" : "unresolved", candidatePath: matches.length === 1 ? matches[0]!.path : null, connectionOwner: intent.connectionOwner ?? "unknown", reason: matches.length > 1 ? "ambiguous-target" : matches.length === 1 ? "exact-manifest-target" : intent.reason, nextAction: matches.length === 1 ? "Run explicit integration verification" : "Inspect native connection" });
+      bindings.push({ harness: intent.harness, status: matches.length === 1 ? "active" : intent.reason.startsWith("config-") ? "unknown" : "unresolved", candidatePath: matches.length === 1 ? matches[0]!.path : null, connectionOwner: intent.connectionOwner ?? "unknown", reason: matches.length > 1 ? "ambiguous-target" : matches.length === 1 ? "exact-manifest-target" : intent.target && item.candidates?.length ? "target-unmatched" : intent.reason, nextAction: matches.length === 1 ? "Run explicit integration verification" : "Inspect native connection" });
     }
     if (item.toolId === "gsd" || item.toolId === "ecc") for (const harness of toolHarnesses) {
       if (item.toolId === "gsd") {
@@ -97,6 +99,8 @@ export async function attributeToolInstallations(observations: ToolObservation[]
     const versions = new Set((item.candidates ?? []).filter((candidate) => activePaths.includes(candidate.path) && candidate.version !== null).map((candidate) => candidate.version));
     if (versions.size > 1) diagnostics.push({ severity: "info", code: "version-split" });
     if (bindings.some((binding) => binding.status !== "active")) diagnostics.push({ severity: "problem", code: "usage-unresolved" });
+    if (bindings.some((binding) => binding.reason === "target-unmatched" || binding.reason === "ambiguous-target")) diagnostics.push({ severity: "problem", code: "target-conflict" });
+    if (acceptedResults.some((result) => isAbsolute(result.installed!.pathAlias) && !(item.candidates ?? []).some((candidate) => candidate.path === result.installed!.pathAlias))) diagnostics.push({ severity: "problem", code: "record-target-mismatch" });
     item.diagnostics = diagnostics;
     const active = new Set(bindings.filter((binding) => binding.status === "active").map((binding) => binding.candidatePath));
     item.candidates?.sort((a, b) => Number(active.has(b.path)) - Number(active.has(a.path)) || a.path.localeCompare(b.path));

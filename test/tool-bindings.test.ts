@@ -39,7 +39,7 @@ test("version split is informational and wrappers remain unresolved", async () =
   const root = await mkdtemp(join(tmpdir(), "aos-bindings-split-"));
   try {
     const home = join(root, "home"), first = join(root, "v1"), second = join(root, "v2");
-    for (const path of [home, first, second, join(home, ".codex"), join(home, ".pi", "agent")]) await mkdir(path, { recursive: true });
+    for (const path of [home, first, second, join(home, ".codex"), join(home, ".pi", "agent"), join(home, ".gemini", "config")]) await mkdir(path, { recursive: true });
     for (const [path, version] of [[first, "1.0.0"], [second, "2.0.0"]] as const) {
       await writeFile(join(path, "package.json"), JSON.stringify({ name: "exa-mcp-server", version, bin: "cli.js" }));
       await writeFile(join(path, "cli.js"), "fixture");
@@ -47,9 +47,11 @@ test("version split is informational and wrappers remain unresolved", async () =
     await writeFile(join(home, ".claude.json"), JSON.stringify({ mcpServers: { exa: { command: join(first, "cli.js") } } }));
     await writeFile(join(home, ".codex", "config.toml"), `[mcp_servers.exa]\ncommand = ${JSON.stringify(join(second, "cli.js"))}\n`);
     await writeFile(join(home, ".pi", "agent", "mcp.json"), JSON.stringify({ mcpServers: { exa: { command: "sh", args: ["-c", "SECRET_WRAPPER"] } } }));
+    await writeFile(join(home, ".gemini", "config", "mcp_config.json"), JSON.stringify({ mcpServers: { exa: { command: join(root, "unmatched") } } }));
     const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home, platform: process.platform === "darwin" ? "linux" : process.platform, env: { npm_config_prefix: join(root, "global"), PATH: "" } });
     const exa = result.observations.find((item) => item.toolId === "mcp:exa")!;
     assert.ok(exa.diagnostics?.some((diagnostic) => diagnostic.code === "version-split" && diagnostic.severity === "info"));
+    assert.ok(exa.diagnostics?.some((diagnostic) => diagnostic.code === "target-conflict" && diagnostic.severity === "problem"));
     assert.equal(exa.bindings?.find((binding) => binding.harness === "pi")?.status, "unresolved");
     assert.doesNotMatch(JSON.stringify(result), /SECRET_WRAPPER/);
   } finally { await rm(root, { recursive: true, force: true }); }

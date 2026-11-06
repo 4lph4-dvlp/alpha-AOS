@@ -28,7 +28,15 @@ export interface ToolObservation {
   latestOperation?: { operationId: string; status: string; version: string | null; outcome: string | null } | null;
   proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string };
 }
-export interface ToolInventory { observations: ToolObservation[]; records: Awaited<ReturnType<typeof readToolRecordStore>> }
+export type ComponentCategory = "alpha-aos-owned-skill" | "bundled-library" | "external-prerequisite" | "harness-application";
+export interface InventoryComponent { category: ComponentCategory; id: string; status: "installed" | "absent" | "unknown"; reason: string; version: string | null }
+export interface CategorySummary { category: ComponentCategory; count: number; statuses: Record<InventoryComponent["status"], number> }
+export interface ToolInventory { observations: ToolObservation[]; records: Awaited<ReturnType<typeof readToolRecordStore>>; components?: InventoryComponent[]; categorySummaries?: CategorySummary[] }
+
+export function orderToolObservations(observations: ToolObservation[]): ToolObservation[] {
+  const problem = (item: ToolObservation) => item.installation === "unknown" || item.integrity === "failed" || item.integration === "failed" || item.handoff?.status === "ambiguous" || item.diagnostics?.some((d) => d.severity === "problem") || item.bindings?.some((b) => b.status !== "active");
+  return [...observations].sort((a, b) => Number(Boolean(problem(b))) - Number(Boolean(problem(a))) || a.toolId.localeCompare(b.toolId));
+}
 
 export function reconcileToolState(item: ToolObservation, records: ToolInventory["records"], current?: { path: string; fingerprint: string; platform: string; architecture: string }): void {
   item.integrity = item.installation === "unknown" ? "unknown" : "unverified";
@@ -144,5 +152,38 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
     for (const binding of item.bindings ?? []) if (binding.candidatePath !== null) binding.candidatePath = pathId(binding.candidatePath);
     if (item.checkedRoots) item.checkedRoots = item.checkedRoots.map(pathId);
   }
-  return { observations, records };
+  const { boundedText, toolHarnesses } = await import("./tool-observers.js");
+  const { destinationFor, renderOwnedSkill } = await import("./owned-skills.js");
+  const components: InventoryComponent[] = [];
+  for (const skill of options.catalog.components.ownedSkills) {
+    const source = await boundedText(join(options.packageRoot, skill.source));
+    for (const harness of skill.targets) {
+      const destination = await boundedText(destinationFor(harness, skill.id, undefined, env, home));
+      const status = destination.state === "absent" ? "absent" : destination.state === "ok" && source.state === "ok" ? "installed" : "unknown";
+      let reason = destination.state === "absent" ? "destination absent" : "source or destination unreadable";
+      if (status === "installed") try { reason = destination.text === renderOwnedSkill(source.text!, harness, skill.invocation, skill.argumentHint) ? "matches rendered source" : "differs from rendered source"; } catch { reason = "source cannot be rendered"; }
+      components.push({ category: "alpha-aos-owned-skill", id: `${skill.id}:${harness}`, status, version: null, reason });
+    }
+  }
+  const manifest = await boundedText(join(options.packageRoot, "package.json"));
+  try {
+    if (manifest.state !== "ok") throw new Error("unreadable manifest");
+    const dependencies = (JSON.parse(manifest.text!) as { dependencies?: Record<string, string> }).dependencies ?? {};
+    for (const name of Object.keys(dependencies).sort()) {
+      const file = await boundedText(join(options.packageRoot, "node_modules", name, "package.json"));
+      let version: string | null = null, status: InventoryComponent["status"] = file.state === "absent" ? "absent" : "unknown";
+      if (file.state === "ok") try { const parsed = JSON.parse(file.text!) as { name?: unknown; version?: unknown }; if (parsed.name === name && typeof parsed.version === "string" && /^[\w.+-]{1,128}$/.test(parsed.version)) { status = "installed"; version = parsed.version; } } catch { /* unknown manifest */ }
+      components.push({ category: "bundled-library", id: name, status, version, reason: status === "installed" ? "package manifest observed" : "package manifest absent or unreadable" });
+    }
+  } catch { components.push({ category: "bundled-library", id: "package-manifest", status: "unknown", version: null, reason: "dependency list unavailable" }); }
+  for (const id of ["node", "npm", "git", "python", "uv", "pipx", "cli-hub"]) components.push({ category: "external-prerequisite", id, status: "unknown", version: null, reason: "version not observed; no executable invoked" });
+  for (const id of toolHarnesses) components.push({ category: "harness-application", id, status: "unknown", version: null, reason: "application version not observed" });
+  const categories: ComponentCategory[] = ["alpha-aos-owned-skill", "bundled-library", "external-prerequisite", "harness-application"];
+  const categorySummaries = categories.map((category) => { const entries = components.filter((item) => item.category === category); return { category, count: entries.length, statuses: { installed: entries.filter((item) => item.status === "installed").length, absent: entries.filter((item) => item.status === "absent").length, unknown: entries.filter((item) => item.status === "unknown").length } }; });
+  for (const item of observations) {
+    const active = new Set(item.bindings?.filter((binding) => binding.status === "active").map((binding) => binding.candidatePath));
+    item.candidates?.sort((a, b) => Number(active.has(b.path)) - Number(active.has(a.path)) || a.path.localeCompare(b.path));
+    item.bindings?.sort((a, b) => a.harness.localeCompare(b.harness) || (a.candidatePath ?? "").localeCompare(b.candidatePath ?? ""));
+  }
+  return { observations: orderToolObservations(observations), records, components, categorySummaries };
 }

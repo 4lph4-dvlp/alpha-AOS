@@ -18,7 +18,7 @@ test("inventory seeds every managed tool even when candidates are absent", async
       env: { ...process.env, HOME: root, USERPROFILE: root, ALPHA_AOS_STATE_DIR: join(root, "state"), PATH: "" }, encoding: "utf8",
     });
     const result = JSON.parse(output) as { observations: Array<{ toolId: string }> };
-    assert.deepEqual(result.observations.map((item) => item.toolId), ["cua-driver", "gsd", "ecc", "mcp:context7", "mcp:exa", "mcp:firecrawl", "bridge:pi"]);
+    assert.deepEqual(result.observations.map((item) => item.toolId).sort(), ["cua-driver", "gsd", "ecc", "mcp:context7", "mcp:exa", "mcp:firecrawl", "bridge:pi"].sort());
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

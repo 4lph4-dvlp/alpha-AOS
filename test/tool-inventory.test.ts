@@ -1,13 +1,19 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import test from "node:test";
-import { reconcileToolState, type ToolObservation } from "../src/core/tool-inventory.js";
+import { orderToolObservations, reconcileToolState, type ToolObservation } from "../src/core/tool-inventory.js";
 import type { ToolRecordEvent, ToolRecordStore, ToolResult } from "../src/core/tool-records.js";
 
 test("inventory formatter shows category summaries", async () => {
   const { formatToolInventory } = await import("../src/format.js");
-  const inventory = { observations: [], records: { status: "absent" as const, events: [], accepted: null, diagnostics: [], incomplete: false, operations: [] }, categorySummaries: [{ category: "bundled-library", count: 2, statuses: { installed: 1, absent: 0, unknown: 1 } }] };
+  const inventory = { observations: [], records: { status: "absent" as const, events: [], accepted: null, diagnostics: [], incomplete: false, operations: [] }, categorySummaries: [{ category: "bundled-library" as const, count: 2, statuses: { installed: 1, absent: 0, unknown: 1 } }] };
   assert.match(formatToolInventory(inventory), /bundled-library.*2/);
+});
+
+test("problem observations sort first and ties use tool identity", () => {
+  const base: ToolObservation = { toolId: "", installation: "absent", installed: null, selected: null, integrity: "unverified", integration: "unverified", reason: "", nextAction: "" };
+  const ordered = orderToolObservations([{ ...base, toolId: "z" }, { ...base, toolId: "b", installation: "unknown" }, { ...base, toolId: "a", integrity: "failed" }]);
+  assert.deepEqual(ordered.map((item) => item.toolId), ["a", "b", "z"]);
 });
 
 test("prior acceptance and a later failure do not promote the observed installation", () => {

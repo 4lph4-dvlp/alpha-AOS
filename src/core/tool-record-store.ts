@@ -139,6 +139,7 @@ export async function finishToolOperation(plan: ToolRecordOperationPlan, session
   if (outcome !== "succeeded" && transitions.length) throw new Error("Unsuccessful operation cannot advance acceptance");
   const finished = events.find((event) => event.kind === "finished");
   if (finished) return writeEvent(plan, session, { schemaVersion: 1, operationId: plan.operationId, eventId: `${plan.operationId}-finish`, sequence: plan.requests.length + 1, occurredAt: plan.occurredAt, kind: "finished", results: complete, outcome, acceptedTransitions: JSON.parse(json(transitions)) as Transition[] });
+  if (transitions.length && store.diagnostics.some((diagnostic) => diagnostic === "accepted-chain-ambiguous" || diagnostic === "accepted-chain-unlinked" || diagnostic === "accepted-chain-atomicity")) throw new Error("Tool acceptance history is ambiguous or unlinked");
   for (const transition of transitions) {
     const result = complete.find((item) => item.toolId === transition.toolId);
     const proof = result?.evidence.find((item) => item.proofId === transition.proofId);

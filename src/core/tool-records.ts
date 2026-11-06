@@ -11,7 +11,7 @@ export interface ToolEvidence { proofId: string; subject: string; target: string
 export interface ToolResult { toolId: string; requested: { toolId: string; selector: string; exact: boolean }; resolved: { release: string; artifact: string; architecture: string; digest: string; sourceId: string; sourceUrl: string; platform: string } | null; installed: { installationId: string; version: string; pathAlias: string } | null; verified: string | null; evidence: ToolEvidence[]; outcome: string; legacy?: import("./tool-handoff.js").LegacyToolEvidence }
 export interface ToolRecordEvent { schemaVersion: 1; eventId: string; operationId: string; sequence: number; occurredAt: string; kind: "started" | "tool-result" | "finished"; requests?: Array<{ toolId: string; selector: string; exact: boolean }>; result?: ToolResult; results?: ToolResult[]; outcome?: string; acceptedTransitions?: Array<{ toolId: string; installationId: string; proofId: string; priorDigest: string | null }> }
 export type ToolRecordStatus = "absent" | "current" | "invalid" | "unsupported-old" | "unknown-newer" | "inaccessible";
-export interface ToolRecordStore { status: ToolRecordStatus; events: ToolRecordEvent[]; accepted: Record<string, string> | null; diagnostics: string[]; incomplete: boolean; operations: Array<{ operationId: string; status: string }> }
+export interface ToolRecordStore { status: ToolRecordStatus; events: ToolRecordEvent[]; accepted: Record<string, string> | null; diagnostics: string[]; incomplete: boolean; operations: Array<{ operationId: string; status: string }>; verifiedEventDigests?: Record<string, string> }
 
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 function canonical(value: unknown): string {
@@ -75,7 +75,7 @@ async function names(path: string): Promise<{ values: string[]; incomplete: bool
   return { values: values.sort(), incomplete };
 }
 export async function readToolRecordStore(options: { stateRoot: string; packageRoot: string; onAfterRead?: () => Promise<void> }): Promise<ToolRecordStore> {
-  const result: ToolRecordStore = { status: "current", events: [], accepted: null, diagnostics: [], incomplete: false, operations: [] };
+  const result: ToolRecordStore = { status: "current", events: [], accepted: null, diagnostics: [], incomplete: false, operations: [], verifiedEventDigests: {} };
   const proof = await proveToolRecordRoot(options.stateRoot, options.packageRoot);
   if (!proof) return { ...result, status: "inaccessible", diagnostics: ["unsafe-or-unprovable-root"] };
   let versions: Awaited<ReturnType<typeof names>>;
@@ -143,6 +143,10 @@ export async function readToolRecordStore(options: { stateRoot: string; packageR
     const commit = journals.get(`${target.path}\0${target.digest}`) ?? { applied: false, directorySyncSupported: null };
     commits.set(key, commit);
     if (commit.directorySyncSupported === false && !result.diagnostics.includes("directory-sync-unsupported")) result.diagnostics.push("directory-sync-unsupported");
+    if (commit.applied && result.status === "current" && !result.incomplete && (await recheckPathProof(target.proof)).ok) {
+      const bytes = await readBounded(target.path, 256 * 1024).catch(() => null);
+      if (bytes && createHash("sha256").update(bytes).digest("hex") === target.digest && (await recheckPathProof(target.proof)).ok) result.verifiedEventDigests![key] = target.digest;
+    }
   }
   const writer = await inspectWriterState(options.stateRoot);
   for (const start of result.events.filter((event) => event.kind === "started")) {
@@ -158,10 +162,12 @@ export async function readToolRecordStore(options: { stateRoot: string; packageR
     result.operations.push({ operationId: start.operationId, status });
   }
   const accepted: Record<string, string> = {};
-  for (const event of [...result.events].reverse()) {
+  const chains = new Map<string, Array<{ digest: string; priorDigest: string | null }>>();
+  const identitiesByDigest = new Map<string, Set<string>>();
+  for (const event of result.events) {
     if (event.kind !== "finished" || !event.acceptedTransitions?.length) continue;
     const target = filesByEvent.get(`${event.operationId}:${event.sequence}:${event.eventId}`);
-    if (!target || event.outcome !== "succeeded" || result.incomplete || result.status !== "current" || !commits.get(`${event.operationId}:${event.sequence}:${event.eventId}`)?.applied || !(await recheckPathProof(target.proof)).ok) {
+    if (!target || event.outcome !== "succeeded" || result.verifiedEventDigests?.[`${event.operationId}:${event.sequence}:${event.eventId}`] !== target.digest || !(await recheckPathProof(target.proof)).ok) {
       result.diagnostics.push("accepted-commit-unverified"); continue;
     }
     const operationEvents = result.events.filter((item) => item.operationId === event.operationId);
@@ -171,18 +177,67 @@ export async function readToolRecordStore(options: { stateRoot: string; packageR
     if (starts.length !== 1 || operationEvents.filter((item) => item.kind === "finished").length !== 1 || requested.length !== outcomes.length || outcomes.some((item) => !requested.some((r) => canonical(r) === canonical(item.requested)) || item.outcome !== "succeeded") || outcomes.some((item) => operationEvents.filter((other) => other.kind === "tool-result" && other.sequence > starts[0]!.sequence && other.sequence < event.sequence && other.result?.toolId === item.toolId && canonical(other.result) === canonical(item)).length !== 1)) {
       result.diagnostics.push("accepted-operation-incomplete"); continue;
     }
-    const proposed: string[] = [];
+    const proposed: Array<{ identity: string; priorDigest: string | null }> = [];
     for (const transition of event.acceptedTransitions) {
       const tool = event.results?.find((r) => r.toolId === transition.toolId);
       const evidence = tool?.evidence.find((e) => e.proofId === transition.proofId);
       const identity = `${transition.toolId}/${transition.installationId}`;
-      if (!tool || tool.outcome !== "succeeded" || tool.installed?.installationId !== transition.installationId || tool.installed.version !== tool.resolved?.release || tool.verified !== transition.proofId || !evidence || evidence.result !== "pass" || evidence.target !== "integration" || evidence.method !== "invocation" || !evidence.harness || evidence.subject !== transition.installationId || evidence.platform !== tool.resolved.platform || evidence.architecture !== tool.resolved.architecture || transition.priorDigest !== (accepted[identity] ?? null)) {
+      if (!tool || tool.outcome !== "succeeded" || tool.installed?.installationId !== transition.installationId || tool.installed.version !== tool.resolved?.release || tool.verified !== transition.proofId || !evidence || evidence.result !== "pass" || evidence.target !== "integration" || evidence.method !== "invocation" || !evidence.harness || evidence.subject !== transition.installationId || evidence.platform !== tool.resolved.platform || evidence.architecture !== tool.resolved.architecture) {
         result.diagnostics.push("accepted-evidence-invalid"); proposed.length = 0; break;
       }
-      if (proposed.includes(identity)) { result.diagnostics.push("accepted-evidence-invalid"); proposed.length = 0; break; }
-      proposed.push(identity);
+      if (proposed.some((item) => item.identity === identity)) { result.diagnostics.push("accepted-evidence-invalid"); proposed.length = 0; break; }
+      proposed.push({ identity, priorDigest: transition.priorDigest });
     }
-    for (const identity of proposed) accepted[identity] = target.digest;
+    for (const item of proposed) {
+      const links = chains.get(item.identity) ?? [];
+      if (!links.some((link) => link.digest === target.digest && link.priorDigest === item.priorDigest)) links.push({ digest: target.digest, priorDigest: item.priorDigest });
+      chains.set(item.identity, links);
+      const identities = identitiesByDigest.get(target.digest) ?? new Set<string>();
+      identities.add(item.identity);
+      identitiesByDigest.set(target.digest, identities);
+    }
+  }
+  const blocked = new Set<string>();
+  while (true) {
+    const visitedByIdentity = new Map<string, Set<string>>();
+    for (const key of Object.keys(accepted)) delete accepted[key];
+    for (const [identity, links] of chains) {
+      let prior: string | null = null;
+      const visited = new Set<string>();
+      visitedByIdentity.set(identity, visited);
+      const byPrior = new Map<string | null, string[]>();
+      for (const link of links) {
+        const children = byPrior.get(link.priorDigest) ?? [];
+        children.push(link.digest);
+        byPrior.set(link.priorDigest, children);
+      }
+      let ambiguous = false;
+      while (true) {
+        const children: string[] = byPrior.get(prior) ?? [];
+        if (children.length === 0) break;
+        if (children.length !== 1 || visited.has(children[0]!)) {
+          if (!result.diagnostics.includes("accepted-chain-ambiguous")) result.diagnostics.push("accepted-chain-ambiguous");
+          ambiguous = true;
+          break;
+        }
+        const next: string = children[0]!;
+        if (blocked.has(next)) break;
+        prior = next;
+        visited.add(next);
+        accepted[identity] = next;
+      }
+      if (visited.size !== links.length && !ambiguous && !result.diagnostics.includes("accepted-chain-unlinked")) result.diagnostics.push("accepted-chain-unlinked");
+    }
+    let changed = false;
+    for (const [eventDigest, identities] of identitiesByDigest) {
+      const applied = [...identities].filter((identity) => visitedByIdentity.get(identity)?.has(eventDigest)).length;
+      if (applied > 0 && applied < identities.size && !blocked.has(eventDigest)) {
+        blocked.add(eventDigest);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+    if (!result.diagnostics.includes("accepted-chain-atomicity")) result.diagnostics.push("accepted-chain-atomicity");
   }
   if (Object.keys(accepted).length) result.accepted = accepted;
   return result;

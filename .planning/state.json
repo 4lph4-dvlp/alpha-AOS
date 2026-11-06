@@ -1,38 +1,12 @@
 {
   "contract": "1.0.0",
   "flavor": "core",
-  "milestone": "v0.7.0",
-  "phases": [
-    {
-      "number": "27",
-      "name": "Shared Project Behavior Policy",
-      "status": "pending"
-    },
-    {
-      "number": "28",
-      "name": "Predictable Strict and Flexible Intake",
-      "status": "complete"
-    },
-    {
-      "number": "29",
-      "name": "GSD Initialization and Request Continuity",
-      "status": "in_progress"
-    },
-    {
-      "number": "30",
-      "name": "Six Execution Styles and Quality Binding",
-      "status": "complete"
-    },
-    {
-      "number": "31",
-      "name": "Cross-Harness Proof and Distribution",
-      "status": "in_progress"
-    }
-  ],
+  "milestone": "v0.8.0",
+  "phases": [],
   "next": {
     "command": "$gsd-discuss-phase",
     "label": "Discuss the first phase",
     "reason": "Project initialized — plan your first phase"
   },
-  "updated_at": "2026-11-05T08:49:35.782Z"
+  "updated_at": "2026-11-06T00:54:41.719Z"
 }

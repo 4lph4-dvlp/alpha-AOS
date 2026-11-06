@@ -1,45 +1,41 @@
 ---
 gsd_state_version: "1.0"
-milestone: v0.7.0
-milestone_name: Autopilot Reliability & Recovery
-current_phase_name: phases 35-38 implemented; live acceptance verification pending
-status: Implementation complete; live acceptance verification pending
-stopped_at: Native implementation of phases 35-38 complete; live acceptance verification stopped by provider quota
-last_updated: "2026-11-06T00:33:09.031Z"
+milestone: v0.8.0
+milestone_name: Unified Tool Updates & Compatibility
+status: planning
+last_updated: "2026-11-06T00:54:41.709Z"
 last_activity: 2026-11-06
-last_activity_desc: Native implementation complete; provider quota blocked final live acceptance verification
-state_head: 551e41d847b08d2eac07dd63ac6d845e283e76fc
 progress:
-  total_phases: 4
-  completed_phases: 4
+  total_phases: 0
+  completed_phases: 0
   total_plans: 0
   completed_plans: 0
-  percent: 100
+  percent: 0
 ---
 
 # Project State
 
-**Workflow change (2026-11-05):** The owner selected native Codex development without GSD orchestration. The GSD position records native implementation progress; live acceptance remains a separate outstanding validation item. Requirements and the completed Phase 35-38 reference roadmap remain the development scope; native implementation is recorded below. See AGENTS.md and PROJECT.md for the current workflow.
+**Workflow:** Native Codex remains the repository development workflow. The owner explicitly invoked `gsd-new-milestone` for v0.8.0 planning on 2026-11-06; its planning checkpoints apply to this invocation. This does not restore alpha-AOS self-governance or general GSD implementation prerequisites. See AGENTS.md and PROJECT.md.
 
-## Native delivery (2026-11-06)
+## Preserved v0.7.0 native delivery (2026-11-06)
 
-Sections 35–38 / 16 requirements are implemented with native Codex tools. The YAML progress counts implementation of the four roadmap sections; it does not assert live acceptance or formal milestone completion. Current implementation, targeted checks, real native delivery probes and unverified host boundaries are in [the delivery report](../docs/reports/autopilot-reliability-v070.md). No old contract was restarted and no global install, publication or push was performed.
+Sections 35–38 / 16 requirements have native implementation evidence. The outgoing v0.7.0 YAML progress counted implementation, not live acceptance or formal milestone completion; current YAML counters describe v0.8.0 planning. Implementation, targeted checks, real native delivery probes and unverified host boundaries are in [the delivery report](../docs/reports/autopilot-reliability-v070.md). No old contract was restarted and no global install, publication or push was performed.
 
 **Follow-up (2026-11-06):** Real Codex/MCP testing found further defects. The latest task stopped on provider quota without accepted GSD work; live acceptance remains unverified. See [follow-up evidence](../docs/reports/autopilot-live-followup-v070.md).
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-11-05)
+See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** v0.7.0 Autopilot Reliability & Recovery — phases 35–38 implemented; final live acceptance verification remains pending after provider quota exhaustion. Outgoing Phase 27-34 status is preserved in milestones/v0.6.0-ROLLOVER.md and its linked archives.
+**Current focus:** v0.8.0 Unified Tool Updates & Compatibility — approved direction: local latest official releases at install/explicit-update time, Cua included, minimal upstream modification, integration-verified adapters and recovery. Research selection, detailed requirements and roadmap approval are pending. Start numbering at Phase 39. Root requirements/roadmap are pending v0.8.0 pointers to outgoing archives; root research remains outgoing evidence, not v0.8.0 findings. See [rollover](milestones/v0.7.0-ROLLOVER.md). The four unchecked live requirements and earlier unfinished work remain preserved, not completed or automatically added to v0.8.0 scope.
 
 ## Current Position
 
-Phase: 35–38 implementation complete; live verification pending
+Phase: Not started (defining requirements)
 Plan: —
-Status: Implementation complete; live acceptance verification pending
-Last activity: 2026-11-06 — Native implementation and targeted checks completed; live acceptance blocked by provider quota
+Status: Defining requirements
+Last activity: 2026-11-06 — Milestone v0.8.0 started
 
 ### Completed Phases
 

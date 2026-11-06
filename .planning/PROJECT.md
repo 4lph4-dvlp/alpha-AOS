@@ -1,6 +1,6 @@
 ## Repository development workflow (2026-11-05)
 
-The owner selected native Codex development without alpha-AOS or GSD workflow orchestration. Existing requirements, research and the completed Phase 35-38 roadmap are reference design. No GSD command, generated phase document or approval checkpoint is a development prerequisite. GSD integration and lifecycle ownership described for the alpha-AOS product remain product requirements, not instructions to govern this repository through GSD.
+The owner selected native Codex development without alpha-AOS workflow orchestration. On 2026-11-06 the owner explicitly invoked `gsd-new-milestone` for v0.8.0 planning; its questioning, requirements and roadmap approval gates apply to this invocation. This does not generally restore GSD implementation prerequisites or alpha-AOS self-governance. GSD integration and lifecycle ownership described for the alpha-AOS product remain product requirements.
 
 ## Delivery policy (2026-11-05)
 
@@ -18,20 +18,21 @@ The system manages capability scope as well as installation: broadly useful, low
 
 A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
 
-## Current Milestone: v0.7.0 Autopilot Reliability & Recovery
+## Current Milestone: v0.8.0 Unified Tool Updates & Compatibility
 
-**Goal:** Codex autopilot carries an authorized task from executable contract creation through automatic terminal detection, failure repair, rerun and verified final reporting without requiring the user to rediscover completion or request routine recovery.
+**Goal:** Users install and explicitly update managed tools to their latest official releases directly from the local workstation, through a common update lifecycle that minimizes upstream modifications and verifies actual integration before accepting an update.
 
 **Target features:**
-- Generate contracts grounded in actual Exa/Context7 MCP invocation paths and validate capability readiness before approval or dispatch.
-- Deliver success, rejection, failure and interruption to the originating session; distinguish process exit from GSD acceptance.
-- Diagnose and repair recoverable contract/runtime failures, then rerun and verify within explicit purpose, authority, model and budget boundaries; design digest approval handling for revisions.
-- Remove premature handoff defaults across runtime, installed guidance and skills; handoff records must not substitute for available authorized recovery.
-- Investigate Codex behavior against Antigravity reference behavior and prove the corrected lifecycle with observable evidence.
+- Resolve latest official releases locally at installation or explicit update time; no prerelease channels, background updater, remote lock promotion or repository write permission is required for external-tool updates.
+- Include Cua, GSD, ECC, managed MCP servers and bridges in one lifecycle while retaining source-specific official installation adapters; inventory other managed dependencies to expose omissions and ownership boundaries.
+- Record exact resolved versions, source identities, integrity evidence and installed results locally so latest-release selection remains reproducible and inspectable.
+- Prefer official settings and public interfaces; reduce upstream file/text transformations and isolate necessary compatibility work in explicit adapters with applicability, rationale, verification and removal conditions.
+- Judge compatibility through actual integration checks rather than blanket refusal of unseen versions; retain the existing working version when checks fail, and provide recovery for failures discovered after apply.
+- Report failures for the affected component/platform/harness combination, and keep compatibility fixes small enough for a patch release or local developer deployment. Updating alpha-AOS code remains separate from updating external tools; runtime AI rewriting is not part of the updater.
 
-**Planning status:** Owner approved milestone goals, research and all 16 requirements on 2026-11-05. Research and the four-section roadmap are fully drafted. The owner then selected native Codex implementation rather than GSD execution; a separate GSD roadmap approval is no longer required and was not performed. Preserve the requirements, work order and success criteria as reference design. Implementation across sections 35–38 exists, but live acceptance remains unverified after provider quota exhaustion; see docs/reports/autopilot-live-followup-v070.md. See [implementation and validation report](../docs/reports/autopilot-reliability-v070.md); supported delivery is an active awaited Codex foreground handle. Idle-session wakeup, a full live task/model recovery and other-host parity are not claimed.
+**Planning status:** Owner selected latest official releases (1-A), installation/explicit-update triggers (2-A), and approved the direction above on 2026-11-06. Research selection, detailed requirements and roadmap approval remain pending. Continue numbering at Phase 39. This is planning authorization, not authorization to start an autopilot task, install tools, publish or deploy.
 
-**Outgoing work:** v0.6.0 Phase 27-34 artifacts and pre-switch state are preserved under [milestone archives](milestones/v0.6.0-ROLLOVER.md). Archival does not mark incomplete phases complete. Package version 0.6.2 and historical milestone records are not rewritten as release evidence.
+**Outgoing work:** v0.7.0 documents and research are preserved in [the rollover record](milestones/v0.7.0-ROLLOVER.md). Phases 35-38 have implementation evidence, but final live acceptance remains unverified after provider quota exhaustion. Earlier v0.6.0 work remains preserved in [its rollover](milestones/v0.6.0-ROLLOVER.md). Archival does not close either milestone or change package/release versions.
 
 ## Requirements
 
@@ -61,6 +62,7 @@ Historical keep-green requirement is superseded by the owner's 2026-11-05 person
 
 ### Active
 
+- [ ] Deliver v0.8.0 local latest-release updates and unified tool compatibility management as scoped above; detailed requirements and roadmap are pending approval.
 - [ ] Complete live verification of the 16 v0.7.0 requirements through section 38 using native Codex; scoped validation is in docs/reports/autopilot-reliability-v070.md (no publication or global deployment)
 - [ ] Preserve unfinished v0.6.0 Phases 27-34 and recovery evidence without asserting completion; see milestones/v0.6.0-ROLLOVER.md
 - [ ] Preserve outgoing v0.2.0 verification evidence and unresolved release work; the planning rollover is not publication or a new full-suite pass
@@ -106,13 +108,16 @@ The authority boundaries are:
 - **Determinism**: Installation, project-pack selection, policy checks, and mandatory gates cannot depend only on LLM judgment — evidence, versions, hashes, and decisions must be inspectable
 - **Safety**: Mutations are previewable, root-bounded, snapshotted, and rollback-aware — stale evidence never triggers automatic deletion
 - **Secrets**: Credential values cannot enter manifests, locks, plans, journals, diagnostics, command arguments, or repository files — project-only launch environments must default to a reviewed allowlist
-- **Supply chain**: End users receive only the stable lock. Weekly automatic promotion requires registry integrity, full 3-OS CI, real component fixtures, and a registry re-check after a two-day cooldown. A repository administrator can explicitly force current registry versions into the stable lock with an audit reason, skipping the weekly test and cooldown gates while retaining registry integrity and required ECC hashes.
+- **Supply chain**: v0.8.0 targets local resolution of latest official tool releases at install/explicit-update time, without remote stable-lock promotion. Preserve provenance/integrity checks, bounded mutations and exact local version records. Existing stable-lock runtime remains in effect until implementation replaces it; scheduled updates and automatic promotion stay disabled under the workstation policy.
 - **Validation**: Native discovery plus a meaningful read-only invocation is required — configuration-file presence alone is insufficient
 
 ## Key Decisions
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
+| Resolve latest official external-tool releases locally on install or explicit update | Removes remote lock promotion and repository write access as prerequisites; excludes prereleases and background updates | v0.8.0 direction approved 2026-11-06; implementation pending |
+| Unify tool update lifecycle while retaining official source-specific adapters | Cua and npm-managed tools need consistent management without forcing identical installers | v0.8.0 direction approved; implementation pending |
+| Minimize upstream changes and use integration-verified compatibility adapters | Reduce per-release maintenance; unknown versions alone do not imply incompatibility; AI must not rewrite updater code at runtime | v0.8.0 direction approved; implementation pending |
 | Use GSD Core `standard` as the sole workflow and project-state spine | Original restricted skill surface | Superseded by the user's 2026-11-01 milestone-capable default request |
 | Install GSD Core `full` by default while retaining GSD as the sole lifecycle/state owner | Exposes milestone creation, completion and review alongside phase workflows on supported harnesses; dependency promotion preserves the reviewed profile | Adopted 2026-11-01, quick task 261101-ww3 |
 | Use a hybrid capability activation model | Native implicit invocation is sufficient for optional low-risk global skills; deterministic project detection and explicit quality gates cover scope-sensitive or mandatory behavior | — Pending |
@@ -125,7 +130,7 @@ The authority boundaries are:
 | Persist only strict/flexible as project intake policy, never the selected execution style | User corrected the earlier interpretation on 2026-11-02: a release may use autopilot-phase while a later bug fix receives a fresh choice and uses autopilot-quick-full | v0.6.0 locked decision |
 | Exempt simple operations using common criteria rather than a closed task-name list | User chose clear target/result with no separate design, investigation or multi-stage implementation as the chooser-exemption criterion | v0.6.0 locked decision |
 | Route every applicable alpha-AOS capability through GSD with actual invocation proof | Installed global/project ECC skills, MCP tools and packs are only useful if the matching task step can discover and call them | v0.2.0 design |
-| Use stable exact versions and source/file integrity locks | Cross-harness user configuration is supply-chain-sensitive and must be reproducible | ✓ Good |
+| Use stable exact versions and source/file integrity locks | Cross-harness user configuration is supply-chain-sensitive and must be reproducible | Existing runtime; centralized selection to be replaced in v0.8.0 while preserving integrity and exact local records |
 | Treat `project-only` as configuration isolation, not a security boundary | Process-level isolation cannot honestly guarantee filesystem, network, or host-secret containment | ✓ Good |
 | Configure opt-out once and enforce it before normal harness startup | Directory-specific global exclusion cannot be applied reliably after skills, instructions, and MCP schemas have entered a running agent context | — Pending |
 | Scope drift-naming to callers that hold the reviewed plan value, rather than letting the preview persist one | Naming which noun moved is a diagnostic property; a non-persisting preview is a stated safety property (SAFE-01). Both drift branches already refuse with a runnable next step, so the safety property was kept and the must-have narrowed | ✓ Good |
@@ -150,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-05 after the owner's native Codex workflow choice; roadmap retained as reference design*
+*Last updated: 2026-11-06 after owner approval of the v0.8.0 milestone direction; research and detailed scope approvals pending.*

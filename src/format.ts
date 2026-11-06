@@ -63,7 +63,7 @@ export function formatToolInventory(inventory: import("./core/tool-inventory.js"
 }
 
 export function formatToolDetail(inventory: import("./core/tool-inventory.js").ToolInventory): string {
-  return [formatToolInventory(inventory), ...(inventory.components ?? []).map((c) => `${c.category} ${c.id}: ${c.status}, version=${c.version ?? "unknown"}; ${c.reason}`), ...inventory.records.events.map((event) => `Evidence: ${JSON.stringify(event)}`)].join("\n");
+  return [formatToolInventory(inventory), ...inventory.observations.map((item) => `${item.toolId} detail: installed source=${item.installed?.source ?? "unknown"}, selected source=${item.selected?.source ?? "unknown"}; scope=${item.scope ?? "unknown"}; handoff=${JSON.stringify(item.handoff ?? null)}; candidates=${JSON.stringify(item.candidates ?? [])}`), ...(inventory.components ?? []).map((c) => `${c.category} ${c.id}: ${c.status}, version=${c.version ?? "unknown"}; ${c.reason}`), ...inventory.records.events.map((event) => `Evidence: ${JSON.stringify(event)}`)].join("\n");
 }
 
 export function formatToolHistory(history: Awaited<ReturnType<typeof import("./core/tool-records.js").readToolHistory>>): string {

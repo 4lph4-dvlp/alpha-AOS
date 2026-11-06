@@ -14,7 +14,7 @@ test("inventory seeds every managed tool even when candidates are absent", async
   const root = await mkdtemp(join(tmpdir(), "aos-observer-"));
   try {
     const nodeArgs = process.platform === "darwin" ? ["--import", `data:text/javascript,${encodeURIComponent('Object.defineProperty(process,"platform",{value:"linux"})')}`] : [];
-    const output = execFileSync(process.execPath, [...nodeArgs, resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver", "--json"], {
+    const output = execFileSync(process.execPath, [...nodeArgs, resolve("dist/src/cli.js"), "inventory", "--json"], {
       env: { ...process.env, HOME: root, USERPROFILE: root, ALPHA_AOS_STATE_DIR: join(root, "state"), PATH: "" }, encoding: "utf8",
     });
     const result = JSON.parse(output) as { observations: Array<{ toolId: string }> };

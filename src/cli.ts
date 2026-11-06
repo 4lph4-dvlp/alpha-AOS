@@ -41,7 +41,9 @@ const HELP = `alpha-aos
 
 Usage:
   alpha-aos --version
-  alpha-aos inventory [--json]
+  alpha-aos inventory [--tool <id>] [--detail] [--json]
+  alpha-aos inventory --tool <id> --history [--json]
+  alpha-aos inventory --operation <id> [--json]
   alpha-aos computer-use doctor|plan|observe|action|mcp|native-mcp|stop|report|replay|retain [--json]
   alpha-aos plan [--json]
   alpha-aos install [--target <claude,codex,antigravity,pi,hermes>] [--apply] [--json]
@@ -1034,17 +1036,42 @@ async function main(): Promise<void> {
   }
 
   if (command === "inventory") {
-    const tool = optionValue(args, "--tool");
-    if (tool !== null) {
-      if (tool !== "cua-driver") throw new Error(`Unsupported tool: ${tool}`);
-      const { collectToolInventory } = await import("./core/tool-inventory.js");
-      const { formatToolInventory } = await import("./format.js");
-      const inventory = await collectToolInventory({ catalog, lock, packageRoot: root, stateRoot: userStateRoot() });
-      print(inventory, json, formatToolInventory(inventory));
+    const parsed = parseClosedFlags(args.slice(1), { valueFlags: ["--tool", "--operation"], booleanFlags: ["--detail", "--history", "--json"] });
+    if (parsed.operands.length) throw new Error("Unexpected inventory argument");
+    const tool = parsed.options.get("--tool"), operation = parsed.options.get("--operation");
+    const history = parsed.options.has("--history"), detail = parsed.options.has("--detail");
+    if (history && typeof tool !== "string") throw new Error("--history requires --tool");
+    if ((operation && (tool || history || detail)) || (history && detail)) throw new Error("Incompatible inventory options");
+    const ids = ["cua-driver", "gsd", "ecc", "mcp:context7", "mcp:exa", "mcp:firecrawl", "bridge:pi"];
+    if (typeof tool === "string" && !ids.includes(tool)) throw new Error(`Unsupported tool: ${tool}`);
+    if (typeof operation === "string" && !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(operation)) throw new Error("Invalid operation ID");
+    const options = { packageRoot: root, stateRoot: userStateRoot() };
+    const { formatToolInventory, formatToolDetail, formatToolHistory, formatToolOperation } = await import("./format.js");
+    if (history && typeof tool === "string") {
+      const { readToolHistory } = await import("./core/tool-records.js");
+      const result = await readToolHistory(options, tool);
+      result.events = result.events.map((event) => ({ ...event, ...(event.requests ? { requests: event.requests.filter((request) => request.toolId === tool) } : {}), ...(event.results ? { results: event.results.filter((entry) => entry.toolId === tool) } : {}) }));
+      const operationIds = new Set(result.events.map((event) => event.operationId));
+      result.operations = result.operations.filter((entry) => operationIds.has(entry.operationId));
+      print({ ...result, toolId: tool }, json, `Tool: ${tool}\n${formatToolHistory(result)}`);
       return;
     }
-    const inventory = collectInventory(catalog);
-    print(inventory, json, formatInventory(inventory));
+    if (typeof operation === "string") {
+      const { readOperationHistory } = await import("./core/tool-records.js");
+      const result = await readOperationHistory(options, operation);
+      result.operations = result.operations.filter((entry) => entry.operationId === operation);
+      const lookup = result.events.length ? "found" : ["absent", "current"].includes(result.status) && !result.incomplete ? "not-found" : "unknown";
+      print({ ...result, operationId: operation, lookup }, json, `Operation: ${operation} (${lookup})\n${formatToolOperation(result)}`);
+      return;
+    }
+    const { collectToolInventory } = await import("./core/tool-inventory.js");
+    const inventory = await collectToolInventory({ catalog, lock, ...options });
+    if (typeof tool === "string") {
+      inventory.observations = inventory.observations.filter((item) => item.toolId === tool);
+      inventory.records.events = inventory.records.events.filter((event) => event.result?.toolId === tool || event.results?.some((result) => result.toolId === tool) || event.requests?.some((request) => request.toolId === tool));
+    }
+    if (!detail) delete inventory.components;
+    print(inventory, json, detail ? formatToolDetail(inventory) : formatToolInventory(inventory));
     return;
   }
 

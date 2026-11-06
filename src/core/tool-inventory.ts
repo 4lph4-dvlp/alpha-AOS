@@ -9,6 +9,7 @@ import { assessRetainedNpmHandoff } from "./tool-handoff-loader.js";
 import type { StackCatalog, StackLock } from "../types.js";
 
 export interface ToolObservation {
+  category?: "managed-tool";
   toolId: string;
   installation: "installed" | "absent" | "unknown";
   installed: { version: string | null; source: string } | null;
@@ -34,7 +35,7 @@ export interface CategorySummary { category: ComponentCategory; count: number; s
 export interface ToolInventory { observations: ToolObservation[]; records: Awaited<ReturnType<typeof readToolRecordStore>>; components?: InventoryComponent[]; categorySummaries?: CategorySummary[] }
 
 export function orderToolObservations(observations: ToolObservation[]): ToolObservation[] {
-  const problem = (item: ToolObservation) => item.installation === "unknown" || item.integrity === "failed" || item.integration === "failed" || item.handoff?.status === "ambiguous" || item.diagnostics?.some((d) => d.severity === "problem") || item.bindings?.some((b) => b.status !== "active");
+  const problem = (item: ToolObservation) => item.installation === "unknown" || item.integrity === "failed" || item.integration === "failed" || (item.handoff?.status === "ambiguous" && !item.bindings?.some((b) => b.status === "active")) || item.diagnostics?.some((d) => d.severity === "problem") || item.bindings?.some((b) => b.status !== "active");
   return [...observations].sort((a, b) => Number(Boolean(problem(b))) - Number(Boolean(problem(a))) || a.toolId.localeCompare(b.toolId));
 }
 
@@ -170,6 +171,7 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
     if (manifest.state !== "ok") throw new Error("unreadable manifest");
     const dependencies = (JSON.parse(manifest.text!) as { dependencies?: Record<string, string> }).dependencies ?? {};
     for (const name of Object.keys(dependencies).sort()) {
+      if (!/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(name)) { components.push({ category: "bundled-library", id: "invalid-package-name", status: "unknown", version: null, reason: "invalid dependency name" }); continue; }
       const file = await boundedText(join(options.packageRoot, "node_modules", name, "package.json"));
       let version: string | null = null, status: InventoryComponent["status"] = file.state === "absent" ? "absent" : "unknown";
       if (file.state === "ok") try { const parsed = JSON.parse(file.text!) as { name?: unknown; version?: unknown }; if (parsed.name === name && typeof parsed.version === "string" && /^[\w.+-]{1,128}$/.test(parsed.version)) { status = "installed"; version = parsed.version; } } catch { /* unknown manifest */ }
@@ -181,6 +183,7 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
   const categories: ComponentCategory[] = ["alpha-aos-owned-skill", "bundled-library", "external-prerequisite", "harness-application"];
   const categorySummaries = categories.map((category) => { const entries = components.filter((item) => item.category === category); return { category, count: entries.length, statuses: { installed: entries.filter((item) => item.status === "installed").length, absent: entries.filter((item) => item.status === "absent").length, unknown: entries.filter((item) => item.status === "unknown").length } }; });
   for (const item of observations) {
+    item.category = "managed-tool";
     const active = new Set(item.bindings?.filter((binding) => binding.status === "active").map((binding) => binding.candidatePath));
     item.candidates?.sort((a, b) => Number(active.has(b.path)) - Number(active.has(a.path)) || a.path.localeCompare(b.path));
     item.bindings?.sort((a, b) => a.harness.localeCompare(b.harness) || (a.candidatePath ?? "").localeCompare(b.candidatePath ?? ""));

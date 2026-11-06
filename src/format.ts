@@ -57,6 +57,10 @@ function table(headers: string[], rows: string[][]): string {
   return [render(headers), render(widths.map((width) => "-".repeat(width))), ...rows.map(render)].join("\n");
 }
 
+export function formatToolInventory(inventory: import("./core/tool-inventory.js").ToolInventory): string {
+  return inventory.observations.map((item) => `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}\nRecords: ${inventory.records.status}`).join("\n");
+}
+
 export function formatInventory(inventory: Inventory): string {
   const rows = inventory.harnesses.map((harness) => [
     harness.id,

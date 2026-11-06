@@ -1034,6 +1034,15 @@ async function main(): Promise<void> {
   }
 
   if (command === "inventory") {
+    const tool = optionValue(args, "--tool");
+    if (tool !== null) {
+      if (tool !== "cua-driver") throw new Error(`Unsupported tool: ${tool}`);
+      const { collectToolInventory } = await import("./core/tool-inventory.js");
+      const { formatToolInventory } = await import("./format.js");
+      const inventory = await collectToolInventory({ catalog, lock, packageRoot: root, stateRoot: userStateRoot() });
+      print(inventory, json, formatToolInventory(inventory));
+      return;
+    }
     const inventory = collectInventory(catalog);
     print(inventory, json, formatInventory(inventory));
     return;

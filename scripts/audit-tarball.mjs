@@ -219,6 +219,7 @@ export function auditTarballEntries(files) {
     "catalog/stack.yaml",
     "catalog/stack.lock.json",
     "catalog/computer-use-runtime.json",
+    "catalog/tool-handoff-policy.json",
     "catalog/facts.yaml",
     "catalog/canaries.yaml",
   ]);

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { officialCuaPaths } from "./computer-use-install.js";
 import { readToolRecordStore } from "./tool-records.js";
 import { evaluateLegacyHandoff, type LegacyHandoffAssessment } from "./tool-handoff.js";
+import { assessRetainedNpmHandoff } from "./tool-handoff-loader.js";
 import type { StackCatalog, StackLock } from "../types.js";
 
 export interface ToolObservation {
@@ -138,6 +139,7 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
       } catch { /* no current fingerprint; historical proof remains unverified */ }
     }
     reconcileToolState(item, records, current);
+    if (item.candidates?.length === 1) item.handoff = await assessRetainedNpmHandoff({ packageRoot: options.packageRoot, stateRoot: options.stateRoot, toolId: item.toolId, candidate: item.candidates[0]! });
     for (const candidate of item.candidates ?? []) candidate.path = pathId(candidate.path);
     for (const binding of item.bindings ?? []) if (binding.candidatePath !== null) binding.candidatePath = pathId(binding.candidatePath);
     if (item.checkedRoots) item.checkedRoots = item.checkedRoots.map(pathId);

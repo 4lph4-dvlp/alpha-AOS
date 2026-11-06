@@ -1,0 +1,10 @@
+{
+  "command": "node --test --test-reporter=tap dist/test/tool-handoff.test.js",
+  "exitCode": 1,
+  "output": "TAP version 13\n# Subtest: legacy candidates expose a handoff assessment\nnot ok 1 - legacy candidates expose a handoff assessment\n  ---\n  duration_ms: 3.4943\n  type: 'test'\n  location: 'D:\\\\dev\\\\alpha-AOS\\\\dist\\\\test\\\\tool-handoff.test.js:4:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Expected values to be strictly equal:\n    + actual - expected\n    \n    + 'undefined'\n    - 'function'\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: 'function'\n  actual: 'undefined'\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-handoff.test.js:5:12)\n    Test.runInAsyncScope (node:async_hooks:214:14)\n    Test.run (node:internal/test_runner/test:1103:25)\n    Test.start (node:internal/test_runner/test:1000:17)\n    startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17)\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 0\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 518.6983\n",
+  "targetTest": "legacy candidates expose a handoff assessment",
+  "targetFile": "test/tool-handoff.test.ts",
+  "expected": "function",
+  "actual": "undefined",
+  "semanticAssessment": "The target assertion fails because the reconciliation API is absent."
+}

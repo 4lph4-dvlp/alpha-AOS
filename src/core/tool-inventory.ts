@@ -32,8 +32,11 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
       const result = await pinFile.read(source, 0, source.length, 0);
       if (result.bytesRead !== source.length) throw new Error("short read");
     } finally { await pinFile.close(); }
-    const pin = JSON.parse(source.toString()) as { version?: unknown; assets?: unknown };
+    const pin = JSON.parse(source.toString()) as { version?: unknown; assets?: Array<{ os?: unknown; arch?: unknown; entrypoint?: unknown; sha256?: unknown }> };
     if (typeof pin.version !== "string" || !/^\d+\.\d+\.\d+$/.test(pin.version) || !Array.isArray(pin.assets)) throw new Error("invalid");
+    const os = process.platform === "win32" ? "windows" : process.platform === "darwin" ? "macos" : process.platform;
+    const asset = pin.assets.find((item) => item && item.os === os && (item.arch === process.arch || item.arch === "universal"));
+    if (!asset || typeof asset.entrypoint !== "string" || !/^[A-Za-z0-9._-]+$/.test(asset.entrypoint) || typeof asset.sha256 !== "string" || !/^[a-f0-9]{64}$/.test(asset.sha256)) throw new Error("unsupported or invalid asset");
     selected = { version: pin.version, source: "reviewed-pin" };
   } catch { reason = "Reviewed pin is unavailable or invalid"; }
   let installation: ToolObservation["installation"] = "unknown";

@@ -72,7 +72,8 @@ export type ManagedDocumentKind =
    * report (REV-01). Validated through the schema named by the caller, for
    * example `schemas/task-review.schema.json`.
    */
-  | "task-agent-output";
+  | "task-agent-output"
+  | "tool-release-record";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -364,12 +365,14 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "task-contract": null,
   "task-receipt": null,
   "task-agent-output": null,
+  "tool-release-record": null,
 };
 
 const CURRENT_VERSION = 1;
 const MIGRATABLE_VERSION = 0;
 
 const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
+  "tool-release-record": { not: {} },
   catalog: coreObject(["schemaVersion", "name", "harnesses", "components", "policy"], {
     schemaVersion: { type: "integer" },
     name: { const: "alpha-aos" },
@@ -600,6 +603,7 @@ function validatorFor(kind: ManagedDocumentKind, schema?: Record<string, unknown
 }
 
 export function schemaRoutesFor(kind: ManagedDocumentKind): readonly ManagedSchemaRoute[] {
+  if (kind === "tool-release-record") return [{ kind, version: 1, status: "current", schema: CORE_SCHEMAS[kind] }];
   if (kind === "task-agent-output") {
     return [
       { kind, version: 1, status: "current", schema: CORE_SCHEMAS[kind] },
@@ -759,6 +763,9 @@ export function validateManagedDocument<T = unknown>(options: {
     };
   }
   const split = splitExtensions(owned as Record<string, unknown>);
+  if (options.kind === "tool-release-record" && Object.keys(split.extensions).length > 0) {
+    return { ...base, ok: false, schemaVersion: null, status: "invalid", issues: [issue("schema.extensions-forbidden", "/", "no extensions", "extension")], issuesTruncated: false };
+  }
   const extensions = split.extensions;
   const core: Record<string, unknown> =
     ownedPointer === null ? split.core : { ...record, [ownedPointer]: split.core };

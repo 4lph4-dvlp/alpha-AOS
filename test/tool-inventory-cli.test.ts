@@ -10,10 +10,13 @@ test("tool inventory observes installed Cua separately from selected pin", async
   try {
     const home = join(root, "home");
     const local = join(root, "local");
+    // macOS uses a fixed /Applications path; the isolated child exercises the
+    // same observer with its Linux path rather than touching the host install.
+    const nodeArgs = process.platform === "darwin" ? ["--import", `data:text/javascript,${encodeURIComponent('Object.defineProperty(process,"platform",{value:"linux"})')}`] : [];
     const executable = process.platform === "win32" ? join(local, "Programs", "Cua", "cua-driver", "bin", "cua-driver.exe") : join(home, ".local", "bin", "cua-driver");
     await mkdir(resolve(executable, ".."), { recursive: true });
     await writeFile(executable, "fixture executable");
-    const output = execFileSync(process.execPath, [resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver", "--json"], {
+    const output = execFileSync(process.execPath, [...nodeArgs, resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver", "--json"], {
       env: { ...process.env, HOME: home, USERPROFILE: home, LOCALAPPDATA: local, ALPHA_AOS_STATE_DIR: join(root, "state") }, encoding: "utf8",
     });
     const result = JSON.parse(output) as { observations?: Array<{ installation?: string; selected?: { version?: string } }> };
@@ -21,13 +24,13 @@ test("tool inventory observes installed Cua separately from selected pin", async
     assert.ok(result.observations?.[0]?.selected?.version);
     assert.deepEqual(await readdir(root), [process.platform === "win32" ? "local" : "home"]);
     await assert.rejects(access(join(root, "state")));
-    const human = execFileSync(process.execPath, [resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver"], {
+    const human = execFileSync(process.execPath, [...nodeArgs, resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver"], {
       env: { ...process.env, HOME: home, USERPROFILE: home, LOCALAPPDATA: local, ALPHA_AOS_STATE_DIR: join(root, "state") }, encoding: "utf8",
     });
     assert.match(human, /installation=installed/);
     assert.match(human, /integrity=unverified/);
     await rm(executable);
-    const absent = JSON.parse(execFileSync(process.execPath, [resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver", "--json"], {
+    const absent = JSON.parse(execFileSync(process.execPath, [...nodeArgs, resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver", "--json"], {
       env: { ...process.env, HOME: home, USERPROFILE: home, LOCALAPPDATA: local, ALPHA_AOS_STATE_DIR: join(root, "state") }, encoding: "utf8",
     })) as { observations: Array<{ installation: string; installed: unknown }> };
     assert.equal(absent.observations[0]?.installation, "absent");

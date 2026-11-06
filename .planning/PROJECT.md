@@ -30,7 +30,7 @@ A user can enter any supported project on any supported operating system and get
 - Judge compatibility through actual integration checks rather than blanket refusal of unseen versions; retain the existing working version when checks fail, and provide recovery for failures discovered after apply.
 - Report failures for the affected component/platform/harness combination, and keep compatibility fixes small enough for a patch release or local developer deployment. Updating alpha-AOS code remains separate from updating external tools; runtime AI rewriting is not part of the updater.
 
-**Planning status:** Owner selected latest official releases (1-A), installation/explicit-update triggers (2-A), approved the direction and selected research first on 2026-11-06. [Research](research/SUMMARY.md) is complete for milestone definition; all [16 detailed requirements](REQUIREMENTS.md) were approved on 2026-11-06. Roadmap approval remains pending. Continue numbering at Phase 39. This is planning authorization, not authorization to start an autopilot task, install tools, publish or deploy.
+**Planning status:** Owner selected latest official releases (1-A), installation/explicit-update triggers (2-A), approved the direction and selected research first on 2026-11-06. [Research](research/SUMMARY.md) is complete for milestone definition; all [16 detailed requirements](REQUIREMENTS.md) were approved on 2026-11-06. The [five-phase roadmap](ROADMAP.md), covering Phases 39-43 and all 16 requirements, was approved on 2026-11-06. Milestone initialization is complete; Phase 39 is next and has not started. This is planning authorization, not authorization to start an autopilot task, install tools, publish or deploy.
 
 **Outgoing work:** v0.7.0 documents and research are preserved in [the rollover record](milestones/v0.7.0-ROLLOVER.md). Phases 35-38 have implementation evidence, but final live acceptance remains unverified after provider quota exhaustion. Earlier v0.6.0 work remains preserved in [its rollover](milestones/v0.6.0-ROLLOVER.md). Archival does not close either milestone or change package/release versions.
 
@@ -62,7 +62,7 @@ Historical keep-green requirement is superseded by the owner's 2026-11-05 person
 
 ### Active
 
-- [ ] Deliver v0.8.0 local latest-release updates and unified tool compatibility management as scoped above; detailed requirements and roadmap are pending approval.
+- [ ] Deliver v0.8.0 local latest-release updates and unified tool compatibility management as scoped above; all 16 requirements and the five-phase roadmap are approved; implementation has not started.
 - [ ] Complete live verification of the 16 v0.7.0 requirements through section 38 using native Codex; scoped validation is in docs/reports/autopilot-reliability-v070.md (no publication or global deployment)
 - [ ] Preserve unfinished v0.6.0 Phases 27-34 and recovery evidence without asserting completion; see milestones/v0.6.0-ROLLOVER.md
 - [ ] Preserve outgoing v0.2.0 verification evidence and unresolved release work; the planning rollover is not publication or a new full-suite pass
@@ -155,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-06 after v0.8.0 research; all 16 requirements approved; roadmap approval pending.*
+*Last updated: 2026-11-06 after v0.8.0 research; all 16 requirements and the five-phase roadmap approved; ready to plan Phase 39.*

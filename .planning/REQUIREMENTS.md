@@ -64,28 +64,28 @@ Unchecked means not delivered/verified; approval of scope is not implementation 
 
 ## Traceability
 
-Roadmap allocation pending; each requirement will map to exactly one phase starting at 39.
+The approved roadmap allocates each requirement to exactly one phase, continuing at 39. The owner approved all 16 requirements and the five-phase allocation on 2026-11-06.
 
 | Requirement | Phase | Status |
 |---|---|---|
-| LOC-01 | Pending allocation | Not started |
-| LOC-02 | Pending allocation | Not started |
-| LOC-03 | Pending allocation | Not started |
-| LOC-04 | Pending allocation | Not started |
-| ADAPT-01 | Pending allocation | Not started |
-| ADAPT-02 | Pending allocation | Not started |
-| ADAPT-03 | Pending allocation | Not started |
-| ADAPT-04 | Pending allocation | Not started |
-| PROOF-01 | Pending allocation | Not started |
-| PROOF-02 | Pending allocation | Not started |
-| PROOF-03 | Pending allocation | Not started |
-| PROOF-04 | Pending allocation | Not started |
-| MIG-01 | Pending allocation | Not started |
-| MIG-02 | Pending allocation | Not started |
-| MIG-03 | Pending allocation | Not started |
-| MIG-04 | Pending allocation | Not started |
+| LOC-01 | Phase 39 | Not started |
+| LOC-02 | Phase 40 | Not started |
+| LOC-03 | Phase 40 | Not started |
+| LOC-04 | Phase 39 | Not started |
+| ADAPT-01 | Phase 41 | Not started |
+| ADAPT-02 | Phase 41 | Not started |
+| ADAPT-03 | Phase 41 | Not started |
+| ADAPT-04 | Phase 41 | Not started |
+| PROOF-01 | Phase 42 | Not started |
+| PROOF-02 | Phase 42 | Not started |
+| PROOF-03 | Phase 42 | Not started |
+| PROOF-04 | Phase 42 | Not started |
+| MIG-01 | Phase 43 | Not started |
+| MIG-02 | Phase 43 | Not started |
+| MIG-03 | Phase 43 | Not started |
+| MIG-04 | Phase 43 | Not started |
 
-**Coverage:** 16 approved requirements; roadmap allocation pending.
+**Coverage:** 16 approved requirements; 16 mapped to exactly one approved phase; 0 unmapped; 0 duplicated.
 
 ## Evidence
 

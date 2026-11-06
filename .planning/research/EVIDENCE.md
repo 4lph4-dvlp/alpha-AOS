@@ -1,67 +1,50 @@
-# v0.7.0 Research Evidence
+# v0.8.0 Evidence Inventory
 
-**Inspected:** 2026-11-05
-**Method:** Bounded source reads, read-only historical records, three Exa discovery queries, one official-domain web search, and five primary-page Firecrawl fetches. Research ran inline under the skill's no-automatic-subagent fallback. No tests, builds, fixtures, GUI actions, external task starts or global configuration mutations.
+Recorded 2026-11-06. Research only: no managed installation, deployment, global config, dependency manifest or external contract was changed. Outgoing research is preserved unchanged in [v0.7.0-research](../milestones/v0.7.0-research/).
 
-## Historical Task
+## Method
 
-Contract id: unified-latest-tools-261105, revision 3.
-Digest: 5d79d25692b049d1c2cb795ae27cec15c24d49dbad1c39b13a6aac4e033461ec.
+Investigated release discovery/ownership, expected user behavior, integration architecture and failure/recovery risks inline. Used nine Exa discovery queries covering Cua, GSD, npm, MCP, ECC, Context7, Exa, Firecrawl and Pi adapter. Context7 /npm/cli supplied tag/metadata documentation. Bounded code reads and direct public metadata requests cross-checked current behavior.
 
-Sources are external user state under ~/.alpha-aos, or ALPHA_AOS_STATE_DIR when set:
-- contracts/unified-latest-tools-261105-r3.json
-- tasks/unified-latest-tools-261105/runs/<run-id>.json
-- runs/<digest>/journal.jsonl and checkpoint.json
-- receipts/capabilities/<run-id>-discuss-<obligation-id>.json
+Firecrawl successfully read Cua 0.38.0 release and MCP 2026-07-28 changelog. Other reads returned Not connected or Connection closed; no credential/quota/root cause was established. Official browser reads, Exa fetch and direct metadata supplemented these sources. Exa fetch initially rejected url; the reported required urls array succeeded on correction. Partial extraction is not a full-file audit.
 
-Credential values, full private contracts and raw tool results are not copied into this report.
+## Local Findings
 
-| Run | Verified identity | Recorded result |
+| Finding | Evidence | Confidence |
 |---|---|---|
-| 5d79d25692b049d1-c2cb795a | Contract revision/digest from run | Rejected; Phase 32 stopped at discuss; 07:39:37.465Z to 07:39:39.162Z |
-| mw39i0bc-8e6adb7e | Same contract digest | Rejected; missing satisfactory capability evidence at discuss |
-| mw39j2bl-42c4ee8c | Same contract digest | Same |
-| mw39jets-2ff633f4 | Same contract digest | Same |
-| mw39jqd9-62132237 | Same contract digest | Same |
+| Check/stage resolves npm latest; apply reconciles shipped stable lock | [CLI](../../src/cli.ts), update branch around 1562; [resolver](../../src/core/update.ts) | High |
+| Cua excluded from npm resolution; changed ECC clears source/target hashes | resolveCandidate in [update.ts](../../src/core/update.ts) | High |
+| Cua separately pins version/assets/files/vendored installer | [manifest](../../catalog/computer-use-runtime.json), [install](../../src/core/computer-use-install.ts) | High |
+| Cua native verification and status reread bundled pin | [native](../../src/core/computer-use-native.ts), [command](../../src/core/computer-use-command.ts) | High |
+| ECC rewrites exact headings/sections for deep research and Antigravity docs | renderEccSkill in [ecc-fixture.ts](../../src/core/ecc-fixture.ts) | High |
+| GSD compatibility uses exact require text and helper paths | [gsd-compat.ts](../../src/core/gsd-compat.ts) | High |
+| Owned skills/config rendering are separate policy mechanisms | [owned-skills](../../src/core/owned-skills.ts), [MCP](../../src/core/mcp.ts), [skill policy](../../src/core/skill-policy.ts) | High |
+| External installer effects are not automatically rolled back | applyManagedInstall in [install.ts](../../src/core/install.ts), comments around 845-851 and result around 967 | High |
+| Installed SDK lists protocols through 2025-11-25 | node_modules/@modelcontextprotocol/sdk/dist/esm/types.js, first four lines | High for checkout only |
+| Alpha-AOS self-update handles checkout/build/package lock separately | [bootstrap.ts](../../src/core/bootstrap.ts) | High |
+| CLI-Hub is a pinned prerequisite mentioned in a skill, not a current update resolver entry | [CLI-Anything skill](../../skills/cli-anything/SKILL.md), [catalog](../../catalog/stack.yaml) | High; inventory boundary, not provisioning authorization |
 
-Each of the four later run IDs has paired receipts: documentation-lookup outcome ok; deep-research outcome failed, isError true, errorMessage identifying exa/web_search_exa returning an error.
+## Official Source Register
 
-The digest checkpoint is blocked, attemptIndex 4, stopReason no_progress_exhausted. Journal rejection events at attempts 3 and 4 repeat the missing-capability summary. Blocking is recorded at 08:08:14.515Z and again at 08:17:16.520Z.
+1. [npm distribution tags](https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/) — publisher-selected aliases, not universal stability proof.
+2. [npm cache](https://docs.npmjs.com/cli/v11/commands/npm-cache/) — cache integrity, not permanent recovery storage.
+3. [npm signatures](https://docs.npmjs.com/about-registry-signatures/) — package/version/integrity binding, separate from compatibility.
+4. [GitHub releases API](https://docs.github.com/en/rest/releases/releases) — public metadata and pagination.
+5. [Cua 0.38.0 release](https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.38.0) — stable-tag convention and Linux preview distinction.
+6. [Cua install.sh](https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.sh) — official entrypoint and flags; mutable branch evidence.
+7. [Cua Unix helper](https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/_install-rust.sh) — versioned installs, artifact checks and platform differences.
+8. [Cua Windows installer](https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1) — exact release, junction layout and native effects.
+9. [GSD update documentation](https://github.com/open-gsd/gsd-core/blob/next/docs/how-to/update-gsd.md) — backup/restart and differing runtime recovery; next branch is not proof for npm release.
+10. [ECC repository](https://github.com/affaan-m/ECC) — install scopes and duplicate-install cautions.
+11. [Context7 repository](https://github.com/upstash/context7) — local/hosted MCP and CLI choices.
+12. [Exa repository](https://github.com/exa-labs/exa-mcp-server) — local package source/hosted choices.
+13. [Firecrawl repository](https://github.com/firecrawl/firecrawl-mcp-server) — npm server and tool/transport scope.
+14. [Pi adapter](https://github.com/nicobailon/pi-mcp-adapter) — 7.x behavior and built-in MCP relationship; recheck exact artifact before changes.
+15. [MCP 2025-11-25 lifecycle](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) — handshake-era negotiation.
+16. [MCP 2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog) — newer discovery model, not proof all observed servers require it.
 
-This proves an Exa tool error in those later attempts, not its original payload or underlying authentication/argument/service cause. It also proves recovery attempts existed; it would be incorrect to say there was no supervisor or no automatic retry at all.
+Six registry metadata URLs and observed versions are in [STACK.md](STACK.md). At 00:57 UTC a bounded first page of 100 [Cua releases](https://api.github.com/repos/trycua/cua/releases?per_page=100) included eight plain stable driver tags through 0.38.0, all GitHub-prerelease-labelled. This confirms the documented convention within that page, not exhaustive latest selection.
 
-## Source Anchors and Confidence
+## Evidence Limits
 
-| Finding | Local symbol/file | Classification |
-|---|---|---|
-| Native default supplies real capability adapter | nativeTaskPorts in src/adapters/task-agents.ts | Confirmed current code |
-| Tool error content discarded before calls are retained | nativeCapabilityPort connect/call in src/adapters/task-native-capability.ts | Confirmed current code |
-| Fixed URL host filter plus two-URL threshold | nativeCapabilityPort deep-research branch | Confirmed code; historical causal role unproven |
-| Goal/criterion regex selection can make Exa a required obligation | extractQuestionFromContract and evaluateStepObligations in task-capability-obligations.ts | Confirmed code; appropriateness is task-specific |
-| Port existence preflight is shallower than real service readiness | assertTaskCapabilityPorts in task-run.ts; readTaskStartReadiness in cli.ts | Confirmed code |
-| Missing binding returns without publication | publishTaskSessionEvent in task-session.ts | Confirmed code |
-| Optional panel start creates origin binding | start callback in cli.ts; hydrateTaskProgress in task-progress-launch.ts | Confirmed inspected start path |
-| Native delivery/wakeup not proven | readTaskSessionPacket in task-read.ts; taskPanelCapabilities in task-progress-panel.ts | Explicit unknown/disabled in source |
-| Prompt escalation then blocked after four identical failures | selectRepairStrategy in task-strategy.ts | Confirmed code and matching checkpoint |
-| Synthetic successful fallback exists | createFreshSessionCapabilityPort in task-agents.ts | Confirmed code; production reachability unproven |
-| Guidance encourages a single wait and permits handoff | docs/codex-execution-policy.md; skills/alpha-aos-task/SKILL.md | Confirmed wording; behavioral causality is a hypothesis |
-
-createCapabilityReceipt derives activation and observation linkage defaults. Omitted explicit IDs in nativeCapabilityPort alone do NOT establish a receipt linkage bug; the factory was traced before drawing conclusions.
-
-## External Primary Sources
-
-- [Codex app-server](https://learn.chatgpt.com/docs/app-server) — terminal notifications and thread lifecycle for connected clients.
-- [Codex non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode) — exec JSONL terminals and initialization behavior.
-- [Exa MCP](https://exa.ai/docs/get-started/exa-mcp) — actual tool selection, local/hosted setup and authentication differences.
-- [Antigravity headless mode](https://antigravity.google/docs/cli/headless/) — streaming and terminal result interface.
-- [MCP tools](https://modelcontextprotocol.io/specification/2025-11-25/server/tools) — discovery schemas, result content and error taxonomy.
-
-Public docs were fetched, not only search snippets. Exa and Firecrawl calls worked in this research session; no claim is made about the old pinned runner's current live readiness. The older MCP specification page is used for established tools semantics; no dependency migration to a newer SDK or protocol is implied.
-
-## Remaining Unknowns
-
-- The discarded Exa error's precise root cause.
-- The supported way to wake and continue the user's current Codex app session from an independently supervised task.
-- The exact mechanism behind the user's successful Antigravity experience.
-- Whether each packaged/global installed version matches this checkout on every active surface.
-- Which repair changes can be delegated under a pre-approved bounded grant; current exact-digest requirements remain intact until a reviewed design exists.
+Registry integrity presence is not downloaded-artifact verification. No package tarballs/native binaries were installed or executed to prove new-version compatibility. Mutable docs can differ from selected releases. No real-host Cua permissions, native rollback, cross-platform matrix or full suite was run. Research does not complete v0.7.0 acceptance.

@@ -30,7 +30,7 @@ A user can enter any supported project on any supported operating system and get
 - Judge compatibility through actual integration checks rather than blanket refusal of unseen versions; retain the existing working version when checks fail, and provide recovery for failures discovered after apply.
 - Report failures for the affected component/platform/harness combination, and keep compatibility fixes small enough for a patch release or local developer deployment. Updating alpha-AOS code remains separate from updating external tools; runtime AI rewriting is not part of the updater.
 
-**Planning status:** Owner selected latest official releases (1-A), installation/explicit-update triggers (2-A), and approved the direction above on 2026-11-06. Research selection, detailed requirements and roadmap approval remain pending. Continue numbering at Phase 39. This is planning authorization, not authorization to start an autopilot task, install tools, publish or deploy.
+**Planning status:** Owner selected latest official releases (1-A), installation/explicit-update triggers (2-A), approved the direction and selected research first on 2026-11-06. [Research](research/SUMMARY.md) is complete for milestone definition; detailed requirements scoping/approval and roadmap approval remain pending. Continue numbering at Phase 39. This is planning authorization, not authorization to start an autopilot task, install tools, publish or deploy.
 
 **Outgoing work:** v0.7.0 documents and research are preserved in [the rollover record](milestones/v0.7.0-ROLLOVER.md). Phases 35-38 have implementation evidence, but final live acceptance remains unverified after provider quota exhaustion. Earlier v0.6.0 work remains preserved in [its rollover](milestones/v0.6.0-ROLLOVER.md). Archival does not close either milestone or change package/release versions.
 
@@ -155,4 +155,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-06 after owner approval of the v0.8.0 milestone direction; research and detailed scope approvals pending.*
+*Last updated: 2026-11-06 after v0.8.0 research; detailed requirements and roadmap approvals pending.*

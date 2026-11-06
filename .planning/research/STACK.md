@@ -1,37 +1,53 @@
 # Stack Research
 
-**Milestone:** v0.7.0 Autopilot Reliability & Recovery
-**Researched:** 2026-11-05
-**Confidence:** HIGH for inspected code and historical records; MEDIUM for host integration feasibility.
+**Milestone:** v0.8.0 Unified Tool Updates & Compatibility
+**Researched:** 2026-11-06
+**Confidence:** HIGH for observed code/metadata; MEDIUM for proposed recovery feasibility.
 
 ## Recommended Stack
 
-Retain Node.js >=24, TypeScript, the existing MCP SDK, transactional state, command jobs and GSD lifecycle. No new dependency or model change is established by this research. Versions remain those in package.json and the stable lock; current upstream documentation is guidance, not proof that every pinned server exposes the same schema.
+Retain TypeScript, Node built-in fetch/crypto/filesystem/process APIs, existing schema validation and component sessions. No new library is justified by discovery alone. External-tool selection must remain separate from alpha-AOS's package dependencies and self-update. This is a design recommendation based on [package.json](../../package.json) and [existing resolution](../../src/core/update.ts).
 
-| Concern | Existing component | Recommended change |
+| Technology | Version / policy | Purpose |
 |---|---|---|
-| Contract readiness | src/cli.ts readTaskStartReadiness; task-contract.ts | Evaluate task-specific obligations against the actual invocation adapter, transport, schema and credential availability before presenting a runnable contract. Separate pure inspection from authorized service calls. |
-| Tool execution | src/adapters/task-native-capability.ts | Preserve scrubbed protocol/tool error details; validate actual response content and task relevance. Bind evidence to the actual invocation context. |
-| Completion | completion-wait.ts; command-jobs.ts; task-session.ts | Reuse bounded runtime observers and durable event storage; add proven origin-session delivery and acknowledgement instead of another state spine. |
-| Recovery | task-supervisor.ts; task-strategy.ts | Add typed recovery actions for contract, runtime and external failures, not only repeated prompt injection. |
-| Authority | task-contract.ts; task-effects.ts; task-journal.ts | Explicit repair authorization and revision lineage, preserving models, allowed roots, budget and GSD ownership. |
+| Node.js | Existing >=24 floor | Bounded HTTP, hashing, subprocess control; also required by observed latest GSD metadata |
+| npm registry | Official latest tag resolved to an exact non-prerelease version | GSD, ECC, MCP and bridge discovery |
+| Cua official releases | Driver-specific stable channel, exact release artifacts | Native driver discovery/installation |
+| Local tool record | Proposed versioned schema under userStateRoot | Exact versions, artifacts, source and compatibility/recovery evidence |
+| Component sessions and transactions | Existing implementation | Writer ownership, reviewed input binding and owned-file rollback |
 
-## Native Integration Boundaries
+Sources: [npm tags](https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/), [Cua stable semantics](https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.38.0), [component sessions](../../src/core/component-session.ts).
 
-Codex exec JSONL and app-server JSON-RPC are different protocols. The CLI exposes dotted terminal events; app-server exposes slash-separated turn notifications. Do not feed one parser the other wire format. [Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode), [App-server](https://learn.chatgpt.com/docs/app-server).
+## Observed Package Versions
 
-The inspected task-codex.ts already parses exec terminals. This makes the missing origin-session continuation a separate integration problem, not a reason to replace all Codex execution code.
+Read-only registry observations at 2026-11-06 00:56 UTC. All six metadata responses contained integrity. These are observations, not installed versions, compatibility claims or future pins. Re-resolve when an update is requested.
 
-Exa's hosted endpoint and pinned local npm process are distinct transports. The native adapter launches the pinned npm package through upstreamProcessSpec. Working Exa tools in this chat do not prove that process has the same authentication, configuration or surface. [Exa MCP](https://exa.ai/docs/get-started/exa-mcp).
+| Component | Repository lock | Observed latest | Official source |
+|---|---|---|---|
+| GSD | 1.18.0 | 1.20.1 | [registry](https://registry.npmjs.org/@opengsd%2Fgsd-core/latest) |
+| ECC | 2.2.3 | 2.2.3 | [registry](https://registry.npmjs.org/ecc-universal/latest) |
+| Context7 | 4.4.4 | 4.5.0 | [registry](https://registry.npmjs.org/@upstash%2Fcontext7-mcp/latest) |
+| Exa | 3.4.2 | 3.4.3 | [registry](https://registry.npmjs.org/exa-mcp-server/latest) |
+| Firecrawl | 3.34.1 | 3.37.0 | [registry](https://registry.npmjs.org/firecrawl-mcp/latest) |
+| Pi bridge | 6.0.0 | 7.0.1 | [registry](https://registry.npmjs.org/pi-mcp-adapter/latest) |
+
+Cua is pinned at 0.38.0. A bounded first page of 100 [official releases](https://api.github.com/repos/trycua/cua/releases?per_page=100) included eight plain driver tags through 0.38.0, all GitHub-prerelease-labelled. This is not exhaustive latest-version proof. Production discovery needs bounded pagination and explicit incomplete-result handling. Upstream says plain driver SemVer releases are stable despite that flag; Linux preview support is a separate platform constraint. [Release contract](https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.38.0).
+
+## Protocol Boundary
+
+The installed SDK declares 2025-11-25 as its latest supported protocol in node_modules/@modelcontextprotocol/sdk/dist/esm/types.js. The [2026-07-28 changelog](https://modelcontextprotocol.io/specification/2026-07-28/changelog) documents changed discovery/negotiation. Do not infer every latest server requires it. Probe the actual common protocol and tool schemas through each alpha-AOS client/proxy. Updating alpha-AOS's bundled SDK is a code/dependency change, not an external-tool update side effect.
 
 ## Alternatives Considered
 
-- A new workflow engine: unnecessary; GSD already owns project lifecycle.
-- Permanent model-driven status loops: do not repair missing delivery and consume inference on unchanged state.
-- A separate app-server process as an assumed connection to this existing desktop conversation: not established by public documentation. Prove the actual host integration first.
-- Removing mandatory capability obligations to make runs green: hides the failure instead of repairing it.
-- Broad dependency upgrades: not justified by the observed failure.
+| Recommended | Alternative | Consequence |
+|---|---|---|
+| Resolve once; render exact launch identity | Leave @latest in native config | Unrequested version changes on later launches |
+| Source-specific official adapters | One npm installer for everything | Cannot represent Cua platform effects |
+| Local exact records | Remove all integrity/version locks | No reproducible identity or recovery evidence |
+| Selected ECC scope | Full upstream plugin/profile migration | Potential hooks/workflow duplication |
 
-## Sources
+Context7, Exa and Firecrawl document hosted endpoints too. A transport/authentication migration is separate scope, not needed for local package updates. [Context7](https://github.com/upstash/context7), [Exa](https://github.com/exa-labs/exa-mcp-server), [Firecrawl](https://github.com/firecrawl/firecrawl-mcp-server).
 
-Local: src/adapters/task-agents.ts, task-native-capability.ts, task-codex.ts; src/core/task-session.ts, completion-wait.ts, task-contract.ts and task-supervisor.ts. Historical record identities and limitations: [EVIDENCE.md](EVIDENCE.md).
+## Installation
+
+No dependencies, managed tools or global configuration were installed/updated during research. Revalidate mutable installer documentation against the exact selected artifact during implementation.

@@ -1,64 +1,66 @@
 # Architecture Research
 
-**Milestone:** v0.7.0 Autopilot Reliability & Recovery
-**Researched:** 2026-11-05
-**Confidence:** HIGH for existing integration points; proposed design requires phase planning.
+**Milestone:** v0.8.0 Unified Tool Updates & Compatibility
+**Researched:** 2026-11-06
+**Confidence:** HIGH for current seams; MEDIUM for proposed integration/recovery design.
 
-## Existing Structure
+## Recommended Architecture
 
-- Contract validation and approval: task-contract.ts and CLI readiness.
-- Native dispatch and MCP adapter: task-agents.ts, task-codex.ts, task-native-capability.ts.
-- Attempt supervision, limits and effects: task-supervisor.ts, task-strategy.ts, task-journal.ts and task-effects.ts.
-- Durable session events and panel: task-session.ts, task-progress-launch.ts, task-progress-panel.ts.
-- Observation: task-wait.ts, completion-wait.ts and command-jobs.ts.
-- GSD remains the sole owner of phase, plan, verification and project-state transitions.
+Use one local lifecycle over source-specific resolvers, official installers and explicit compatibility adapters. Reuse existing component sessions, process/path boundaries and transactions. The local exact record becomes the shared install/render/verify input. Mutable channels are discovery inputs only. Proposed contracts below are not implemented APIs.
 
-## Confirmed Integration Gaps
+```mermaid
+flowchart LR
+  A[Install or explicit update] --> B[Inventory and source rules]
+  B --> C[Resolve exact release]
+  C --> D[Bind preview and input identities]
+  D --> E[Acquire and verify]
+  E --> F[Stage and check integration]
+  F --> G[Activate official adapter]
+  G --> H[Verify target and record outcome]
+  F --> I[Keep working state on failure]
+  G --> J[Recover and reconcile]
+  H --> J
+```
 
-1. readTaskStartReadiness computes readiness without task-specific capability invocation readiness; assertTaskCapabilityPorts only proves that a port object exists.
-2. Native MCP errors are collapsed to a tool-name message and thrown before their failed result is retained.
-3. publishTaskSessionEvent returns when no binding exists. CLI start creates origin binding via the optional progress-panel callback. There is no equivalent demonstrated default host wakeup in this path.
-4. readTaskSessionPacket exposes nativeDelivery unknown; taskPanelCapabilities reports native delivery disabled and wakeup unknown.
-5. The supervisor chooses prompt-injection strategies from repeated fingerprints. This is not a typed contract/runtime repair mechanism.
+## Component Responsibilities
 
-## Proposed Flow
+| Component | Responsibility | Existing integration |
+|---|---|---|
+| Tool/source catalog | Ownership, official channel rules, platform support | stack.yaml and separate Cua manifest |
+| Release resolver | Bounded public metadata -> exact artifact/provenance | update.ts; add driver-family resolver |
+| Local record | Requested/resolved/installed/verified identities and adapter revision | New schema under userStateRoot, outside checkout |
+| Planner | Bind pre-state, target proofs, effects, dependencies and recovery | component-session.ts, install.ts |
+| Official installer adapter | Exact install and declared native effects | Existing GSD/ECC/Pi/Cua steps |
+| Compatibility adapter | Minimal translation with preconditions/postconditions and retirement | ECC renderers, GSD compatibility, MCP frontends |
+| Verifier | Formats, negotiated protocol/schema, actual permitted read-only invocation | Existing fixtures/canaries/native probes |
+| Recovery | Retain previous identity, switch/restore supported state, report remaining effects | Transactions plus source-specific native recovery |
 
-Approved intent -> obligation-aware contract preparation -> explicit execution/repair grant -> durable origin binding -> supervised attempt -> typed outcome.
+Sources: [update](../../src/core/update.ts), [install](../../src/core/install.ts), [Cua](../../src/core/computer-use-install.ts), [ECC](../../src/core/ecc-fixture.ts), [GSD](../../src/core/gsd-compat.ts), [MCP](../../src/core/mcp.ts).
 
-From the typed outcome:
-- Accepted: verify GSD evidence and process closure, persist final outcome, deliver and acknowledge.
-- Recoverable: diagnose -> authorized corrective action -> verify delta -> checkpoint -> next attempt.
-- Authority expansion or genuine external stop: preserve evidence and deliver the exact required user action.
-- Observer disconnect: runtime continues within authority; reconnect replays the durable outcome without re-executing work.
+## Data Flow and Compatibility Contract
 
-These are responsibilities, not a second GSD lifecycle.
+1. Resolve once and capture exact version/artifact/integrity, official source and selection rule. A tag moving later must not change the reviewed artifact.
+2. Revalidate bound inputs before mutation and verify acquired bytes. Unresolved metadata, unsupported platform and provenance failure are explicit conditions; do not silently select an older release.
+3. Compute output hashes locally from verified source bytes and deterministic adapter revisions. Shipping new expected hashes inside alpha-AOS for every upstream release would preserve the maintenance bottleneck.
+4. Describe applicability by tool, actual protocol/capabilities, OS, harness and adapter revision. Unknown version alone is not a compatibility failure.
+5. Prefer native public config and separate policy/guidance. Prove discovery, precedence and invocation; another Markdown file does not automatically replace an upstream rewrite.
+6. Stage where officially supported. An installer that cannot isolate staging must declare native effects and a concrete recovery capability before mutation. Synthetic fixture success does not prove target-host permissions or credentialed calls.
+7. Verify the active target after activation. Missing authority, credentials, GUI permission, service availability or host reload produces explicit unverified/needs-action evidence, not false readiness.
 
-## Components to Modify or Add
+[Cua Windows](https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/install.ps1) documents versioned directories/junction switching. [Unix helper](https://raw.githubusercontent.com/trycua/cua/main/libs/cua-driver/scripts/_install-rust.sh) has different platform layouts. [GSD update docs](https://github.com/open-gsd/gsd-core/blob/next/docs/how-to/update-gsd.md) describe runtime-specific restoration differences; mutable next-branch claims must be checked against the selected npm artifact.
 
-| Component | Change |
-|---|---|
-| Contract planner/readiness | Shared obligation/adapter/schema validation; explicit states for executable, blocked and needs-input. Do not consume approval during a refused start. |
-| Native capability adapter | Structured scrubbed error taxonomy and useful failure evidence; task-aware source selection; truthful successful receipts. |
-| Session binding/outcome store | Bind origin before work starts; retain contract/digest/revision, chain and attempt identities; distinguish attempt from chain outcomes. |
-| Origin delivery adapter | Register real host completion/continuation handles, persist pending outcomes and acknowledgements, reconcile reconnects and duplicate delivery. |
-| Recovery controller | Choose and execute contract, environment or code repair under an explicit grant; record verification and revision ancestry before retry. |
-| Guidance distribution | Align skill source, generated guidance and packaged documentation with the implemented continuation protocol. |
+## Migration and Ownership
 
-## Host Truth
+Use shipped stable locks/Cua pins as migration inputs, retaining prior verified identity and ownership. Every config renderer, diagnostic, pack hash lookup, isolation runtime, native verifier and rollback reader must use the same selected record. Changing only discovery leaves hidden old pins in effect.
 
-Codex app-server provides notifications to connected clients and thread resume APIs. That alone does not establish a supported route for an unrelated process to inject a turn into the currently open Codex app session. Phase work must prove the origin host path before promising completion-driven continuation. [App-server](https://learn.chatgpt.com/docs/app-server).
+Keep alpha-AOS package dependencies/bootstrap self-update separate and preserve GSD's product single-writer contract. Shared config/runtime effects create dependency groups: report partial results precisely and stop dependent changes where consistency cannot be established.
 
-Antigravity headless output can carry a terminal result, and streaming input can keep a process conversation alive. This is a useful reference interface, not evidence that the user's previously observed Antigravity repairs happened through this implementation. [Headless mode](https://antigravity.google/docs/cli/headless/).
+## Suggested Build Order
 
-## Build Order Suggested for Roadmap
+1. Inventory/source rules and exact local record.
+2. Local discovery and unified planning, including Cua.
+3. Transformation reduction and adapter lifecycle metadata.
+4. Integration, activation and recovery.
+5. Existing-install migration and consistent CLI/docs.
 
-35: Executable contracts and actionable capability failures.
-36: Durable origin-session completion delivery and recovery-chain outcome identity.
-37: Authorized diagnosis, corrective action, revision handling and rerun.
-38: Installed guidance alignment and end-to-end evidence under the workstation delivery policy.
-
-This is a proposal, not an approved roadmap. Host feasibility should be investigated at the start of Phase 36 before spending on a bridge that cannot reach the originating session.
-
-## Sources
-
-[EVIDENCE.md](EVIDENCE.md) links local symbols and records. No production runtime changes or old external task restart occurred during research.
+Start at Phase 39. This is research guidance, not an approved roadmap.

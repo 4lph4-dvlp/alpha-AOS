@@ -1,50 +1,45 @@
 # Feature Research
 
-**Milestone:** v0.7.0 Autopilot Reliability & Recovery
-**Researched:** 2026-11-05
+**Milestone:** v0.8.0 Unified Tool Updates & Compatibility
+**Researched:** 2026-11-06
+**Confidence:** HIGH for goals/current gaps; MEDIUM for recovery mechanisms until demonstrated.
 
 ## Feature Landscape
 
-| Category | Required behavior | Complexity | Dependency |
+These are detailed scope recommendations derived from the approved [direction](../PROJECT.md), [code evidence](EVIDENCE.md) and cited official interfaces. They await user approval as requirements.
+
+### Table Stakes
+
+| Category | Proposed user behavior | Complexity | Basis |
 |---|---|---|---|
-| Executable contracts | Distinguish bad contract/schema from unavailable runtime, authentication, quota and service errors; expose a specific remedy before approval/start. | Medium | Capability inventory, actual native invocation path |
-| Capability proof | Successful task-relevant tool output, source evidence and linkage; discovery or configuration alone is insufficient. | Medium | Receipt validation and source policy |
-| Automatic completion | Persist and deliver success, rejection, failure, interruption and observer loss to the exact originating session. | High | Host-specific continuation capability |
-| Recovery | Diagnose, perform a scoped corrective action, verify the change and retry without another user request for routine same-scope recovery. | High | Failure classification, explicit repair grant, checkpoints |
-| Final acceptance | Report GSD acceptance and process closure separately; a failed attempt is not the terminal result of an active recovery chain. | Medium | Supervisor identity and final outcome |
-| Continuity | Restore delivery after reconnect, avoid duplicate attempts, retain completed phases and useful evidence. | High | Durable identity, cursor and acknowledgement |
-| Guidance | Installed skills and source guidance continue authorized recovery; handoff documents explain genuine blockers rather than ending recoverable work. | Medium | Runtime recovery implementation |
+| Inventory | See every managed tool, official source, installed version and owning adapter, including Cua | Medium | npm/Cua paths are separate today |
+| Local discovery | Install/update finds official stable releases without alpha-AOS remote promotion | Medium | [npm tags](https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/), [Cua channels](https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.38.0) |
+| Exact preview | Inspect old/new identity, affected targets, effects and recovery before apply | Medium | Extend existing reviewed plans |
+| Local records | Inspect exact artifacts and separate installed, verified, failed and recovered outcomes | Medium | New ECC versions invalidate bundled hashes |
+| Minimal adaptation | Prefer original upstream content and official config with separate alpha-AOS guidance | High | Current ECC text rewrites/GSD string detection |
+| Integration | See actual protocol/schema and relevant read-only invocation evidence | High | [MCP revision changes](https://modelcontextprotocol.io/specification/2026-07-28/changelog) |
+| Recovery | Keep the working install on preflight failure; recover/reconcile supported post-apply effects | High | External installers are outside file rollback |
+| Migration | Adopt existing stable-lock/Cua-pin installations without overwriting user changes | High | Ownership/provenance must be preserved |
+| Guidance | CLI and bilingual docs distinguish external-tool updates from alpha-AOS code updates | Medium | Existing CLI promises stable reconciliation |
 
-## Expected Behavior
+### Differentiators
 
-1. The user requests and authorizes an autopilot task.
-2. Contract construction names real obligations and a supported invocation path.
-3. The runner persists origin identity independently of whether a progress panel is open.
-4. Each attempt has a distinct ID under one auditable recovery lineage.
-5. A recoverable failure produces an actual scoped change before another equivalent attempt.
-6. The originating session resumes automatically through a proven host path and reports accepted work or the specific external/user boundary.
-7. Reconnect and event redelivery do not repeat completed work.
+Include explicit adapter rationale, applicability, verification and removal conditions. Report outcomes per component/platform/harness, accounting for shared dependency effects. Compatibility fixes should fit a patch release/local developer deployment without a new remotely distributed plugin system. [Architecture](ARCHITECTURE.md).
 
-## Differentiators
+### Anti-Features
 
-- Evidence explaining why another attempt should succeed, rather than a retry counter alone.
-- A common outcome envelope across Codex and Antigravity without pretending their native transports are identical.
-- Explicit distinction among failed attempt, blocked recovery chain, lost observer and accepted task.
+- Nightly/beta selection and background updates: outside user-approved triggers/channel.
+- Runtime AI patching: replace with reviewed adapter/code changes.
+- Blanket rejection of unknown versions: run checks against the resolved exact artifact.
+- Full ECC profile/plugin migration: can import duplicate hooks/workflows beyond selected scope.
+- Universal rollback claims: measure source-specific recovery and expose incomplete restoration.
 
-## Anti-features
+## Dependencies and Ownership
 
-- Unlimited retries, quota bypass, silent model substitution, scope/root expansion.
-- Automatic reapproval of arbitrary changed digests without a prior repair grant.
-- Mock success receipts or removing research requirements after a tool error.
-- Calling a progress panel, status file or desktop notification proof that the conversation continued.
-- A handoff as the routine result of a recoverable failure.
+Inventory/source rules -> exact local plan/record -> adaptation and staged checks -> activation/recovery -> migration and consistent guidance.
 
-## Scope and Validation
+Pi upstream now documents built-in MCP alongside the optional adapter. Investigate necessity per supported installed Pi version; do not silently remove the bridge or change tool availability. [Pi adapter](https://github.com/nicobailon/pi-mcp-adapter).
 
-Prioritize the user's current Codex origin-session experience and existing Codex child execution. Use Antigravity as a behavioral reference and preserve other harness behavior. Which installed host surfaces support automatic continuation requires implementation-time proof; do not silently narrow acceptance to headless child completion.
+Inventory alpha-AOS-owned skills, CLI-Hub prerequisites, harness applications and alpha-AOS bundled libraries, distinguishing external update ownership from dependencies merely mentioned in guidance. Generic CLI-Hub provisioning, new harness installation, hosted-service migration and v0.7.0 acceptance remain separate scope.
 
-Tests, fixtures and live runs were not executed during research. Future validation must follow the owner's personal-workstation delivery policy and explicitly authorized invocation scope.
-
-## Sources
-
-The user report, exact historical evidence in [EVIDENCE.md](EVIDENCE.md), and [Architecture](ARCHITECTURE.md). Antigravity documents programmatic streaming results, not this product's automatic repair guarantees: [Headless mode](https://antigravity.google/docs/cli/headless/).
+The [v0.6.0 expansion](../milestones/v0.6.0-REQUIREMENTS.md) already proposed LATEST-01..03 and COMPAT-01..03 but did not complete them. It is historical design, not current implementation or automatic approval of every old policy. Current user choices and workstation delivery policy govern.

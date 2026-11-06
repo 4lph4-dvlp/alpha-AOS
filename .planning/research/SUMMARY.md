@@ -1,75 +1,72 @@
 # Project Research Summary
 
-**Project:** alpha-AOS
-**Milestone:** v0.7.0 Autopilot Reliability & Recovery
-**Researched:** 2026-11-05
-**Confidence:** HIGH for local findings; MEDIUM for proposed host continuation design.
+**Project:** alpha-AOS v0.8.0 — Unified Tool Updates & Compatibility
+**Domain:** Local managed-tool updates and cross-harness integration
+**Researched:** 2026-11-06
+**Confidence:** HIGH for current gaps/channel rules; MEDIUM for proposed recovery and adaptation removal.
 
 ## Executive Summary
 
-The evidence supports three interacting defects: capability failures lose actionable information, origin-session continuation is not implemented/proven by the existing progress channel, and recovery escalates prompts instead of performing typed corrections. Four historical retries did occur, then stopped without progress. Describing this as no retry at all would be inaccurate; describing it as effective autonomous repair would also be inaccurate.
+The approved policy is feasible without remote lock promotion: query official releases locally on installation/explicit update, resolve an exact artifact, and use that identity throughout planning, apply and native launch configuration. Retain integrity and exact local records. npm tags are publisher-selected aliases, so also reject semantic prereleases. [npm tags](https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/).
 
-The reported contract defect must be split into invalid contract construction and a valid obligation with an unusable runtime path. Later historical receipts explicitly show Context7 success and Exa tool failure. The underlying Exa response was discarded, so authentication, argument and service causes remain unresolved.
+Cua shares the lifecycle, not the npm resolver. Its stable plain driver tags can carry GitHub's prerelease flag because the repository publishes several products. A repository-wide latest endpoint or generic prerelease filter would be wrong. Platform support, including Linux preview, is a separate question. [Cua contract](https://github.com/trycua/cua/releases/tag/cua-driver-rs-v0.38.0).
+
+Maintenance reduction is central. Current ECC rewrites, GSD string detection and bundled hashes couple tool changes to alpha-AOS releases. Prefer public configuration and separately discoverable alpha-AOS guidance, retaining explicit small adapters where translation is needed. Native installer effects are not automatically restored by current file transactions; recovery must be designed per adapter with measured outcomes. [Local evidence](EVIDENCE.md).
 
 ## Key Findings
 
 ### Recommended Stack
 
-Reuse Node, TypeScript, existing MCP client transports, durable jobs/session events, effect ledger and GSD state. No new dependency is justified yet. Research current host interfaces before selecting a wakeup bridge.
+Keep TypeScript/Node and current mutation boundaries. Add a local versioned tool record and source/compatibility contracts. No new library is currently justified. Separate external-tool updates from alpha-AOS dependencies/self-update. [Stack](STACK.md).
 
 ### Expected Features
 
-- Executable, task-relevant capability obligations with preflight and actionable failures.
-- Durable, exact origin-session identity and verified automatic terminal delivery.
-- Bounded diagnosis, actual corrective action, verified delta and safe rerun.
-- Explicit revision authority and final outcome evidence without premature handoff.
+Must have: complete managed inventory including Cua; source-aware local stable selection; exact preview/local records; minimal transformations; meaningful integration evidence; prior-state retention and native recovery; migration and CLI/docs consistency. Defer hosted-service migration, new harness installation, generic CLI-Hub provisioning, background/nightly updates. [Features](FEATURES.md).
 
 ### Architecture Approach
 
-Keep GSD as sole lifecycle/state owner. Extend the operational runner with a chain identity, typed failures, repair actions and an acknowledged origin-delivery adapter. Progress UI remains an observer; it must not determine whether origin identity exists.
-
-Codex documents terminal events for both exec and connected app-server clients. Neither fact alone proves a route back into an already open app conversation. [Non-interactive mode](https://learn.chatgpt.com/docs/non-interactive-mode), [App-server](https://learn.chatgpt.com/docs/app-server).
-
-Exa's official setup includes different transports and tool selection. A successful chat call does not validate the runner's pinned local process. [Exa MCP](https://exa.ai/docs/get-started/exa-mcp).
-
-Antigravity's documented streaming interface provides a comparison surface; the user's observed repair behavior still needs direct evidence. [Headless mode](https://antigravity.google/docs/cli/headless/).
+Inventory -> exact resolution -> bound preview -> acquire/verify -> stage/check -> activate -> verify target/record -> retain or recover on failure. Source-specific official adapters declare effects and recovery. Unknown versions may be checked; absent proof remains explicitly unverified. Runtime AI rewriting is excluded. [Architecture](ARCHITECTURE.md).
 
 ### Critical Pitfalls
 
-- Preserve tool errors before summarizing rejection.
-- Do not retry an unchanged pre-model capability failure with only a stronger implementation prompt.
-- Do not treat a panel, file watcher or process exit as origin-session continuation or GSD acceptance.
-- Do not repair capability failures by removing obligations, manufacturing receipts or broadening authority.
-- Replace guidance that makes handoff the default response to a yielded transport.
+- Cua stable classification differs from generic GitHub prerelease metadata.
+- Floating @latest launch commands break explicit-update timing.
+- Bundled expected hashes in downstream readers recreate centralized waiting.
+- Text/hash success does not establish routing/protocol/invocation success.
+- Owned-file rollback does not restore all external installer effects. [Pitfalls](PITFALLS.md).
+
+The installed SDK supports through 2025-11-25. The [newer MCP revision](https://modelcontextprotocol.io/specification/2026-07-28/changelog) changes discovery behavior. This justifies testing actual common protocol support, not declaring observed latest servers incompatible.
 
 ## Implications for Roadmap
 
-Proposed sequence, pending requirements and roadmap approval:
+Proposed sections only; detailed requirements and roadmap approval are still required.
 
-| Phase | Focus | Dependency rationale |
+| Proposed phase | Delivers | Ordering rationale |
 |---|---|---|
-| 35 | Executable contracts and capability diagnostics | Recover useful cause and prevent known-unexecutable starts. |
-| 36 | Origin-session completion delivery | Establish actual host continuation and attempt/chain outcome identity. |
-| 37 | Authorized repair and rerun | Use cause, delivery and persisted progress to perform effective recovery. |
-| 38 | Guidance alignment and lifecycle evidence | Verify distributed behavior and the complete user-visible journey. |
+| 39 — Inventory and Local Release Records | Source ownership, exact local identity, migration contract | Every resolver/renderer/verifier needs the same identity |
+| 40 — Local Official Release Updates | npm/Cua discovery and unified planning | Implements approved trigger/channel after identity rules |
+| 41 — Minimal Compatibility Adapters | Verified transformation reduction, explicit adapter metadata | Isolate semantic adaptation from release bytes |
+| 42 — Integration Verification and Recovery | Real protocol/schema/call evidence and native recovery | Exercise staging/active paths with declared effects |
+| 43 — Migration and Consistent Guidance | Existing-install migration, diagnostics, bilingual docs | Close all hidden bundled-pin readers |
 
-Investigate host feasibility early in Phase 36. If the current origin host cannot accept a supported automatic continuation, expose that limit before task start and resolve the integration design; do not silently replace the requested outcome with a status file.
+### Research Flags
+
+Cua staging/recovery and permissions need exact-installer/platform evidence. ECC separate guidance needs discovery/precedence proof before removing rewrites. GSD hook helper necessity must be checked against the selected release. MCP checks must include alpha-AOS proxy/client boundaries, not only upstream servers.
 
 ## Confidence Assessment
 
-| Area | Confidence | Reason |
+| Area | Confidence | Limit |
 |---|---|---|
-| Exa failure in later historical attempts | High | Four exact-digest run records and paired capability receipts |
-| Precise Exa root cause | Low | Failed tool response was discarded |
-| Missing demonstrated native wakeup | High for inspected path | Explicit unknown/disabled capability fields; no binding without optional panel path |
-| Cross-host repair parity | Medium/Low | Public interfaces reviewed; no live comparative run |
-| Prompt/handoff influence | Medium hypothesis | Source wording verified; causal replay not performed |
-
-### Gaps to Address
-
-Preserve the existing failed digest/checkpoint. Do not restart the old clone/contracts as a side effect of this milestone. Prove the current Codex host integration; retain exact approval/model/resource/root boundaries while designing delegated repair. No tests or implementation were performed.
+| Current code/metadata | High | Bounded source inspection and read-only public observations |
+| Official channel selection | High for documented conventions | Complete bounded Cua pagination remains implementation work |
+| Need for adaptation cleanup | High | Concrete text/hash coupling |
+| Removal of individual patches | Medium | Requires behavior/precedence evidence |
+| Native recovery | Medium design confidence | Universal recovery not established |
 
 ## Sources
 
-Full local evidence inventory, exact run identities, methodology and uncertainty: [EVIDENCE.md](EVIDENCE.md).
-Supporting dimensions: [STACK.md](STACK.md), [FEATURES.md](FEATURES.md), [ARCHITECTURE.md](ARCHITECTURE.md), [PITFALLS.md](PITFALLS.md).
+[EVIDENCE.md](EVIDENCE.md) registers 16 official documentation/source pages, six registry observations, a bounded release API read and local code. Exa discovery and Context7 npm documentation succeeded. Firecrawl read two key pages but failed with connection errors for others; official reads supplemented them. No live upgrades, compatibility tests or full suite ran.
+
+## Next Checkpoint
+
+Research for milestone definition is complete. Scope and approve the detailed requirements before roadmap creation. Preserved v0.7.0 live acceptance remains unresolved. No implementation or release is claimed.

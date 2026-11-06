@@ -1,0 +1,10 @@
+{
+  "command": "node --test --test-reporter=tap dist/test/tool-handoff-loader.test.js",
+  "exitCode": 1,
+  "output": "TAP version 13\n# Subtest: collector authenticates a retained npm registry signature against reviewed policy\nnot ok 1 - collector authenticates a retained npm registry signature against reviewed policy\n  ---\n  duration_ms: 606.1784\n  type: 'test'\n  location: 'D:\\\\dev\\\\alpha-AOS\\\\dist\\\\test\\\\tool-handoff-loader.test.js:24:1'\n  failureType: 'testCodeFailure'\n  error: |-\n    Expected values to be strictly equal:\n    + actual - expected\n    \n    + 'needs-evidence'\n    - 'ready'\n    \n  code: 'ERR_ASSERTION'\n  name: 'AssertionError'\n  expected: 'ready'\n  actual: 'needs-evidence'\n  operator: 'strictEqual'\n  stack: |-\n    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-handoff-loader.test.js:41:16)\n    async Test.run (node:internal/test_runner/test:1110:7)\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)\n  ...\n1..1\n# tests 1\n# suites 0\n# pass 0\n# fail 1\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 1034.151\n",
+  "targetTest": "collector authenticates a retained npm registry signature against reviewed policy",
+  "targetFile": "test/tool-handoff-loader.test.ts",
+  "expected": "ready",
+  "actual": "needs-evidence",
+  "semanticAssessment": "Collector observes the package but has no retained npm signature loader."
+}

@@ -4,8 +4,7 @@ import { isAbsolute, join, resolve, sep } from "node:path";
 import { globalMcpConfigPath, nativeConfigFormat } from "./mcp.js";
 import { globalGsdConfigRoot } from "./install.js";
 import { globalEccSkillRoot } from "./ecc-skills.js";
-import { parseManagedDocument } from "./validation.js";
-import { boundedText, toolHarnesses, type ToolCandidate, type ToolObserverContext } from "./tool-observers.js";
+import { boundedText, parseNativeConfiguration, toolHarnesses, type ToolCandidate, type ToolObserverContext } from "./tool-observers.js";
 import type { HarnessId } from "../types.js";
 import type { ToolObservation } from "./tool-inventory.js";
 import { inspectToolRecordJournal, type ToolRecordStore } from "./tool-records.js";
@@ -20,7 +19,7 @@ export async function observeHarnessToolBindings(context: ToolObserverContext): 
     const file = await boundedText(configPath);
     if (file.state === "absent") continue;
     if (file.state === "unknown") { for (const id of ["context7", "exa", "firecrawl", "cua"]) output.push({ harness, toolId: id === "cua" ? "cua-driver" : `mcp:${id}`, target: null, reason: "config-unreadable" }); continue; }
-    const parsed = parseManagedDocument({ text: file.text!, format: nativeConfigFormat(harness) });
+    const parsed = parseNativeConfiguration(file.text!, nativeConfigFormat(harness));
     if (!parsed.ok || !parsed.value || typeof parsed.value !== "object") { for (const id of ["context7", "exa", "firecrawl", "cua"]) output.push({ harness, toolId: id === "cua" ? "cua-driver" : `mcp:${id}`, target: null, reason: "config-invalid" }); continue; }
     const root = parsed.value as Record<string, unknown>, mcp = root.mcp as Record<string, unknown> | undefined;
     const servers = (root.mcpServers ?? root.mcp_servers ?? mcp?.servers) as Record<string, unknown> | undefined;

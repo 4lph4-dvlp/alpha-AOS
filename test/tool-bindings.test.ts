@@ -18,7 +18,7 @@ test("harness bindings identify shared exact package targets without exposing co
     await mkdir(join(home, ".codex"), { recursive: true });
     await applyFileTransaction({ stateRoot: join(root, "state"), allowedRoots: [home], operations: [{ target: join(home, ".codex", "config.toml"), content: `# alpha-aos:start mcp\n[mcp_servers.exa]\ncommand = ${JSON.stringify(join(pkg, "cli.js"))}\n# alpha-aos:end mcp\n` }] });
     await mkdir(join(home, ".gemini", "config"), { recursive: true });
-    await writeFile(join(home, ".gemini", "config", "mcp_config.json"), JSON.stringify({ mcpServers: { exa: { command: join(pkg, "cli.js") } } }));
+    await writeFile(join(home, ".gemini", "config", "mcp_config.json"), `{ // JSONC comments and trailing commas are permitted\n"mcpServers": { "exa": { "command": ${JSON.stringify(join(pkg, "cli.js"))}, }, }, }`);
     await mkdir(join(home, ".pi", "agent"), { recursive: true });
     await writeFile(join(home, ".pi", "agent", "mcp.json"), JSON.stringify({ mcpServers: { exa: { command: join(pkg, "cli.js") }, context7: { command: "npx", args: ["@upstash/context7-mcp"] } } }));
     await mkdir(join(home, ".hermes"), { recursive: true });

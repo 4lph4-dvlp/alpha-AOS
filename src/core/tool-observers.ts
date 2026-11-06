@@ -5,12 +5,31 @@ import { globalGsdConfigRoot } from "./install.js";
 import { globalEccSkillRoot } from "./ecc-skills.js";
 import { globalMcpConfigPath, nativeConfigFormat } from "./mcp.js";
 import { parseManagedDocument } from "./validation.js";
+import { parse, visit, type ParseError } from "jsonc-parser";
+import type { ManagedFormat } from "./validation.js";
 import type { HarnessId, StackCatalog, StackLock } from "../types.js";
 import type { ToolObservation } from "./tool-inventory.js";
 
 export const toolHarnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
 export interface ToolObserverContext { catalog: StackCatalog; lock: StackLock; packageRoot: string; stateRoot: string; home: string; env: NodeJS.ProcessEnv; platform?: NodeJS.Platform; architecture?: string; candidateRoots?: string[] }
 export interface ToolCandidate { path: string; version: string | null; identity: string; installationOwner: "external" | "alpha-aos" | "unknown"; evidence: string }
+
+export function parseNativeConfiguration(text: string, format: ManagedFormat): { ok: boolean; value: unknown } {
+  if (format !== "json") return parseManagedDocument({ text, format });
+  const errors: ParseError[] = [], stack: Set<string>[] = [];
+  let duplicate = false, tooDeep = false, depth = 0;
+  try { visit(text, {
+    onObjectBegin: () => { stack.push(new Set()); if (++depth > 32) tooDeep = true; },
+    onObjectProperty: (key) => { const keys = stack.at(-1); if (keys?.has(key)) duplicate = true; keys?.add(key); },
+    onObjectEnd: () => { stack.pop(); depth--; },
+    onArrayBegin: () => { if (++depth > 32) tooDeep = true; },
+    onArrayEnd: () => { depth--; },
+    onError: (error, offset, length) => { errors.push({ error, offset, length }); },
+  }, { allowTrailingComma: true, disallowComments: false }); } catch { return { ok: false, value: null }; }
+  if (duplicate || tooDeep || errors.length) return { ok: false, value: null };
+  try { const value = parse(text, errors, { allowTrailingComma: true, disallowComments: false }); return { ok: errors.length === 0, value }; }
+  catch { return { ok: false, value: null }; }
+}
 
 export async function boundedText(path: string, maximum = 256 * 1024): Promise<{ state: "ok" | "absent" | "unknown"; text?: string }> {
   try {
@@ -57,7 +76,7 @@ export async function observeManagedTools(context: ToolObserverContext, cua: Too
     const file = await boundedText(path);
     if (file.state === "unknown") { configUnknown = true; continue; }
     if (file.state !== "ok") continue;
-    const parsed = parseManagedDocument({ text: file.text!, format: nativeConfigFormat(harness) });
+    const parsed = parseNativeConfiguration(file.text!, nativeConfigFormat(harness));
     if (!parsed.ok) { configUnknown = true; continue; }
     const root = parsed.value as Record<string, unknown>;
     const mcp = root?.mcp as Record<string, unknown> | undefined;

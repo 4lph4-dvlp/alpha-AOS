@@ -6,7 +6,7 @@ import { readToolRecordStore } from "./tool-records.js";
 import type { StackCatalog, StackLock } from "../types.js";
 
 export interface ToolObservation {
-  toolId: "cua-driver";
+  toolId: string;
   installation: "installed" | "absent" | "unknown";
   installed: { version: string | null; source: string } | null;
   selected: { version: string; source: string } | null;
@@ -14,6 +14,9 @@ export interface ToolObservation {
   integration: "unverified";
   reason: string;
   nextAction: string;
+  candidates?: import("./tool-observers.js").ToolCandidate[];
+  checkedRoots?: string[];
+  scope?: string;
 }
 export interface ToolInventory { observations: ToolObservation[]; records: Awaited<ReturnType<typeof readToolRecordStore>> }
 
@@ -56,5 +59,7 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
     if ((error as NodeJS.ErrnoException).code === "ENOENT") installation = "absent";
     else reason = "Installation could not be read";
   }
-  return { observations: [{ toolId: "cua-driver", installation, installed, selected, integrity: "unverified", integration: "unverified", reason, nextAction: "Inspect installation and run explicit verification" }], records: await readToolRecordStore(options) };
+  const { observeManagedTools } = await import("./tool-observers.js");
+  const observations = await observeManagedTools({ ...options, home, env }, { toolId: "cua-driver", installation, installed, selected, integrity: "unverified", integration: "unverified", reason, nextAction: "Inspect installation and run explicit verification" });
+  return { observations, records: await readToolRecordStore(options) };
 }

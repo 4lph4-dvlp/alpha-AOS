@@ -6,6 +6,11 @@ import test from "node:test";
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { collectToolInventory } from "../src/core/tool-inventory.js";
 import { applyFileTransaction } from "../src/core/transaction.js";
+import { createHash } from "node:crypto";
+import { attributeToolInstallations } from "../src/core/tool-bindings.js";
+import type { ToolObserverContext } from "../src/core/tool-observers.js";
+import type { ToolRecordEvent, ToolRecordStore, ToolResult } from "../src/core/tool-records.js";
+import type { ToolObservation } from "../src/core/tool-inventory.js";
 
 test("harness bindings identify shared exact package targets without exposing configuration", async () => {
   const root = await mkdtemp(join(tmpdir(), "aos-bindings-"));
@@ -33,6 +38,21 @@ test("harness bindings identify shared exact package targets without exposing co
     assert.equal(result.observations.find((item) => item.toolId === "mcp:context7")?.bindings?.find((binding) => binding.harness === "pi")?.status, "unresolved");
     assert.doesNotMatch(JSON.stringify(result), /SECRET_CANARY/);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test("only accepted event owns its exact hashed Windows path when later failure reuses its ID", async () => {
+  const first = "C:\\Tools\\exa-old", other = "C:\\Tools\\exa-other";
+  const alias = (path: string) => `path-${createHash("sha256").update(path).digest("hex")}`;
+  const result: ToolResult = { toolId: "mcp:exa", requested: { toolId: "mcp:exa", selector: "1.2.3", exact: true }, resolved: null, installed: { installationId: "same-id", version: "1.2.3", pathAlias: alias(first) }, verified: null, evidence: [], outcome: "succeeded" };
+  const accepted: ToolRecordEvent = { schemaVersion: 1, eventId: "accepted-finish", operationId: "accepted", sequence: 2, occurredAt: "2026-01-01T00:00:00Z", kind: "finished", results: [result], outcome: "succeeded" };
+  const failure: ToolRecordEvent = { ...accepted, eventId: "failed-finish", operationId: "failed", occurredAt: "2026-01-02T00:00:00Z", outcome: "failed", results: [{ ...result, installed: { ...result.installed!, pathAlias: alias(other) }, outcome: "failed" }] };
+  const digest = "a".repeat(64);
+  const records: ToolRecordStore = { status: "current", incomplete: false, diagnostics: [], events: [failure, accepted], accepted: { "mcp:exa/same-id": digest }, operations: [], verifiedEventDigests: { "accepted:2:accepted-finish": digest, "failed:2:failed-finish": "b".repeat(64) } };
+  const item: ToolObservation = { toolId: "mcp:exa", installation: "installed", installed: null, selected: null, integrity: "unverified", integration: "unverified", reason: "", nextAction: "", candidates: [first, other].map((path) => ({ path, version: "1.2.3", identity: "exa-mcp-server", evidence: "package-manifest", installationOwner: "unknown" })) };
+  await attributeToolInstallations([item], [], records, {} as ToolObserverContext);
+  assert.equal(item.candidates?.find((candidate) => candidate.path === first)?.installationOwner, "alpha-aos");
+  assert.equal(item.candidates?.find((candidate) => candidate.path === other)?.installationOwner, "external");
+  assert.ok(!item.diagnostics?.some((diagnostic) => diagnostic.code === "record-target-mismatch"));
 });
 
 test("version split is informational and wrappers remain unresolved", async () => {

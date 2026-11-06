@@ -7,10 +7,28 @@ import { globalEccSkillRoot } from "./ecc-skills.js";
 import { boundedText, parseNativeConfiguration, toolHarnesses, type ToolCandidate, type ToolObserverContext } from "./tool-observers.js";
 import type { HarnessId } from "../types.js";
 import type { ToolObservation } from "./tool-inventory.js";
-import { inspectToolRecordJournal, type ToolRecordStore } from "./tool-records.js";
+import { inspectToolRecordJournal, type ToolRecordStore, type ToolRecordEvent, type ToolResult } from "./tool-records.js";
 
 export interface ToolBinding { harness: HarnessId; status: "active" | "unresolved" | "unknown"; candidatePath: string | null; connectionOwner: "external" | "alpha-aos" | "unknown"; reason: string; nextAction: string }
 interface BindingIntent { harness: HarnessId; toolId: string; target: string | null; reason: string; connectionOwner?: "alpha-aos" | "unknown" }
+
+export function matchesToolPathAlias(path: string, alias: string): boolean {
+  return alias === path || alias === `path-${createHash("sha256").update(path).digest("hex")}`;
+}
+
+export function acceptedToolResults(records: ToolRecordStore, toolId: string): Array<{ event: ToolRecordEvent; result: ToolResult }> {
+  const accepted: Array<{ event: ToolRecordEvent; result: ToolResult }> = [];
+  if (records.status !== "current" || records.incomplete) return accepted;
+  for (const event of records.events) {
+    if (event.kind !== "finished" || event.outcome !== "succeeded") continue;
+    const digest = records.verifiedEventDigests?.[`${event.operationId}:${event.sequence}:${event.eventId}`];
+    if (!digest) continue;
+    for (const result of event.results ?? []) {
+      if (result.toolId === toolId && result.outcome === "succeeded" && result.installed && records.accepted?.[`${toolId}/${result.installed.installationId}`] === digest) accepted.push({ event, result });
+    }
+  }
+  return accepted;
+}
 
 export async function observeHarnessToolBindings(context: ToolObserverContext): Promise<BindingIntent[]> {
   const output: BindingIntent[] = [];
@@ -64,10 +82,10 @@ async function exactPackageTarget(candidate: ToolCandidate, target: string): Pro
 
 export async function attributeToolInstallations(observations: ToolObservation[], intents: BindingIntent[], records: ToolRecordStore, context: ToolObserverContext): Promise<void> {
   for (const item of observations) {
-    const acceptedResults = records.events.flatMap((event) => event.results ?? (event.result ? [event.result] : [])).filter((result) => result.toolId === item.toolId && result.installed && records.accepted?.[`${item.toolId}/${result.installed.installationId}`]);
+    const acceptedResults = acceptedToolResults(records, item.toolId).map(({ result }) => result);
     for (const candidate of item.candidates ?? []) {
-      const matched = acceptedResults.find((result) => result.installed?.pathAlias === candidate.path);
-      const unresolvedRecord = acceptedResults.some((result) => !isAbsolute(result.installed!.pathAlias));
+      const matched = acceptedResults.find((result) => matchesToolPathAlias(candidate.path, result.installed!.pathAlias));
+      const unresolvedRecord = acceptedResults.some((result) => !isAbsolute(result.installed!.pathAlias) && !/^path-[a-f0-9]{64}$/.test(result.installed!.pathAlias));
       candidate.installationOwner = matched ? "alpha-aos" : candidate.evidence === "path-name-unverified" || unresolvedRecord ? "unknown" : records.status === "absent" || (records.status === "current" && !records.incomplete) ? "external" : "unknown";
     }
     const bindings: ToolBinding[] = [];
@@ -100,7 +118,7 @@ export async function attributeToolInstallations(observations: ToolObservation[]
     if (versions.size > 1) diagnostics.push({ severity: "info", code: "version-split" });
     if (bindings.some((binding) => binding.status !== "active")) diagnostics.push({ severity: "problem", code: "usage-unresolved" });
     if (bindings.some((binding) => binding.reason === "target-unmatched" || binding.reason === "ambiguous-target")) diagnostics.push({ severity: "problem", code: "target-conflict" });
-    if (acceptedResults.some((result) => isAbsolute(result.installed!.pathAlias) && !(item.candidates ?? []).some((candidate) => candidate.path === result.installed!.pathAlias))) diagnostics.push({ severity: "problem", code: "record-target-mismatch" });
+    if (acceptedResults.some((result) => (isAbsolute(result.installed!.pathAlias) || /^path-[a-f0-9]{64}$/.test(result.installed!.pathAlias)) && !(item.candidates ?? []).some((candidate) => matchesToolPathAlias(candidate.path, result.installed!.pathAlias)))) diagnostics.push({ severity: "problem", code: "record-target-mismatch" });
     item.diagnostics = diagnostics;
     const active = new Set(bindings.filter((binding) => binding.status === "active").map((binding) => binding.candidatePath));
     item.candidates?.sort((a, b) => Number(active.has(b.path)) - Number(active.has(a.path)) || a.path.localeCompare(b.path));

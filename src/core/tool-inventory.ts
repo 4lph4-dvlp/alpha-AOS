@@ -1,12 +1,14 @@
 import { open, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { delimiter, join } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { officialCuaPaths } from "./computer-use-install.js";
 import { readToolRecordStore } from "./tool-records.js";
 import { evaluateLegacyHandoff, type LegacyHandoffAssessment } from "./tool-handoff.js";
 import { assessRetainedNpmHandoff } from "./tool-handoff-loader.js";
 import type { StackCatalog, StackLock } from "../types.js";
+import { acceptedToolResults, matchesToolPathAlias } from "./tool-bindings.js";
+import { realpath } from "node:fs/promises";
 
 export interface ToolObservation {
   category?: "managed-tool";
@@ -27,7 +29,7 @@ export interface ToolObservation {
   currentObservation?: { installation: ToolObservation["installation"]; version: string | null; integrity: string; integration: string; reason: string; nextAction: string };
   acceptedIdentity?: { installationId: string; version: string; operationId: string } | null;
   latestOperation?: { operationId: string; status: string; version: string | null; outcome: string | null } | null;
-  proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string };
+  proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string; fingerprintScope?: string };
 }
 export type ComponentCategory = "alpha-aos-owned-skill" | "bundled-library" | "external-prerequisite" | "harness-application";
 export interface InventoryComponent { category: ComponentCategory; id: string; status: "installed" | "absent" | "unknown"; reason: string; version: string | null }
@@ -39,25 +41,22 @@ export function orderToolObservations(observations: ToolObservation[]): ToolObse
   return [...observations].sort((a, b) => Number(Boolean(problem(b))) - Number(Boolean(problem(a))) || a.toolId.localeCompare(b.toolId));
 }
 
-export function reconcileToolState(item: ToolObservation, records: ToolInventory["records"], current?: { path: string; fingerprint: string; platform: string; architecture: string }): void {
+export function reconcileToolState(item: ToolObservation, records: ToolInventory["records"], current?: { path: string; fingerprint: string; platform: string; architecture: string; identity?: string; scope?: string }): void {
   item.integrity = item.installation === "unknown" ? "unknown" : "unverified";
   item.integration = item.installation === "unknown" ? "unknown" : "unverified";
   item.currentObservation = { installation: item.installation, version: item.installed?.version ?? null, integrity: item.integrity, integration: item.integration, reason: item.reason, nextAction: item.nextAction };
   item.acceptedIdentity = null;
-  let acceptedResult: import("./tool-records.js").ToolResult | undefined;
-  for (const event of records.events) {
-    if (event.kind !== "finished" || !event.results) continue;
-    const result = event.results.find((entry) => entry.toolId === item.toolId && entry.installed);
-    if (!result?.installed) continue;
-    const digest = createHash("sha256").update(`${JSON.stringify(event)}\n`).digest("hex");
-    if (records.accepted?.[`${item.toolId}/${result.installed.installationId}`] !== digest) continue;
-    item.acceptedIdentity = { installationId: result.installed.installationId, version: result.installed.version, operationId: event.operationId };
-    acceptedResult = result;
-    break;
-  }
+  const accepted = acceptedToolResults(records, item.toolId);
+  const matching = current ? accepted.filter(({ result }) => matchesToolPathAlias(current.path, result.installed!.pathAlias)) : accepted;
+  const chosen = matching.length === 1 ? matching[0] : undefined;
+  const acceptedResult = chosen?.result;
+  if (chosen && acceptedResult?.installed) item.acceptedIdentity = { installationId: acceptedResult.installed.installationId, version: acceptedResult.installed.version, operationId: chosen.event.operationId };
   const pending = item.installation === "unknown" ? "unknown" : "unverified";
   item.proofScopes = { discovery: pending, integrity: pending, protocol: pending, invocation: pending };
-  if (current && acceptedResult?.installed && acceptedResult.resolved && item.installed?.version === acceptedResult.installed.version && [current.path, `path-${createHash("sha256").update(current.path).digest("hex")}`].includes(acceptedResult.installed.pathAlias) && acceptedResult.resolved.release === item.installed.version && acceptedResult.resolved.platform === current.platform && acceptedResult.resolved.architecture === current.architecture) {
+  if (current?.scope) item.proofScopes.fingerprintScope = current.scope;
+  const knownVersion = item.installed?.version;
+  const identityMatches = knownVersion ? knownVersion === acceptedResult?.installed?.version : item.toolId === "cua-driver" && current?.identity === "cua-driver";
+  if (current && acceptedResult?.installed && acceptedResult.resolved && identityMatches && matchesToolPathAlias(current.path, acceptedResult.installed.pathAlias) && acceptedResult.resolved.release === acceptedResult.installed.version && acceptedResult.resolved.platform === current.platform && acceptedResult.resolved.architecture === current.architecture) {
     for (const proof of acceptedResult.evidence) {
       if (proof.subject !== acceptedResult.installed.installationId || proof.fingerprint !== current.fingerprint || proof.platform !== current.platform || proof.architecture !== current.architecture) continue;
       if (proof.harness && !item.bindings?.some((binding) => binding.harness === proof.harness && binding.status === "active" && binding.candidatePath === current.path)) continue;
@@ -84,6 +83,34 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
   const request = relevant.filter((event) => event.operationId === latestId).flatMap((event) => event.requests ?? []).find((entry) => entry.toolId === item.toolId);
   item.latestOperation = latestId ? { operationId: latestId, status: operation?.status ?? "unknown", version: result?.resolved?.release ?? request?.selector ?? null, outcome: result?.outcome ?? null } : null;
   item.handoff = (item.candidates?.length ?? 0) > 1 ? { status: "ambiguous", reason: "multiple-candidates", nextAction: "Identify the installation before handoff", scope: null } : evaluateLegacyHandoff(null);
+}
+
+/** Fingerprints only the named evidence file; the digest does not attest the complete installation. */
+async function fingerprintCandidate(candidate: import("./tool-observers.js").ToolCandidate): Promise<string | null> {
+  const name = candidate.evidence === "package-manifest" ? "package.json" : candidate.evidence === "gsd-version" ? "VERSION" : null;
+  if (!name && candidate.evidence !== "skill-file" && candidate.evidence !== "executable-file") return null;
+  const path = name ? join(candidate.path, name) : candidate.path;
+  const equivalent = (a: string, b: string) => process.platform === "win32" ? resolve(a).toLowerCase() === resolve(b).toLowerCase() : resolve(a) === resolve(b);
+  try {
+    const canonicalRoot = await realpath(candidate.path), canonicalFile = await realpath(path);
+    if (!equivalent(canonicalRoot, candidate.path) || !equivalent(canonicalFile, path)) return null;
+    const rootBefore = await stat(candidate.path), file = await open(path, "r");
+    try {
+      const before = await file.stat();
+      if (!before.isFile() || before.size > 256 * 1024 * 1024) return null;
+      const hash = createHash("sha256"), buffer = Buffer.alloc(64 * 1024);
+      let offset = 0;
+      while (offset < before.size) {
+        const read = await file.read(buffer, 0, Math.min(buffer.length, before.size - offset), offset);
+        if (!read.bytesRead) return null;
+        hash.update(buffer.subarray(0, read.bytesRead)); offset += read.bytesRead;
+      }
+      const after = await file.stat(), atPath = await stat(path), rootAfter = await stat(candidate.path);
+      const stable = (a: typeof before, b: typeof before) => a.dev === b.dev && a.ino === b.ino && a.size === b.size && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
+      if (!stable(before, after) || !stable(after, atPath) || !stable(rootBefore, rootAfter) || !equivalent(await realpath(path), canonicalFile) || !equivalent(await realpath(candidate.path), canonicalRoot)) return null;
+      return hash.digest("hex");
+    } finally { await file.close(); }
+  } catch { return null; }
 }
 
 export async function collectToolInventory(options: { catalog: StackCatalog; lock: StackLock; packageRoot: string; stateRoot: string; home?: string; env?: NodeJS.ProcessEnv; platform?: NodeJS.Platform; architecture?: string; candidateRoots?: string[] }): Promise<ToolInventory> {
@@ -133,19 +160,11 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
   await attributeToolInstallations(observations, await observeHarnessToolBindings({ ...options, home, env }), records, { ...options, home, env });
   const pathId = (path: string) => `path:${createHash("sha256").update(path).digest("hex")}`;
   for (const item of observations) {
-    let current: { path: string; fingerprint: string; platform: string; architecture: string } | undefined;
-    if (item.candidates?.length === 1 && item.installed?.version) {
-      const path = item.candidates[0]!.path;
-      try {
-        const file = await open(path, "r");
-        try {
-          const before = await file.stat();
-          if (before.isFile() && before.size <= 16 * 1024 * 1024) {
-            const bytes = Buffer.alloc(before.size), read = await file.read(bytes, 0, bytes.length, 0), after = await file.stat(), atPath = await stat(path);
-            if (read.bytesRead === bytes.length && before.size === after.size && before.mtimeMs === after.mtimeMs && before.ino === after.ino && before.dev === after.dev && after.ino === atPath.ino && after.dev === atPath.dev && after.size === atPath.size && after.mtimeMs === atPath.mtimeMs) current = { path, fingerprint: createHash("sha256").update(bytes).digest("hex"), platform: platform === "win32" ? "windows" : platform === "darwin" ? "macos" : platform, architecture };
-          }
-        } finally { await file.close(); }
-      } catch { /* no current fingerprint; historical proof remains unverified */ }
+    let current: { path: string; fingerprint: string; platform: string; architecture: string; identity: string; scope: string } | undefined;
+    if (item.candidates?.length === 1) {
+      const candidate = item.candidates[0]!;
+      const fingerprint = await fingerprintCandidate(candidate);
+      if (fingerprint) current = { path: candidate.path, fingerprint, platform: platform === "win32" ? "windows" : platform === "darwin" ? "macos" : platform, architecture, identity: candidate.identity, scope: candidate.evidence };
     }
     reconcileToolState(item, records, current);
     if (item.candidates?.length === 1) item.handoff = await assessRetainedNpmHandoff({ packageRoot: options.packageRoot, stateRoot: options.stateRoot, toolId: item.toolId, candidate: item.candidates[0]! });

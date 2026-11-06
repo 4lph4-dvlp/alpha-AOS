@@ -59,7 +59,7 @@ function table(headers: string[], rows: string[][]): string {
 
 export function formatToolInventory(inventory: import("./core/tool-inventory.js").ToolInventory): string {
   const diagnostics = inventory.records.diagnostics.length ? `\nRecord diagnostics: ${inventory.records.diagnostics.join(", ")}` : "";
-  return inventory.observations.map((item) => `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}\nRecords: ${inventory.records.status}${diagnostics}`).join("\n");
+  return inventory.observations.map((item) => `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}${(item.candidates ?? []).map((candidate) => `\n  candidate ${candidate.path}: version=${candidate.version ?? "unknown"}, installation owner=${candidate.installationOwner}`).join("")}${(item.bindings ?? []).map((binding) => `\n  ${binding.harness}: ${binding.status}, connection owner=${binding.connectionOwner}, ${binding.reason}`).join("")}\nRecords: ${inventory.records.status}${diagnostics}`).join("\n");
 }
 
 export function formatInventory(inventory: Inventory): string {

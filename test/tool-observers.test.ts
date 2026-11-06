@@ -34,7 +34,7 @@ test("inventory preserves multiple manually installed package candidates and mal
     const result = await collectToolInventory({ catalog: await loadCatalog(resolve(".")), lock: await loadLock(resolve(".")), packageRoot: resolve("."), stateRoot: join(root, "state"), home, env: { npm_config_prefix: join(root, "global"), PATH: "" } });
     const exa = result.observations.find((item) => item.toolId === "mcp:exa")!;
     assert.deepEqual(exa.candidates?.map((item) => item.version).sort(), ["1.0.0", "2.0.0"]);
-    assert.ok(exa.candidates?.every((item) => item.installationOwner === "unknown"));
+    assert.ok(exa.candidates?.every((item) => item.installationOwner === "external"));
     assert.equal(result.observations.find((item) => item.toolId === "mcp:firecrawl")?.installation, "unknown");
     assert.equal(result.observations.find((item) => item.toolId === "mcp:context7")?.candidates?.[0]?.version, "3.0.0");
     assert.doesNotMatch(JSON.stringify(result), /CANARY/);

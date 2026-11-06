@@ -10,7 +10,7 @@ import type { ToolObservation } from "./tool-inventory.js";
 
 export const toolHarnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
 export interface ToolObserverContext { catalog: StackCatalog; lock: StackLock; packageRoot: string; stateRoot: string; home: string; env: NodeJS.ProcessEnv; platform?: NodeJS.Platform; architecture?: string; candidateRoots?: string[] }
-export interface ToolCandidate { path: string; version: string | null; identity: string; installationOwner: "external" | "unknown"; evidence: string }
+export interface ToolCandidate { path: string; version: string | null; identity: string; installationOwner: "external" | "alpha-aos" | "unknown"; evidence: string }
 
 export async function boundedText(path: string, maximum = 256 * 1024): Promise<{ state: "ok" | "absent" | "unknown"; text?: string }> {
   try {

@@ -1,4 +1,5 @@
 import { open } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { officialCuaPaths } from "./computer-use-install.js";
@@ -17,6 +18,8 @@ export interface ToolObservation {
   candidates?: import("./tool-observers.js").ToolCandidate[];
   checkedRoots?: string[];
   scope?: string;
+  bindings?: import("./tool-bindings.js").ToolBinding[];
+  diagnostics?: Array<{ severity: "info" | "problem"; code: string }>;
 }
 export interface ToolInventory { observations: ToolObservation[]; records: Awaited<ReturnType<typeof readToolRecordStore>> }
 
@@ -61,5 +64,14 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
   }
   const { observeManagedTools } = await import("./tool-observers.js");
   const observations = await observeManagedTools({ ...options, home, env }, { toolId: "cua-driver", installation, installed, selected, integrity: "unverified", integration: "unverified", reason, nextAction: "Inspect installation and run explicit verification" });
-  return { observations, records: await readToolRecordStore(options) };
+  const records = await readToolRecordStore(options);
+  const { observeHarnessToolBindings, attributeToolInstallations } = await import("./tool-bindings.js");
+  await attributeToolInstallations(observations, await observeHarnessToolBindings({ ...options, home, env }), records, { ...options, home, env });
+  const pathId = (path: string) => `path:${createHash("sha256").update(path).digest("hex")}`;
+  for (const item of observations) {
+    for (const candidate of item.candidates ?? []) candidate.path = pathId(candidate.path);
+    for (const binding of item.bindings ?? []) if (binding.candidatePath !== null) binding.candidatePath = pathId(binding.candidatePath);
+    if (item.checkedRoots) item.checkedRoots = item.checkedRoots.map(pathId);
+  }
+  return { observations, records };
 }

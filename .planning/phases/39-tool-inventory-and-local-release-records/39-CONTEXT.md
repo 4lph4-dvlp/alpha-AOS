@@ -132,3 +132,7 @@ Cua, GSD, ECC, 관리 MCP 서버와 브리지의 로컬 설치 식별 정보·�
 
 *Phase: 39-tool-inventory-and-local-release-records*
 *Context gathered: 2026-11-06*
+
+## 2026-11-06 trust policy decision
+
+The user approved repository-reviewed source policies that select official ecosystem verification, allowed package or source/build identities, and revocations. npm evidence uses its registry signatures or provenance mechanisms; direct binaries require official signatures or authenticated metadata. Static reviewed keys are used only where the upstream mechanism supports them. Candidate records and adjacent keys never establish trust, and absent or unsupported evidence remains needs-evidence. Inventory stays read-only and offline.

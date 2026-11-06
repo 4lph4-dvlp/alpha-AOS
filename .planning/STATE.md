@@ -4,17 +4,17 @@ milestone: v0.8.0
 current_phase: 39
 current_phase_name: Tool Inventory and Local Release Records
 status: executing
-stopped_at: Phase 39 planning complete; ready to execute; implementation not started
+stopped_at: Phase 39 plans 01-03 complete; plan 04 incomplete pending trusted publisher key policy; plan 05 not started
 last_updated: "2026-11-06T06:03:54.007Z"
 last_activity: 2026-11-06
-last_activity_desc: "Phase 39 planned: 5 plans/4 waves; independent review passed after one revision; implementation not started"
+last_activity_desc: "Phase 39 execution: plans 01-03 complete; plan 04 decision checkpoint; plan 05 blocked by dependency"
 state_head: 6e628027f13595d6a204caa22668f3ef0b166dbf
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 5
-  completed_plans: 0
-  percent: 0
+  completed_plans: 3
+  percent: 60
 milestone_name: Unified Tool Updates & Compatibility
 ---
 
@@ -33,14 +33,14 @@ Sections 35–38 / 16 requirements have native implementation evidence. The outg
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** v0.8.0 Unified Tool Updates & Compatibility — Phase 39 planning complete: five plans, ten tasks, four waves; independent review passed after one revision. Implementation has not started. Next: execute Phase 39. All 16 milestone requirements remain undelivered/unverified. Outgoing v0.7.0 live acceptance remains preserved in milestones/v0.7.0-ROLLOVER.md; no managed upgrade, live compatibility check or full suite ran during planning.
+**Current focus:** v0.8.0 Unified Tool Updates & Compatibility — Phase 39 plans 01-03 implemented and targeted checks passed; plan 04 implementation has a production trust-policy gap recorded in 39-04-SUMMARY.md. Plan 05 has not started. Phase verification, full suite and requirement completion remain pending. Execution uses the user-approved gpt-6.1-terra/high on gsd/phase-39-tool-inventory-and-local-release-records.
 
 ## Current Position
 
-Phase: 39 (Tool Inventory and Local Release Records) — READY TO EXECUTE
-Plan: —
-Status: Ready to execute
-Last activity: 2026-11-06 — Phase 39 planned: 5 plans/4 waves; independent review passed after one revision; implementation not started
+Phase: 39 (Tool Inventory and Local Release Records) — DECISION CHECKPOINT
+Plan: 39-04 (incomplete)
+Status: Awaiting trusted publisher key provisioning/revocation policy for production retained-chain loading
+Last activity: 2026-11-06 — Plans 01-03 complete; 39-04 build and 20 targeted tests passed, production trust-policy gap persists; 39-05 pending
 
 ### Completed Phases
 

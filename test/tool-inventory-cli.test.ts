@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, writeFile, rm, readdir, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+
+test("inventory rejects history without a tool", () => {
+  const result = spawnSync(process.execPath, [resolve("dist/src/cli.js"), "inventory", "--history"], { encoding: "utf8" });
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /--history.*--tool/);
+});
 
 test("tool inventory observes installed Cua separately from selected pin", async () => {
   const root = await mkdtemp(join(tmpdir(), "aos-inventory-"));

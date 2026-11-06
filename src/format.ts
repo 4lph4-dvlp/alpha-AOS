@@ -58,7 +58,8 @@ function table(headers: string[], rows: string[][]): string {
 }
 
 export function formatToolInventory(inventory: import("./core/tool-inventory.js").ToolInventory): string {
-  return inventory.observations.map((item) => `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}\nRecords: ${inventory.records.status}`).join("\n");
+  const diagnostics = inventory.records.diagnostics.length ? `\nRecord diagnostics: ${inventory.records.diagnostics.join(", ")}` : "";
+  return inventory.observations.map((item) => `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}\nRecords: ${inventory.records.status}${diagnostics}`).join("\n");
 }
 
 export function formatInventory(inventory: Inventory): string {

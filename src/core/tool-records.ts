@@ -4,13 +4,14 @@ import { join, relative, resolve, isAbsolute, sep } from "node:path";
 import { canonicalizeWithMissingTail, provePathBoundary, recheckPathProof, type PathProof } from "./path-boundary.js";
 import { packageRoot } from "./paths.js";
 import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
+import { inspectWriterState } from "./writer-lock.js";
 
 export interface ToolIdentity { toolId: string; installationId: string }
 export interface ToolEvidence { proofId: string; subject: string; target: string; method: string; result: string; platform: string; architecture: string; harness: string | null }
 export interface ToolResult { toolId: string; requested: { toolId: string; selector: string; exact: boolean }; resolved: { release: string; artifact: string; architecture: string; digest: string; sourceId: string; sourceUrl: string; platform: string } | null; installed: { installationId: string; version: string; pathAlias: string } | null; verified: string | null; evidence: ToolEvidence[]; outcome: string }
 export interface ToolRecordEvent { schemaVersion: 1; eventId: string; operationId: string; sequence: number; occurredAt: string; kind: "started" | "tool-result" | "finished"; requests?: Array<{ toolId: string; selector: string; exact: boolean }>; result?: ToolResult; results?: ToolResult[]; outcome?: string; acceptedTransitions?: Array<{ toolId: string; installationId: string; proofId: string; priorDigest: string | null }> }
 export type ToolRecordStatus = "absent" | "current" | "invalid" | "unsupported-old" | "unknown-newer" | "inaccessible";
-export interface ToolRecordStore { status: ToolRecordStatus; events: ToolRecordEvent[]; accepted: Record<string, string> | null; diagnostics: string[]; incomplete: boolean }
+export interface ToolRecordStore { status: ToolRecordStatus; events: ToolRecordEvent[]; accepted: Record<string, string> | null; diagnostics: string[]; incomplete: boolean; operations: Array<{ operationId: string; status: string }> }
 
 const idPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 function canonical(value: unknown): string {
@@ -70,7 +71,7 @@ async function names(path: string): Promise<{ values: string[]; incomplete: bool
   return { values: values.sort(), incomplete };
 }
 export async function readToolRecordStore(options: { stateRoot: string; packageRoot: string; onAfterRead?: () => Promise<void> }): Promise<ToolRecordStore> {
-  const result: ToolRecordStore = { status: "current", events: [], accepted: null, diagnostics: [], incomplete: false };
+  const result: ToolRecordStore = { status: "current", events: [], accepted: null, diagnostics: [], incomplete: false, operations: [] };
   const proof = await proveToolRecordRoot(options.stateRoot, options.packageRoot);
   if (!proof) return { ...result, status: "inaccessible", diagnostics: ["unsafe-or-unprovable-root"] };
   let versions: Awaited<ReturnType<typeof names>>;
@@ -132,11 +133,31 @@ export async function readToolRecordStore(options: { stateRoot: string; packageR
   result.events.sort((a, b) => Date.parse(b.occurredAt) - Date.parse(a.occurredAt) || b.operationId.localeCompare(a.operationId) || b.sequence - a.sequence || b.eventId.localeCompare(a.eventId));
   if (!(await recheckPathProof(operationsProof)).ok || !(await recheckPathProof(proof)).ok) return { ...result, status: "inaccessible", events: [], accepted: null, diagnostics: [...result.diagnostics, "ancestor-changed"] };
   if (result.incomplete) result.diagnostics.push("incomplete-history");
+  const commits = new Map<string, { applied: boolean; directorySyncSupported: boolean | null }>();
+  const journals = await readAppliedJournalIndex(options.stateRoot);
+  for (const [key, target] of filesByEvent) {
+    const commit = journals.get(`${target.path}\0${target.digest}`) ?? { applied: false, directorySyncSupported: null };
+    commits.set(key, commit);
+    if (commit.directorySyncSupported === false && !result.diagnostics.includes("directory-sync-unsupported")) result.diagnostics.push("directory-sync-unsupported");
+  }
+  const writer = await inspectWriterState(options.stateRoot);
+  for (const start of result.events.filter((event) => event.kind === "started")) {
+    const terminal = result.events.find((event) => event.operationId === start.operationId && event.kind === "finished");
+    let status: string;
+    if (terminal) {
+      const commit = commits.get(`${terminal.operationId}:${terminal.sequence}:${terminal.eventId}`);
+      status = commit?.applied ? terminal.outcome ?? "unknown" : "unknown";
+      if (!commit?.applied) result.diagnostics.push("terminal-commit-unverified");
+    } else if (writer.status === "free" || (writer.record !== null && writer.record.operationId !== start.operationId) || (writer.record?.operationId === start.operationId && writer.detail === "the owning process is gone; the operation state must be proven before the lock is released")) status = "interrupted";
+    else if (writer.status === "active" && writer.record?.operationId === start.operationId) status = "in-progress";
+    else status = "unknown";
+    result.operations.push({ operationId: start.operationId, status });
+  }
   const accepted: Record<string, string> = {};
   for (const event of [...result.events].reverse()) {
     if (event.kind !== "finished" || !event.acceptedTransitions?.length) continue;
     const target = filesByEvent.get(`${event.operationId}:${event.sequence}:${event.eventId}`);
-    if (!target || event.outcome !== "succeeded" || result.incomplete || result.status !== "current" || !(await hasAppliedJournal(options.stateRoot, target.path, target.digest)) || !(await recheckPathProof(target.proof)).ok) {
+    if (!target || event.outcome !== "succeeded" || result.incomplete || result.status !== "current" || !commits.get(`${event.operationId}:${event.sequence}:${event.eventId}`)?.applied || !(await recheckPathProof(target.proof)).ok) {
       result.diagnostics.push("accepted-commit-unverified"); continue;
     }
     const operationEvents = result.events.filter((item) => item.operationId === event.operationId);
@@ -162,22 +183,30 @@ export async function readToolRecordStore(options: { stateRoot: string; packageR
   if (Object.keys(accepted).length) result.accepted = accepted;
   return result;
 }
-async function hasAppliedJournal(stateRoot: string, target: string, digest: string): Promise<boolean> {
+export async function inspectToolRecordJournal(stateRoot: string, target: string, digest: string): Promise<{ applied: boolean; directorySyncSupported: boolean | null }> {
+  return (await readAppliedJournalIndex(stateRoot)).get(`${resolve(target)}\0${digest}`) ?? { applied: false, directorySyncSupported: null };
+}
+async function readAppliedJournalIndex(stateRoot: string): Promise<Map<string, { applied: boolean; directorySyncSupported: boolean | null }>> {
+  const index = new Map<string, { applied: boolean; directorySyncSupported: boolean | null }>();
   const root = join(stateRoot, "journal");
   try {
     const entries = await names(root);
-    if (entries.incomplete) return false;
+    if (entries.incomplete) return new Map();
     for (const name of entries.values) {
       if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}\.json$/.test(name)) continue;
       const path = join(root, name), proof = await provePathBoundary({ path, allowedRoots: [stateRoot], role: "journal" });
       if (!proof.proven || !proof.capability.componentIdentity || proof.components.some((p) => p.reparse !== "none" && inside(resolve(stateRoot), p.path))) continue;
       const bytes = await readBounded(path, 1024 * 1024);
-      if (!(await recheckPathProof(proof)).ok) return false;
-      const document = validateManagedDocument<{ status: string; files: Array<{ target?: unknown; afterHash?: unknown; beforeHash?: unknown; existed?: unknown; snapshot?: unknown; proofDigest?: unknown }> }>({ text: bytes.toString(), format: "json", kind: "journal" });
-      if (document.ok && document.value?.status === "applied" && document.value.files.some((file) => typeof file.target === "string" && resolve(file.target) === target && file.afterHash === digest && typeof file.existed === "boolean" && (file.snapshot === null || typeof file.snapshot === "string") && (file.beforeHash === null || (typeof file.beforeHash === "string" && /^[a-f0-9]{64}$/.test(file.beforeHash))) && typeof file.proofDigest === "string" && /^[a-f0-9]{64}$/.test(file.proofDigest))) return true;
+      if (!(await recheckPathProof(proof)).ok) return new Map();
+      const document = validateManagedDocument<{ status: string; directorySyncSupported?: boolean; files: Array<{ target?: unknown; afterHash?: unknown; beforeHash?: unknown; existed?: unknown; snapshot?: unknown; proofDigest?: unknown }> }>({ text: bytes.toString(), format: "json", kind: "journal" });
+      if (!document.ok || document.value?.status !== "applied") continue;
+      for (const file of document.value.files) {
+        if (typeof file.target !== "string" || typeof file.afterHash !== "string" || !/^[a-f0-9]{64}$/.test(file.afterHash) || typeof file.existed !== "boolean" || !(file.snapshot === null || typeof file.snapshot === "string") || !(file.beforeHash === null || (typeof file.beforeHash === "string" && /^[a-f0-9]{64}$/.test(file.beforeHash))) || typeof file.proofDigest !== "string" || !/^[a-f0-9]{64}$/.test(file.proofDigest)) continue;
+        index.set(`${resolve(file.target)}\0${file.afterHash}`, { applied: true, directorySyncSupported: document.value.directorySyncSupported ?? null });
+      }
     }
-  } catch { return false; }
-  return false;
+  } catch { return new Map(); }
+  return index;
 }
 export async function readToolHistory(options: { stateRoot: string; packageRoot: string }, toolId: string) {
   const store = await readToolRecordStore(options);

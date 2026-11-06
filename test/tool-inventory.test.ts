@@ -26,7 +26,7 @@ test("collector reconciles scoped file proofs for native directories and Cua aft
     const driver = officialCuaPaths(platform, home, local).executable;
     for (const dir of [gsd, pkg, dirname(driver)]) await mkdir(dir, { recursive: true });
     const manifest = JSON.stringify({ name: "exa-mcp-server", version: "1.2.3", bin: "cli.js" });
-    await writeFile(join(gsd, "VERSION"), "1.2.3\n"); await writeFile(join(gsd, ".gsd-runtime"), "codex\n");
+    await writeFile(join(gsd, "VERSION"), "1.2.3\n"); await writeFile(join(gsd, ".gsd-runtime"), "codex\n"); await writeFile(join(gsd, "runtime.js"), "original runtime");
     await writeFile(join(home, ".codex", ".gsd-profile"), "full\n");
     await writeFile(join(pkg, "package.json"), manifest); await writeFile(join(pkg, "cli.js"), "cli"); await writeFile(driver, "driver-bytes");
     await writeFile(join(home, ".codex", "config.toml"), `[mcp_servers.exa]\ncommand = ${JSON.stringify(join(pkg, "cli.js"))}\n[mcp_servers.cua]\ncommand = ${JSON.stringify(driver)}\n`);
@@ -47,16 +47,27 @@ test("collector reconciles scoped file proofs for native directories and Cua aft
     const inventory = await collectToolInventory({ catalog: await loadCatalog(checkout), lock: await loadLock(checkout), packageRoot: checkout, stateRoot, home, platform, architecture, env: { LOCALAPPDATA: local, npm_config_prefix: join(root, "none"), PATH: "" } });
     for (const definition of definitions) {
       const item = inventory.observations.find((entry) => entry.toolId === definition.id)!;
-      assert.equal(item.integrity, "verified", definition.id); assert.equal(item.integration, "verified", definition.id);
+      const expected = definition.id === "cua-driver" ? "verified" : "unverified";
+      assert.equal(item.integrity, expected, definition.id); assert.equal(item.integration, expected, definition.id);
       assert.equal(item.candidates?.[0]?.installationOwner, "alpha-aos", definition.id);
       assert.ok(item.proofScopes?.fingerprintScope);
+      if (definition.id !== "cua-driver") assert.equal(item.proofScopes?.historical?.invocation, "verified");
     }
     const cua = inventory.observations.find((entry) => entry.toolId === "cua-driver")!;
     assert.equal(cua.installed?.version, null);
     assert.equal(inventory.observations.find((entry) => entry.toolId === "gsd")?.latestOperation?.status, "failed");
-    await writeFile(join(gsd, "VERSION"), "1.2.4\n");
+    await writeFile(join(gsd, "runtime.js"), "modified runtime"); await writeFile(join(pkg, "cli.js"), "modified cli");
     const changed = await collectToolInventory({ catalog: await loadCatalog(checkout), lock: await loadLock(checkout), packageRoot: checkout, stateRoot, home, platform, architecture, env: { LOCALAPPDATA: local, npm_config_prefix: join(root, "none"), PATH: "" } });
-    assert.equal(changed.observations.find((entry) => entry.toolId === "gsd")?.integrity, "unverified");
+    for (const id of ["gsd", "mcp:exa"]) {
+      const item = changed.observations.find((entry) => entry.toolId === id)!;
+      assert.equal(item.integrity, "unverified", id); assert.equal(item.integration, "unverified", id);
+      assert.equal(item.proofScopes?.historical?.integrity, "verified", id);
+    }
+    assert.equal(changed.observations.find((entry) => entry.toolId === "cua-driver")?.integration, "verified");
+    await writeFile(driver, "different-driver-bytes");
+    const changedCua = await collectToolInventory({ catalog: await loadCatalog(checkout), lock: await loadLock(checkout), packageRoot: checkout, stateRoot, home, platform, architecture, env: { LOCALAPPDATA: local, npm_config_prefix: join(root, "none"), PATH: "" } });
+    assert.equal(changedCua.observations.find((entry) => entry.toolId === "cua-driver")?.integrity, "unverified");
+    assert.equal(changedCua.observations.find((entry) => entry.toolId === "cua-driver")?.integration, "unverified");
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
@@ -88,9 +99,9 @@ test("current proof is reused only for the exact fingerprint, identity and harne
   const digest = createHash("sha256").update(`${JSON.stringify(event)}\n`).digest("hex");
   const records: ToolRecordStore = { status: "current", diagnostics: [], incomplete: false, events: [event], operations: [], accepted: { "cua-driver/old": digest }, verifiedEventDigests: { "old:2:finish": digest } };
   const observation: ToolObservation = { toolId: "cua-driver", installation: "installed", installed: { version: "1.0.0", source: "observed-file" }, selected: null, integrity: "unverified", integration: "unverified", reason: "not checked", nextAction: "inspect", bindings: [{ harness: "codex", status: "active", candidatePath: path, connectionOwner: "unknown", reason: "fixture", nextAction: "inspect" }] };
-  reconcileToolState(observation, records, { path, fingerprint, platform: "linux", architecture: "x64" });
+  reconcileToolState(observation, records, { path, fingerprint, platform: "linux", architecture: "x64", identity: "cua-driver", scope: "executable-file" });
   assert.equal(observation.proofScopes?.protocol, "verified");
   assert.equal(observation.proofScopes?.invocation, "verified");
-  reconcileToolState(observation, records, { path, fingerprint: "c".repeat(64), platform: "linux", architecture: "x64" });
+  reconcileToolState(observation, records, { path, fingerprint: "c".repeat(64), platform: "linux", architecture: "x64", identity: "cua-driver", scope: "executable-file" });
   assert.equal(observation.proofScopes?.invocation, "unverified");
 });

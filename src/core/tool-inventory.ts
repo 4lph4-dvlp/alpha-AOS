@@ -29,7 +29,7 @@ export interface ToolObservation {
   currentObservation?: { installation: ToolObservation["installation"]; version: string | null; integrity: string; integration: string; reason: string; nextAction: string };
   acceptedIdentity?: { installationId: string; version: string; operationId: string } | null;
   latestOperation?: { operationId: string; status: string; version: string | null; outcome: string | null } | null;
-  proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string; fingerprintScope?: string };
+  proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string; fingerprintScope?: string; historical?: { discovery: string; integrity: string; protocol: string; invocation: string } };
 }
 export type ComponentCategory = "alpha-aos-owned-skill" | "bundled-library" | "external-prerequisite" | "harness-application";
 export interface InventoryComponent { category: ComponentCategory; id: string; status: "installed" | "absent" | "unknown"; reason: string; version: string | null }
@@ -57,6 +57,9 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
   const knownVersion = item.installed?.version;
   const identityMatches = knownVersion ? knownVersion === acceptedResult?.installed?.version : item.toolId === "cua-driver" && current?.identity === "cua-driver";
   if (current && acceptedResult?.installed && acceptedResult.resolved && identityMatches && matchesToolPathAlias(current.path, acceptedResult.installed.pathAlias) && acceptedResult.resolved.release === acceptedResult.installed.version && acceptedResult.resolved.platform === current.platform && acceptedResult.resolved.architecture === current.architecture) {
+    const exactExecutable = item.toolId === "cua-driver" && current.identity === "cua-driver" && current.scope === "executable-file";
+    const evidence = exactExecutable ? item.proofScopes : { discovery: pending, integrity: pending, protocol: pending, invocation: pending };
+    if (!exactExecutable) item.proofScopes.historical = evidence;
     for (const proof of acceptedResult.evidence) {
       if (proof.subject !== acceptedResult.installed.installationId || proof.fingerprint !== current.fingerprint || proof.platform !== current.platform || proof.architecture !== current.architecture) continue;
       if (proof.harness && !item.bindings?.some((binding) => binding.harness === proof.harness && binding.status === "active" && binding.candidatePath === current.path)) continue;
@@ -64,7 +67,7 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
       const scope = proof.target === "installation" && proof.method === "discovery" ? "discovery" : proof.target === "integrity" && ["sha256", "signature"].includes(proof.method) ? "integrity" : proof.target === "integration" && proof.method === "protocol" ? "protocol" : proof.target === "integration" && proof.method === "invocation" ? "invocation" : null;
       if (scope) {
         const status = proof.result === "pass" ? "verified" : proof.result === "fail" ? "failed" : "unknown";
-        if (item.proofScopes[scope] === "unverified" || status === "failed" || (status === "unknown" && item.proofScopes[scope] === "verified")) item.proofScopes[scope] = status;
+        if (evidence[scope] === "unverified" || status === "failed" || (status === "unknown" && evidence[scope] === "verified")) evidence[scope] = status;
       }
     }
     item.integrity = item.proofScopes.integrity as ToolObservation["integrity"];

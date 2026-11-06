@@ -90,6 +90,14 @@ export async function observeManagedTools(context: ToolObserverContext, cua: Too
     const candidates: ToolCandidate[] = [], checkedRoots: string[] = [];
     let uncertain = !spec.pkg || incompleteRoots || (spec.id.startsWith("mcp:") && configUnknown);
     const manifests = spec.pkg ? [...roots.map((root) => join(root, spec.pkg!.package, "package.json")), ...(configuredManifests.get(spec.id) ?? [])] : [];
+    const binaries: Record<string, string[]> = { gsd: ["get-shit-done"], ecc: ["ecc"], "mcp:context7": ["context7-mcp"], "mcp:exa": ["exa-mcp-server"], "mcp:firecrawl": ["firecrawl-mcp"], "bridge:pi": ["pi-mcp-adapter"] };
+    for (const entry of pathEntries) for (const name of binaries[spec.id] ?? []) {
+      try {
+        const target = await realpath(join(entry, name));
+        let directory = dirname(target);
+        for (let i = 0; i < 5; i++) { manifests.push(join(directory, "package.json")); const parent = dirname(directory); if (parent === directory) break; directory = parent; }
+      } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") uncertain = true; }
+    }
     if (spec.id === "bridge:pi" && spec.pkg) manifests.push(join(dirname(globalMcpConfigPath("pi", env, home)), "npm", "node_modules", spec.pkg.package, "package.json"));
     for (const path of new Set(manifests)) {
       checkedRoots.push(path);

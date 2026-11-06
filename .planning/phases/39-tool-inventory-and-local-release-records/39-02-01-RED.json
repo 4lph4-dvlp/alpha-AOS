@@ -1,0 +1,10 @@
+{
+  "semanticAssessment": "Target assertion executed and failed because the planned writer file is absent.",
+  "targetTest": "explicit tool record writer API is available",
+  "command": "node --test --test-reporter=tap dist/test/tool-record-store.test.js",
+  "exitCode": 1,
+  "actual": "writer file absent",
+  "output": "TAP version 13\r\n# Subtest: explicit tool record writer API is available\r\nnot ok 1 - explicit tool record writer API is available\r\n  ---\r\n  duration_ms: 6.8243\r\n  type: 'test'\r\n  location: 'D:\\\\dev\\\\alpha-AOS\\\\dist\\\\test\\\\tool-record-store.test.js:4:1'\r\n  failureType: 'testCodeFailure'\r\n  error: |-\r\n    the explicit record writer must be available\r\n    \r\n    false !== true\r\n    \r\n  code: 'ERR_ASSERTION'\r\n  name: 'AssertionError'\r\n  expected: true\r\n  actual: false\r\n  operator: 'strictEqual'\r\n  stack: |-\r\n    TestContext.<anonymous> (file:///D:/dev/alpha-AOS/dist/test/tool-record-store.test.js:7:12)\r\n    async Test.run (node:internal/test_runner/test:1110:7)\r\n    async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3)\r\n  ...\r\n1..1\r\n# tests 1\r\n# suites 0\r\n# pass 0\r\n# fail 1\r\n# cancelled 0\r\n# skipped 0\r\n# todo 0\r\n# duration_ms 179.4061\r\n",
+  "targetFile": "test/tool-record-store.test.ts",
+  "expected": "writer API exists"
+}

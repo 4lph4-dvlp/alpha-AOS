@@ -95,7 +95,7 @@ Every `npm run build` failure (including build-artifact generation) is a task fa
 
 ## Validation Audit — 2026-11-06
 
-**Result: PARTIAL.** The `not run` cells in the original table describe the planning baseline; they do not negate the later execution reports. Conversely, a summary's passing command does not prove every assertion in the planned row. No tests were rerun by this audit; the phase summaries below report their own historical Windows fixture runs. The parent is running the full suite separately.
+**Result: PARTIAL.** The `not run` cells in the original table describe the planning baseline; they do not negate the later execution reports. Conversely, a summary's passing command does not prove every assertion in the planned row. The phase summaries below report their own historical Windows fixture runs. The audit additionally ran the focused safety tests listed below. A separate baseline full-suite run was cancelled and is not a passing result.
 
 | Tasks | Recorded execution evidence | Audit limitation |
 |---|---|---|
@@ -107,9 +107,13 @@ Every `npm run build` failure (including build-artifact generation) is a task fa
 
 ### Unresolved verification gaps
 
-- **T-39-20 / 39-05-02 — partial:** the observer fixture blocks `child_process` and the CLI fixture checks a tree file-hash snapshot, but explicit apply, resolver, writer and network invocation sentinels promised by the plan were not found. Source inspection is not a substitute for those behavioral assertions. The audit assignment prohibits test edits, so these missing tests are escalated for the test owner, not marked green.
+- **T-39-20 / 39-05-02 — partial:** the observer fixture blocks `child_process` and the CLI fixture checks a tree file-hash snapshot, but explicit apply, resolver, writer and network invocation sentinels promised by the plan were not found. Source inspection is not a substitute for those behavioral assertions. The new fetch sentinel covers `globalThis.fetch`, not every network API; the remaining missing call sentinels are not marked green.
 - **P39-1 / P39-2 / P39-3 — flagged-unverified:** no prohibition enforcement descriptors were authored. Adjacent read-only, health projection and handoff tests do not establish their separate disposition.
 - **A-39-EDGE-01 — flagged-unverified:** LOC-01 edge classification remains unresolved.
 - **Real-host / cross-platform:** fixture results do not prove host discovery, real tool invocation, official provenance, actual crash durability or macOS/Linux behavior.
 
 Security threat dispositions require a separate threat-by-threat evidence review; this validation record does not claim that all T-39 mitigations are closed.
+
+### Focused audit tests
+
+`npm run build` passed in the shared build, followed by `node scripts/run-tests.mjs --files dist/test/tool-inventory-safety.test.js`: **3 passed, 0 failed** on Windows. `test/tool-inventory-safety.test.ts` exercises oversized/deep record rejection (T-39-04), detects `fetch` calls during local discovery (partial T-39-20), and checks malicious configuration canaries in both human and JSON CLI output (partial T-39-19). This does not cover all network transports, output byte-budget exhaustion, injected EACCES, or installer/resolver/writer calls. No implementation bug was established by these tests.

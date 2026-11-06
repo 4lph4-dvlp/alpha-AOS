@@ -11,7 +11,7 @@ const knownPackages: Record<string, string> = { gsd: "@opengsd/gsd-core", ecc: "
 const safe = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const base64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 const keysOnly = (value: unknown, keys: string[]): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value) && Object.keys(value).length === keys.length && keys.every((key) => Object.hasOwn(value, key));
-const assessment = (status: LegacyHandoffAssessment["status"], reason: string, scope: string | null = null): LegacyHandoffAssessment => ({ status, reason, scope, nextAction: status === "ready" ? "Use an explicit handoff operation" : "Inspect retained evidence and reviewed policy" });
+const assessment = (status: LegacyHandoffAssessment["status"], reason: string, scope: string | null = null): LegacyHandoffAssessment => ({ status, reason, scope, nextAction: status === "ready" ? "Inspect remaining installation files and ownership before handoff" : "Inspect retained evidence and reviewed policy" });
 
 async function readProven(path: string, root: string, max: number): Promise<Buffer> {
   const proof = await provePathBoundary({ path, allowedRoots: [root], role: "source" });

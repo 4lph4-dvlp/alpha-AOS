@@ -1,6 +1,6 @@
 # Retained tool handoff evidence
 
-Inventory can read a retained npm registry signature without contacting the registry. This verifies only the `package.json` file against the matching file in a retained, registry-signed tarball. A `ready` assessment names that scope; it does not verify the rest of the installation, a build provenance attestation, or any integration or invocation.
+Inventory can read a retained npm registry signature without contacting the registry. This verifies only the `package.json` file against the matching file in a retained, registry-signed tarball. A `ready` assessment applies only to that named scope; it does not authorize a whole-installation handoff or verify the remaining files, ownership, a build provenance attestation, or any integration or invocation. Inspect the remaining installation and its ownership before handoff.
 
 The repository-owned `catalog/tool-handoff-policy.json` selects allowed tool-to-package mappings and independently reviewed npm registry public keys. Its initial lists are empty: no installed package is trusted solely because it appears in a lock or carries a key beside its evidence. Reviewers must authenticate keys from the official npm registry, review package identities, expiration, and revocations, and update this policy through the repository's normal review process. Inventory never fetches or refreshes keys. Unsupported sources, missing records, revoked or expired keys, or inaccessible files remain `needs-evidence`.
 

@@ -7,8 +7,8 @@ import { rejectRawCredentials, validateManagedDocument } from "./validation.js";
 import { inspectWriterState } from "./writer-lock.js";
 
 export interface ToolIdentity { toolId: string; installationId: string }
-export interface ToolEvidence { proofId: string; subject: string; target: string; method: string; result: string; platform: string; architecture: string; harness: string | null }
-export interface ToolResult { toolId: string; requested: { toolId: string; selector: string; exact: boolean }; resolved: { release: string; artifact: string; architecture: string; digest: string; sourceId: string; sourceUrl: string; platform: string } | null; installed: { installationId: string; version: string; pathAlias: string } | null; verified: string | null; evidence: ToolEvidence[]; outcome: string }
+export interface ToolEvidence { proofId: string; subject: string; target: string; method: string; result: string; platform: string; architecture: string; harness: string | null; fingerprint?: string }
+export interface ToolResult { toolId: string; requested: { toolId: string; selector: string; exact: boolean }; resolved: { release: string; artifact: string; architecture: string; digest: string; sourceId: string; sourceUrl: string; platform: string } | null; installed: { installationId: string; version: string; pathAlias: string } | null; verified: string | null; evidence: ToolEvidence[]; outcome: string; legacy?: import("./tool-handoff.js").LegacyToolEvidence }
 export interface ToolRecordEvent { schemaVersion: 1; eventId: string; operationId: string; sequence: number; occurredAt: string; kind: "started" | "tool-result" | "finished"; requests?: Array<{ toolId: string; selector: string; exact: boolean }>; result?: ToolResult; results?: ToolResult[]; outcome?: string; acceptedTransitions?: Array<{ toolId: string; installationId: string; proofId: string; priorDigest: string | null }> }
 export type ToolRecordStatus = "absent" | "current" | "invalid" | "unsupported-old" | "unknown-newer" | "inaccessible";
 export interface ToolRecordStore { status: ToolRecordStatus; events: ToolRecordEvent[]; accepted: Record<string, string> | null; diagnostics: string[]; incomplete: boolean; operations: Array<{ operationId: string; status: string }> }
@@ -53,6 +53,10 @@ function shallowJson(text: string): boolean {
 }
 export function safeToolRecordSource(result: ToolResult): boolean {
   if (result.toolId !== result.requested.toolId) return false;
+  if (result.legacy) {
+    const legacy = result.legacy;
+    if (legacy.toolId !== result.toolId || !safeToolRecordSource({ toolId: legacy.toolId, requested: result.requested, resolved: { release: legacy.release, artifact: legacy.artifact, platform: legacy.platform, architecture: legacy.architecture, digest: legacy.artifactDigest, sourceId: legacy.sourceId, sourceUrl: legacy.sourceUrl }, installed: null, verified: null, evidence: [], outcome: "unknown" })) return false;
+  }
   if (!result.resolved) return true;
   try {
     const url = new URL(result.resolved.sourceUrl);

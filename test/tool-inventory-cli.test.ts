@@ -29,6 +29,8 @@ test("tool inventory observes installed Cua separately from selected pin", async
     });
     assert.match(human, /installation=installed/);
     assert.match(human, /integrity=unverified/);
+    assert.match(human, /accepted=none; latest operation=none/);
+    assert.match(human, /handoff=needs-evidence/);
     await rm(executable);
     const absent = JSON.parse(execFileSync(process.execPath, [...nodeArgs, resolve("dist/src/cli.js"), "inventory", "--tool", "cua-driver", "--json"], {
       env: { ...process.env, HOME: home, USERPROFILE: home, LOCALAPPDATA: local, ALPHA_AOS_STATE_DIR: join(root, "state") }, encoding: "utf8",

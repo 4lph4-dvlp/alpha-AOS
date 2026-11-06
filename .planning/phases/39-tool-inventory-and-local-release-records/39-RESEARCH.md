@@ -200,10 +200,38 @@ const history = await readToolHistory({ stateRoot, toolId });
 | A3 | 제안 fixture 및 테스트 파일/명령으로 범위를 독립 검증할 수 있다. | 실행 전에 fixture/test runner 연결 재확인 필요. |
 | A4 | 위 보안 범주 적용 판단 및 환경에 대한 제한은 실호스트 증거가 아니다. | 미검증 설치·호환성을 완료로 잘못 보고할 수 있다. |
 
+## 기존 관찰 표면과 계획된 범위
+
+**설계 결정:** Phase 39의 production observer는 아래 표면과 명시적으로 주입된 제한된 후보만 파일 읽기로 확인한다. 관찰한 범위와 빠진 범위를 반환하고, 명시된 후보들에서 ENOENT가 확인된 경우에만 그 **후보 범위의** 부재를 보고한다. 범위 밖 수동 설치의 전역 부재는 단정하지 않는다. 파일 접근 거부·불완전한 범위·파싱 실패는 unknown이며, 파일 존재만으로 실행·공식 신뢰·관리 소유권을 확정하지 않는다. 이 문단은 39-03의 구체적인 구현 계약 제안이다. [VERIFIED: .planning/phases/39-tool-inventory-and-local-release-records/39-03-PLAN.md] [ASSUMED]
+
+| 도구 | 기존에 읽을 수 있는 표면 | Phase 39에서 확정 가능한 사실과 한계 |
+|---|---|---|
+| Cua | 코드의 `officialCuaPaths`는 공식 실행 파일 및 legacy 경로 후보를 산출하며 `verifyOfficialCua`는 선택 pin의 파일 목록과 바이트를 비교한다. 원문 경로 조각은 `".cua-driver"`, `".cua-driver-rs"`, `"cua-driver.exe"`, `"/Applications/CuaDriver.app/Contents/MacOS/cua-driver"`다. [VERIFIED: src/core/computer-use-install.ts:29-57] | 후보 존재·해당 pin의 설치 파일 일치만 표시한다. pin 자체의 주장만으로 외부 출처 또는 GUI 작동을 확인하지 않는다. 후보 밖 및 읽지 못한 곳은 unknown이다. [ASSUMED] |
+| GSD | 다섯 하네스 루트를 `globalGsdConfigRoot`로 구하고 각 루트 아래 원문 `"gsd-core", "VERSION"`, `".gsd-profile"`, `"gsd-core", ".gsd-runtime"`을 읽는다. [VERIFIED: src/core/install.ts:104-130] | 이 파일들은 설치된 것으로 보이는 버전·대상 메타데이터이고 설치 파일 전체의 공식 출처 및 실제 실행을 증명하지 않는다. 현재 함수는 제한 범위 밖의 수동 설치를 열거하지 않는다. [ASSUMED] |
+| ECC | 기존 전역 npm 루트와 각 하네스 skill 루트를 본다. 원문에서 Claude는 `"skills"`, Codex/Pi는 `".agents", "skills"`, Antigravity는 `".gemini", "config"`, `"skills"`, Hermes는 `"skills"` 조합이다. [VERIFIED: src/core/ecc-skills.ts:52-59] [VERIFIED: src/core/install.ts:328-370] | npm manifest 버전과 배포된 skill은 별개의 관찰이다. 공유 skill 경로는 공유 사실만 표시한다. 변환된 skill의 해시만으로 원본 tarball 출처나 런타임 실행을 입증하지 않는다. [ASSUMED] |
+| Context7 / Exa / Firecrawl | 잠금의 세 package identity와 bounded npm roots·PATH 후보·각 MCP 연결 설정을 사용한다. 원문 식별자는 `"@upstash/context7-mcp"`, `"exa-mcp-server"`, `"firecrawl-mcp"`다. [VERIFIED: catalog/stack.lock.json:88-102] | 명시된 package manifest와 경로는 해당 후보의 관찰이다. 설정의 package spec 또는 proxy는 연결 의도이지 실제 설치·실행 증거가 아니다. npx 캐시 등 범위 밖 위치는 unknown으로 둔다. [VERIFIED: src/core/mcp.ts:189-202] [ASSUMED] |
+| Pi bridge | 기존 코드는 구성 파일 디렉터리 아래 원문 `"npm", "node_modules", bridge.package, "package.json"`을 사용해 manifest 버전과 잠금을 비교한다. [VERIFIED: src/core/mcp.ts:594-596] [VERIFIED: src/core/mcp.ts:632-643] | 그 manifest만 해당 후보의 버전을 보여준다. 브리지 사용·연동 또는 다른 위치의 부재는 입증하지 않는다. [ASSUMED] |
+
+다섯 하네스의 **MCP 설정 연결**은 `globalMcpConfigPath` 및 `nativeConfigFormat`을 사용한다. 원문 경로 구성은 Claude `".claude.json"`, Codex `".codex", "config.toml"` (환경 override 지원), Antigravity `".gemini", "config", "mcp_config.json"`, Pi `".pi", "agent", "mcp.json"` (환경 override 지원), Hermes `hermesHome(...), "config.yaml"`이고 형식 선택 원문은 `"codex" → "toml"`, `"hermes" → "yaml"`, 그 외 `"json"`이다. [VERIFIED: src/core/mcp.ts:121-128] [VERIFIED: src/core/mcp.ts:501-504]
+
+GSD 루트와 ECC skill 루트의 다섯 하네스 분기는 각각 위 코드에서 확인된다. **계획:** 명시적 실행 파일 또는 안전하게 읽은 shim/manifest와 정확한 identity·경로가 같은 경우에만 하네스 관계를 확정하고, proxy·npx 참조와 해석할 수 없는 wrapper는 관계 미확정으로 남긴다. Antigravity 및 Hermes 탐지 후보들은 위 MCP 구성 경로보다 넓다. 기존 `probeHarness`는 `probeCommand`를 호출하므로 39-03의 subprocess 금지 관찰에는 그대로 재사용하지 말고 경로 계산만 재사용해야 한다. [VERIFIED: src/adapters/harnesses.ts:18-48] [VERIFIED: src/adapters/harnesses.ts:69-86] [ASSUMED]
+
+## 기존 증거와 인계 판정 계약
+
+| 증거 원천 | 확인된 내용 | 인계에서 사용할 수 있는 범위 |
+|---|---|---|
+| stable lock | `LockedPackage` 원문 `package: string; version: string; integrity: string;` 및 ECC의 source/target 해시, 별도 MCP/bridge 항목을 정의한다. [VERIFIED: src/types.ts:166-190] | 선택 identity와 기대 무결성 후보. 단독으로 공식 source 인증, 실제 tarball 검사, 설치 위치와의 연결을 증명하지 않는다. [ASSUMED] |
+| 파일 transaction journal | 파일 항목 원문 `target`, `existed`, `snapshot`, `beforeHash`, `afterHash`, `proofDigest`; 작업 원문 `id`, `createdAt`, `status`, `allowedRoots`, `files`. [VERIFIED: src/core/transaction.ts:101-121] | 해당 관리 파일의 변경·전후 바이트 관계와 작업 연계를 보조할 수 있다. journal만으로 공식 artifact, 외부 installer의 모든 효과 또는 실제 도구 실행 성공을 입증하지 않는다. [ASSUMED] |
+| ECC fixture 결과 | tarball 바이트를 계산해 잠금 integrity와 비교한 후 선택 skill의 원본·변환 해시를 반환한다. [VERIFIED: src/core/ecc-fixture.ts:350-388] | 개별 결과가 신뢰할 수 있게 보존되고 정확한 artifact, 변환 규칙 및 현재 대상 파일에 연결되는 경우 해당 범위의 근거가 된다. 이 함수가 반환한 사실만으로 실제 호스트에 결과가 보존됐다고 가정하지 않는다. [ASSUMED] |
+| MCP fixture | `npm pack` 결과의 integrity를 잠금과 비교하고 archive의 존재를 확인한다. [VERIFIED: src/core/mcp-fixture.ts:55-72] | fixture 당시 package 일치의 근거 후보이지만 독립적인 현재 설치의 바이트·호출 결과로 확장하지 않는다. [ASSUMED] |
+| Cua pin과 installed-file 비교 | 원문 `"downloadVerified": true`, `"signatureVerified": true`, 그리고 Windows asset의 `"proof": "host-verified-checksum-signature-and-file-manifest"`, `"liveVerified": false`가 pin에 있다. `verifyOfficialCua`는 설치된 목록 파일을 pin의 기대 해시와 비교한다. [VERIFIED: catalog/computer-use-runtime.json:2-19] [VERIFIED: src/core/computer-use-install.ts:40-57] | 이 boolean/문자열은 기록된 주장이다. 신뢰 가능한 공식 artifact→서명/체크섬→파일 manifest→현재 설치 파일을 잇는 검증 가능한 별도 증거가 있어야 출처까지 확정한다. pin 비교만으로 GUI 호출 성공을 부여하지 않는다. [ASSUMED] |
+
+**구체 판정:** (1) 공식 publisher/source에 대한 신뢰 가능한 근거, (2) 정확한 버전과 artifact identity, (3) 그 artifact에 결합된 신뢰 가능한 기대 digest와 실제 검증 결과, (4) 검증된 artifact/변환 결과에서 현재 설치 대상까지 이어지는 경로·파일 일치 증거, (5) 기존 소유권·사용자 수정 상태가 모두 연결될 때만 인계 준비로 평가한다. 이미 남아 있는 충분한 증거를 사용할 수 있으며 다운로드·재설치는 필수가 아니다. 일부 파일만 검사했다면 그 파일 범위만 인정한다. 누락·충돌·변조·불명확한 변환 또는 실경로 접근 실패는 항목별 부족 근거와 다음 조치로 표시하고, 수정된 파일을 덮거나 관리 소유권을 자동 부여하지 않는다. 미실행 통합 검사는 별도 unverified다. Phase 39는 평가와 명시적 handoff 입력 계약을 제공하며 실제 일괄 이관은 Phase 43이다. [VERIFIED: .planning/phases/39-tool-inventory-and-local-release-records/39-CONTEXT.md:50-55] [VERIFIED: .planning/ROADMAP.md:86-95] [ASSUMED]
+
 ## Open Questions
 
-1. 설치 및 하네스별 연결의 기존 관찰 수단이 각 도구에서 어느 범위까지 안전하게 식별 가능한지는 구현 시 fixture와 실제 코드 분석으로 확인한다. 불가한 경우 명시적으로 unknown으로 남긴다. [ASSUMED]
-2. 기존 기록의 실제 증거가 특정 설치와 연결되는지는 현재 조사에서 확인하지 않았다. 마이그레이션 시 D-16 기준을 적용한다. [ASSUMED]
+1. **RESOLVED — 관찰 범위와 하네스 귀속:** 위 ‘기존 관찰 표면과 계획된 범위’ 표를 39-03의 구현 계약으로 사용한다. 각 도구의 확인 가능한 경로와 증거, 미확정 조건, 다섯 하네스의 설정 형식 및 기존 subprocess 탐지 재사용 금지까지 결정했다. 실호스트에 무엇이 설치되어 있는지는 이 설계 결정으로 확인되지 않는다. [VERIFIED: src/core/install.ts:104-130] [VERIFIED: src/core/mcp.ts:121-128] [VERIFIED: src/adapters/harnesses.ts:69-86] [ASSUMED]
+2. **RESOLVED — 기존 증거와 인계:** 위 ‘기존 증거와 인계 판정 계약’의 필수 연결과 각 기존 형식의 기여 범위를 39-04 평가 기준으로 사용한다. lock·journal·pin boolean 각각만으로는 신뢰할 수 있는 전체 artifact→현재 설치 체인이 성립하지 않으며 충분히 보존된 별도 증거가 있으면 재다운로드는 필요 없다. 실제 특정 호스트에서 이 체인이 존재하는지는 조사하지 않았다. [VERIFIED: src/types.ts:166-190] [VERIFIED: src/core/transaction.ts:101-121] [VERIFIED: catalog/computer-use-runtime.json:2-19] [ASSUMED]
 
 ## Sources and Metadata
 

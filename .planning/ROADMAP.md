@@ -4,7 +4,7 @@
 
 Unified Tool Updates & Compatibility moves external-tool release selection from alpha-AOS remote lock promotion to the local installation/explicit-update lifecycle. Build a shared exact-identity record, connect official npm/Cua release sources, minimize compatibility transformations, verify actual integration and recover native effects, then migrate all consumers and guidance.
 
-**Status:** Owner approved the five-phase roadmap on 2026-11-06 (reply: 승인). All 16 requirements are approved; no phase is started or completed.
+**Status:** Owner approved the five-phase roadmap on 2026-11-06 (reply: 승인). Phase 39 planning and independent plan review are complete; implementation has not started. All 16 requirements remain undelivered/unverified.
 **Numbering:** Continue after v0.7.0 Phase 38, starting at 39.
 **Research:** [summary](research/SUMMARY.md), [evidence](research/EVIDENCE.md).
 **Requirements:** [16 approved requirements](REQUIREMENTS.md).
@@ -45,7 +45,20 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 2. A local versioned record can identify the exact selected artifact, source, verified integrity, installed result and associated operation; records are outside the alpha-AOS package checkout and contain no credential values.
 3. Requested, resolved, installed and verified identities remain distinguishable, and interrupted or failed operations do not overwrite prior accepted identity with false success.
 4. Maintainers can see which components are alpha-AOS-owned skills/bundled libraries or external prerequisites rather than managed tool installations; the record contract defines how old stable/Cua identities will be adopted without assuming trust in arbitrary current bytes.
-**Plans:** TBD after roadmap approval.
+
+**Plans:** 5 plans / 10 tasks; independently reviewed after one targeted revision. Implementation and live verification have not run.
+**Wave 1**
+- [ ] 39-01-PLAN.md — Actual Cua read-only inventory tracer and versioned record reader.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 39-02-PLAN.md — Explicit safe record writer and failure/interruption history.
+- [ ] 39-03-PLAN.md — Full managed-tool observation and per-harness installation attribution.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 39-04-PLAN.md — Evidence-bounded legacy handoff contract and current/accepted/latest-result reconciliation.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 39-05-PLAN.md — Default/detail/tool-and-operation-history output and consumer compatibility checks.
 
 ### Phase 40: Local Official Release Updates
 
@@ -57,6 +70,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 2. Cua selection follows the driver release family and official stable-channel convention despite GitHub prerelease labels, excludes nightly tags, and handles OS/architecture support and incomplete bounded discovery explicitly. npm selection excludes semantic prereleases even when tagged latest.
 3. Preview identifies exact old/new versions and artifacts, affected targets, native effects and recovery scope. Apply revalidates reviewed identities rather than resolving a moving latest tag again or falling back silently.
 4. Discovery failure, invalid/unverifiable metadata or an unsupported platform produces a specific refusal with existing state retained; no checkout catalog/remote repository mutation is needed for ordinary tool updates. Existing runtime safeguards remain applied through the common installer route.
+
 **Plans:** TBD after roadmap approval.
 
 ### Phase 41: Minimal Compatibility Adapters
@@ -69,6 +83,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 2. The existing ECC section replacements, GSD hook detection and other identified transformations are reviewed and reduced in favor of official settings/public interfaces where effective; remaining transformations are explicit adapters with validated preconditions rather than unexplained edits.
 3. Before a rewrite is replaced by separate alpha-AOS guidance, supported native discovery/precedence and intended tool invocation are demonstrated; duplicate or ineffective guidance cannot count as completed migration.
 4. An upstream-resolved correction can be retired with selected-release behavior evidence and a retained retirement reason; necessary corrections are not removed on a guessed version threshold, and runtime AI rewriting is absent.
+
 **Plans:** TBD after roadmap approval.
 
 ### Phase 42: Integration Verification and Recovery
@@ -81,6 +96,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 2. Results separately identify installed, discovered, schema/protocol-checked and successfully invoked states. Missing credentials, permissions, service availability, host reload or unrun checks remain explicitly unverified/needs-action rather than ready.
 3. A failed pre-apply check leaves the prior working installation active and shows the attempted target and reason; no hidden downgrade or false update success is reported.
 4. A post-apply or interrupted native installation is recovered/reconciled through the adapter's declared mechanism, retaining previous artifacts where required and reporting actual active identity, unrecovered effects and the next bounded recovery action. Owned-file rollback alone is not claimed as full native rollback.
+
 **Plans:** TBD after roadmap approval.
 
 ### Phase 43: Migration and Consistent Guidance
@@ -93,15 +109,16 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 2. Installation, native config, diagnostics, project isolation and recovery agree on the local selected identity, and updated tools are not rejected by stale hidden bundled hashes/pins. Required output hashes are derived from verified sources and adapter revisions.
 3. CLI/skills and English/Korean docs consistently describe install/explicit-update timing, tool updates versus alpha-AOS code updates, and patch-release/local developer deployment for compatibility fixes; scheduled promotion and background/nightly updates stay disabled.
 4. End-to-end outcomes identify the affected component/platform/harness and shared dependency/configuration effects, showing retained/updated/failed/recovered/unverified states without claiming untested parity or completion of old v0.7.0 acceptance.
+
 **Plans:** TBD after roadmap approval.
 
 ## Progress
 
-**Execution order:** 39 -> 40 -> 41 -> 42 -> 43. Dependencies order implementation. Milestone initialization is complete; phase plans and implementation have not started.
+**Execution order:** 39 -> 40 -> 41 -> 42 -> 43. Dependencies order implementation. Phase 39 has five reviewed plans and is ready to execute; implementation has not started. See [plan review evidence](phases/39-tool-inventory-and-local-release-records/39-PLAN-CHECK.md).
 
 | Phase | Plans complete | Status | Completed |
 |---|---|---|---|
-| 39. Tool Inventory and Local Release Records | 0/TBD | Not started | - |
+| 39. Tool Inventory and Local Release Records | 0/5 | Planned — ready to execute | - |
 | 40. Local Official Release Updates | 0/TBD | Not started | - |
 | 41. Minimal Compatibility Adapters | 0/TBD | Not started | - |
 | 42. Integration Verification and Recovery | 0/TBD | Not started | - |

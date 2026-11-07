@@ -1116,7 +1116,7 @@ export interface LocalReleasePlan {
   readonly allTools: readonly ToolReleasePreviewItem[];
   readonly applyAllowed: boolean;
   readonly blockedReasons: readonly string[];
-  readonly toolFilterAdvice?: string;
+  readonly toolFilterAdvice?: string | undefined;
   readonly planDigest: string | null;
   readonly reviewedPlanToken: string | null;
   readonly applyCommand: string | null;

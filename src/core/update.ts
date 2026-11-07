@@ -285,7 +285,11 @@ export async function resolveNpmStableRelease(
       };
     }
     const body = (await response.json()) as { version?: unknown; dist?: { integrity?: unknown; tarball?: unknown } };
-    if (typeof body.version !== "string" || typeof body.dist?.integrity !== "string") {
+    if (
+      typeof body.version !== "string" ||
+      typeof body.dist?.integrity !== "string" ||
+      !/^sha512-[A-Za-z0-9+/]+=*$/.test(body.dist.integrity)
+    ) {
       return {
         ok: false,
         errorCode: "invalid-metadata",
@@ -399,6 +403,7 @@ export async function resolveCuaStableRelease(options: {
 
     for (const rel of releases) {
       if (rel.draft) continue;
+      if (rel.tag_name?.startsWith("nightly-")) continue;
       // Tag must match ^cua-driver-rs-v(\d+\.\d+\.\d+)$
       const match = /^cua-driver-rs-v(\d+)\.(\d+)\.(\d+)$/.exec(rel.tag_name ?? "");
       if (!match) continue;
@@ -703,7 +708,7 @@ export async function createLocalReleasePlan(
     let digest: string | null = null;
     let blockedReason: { code: ReleaseResolutionFailureCode; message: string } | undefined;
 
-    if (mode === "update" && installation === "absent") {
+    if (mode === "update" && installation !== "installed") {
       const isExplicitTool = options.tools !== undefined && options.tools.includes(toolId);
       if (isExplicitTool) {
         action = "blocked";

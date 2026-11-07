@@ -10,7 +10,7 @@ import { packageRoot } from "../src/core/paths.js";
 test("official installer plan declares pinned version, standard locations and bounded environment", async () => {
   const plan = await planCuaInstall();
   assert.equal(plan.spec.environment?.literal?.CUA_DRIVER_RS_VERSION, "0.38.0");
-  assert.equal(plan.spec.environment?.literal?.CUA_DRIVER_RS_KEEP_VERSIONS, "0");
+  assert.equal(plan.spec.environment?.literal?.CUA_DRIVER_RS_KEEP_VERSIONS, "2");
   assert.equal(plan.spec.environment?.literal?.CUA_DRIVER_RS_TELEMETRY_ENABLED, "false");
   assert.equal(plan.spec.environment?.source, undefined);
   assert.equal(plan.spec.environment?.optional?.includes("GITHUB_TOKEN"), false);

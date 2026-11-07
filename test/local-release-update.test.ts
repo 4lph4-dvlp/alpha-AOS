@@ -8,6 +8,8 @@ import {
   createLocalReleasePlan,
   decodeReviewedReleasePlan,
   encodeReviewedReleasePlan,
+  resolveCuaStableRelease,
+  resolveNpmStableRelease,
 } from "../src/core/update.js";
 import { ComponentPlanError } from "../src/core/component-session.js";
 import type {
@@ -212,3 +214,127 @@ test("createLocalReleasePlan determinism: identical inputs produce identical pla
   assert.equal(plan1.planDigest, plan2.planDigest);
   assert.equal(plan1.reviewedPlanToken, plan2.reviewedPlanToken);
 });
+
+test("resolveNpmStableRelease rejects semantic prereleases with latest-is-prerelease (D-09)", async () => {
+  const fetchBeta = mockFetch({
+    "test-pkg/latest": { version: "1.19.0-beta.1", dist: { integrity: "sha512-abc==" } },
+  });
+  const res = await resolveNpmStableRelease("test-pkg", fetchBeta);
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.errorCode, "latest-is-prerelease");
+    assert.match(res.message, /prerelease/);
+  }
+});
+
+test("resolveNpmStableRelease rejects invalid metadata with invalid-metadata (D-09)", async () => {
+  const fetchInvalid = mockFetch({
+    "bad-pkg/latest": { version: "1.19.0", dist: { integrity: "not-sha512" } },
+  });
+  const res = await resolveNpmStableRelease("bad-pkg", fetchInvalid);
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.errorCode, "invalid-metadata");
+  }
+});
+
+test("resolveCuaStableRelease rejects incomplete discovery after filtering draft, nightly, and 0.28.3 (D-10)", async () => {
+  const fetchReleases = mockFetch({
+    "repos/trycua/cua/releases": [
+      { tag_name: "cua-driver-rs-v0.39.0", draft: true, prerelease: true, assets: [] },
+      { tag_name: "nightly-cua-driver-rs-v0.40.0", draft: false, prerelease: true, assets: [] },
+      { tag_name: "cua-driver-rs-v0.28.3", draft: false, prerelease: true, assets: [] },
+    ],
+  });
+  const res = await resolveCuaStableRelease({ fetchImpl: fetchReleases, platform: "win32", architecture: "x64" });
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.errorCode, "incomplete-discovery");
+  }
+});
+
+test("resolveCuaStableRelease rejects unsupported platform asset with unsupported-platform without fallback (D-10)", async () => {
+  const fetchDarwinOnly = mockFetch({
+    "repos/trycua/cua/releases": [
+      {
+        tag_name: "cua-driver-rs-v0.39.0",
+        draft: false,
+        prerelease: true,
+        assets: [
+          { name: "cua-driver-rs-0.39.0-darwin-universal-binary.tar.gz", browser_download_url: "https://example.com/darwin.tar.gz" },
+          { name: "SHA256SUMS", browser_download_url: "https://example.com/SHA256SUMS" },
+        ],
+      },
+    ],
+  });
+  const res = await resolveCuaStableRelease({ fetchImpl: fetchDarwinOnly, platform: "win32", architecture: "x64" });
+  assert.equal(res.ok, false);
+  if (!res.ok) {
+    assert.equal(res.errorCode, "unsupported-platform");
+  }
+});
+
+test("createLocalReleasePlan on Linux selects Linux asset, records unverified note and Wayland side effects (D-12)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const linuxResponses = {
+    ...DEFAULT_NPM_RESPONSES,
+    "repos/trycua/cua/releases": [
+      {
+        tag_name: "cua-driver-rs-v0.39.0",
+        draft: false,
+        prerelease: true,
+        assets: [
+          { name: "cua-driver-rs-0.39.0-linux-x86_64-binary.tar.gz", browser_download_url: "https://example.com/linux.tar.gz" },
+          { name: "SHA256SUMS", browser_download_url: "https://example.com/SHA256SUMS" },
+          { name: "cua-driver-rs-0.39.0-linux-x86_64-binary.tar.gz.sigstore.json", browser_download_url: "https://example.com/linux.sigstore.json" },
+        ],
+      },
+    ],
+  };
+
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["cua-driver"],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(linuxResponses),
+    platform: "linux",
+    architecture: "x64",
+  });
+
+  assert.equal(plan.applyAllowed, true);
+  const cuaItem = plan.changedTools.find((t) => t.toolId === "cua-driver");
+  assert.ok(cuaItem);
+  assert.ok(cuaItem.verificationNote?.includes("unverified") || cuaItem.verificationNote?.includes("verification"));
+  assert.ok(cuaItem.nativeSideEffects.some((e) => e.includes("Wayland")));
+});
+
+test("createLocalReleasePlan with partial failure blocks apply and gives --tool filter advice (D-11)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const mixedResponses = {
+    ...DEFAULT_NPM_RESPONSES,
+    "%40opengsd%2Fgsd-core/latest": { version: "1.19.0-beta.1", dist: { integrity: "sha512-beta==" } },
+  };
+
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd", "ecc"],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(mixedResponses),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(plan.applyAllowed, false);
+  assert.equal(plan.applyCommand, null);
+  assert.ok(plan.toolFilterAdvice && plan.toolFilterAdvice.includes("--tool"));
+  const gsdItem = plan.allTools.find((t) => t.toolId === "gsd");
+  assert.equal(gsdItem?.action, "blocked");
+  assert.equal(gsdItem?.blockedReason?.code, "latest-is-prerelease");
+  const eccItem = plan.allTools.find((t) => t.toolId === "ecc");
+  assert.equal(eccItem?.action, "install");
+});
+

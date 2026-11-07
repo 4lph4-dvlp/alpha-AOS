@@ -138,11 +138,20 @@ test("createLocalReleasePlan in install mode respects SAFE-01 (writes nothing) a
 
 test("createLocalReleasePlan in update mode plans absent tools as skip-absent when default", async (context) => {
   const fixture = await createTempFixture(context);
+  const isolatedEnv: NodeJS.ProcessEnv = {
+    APPDATA: join(fixture.home, "AppData", "Roaming"),
+    LOCALAPPDATA: join(fixture.home, "AppData", "Local"),
+    PATH: "",
+    npm_config_prefix: join(fixture.home, "npm"),
+    USERPROFILE: fixture.home,
+    HOME: fixture.home,
+  };
   const plan = await createLocalReleasePlan({
     mode: "update",
     packageRoot: fixture.packageRoot,
     stateRoot: fixture.stateRoot,
     home: fixture.home,
+    env: isolatedEnv,
     fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
     platform: "win32",
     architecture: "x64",
@@ -158,12 +167,21 @@ test("createLocalReleasePlan in update mode plans absent tools as skip-absent wh
 
 test("createLocalReleasePlan in update mode with explicit --tool for absent tool rejects with absent-tool-in-update", async (context) => {
   const fixture = await createTempFixture(context);
+  const isolatedEnv: NodeJS.ProcessEnv = {
+    APPDATA: join(fixture.home, "AppData", "Roaming"),
+    LOCALAPPDATA: join(fixture.home, "AppData", "Local"),
+    PATH: "",
+    npm_config_prefix: join(fixture.home, "npm"),
+    USERPROFILE: fixture.home,
+    HOME: fixture.home,
+  };
   const plan = await createLocalReleasePlan({
     mode: "update",
     tools: ["gsd"],
     packageRoot: fixture.packageRoot,
     stateRoot: fixture.stateRoot,
     home: fixture.home,
+    env: isolatedEnv,
     fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
     platform: "win32",
     architecture: "x64",

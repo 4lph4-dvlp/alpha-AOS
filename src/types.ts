@@ -1020,3 +1020,105 @@ export interface TaskCapabilityInventory {
   readonly inputFingerprint: string;
 }
 
+// ---------------------------------------------------------------------------
+// Phase 40: Local Official Release Updates (LOC-02, LOC-03)
+// ---------------------------------------------------------------------------
+
+export type ManagedToolId =
+  | "cua-driver"
+  | "gsd"
+  | "ecc"
+  | "mcp:context7"
+  | "mcp:exa"
+  | "mcp:firecrawl"
+  | "bridge:pi";
+
+export const MANAGED_TOOL_IDS: readonly ManagedToolId[] = [
+  "cua-driver",
+  "gsd",
+  "ecc",
+  "mcp:context7",
+  "mcp:exa",
+  "mcp:firecrawl",
+  "bridge:pi",
+] as const;
+
+export type ReleaseResolutionFailureCode =
+  | "latest-is-prerelease"
+  | "unsupported-platform"
+  | "incomplete-discovery"
+  | "invalid-metadata"
+  | "discovery-failed"
+  | "signature-verification-failed"
+  | "checksum-mismatch"
+  | "absent-tool-in-update";
+
+export type ToolReleaseAction =
+  | "install"
+  | "update"
+  | "current"
+  | "skip-absent"
+  | "blocked";
+
+export interface ReviewedToolBinding {
+  readonly toolId: ManagedToolId;
+  readonly action: ToolReleaseAction;
+  readonly oldVersion: string | null;
+  readonly acceptedVersion: string | null;
+  readonly release: string;
+  readonly artifact: string;
+  readonly integrity: string;
+  readonly digest: string;
+  readonly sourceId: "npm-registry" | "driver-release";
+  readonly sourceUrl: string;
+  readonly platform: string;
+  readonly architecture: string;
+}
+
+export interface ReviewedReleasePlanPayload {
+  readonly v: 1;
+  readonly mode: "install" | "update";
+  readonly targets: readonly HarnessId[];
+  readonly selectedTools: readonly ManagedToolId[];
+  readonly tools: readonly ReviewedToolBinding[];
+}
+
+export interface ToolReleasePreviewItem {
+  readonly toolId: ManagedToolId;
+  readonly action: ToolReleaseAction;
+  readonly oldVersion: string | null;
+  readonly acceptedVersion: string | null;
+  readonly newVersion: string | null;
+  readonly sourceId: string | null;
+  readonly sourceUrl: string | null;
+  readonly artifact: string | null;
+  readonly requestedHarnesses: readonly HarnessId[];
+  readonly affectedHarnesses: readonly HarnessId[];
+  readonly nativeSideEffects: readonly string[];
+  readonly recoveryScope: {
+    readonly transactionalRollback: readonly string[];
+    readonly adapterRecovery: readonly string[];
+    readonly unrecoveredEffects: readonly string[];
+  };
+  readonly blockedReason?: {
+    readonly code: ReleaseResolutionFailureCode;
+    readonly message: string;
+  };
+  readonly verificationNote?: string;
+}
+
+export interface LocalReleasePlan {
+  readonly mode: "install" | "update";
+  readonly requestedTools: readonly ManagedToolId[];
+  readonly requestedTargets: readonly HarnessId[];
+  readonly changedTools: readonly ToolReleasePreviewItem[];
+  readonly unchangedTools: readonly ToolReleasePreviewItem[];
+  readonly allTools: readonly ToolReleasePreviewItem[];
+  readonly applyAllowed: boolean;
+  readonly blockedReasons: readonly string[];
+  readonly toolFilterAdvice?: string;
+  readonly planDigest: string | null;
+  readonly reviewedPlanToken: string | null;
+  readonly applyCommand: string | null;
+}
+

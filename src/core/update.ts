@@ -215,3 +215,30 @@ export function hasVersionChanges(current: StackLock, candidate: StackLock): boo
   }
   return false;
 }
+
+export function encodeReviewedReleasePlan(_payload: import("../types.js").ReviewedReleasePlanPayload): string {
+  throw new Error("not implemented");
+}
+
+export function decodeReviewedReleasePlan(_token: string): import("../types.js").ReviewedReleasePlanPayload {
+  throw new Error("not implemented");
+}
+
+export interface CreateLocalReleasePlanOptions {
+  mode: "install" | "update";
+  packageRoot?: string;
+  stateRoot?: string;
+  home?: string;
+  env?: NodeJS.ProcessEnv;
+  tools?: readonly import("../types.js").ManagedToolId[];
+  targets?: readonly import("../types.js").HarnessId[];
+  fetchImpl?: typeof fetch;
+  platform?: string;
+  architecture?: string;
+}
+
+export async function createLocalReleasePlan(
+  _options: CreateLocalReleasePlanOptions,
+): Promise<import("../types.js").LocalReleasePlan> {
+  throw new Error("not implemented");
+}

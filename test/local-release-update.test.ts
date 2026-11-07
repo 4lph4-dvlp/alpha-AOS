@@ -1,0 +1,196 @@
+import assert from "node:assert/strict";
+import { existsSync, readdirSync } from "node:fs";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import {
+  createLocalReleasePlan,
+  decodeReviewedReleasePlan,
+  encodeReviewedReleasePlan,
+} from "../src/core/update.js";
+import { ComponentPlanError } from "../src/core/component-session.js";
+import type {
+  HarnessId,
+  ManagedToolId,
+  ReviewedReleasePlanPayload,
+  ReviewedToolBinding,
+} from "../src/types.js";
+
+function mockFetch(responses: Record<string, unknown>): typeof fetch {
+  return async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    for (const [key, body] of Object.entries(responses)) {
+      if (url.includes(key)) {
+        if (body instanceof Error) throw body;
+        return new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      }
+    }
+    return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+  };
+}
+
+async function createTempFixture(context: test.TestContext) {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-release-test-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+  const packageRoot = join(root, "pkg");
+  const stateRoot = join(root, "state");
+  const home = join(root, "home");
+  await mkdir(packageRoot, { recursive: true });
+  await mkdir(stateRoot, { recursive: true });
+  await mkdir(home, { recursive: true });
+  return { root, packageRoot, stateRoot, home };
+}
+
+const DEFAULT_NPM_RESPONSES = {
+  "%40opengsd%2Fgsd-core/latest": { version: "1.19.0", dist: { integrity: "sha512-gsd119==" } },
+  "ecc-universal/latest": { version: "2.3.0", dist: { integrity: "sha512-ecc230==" } },
+  "%40upstash%2Fcontext7-mcp/latest": { version: "1.1.0", dist: { integrity: "sha512-ctx110==" } },
+  "exa-mcp-server/latest": { version: "1.2.0", dist: { integrity: "sha512-exa120==" } },
+  "firecrawl-mcp/latest": { version: "1.3.0", dist: { integrity: "sha512-fc130==" } },
+  "pi-mcp-adapter/latest": { version: "1.0.1", dist: { integrity: "sha512-pi101==" } },
+  "repos/trycua/cua/releases": [
+    {
+      tag_name: "cua-driver-rs-v0.39.0",
+      draft: false,
+      prerelease: true,
+      assets: [
+        { name: "cua-driver-rs-0.39.0-windows-x86_64-binary.zip", browser_download_url: "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.39.0/cua-driver-rs-0.39.0-windows-x86_64-binary.zip" },
+        { name: "SHA256SUMS", browser_download_url: "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.39.0/SHA256SUMS" },
+        { name: "cua-driver-rs-0.39.0-windows-x86_64-binary.zip.sigstore.json", browser_download_url: "https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.39.0/cua-driver-rs-0.39.0-windows-x86_64-binary.zip.sigstore.json" },
+      ],
+    },
+  ],
+};
+
+test("token codec encodes to base64url and decodes losslessly, rejecting corrupted tokens", () => {
+  const binding: ReviewedToolBinding = {
+    toolId: "gsd",
+    action: "update",
+    oldVersion: "1.18.0",
+    acceptedVersion: "1.18.0",
+    release: "1.19.0",
+    artifact: "opengsd-gsd-core-1.19.0.tgz",
+    integrity: "sha512-abc123==",
+    digest: "a".repeat(64),
+    sourceId: "npm-registry",
+    sourceUrl: "https://registry.npmjs.org/@opengsd/gsd-core/-/opengsd-gsd-core-1.19.0.tgz",
+    platform: "windows",
+    architecture: "x64",
+  };
+  const payload: ReviewedReleasePlanPayload = {
+    v: 1,
+    mode: "update",
+    targets: ["claude", "codex"],
+    selectedTools: ["gsd"],
+    tools: [binding],
+  };
+
+  const token = encodeReviewedReleasePlan(payload);
+  assert.ok(typeof token === "string" && token.length > 0);
+  assert.match(token, /^[A-Za-z0-9_-]+$/, "token must be base64url characters only");
+
+  const decoded = decodeReviewedReleasePlan(token);
+  assert.deepEqual(decoded, payload);
+
+  assert.throws(
+    () => decodeReviewedReleasePlan("not-valid-base64-deflate-token!@#"),
+    (err: unknown) => err instanceof ComponentPlanError && err.code === "plan-incomplete",
+  );
+});
+
+test("createLocalReleasePlan in install mode respects SAFE-01 (writes nothing) and plans uninstalled tools as install", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  // SAFE-01: no files written
+  assert.equal(readdirSync(fixture.packageRoot).length, 0, "packageRoot must remain empty");
+  assert.equal(readdirSync(fixture.stateRoot).length, 0, "stateRoot must remain empty");
+  assert.equal(readdirSync(fixture.home).length, 0, "home must remain empty");
+
+  assert.equal(plan.mode, "install");
+  assert.equal(plan.applyAllowed, true);
+  assert.ok(plan.planDigest && /^[a-f0-9]{64}$/.test(plan.planDigest));
+  assert.ok(plan.reviewedPlanToken && plan.reviewedPlanToken.length > 0);
+  assert.ok(plan.applyCommand && plan.applyCommand.includes("--apply"));
+  assert.ok(plan.applyCommand.includes(`--plan-digest ${plan.planDigest}`));
+  assert.ok(plan.applyCommand.includes(`--reviewed-plan ${plan.reviewedPlanToken}`));
+
+  // All absent tools should have action === "install" in install mode
+  for (const item of plan.changedTools) {
+    assert.equal(item.action, "install");
+    assert.ok(item.newVersion);
+    assert.ok(item.sourceUrl);
+    assert.ok(item.recoveryScope);
+  }
+});
+
+test("createLocalReleasePlan in update mode plans absent tools as skip-absent when default", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "update",
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(plan.mode, "update");
+  // Since all tools are absent in this fixture, unchangedTools should have skip-absent items
+  for (const item of plan.unchangedTools) {
+    assert.equal(item.action, "skip-absent");
+  }
+  assert.equal(plan.changedTools.length, 0);
+});
+
+test("createLocalReleasePlan in update mode with explicit --tool for absent tool rejects with absent-tool-in-update", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "update",
+    tools: ["gsd"],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(plan.applyAllowed, false);
+  assert.equal(plan.applyCommand, null);
+  assert.ok(plan.blockedReasons.some((r) => r.includes("absent-tool-in-update") || r.includes("install")));
+});
+
+test("createLocalReleasePlan determinism: identical inputs produce identical planDigest and token", async (context) => {
+  const fixture = await createTempFixture(context);
+  const options = {
+    mode: "install" as const,
+    tools: ["gsd" as const, "ecc" as const],
+    targets: ["claude" as const, "codex" as const],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    platform: "win32",
+    architecture: "x64",
+  };
+
+  const plan1 = await createLocalReleasePlan(options);
+  const plan2 = await createLocalReleasePlan(options);
+
+  assert.equal(plan1.planDigest, plan2.planDigest);
+  assert.equal(plan1.reviewedPlanToken, plan2.reviewedPlanToken);
+});

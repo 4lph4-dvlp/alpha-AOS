@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
@@ -20,6 +21,10 @@ import { ComponentPlanError, reviewedDigest } from "../src/core/component-sessio
 import { loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import { readToolRecordStore } from "../src/core/tool-records.js";
+import {
+  formatLocalReleasePreview,
+  formatLocalReleaseApplyResult,
+} from "../src/format.js";
 import type {
   HarnessId,
   ManagedToolId,
@@ -623,4 +628,125 @@ test("applyLocalReleasePlan records tool-records with verified: null and leaves 
   assert.ok(beforeStackLock.equals(afterStackLock), "catalog/stack.lock.json must be byte-identical");
   assert.ok(beforeComputerUse.equals(afterComputerUse), "catalog/computer-use-runtime.json must be byte-identical");
 });
+
+function runCli(args: string[], env: NodeJS.ProcessEnv = process.env, cwd: string = packageRoot()) {
+  const cliEntry = join(packageRoot(), "dist", "src", "cli.js");
+  const result = spawnSync(process.execPath, [cliEntry, ...args], {
+    cwd,
+    env,
+    encoding: "utf8",
+    timeout: 30_000,
+    windowsHide: true,
+  });
+  return { status: result.status, stdout: result.stdout ?? "", stderr: result.stderr ?? "" };
+}
+
+test("formatLocalReleasePreview renders 4-tier structured release preview with changed tools first (D-03, D-07)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd", "ecc"],
+    targets: ["claude", "codex"],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  const formatted = formatLocalReleasePreview(plan);
+  assert.ok(formatted.includes("=== CHANGED TOOLS ==="));
+  assert.ok(formatted.includes("Tool: gsd (install)"));
+  assert.ok(formatted.includes("1. Release Identity & Artifact:"));
+  assert.ok(formatted.includes("Current/Accepted: none"));
+  assert.ok(formatted.includes("Planned Release: 1.19.0"));
+  assert.ok(formatted.includes("Official Source: npm-registry"));
+  assert.ok(formatted.includes("2. Affected Harnesses:"));
+  assert.ok(formatted.includes("Requested: claude, codex"));
+  assert.ok(formatted.includes("Affected (including shared blast radius):"));
+  assert.ok(formatted.includes("3. Native Installer Side Effects:"));
+  assert.ok(formatted.includes("4. Recovery Scope:"));
+  assert.ok(formatted.includes("Transactional rollback:"));
+  assert.ok(formatted.includes("Adapter recovery:"));
+  assert.ok(formatted.includes(`Plan digest: ${plan.planDigest}`));
+  assert.ok(formatted.includes(`Reviewed plan token: ${plan.reviewedPlanToken}`));
+  assert.ok(formatted.includes(plan.applyCommand!));
+
+  const applyResult = {
+    mode: "install" as const,
+    applied: true,
+    operationId: "op-12345",
+    changedTools: ["gsd" as const, "ecc" as const],
+    unchangedTools: [],
+    appliedSteps: ["gsd:claude", "ecc:claude"],
+    externalChanges: ["gsd:claude"],
+    message: "Successfully applied 2 tool update(s).",
+  };
+  const applyFormatted = formatLocalReleaseApplyResult(applyResult);
+  assert.ok(applyFormatted.includes("alpha-AOS local release install complete"));
+  assert.ok(applyFormatted.includes("Operation ID: op-12345"));
+  assert.ok(applyFormatted.includes("Changed tools: gsd, ecc"));
+});
+
+test("alpha-aos update --stage is rejected with deprecation guidance and leaves candidate.lock.json untouched (D-04)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const candidateLock = join(fixture.packageRoot, "catalog", "candidate.lock.json");
+  const result = runCli(["update", "--stage"], {
+    ...process.env,
+    ALPHA_AOS_STATE_DIR: fixture.stateRoot,
+    HOME: fixture.home,
+    USERPROFILE: fixture.home,
+  }, fixture.packageRoot);
+
+  assert.notEqual(result.status, 0);
+  const out = `${result.stdout}\n${result.stderr}`;
+  assert.ok(out.includes("The --stage option has been retired"));
+  assert.ok(out.includes("alpha-aos update"));
+  assert.equal(existsSync(candidateLock), false, "candidate.lock.json must not be created or modified (D-04)");
+});
+
+test("alpha-aos update --tool <absent> refuses with install guidance instead of implicitly installing (D-03)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const result = runCli(["update", "--tool", "mcp:context7"], {
+    ...process.env,
+    ALPHA_AOS_STATE_DIR: fixture.stateRoot,
+    HOME: fixture.home,
+    USERPROFILE: fixture.home,
+  }, fixture.packageRoot);
+
+  assert.notEqual(result.status, 0);
+  const out = `${result.stdout}\n${result.stderr}`;
+  assert.ok(
+    out.includes('Tool "mcp:context7" is not installed. Use "alpha-aos install --tool mcp:context7" to install it.'),
+    `output should include absent tool guidance: ${out}`,
+  );
+});
+
+test("alpha-aos install --apply and update --apply without plan tokens refuse before changes (D-05)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const isolatedEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    ALPHA_AOS_STATE_DIR: fixture.stateRoot,
+    HOME: fixture.home,
+    USERPROFILE: fixture.home,
+  };
+
+  const installResult = runCli(["install", "--apply"], isolatedEnv, fixture.packageRoot);
+  assert.notEqual(installResult.status, 0);
+  const installOut = `${installResult.stdout}\n${installResult.stderr}`;
+  assert.ok(
+    installOut.includes('Applying install requires both --plan-digest and --reviewed-plan. Run "alpha-aos install" to preview and obtain a reviewed plan.'),
+    `install apply output: ${installOut}`,
+  );
+
+  const updateResult = runCli(["update", "--apply"], isolatedEnv, fixture.packageRoot);
+  assert.notEqual(updateResult.status, 0);
+  const updateOut = `${updateResult.stdout}\n${updateResult.stderr}`;
+  assert.ok(
+    updateOut.includes('Applying update requires both --plan-digest and --reviewed-plan. Run "alpha-aos update" to preview and obtain a reviewed plan.'),
+    `update apply output: ${updateOut}`,
+  );
+});
+
 

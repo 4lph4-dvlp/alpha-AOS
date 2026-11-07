@@ -17,6 +17,8 @@ import type {
   TreeSurfaceInspection,
   UninstallPlan,
   UninstallResult,
+  LocalReleasePlan,
+  LocalReleaseApplyResult,
 } from "./types.js";
 import type { ApplyProjectModeResult, ProjectBehaviorView, ProjectModePlan } from "./core/behavior-policy.js";
 import { sortCapabilityReportRows, type CapabilityReportRow, type HandoffCanaryResult } from "./core/canary.js";
@@ -2261,6 +2263,89 @@ export function formatGeneralTaskReport(report: GeneralTaskReportData, run?: Tas
 }
 
 export { formatTaskTargetedDoctorReport, type TaskTargetedDoctorReport } from "./core/task-doctor.js";
+
+export function formatLocalReleasePreview(plan: LocalReleasePlan): string {
+  const lines: string[] = [
+    `alpha-AOS official local release ${plan.mode === "install" ? "installation" : "update"} plan`,
+    `Mode: ${plan.mode}`,
+    `Requested targets: ${plan.requestedTargets.join(", ")}`,
+  ];
+
+  if (plan.changedTools.length > 0) {
+    lines.push("", "=== CHANGED TOOLS ===");
+    for (const tool of plan.changedTools) {
+      lines.push(
+        `Tool: ${tool.toolId} (${tool.action})`,
+        `  1. Release Identity & Artifact:`,
+        `     Current/Accepted: ${tool.oldVersion ?? "none"}${tool.acceptedVersion ? ` (accepted: ${tool.acceptedVersion})` : ""}`,
+        `     Planned Release: ${tool.newVersion ?? "none"}`,
+        `     Official Source: ${tool.sourceId ?? "none"} (${tool.sourceUrl ?? "none"})`,
+        `     Artifact: ${tool.artifact ?? "none"}`,
+        `  2. Affected Harnesses:`,
+        `     Requested: ${tool.requestedHarnesses.join(", ")}`,
+        `     Affected (including shared blast radius): ${tool.affectedHarnesses.join(", ")}`,
+        `  3. Native Installer Side Effects:`,
+        ...(tool.nativeSideEffects.length > 0
+          ? tool.nativeSideEffects.map((effect) => `     - ${effect}`)
+          : ["     - None"]),
+        ...(tool.verificationNote ? [`     Note: ${tool.verificationNote}`] : []),
+        `  4. Recovery Scope:`,
+        `     Transactional rollback: ${tool.recoveryScope.transactionalRollback.join(", ") || "none"}`,
+        `     Adapter recovery: ${tool.recoveryScope.adapterRecovery.join(", ") || "none"}`,
+        `     Unrecovered effects: ${tool.recoveryScope.unrecoveredEffects.join(", ") || "none"}`,
+      );
+    }
+  }
+
+  if (plan.unchangedTools.length > 0) {
+    lines.push("", "=== UNCHANGED / ABSENT TOOLS ===");
+    for (const tool of plan.unchangedTools) {
+      if (tool.action === "current") {
+        lines.push(`  ${tool.toolId}: already current (${tool.oldVersion ?? "unknown"})`);
+      } else if (tool.action === "skip-absent") {
+        lines.push(`  ${tool.toolId}: 미설치 · 변경 없음 (skip-absent)`);
+      } else if (tool.action === "blocked") {
+        lines.push(`  ${tool.toolId}: blocked - ${tool.blockedReason?.message ?? "unknown error"}`);
+      }
+    }
+  }
+
+  lines.push("");
+  if (!plan.applyAllowed) {
+    lines.push("=== APPLY BLOCKED ===");
+    for (const reason of plan.blockedReasons) {
+      lines.push(`  - ${reason}`);
+    }
+    if (plan.toolFilterAdvice) {
+      lines.push("", `Advice: ${plan.toolFilterAdvice}`);
+    }
+  } else {
+    lines.push(
+      `Plan digest: ${plan.planDigest}`,
+      `Reviewed plan token: ${plan.reviewedPlanToken}`,
+      "",
+      "To apply this reviewed release plan:",
+      `  ${plan.applyCommand}`,
+    );
+  }
+
+  return lines.join("\n");
+}
+
+export function formatLocalReleaseApplyResult(result: LocalReleaseApplyResult): string {
+  const lines: string[] = [
+    `alpha-AOS local release ${result.mode} complete`,
+    `Status: ${result.applied ? "applied" : "no-op (already current)"}`,
+    `Operation ID: ${result.operationId ?? "none"}`,
+    `Changed tools: ${result.changedTools.join(", ") || "none"}`,
+    `Unchanged tools: ${result.unchangedTools.join(", ") || "none"}`,
+    `Applied steps: ${result.appliedSteps.join(", ") || "none"}`,
+    `External changes: ${result.externalChanges.join(", ") || "none"}`,
+    result.message,
+  ];
+  return lines.join("\n");
+}
+
 
 
 

@@ -35,7 +35,7 @@ import { createPathAliases } from "./core/paths.js";
 import type { BootstrapKind } from "./core/bootstrap.js";
 import { existsSync, readFileSync } from "node:fs";
 
-import type { GateObligationType, HarnessId, IsolationMode, McpServerId, PackSource, RedactionContext, UninstallScope } from "./types.js";
+import type { GateObligationType, HarnessId, IsolationMode, ManagedToolId, McpServerId, PackSource, RedactionContext, UninstallScope } from "./types.js";
 
 const HELP = `alpha-aos
 
@@ -46,16 +46,14 @@ Usage:
   alpha-aos inventory --operation <id> [--json]
   alpha-aos computer-use doctor|plan|observe|action|mcp|native-mcp|stop|report|replay|retain [--json]
   alpha-aos plan [--json]
-  alpha-aos install [--target <claude,codex,antigravity,pi,hermes>] [--apply] [--json]
+  alpha-aos install [--tool <id[,id]>] [--target <harness[,harness]>] [--apply --plan-digest <digest> --reviewed-plan <token>] [--json]
   alpha-aos owned-skills sync <id> --target <harness> [--apply] [--json]
   alpha-aos ecc-skills sync --target <harness> [--apply] [--json]
   alpha-aos skill-policy sync --target claude [--apply] [--json]
   alpha-aos codex-policy sync [--apply] [--json]
   alpha-aos gsd-context <execute-phase|execute-plan|quick> [--step <name> | --from <line> --lines <count>] [--json]
   alpha-aos mcp sync --target <harness> [--server context7|exa|firecrawl] [--apply] [--json]
-  alpha-aos update --check [--json]
-  alpha-aos update --stage [--apply]
-  alpha-aos update --apply [--target <harness[,harness]>] [--json]
+  alpha-aos update [--tool <id[,id]>] [--target <harness[,harness]>] [--check] [--apply --plan-digest <digest> --reviewed-plan <token>] [--json]
   alpha-aos project mode [path] [--json]
   alpha-aos project plan|sync [path] [--project <rel>] [--why] [--json]
   alpha-aos project approve [path] [--project <rel>] [--plan-digest <digest>] [--apply] [--json]
@@ -221,6 +219,32 @@ function harnessList(value: string | null): HarnessId[] {
 function optionalHarnessList(value: string | null): HarnessId[] | undefined {
   if (value === null) return undefined;
   return harnessList(value);
+}
+
+function parseManagedToolList(value: string | null | undefined): ManagedToolId[] | undefined {
+  if (value === null || value === undefined) return undefined;
+  const entries = [...new Set(value.split(",").map((entry) => entry.trim()).filter(Boolean))];
+  if (entries.length === 0) throw new Error("Missing value for --tool");
+  const valid = ["cua-driver", "gsd", "ecc", "mcp:context7", "mcp:exa", "mcp:firecrawl", "bridge:pi"];
+  for (const entry of entries) {
+    if (!valid.includes(entry)) {
+      throw new Error(`Unsupported tool: ${entry}`);
+    }
+  }
+  return entries as ManagedToolId[];
+}
+
+function parseTargetHarnessList(value: string | null | undefined): HarnessId[] | undefined {
+  if (value === null || value === undefined) return undefined;
+  const entries = [...new Set(value.split(",").map((entry) => entry.trim()).filter(Boolean))];
+  if (entries.length === 0) throw new Error("Missing value for --target");
+  const valid: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
+  for (const entry of entries) {
+    if (!valid.includes(entry as HarnessId)) {
+      throw new Error(`Invalid --target value: ${value}`);
+    }
+  }
+  return entries as HarnessId[];
 }
 
 function splitJobStartArgs(argv: string[]): { wrapperArgs: string[]; childArgv: string[] } {
@@ -948,7 +972,7 @@ async function main(): Promise<void> {
   const { applyMcpSync, mcpServerIds, planMcpSync } = await import("./core/mcp.js");
   const { applyClaudeSkillPolicy, planClaudeSkillPolicy } = await import("./core/skill-policy.js");
   const { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } = await import("./core/mcp-proxy.js");
-  const { hasVersionChanges, resolveCandidate, writeCandidate } = await import("./core/update.js");
+  const { hasVersionChanges, resolveCandidate, writeCandidate, createLocalReleasePlan, applyLocalReleasePlan } = await import("./core/update.js");
   const { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } = await import("./core/install.js");
   const { getOfflineStatus } = await import("./core/status.js");
   const { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } = await import("./core/transaction.js");
@@ -968,7 +992,7 @@ async function main(): Promise<void> {
   const { appendJournalEvent, readCheckpoint, readJournalEvents, writeCheckpoint } = await import("./core/task-journal.js");
   const { canaryProof, canaryRow, createCanaryObservationSink, createCanaryRuntime, disposeCanaryRuntime, discoveryRow, EMPTY_BOUND_INPUTS, handoffRow, HARNESS_COMMANDS, loadCanaryCatalog, resolveCapabilityFilter, runCanary, runCanarySweep, runDiscoverySweep, runHandoffCanary, selectCanaries, skippedCanaryRow, SWEEP_HARNESSES } = await import("./core/canary.js");
   const { CAPABILITY_LEDGER_SCHEMA_VERSION, capabilityLedgerPath, harnessMinorKey, readCapabilityLedger, upsertProof, writeCapabilityLedger } = await import("./core/capability-ledger.js");
-  const { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatReleaseSupportMatrixTable, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } = await import("./format.js");
+  const { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatLocalReleaseApplyResult, formatLocalReleasePreview, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatReleaseSupportMatrixTable, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } = await import("./format.js");
   const { buildTaskCapabilityReport } = await import("./core/task-capability-inventory.js");
   const { applyCrashRepair, planCrashRepair } = await import("./core/repair.js");
   const { applyUninstall, planUninstall, SemanticPruneDriftError } = await import("./core/uninstall.js");
@@ -1082,28 +1106,40 @@ async function main(): Promise<void> {
   }
 
   if (command === "install") {
-    const inventory = collectInventory(catalog);
-    const requestedTargets = optionalHarnessList(optionValue(args, "--target"));
-    const installOptions = { root, catalog, lock, inventory, ...(requestedTargets ? { requestedTargets } : {}) };
-    if (!hasFlag(args, "--apply")) {
-      const plan = await createManagedInstallPlan(installOptions);
-      print(plan, json, [
-        `alpha-AOS managed install (${plan.selection})`,
-        `Targets: ${plan.targets.join(", ")}`,
-        ...plan.steps.map((step) => `${step.action.toUpperCase().padEnd(7)} ${step.id} - ${step.note}`),
-        ...plan.warnings.map((warning) => `WARNING ${warning}`),
-        "Dry-run only. Pass --apply to fixture, apply, and verify the selected stack.",
-      ].join("\n"));
-    } else {
-      const result = await applyManagedInstall(installOptions);
-      print(result, json, [
-        `alpha-AOS install complete: ${result.plan.targets.join(", ")}`,
-        `Applied: ${result.applied.length > 0 ? result.applied.join(", ") : "none"}`,
-        `Already current: ${result.current.length > 0 ? result.current.join(", ") : "none"}`,
-        `Journaled operations: ${result.operationIds.length}`,
-        `External verified changes retained outside journal rollback: ${result.externalChanges.length > 0 ? result.externalChanges.join(", ") : "none"}`,
-      ].join("\n"));
+    const parsed = parseClosedFlags(args.slice(1), {
+      valueFlags: ["--tool", "--target", "--plan-digest", "--reviewed-plan"],
+      booleanFlags: ["--apply", "--json"],
+    });
+    if (parsed.operands.length > 0) throw new Error(`Unexpected install argument: ${parsed.operands[0]}`);
+
+    const apply = parsed.options.has("--apply");
+    const planDigest = parsed.options.get("--plan-digest");
+    const reviewedPlan = parsed.options.get("--reviewed-plan");
+    const tools = parseManagedToolList(parsed.options.get("--tool") as string | undefined);
+    const targets = parseTargetHarnessList(parsed.options.get("--target") as string | undefined);
+
+    if (apply) {
+      if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+        throw new Error(
+          'Applying install requires both --plan-digest and --reviewed-plan. Run "alpha-aos install" to preview and obtain a reviewed plan.',
+        );
+      }
+      const result = await applyLocalReleasePlan({
+        packageRoot: root,
+        planDigest,
+        reviewedPlanToken: reviewedPlan,
+      });
+      print(result, json, formatLocalReleaseApplyResult(result));
+      return;
     }
+
+    const plan = await createLocalReleasePlan({
+      mode: "install",
+      packageRoot: root,
+      ...(tools ? { tools } : {}),
+      ...(targets ? { targets } : {}),
+    });
+    print(plan, json, formatLocalReleasePreview(plan));
     return;
   }
 
@@ -1596,34 +1632,64 @@ async function main(): Promise<void> {
   }
 
   if (command === "update") {
-    const mode = args[1] ?? "--check";
-    if (!["--check", "--stage", "--apply"].includes(mode)) throw new Error(`Unknown update mode: ${mode}`);
-    if (mode === "--apply") {
-      // The stable lock ships with alpha-AOS and is promoted only after CI
-      // fixtures. Candidate dependency versions are never applied directly on
-      // an end-user machine.
-      const inventory = collectInventory(catalog);
-      const requestedTargets = optionalHarnessList(optionValue(args, "--target"));
-      const updateOptions = { root, catalog, lock, inventory, ...(requestedTargets ? { requestedTargets } : {}) };
-      const result = await applyManagedInstall(updateOptions);
-      print(result, json, [
-        `alpha-AOS stable update reconciled: ${result.plan.targets.join(", ")}`,
-        `Applied: ${result.applied.length > 0 ? result.applied.join(", ") : "none"}`,
-        `Already current: ${result.current.length > 0 ? result.current.join(", ") : "none"}`,
-        "Unverified candidate.lock.json was not applied.",
-      ].join("\n"));
+    const parsed = parseClosedFlags(args.slice(1), {
+      valueFlags: ["--tool", "--target", "--plan-digest", "--reviewed-plan"],
+      booleanFlags: ["--apply", "--check", "--stage", "--json"],
+    });
+
+    if (
+      parsed.options.has("--stage") ||
+      parsed.operands.includes("stage") ||
+      parsed.operands.includes("--stage")
+    ) {
+      throw new Error(
+        'The --stage option has been retired. Use "alpha-aos update" to preview local official releases and "alpha-aos update --apply --plan-digest <digest> --reviewed-plan <token>" to apply.',
+      );
+    }
+
+    const invalidOperands = parsed.operands.filter((op) => op !== "--check" && op !== "check");
+    if (invalidOperands.length > 0) {
+      throw new Error(`Unexpected update argument: ${invalidOperands[0]}`);
+    }
+
+    const apply = parsed.options.has("--apply");
+    const planDigest = parsed.options.get("--plan-digest");
+    const reviewedPlan = parsed.options.get("--reviewed-plan");
+    const tools = parseManagedToolList(parsed.options.get("--tool") as string | undefined);
+    const targets = parseTargetHarnessList(parsed.options.get("--target") as string | undefined);
+
+    if (apply) {
+      if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+        throw new Error(
+          'Applying update requires both --plan-digest and --reviewed-plan. Run "alpha-aos update" to preview and obtain a reviewed plan.',
+        );
+      }
+      const result = await applyLocalReleasePlan({
+        packageRoot: root,
+        planDigest,
+        reviewedPlanToken: reviewedPlan,
+      });
+      print(result, json, formatLocalReleaseApplyResult(result));
       return;
     }
-    const candidate = await resolveCandidate(lock);
-    if (mode === "--stage" && hasFlag(args.slice(2), "--apply")) {
-      if (hasVersionChanges(lock, candidate)) {
-        await writeCandidate(root, candidate);
-        process.stdout.write(`Candidate lock staged at catalog/candidate.lock.json\n`);
-      } else {
-        process.stdout.write("No upstream version changes; candidate lock was not rewritten.\n");
+
+    const plan = await createLocalReleasePlan({
+      mode: "update",
+      packageRoot: root,
+      ...(tools ? { tools } : {}),
+      ...(targets ? { targets } : {}),
+    });
+
+    if (tools && tools.length > 0) {
+      const absentBlocked = plan.allTools.find(
+        (t) => t.action === "blocked" && t.blockedReason?.code === "absent-tool-in-update",
+      );
+      if (absentBlocked?.blockedReason) {
+        throw new Error(absentBlocked.blockedReason.message);
       }
     }
-    print(candidate, json, formatUpdate(lock, candidate));
+
+    print(plan, json, formatLocalReleasePreview(plan));
     return;
   }
 

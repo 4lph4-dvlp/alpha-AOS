@@ -1122,3 +1122,14 @@ export interface LocalReleasePlan {
   readonly applyCommand: string | null;
 }
 
+export interface LocalReleaseApplyResult {
+  readonly mode: "install" | "update";
+  readonly applied: boolean;
+  readonly operationId: string | null;
+  readonly changedTools: readonly ManagedToolId[];
+  readonly unchangedTools: readonly ManagedToolId[];
+  readonly appliedSteps: readonly string[];
+  readonly externalChanges: readonly string[];
+  readonly message: string;
+}
+

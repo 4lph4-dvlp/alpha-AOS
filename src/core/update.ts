@@ -16,6 +16,7 @@ import type {
   ToolReleaseAction,
   ToolReleasePreviewItem,
   LocalReleasePlan,
+  LocalReleaseApplyResult,
 } from "../types.js";
 import { MANAGED_TOOL_IDS } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
@@ -1199,16 +1200,7 @@ export interface ApplyLocalReleasePlanOptions extends RevalidateLocalReleasePlan
   session?: MutationSession;
 }
 
-export interface LocalReleaseApplyResult {
-  mode: "install" | "update";
-  applied: boolean;
-  operationId: string | null;
-  changedTools: readonly ManagedToolId[];
-  unchangedTools: readonly ManagedToolId[];
-  appliedSteps: readonly string[];
-  externalChanges: readonly string[];
-  message: string;
-}
+export type { LocalReleaseApplyResult };
 
 export async function applyLocalReleasePlan(
   options: ApplyLocalReleasePlanOptions,

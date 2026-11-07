@@ -38,6 +38,8 @@ A user can enter any supported project on any supported operating system and get
 
 ### Validated
 
+- ✓ Users can inspect installed versions, official sources and management ownership in one inventory (LOC-01) — Phase 39
+- ✓ Users can inspect locally recorded exact versions, official sources, verified artifact integrity and applied results for each managed tool (LOC-04) — Phase 39
 - ✓ A TypeScript CLI inventories installed harnesses and produces deterministic, dry-run-first installation plans — existing
 - ✓ Stable, integrity-locked GSD Core, ECC runtime/skills, MCP servers, and the Pi MCP bridge can be installed and diagnosed — existing
 - ✓ GSD Core `standard` is installed for Claude Code, Codex, Antigravity, and Pi while Hermes remains a worker rather than a GSD state writer — existing
@@ -155,4 +157,4 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-11-06 after v0.8.0 research; all 16 requirements and the five-phase roadmap approved; ready to plan Phase 39.*
+*Last updated: 2026-11-07 after Phase 39 completed and verified; ready to plan Phase 40.*

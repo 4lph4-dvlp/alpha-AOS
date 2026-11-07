@@ -17,7 +17,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 
 ## Phases
 
-- [ ] **Phase 39: Tool Inventory and Local Release Records** — shared ownership and exact identity for all managed tools.
+- [x] **Phase 39: Tool Inventory and Local Release Records** — shared ownership and exact identity for all managed tools. (completed 2026-11-07)
 - [ ] **Phase 40: Local Official Release Updates** — source-aware npm/Cua discovery and exact reviewed updates.
 - [ ] **Phase 41: Minimal Compatibility Adapters** — reduce upstream transformations with verified explicit adapters.
 - [ ] **Phase 42: Integration Verification and Recovery** — real integration evidence and native-effect recovery.
@@ -46,7 +46,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. Requested, resolved, installed and verified identities remain distinguishable, and interrupted or failed operations do not overwrite prior accepted identity with false success.
 4. Maintainers can see which components are alpha-AOS-owned skills/bundled libraries or external prerequisites rather than managed tool installations; the record contract defines how old stable/Cua identities will be adopted without assuming trust in arbitrary current bytes.
 
-**Plans:** 5/5 plans implemented; final targeted tests 79/79, type check and package audit passed. Independent verification: human_needed (33/33 positive conditions; four separate review items in 39-UAT.md). Live host verification remains unclaimed.
+**Plans:** 5/5 plans complete; verified and UAT passed on 2026-11-07. All 4 UAT items accepted.
 **Wave 1**
 - [x] 39-01-PLAN.md — Actual Cua read-only inventory tracer and versioned record reader.
 
@@ -114,11 +114,11 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 
 ## Progress
 
-**Execution order:** 39 -> 40 -> 41 -> 42 -> 43. Dependencies order implementation. Phase 39 has five reviewed plans and is ready to execute; implementation has not started. See [plan review evidence](phases/39-tool-inventory-and-local-release-records/39-PLAN-CHECK.md).
+**Execution order:** 39 -> 40 -> 41 -> 42 -> 43. Dependencies order implementation. Phase 39 is complete and verified.
 
 | Phase | Plans complete | Status | Completed |
 |---|---|---|---|
-| 39. Tool Inventory and Local Release Records | 0/5 | Planned — ready to execute | - |
+| 39. Tool Inventory and Local Release Records | 5/5 | Complete    | 2026-11-07 |
 | 40. Local Official Release Updates | 0/TBD | Not started | - |
 | 41. Minimal Compatibility Adapters | 0/TBD | Not started | - |
 | 42. Integration Verification and Recovery | 0/TBD | Not started | - |

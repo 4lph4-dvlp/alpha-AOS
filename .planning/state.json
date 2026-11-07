@@ -6,12 +6,12 @@
     {
       "number": "39",
       "name": "Tool Inventory and Local Release Records",
-      "status": "in_progress"
+      "status": "complete"
     },
     {
       "number": "40",
       "name": "Local Official Release Updates",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "41",
@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "$gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 1 of 5 · 0% · executing"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step (plan phase 40)",
+    "reason": "Phase 2 of 5 — needs a plan"
   },
-  "updated_at": "2026-11-06T06:02:16.494Z"
+  "updated_at": "2026-11-07T12:46:21.176Z"
 }

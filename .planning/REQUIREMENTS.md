@@ -11,10 +11,10 @@ Unchecked means not delivered/verified; approval of scope is not implementation 
 
 ### Local Updates
 
-- [ ] **LOC-01**: Users can inspect installed versions, official sources and management ownership for Cua, GSD, ECC, managed MCP servers and bridges in one inventory.
+- [x] **LOC-01**: Users can inspect installed versions, official sources and management ownership for Cua, GSD, ECC, managed MCP servers and bridges in one inventory.
 - [ ] **LOC-02**: Installation and explicit tool-update requests resolve the latest official releases locally, without prior alpha-AOS remote lock promotion or repository write permission; selection follows each source's official stable-channel rules and excludes semantic prereleases/nightlies.
 - [ ] **LOC-03**: Before applying an update, users can review exact old/new versions, affected targets, native installer side effects and recovery scope; apply remains bound to the reviewed release identities.
-- [ ] **LOC-04**: Users can inspect locally recorded exact versions, official sources, verified artifact integrity and applied results for each managed tool.
+- [x] **LOC-04**: Users can inspect locally recorded exact versions, official sources, verified artifact integrity and applied results for each managed tool.
 
 ### Compatibility Management
 

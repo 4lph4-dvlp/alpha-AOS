@@ -71,7 +71,12 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. Preview identifies exact old/new versions and artifacts, affected targets, native effects and recovery scope. Apply revalidates reviewed identities rather than resolving a moving latest tag again or falling back silently.
 4. Discovery failure, invalid/unverifiable metadata or an unsupported platform produces a specific refusal with existing state retained; no checkout catalog/remote repository mutation is needed for ordinary tool updates. Existing runtime safeguards remain applied through the common installer route.
 
-**Plans:** TBD after roadmap approval.
+**Plans:** 2 plans
+**Wave 1**
+- [ ] 40-01-PLAN.md — Source-specific official stable release resolvers, Cua dynamic archive verification & version retention, and read-only preview binding tracer.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 40-02-PLAN.md — Bound `--apply` revalidation, in-memory `StackLock` synthesis, filtered install/update orchestration, `tool-records` persistence, and 4-section CLI/formatter integration.
 
 ### Phase 41: Minimal Compatibility Adapters
 
@@ -119,7 +124,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 | Phase | Plans complete | Status | Completed |
 |---|---|---|---|
 | 39. Tool Inventory and Local Release Records | 5/5 | Complete    | 2026-11-07 |
-| 40. Local Official Release Updates | 0/TBD | Not started | - |
+| 40. Local Official Release Updates | 0/2 | Planned | - |
 | 41. Minimal Compatibility Adapters | 0/TBD | Not started | - |
 | 42. Integration Verification and Recovery | 0/TBD | Not started | - |
 | 43. Migration and Consistent Guidance | 0/TBD | Not started | - |

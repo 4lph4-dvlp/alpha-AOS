@@ -1,0 +1,182 @@
+{
+  "capturedAt": "2026-11-07T18:12:14.289Z",
+  "logs": "C:\\Users\\alpha\\AppData\\Local\\Temp\\alpha-aos-verify40-a5b13795f02e48f39bbc77879e159a24",
+  "results": {
+    "cli-evidence": {
+      "runtime": "v24.13.1",
+      "platform": "win32",
+      "architecture": "x64",
+      "results": [
+        {
+          "name": "preview",
+          "args": [
+            "update",
+            "--check"
+          ],
+          "exit": 0,
+          "error": null,
+          "ms": 15679,
+          "chars": 6089
+        },
+        {
+          "name": "filtered",
+          "args": [
+            "update",
+            "--tool",
+            "gsd",
+            "--target",
+            "codex",
+            "--check"
+          ],
+          "exit": 0,
+          "error": null,
+          "ms": 4001,
+          "chars": 2104
+        },
+        {
+          "name": "update-no-token",
+          "args": [
+            "update",
+            "--apply"
+          ],
+          "exit": 2,
+          "error": null,
+          "ms": 1984,
+          "chars": 139
+        },
+        {
+          "name": "install-no-token",
+          "args": [
+            "install",
+            "--apply"
+          ],
+          "exit": 2,
+          "error": null,
+          "ms": 1761,
+          "chars": 141
+        },
+        {
+          "name": "stage",
+          "args": [
+            "update",
+            "--stage"
+          ],
+          "exit": 2,
+          "error": null,
+          "ms": 1915,
+          "chars": 195
+        }
+      ],
+      "catalogUnchanged": true,
+      "catalogHashes": {
+        "catalog/stack.lock.json": "a6502c657e96e8445e4b762a1505fd0d9ad88231c076b936d337d93d4dbafb7f",
+        "catalog/candidate.lock.json": "b9e5768e4a4d3916784e2fedc1ab12a01363db24de696cd6f0cee408ad086fdb",
+        "catalog/computer-use-runtime.json": "09f589f8b80645549a19d659035546a9ccf60bec2bbb8ad749d2116ec250bf88"
+      }
+    },
+    "sigstore-negative-probe": {
+      "accepted": {
+        "verified": true,
+        "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
+        "issuer": "https://token.actions.githubusercontent.com"
+      },
+      "selfSigned": true,
+      "subject": "CN=Sigstore Fulcio Test",
+      "issuer": "CN=Sigstore Fulcio Test",
+      "transparencyLogPresent": false
+    },
+    "revalidation-negative-probe": {
+      "missingIntegrityAccepted": true,
+      "changedTools": [
+        "gsd"
+      ],
+      "selectedWithoutBoundRelease": [
+        "mcp:context7",
+        "mcp:exa",
+        "mcp:firecrawl"
+      ]
+    },
+    "selection-negative-probe": {
+      "selectedWithoutBoundRelease": [
+        "mcp:context7",
+        "mcp:exa",
+        "mcp:firecrawl"
+      ],
+      "plannedMcpSteps": [
+        {
+          "id": "mcp:codex",
+          "action": "current"
+        }
+      ]
+    },
+    "mcp-filter-negative-probe": {
+      "selectedTools": [
+        "mcp:context7"
+      ],
+      "plannedSteps": [
+        {
+          "id": "mcp:codex",
+          "action": "create"
+        }
+      ],
+      "serverIds": [
+        "context7",
+        "exa",
+        "firecrawl"
+      ],
+      "nativeCuaPresent": true
+    },
+    "path-literal-violations": [
+      {
+        "file": "tool-bindings.test.ts",
+        "line": 44,
+        "column": 17,
+        "literal": "C:\\Tools\\exa-old",
+        "via": "binding first"
+      }
+    ],
+    "behavior-negative-probe": {
+      "code": "tree-off",
+      "causeCategory": "tree-off",
+      "expectedByMalformedJsonTest": "invalid-json"
+    }
+  },
+  "fullSuite": {
+    "command": "node scripts/run-tests.mjs",
+    "status": "interrupted",
+    "reason": "No final summary after more than 10 minutes; verification-owned runner terminated after bounded waits",
+    "runnerExit": 1,
+    "observedFailureLines": [
+      "✖ resolveProjectBehavior rejects malformed JSON without leaking sentinel (MODE-05) (184.1155ms)",
+      "✖ resolveProjectBehavior rejects duplicate JSON keys without leaking sentinel key (MODE-05) (36.3929ms)",
+      "✖ resolveProjectBehavior rejects unsupported schema versions (MODE-05) (39.6514ms)",
+      "✖ resolveProjectBehavior rejects invalid mode or missing mode (MODE-05) (35.091ms)",
+      "✖ resolveProjectBehavior rejects extra or namespaced keys without leaking them (MODE-05) (30.6375ms)",
+      "✖ resolveProjectBehavior rejects top-level array, null or primitive (MODE-05) (33.0518ms)",
+      "✖ resolveProjectBehavior rejects root that is not a directory or does not exist (MODE-05) (24.8409ms)",
+      "✖ resolveProjectBehavior rejects directory policy path (MODE-05) (32.8649ms)",
+      "✖ resolveProjectBehavior rejects bound task root mismatch (MODE-05) (29.1353ms)",
+      "✖ planProjectModeChange handles create, replace, current and detects formatting edits (MODE-03, MODE-04, MODE-05) (29.3183ms)",
+      "✖ research verifier validates six candidates and real provider receipts (220.1631ms)",
+      "✖ no test under test/ asserts against a platform-specific absolute path literal (2599.0395ms)",
+      "✖ offline status spawns no child process and opens no network connection through the CLI (LIFE-02) (5266.6703ms)",
+      "✖ task entry guides and README keep bilingual section, style and scenario parity (15.7522ms)",
+      "✖ task entry package contract requires 14 artifacts, preserves matrix and version (107.4397ms)",
+      "✖ entry proof verifies the real checkout and an unpacked package without git/planning/tests (228.4551ms)",
+      "✖ entry proof fails closed on one-byte package or stable-lock changes (627.5039ms)",
+      "✖ entry proof requires both guide hashes in checkout and packed contexts (312.032ms)",
+      "✖ entry proof refuses zero tests, omitted/duplicate suites, inconsistent totals and nonexistent source commits (1999.8951ms)",
+      "✖ blocked phase halts progression and leaves subsequent phase command counts zero (D-18, D-19) (2031.1445ms)",
+      "✖ interrupted phase preserves dirty WIP, partial summary, and resumes only remaining slices (D-18, D-19) (2538.6146ms)"
+    ],
+    "finalTotalsAvailable": false,
+    "isolatedWindowsAndPackedSuites": "not established; runner schedules these only after concurrent group succeeds"
+  },
+  "targeted": {
+    "command": "node scripts/run-tests.mjs --files dist/test/local-release-update.test.js dist/test/cua-release-update.test.js dist/test/update.test.js dist/test/computer-use-install.test.js dist/test/tool-inventory-cli.test.js dist/test/tool-inventory-compat.test.js",
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "exit": 0
+  }
+}

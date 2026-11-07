@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
@@ -32,6 +32,22 @@ import {
   reviewedDigest,
   withComponentSession,
 } from "./component-session.js";
+import { collectInventory } from "./inventory.js";
+import { applyManagedInstall } from "./install.js";
+import { renderEccSkill } from "./ecc-fixture.js";
+import {
+  extractArchiveFiles,
+  verifyAndDeriveCuaReleasePin,
+  type ReviewedCuaReleasePin,
+} from "./computer-use-install.js";
+import {
+  planToolRecordOperation,
+  withToolRecordSession,
+  beginToolOperation,
+  appendToolResult,
+  finishToolOperation,
+} from "./tool-record-store.js";
+import type { ToolResult } from "./tool-records.js";
 
 interface RegistryDocument {
   version: string;
@@ -874,4 +890,439 @@ export async function createLocalReleasePlan(
     reviewedPlanToken,
     applyCommand,
   };
+}
+
+export async function synthesizeReleaseStackLock(
+  baseLock: StackLock,
+  tools: readonly ReviewedToolBinding[],
+  fetchImpl: typeof fetch = globalThis.fetch,
+): Promise<StackLock> {
+  const lock = structuredClone(baseLock);
+  for (const tool of tools) {
+    if (tool.action !== "install" && tool.action !== "update") continue;
+    if (tool.toolId === "gsd") {
+      if (lock.components.gsd) {
+        lock.components.gsd.version = tool.release;
+        lock.components.gsd.integrity = tool.integrity;
+      }
+    } else if (tool.toolId === "ecc") {
+      const ecc = lock.components.ecc;
+      if (ecc) {
+        ecc.version = tool.release;
+        ecc.integrity = tool.integrity;
+        if (tool.release !== baseLock.components.ecc?.version || !ecc.sourceSha256) {
+          const res = await fetchImpl(tool.sourceUrl, {
+            signal: AbortSignal.timeout(30_000),
+          });
+          if (!res.ok) {
+            throw new Error(`Failed to fetch ECC tarball from ${tool.sourceUrl}: HTTP ${res.status}`);
+          }
+          const arrayBuffer = await res.arrayBuffer();
+          const bytes = Buffer.from(arrayBuffer);
+          const computedIntegrity = `sha512-${createHash("sha512").update(bytes).digest("base64")}`;
+          if (computedIntegrity !== tool.integrity) {
+            throw new Error(`ECC tarball integrity mismatch: expected ${tool.integrity}, got ${computedIntegrity}`);
+          }
+          const files = extractArchiveFiles(tool.artifact, bytes);
+          const harnesses: readonly HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
+          const sourceSha256: Record<string, string> = {};
+          const targetSha256: Record<string, Partial<Record<HarnessId, string>>> = {};
+
+          for (const skill of ecc.skills) {
+            const key = Object.keys(files).find(
+              (name) =>
+                name === `package/skills/${skill}/SKILL.md` ||
+                name === `skills/${skill}/SKILL.md` ||
+                name.endsWith(`/${skill}/SKILL.md`),
+            );
+            if (key && files[key]) {
+              const content = files[key]!.toString("utf8");
+              sourceSha256[skill] = createHash("sha256").update(content).digest("hex");
+              const perHarness: Partial<Record<HarnessId, string>> = {};
+              for (const h of harnesses) {
+                const rendered = renderEccSkill(skill, content, h);
+                perHarness[h] = createHash("sha256").update(rendered).digest("hex");
+              }
+              targetSha256[skill] = perHarness;
+            } else if (baseLock.components.ecc?.sourceSha256?.[skill]) {
+              sourceSha256[skill] = baseLock.components.ecc.sourceSha256[skill]!;
+              if (baseLock.components.ecc.targetSha256?.[skill]) {
+                targetSha256[skill] = { ...baseLock.components.ecc.targetSha256[skill] };
+              }
+            }
+          }
+          ecc.sourceSha256 = sourceSha256;
+          ecc.targetSha256 = targetSha256;
+        }
+      }
+    } else if (tool.toolId.startsWith("mcp:")) {
+      const serverId = tool.toolId.slice(4) as "context7" | "exa" | "firecrawl";
+      if (lock.components.mcp?.[serverId]) {
+        lock.components.mcp[serverId].version = tool.release;
+        lock.components.mcp[serverId].integrity = tool.integrity;
+      }
+    } else if (tool.toolId === "bridge:pi") {
+      if (lock.components.mcpBridges?.pi) {
+        lock.components.mcpBridges.pi.version = tool.release;
+        lock.components.mcpBridges.pi.integrity = tool.integrity;
+      }
+    }
+  }
+  return lock;
+}
+
+export interface RevalidateLocalReleasePlanOptions {
+  planDigest: string;
+  reviewedPlanToken: string;
+  packageRoot?: string;
+  stateRoot?: string;
+  home?: string;
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  platform?: string;
+  architecture?: string;
+}
+
+export interface RevalidatedReleasePlan {
+  readonly payload: ReviewedReleasePlanPayload;
+  readonly synthesizedLock: StackLock;
+  readonly cuaPin?: ReviewedCuaReleasePin | undefined;
+  readonly changedTools: readonly ReviewedToolBinding[];
+  readonly isNoOp: boolean;
+  readonly catalog: StackCatalog;
+  readonly originalLock: StackLock;
+}
+
+export async function revalidateLocalReleasePlan(
+  options: RevalidateLocalReleasePlanOptions,
+): Promise<RevalidatedReleasePlan> {
+  const payload = decodeReviewedReleasePlan(options.reviewedPlanToken);
+  const expectedDigest = reviewedDigest(
+    payload.mode === "install" ? "local-install-plan" : "local-update-plan",
+    {
+      v: payload.v,
+      mode: payload.mode,
+      targets: payload.targets,
+      selectedTools: payload.selectedTools,
+      tools: payload.tools,
+    },
+  );
+  if (options.planDigest !== expectedDigest) {
+    throw new ComponentPlanError(
+      "plan-drift",
+      `Plan digest mismatch: token digest ${expectedDigest} does not match provided digest ${options.planDigest}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+    );
+  }
+
+  const pkgRoot = resolve(options.packageRoot ?? packageRoot());
+  const stRoot = resolve(options.stateRoot ?? userStateRoot());
+  const userHome = resolve(options.home ?? homedir());
+  const processEnv = options.env ?? process.env;
+  const osPlatform = options.platform ?? process.platform;
+  const osArch = options.architecture ?? process.arch;
+  const fetchFn = options.fetchImpl ?? globalThis.fetch;
+
+  let catalog: StackCatalog;
+  let lock: StackLock;
+  try {
+    catalog = await loadCatalog(pkgRoot);
+    lock = await loadLock(pkgRoot, "stable");
+  } catch {
+    const repoRoot = packageRoot();
+    catalog = await loadCatalog(repoRoot);
+    lock = await loadLock(repoRoot, "stable");
+  }
+
+  const inventory = await collectToolInventory({
+    catalog,
+    lock,
+    packageRoot: pkgRoot,
+    stateRoot: stRoot,
+    home: userHome,
+    env: processEnv,
+    platform: osPlatform as NodeJS.Platform,
+    architecture: osArch,
+  });
+
+  for (const tool of payload.tools) {
+    const obs = inventory.observations.find((o) => o.toolId === tool.toolId);
+    const currentOldVersion = obs?.installed?.version ?? null;
+    const currentAcceptedVersion = obs?.acceptedIdentity?.version ?? null;
+    const currentInstallation = obs?.installation ?? "absent";
+
+    if (tool.action === "update") {
+      if (currentInstallation !== "installed" || currentOldVersion !== tool.oldVersion) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Local pre-state drifted for ${tool.toolId}: expected ${tool.oldVersion}, found ${currentOldVersion ?? "absent"}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+    } else if (tool.action === "install") {
+      if (currentInstallation === "installed" && Boolean(currentAcceptedVersion)) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Local pre-state drifted for ${tool.toolId}: tool is already installed and accepted (${currentOldVersion}). Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+    } else if (tool.action === "current") {
+      if (currentOldVersion !== tool.oldVersion) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Local pre-state drifted for ${tool.toolId}: expected version ${tool.oldVersion}, found ${currentOldVersion}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+    }
+  }
+
+  const changedTools = payload.tools.filter((t) => t.action === "install" || t.action === "update");
+  const isNoOp = changedTools.length === 0;
+
+  if (isNoOp) {
+    return {
+      payload,
+      synthesizedLock: lock,
+      changedTools: [],
+      isNoOp: true,
+      catalog,
+      originalLock: lock,
+    };
+  }
+
+  let cuaPin: ReviewedCuaReleasePin | undefined;
+
+  for (const tool of changedTools) {
+    if (tool.toolId === "cua-driver") {
+      const tag = `cua-driver-rs-v${tool.release}`;
+      const res = await fetchFn(
+        `https://api.github.com/repos/trycua/cua/releases/tags/${encodeURIComponent(tag)}`,
+        {
+          signal: AbortSignal.timeout(10_000),
+          headers: { accept: "application/json" },
+        },
+      );
+      if (!res.ok) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Remote release metadata drifted for cua-driver@${tool.release}: HTTP ${res.status}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+      const releaseBody = (await res.json()) as { tag_name?: unknown; assets?: Array<{ name?: unknown; browser_download_url?: unknown }> };
+      if (releaseBody.tag_name !== tag) {
+        throw new ComponentPlanError("plan-drift", `Release tag mismatch for cua-driver: expected ${tag}, got ${String(releaseBody.tag_name)}`);
+      }
+      const matchedAsset = releaseBody.assets?.find((a) => a.name === tool.artifact);
+      if (!matchedAsset || typeof matchedAsset.browser_download_url !== "string") {
+        throw new ComponentPlanError("plan-drift", `Asset ${tool.artifact} not found in release ${tag}`);
+      }
+      const sumsAsset = releaseBody.assets?.find((a) => a.name === "SHA256SUMS");
+      const sigAsset = releaseBody.assets?.find((a) => a.name === `${tool.artifact}.sigstore.json`);
+      if (!sumsAsset || typeof sumsAsset.browser_download_url !== "string") {
+        throw new ComponentPlanError("plan-drift", `SHA256SUMS asset not found in release ${tag}`);
+      }
+      if (!sigAsset || typeof sigAsset.browser_download_url !== "string") {
+        throw new ComponentPlanError("plan-drift", `Sigstore bundle asset not found for ${tool.artifact} in release ${tag}`);
+      }
+
+      const archiveRes = await fetchFn(matchedAsset.browser_download_url, { signal: AbortSignal.timeout(30_000) });
+      if (!archiveRes.ok) throw new ComponentPlanError("plan-drift", `Failed to download Cua archive: HTTP ${archiveRes.status}`);
+      const archiveBytes = new Uint8Array(await archiveRes.arrayBuffer());
+      const archiveSha256 = createHash("sha256").update(archiveBytes).digest("hex");
+      if (archiveSha256 !== tool.digest) {
+        throw new ComponentPlanError("plan-drift", `Cua archive integrity mismatch: expected ${tool.digest}, got ${archiveSha256}`);
+      }
+
+      const sumsRes = await fetchFn(sumsAsset.browser_download_url, { signal: AbortSignal.timeout(10_000) });
+      if (!sumsRes.ok) throw new ComponentPlanError("plan-drift", `Failed to download SHA256SUMS: HTTP ${sumsRes.status}`);
+      const sha256sumsText = await sumsRes.text();
+
+      const sigRes = await fetchFn(sigAsset.browser_download_url, { signal: AbortSignal.timeout(10_000) });
+      if (!sigRes.ok) throw new ComponentPlanError("plan-drift", `Failed to download sigstore bundle: HTTP ${sigRes.status}`);
+      const sigstoreBundle = await sigRes.json();
+
+      cuaPin = verifyAndDeriveCuaReleasePin({
+        version: tool.release,
+        tag,
+        os: tool.platform as "windows" | "macos" | "linux",
+        arch: tool.architecture as "x64" | "arm64" | "universal",
+        assetName: tool.artifact,
+        archiveBytes,
+        archiveUrl: matchedAsset.browser_download_url,
+        sha256sumsText,
+        sigstoreBundle,
+        root: pkgRoot,
+      });
+    } else {
+      const pkgName = MANAGED_TOOL_PACKAGES[tool.toolId];
+      const res = await fetchFn(
+        `https://registry.npmjs.org/${encodeURIComponent(pkgName)}/${encodeURIComponent(tool.release)}`,
+        {
+          signal: AbortSignal.timeout(10_000),
+          headers: { accept: "application/json" },
+        },
+      );
+      if (!res.ok) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Remote package metadata drifted for ${pkgName}@${tool.release}: HTTP ${res.status}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+      const data = (await res.json()) as { version?: unknown; dist?: { integrity?: unknown; tarball?: unknown } };
+      if (data.version !== tool.release) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Remote version drifted for ${pkgName}: expected ${tool.release}, got ${String(data.version)}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+      if (typeof data.dist?.integrity === "string" && data.dist.integrity !== tool.integrity) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Remote integrity drifted for ${pkgName}@${tool.release}: expected ${tool.integrity}, got ${data.dist.integrity}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+    }
+  }
+
+  const synthesizedLock = await synthesizeReleaseStackLock(lock, changedTools, fetchFn);
+
+  return {
+    payload,
+    synthesizedLock,
+    cuaPin,
+    changedTools,
+    isNoOp: false,
+    catalog,
+    originalLock: lock,
+  };
+}
+
+export interface ApplyLocalReleasePlanOptions extends RevalidateLocalReleasePlanOptions {
+  session?: MutationSession;
+}
+
+export interface LocalReleaseApplyResult {
+  mode: "install" | "update";
+  applied: boolean;
+  operationId: string | null;
+  changedTools: readonly ManagedToolId[];
+  unchangedTools: readonly ManagedToolId[];
+  appliedSteps: readonly string[];
+  externalChanges: readonly string[];
+  message: string;
+}
+
+export async function applyLocalReleasePlan(
+  options: ApplyLocalReleasePlanOptions,
+): Promise<LocalReleaseApplyResult> {
+  const pkgRoot = resolve(options.packageRoot ?? packageRoot());
+  const stRoot = resolve(options.stateRoot ?? userStateRoot());
+
+  const revalidated = await revalidateLocalReleasePlan(options);
+  if (revalidated.isNoOp) {
+    return {
+      mode: revalidated.payload.mode,
+      applied: false,
+      operationId: null,
+      changedTools: [],
+      unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
+      appliedSteps: [],
+      externalChanges: [],
+      message: "All tools are current. No changes applied.",
+    };
+  }
+
+  const operationId = `op-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const occurredAt = new Date().toISOString();
+  const requests = revalidated.changedTools.map((t) => ({
+    toolId: t.toolId,
+    selector: t.release,
+    exact: true,
+  }));
+
+  const recordPlan = await planToolRecordOperation({
+    stateRoot: stRoot,
+    packageRoot: pkgRoot,
+    operationId,
+    occurredAt,
+    requests,
+  });
+
+  return await withToolRecordSession(
+    recordPlan,
+    async (session) => {
+      await beginToolOperation(recordPlan, session);
+
+      const inventory = collectInventory(revalidated.catalog);
+      const installRes = await applyManagedInstall({
+        root: pkgRoot,
+        catalog: revalidated.catalog,
+        lock: revalidated.synthesizedLock,
+        inventory,
+        stateRoot: stRoot,
+        session,
+        selectedTools: revalidated.payload.selectedTools,
+        requestedTargets: [...revalidated.payload.targets],
+        ...(revalidated.cuaPin ? { cuaPin: revalidated.cuaPin } : {}),
+      });
+
+      for (const tool of revalidated.changedTools) {
+        const safeToolId = tool.toolId.replace(/:/g, "-");
+        const rawAlias = tool.toolId === "cua-driver" ? "cua-driver" : MANAGED_TOOL_PACKAGES[tool.toolId];
+        const pathAlias = rawAlias.replace(/^@/, "");
+        const result: ToolResult = {
+          toolId: tool.toolId,
+          requested: {
+            toolId: tool.toolId,
+            selector: tool.release,
+            exact: true,
+          },
+          resolved: {
+            release: tool.release,
+            artifact: tool.artifact,
+            platform: tool.platform,
+            architecture: tool.architecture,
+            digest: tool.digest,
+            sourceId: tool.sourceId,
+            sourceUrl: tool.sourceUrl,
+          },
+          installed: {
+            installationId: `${safeToolId}-${tool.release}`,
+            version: tool.release,
+            pathAlias,
+          },
+          verified: null,
+          evidence: [
+            {
+              proofId: `${safeToolId}-integrity`,
+              subject: `${safeToolId}-download`,
+              target: "integrity",
+              method: "sha256",
+              result: "pass",
+              platform: tool.platform,
+              architecture: tool.architecture,
+              harness: null,
+              fingerprint: tool.digest,
+            },
+          ],
+          outcome: "succeeded",
+        };
+        await appendToolResult(recordPlan, session, result);
+      }
+
+      await finishToolOperation(recordPlan, session, []);
+
+      return {
+        mode: revalidated.payload.mode,
+        applied: true,
+        operationId,
+        changedTools: revalidated.changedTools.map((t) => t.toolId),
+        unchangedTools: revalidated.payload.tools
+          .filter((t) => t.action === "current" || t.action === "skip-absent")
+          .map((t) => t.toolId),
+        appliedSteps: installRes.applied,
+        externalChanges: installRes.externalChanges,
+        message: `Successfully applied ${revalidated.changedTools.length} tool update(s).`,
+      };
+    },
+    options.session,
+  );
 }

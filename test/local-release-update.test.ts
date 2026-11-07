@@ -1,17 +1,25 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { gzipSync } from "node:zlib";
 import {
+  applyLocalReleasePlan,
   createLocalReleasePlan,
   decodeReviewedReleasePlan,
   encodeReviewedReleasePlan,
   resolveCuaStableRelease,
   resolveNpmStableRelease,
+  revalidateLocalReleasePlan,
+  synthesizeReleaseStackLock,
 } from "../src/core/update.js";
-import { ComponentPlanError } from "../src/core/component-session.js";
+import { ComponentPlanError, reviewedDigest } from "../src/core/component-session.js";
+import { loadLock } from "../src/core/catalog.js";
+import { packageRoot } from "../src/core/paths.js";
+import { readToolRecordStore } from "../src/core/tool-records.js";
 import type {
   HarnessId,
   ManagedToolId,
@@ -336,5 +344,283 @@ test("createLocalReleasePlan with partial failure blocks apply and gives --tool 
   assert.equal(gsdItem?.blockedReason?.code, "latest-is-prerelease");
   const eccItem = plan.allTools.find((t) => t.toolId === "ecc");
   assert.equal(eccItem?.action, "install");
+});
+
+function createTarGz(files: Record<string, string | Uint8Array>): Buffer {
+  const blocks: Buffer[] = [];
+  for (const [name, content] of Object.entries(files)) {
+    const dataBuf = Buffer.isBuffer(content) ? content : Buffer.from(content);
+    const header = Buffer.alloc(512);
+    header.write(name, 0, 100, "utf8");
+    header.write(dataBuf.length.toString(8).padStart(11, "0") + " ", 124, 12, "utf8");
+    header.write("0", 156, 1, "utf8");
+    header.write("ustar\0", 257, 6, "utf8");
+    header.write("00", 263, 2, "utf8");
+
+    header.fill(32, 148, 156);
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += header[i] ?? 0;
+    header.write(sum.toString(8).padStart(6, "0") + "\0 ", 148, 8, "utf8");
+
+    blocks.push(header, dataBuf);
+    const pad = (512 - (dataBuf.length % 512)) % 512;
+    if (pad > 0) blocks.push(Buffer.alloc(pad));
+  }
+  blocks.push(Buffer.alloc(1024));
+  return gzipSync(Buffer.concat(blocks));
+}
+
+test("applyLocalReleasePlan never invokes /latest endpoint on apply and queries exact bound version (D-06)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const requestedUrls: string[] = [];
+
+  const preview = await createLocalReleasePlan({
+    mode: "update",
+    tools: ["gsd"],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch({
+      "%40opengsd%2Fgsd-core/latest": { version: "1.18.0", dist: { integrity: "sha512-gsd118==" } },
+    }),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  const spyFetch: typeof fetch = async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    requestedUrls.push(url);
+    if (url.includes("/latest") || url.includes("releases?")) {
+      throw new Error(`Forbidden endpoint called during apply: ${url}`);
+    }
+    if (url.includes("%40opengsd%2Fgsd-core/1.18.0") || url.includes("@opengsd/gsd-core/1.18.0")) {
+      return new Response(JSON.stringify({
+        version: "1.18.0",
+        dist: { integrity: "sha512-gsd118==" },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
+  };
+
+  const result = await applyLocalReleasePlan({
+    planDigest: preview.planDigest!,
+    reviewedPlanToken: preview.reviewedPlanToken!,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: spyFetch,
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(result.applied, false);
+  assert.equal(requestedUrls.some((u) => u.includes("/latest")), false, "/latest must never be called on apply");
+});
+
+test("revalidateLocalReleasePlan throws ComponentPlanError('plan-drift') when pre-state drifts (D-08)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const payload: ReviewedReleasePlanPayload = {
+    v: 1,
+    mode: "update",
+    targets: ["codex"],
+    selectedTools: ["gsd"],
+    tools: [
+      {
+        toolId: "gsd",
+        action: "update",
+        oldVersion: "999.0.0", // Drifts from actual local version
+        acceptedVersion: "999.0.0",
+        release: "1000.0.0",
+        artifact: "opengsd-gsd-core-1000.0.0.tgz",
+        integrity: "sha512-gsd1000==",
+        digest: "b".repeat(64),
+        sourceId: "npm-registry",
+        sourceUrl: "https://registry.npmjs.org/@opengsd/gsd-core/-/opengsd-gsd-core-1000.0.0.tgz",
+        platform: "windows",
+        architecture: "x64",
+      },
+    ],
+  };
+
+  const planDigest = reviewedDigest("local-update-plan", {
+    v: 1,
+    mode: "update",
+    targets: ["codex"],
+    selectedTools: ["gsd"],
+    tools: payload.tools,
+  });
+  const reviewedPlanToken = encodeReviewedReleasePlan(payload);
+
+  await assert.rejects(
+    async () => {
+      await revalidateLocalReleasePlan({
+        planDigest,
+        reviewedPlanToken,
+        packageRoot: fixture.packageRoot,
+        stateRoot: fixture.stateRoot,
+        home: fixture.home,
+        fetchImpl: mockFetch({}),
+        platform: "win32",
+        architecture: "x64",
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError);
+      assert.equal(err.code, "plan-drift");
+      assert.match(err.message, /pre-state drifted/);
+      assert.match(err.message, /alpha-aos update/);
+      return true;
+    },
+  );
+});
+
+test("applyLocalReleasePlan is a no-op when all tools are current (D-08)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const preview = await createLocalReleasePlan({
+    mode: "update",
+    tools: ["gsd"],
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch({
+      "%40opengsd%2Fgsd-core/latest": { version: "1.18.0", dist: { integrity: "sha512-gsd118==" } },
+    }),
+    platform: "win32",
+    architecture: "x64",
+  });
+  assert.equal(preview.changedTools.length, 0);
+
+  const result = await applyLocalReleasePlan({
+    planDigest: preview.planDigest!,
+    reviewedPlanToken: preview.reviewedPlanToken!,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch({}),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(result.applied, false);
+  assert.equal(result.operationId, null);
+  assert.equal(result.changedTools.length, 0);
+  assert.match(result.message, /No changes applied/);
+});
+
+test("synthesizeReleaseStackLock derives ECC skill hashes in memory without disk writes (D-16)", async () => {
+  const skillFiles: Record<string, string> = {
+    "package/skills/unified-memory/SKILL.md": "unified-memory mock markdown content\n",
+    "package/skills/documentation-lookup/SKILL.md": "description: old\n# Documentation Lookup (Context7)\n\ndoc lookup content\n",
+    "package/skills/deep-research/SKILL.md": `## MCP Requirements\n\n- **exa**\n- **firecrawl**\n\n## Workflow\n### Step 3: Execute Multi-Source Search\nsearch\n### Step 4: Deep-Read Key Sources\nread\n### Step 5: Synthesize and Write Report\nreport\n## Parallel Research with Subagents\nparallel\n## Quality Rules\nquality\n`,
+  };
+  const tarball = createTarGz(skillFiles);
+  const tarballIntegrity = `sha512-${createHash("sha512").update(tarball).digest("base64")}`;
+
+  const fetchTarball: typeof fetch = async (input: RequestInfo | URL) => {
+    return new Response(new Uint8Array(tarball), {
+      status: 200,
+      headers: { "content-type": "application/gzip" },
+    });
+  };
+
+  const baseLock = await loadLock(packageRoot(), "stable");
+  const originalEccVersion = baseLock.components.ecc?.version;
+
+  const toolBinding: ReviewedToolBinding = {
+    toolId: "ecc",
+    action: "update",
+    oldVersion: originalEccVersion ?? "2.2.0",
+    acceptedVersion: originalEccVersion ?? "2.2.0",
+    release: "2.3.0",
+    artifact: "ecc-universal-2.3.0.tgz",
+    integrity: tarballIntegrity,
+    digest: createHash("sha256").update("ecc-universal@2.3.0").digest("hex"),
+    sourceId: "npm-registry",
+    sourceUrl: "https://registry.npmjs.org/ecc-universal/-/ecc-universal-2.3.0.tgz",
+    platform: "windows",
+    architecture: "x64",
+  };
+
+  const synthesized = await synthesizeReleaseStackLock(baseLock, [toolBinding], fetchTarball);
+
+  assert.equal(synthesized.components.ecc?.version, "2.3.0");
+  assert.equal(synthesized.components.ecc?.integrity, tarballIntegrity);
+  assert.ok(synthesized.components.ecc?.sourceSha256["unified-memory"]);
+  assert.equal(
+    synthesized.components.ecc?.sourceSha256["unified-memory"],
+    createHash("sha256").update(skillFiles["package/skills/unified-memory/SKILL.md"]!).digest("hex"),
+  );
+  assert.ok(synthesized.components.ecc?.targetSha256["documentation-lookup"]?.["antigravity"]);
+  assert.equal(baseLock.components.ecc?.version, originalEccVersion, "baseLock must remain unmodified in memory");
+});
+
+test("applyLocalReleasePlan records tool-records with verified: null and leaves checkout catalog/*.json untouched (D-02, D-16)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const repoRoot = packageRoot();
+  const stackLockPath = join(repoRoot, "catalog", "stack.lock.json");
+  const computerUsePath = join(repoRoot, "catalog", "computer-use-runtime.json");
+  const beforeStackLock = await readFile(stackLockPath);
+  const beforeComputerUse = await readFile(computerUsePath);
+
+  const preview = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["mcp:context7"],
+    targets: ["codex"],
+    packageRoot: repoRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch({
+      "%40upstash%2Fcontext7-mcp/latest": {
+        version: "4.4.4",
+        dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+      },
+    }),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(preview.applyAllowed, true);
+
+  const mockResponses = {
+    "%40upstash%2Fcontext7-mcp/4.4.4": {
+      version: "4.4.4",
+      dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+    },
+  };
+
+  const result = await applyLocalReleasePlan({
+    planDigest: preview.planDigest!,
+    reviewedPlanToken: preview.reviewedPlanToken!,
+    packageRoot: repoRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(mockResponses),
+    platform: "win32",
+    architecture: "x64",
+  });
+
+  assert.equal(result.applied, true);
+  assert.ok(result.operationId);
+  assert.deepEqual(result.changedTools, ["mcp:context7"]);
+
+  // 1. Tool records verification
+  const store = await readToolRecordStore({ stateRoot: fixture.stateRoot, packageRoot: repoRoot });
+  assert.equal(store.status, "current");
+  assert.equal(store.events.length, 3);
+  const startEvent = store.events.find((e) => e.kind === "started");
+  const resultEvent = store.events.find((e) => e.kind === "tool-result");
+  const finishEvent = store.events.find((e) => e.kind === "finished");
+  assert.ok(startEvent, "started event must exist");
+  assert.ok(resultEvent, "tool-result event must exist");
+  assert.equal(resultEvent?.result?.verified, null, "verified must be null (D-16)");
+  assert.ok(finishEvent, "finished event must exist");
+  assert.deepEqual(finishEvent?.acceptedTransitions, [], "acceptedTransitions must be empty (D-16)");
+  assert.equal(store.accepted, null, "accepted must not advance without host invocation checks");
+
+  // 2. Checkout catalog/*.json byte invariance
+  const afterStackLock = await readFile(stackLockPath);
+  const afterComputerUse = await readFile(computerUsePath);
+  assert.ok(beforeStackLock.equals(afterStackLock), "catalog/stack.lock.json must be byte-identical");
+  assert.ok(beforeComputerUse.equals(afterComputerUse), "catalog/computer-use-runtime.json must be byte-identical");
 });
 

@@ -48,7 +48,11 @@ import {
   planReleaseLifecycleOperation,
   appendReleaseLifecycleEvent,
 } from "./release-lifecycle-store.js";
-import { recoverActivatedBatch, type NativeReleaseAdapter } from "./release-recovery.js";
+import {
+  recoverActivatedBatch,
+  reconcileInterruptedOperations,
+  type NativeReleaseAdapter,
+} from "./release-recovery.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -695,6 +699,9 @@ export interface CreateLocalReleasePlanOptions {
   fetchImpl?: typeof fetch;
   platform?: string;
   architecture?: string;
+  approvedRecoveryScope?: readonly string[];
+  recoveryAdapters?: Readonly<Partial<Record<ManagedToolId, NativeReleaseAdapter>>>;
+  autoRecoverIfAuthorized?: boolean;
 }
 
 export async function createLocalReleasePlan(
@@ -740,6 +747,17 @@ export async function createLocalReleasePlan(
   const reviewedBindings: ReviewedToolBinding[] = [];
   const blockedReasons: string[] = [];
 
+  // D-13: check for interrupted non-terminal operations before resolving new releases
+  const interruption = await reconcileInterruptedOperations({
+    stateRoot: stRoot,
+    packageRoot: pkgRoot,
+    home: userHome,
+    tools: requestedTools,
+    approvedRecoveryScope: options.approvedRecoveryScope,
+    adapters: options.recoveryAdapters,
+    autoRecoverIfAuthorized: options.autoRecoverIfAuthorized,
+  });
+
   for (const toolId of requestedTools) {
     const obs = inventory.observations.find((o) => o.toolId === toolId);
     const installation = obs?.installation ?? "absent";
@@ -755,7 +773,15 @@ export async function createLocalReleasePlan(
     let digest: string | null = null;
     let blockedReason: { code: ReleaseResolutionFailureCode; message: string } | undefined;
 
-    if (mode === "update" && installation !== "installed") {
+    const interruptedOp = interruption.interruptedOperations.find((op) => op.toolId === toolId);
+    if (interruptedOp) {
+      action = "blocked";
+      blockedReason = {
+        code: "interrupted-operation",
+        message: `Tool "${toolId}" has an incomplete operation (${interruptedOp.operationId}) in state '${interruptedOp.status}'. Reconcile with "${interruptedOp.nextCommand}" before starting a new operation.`,
+      };
+      blockedReasons.push(blockedReason.message);
+    } else if (mode === "update" && installation !== "installed") {
       const isExplicitTool = options.tools !== undefined && options.tools.includes(toolId);
       if (isExplicitTool) {
         action = "blocked";
@@ -1305,6 +1331,8 @@ export interface ApplyLocalReleasePlanOptions extends RevalidateLocalReleasePlan
   simulatePostcheckFailure?: boolean;
   recoveryAdapters?: Readonly<Partial<Record<ManagedToolId, NativeReleaseAdapter>>>;
   simulateRecoveryFailure?: Partial<Record<ManagedToolId, boolean>>;
+  approvedRecoveryScope?: readonly string[];
+  autoRecoverIfAuthorized?: boolean;
 }
 
 export type { LocalReleaseApplyResult };
@@ -1326,6 +1354,32 @@ export async function applyLocalReleasePlan(
       appliedSteps: [],
       externalChanges: [],
       message: "All tools are current. No changes applied.",
+    };
+  }
+
+  // D-13: check for interrupted non-terminal operations before starting mutation
+  const interruption = await reconcileInterruptedOperations({
+    stateRoot: stRoot,
+    packageRoot: pkgRoot,
+    home: options.home ? resolve(options.home) : homedir(),
+    tools: revalidated.changedTools.map((t) => t.toolId),
+    approvedRecoveryScope: options.approvedRecoveryScope,
+    adapters: options.recoveryAdapters,
+    autoRecoverIfAuthorized: options.autoRecoverIfAuthorized,
+  });
+
+  if (interruption.blocked) {
+    return {
+      mode: revalidated.payload.mode,
+      applied: false,
+      operationId: null,
+      changedTools: [],
+      unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
+      appliedSteps: [],
+      externalChanges: [],
+      message: interruption.advice ?? "Cannot apply update: incomplete operation detected.",
+      status: "recovery-required",
+      ...(interruption.nextCommand ? { nextCommand: interruption.nextCommand, nextAction: interruption.nextCommand } : {}),
     };
   }
 

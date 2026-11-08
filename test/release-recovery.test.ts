@@ -8,9 +8,20 @@ import {
   recoverActivatedBatch,
   reacquireReviewedPreviousArtifact,
   reconcileReleaseOperation,
+  reconcileInterruptedOperations,
+  resumeReleaseOperation,
+  cancelReleaseOperation,
+  recoverReleaseOperation,
   createDefaultReleaseAdapter,
   type NativeReleaseAdapter,
 } from "../src/core/release-recovery.js";
+import {
+  createReleaseCleanupPlan,
+  applyReleaseCleanupPlan,
+  readReleaseLifecycle,
+  planReleaseLifecycleOperation,
+  appendReleaseLifecycleEvent,
+} from "../src/core/release-lifecycle-store.js";
 import {
   applyLocalReleasePlan,
   createLocalReleasePlan,
@@ -24,7 +35,6 @@ import {
   appendToolResult,
   finishToolOperation,
 } from "../src/core/tool-record-store.js";
-import { readReleaseLifecycle } from "../src/core/release-lifecycle-store.js";
 import type { BarrierToolInput } from "../src/types.js";
 
 function mockFetch(responses: Record<string, unknown>): typeof fetch {
@@ -533,4 +543,497 @@ test("Task 42-04-02 Test 4: reconcileReleaseOperation reports terminal and inter
   });
 
   assert.ok(reconciliation);
+});
+
+test("Task 42-05-01 Test 1: interrupted single-tool operation blocks new update and reconciles first (D-13)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  const opId = "op-interrupted-1";
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: opId,
+    occurredAt: new Date().toISOString(),
+    toolId: "gsd",
+    reviewedRelease: {
+      toolId: "gsd",
+      release: "1.19.0",
+      artifact: "gsd-1.19.0.tgz",
+      integrity: "sha512-gsd119==",
+      digest: "a".repeat(64),
+    },
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    kind: "activated",
+    toolId: "gsd",
+    reviewedRelease: lcPlan.reviewedRelease,
+    activeIdentity: {
+      installationId: "gsd-1.19.0",
+      version: "1.19.0",
+      pathAlias: "opengsd/gsd-core",
+    },
+  });
+
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const gsdItem = plan.allTools.find((t) => t.toolId === "gsd");
+  assert.equal(gsdItem?.action, "blocked");
+  assert.equal(gsdItem?.blockedReason?.code, "interrupted-operation");
+  assert.ok(gsdItem?.blockedReason?.message.includes(opId));
+  assert.equal(plan.applyAllowed, false);
+});
+
+test("Task 42-05-01 Test 2: matching approval/recovery scope continues bounded recovery; mismatch halts with zero mutation (D-12, D-13)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  let adapterRecoverCalled = false;
+  const adapter: NativeReleaseAdapter = {
+    adapterId: "scope-test-adapter",
+    toolId: "gsd",
+    revision: "1.0.0",
+    prepareMode: "inactive",
+    async observeActiveIdentity() {
+      return { version: "1.18.0", installationId: "gsd-1.18.0", pathAlias: "opengsd/gsd-core" };
+    },
+    async recover() {
+      adapterRecoverCalled = true;
+      return { success: true, command: "restore", exitCode: 0, message: "restored" };
+    },
+  };
+
+  const opId = "op-interrupted-scope";
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: opId,
+    occurredAt: new Date().toISOString(),
+    toolId: "gsd",
+    reviewedRelease: {
+      toolId: "gsd",
+      release: "1.19.0",
+      artifact: "gsd-1.19.0.tgz",
+      integrity: "sha512-gsd119==",
+      digest: "a".repeat(64),
+    },
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    kind: "activated",
+    toolId: "gsd",
+    reviewedRelease: lcPlan.reviewedRelease,
+    lastGoodIdentity: {
+      installationId: "gsd-1.18.0",
+      version: "1.18.0",
+    },
+  });
+
+  // Case A: Mismatched recovery scope -> zero mutation, halted
+  const mismatchResult = await reconcileInterruptedOperations({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    tools: ["gsd"],
+    approvedRecoveryScope: ["cua-driver"],
+    adapters: { gsd: adapter },
+    autoRecoverIfAuthorized: true,
+  });
+
+  assert.equal(mismatchResult.blocked, true);
+  assert.equal(adapterRecoverCalled, false, "Adapter recover must not be called when scope mismatches");
+  assert.ok(mismatchResult.nextCommand?.includes(opId));
+
+  // Case B: Matching recovery scope -> auto-recovers
+  const matchResult = await reconcileInterruptedOperations({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    tools: ["gsd"],
+    approvedRecoveryScope: ["gsd"],
+    adapters: { gsd: adapter },
+    autoRecoverIfAuthorized: true,
+  });
+
+  assert.equal(matchResult.blocked, false);
+  assert.equal(adapterRecoverCalled, true, "Adapter recover must be called when scope matches");
+});
+
+test("Task 42-05-01 Test 3: concurrent new update and recovery: writer lock prevents concurrent new update (PROOF-04/concurrency)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  const plan = await planToolRecordOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: "op-writer-holder",
+    occurredAt: new Date().toISOString(),
+    requests: [{ toolId: "gsd", selector: "1.19.0", exact: true }],
+  });
+
+  await withToolRecordSession(plan, async () => {
+    const concurrentPlan = await createLocalReleasePlan({
+      mode: "install",
+      tools: ["gsd"],
+      packageRoot: packageRoot(),
+      stateRoot: fixture.stateRoot,
+      home: fixture.home,
+      fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    });
+
+    const barrierInputs: readonly BarrierToolInput[] = [
+      {
+        toolId: "gsd",
+        candidateRelease: "1.19.0",
+        harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+      },
+    ];
+
+    await assert.rejects(
+      async () => {
+        await applyLocalReleasePlan({
+          planDigest: concurrentPlan.planDigest!,
+          reviewedPlanToken: concurrentPlan.reviewedPlanToken!,
+          packageRoot: packageRoot(),
+          stateRoot: fixture.stateRoot,
+          home: fixture.home,
+          fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+          barrierInputs,
+        });
+      },
+      (err: unknown) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /lock|held|holds|busy/i);
+        return true;
+      },
+    );
+  });
+});
+
+test("Task 42-05-01 Test 4: terminal recovered operation replay gives zero native/file mutation and returns identical observed state (PROOF-04/idempotency)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  let adapterCallCount = 0;
+  const adapter: NativeReleaseAdapter = {
+    adapterId: "replay-test-adapter",
+    toolId: "gsd",
+    revision: "1.0.0",
+    prepareMode: "inactive",
+    async observeActiveIdentity() {
+      return { version: "1.18.0", installationId: "gsd-1.18.0", pathAlias: "opengsd/gsd-core" };
+    },
+    async recover() {
+      adapterCallCount++;
+      return { success: true, command: "restore", exitCode: 0, message: "restored" };
+    },
+  };
+
+  const opId = "op-recovered-replay";
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: opId,
+    occurredAt: new Date().toISOString(),
+    toolId: "gsd",
+    reviewedRelease: {
+      toolId: "gsd",
+      release: "1.19.0",
+      artifact: "gsd-1.19.0.tgz",
+      integrity: "sha512-gsd119==",
+      digest: "a".repeat(64),
+    },
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    kind: "recovered",
+    toolId: "gsd",
+    reviewedRelease: lcPlan.reviewedRelease,
+    overallState: "pass",
+  });
+
+  const result = await recoverReleaseOperation({
+    operationId: opId,
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    adapters: { gsd: adapter },
+  });
+
+  assert.equal(result.recovered, true);
+  assert.equal(result.alreadyTerminal, true);
+  assert.equal(result.idempotent, true);
+  assert.equal(adapterCallCount, 0, "No adapter mutations must occur on idempotent replay");
+});
+
+test("Task 42-05-02 Test 1: resume uses persisted exact candidate and reuses unchanged fingerprint tiers; latest resolver is never called (D-03, D-04)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  const opId = "op-resume-exact";
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: opId,
+    occurredAt: new Date().toISOString(),
+    toolId: "gsd",
+    reviewedRelease: {
+      toolId: "gsd",
+      release: "1.19.0",
+      artifact: "gsd-1.19.0.tgz",
+      integrity: "sha512-gsd119==",
+      digest: "a".repeat(64),
+    },
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    kind: "verification-pending",
+    toolId: "gsd",
+    reviewedRelease: lcPlan.reviewedRelease,
+    evidenceFingerprint: "a".repeat(64),
+    overallState: "pending",
+  });
+
+  let latestCalled = false;
+  const spyFetch: typeof fetch = async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/latest")) {
+      latestCalled = true;
+      throw new Error("latest endpoint called during resume!");
+    }
+    return new Response(JSON.stringify({ version: "1.19.0" }), { status: 200 });
+  };
+
+  const resumeRes = await resumeReleaseOperation({
+    operationId: opId,
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    fetchImpl: spyFetch,
+  });
+
+  assert.equal(latestCalled, false, "/latest endpoint must never be called during resume (D-03)");
+  assert.equal(resumeRes.resumed, true);
+  assert.equal(resumeRes.status, "accepted");
+  assert.ok(resumeRes.reusedTiers?.includes("environment"), "Unchanged evidence tiers must be reused (D-04)");
+});
+
+test("Task 42-05-02 Test 2: cancel appends cancelled terminal state, leaves active/candidate artifacts/evidence/history untouched, and replay is idempotent (D-15)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  const opId = "op-cancel-retention";
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: opId,
+    occurredAt: new Date().toISOString(),
+    toolId: "gsd",
+    reviewedRelease: {
+      toolId: "gsd",
+      release: "1.19.0",
+      artifact: "gsd-1.19.0.tgz",
+      integrity: "sha512-gsd119==",
+      digest: "a".repeat(64),
+    },
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    kind: "verification-pending",
+    toolId: "gsd",
+    reviewedRelease: lcPlan.reviewedRelease,
+    activeIdentity: {
+      installationId: "gsd-1.18.0",
+      version: "1.18.0",
+      pathAlias: "opengsd/gsd-core",
+    },
+  });
+
+  const cancelRes = await cancelReleaseOperation({
+    operationId: opId,
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    reason: "User cancelled pending verification",
+  });
+
+  assert.equal(cancelRes.cancelled, true);
+
+  const updatedLc = await readReleaseLifecycle({ stateRoot: fixture.stateRoot, operationId: opId });
+  assert.equal(updatedLc?.status, "cancelled");
+  assert.equal(updatedLc?.events.length, 2);
+  assert.equal(updatedLc?.events[0]?.kind, "verification-pending");
+  assert.equal(updatedLc?.events[1]?.kind, "cancelled");
+
+  const replayRes = await cancelReleaseOperation({
+    operationId: opId,
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+  });
+
+  assert.equal(replayRes.cancelled, true);
+  assert.equal(replayRes.alreadyTerminal, true);
+  assert.equal(replayRes.idempotent, true);
+});
+
+test("Task 42-05-02 Test 3: cleanup preview lists removable artifacts excluding active, last-good, pending, recovery, metadata/history (D-14)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  const opId = "op-cleanup-ref";
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: opId,
+    occurredAt: new Date().toISOString(),
+    toolId: "gsd",
+    reviewedRelease: {
+      toolId: "gsd",
+      release: "1.19.0",
+      artifact: "/managed/artifacts/gsd-1.19.0.tgz",
+      integrity: "sha512-gsd119==",
+      digest: "a".repeat(64),
+    },
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: 1,
+    occurredAt: new Date().toISOString(),
+    kind: "activated",
+    toolId: "gsd",
+    reviewedRelease: lcPlan.reviewedRelease,
+    activeIdentity: {
+      installationId: "gsd-1.19.0",
+      version: "1.19.0",
+      pathAlias: "opengsd/gsd-core",
+    },
+    lastGoodIdentity: {
+      installationId: "gsd-1.18.0",
+      version: "1.18.0",
+    },
+    artifactRefs: ["/managed/artifacts/gsd-1.18.0.tgz"],
+  });
+
+  const candidates = [
+    { path: "/managed/artifacts/gsd-1.19.0.tgz", digest: "1".repeat(64) },
+    { path: "/managed/artifacts/gsd-1.18.0.tgz", digest: "2".repeat(64) },
+    { path: join(fixture.stateRoot, "tool-records", "v1", "0-start.json"), digest: "3".repeat(64) },
+    { path: "/managed/artifacts/old-unused-1.10.0.tgz", digest: "4".repeat(64) },
+  ];
+
+  const plan = await createReleaseCleanupPlan({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    candidateArtifacts: candidates,
+  });
+
+  assert.ok(plan.protectedArtifacts.includes("/managed/artifacts/gsd-1.19.0.tgz"));
+  assert.ok(plan.protectedArtifacts.includes("/managed/artifacts/gsd-1.18.0.tgz"));
+  assert.equal(plan.removableArtifacts.length, 1);
+  assert.equal(plan.removableArtifacts[0]?.path, "/managed/artifacts/old-unused-1.10.0.tgz");
+  assert.ok(plan.planDigest);
+  assert.ok(plan.reviewedToken);
+});
+
+test("Task 42-05-02 Test 4: cleanup apply rechecks digest, protected set, root; drift gives zero deletion; replay gives zero additional deletion (PROOF-04/idempotency)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  await mkdir(fixture.stateRoot, { recursive: true });
+  const oldArtifactPath = join(fixture.stateRoot, "old-artifact.tgz");
+  await writeFile(oldArtifactPath, "old artifact content");
+
+  const candidates = [
+    { path: oldArtifactPath, digest: "4".repeat(64), sizeBytes: 20 },
+  ];
+
+  const plan = await createReleaseCleanupPlan({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    candidateArtifacts: candidates,
+  });
+
+  // Drift check: Corrupted plan digest
+  const driftedDigestPlan = { ...plan, planDigest: "corrupted-digest" };
+  const driftResult1 = await applyReleaseCleanupPlan({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    plan: driftedDigestPlan,
+  });
+
+  assert.equal(driftResult1.applied, false);
+  assert.equal(driftResult1.driftDetected, true);
+  assert.equal(driftResult1.deletedCount, 0);
+
+  // Apply valid plan
+  const applyRes = await applyReleaseCleanupPlan({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    plan,
+  });
+
+  assert.equal(applyRes.applied, true);
+  assert.equal(applyRes.deletedCount, 1);
+  assert.equal(applyRes.deletedPaths[0], oldArtifactPath);
+
+  // Replay cleanup plan (idempotent zero additional deletion)
+  const replayRes = await applyReleaseCleanupPlan({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    plan,
+  });
+
+  assert.equal(replayRes.applied, true);
+  assert.equal(replayRes.deletedCount, 0);
+  assert.equal(replayRes.skippedPaths.length, 1);
+});
+
+test("Task 42-05-02 Test 5: resume/recover missing prior artifact permits only exact official reacquisition and rejects latest substitute (D-16)", async (context) => {
+  const artifactBytes = Buffer.from("gsd-1.18.0 exact artifact payload");
+  const integrity = `sha512-${createHash("sha512").update(artifactBytes).digest("base64")}`;
+
+  const fetchImpl: typeof fetch = async (input: RequestInfo | URL) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url.includes("/latest")) {
+      return new Response(JSON.stringify({ version: "1.19.0" }), { status: 200 });
+    }
+    return new Response(artifactBytes, { status: 200 });
+  };
+
+  const reacquired = await reacquireReviewedPreviousArtifact({
+    toolId: "gsd",
+    reviewedRelease: "1.18.0",
+    reviewedArtifact: "gsd-1.18.0.tgz",
+    reviewedIntegrity: integrity,
+    sourceUrl: "https://registry.npmjs.org/@opengsd/gsd-core/-/gsd-1.18.0.tgz",
+    approvedRecoveryScope: ["gsd"],
+    fetchImpl,
+  });
+
+  assert.equal(reacquired.reacquired, true);
+
+  await assert.rejects(
+    async () => {
+      await reacquireReviewedPreviousArtifact({
+        toolId: "gsd",
+        reviewedRelease: "1.18.0",
+        reviewedArtifact: "gsd-1.18.0.tgz",
+        reviewedIntegrity: integrity,
+        sourceUrl: "https://registry.npmjs.org/@opengsd/gsd-core/-/gsd-1.18.0.tgz",
+        approvedRecoveryScope: ["gsd"],
+        fetchImpl,
+        requestedRelease: "1.19.0",
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof Error);
+      assert.match(err.message, /Substituting|Substitute/i);
+      return true;
+    },
+  );
 });

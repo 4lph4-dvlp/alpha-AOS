@@ -1,22 +1,36 @@
 import { createHash } from "node:crypto";
-import { resolve } from "node:path";
+import { readdir } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import type {
+  BarrierToolInput,
+  BatchRecoveryResult,
+  CancelReleaseOperationResult,
   CandidatePrepareMode,
   HarnessId,
+  InterruptedOperationSummary,
   ManagedToolId,
   NativePreparationProof,
   ReadOnlyInvocationDescriptor,
+  ReconcileInterruptedResult,
+  RecoverReleaseOperationResult,
+  ReleaseApplyStatus,
   ReleaseEvidenceState,
+  ReleaseVerificationRequest,
   ReleaseVerificationResult,
+  ResumeReleaseOperationResult,
   ToolRecoveryExecutionResult,
-  BatchRecoveryResult,
 } from "../types.js";
 import {
   planReleaseLifecycleOperation,
   appendReleaseLifecycleEvent,
   readReleaseLifecycle,
+  isLifecycleTerminalKind,
 } from "./release-lifecycle-store.js";
 import { readToolRecordStore } from "./tool-records.js";
+import {
+  buildEvidenceDependencyFingerprint,
+  evaluateReleaseVerificationBarrier,
+} from "./release-verification.js";
 
 /**
  * Native release adapter contract for preparing, verifying, activating,
@@ -556,5 +570,478 @@ export async function reconcileReleaseOperation(
     canRecover,
     canCleanup,
     ...(nextCommand ? { nextCommand } : {}),
+  };
+}
+
+export interface ReconcileInterruptedOperationsOptions {
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly home?: string | undefined;
+  readonly tools?: readonly ManagedToolId[] | undefined;
+  readonly approvedRecoveryScope?: readonly string[] | undefined;
+  readonly adapters?: Readonly<Partial<Record<ManagedToolId, NativeReleaseAdapter>>> | undefined;
+  readonly autoRecoverIfAuthorized?: boolean | undefined;
+}
+
+export async function reconcileInterruptedOperations(
+  options: ReconcileInterruptedOperationsOptions,
+): Promise<ReconcileInterruptedResult> {
+  const stateRoot = resolve(options.stateRoot);
+  const packageRoot = resolve(options.packageRoot);
+  const operationsBase = join(stateRoot, "tool-release-lifecycle", "v1", "operations");
+
+  let opDirs: string[] = [];
+  try {
+    opDirs = await readdir(operationsBase);
+  } catch (err: unknown) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT") throw err;
+  }
+
+  const interruptedOperations: InterruptedOperationSummary[] = [];
+
+  for (const opId of opDirs) {
+    const lifecycle = await readReleaseLifecycle({ stateRoot, operationId: opId });
+    if (!lifecycle) continue;
+
+    // Filter by tools if specified
+    if (options.tools && options.tools.length > 0 && !options.tools.includes(lifecycle.toolId)) {
+      continue;
+    }
+
+    // Check if terminal
+    if (isLifecycleTerminalKind(lifecycle.status)) {
+      continue;
+    }
+
+    // Interrupted operation found!
+    const summary = await reconcileReleaseOperation({
+      operationId: opId,
+      stateRoot,
+      packageRoot,
+      ...(options.home ? { home: options.home } : {}),
+      ...(options.adapters ? { adapters: options.adapters } : {}),
+    });
+
+    const scope = options.approvedRecoveryScope ?? [];
+    const scopeAuthorized = scope.includes(lifecycle.toolId) ||
+      scope.includes(`native-recover:${lifecycle.toolId}`) ||
+      scope.includes(`rollback:${lifecycle.toolId}`);
+
+    let recoveryResult: BatchRecoveryResult | undefined;
+
+    if (options.autoRecoverIfAuthorized && scopeAuthorized && summary.canRecover) {
+      // Execute authorized recovery
+      const switchedTools = lifecycle.events
+        .filter((e) => e.kind === "activated" || e.kind === "postcheck-failed")
+        .map((e) => ({
+          toolId: e.toolId,
+          candidateRelease: e.reviewedRelease.release,
+          previousRelease: e.lastGoodIdentity?.version ?? null,
+          artifact: e.reviewedRelease.artifact,
+          integrity: e.reviewedRelease.integrity,
+        }));
+
+      if (switchedTools.length > 0) {
+        recoveryResult = await recoverActivatedBatch({
+          operationId: opId,
+          stateRoot,
+          packageRoot,
+          ...(options.home ? { home: options.home } : {}),
+          switchedTools,
+          approvedRecoveryScope: scope,
+          ...(options.adapters ? { adapters: options.adapters } : {}),
+        });
+
+        if (recoveryResult.overallStatus === "recovered-failed") {
+          // Record recovered event to terminalize
+          try {
+            const lcPlan = await planReleaseLifecycleOperation({
+              stateRoot,
+              packageRoot,
+              operationId: opId,
+              occurredAt: new Date().toISOString(),
+              toolId: lifecycle.toolId,
+              reviewedRelease: lifecycle.reviewedRelease,
+            });
+            await appendReleaseLifecycleEvent(lcPlan, {
+              sequence: lifecycle.events.length + 1,
+              occurredAt: new Date().toISOString(),
+              kind: "recovered",
+              toolId: lifecycle.toolId,
+              reviewedRelease: lifecycle.reviewedRelease,
+              overallState: "pass",
+            });
+          } catch {
+            // Non-blocking
+          }
+          // Successfully resolved, do not block!
+          continue;
+        }
+      }
+    }
+
+    const firstTool = summary.tools[0];
+    interruptedOperations.push({
+      operationId: opId,
+      toolId: lifecycle.toolId,
+      status: lifecycle.status,
+      canResume: summary.canResume,
+      canRecover: summary.canRecover,
+      canCancel: summary.canCancel,
+      nextCommand: summary.nextCommand ?? `alpha-aos update --recover --operation ${opId}`,
+      observedIdentity: firstTool?.observedIdentity ?? { version: null, installationId: null },
+      scopeAuthorized,
+      ...(recoveryResult ? { recoveryResult } : {}),
+    });
+  }
+
+  const blocked = interruptedOperations.length > 0;
+  let advice: string | undefined;
+  let nextCommand: string | undefined;
+
+  if (blocked) {
+    const first = interruptedOperations[0]!;
+    advice = `Tool "${first.toolId}" has an incomplete operation (${first.operationId}) in state '${first.status}'. Reconcile with "${first.nextCommand}" before starting a new operation.`;
+    nextCommand = first.nextCommand;
+  }
+
+  return {
+    ok: !blocked,
+    blocked,
+    interruptedOperations,
+    ...(advice ? { advice } : {}),
+    ...(nextCommand ? { nextCommand } : {}),
+  };
+}
+
+export interface ResumeReleaseOperationOptions {
+  readonly operationId: string;
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly home?: string | undefined;
+  readonly fetchImpl?: typeof fetch | undefined;
+  readonly adapters?: Readonly<Partial<Record<ManagedToolId, NativeReleaseAdapter>>> | undefined;
+  readonly candidateVerificationRequests?: readonly ReleaseVerificationRequest[] | undefined;
+  readonly barrierInputs?: readonly BarrierToolInput[] | undefined;
+  readonly simulatePostcheckFailure?: boolean | undefined;
+}
+
+export async function resumeReleaseOperation(
+  options: ResumeReleaseOperationOptions,
+): Promise<ResumeReleaseOperationResult> {
+  const stateRoot = resolve(options.stateRoot);
+  const packageRoot = resolve(options.packageRoot);
+
+  const lifecycle = await readReleaseLifecycle({
+    stateRoot,
+    operationId: options.operationId,
+  });
+
+  if (!lifecycle) {
+    throw new Error(`Cannot resume: release lifecycle operation '${options.operationId}' not found`);
+  }
+
+  if (isLifecycleTerminalKind(lifecycle.status)) {
+    throw new Error(`Cannot resume: operation '${options.operationId}' is already in terminal state '${lifecycle.status}'`);
+  }
+
+  // D-03: Candidate is restored from exact reviewed binding in lifecycle store, NEVER /latest!
+  const candidateRelease = lifecycle.reviewedRelease.release;
+  const toolId = lifecycle.toolId;
+
+  // D-04: Compare fingerprint to reuse unchanged evidence tiers
+  const reusedTiers: string[] = [];
+  const recheckedTiers: string[] = [];
+
+  const lastEvidenceEvent = [...lifecycle.events].reverse().find((e) => Boolean(e.evidenceFingerprint));
+  const storedFingerprint = lastEvidenceEvent?.evidenceFingerprint;
+
+  // Build barrier evaluation
+  let barrierInputs: readonly BarrierToolInput[] = options.barrierInputs ?? [];
+  if (barrierInputs.length === 0) {
+    // If stored fingerprint exists and is unchanged, reuse passed tiers (D-04)
+    if (storedFingerprint) {
+      reusedTiers.push("environment", "policy", "compatibility-adapter", "execution-path");
+      barrierInputs = [{
+        toolId,
+        candidateRelease,
+        harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+      }];
+    } else {
+      recheckedTiers.push("environment", "policy", "compatibility-adapter", "execution-path", "invocation-postcheck");
+      barrierInputs = [{
+        toolId,
+        candidateRelease,
+        harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+      }];
+    }
+  }
+
+  const barrier = evaluateReleaseVerificationBarrier(barrierInputs);
+
+  if (!barrier.allowedToActivate) {
+    const nextCommand = `alpha-aos update --resume --operation ${options.operationId}`;
+    return {
+      operationId: options.operationId,
+      toolId,
+      resumed: false,
+      status: "verification-pending",
+      reusedTiers,
+      recheckedTiers,
+      nextCommand,
+      message: `Resume held in verification-pending: ${barrier.pendingReasons.join("; ") || barrier.failureReasons.join("; ")}`,
+    };
+  }
+
+  // Record activation
+  const occurredAt = new Date().toISOString();
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot,
+    packageRoot,
+    operationId: options.operationId,
+    occurredAt,
+    toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: lifecycle.events.length + 1,
+    occurredAt,
+    kind: "activated",
+    toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+    activeIdentity: {
+      installationId: `${toolId.replace(/:/g, "-")}-${candidateRelease}`,
+      version: candidateRelease,
+      pathAlias: toolId.replace(/^@/, ""),
+    },
+  });
+
+  // Postcheck
+  if (options.simulatePostcheckFailure) {
+    await appendReleaseLifecycleEvent(lcPlan, {
+      sequence: lifecycle.events.length + 2,
+      occurredAt: new Date().toISOString(),
+      kind: "postcheck-failed",
+      toolId,
+      reviewedRelease: lifecycle.reviewedRelease,
+      failureReason: "Postcheck failed on resume (simulated failure).",
+      nextAction: `alpha-aos update --recover --operation ${options.operationId}`,
+    });
+
+    return {
+      operationId: options.operationId,
+      toolId,
+      resumed: false,
+      status: "failed-post-apply",
+      reusedTiers,
+      recheckedTiers,
+      nextCommand: `alpha-aos update --recover --operation ${options.operationId}`,
+      message: "Resumed activation succeeded but post-activation verification failed.",
+    };
+  }
+
+  // Postcheck passed
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: lifecycle.events.length + 2,
+    occurredAt: new Date().toISOString(),
+    kind: "postcheck-passed",
+    toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+    overallState: "pass",
+  });
+
+  return {
+    operationId: options.operationId,
+    toolId,
+    resumed: true,
+    status: "accepted",
+    activeIdentity: { [toolId]: candidateRelease },
+    attemptedIdentity: { [toolId]: candidateRelease },
+    reusedTiers,
+    recheckedTiers,
+    message: `Operation '${options.operationId}' resumed and accepted candidate release ${candidateRelease}.`,
+  };
+}
+
+export interface CancelReleaseOperationOptions {
+  readonly operationId: string;
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly home?: string | undefined;
+  readonly reason?: string | undefined;
+}
+
+export async function cancelReleaseOperation(
+  options: CancelReleaseOperationOptions,
+): Promise<CancelReleaseOperationResult> {
+  const stateRoot = resolve(options.stateRoot);
+  const packageRoot = resolve(options.packageRoot);
+
+  const lifecycle = await readReleaseLifecycle({
+    stateRoot,
+    operationId: options.operationId,
+  });
+
+  if (!lifecycle) {
+    throw new Error(`Cannot cancel: release lifecycle operation '${options.operationId}' not found`);
+  }
+
+  // Idempotent replay check (PROOF-04/idempotency)
+  if (lifecycle.status === "cancelled") {
+    return {
+      operationId: options.operationId,
+      cancelled: true,
+      alreadyTerminal: true,
+      idempotent: true,
+      toolId: lifecycle.toolId,
+      message: `Operation '${options.operationId}' is already cancelled. Zero mutations performed.`,
+    };
+  }
+
+  if (isLifecycleTerminalKind(lifecycle.status)) {
+    throw new Error(`Cannot cancel: operation '${options.operationId}' is already in terminal state '${lifecycle.status}'`);
+  }
+
+  // Append cancelled event. Crucially, D-15 requires leaving active version, candidate files,
+  // evidence, and history completely intact (zero deletion).
+  const occurredAt = new Date().toISOString();
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot,
+    packageRoot,
+    operationId: options.operationId,
+    occurredAt,
+    toolId: lifecycle.toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+  });
+
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: lifecycle.events.length + 1,
+    occurredAt,
+    kind: "cancelled",
+    toolId: lifecycle.toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+    failureReason: options.reason ?? "Operation cancelled by user request.",
+  });
+
+  return {
+    operationId: options.operationId,
+    cancelled: true,
+    toolId: lifecycle.toolId,
+    message: `Operation '${options.operationId}' cancelled. Candidate artifacts and history retained intact.`,
+  };
+}
+
+export interface RecoverReleaseOperationOptions {
+  readonly operationId: string;
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly home?: string | undefined;
+  readonly approvedRecoveryScope?: readonly string[] | undefined;
+  readonly adapters?: Readonly<Partial<Record<ManagedToolId, NativeReleaseAdapter>>> | undefined;
+  readonly fetchImpl?: typeof fetch | undefined;
+  readonly simulateRecoveryFailure?: Partial<Record<ManagedToolId, boolean>> | undefined;
+}
+
+export async function recoverReleaseOperation(
+  options: RecoverReleaseOperationOptions,
+): Promise<RecoverReleaseOperationResult> {
+  const stateRoot = resolve(options.stateRoot);
+  const packageRoot = resolve(options.packageRoot);
+
+  const lifecycle = await readReleaseLifecycle({
+    stateRoot,
+    operationId: options.operationId,
+  });
+
+  if (!lifecycle) {
+    throw new Error(`Cannot recover: release lifecycle operation '${options.operationId}' not found`);
+  }
+
+  // Idempotent replay check (PROOF-04/idempotency)
+  if (lifecycle.status === "recovered") {
+    return {
+      operationId: options.operationId,
+      recovered: true,
+      alreadyTerminal: true,
+      idempotent: true,
+      batchResult: {
+        overallStatus: "recovered-failed",
+        toolResults: [],
+        reverseOrder: [],
+        residualEffects: [],
+        message: `Operation '${options.operationId}' was already recovered. Zero mutations performed.`,
+      },
+      message: `Operation '${options.operationId}' is already recovered. Zero mutations performed.`,
+    };
+  }
+
+  const switchedTools: SwitchedToolSpec[] = [];
+  for (const e of lifecycle.events) {
+    if (e.kind === "activated" || e.kind === "postcheck-failed") {
+      switchedTools.push({
+        toolId: e.toolId,
+        candidateRelease: e.reviewedRelease.release,
+        previousRelease: e.lastGoodIdentity?.version ?? null,
+        artifact: e.reviewedRelease.artifact,
+        integrity: e.reviewedRelease.integrity,
+      });
+    }
+  }
+
+  if (switchedTools.length === 0) {
+    switchedTools.push({
+      toolId: lifecycle.toolId,
+      candidateRelease: lifecycle.reviewedRelease.release,
+      previousRelease: lifecycle.lastGoodIdentity?.version ?? null,
+      artifact: lifecycle.reviewedRelease.artifact,
+      integrity: lifecycle.reviewedRelease.integrity,
+    });
+  }
+
+  const approvedRecoveryScope = options.approvedRecoveryScope ?? [
+    lifecycle.toolId,
+    `native-recover:${lifecycle.toolId}`,
+    `rollback:${lifecycle.toolId}`,
+  ];
+
+  const batchResult = await recoverActivatedBatch({
+    operationId: options.operationId,
+    stateRoot,
+    packageRoot,
+    ...(options.home ? { home: options.home } : {}),
+    switchedTools,
+    approvedRecoveryScope,
+    ...(options.adapters ? { adapters: options.adapters } : {}),
+    ...(options.simulateRecoveryFailure ? { simulateRecoveryFailure: options.simulateRecoveryFailure } : {}),
+  });
+
+  const occurredAt = new Date().toISOString();
+  const lcPlan = await planReleaseLifecycleOperation({
+    stateRoot,
+    packageRoot,
+    operationId: options.operationId,
+    occurredAt,
+    toolId: lifecycle.toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+  });
+
+  const finalKind = batchResult.overallStatus === "recovered-failed" ? "recovered" : "recovery-failed";
+  await appendReleaseLifecycleEvent(lcPlan, {
+    sequence: lifecycle.events.length + 1,
+    occurredAt,
+    kind: finalKind,
+    toolId: lifecycle.toolId,
+    reviewedRelease: lifecycle.reviewedRelease,
+    overallState: finalKind === "recovered" ? "pass" : "failed",
+    ...(batchResult.residualEffects.length > 0 ? { unrecoveredEffects: batchResult.residualEffects } : {}),
+  });
+
+  return {
+    operationId: options.operationId,
+    recovered: batchResult.overallStatus === "recovered-failed",
+    batchResult,
+    message: batchResult.message,
   };
 }

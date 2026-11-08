@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readdir, readFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, unlink } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type {
   HarnessId,
   ManagedToolId,
   ReleaseEvidenceItem,
   ReleaseEvidenceState,
+  ReleaseCleanupPlan,
+  ReleaseCleanupApplyResult,
+  RemovableArtifactDetail,
 } from "../types.js";
 import { packageRoot as getPackageRoot } from "./paths.js";
 import { proveOperationPaths, provePathBoundary, type OperationPathProofSet, type PathProof } from "./path-boundary.js";
@@ -405,4 +408,177 @@ export async function deriveProtectedReleaseArtifacts(options: {
   }
 
   return [...protectedSet].sort();
+}
+
+export interface CreateReleaseCleanupPlanOptions {
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly candidateArtifacts?: readonly {
+    readonly path: string;
+    readonly digest: string;
+    readonly sizeBytes?: number;
+    readonly toolId?: ManagedToolId;
+    readonly recoveryImpact?: string;
+  }[];
+}
+
+export interface ApplyReleaseCleanupPlanOptions {
+  readonly stateRoot: string;
+  readonly packageRoot: string;
+  readonly plan: ReleaseCleanupPlan;
+  readonly session?: MutationSession;
+}
+
+/**
+ * Creates a cleanup plan by checking candidate artifacts against protected sets (D-14).
+ * Active, last-good, pending, recovery artifacts, and all metadata/history are permanently protected.
+ */
+export async function createReleaseCleanupPlan(
+  options: CreateReleaseCleanupPlanOptions,
+): Promise<ReleaseCleanupPlan> {
+  const stateRoot = resolve(options.stateRoot);
+  const protectedArtifacts = await deriveProtectedReleaseArtifacts({ stateRoot });
+
+  const metadataHistoryDirs = [
+    resolve(join(stateRoot, "tool-records")),
+    resolve(join(stateRoot, "tool-release-lifecycle")),
+    resolve(join(stateRoot, "journal")),
+    resolve(join(stateRoot, "snapshots")),
+  ];
+
+  const removableArtifacts: RemovableArtifactDetail[] = [];
+
+  for (const candidate of options.candidateArtifacts ?? []) {
+    const candidatePath = resolve(candidate.path);
+
+    // Metadata and history directories are permanently protected from deletion (D-14)
+    const isMetadataHistory = metadataHistoryDirs.some((dir) =>
+      candidatePath === dir || candidatePath.startsWith(`${dir}/`) || candidatePath.startsWith(`${dir}\\`)
+    );
+    if (isMetadataHistory) continue;
+
+    // Check against protected artifacts
+    const isProtected = protectedArtifacts.some((p) => {
+      const resolvedP = resolve(p);
+      return candidatePath === resolvedP || candidatePath.endsWith(p) || candidatePath.includes(p);
+    });
+
+    if (!isProtected) {
+      removableArtifacts.push({
+        path: candidate.path,
+        digest: candidate.digest,
+        sizeBytes: candidate.sizeBytes ?? 0,
+        ...(candidate.toolId ? { toolId: candidate.toolId } : {}),
+        recoveryImpact: candidate.recoveryImpact ?? "Unreferenced inactive release artifact; prior versions preserved",
+      });
+    }
+  }
+
+  // Sort removable artifacts deterministically by path
+  removableArtifacts.sort((a, b) => a.path.localeCompare(b.path));
+
+  const planPayload = {
+    protectedArtifacts,
+    removableArtifacts,
+  };
+  const planDigest = computeDigest(canonical(planPayload));
+  const reviewedToken = Buffer.from(JSON.stringify(planPayload), "utf8").toString("base64url");
+
+  return {
+    planDigest,
+    reviewedToken,
+    protectedArtifacts,
+    removableArtifacts,
+  };
+}
+
+/**
+ * Applies an approved cleanup plan after rechecking for drift against the fresh protected set (D-14).
+ * If any drift or unexpected protection is detected, zero deletions are performed.
+ */
+export async function applyReleaseCleanupPlan(
+  options: ApplyReleaseCleanupPlanOptions,
+): Promise<ReleaseCleanupApplyResult> {
+  const stateRoot = resolve(options.stateRoot);
+  const plan = options.plan;
+
+  // 1. Verify plan digest against canonical payload
+  const expectedDigest = computeDigest(canonical({
+    protectedArtifacts: plan.protectedArtifacts,
+    removableArtifacts: plan.removableArtifacts,
+  }));
+
+  if (plan.planDigest !== expectedDigest) {
+    return {
+      applied: false,
+      deletedCount: 0,
+      deletedPaths: [],
+      skippedPaths: plan.removableArtifacts.map((a) => a.path),
+      driftDetected: true,
+      message: "Cleanup plan digest mismatch or corruption. Zero deletions performed.",
+    };
+  }
+
+  // 2. Recheck fresh protected artifacts set (D-14)
+  const freshProtected = await deriveProtectedReleaseArtifacts({ stateRoot });
+  const protectedDrifted = canonical(freshProtected) !== canonical(plan.protectedArtifacts);
+
+  if (protectedDrifted) {
+    return {
+      applied: false,
+      deletedCount: 0,
+      deletedPaths: [],
+      skippedPaths: plan.removableArtifacts.map((a) => a.path),
+      driftDetected: true,
+      message: "Protected release artifacts set drifted since preview. Zero deletions performed.",
+    };
+  }
+
+  // 3. Ensure none of the removable artifacts are in freshProtected
+  for (const item of plan.removableArtifacts) {
+    const itemPath = resolve(item.path);
+    const nowProtected = freshProtected.some((p) => {
+      const resolvedP = resolve(p);
+      return itemPath === resolvedP || itemPath.endsWith(p) || itemPath.includes(p);
+    });
+    if (nowProtected) {
+      return {
+        applied: false,
+        deletedCount: 0,
+        deletedPaths: [],
+        skippedPaths: plan.removableArtifacts.map((a) => a.path),
+        driftDetected: true,
+        message: `Removable artifact '${item.path}' became protected since preview. Zero deletions performed.`,
+      };
+    }
+  }
+
+  // 4. Perform deletions
+  const deletedPaths: string[] = [];
+  const skippedPaths: string[] = [];
+
+  for (const item of plan.removableArtifacts) {
+    const targetPath = resolve(item.path);
+    try {
+      await unlink(targetPath);
+      deletedPaths.push(item.path);
+    } catch (err: unknown) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === "ENOENT") {
+        // File already removed (idempotent replay)
+        skippedPaths.push(item.path);
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  return {
+    applied: true,
+    deletedCount: deletedPaths.length,
+    deletedPaths,
+    skippedPaths,
+    driftDetected: false,
+    message: `Successfully cleaned up ${deletedPaths.length} unreferenced release artifact(s).`,
+  };
 }

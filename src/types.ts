@@ -1051,7 +1051,8 @@ export type ReleaseResolutionFailureCode =
   | "discovery-failed"
   | "signature-verification-failed"
   | "checksum-mismatch"
-  | "absent-tool-in-update";
+  | "absent-tool-in-update"
+  | "interrupted-operation";
 
 export type ToolReleaseAction =
   | "install"
@@ -1469,6 +1470,86 @@ export interface BatchRecoveryResult {
   readonly nextCommand?: string;
   readonly message: string;
 }
+
+export interface InterruptedOperationSummary {
+  readonly operationId: string;
+  readonly toolId: ManagedToolId;
+  readonly status: string;
+  readonly canResume: boolean;
+  readonly canRecover: boolean;
+  readonly canCancel: boolean;
+  readonly nextCommand: string;
+  readonly observedIdentity: {
+    readonly version: string | null;
+    readonly installationId: string | null;
+  };
+  readonly scopeAuthorized: boolean;
+  readonly recoveryResult?: BatchRecoveryResult;
+}
+
+export interface ReconcileInterruptedResult {
+  readonly ok: boolean;
+  readonly blocked: boolean;
+  readonly interruptedOperations: readonly InterruptedOperationSummary[];
+  readonly advice?: string;
+  readonly nextCommand?: string;
+}
+
+export interface ResumeReleaseOperationResult {
+  readonly operationId: string;
+  readonly toolId: ManagedToolId;
+  readonly resumed: boolean;
+  readonly status: ReleaseApplyStatus;
+  readonly activeIdentity?: Record<string, string | null>;
+  readonly attemptedIdentity?: Record<string, string | null>;
+  readonly reusedTiers?: readonly string[];
+  readonly recheckedTiers?: readonly string[];
+  readonly nextCommand?: string;
+  readonly message: string;
+}
+
+export interface CancelReleaseOperationResult {
+  readonly operationId: string;
+  readonly cancelled: boolean;
+  readonly alreadyTerminal?: boolean;
+  readonly idempotent?: boolean;
+  readonly toolId: ManagedToolId;
+  readonly message: string;
+}
+
+export interface RecoverReleaseOperationResult {
+  readonly operationId: string;
+  readonly recovered: boolean;
+  readonly alreadyTerminal?: boolean;
+  readonly idempotent?: boolean;
+  readonly batchResult: BatchRecoveryResult;
+  readonly message: string;
+}
+
+export interface RemovableArtifactDetail {
+  readonly path: string;
+  readonly digest: string;
+  readonly sizeBytes: number;
+  readonly toolId?: ManagedToolId;
+  readonly recoveryImpact: string;
+}
+
+export interface ReleaseCleanupPlan {
+  readonly planDigest: string;
+  readonly reviewedToken: string;
+  readonly protectedArtifacts: readonly string[];
+  readonly removableArtifacts: readonly RemovableArtifactDetail[];
+}
+
+export interface ReleaseCleanupApplyResult {
+  readonly applied: boolean;
+  readonly deletedCount: number;
+  readonly deletedPaths: readonly string[];
+  readonly skippedPaths: readonly string[];
+  readonly driftDetected: boolean;
+  readonly message: string;
+}
+
 
 
 

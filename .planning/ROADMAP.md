@@ -18,8 +18,8 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 ## Phases
 
 - [x] **Phase 39: Tool Inventory and Local Release Records** — shared ownership and exact identity for all managed tools. (completed 2026-11-07)
-- [ ] **Phase 40: Local Official Release Updates** — source-aware npm/Cua discovery and exact reviewed updates.
-- [ ] **Phase 41: Minimal Compatibility Adapters** — reduce upstream transformations with verified explicit adapters.
+- [x] **Phase 40: Local Official Release Updates** — source-aware npm/Cua discovery and exact reviewed updates. (completed 2026-11-08)
+- [x] **Phase 41: Minimal Compatibility Adapters** — reduce upstream transformations with verified explicit adapters. (completed 2026-11-09)
 - [ ] **Phase 42: Integration Verification and Recovery** — real integration evidence and native-effect recovery.
 - [ ] **Phase 43: Migration and Consistent Guidance** — migrate old consumers and expose consistent operation/results.
 
@@ -92,13 +92,13 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. Before a rewrite is replaced by separate alpha-AOS guidance, supported native discovery/precedence and intended tool invocation are demonstrated; duplicate or ineffective guidance cannot count as completed migration.
 4. An upstream-resolved correction can be retired with selected-release behavior evidence and a retained retirement reason; necessary corrections are not removed on a guessed version threshold, and runtime AI rewriting is absent.
 
-**Plans:** 2 plans
+**Plans:** 2/2 plans complete; executed and verified on 2026-11-09.
 
 **Wave 1**
-- [ ] 41-01-PLAN.md — Authoritative compatibility adapter registry (`compatibility-adapters.ts`), global `alpha-aos-research-routing` deployment & 3-stage guidance gate, minimal structural ECC adapters, and GSD Codex Stop hook relative closure & pure-fixture retirement.
+- [x] 41-01-PLAN.md — Authoritative compatibility adapter registry (`compatibility-adapters.ts`), global `alpha-aos-research-routing` deployment & 3-stage guidance gate, minimal structural ECC adapters, and GSD Codex Stop hook relative closure & pure-fixture retirement.
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 41-02-PLAN.md — Local derived output hash binding in `update.ts`, `tool-records` adapter evidence persistence, and `inventory` (`--detail`/`--tool`) & `install`/`update` preview adapter metadata surfaces.
+- [x] 41-02-PLAN.md — Local derived output hash binding in `update.ts`, `tool-records` adapter evidence persistence, and `inventory` (`--detail`/`--tool`) & `install`/`update` preview adapter metadata surfaces.
 
 ### Phase 42: Integration Verification and Recovery
 
@@ -133,8 +133,8 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 | Phase | Plans complete | Status | Completed |
 |---|---|---|---|
 | 39. Tool Inventory and Local Release Records | 5/5 | Complete    | 2026-11-07 |
-| 40. Local Official Release Updates | 0/2 | In Progress | - |
-| 41. Minimal Compatibility Adapters | 0/TBD | Not started | - |
+| 40. Local Official Release Updates | 4/4 | Complete    | 2026-11-08 |
+| 41. Minimal Compatibility Adapters | 2/2 | Complete    | 2026-11-09 |
 | 42. Integration Verification and Recovery | 0/TBD | Not started | - |
 | 43. Migration and Consistent Guidance | 0/TBD | Not started | - |
 

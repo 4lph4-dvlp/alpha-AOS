@@ -4,6 +4,10 @@ import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
+import {
+  evaluateAntigravityDocLookupAdapter,
+  evaluateDeepResearchRoutingAdapter,
+} from "./compatibility-adapters.js";
 import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
 import { redactHome } from "./paths.js";
@@ -85,46 +89,14 @@ export async function readEccSkillSource(sourceRoot: string, skill: PackSkillId)
 
 export function renderEccSkill(skill: PackSkillId, source: string, harness?: HarnessId): string {
   if (skill === "documentation-lookup" && harness === "antigravity") {
-    const description = "description: Use up-to-date library and framework docs via Context7 MCP instead of training data. In Antigravity, use the surface's native Context7 MCP route and never substitute native web search. Activates for setup questions, API references, code examples, or named frameworks.";
-    let rendered = source.replace(/^description:.*$/mu, description);
-    if (rendered === source) throw new Error("documentation-lookup source no longer contains the expected description");
-    const heading = "# Documentation Lookup (Context7)\n\n";
-    const routing = "## Antigravity GUI/IDE Routing\n\n- In Antigravity GUI, call the namespaced MCP tools `context7/resolve-library-id` and, when documentation content is needed, `context7/query-docs`.\n- In Antigravity IDE, invoke the generic `call_mcp_tool` gateway. Resolve with `ServerName: \"context7\"`, `ToolName: \"resolve-library-id\"`, and `Arguments: { libraryName, query }`. When documentation content is needed, invoke the same gateway with `ToolName: \"query-docs\"` and `Arguments: { libraryId, query }`. Reading a JSON tool descriptor does not execute the MCP tool.\n\nDo not replace a required Context7 call with native web search. If the native Context7 route is unavailable, report that Context7 is unavailable and stop instead of searching the web for a guessed library ID.\n\n";
-    if (!rendered.includes(heading)) throw new Error("documentation-lookup source no longer contains the expected title");
-    rendered = rendered.replace(heading, `${heading}${routing}`);
-    return rendered;
+    const evaluation = evaluateAntigravityDocLookupAdapter(source);
+    return evaluation.renderedContent ?? source;
   }
-  if (skill !== "deep-research") return source;
-  function replaceRequired(value: string, pattern: RegExp, replacement: string, section: string): string {
-    const next = value.replace(pattern, replacement);
-    if (next === value) throw new Error(`deep-research source no longer contains the expected ${section} section`);
-    return next;
+  if (skill === "deep-research") {
+    const evaluation = evaluateDeepResearchRoutingAdapter(source, { harness });
+    return evaluation.renderedContent ?? source;
   }
-  let rendered = replaceRequired(
-    source,
-    /## MCP Requirements[\s\S]*?(?=## Workflow)/u,
-    `## MCP Requirements\n\nThis alpha-AOS rendering uses both configured MCP roles:\n\n- **exa** — \`web_search_exa\` owns web discovery and source URL collection.\n- **firecrawl** — \`firecrawl_scrape\` owns full-text extraction for known URLs. \`firecrawl_map\`, \`firecrawl_crawl\`, and \`firecrawl_check_crawl_status\` are available only for an explicitly bounded site task after capability and credential checks.\n\nUse only these configured tool names. Default research must remain search plus single-page scrape; never start a site crawl merely because a deep-research skill activated.\n\n`,
-    "MCP Requirements",
-  );
-  rendered = replaceRequired(
-    rendered,
-    /### Step 3: Execute Multi-Source Search[\s\S]*?(?=### Step 4: Deep-Read Key Sources)/u,
-    `### Step 3: Execute Multi-Source Search\n\nFor each sub-question, discover sources with Exa:\n\n\`\`\`text\nweb_search_exa(query: "<sub-question keywords>", numResults: 8)\n\`\`\`\n\nUse 2-3 focused query variations where needed, deduplicate URLs, and aim for 15-30 relevant sources across the whole report. Prefer academic, official, and primary sources, followed by reputable reporting. Do not send secrets or private repository content in search queries.\n\n`,
-    "Step 3 search",
-  );
-  rendered = replaceRequired(
-    rendered,
-    /### Step 4: Deep-Read Key Sources[\s\S]*?(?=### Step 5: Synthesize and Write Report)/u,
-    `### Step 4: Deep-Read Key Sources\n\nFetch the most important known URLs with Firecrawl:\n\n\`\`\`text\nfirecrawl_scrape(url: "<url>", formats: ["markdown"])\n\`\`\`\n\nRead 3-5 key sources in full instead of relying on snippets. Use map or crawl only when the user requested a bounded site-level task, the relevant Firecrawl capability and credential are available, and the scope and limit are explicit. Poll an initiated crawl with \`firecrawl_check_crawl_status\`; do not start autonomous or unbounded crawling.\n\n`,
-    "Step 4 deep-read",
-  );
-  rendered = replaceRequired(
-    rendered,
-    /## Parallel Research with Subagents[\s\S]*?(?=## Quality Rules)/u,
-    `## Parallel Research With Native Harness Capabilities\n\nFor broad topics, use the current harness's native subagent or parallel-work capability when available. Assign non-overlapping research sub-questions, require each worker to return source URLs and evidence, and let one controller synthesize the report. If the harness has no isolated worker capability, execute the sub-questions sequentially. Do not nest this research parallelism inside a GSD execution wave.\n\n`,
-    "parallel research",
-  );
-  return rendered;
+  return source;
 }
 
 /**

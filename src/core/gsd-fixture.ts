@@ -6,7 +6,7 @@ import { isAbsolute, join, relative, resolve } from "node:path";
 import type { HarnessId, LockedPackage } from "../types.js";
 import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
-import { applyCodexGsdHookCompatibility, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
+import { applyCodexGsdHookCompatibility, inspectPureUpstreamCodexStopHook, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
 import {
@@ -43,6 +43,7 @@ export interface GsdFixtureResult {
   skillCount: number;
   globalSentinelsUnchanged: boolean;
   codexStopHookSmokePassed: boolean | null;
+  codexStopHookResolution?: "applied" | "resolved-upstream" | null;
   retainedFixture: string | null;
 }
 
@@ -254,19 +255,27 @@ export async function runGsdFixture(options: {
     });
     if (command.code !== "ok") throw new Error(describeProcessFailure("GSD fixture install", command));
     let codexStopHookSmokePassed: boolean | null = null;
+    let codexStopHookResolution: "applied" | "resolved-upstream" | null = null;
     if (options.harness === "codex") {
-      await applyCodexGsdHookCompatibility({
-        schemaVersion: 1,
-        channel: "stable",
-        generatedAt: null,
-        components: { gsd: options.gsd },
-      }, {
-        // A throwaway state root of its own: one session owns one state root,
-        // and this is not the user's.
-        configRoot: spec.configRoot,
-        stateRoot: reviewed.fixtureStateRoot,
-      });
-      codexStopHookSmokePassed = (await smokeTestCodexGsdStopHook(spec.configRoot)).ok;
+      const pureInspection = await inspectPureUpstreamCodexStopHook(spec.configRoot, options.gsd.version);
+      if (pureInspection.resolution === "resolved-upstream") {
+        codexStopHookSmokePassed = pureInspection.smoke.ok;
+        codexStopHookResolution = "resolved-upstream";
+      } else {
+        await applyCodexGsdHookCompatibility({
+          schemaVersion: 1,
+          channel: "stable",
+          generatedAt: null,
+          components: { gsd: options.gsd },
+        }, {
+          // A throwaway state root of its own: one session owns one state root,
+          // and this is not the user's.
+          configRoot: spec.configRoot,
+          stateRoot: reviewed.fixtureStateRoot,
+        });
+        codexStopHookSmokePassed = (await smokeTestCodexGsdStopHook(spec.configRoot)).ok;
+        codexStopHookResolution = "applied";
+      }
       if (!codexStopHookSmokePassed) throw new Error("GSD fixture Codex Stop hook smoke test failed");
     }
     const after = await Promise.all(sentinels.map(hashTree));
@@ -287,6 +296,7 @@ export async function runGsdFixture(options: {
       skillCount,
       globalSentinelsUnchanged: unchanged,
       codexStopHookSmokePassed,
+      codexStopHookResolution,
       retainedFixture: retain ? fixtureRoot : null,
     };
   } finally {

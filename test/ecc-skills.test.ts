@@ -280,3 +280,32 @@ test("a grown ECC lock does not grow the global skill sync", async (context) => 
   assert.equal(plan.entries.length, 3, "widening the fixture must never widen the global sync");
   assert.deepEqual(plan.entries.map((entry) => entry.skill), [...SKILLS]);
 });
+
+test("renderEccSkill delegates to compatibility adapters and renders v2 minimal structural adaptations", async () => {
+  const { renderEccSkill } = await import("../src/core/ecc-fixture.js");
+
+  // Deep research upstream mock
+  const upstreamDeepResearch = [
+    "---",
+    "name: deep-research",
+    "description: deep research skill",
+    "---",
+    "",
+    "## Quick Start",
+    "Call firecrawl_search and crawling_exa for broad discovery.",
+    "Then use web_search_advanced_exa for targeted deep fetches.",
+  ].join("\n");
+
+  const rendered = renderEccSkill("deep-research", upstreamDeepResearch, "codex");
+  assert.ok(rendered.includes("<!-- alpha-aos-adapter:ecc:deep-research-routing:v2:start -->"));
+  assert.ok(!rendered.includes("firecrawl_search"));
+  assert.ok(!rendered.includes("web_search_advanced_exa"));
+  assert.ok(!rendered.includes("crawling_exa"));
+  assert.ok(rendered.includes("firecrawl_scrape"));
+  assert.ok(rendered.includes("web_search_exa"));
+
+  // Check that ecc-fixture.ts source code no longer contains 4-section regex replacements
+  const eccFixtureSource = await readFile(join(packageRoot(), "src", "core", "ecc-fixture.ts"), "utf8");
+  assert.ok(!eccFixtureSource.includes("## MCP Requirements"));
+  assert.ok(!eccFixtureSource.includes("replaceRequired"));
+});

@@ -7,9 +7,13 @@ import test from "node:test";
 import { ComponentPlanError } from "../src/core/component-session.js";
 import {
   applyCodexGsdHookCompatibility,
+  discoverCodexHookHelperClosure,
+  extractLocalHookSpecifiers,
+  inspectPureUpstreamCodexStopHook,
   planCodexGsdHookCompatibility,
   planCodexGsdHookCompatibilityOperation,
   smokeTestCodexGsdStopHook,
+  stripJsComments,
 } from "../src/core/gsd-compat.js";
 import { acquireMutationSession, inspectWriterState, writerLockPath } from "../src/core/writer-lock.js";
 import type { StackLock } from "../src/types.js";
@@ -89,7 +93,7 @@ test("the reviewed plan names every path role, source hash and declared child be
   for (const role of ["target", "state", "journal", "snapshot", "source", "package-root"] as const) {
     assert.ok(plan.proofs.get(role), `plan must declare the ${role} role`);
   }
-  assert.deepEqual(plan.sources.map((source) => source.file), [...HELPERS]);
+  assert.deepEqual(plan.sources.map((source) => source.file), [...HELPERS].sort());
   assert.equal(plan.sources.every((source) => typeof source.sourceHash === "string"), true, "a supplied source tree is hash-bound at review time");
   assert.equal(plan.sources.every((source) => source.action === "create"), true);
   // A supplied source tree needs no package steps, so none are declared.
@@ -211,4 +215,129 @@ test("an apply whose caller session owns another state root refuses before mutat
 
   assert.equal(destinations(fixture.configRoot).some((path) => existsSync(path)), false);
   assert.equal(existsSync(writerLockPath(fixture.stateRoot)), false);
+});
+
+test("stripJsComments removes block and line comments while preserving strings", () => {
+  const code = [
+    "// single comment",
+    "/* multi",
+    "   comment */",
+    "const a = 'hello // not a comment';",
+    "const b = `world /* not a comment */`;",
+    "require('./lib/real.js'); // inline comment",
+  ].join("\n");
+
+  const stripped = stripJsComments(code);
+  assert.ok(!stripped.includes("single comment"));
+  assert.ok(!stripped.includes("multi"));
+  assert.ok(stripped.includes("hello // not a comment"));
+  assert.ok(stripped.includes("world /* not a comment */"));
+  assert.ok(stripped.includes("require('./lib/real.js')"));
+});
+
+test("extractLocalHookSpecifiers extracts literals and rejects dynamic or escaping require", () => {
+  const valid = [
+    "const a = require('./lib/hook-exit.js');",
+    "import { b } from './lib/cli-exit.js';",
+    "const external = require('external-pkg');",
+  ].join("\n");
+  const extracted = extractLocalHookSpecifiers(valid, "valid.js");
+  assert.deepEqual(extracted, ["./lib/hook-exit.js", "./lib/cli-exit.js"]);
+
+  // Dynamic require must throw ComponentPlanError
+  const dynamicRequire = "const a = require('./lib/' + dynamicName);";
+  assert.throws(
+    () => extractLocalHookSpecifiers(dynamicRequire, "dynamic.js"),
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError);
+      assert.equal(err.code, "plan-incomplete");
+      return true;
+    },
+  );
+
+  // Escaping relative path must throw ComponentPlanError
+  const escapingRequire = "const a = require('./lib/../../escape.js');";
+  assert.throws(
+    () => extractLocalHookSpecifiers(escapingRequire, "escape.js"),
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError);
+      assert.equal(err.code, "plan-incomplete");
+      return true;
+    },
+  );
+});
+
+test("discoverCodexHookHelperClosure traverses helper dependency graph and validates bounds", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-closure-test-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  const hooksDir = join(root, "hooks");
+  const hooksLibDir = join(hooksDir, "lib");
+  await mkdir(hooksLibDir, { recursive: true });
+
+  const monitorPath = join(hooksDir, "gsd-context-monitor.js");
+  await writeFile(monitorPath, "const { allow } = require('./lib/main-helper.js');\n");
+  await writeFile(join(hooksLibDir, "main-helper.js"), "require('./sub-helper.js');\n");
+  await writeFile(join(hooksLibDir, "sub-helper.js"), "// leaf\n");
+
+  const closure = await discoverCodexHookHelperClosure({
+    monitorPath,
+    upstreamHooksLibRoot: hooksLibDir,
+    installedHooksLibRoot: hooksLibDir,
+  });
+
+  assert.equal(closure.required, true);
+  assert.deepEqual(closure.helpers, ["main-helper.js", "sub-helper.js"]);
+  assert.deepEqual(closure.missingInInstalled, []);
+
+  // When referenced helper does not exist upstream, it must throw ComponentPlanError
+  await writeFile(join(hooksLibDir, "main-helper.js"), "require('./missing-helper.js');\n");
+  await assert.rejects(
+    () => discoverCodexHookHelperClosure({
+      monitorPath,
+      upstreamHooksLibRoot: hooksLibDir,
+      installedHooksLibRoot: hooksLibDir,
+    }),
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError);
+      assert.equal(err.code, "plan-incomplete");
+      return true;
+    },
+  );
+});
+
+test("inspectPureUpstreamCodexStopHook detects resolved-upstream when all helpers exist and smoke passes", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "alpha-aos-pure-upstream-test-"));
+  context.after(async () => rm(root, { recursive: true, force: true }));
+
+  const hooksDir = join(root, "hooks");
+  const hooksLibDir = join(hooksDir, "lib");
+  await mkdir(hooksLibDir, { recursive: true });
+
+  const monitorPath = join(hooksDir, "gsd-context-monitor.js");
+  await writeFile(monitorPath, [
+    "const { allow } = require('./lib/hook-exit.js');",
+    "process.stdin.resume();",
+    "process.stdin.on('end', () => allow(undefined));",
+    "",
+  ].join("\n"));
+
+  // Before helpers are present: active, resolution: applied
+  const before = await inspectPureUpstreamCodexStopHook(root, "1.13.0");
+  assert.equal(before.status, "active");
+  assert.equal(before.resolution, "applied");
+  assert.ok(before.missingHelpers.length > 0);
+
+  // Provide native upstream helpers
+  await writeFile(join(hooksLibDir, "hook-exit.js"), "const { terminateNow } = require('./cli-exit.js');\nmodule.exports = { allow: (value) => terminateNow(value) };\n");
+  await writeFile(join(hooksLibDir, "cli-exit.js"), "require('./exit-code-registry.js');\nmodule.exports = { terminateNow: () => process.exit(0) };\n");
+  await writeFile(join(hooksLibDir, "exit-code-registry.js"), "module.exports = {};\n");
+
+  const after = await inspectPureUpstreamCodexStopHook(root, "1.13.0");
+  assert.equal(after.status, "retired");
+  assert.equal(after.resolution, "resolved-upstream");
+  assert.deepEqual(after.missingHelpers, []);
+  assert.equal(after.smoke.ok, true);
+  assert.ok(after.retirement);
+  assert.equal(after.retirement.verifiedRelease, "1.13.0");
 });

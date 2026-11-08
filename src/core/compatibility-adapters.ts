@@ -393,8 +393,7 @@ export function evaluateDeepResearchRoutingAdapter(
   // 2. Preconditions check (D-08, D-13)
   if (
     !source.startsWith("---\n") ||
-    !source.includes("name: deep-research") ||
-    !source.includes("description:")
+    !source.includes("name: deep-research")
   ) {
     throw new ComponentPlanError(
       "plan-incomplete",

@@ -47,6 +47,10 @@ components:
     rolloutOrder: [context7, exa, firecrawl]
     targets: [claude, codex, antigravity, pi, hermes]
   ownedSkills:
+    - id: alpha-aos-research-routing
+      source: skills/alpha-aos-research-routing/SKILL.md
+      targets: [claude, codex, antigravity, pi, hermes]
+      invocation: automatic
     - id: computer-use
       source: skills/computer-use/SKILL.md
       targets: [claude, codex, antigravity, pi, hermes]

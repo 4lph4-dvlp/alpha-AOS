@@ -13,7 +13,7 @@ const harnesses: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"
 const sources = {
   "unified-memory": "---\nname: unified-memory\n---\n# Synthetic memory skill\n",
   "documentation-lookup": "---\nname: documentation-lookup\ndescription: Synthetic documentation skill\n---\n# Documentation Lookup (Context7)\n\nFixture.\n",
-  "deep-research": "---\nname: deep-research\n---\n## MCP Requirements\nFixture.\n## Workflow\n### Step 3: Execute Multi-Source Search\nFixture.\n### Step 4: Deep-Read Key Sources\nFixture.\n### Step 5: Synthesize and Write Report\nFixture.\n## Parallel Research with Subagents\nFixture.\n## Quality Rules\nFixture.\n",
+  "deep-research": "---\nname: deep-research\ndescription: Synthetic deep research skill\n---\n## MCP Requirements\nFixture.\n## Workflow\n### Step 3: Execute Multi-Source Search\nFixture.\n### Step 4: Deep-Read Key Sources\nFixture.\n### Step 5: Synthesize and Write Report\nFixture.\n## Parallel Research with Subagents\nFixture.\n## Quality Rules\nFixture.\n",
 };
 
 /** Real npm and production integrity/render/sync paths, with local package and MCP fixtures. */

@@ -72,16 +72,16 @@
         "documentation-lookup": {
           "claude": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
           "codex": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
-          "antigravity": "93c880e4c6b18e508d8a9c79e08e192a9d3d1bbf5885f0b855d0243fc20e7143",
+          "antigravity": "20c74315bc23c69293e728251f5a41d0ed799b6b3f9d26b0ff2490d552aefd2c",
           "pi": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1",
           "hermes": "81ad2b5b4acbe02259f4b6cbfd9111d81d5cfe51025051b6048959c45f6516c1"
         },
         "deep-research": {
-          "claude": "4e976b0fa3dc41a1947cd26cf3b565e936a3e33834a442eaa4649126ce525351",
-          "codex": "4e976b0fa3dc41a1947cd26cf3b565e936a3e33834a442eaa4649126ce525351",
-          "antigravity": "4e976b0fa3dc41a1947cd26cf3b565e936a3e33834a442eaa4649126ce525351",
-          "pi": "4e976b0fa3dc41a1947cd26cf3b565e936a3e33834a442eaa4649126ce525351",
-          "hermes": "4e976b0fa3dc41a1947cd26cf3b565e936a3e33834a442eaa4649126ce525351"
+          "claude": "37c68241818bf5e27da6d50754d03c51841c4f2dda90e8e1c67ced8ad781a91a",
+          "codex": "37c68241818bf5e27da6d50754d03c51841c4f2dda90e8e1c67ced8ad781a91a",
+          "antigravity": "37c68241818bf5e27da6d50754d03c51841c4f2dda90e8e1c67ced8ad781a91a",
+          "pi": "37c68241818bf5e27da6d50754d03c51841c4f2dda90e8e1c67ced8ad781a91a",
+          "hermes": "37c68241818bf5e27da6d50754d03c51841c4f2dda90e8e1c67ced8ad781a91a"
         }
       }
     },
@@ -110,6 +110,16 @@
       }
     },
     "ownedSkills": {
+      "alpha-aos-research-routing": {
+        "sourceSha256": "e1c06071e95c957aa44f8af687edf679053b6217027c243f02252a5cabeeb1d5",
+        "targetSha256": {
+          "claude": "e1c06071e95c957aa44f8af687edf679053b6217027c243f02252a5cabeeb1d5",
+          "codex": "e1c06071e95c957aa44f8af687edf679053b6217027c243f02252a5cabeeb1d5",
+          "antigravity": "e1c06071e95c957aa44f8af687edf679053b6217027c243f02252a5cabeeb1d5",
+          "pi": "e1c06071e95c957aa44f8af687edf679053b6217027c243f02252a5cabeeb1d5",
+          "hermes": "e1c06071e95c957aa44f8af687edf679053b6217027c243f02252a5cabeeb1d5"
+        }
+      },
       "alpha-aos-ship": {
         "sourceSha256": "0b9d85550717d43ac07d36ba0a6400e49d2e035eb1600f6a73d922345b91947a",
         "targetSha256": {

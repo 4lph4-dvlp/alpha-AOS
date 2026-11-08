@@ -2,12 +2,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
-import { basename, isAbsolute, join, relative, resolve } from "node:path";
-import type { StackLock } from "../types.js";
+import { basename, dirname, isAbsolute, join, relative, resolve } from "node:path";
+import type { AdapterRetirementRecord, RedactedExcerpt, StackLock } from "../types.js";
 import { userStateRoot } from "./paths.js";
 import { resolveNodePackageCli, runProcess, type ProcessSpec } from "./process.js";
 import { describeProcessFailure, nodeRuntimeEnvironment } from "./install.js";
-import type { RedactedExcerpt } from "../types.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
 import {
@@ -25,9 +24,9 @@ import {
 const EMPTY_STREAM_SHA256 = createHash("sha256").update("").digest("hex");
 import { applyFileTransaction, rollbackFileTransaction } from "./transaction.js";
 
-const CODEX_HOOK_HELPERS = ["hook-exit.js", "cli-exit.js", "exit-code-registry.js"] as const;
+export const CODEX_HOOK_HELPERS = ["hook-exit.js", "cli-exit.js", "exit-code-registry.js"] as const;
 
-type CodexHookHelper = typeof CODEX_HOOK_HELPERS[number];
+export type CodexHookHelper = typeof CODEX_HOOK_HELPERS[number] | (string & {});
 
 export interface CodexGsdHookCompatibilityPlan {
   configRoot: string;
@@ -75,16 +74,228 @@ function hookLibraryRoot(configRoot: string): string {
   return join(resolve(configRoot), "hooks", "lib");
 }
 
-export async function planCodexGsdHookCompatibility(configRoot = codexConfigRoot()): Promise<CodexGsdHookCompatibilityPlan> {
+/** Strips single-line and multi-line JS comments while preserving string literals. */
+export function stripJsComments(source: string): string {
+  return source.replace(/(["'`])(?:(?=(\\?))\2[\s\S])*?\1|\/\*[\s\S]*?\*\/|(?:\/\/.*$)/gm, (match) => {
+    if (match.startsWith("/") || match.startsWith("#")) {
+      return "";
+    }
+    return match;
+  });
+}
+
+/**
+ * Extracts static relative require and import specifiers from JS source.
+ * Fails closed with ComponentPlanError("plan-incomplete", ...) if:
+ * - Dynamic non-literal require/import expressions are detected (e.g. require('./lib/' + x)).
+ * - Relative paths attempt directory traversal escape (..) outside bounds.
+ */
+export function extractLocalHookSpecifiers(source: string, originFile: string): string[] {
+  const stripped = stripJsComments(source);
+  const specifiers: string[] = [];
+
+  // Match require(...)
+  const requireRegex = /\brequire\s*\(([\s\S]*?)\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = requireRegex.exec(stripped)) !== null) {
+    const rawArg = match[1]?.trim() ?? "";
+    const literalMatch = /^(['"`])(.*)\1$/.exec(rawArg);
+    if (!literalMatch) {
+      throw new ComponentPlanError(
+        "plan-incomplete",
+        `Dynamic non-literal require detected in ${originFile}: require(${rawArg})`,
+      );
+    }
+    const spec = literalMatch[2];
+    if (spec !== undefined && spec.startsWith(".")) {
+      const normalized = spec.replace(/\\/g, "/");
+      if (normalized.split("/").includes("..")) {
+        throw new ComponentPlanError(
+          "plan-incomplete",
+          `Relative path traversal escape (..) detected in ${originFile}: ${spec}`,
+        );
+      }
+      specifiers.push(spec);
+    }
+  }
+
+  // Match import(...)
+  const dynamicImportRegex = /\bimport\s*\(([\s\S]*?)\)/g;
+  while ((match = dynamicImportRegex.exec(stripped)) !== null) {
+    const rawArg = match[1]?.trim() ?? "";
+    const literalMatch = /^(['"`])(.*)\1$/.exec(rawArg);
+    if (!literalMatch) {
+      throw new ComponentPlanError(
+        "plan-incomplete",
+        `Dynamic non-literal import detected in ${originFile}: import(${rawArg})`,
+      );
+    }
+    const spec = literalMatch[2];
+    if (spec !== undefined && spec.startsWith(".")) {
+      const normalized = spec.replace(/\\/g, "/");
+      if (normalized.split("/").includes("..")) {
+        throw new ComponentPlanError(
+          "plan-incomplete",
+          `Relative path traversal escape (..) detected in ${originFile}: ${spec}`,
+        );
+      }
+      specifiers.push(spec);
+    }
+  }
+
+  // Match static import ... from '...'
+  const staticImportRegex = /\bimport\s+(?:[\w*\s{},]*\s+from\s+)?(['"`])([^'"`]+)\1/g;
+  while ((match = staticImportRegex.exec(stripped)) !== null) {
+    const spec = match[2];
+    if (spec !== undefined && spec.startsWith(".")) {
+      const normalized = spec.replace(/\\/g, "/");
+      if (normalized.split("/").includes("..")) {
+        throw new ComponentPlanError(
+          "plan-incomplete",
+          `Relative path traversal escape (..) detected in ${originFile}: ${spec}`,
+        );
+      }
+      specifiers.push(spec);
+    }
+  }
+
+  return specifiers;
+}
+
+export interface CodexHookHelperClosureOptions {
+  monitorPath: string;
+  upstreamHooksLibRoot?: string | undefined;
+  installedHooksLibRoot?: string | undefined;
+}
+
+export interface CodexHookHelperClosureResult {
+  required: boolean;
+  helpers: string[];
+  missingInInstalled: string[];
+}
+
+/**
+ * Traverses relative module references starting from gsd-context-monitor.js into hooks/lib/.
+ * Fails closed if relative references escape hooks/lib or are missing from the verified upstream package.
+ */
+export async function discoverCodexHookHelperClosure(
+  options: CodexHookHelperClosureOptions,
+): Promise<CodexHookHelperClosureResult> {
+  const { monitorPath, upstreamHooksLibRoot, installedHooksLibRoot } = options;
+  if (!existsSync(monitorPath)) {
+    return { required: false, helpers: [], missingInInstalled: [] };
+  }
+
+  const monitorContent = await readFile(monitorPath, "utf8");
+  const initialSpecs = extractLocalHookSpecifiers(monitorContent, monitorPath);
+  const monitorDir = dirname(resolve(monitorPath));
+  const expectedLibRoot = join(monitorDir, "lib");
+
+  const queue: string[] = [];
+  const discovered = new Set<string>();
+
+  for (const spec of initialSpecs) {
+    const resolved = resolve(monitorDir, spec);
+    if (!inside(expectedLibRoot, resolved)) {
+      throw new ComponentPlanError(
+        "plan-incomplete",
+        `Hook specifier ${spec} resolves outside hooks/lib boundary: ${resolved}`,
+      );
+    }
+    const helperName = relative(expectedLibRoot, resolved).replace(/\\/g, "/");
+    if (!discovered.has(helperName)) {
+      discovered.add(helperName);
+      queue.push(helperName);
+    }
+  }
+
+  while (queue.length > 0) {
+    const currentHelper = queue.shift()!;
+    let currentContent: string | null = null;
+    let currentFile: string | null = null;
+
+    if (upstreamHooksLibRoot) {
+      currentFile = join(upstreamHooksLibRoot, currentHelper);
+      if (!existsSync(currentFile)) {
+        throw new ComponentPlanError(
+          "plan-incomplete",
+          `Referenced Codex hook helper does not exist in upstream package: ${currentHelper}`,
+        );
+      }
+      currentContent = await readFile(currentFile, "utf8");
+    } else if (installedHooksLibRoot) {
+      currentFile = join(installedHooksLibRoot, currentHelper);
+      if (existsSync(currentFile)) {
+        currentContent = await readFile(currentFile, "utf8");
+      }
+    }
+
+    if (currentContent && currentFile) {
+      const helperDir = dirname(resolve(currentFile));
+      const libRootToCheck = upstreamHooksLibRoot ?? installedHooksLibRoot ?? expectedLibRoot;
+      const specs = extractLocalHookSpecifiers(currentContent, currentFile);
+      for (const spec of specs) {
+        const resolved = resolve(helperDir, spec);
+        if (!inside(libRootToCheck, resolved)) {
+          throw new ComponentPlanError(
+            "plan-incomplete",
+            `Helper ${currentHelper} references specifier ${spec} outside hooks/lib boundary: ${resolved}`,
+          );
+        }
+        const childHelper = relative(libRootToCheck, resolved).replace(/\\/g, "/");
+        if (!discovered.has(childHelper)) {
+          discovered.add(childHelper);
+          queue.push(childHelper);
+        }
+      }
+    }
+  }
+
+  const helpers = Array.from(discovered).sort();
+  const missingInInstalled: string[] = [];
+  if (installedHooksLibRoot) {
+    for (const h of helpers) {
+      if (!existsSync(join(installedHooksLibRoot, h))) {
+        missingInInstalled.push(h);
+      }
+    }
+  }
+
+  return {
+    required: helpers.length > 0,
+    helpers,
+    missingInInstalled,
+  };
+}
+
+export async function planCodexGsdHookCompatibility(
+  configRoot = codexConfigRoot(),
+  sourceRoot?: string,
+): Promise<CodexGsdHookCompatibilityPlan> {
   const root = resolve(configRoot);
   const monitor = join(root, "hooks", "gsd-context-monitor.js");
-  const required = existsSync(monitor)
-    && (await readFile(monitor, "utf8")).includes("require('./lib/hook-exit.js')");
+  const installedLibRoot = hookLibraryRoot(root);
+
+  const closure = await discoverCodexHookHelperClosure({
+    monitorPath: monitor,
+    upstreamHooksLibRoot: sourceRoot && existsSync(sourceRoot) ? sourceRoot : undefined,
+    installedHooksLibRoot: installedLibRoot,
+  });
+
+  const helpersSet = new Set(closure.helpers);
+  if (helpersSet.has("hook-exit.js")) {
+    for (const h of CODEX_HOOK_HELPERS) {
+      helpersSet.add(h);
+    }
+  }
+  const helpers = Array.from(helpersSet).sort();
+  const required = existsSync(monitor) && (closure.required || helpers.length > 0);
+
   return {
     configRoot: root,
     monitor,
     required,
-    entries: CODEX_HOOK_HELPERS.map((file) => {
+    entries: helpers.map((file) => {
       const destination = join(root, "hooks", "lib", file);
       return { file, destination, action: existsSync(destination) ? "verify" : "create" };
     }),
@@ -173,7 +384,6 @@ export async function planCodexGsdHookCompatibilityOperation(
   const configRoot = resolve(options.configRoot ?? codexConfigRoot());
   const stateRoot = resolve(options.stateRoot ?? userStateRoot());
   const targetRoot = hookLibraryRoot(configRoot);
-  const compatibility = await planCodexGsdHookCompatibility(configRoot);
 
   const verified = options.verifiedSourceRoot ? resolve(options.verifiedSourceRoot) : null;
   const fixtureRoot = verified
@@ -183,6 +393,15 @@ export async function planCodexGsdHookCompatibilityOperation(
   const extractionRoot = fixtureRoot ? join(fixtureRoot, "extract") : null;
   const packageRoot = verified ?? packageInstallPath(extractionRoot as string, gsd.package);
   const sourceRoot = verified ?? join(packageRoot, "hooks", "lib");
+  const compatibility = await planCodexGsdHookCompatibility(configRoot, sourceRoot);
+
+  if (verified && compatibility.required) {
+    await discoverCodexHookHelperClosure({
+      monitorPath: compatibility.monitor,
+      upstreamHooksLibRoot: sourceRoot,
+      installedHooksLibRoot: targetRoot,
+    });
+  }
 
   const sources: GsdCompatibilitySource[] = [];
   for (const entry of compatibility.entries) {
@@ -363,6 +582,61 @@ function describeSmokeFailure(label: string, smoke: CodexHookSmokeResult): strin
   );
 }
 
+export interface PureUpstreamCodexStopHookInspection {
+  status: "active" | "retired";
+  resolution: "applied" | "resolved-upstream";
+  helpers: string[];
+  missingHelpers: string[];
+  smoke: CodexHookSmokeResult;
+  retirement?: AdapterRetirementRecord;
+}
+
+/**
+ * Inspects pure upstream Codex Stop hook health without applying alpha-AOS compatibility helpers.
+ * If the upstream package contains all required helpers and passes the Stop smoke test,
+ * it is considered resolved-upstream (retired).
+ */
+export async function inspectPureUpstreamCodexStopHook(
+  configRoot: string,
+  verifiedRelease?: string,
+): Promise<PureUpstreamCodexStopHookInspection> {
+  const root = resolve(configRoot);
+  const monitor = join(root, "hooks", "gsd-context-monitor.js");
+  const installedLibRoot = hookLibraryRoot(root);
+
+  const closure = await discoverCodexHookHelperClosure({
+    monitorPath: monitor,
+    installedHooksLibRoot: installedLibRoot,
+  });
+
+  const smoke = await smokeTestCodexGsdStopHook(root);
+
+  // If there are no missing helpers and smoke test passed without alpha-AOS adaptation
+  if (closure.missingInInstalled.length === 0 && smoke.ok) {
+    return {
+      status: "retired",
+      resolution: "resolved-upstream",
+      helpers: closure.helpers,
+      missingHelpers: [],
+      smoke,
+      retirement: {
+        retirementReason: "Upstream GSD includes required Codex hook helpers in native package",
+        verifiedRelease: verifiedRelease ?? "resolved-upstream",
+        verificationMethod: "smokeTestCodexGsdStopHook on pure upstream installation",
+        evidenceSummary: "Pure upstream hook execution succeeded without compatibility helper copying",
+      },
+    };
+  }
+
+  return {
+    status: "active",
+    resolution: "applied",
+    helpers: closure.helpers,
+    missingHelpers: closure.missingInInstalled,
+    smoke,
+  };
+}
+
 /** Materializes the precomputed fixture root, refusing a squatted location. */
 async function createFixtureRoot(plan: GsdCompatibilityOperationPlan, root: string): Promise<void> {
   await assertUnchangedSincePlan(plan, plannedProof(plan, "temp", root));
@@ -430,6 +704,43 @@ export async function applyCodexGsdHookCompatibility(lock: StackLock, options: G
   assertPlanUnchanged(reviewed, revalidated);
 
   if (reviewed.sources.every((source) => source.action === "current")) {
+    const smoke = await smokeTestCodexGsdStopHook(reviewed.configRoot);
+    if (!smoke.ok) throw new Error(describeSmokeFailure("Codex GSD Stop hook smoke test", smoke));
+    return { operationId: null, plan: reviewed.compatibility, digest: reviewed.digest };
+  }
+
+  // If pure upstream has already resolved the hook natively without compatibility adaptation
+  const pureInspection = await inspectPureUpstreamCodexStopHook(reviewed.configRoot, lock.components.gsd?.version);
+  if (pureInspection.resolution === "resolved-upstream") {
+    const targetRoot = hookLibraryRoot(reviewed.configRoot);
+    if (existsSync(targetRoot) && reviewed.fixtureRoot === null && options.verifiedSourceRoot) {
+      const sourceRoot = resolve(options.verifiedSourceRoot);
+      const existingInLib = (await readdir(targetRoot, { withFileTypes: true }))
+        .filter((e) => e.isFile())
+        .map((e) => e.name);
+      const obsolete = existingInLib.filter((f) => !existsSync(join(sourceRoot, f)) && (CODEX_HOOK_HELPERS as readonly string[]).includes(f));
+      if (obsolete.length > 0) {
+        return withComponentSession(reviewed, options.session, async (session) => {
+          const operations = obsolete.map((f) => ({ target: join(targetRoot, f), content: null }));
+          const journal = await applyFileTransaction({
+            stateRoot: reviewed.stateRoot,
+            allowedRoots: [targetRoot],
+            operations,
+            session,
+          });
+          const smoke = await smokeTestCodexGsdStopHook(reviewed.configRoot);
+          if (!smoke.ok) {
+            await rollbackFileTransaction(reviewed.stateRoot, journal.id, [targetRoot]);
+            throw new Error(describeSmokeFailure("Codex GSD Stop hook smoke test after helper cleanup", smoke));
+          }
+          return {
+            operationId: journal.id,
+            plan: await planCodexGsdHookCompatibility(reviewed.configRoot),
+            digest: reviewed.digest,
+          };
+        });
+      }
+    }
     const smoke = await smokeTestCodexGsdStopHook(reviewed.configRoot);
     if (!smoke.ok) throw new Error(describeSmokeFailure("Codex GSD Stop hook smoke test", smoke));
     return { operationId: null, plan: reviewed.compatibility, digest: reviewed.digest };

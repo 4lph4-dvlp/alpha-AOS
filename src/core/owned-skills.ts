@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, relative, resolve } from "node:path";
-import type { HarnessId, StackCatalog, StackLock } from "../types.js";
+import type { HarnessId, StackCatalog, StackLock, AdapterEvaluationResult } from "../types.js";
+import { evaluateClaudeShipSkillAdapter } from "./compatibility-adapters.js";
 import { hermesHome } from "../adapters/harnesses.js";
 import { userStateRoot } from "./paths.js";
 import { applyFileTransaction } from "./transaction.js";
@@ -29,6 +30,7 @@ export interface OwnedSkillSyncPlan {
   action: "create" | "replace" | "current";
   workflow: string | null;
   workflowFound: boolean;
+  adapterEvaluation?: AdapterEvaluationResult;
 }
 
 function sha256(content: Uint8Array): string {
@@ -110,6 +112,28 @@ export async function planOwnedSkillSync(
   const workflow = locked.upstreamWorkflow
     ? join(customHome ? resolve(customHome) : homedirRootFor(target), locked.upstreamWorkflow)
     : null;
+  const workflowFound = workflow === null ? true : existsSync(workflow);
+
+  let adapterEvaluation: AdapterEvaluationResult | undefined;
+  if (id === "alpha-aos-ship" && target === "claude") {
+    const baseHome = customHome ? resolve(customHome) : homedirRootFor(target);
+    const nativeGsdShipPath = join(baseHome, ".claude", "skills", "gsd-ship", "SKILL.md");
+    const hasNativeGsdShip = existsSync(nativeGsdShipPath);
+    adapterEvaluation = evaluateClaudeShipSkillAdapter({
+      hasNativeGsdShip,
+      hasUpstreamWorkflow: workflowFound,
+    });
+  }
+
+  const action =
+    adapterEvaluation?.status === "retired" && currentHash === null
+      ? "current"
+      : currentHash === expectedHash
+      ? "current"
+      : currentHash === null
+      ? "create"
+      : "replace";
+
   return {
     id,
     target,
@@ -117,9 +141,10 @@ export async function planOwnedSkillSync(
     destination,
     expectedHash,
     currentHash,
-    action: currentHash === expectedHash ? "current" : currentHash === null ? "create" : "replace",
+    action,
     workflow,
-    workflowFound: workflow === null ? true : existsSync(workflow),
+    workflowFound,
+    ...(adapterEvaluation ? { adapterEvaluation } : {}),
   };
 }
 

@@ -1,7 +1,7 @@
 ---
 phase: 40-local-official-release-updates
 verified: 2026-11-08T19:56:00.000Z
-status: passed_with_manual_gate
+status: human_needed
 score: 8/9 UAT checks passed (1 manual gate blocked)
 ---
 

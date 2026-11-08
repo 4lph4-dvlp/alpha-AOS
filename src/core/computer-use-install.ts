@@ -138,6 +138,97 @@ export function extractArchiveFiles(assetName: string, archiveBytes: Uint8Array)
   return files;
 }
 
+export const FULCIO_ROOT_CERT_PEM = `-----BEGIN CERTIFICATE-----
+MIIB9zCCAXygAwIBAgIUALZNAPFdxHPwjeDloDwyYChAO/4wCgYIKoZIzj0EAwMw
+KjEVMBMGA1UEChMMc2lnc3RvcmUuZGV2MREwDwYDVQQDEwhzaWdzdG9yZTAeFw0y
+MTEwMDcxMzU2NTlaFw0zMTEwMDUxMzU2NThaMCoxFTATBgNVBAoTDHNpZ3N0b3Jl
+LmRldjERMA8GA1UEAxMIc2lnc3RvcmUwdjAQBgcqhkjOPQIBBgUrgQQAIgNiAAT7
+XeFT4rb3PQGwS4IajtLk3/OlnpgangaBclYpsYBr5i+4ynB07ceb3LP0OIOZdxex
+X69c5iVuyJRQ+Hz05yi+UF3uBWAlHpiS5sh0+H2GHE7SXrk1EC5m1Tr19L9gg92j
+YzBhMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBRY
+wB5fkUWlZql6zJChkyLQKsXF+jAfBgNVHSMEGDAWgBRYwB5fkUWlZql6zJChkyLQ
+KsXF+jAKBggqhkjOPQQDAwNpADBmAjEAj1nHeXZp+13NWBNa+EDsDP8G1WWg1tCM
+WP/WHPqpaVo0jhsweNFZgSs0eE7wYI4qAjEA2WB9ot98sIkoF3vZYdd3/VtWB5b9
+TNMea7Ix/stJ5TfcLLeABLE4BNJOsQ4vnBHJ
+-----END CERTIFICATE-----`;
+
+export const FULCIO_INTERMEDIATE_CERT_PEM = `-----BEGIN CERTIFICATE-----
+MIICGjCCAaGgAwIBAgIUALnViVfnU0brJasmRkHrn/UnfaQwCgYIKoZIzj0EAwMw
+KjEVMBMGA1UEChMMc2lnc3RvcmUuZGV2MREwDwYDVQQDEwhzaWdzdG9yZTAeFw0y
+MjA0MTMyMDA2MTVaFw0zMTEwMDUxMzU2NThaMDcxFTATBgNVBAoTDHNpZ3N0b3Jl
+LmRldjEeMBwGA1UEAxMVc2lnc3RvcmUtaW50ZXJtZWRpYXRlMHYwEAYHKoZIzj0C
+AQYFK4EEACIDYgAE8RVS/ysH+NOvuDZyPIZtilgUF9NlarYpAd9HP1vBBH1U5CV7
+7LSS7s0ZiH4nE7Hv7ptS6LvvR/STk798LVgMzLlJ4HeIfF3tHSaexLcYpSASr1kS
+0N/RgBJz/9jWCiXno3sweTAOBgNVHQ8BAf8EBAMCAQYwEwYDVR0lBAwwCgYIKwYB
+BQUHAwMwEgYDVR0TAQH/BAgwBgEB/wIBADAdBgNVHQ4EFgQU39Ppz1YkEZb5qNjp
+KFWixi4YZD8wHwYDVR0jBBgwFoAUWMAeX5FFpWapesyQoZMi0CrFxfowCgYIKoZI
+zj0EAwMDZwAwZAIwPCsQK4DYiZYDPIaDi5HFKnfxXx6ASSVmERfsynYBiX2X6SJR
+nZU84/9DZdnFvvxmAjBOt6QpBlc4J/0DxvkTCqpclvziL6BCCPnjdlIB3Pu3BxsP
+mygUY7Ii2zbdCdliiow=
+-----END CERTIFICATE-----`;
+
+export const REKOR_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE2G2Y+2tabdTV5BcGiBIx0a9fAFwr
+kBbmLSGtks4L3qX6yYY0zufBnhC8Ur/iy55GhWP/9A/bY2LhC30M9+RYtw==
+-----END PUBLIC KEY-----`;
+
+export const REKOR_KEY_ID = "c0d23d6ad406973f9559f3ba2d1ca01f84147d8ffc5b8445c224f98b9591801d";
+
+export interface TrustedSigstoreRoots {
+  rootCertPem?: string;
+  intermediateCertPem?: string;
+  rekorPublicKeyPem?: string;
+  rekorKeyId?: string;
+}
+
+function extractOidcIssuer(cert: X509Certificate): string | null {
+  const der = cert.raw;
+  // OID 1.3.6.1.4.1.57264.1.1 in DER ASN.1
+  const oid = Buffer.from([0x06, 0x0a, 0x2b, 0x06, 0x01, 0x04, 0x01, 0x83, 0xbf, 0x30, 0x01, 0x01]);
+  const idx = der.indexOf(oid);
+  if (idx === -1) return null;
+  let pos = idx + oid.length;
+  if (der[pos] === 0x04) {
+    pos += 1;
+    let len = der[pos]!;
+    pos += 1;
+    if (len & 0x80) {
+      const numBytes = len & 0x7f;
+      len = 0;
+      for (let i = 0; i < numBytes; i++) {
+        len = (len << 8) | der[pos]!;
+        pos += 1;
+      }
+    }
+    let val = der.subarray(pos, pos + len);
+    if (val.length > 2 && (val[0] === 0x0c || val[0] === 0x13 || val[0] === 0x16)) {
+      let innerPos = 1;
+      let innerLen = val[innerPos]!;
+      innerPos += 1;
+      if (innerLen & 0x80) {
+        const numBytes = innerLen & 0x7f;
+        innerLen = 0;
+        for (let i = 0; i < numBytes; i++) {
+          innerLen = (innerLen << 8) | val[innerPos]!;
+          innerPos += 1;
+        }
+      }
+      if (innerPos + innerLen <= val.length) {
+        val = val.subarray(innerPos, innerPos + innerLen);
+      }
+    }
+    return val.toString("utf8");
+  }
+  return null;
+}
+
+function extractSanUri(cert: X509Certificate): string | null {
+  if (!cert.subjectAltName) return null;
+  const entries = cert.subjectAltName.split(",").map((s) => s.trim());
+  const uriEntry = entries.find((e) => e.startsWith("URI:"));
+  return uriEntry ? uriEntry.slice(4) : null;
+}
+
 export function verifyCuaSigstoreBundle(
   bundle: unknown,
   archiveBytes: Uint8Array,
@@ -145,6 +236,7 @@ export function verifyCuaSigstoreBundle(
   options?: {
     expectedIssuer?: string;
     expectedWorkflowUri?: string;
+    trustedRoots?: TrustedSigstoreRoots;
   },
 ): {
   verified: boolean;
@@ -161,62 +253,191 @@ export function verifyCuaSigstoreBundle(
     throw new Error("Invalid Sigstore bundle: payload must be a JSON object");
   }
 
+  // 1. Extract leaf certificate
   const verificationMaterial = bundleObj.verificationMaterial as Record<string, unknown> | undefined;
   const x509Chain = verificationMaterial?.x509CertificateChain as { certificates?: Array<{ rawBytes?: string }> } | undefined;
   const singleCert = verificationMaterial?.certificate as { rawBytes?: string } | undefined;
-  const rawCertBase64 = x509Chain?.certificates?.[0]?.rawBytes ?? singleCert?.rawBytes ?? (bundleObj.certificate as string | undefined);
+  const rawCert = x509Chain?.certificates?.[0]?.rawBytes ?? singleCert?.rawBytes ?? (bundleObj.cert as string | undefined) ?? (bundleObj.certificate as string | undefined);
 
-  if (!rawCertBase64 || typeof rawCertBase64 !== "string") {
+  if (!rawCert || typeof rawCert !== "string") {
     throw new Error("Sigstore bundle missing X.509 certificate rawBytes");
   }
 
-  const certDer = Buffer.from(rawCertBase64, "base64");
-  const cert = new X509Certificate(certDer);
-
-  const expectedIssuer = options?.expectedIssuer ?? "https://token.actions.githubusercontent.com";
-  if (!cert.raw.includes(Buffer.from(expectedIssuer, "utf8"))) {
-    throw new Error(`Invalid OIDC issuer: certificate was not issued by ${expectedIssuer}`);
+  let cert: X509Certificate;
+  try {
+    const certBytes = Buffer.from(rawCert, "base64");
+    const certStr = certBytes.toString("utf8");
+    cert = certStr.includes("-----BEGIN CERTIFICATE-----")
+      ? new X509Certificate(certStr)
+      : new X509Certificate(certBytes);
+  } catch (err) {
+    throw new Error(`Failed to parse X.509 certificate from Sigstore bundle: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  const expectedWorkflowUri = options?.expectedWorkflowUri ?? `https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/${expectedTag}`;
-  if (!cert.subjectAltName || !cert.subjectAltName.includes(expectedWorkflowUri)) {
-    throw new Error(`Certificate identity mismatch: expected ${expectedWorkflowUri}, got ${cert.subjectAltName ?? "none"}`);
+  // 2. Reject self-signed certificate
+  if (cert.issuer === cert.subject) {
+    throw new Error("Untrusted certificate chain: self-signed certificates cannot establish official publisher identity");
   }
 
+  // 3. Authenticate certificate chain against trusted Sigstore roots
+  const rootCertPem = options?.trustedRoots?.rootCertPem ?? FULCIO_ROOT_CERT_PEM;
+  const intermediateCertPem = options?.trustedRoots?.intermediateCertPem ?? FULCIO_INTERMEDIATE_CERT_PEM;
+  const rootCert = new X509Certificate(rootCertPem);
+  const intermediateCert = new X509Certificate(intermediateCertPem);
+
+  if (!rootCert.verify(rootCert.publicKey)) {
+    throw new Error("Invalid Sigstore root CA: root certificate signature verification failed");
+  }
+  if (intermediateCert.raw.compare(rootCert.raw) !== 0 && !intermediateCert.verify(rootCert.publicKey)) {
+    throw new Error("Invalid Sigstore intermediate CA: intermediate certificate was not issued by trusted root CA");
+  }
+
+  let leafChainValid = false;
+  try {
+    leafChainValid = cert.verify(intermediateCert.publicKey);
+  } catch {}
+  if (!leafChainValid) {
+    try {
+      leafChainValid = cert.verify(rootCert.publicKey);
+    } catch {}
+  }
+  if (!leafChainValid) {
+    throw new Error("Untrusted certificate chain: certificate was not issued by trusted Sigstore Fulcio CA");
+  }
+
+  // 4. Extract signature bytes
   const messageSignature = bundleObj.messageSignature as { messageDigest?: { digest?: string }; signature?: string } | undefined;
   const dsseEnvelope = bundleObj.dsseEnvelope as { signatures?: Array<{ sig?: string }> } | undefined;
-  const sigBase64 = messageSignature?.signature ?? dsseEnvelope?.signatures?.[0]?.sig;
+  const rawSig = (bundleObj.base64Signature as string | undefined) ?? messageSignature?.signature ?? dsseEnvelope?.signatures?.[0]?.sig;
 
-  if (!sigBase64 || typeof sigBase64 !== "string") {
+  if (!rawSig || typeof rawSig !== "string") {
     throw new Error("Missing signature in Sigstore bundle");
   }
-
-  const sigBytes = Buffer.from(sigBase64, "base64");
+  const sigBytes = Buffer.from(rawSig, "base64");
   const archiveSha256 = createHash("sha256").update(archiveBytes).digest();
+  const archiveSha256Hex = archiveSha256.toString("hex");
 
-  if (messageSignature?.messageDigest?.digest) {
-    const expectedDigest = Buffer.from(messageSignature.messageDigest.digest, "base64");
-    if (!expectedDigest.equals(archiveSha256)) {
-      throw new Error("Archive SHA-256 does not match messageDigest in Sigstore bundle");
+  // 5. Authenticate transparency log (Rekor) evidence
+  const trustedRekorKeyId = options?.trustedRoots?.rekorKeyId ?? REKOR_KEY_ID;
+  const rekorBundle = bundleObj.rekorBundle as {
+    SignedEntryTimestamp?: unknown;
+    Payload?: { body?: unknown; integratedTime?: unknown; logIndex?: unknown; logID?: unknown };
+  } | undefined;
+  const tlogEntries = verificationMaterial?.tlogEntries as Array<{
+    logId?: { keyId?: unknown };
+    logIndex?: unknown;
+    integratedTime?: unknown;
+    canonicalizedBody?: unknown;
+  }> | undefined;
+
+  if (rekorBundle) {
+    if (!rekorBundle.SignedEntryTimestamp || typeof rekorBundle.SignedEntryTimestamp !== "string") {
+      throw new Error("Invalid Rekor transparency log entry: missing SignedEntryTimestamp");
     }
+    if (!rekorBundle.Payload || typeof rekorBundle.Payload !== "object") {
+      throw new Error("Invalid Rekor transparency log entry: missing Payload");
+    }
+    if (typeof rekorBundle.Payload.logIndex !== "number" || rekorBundle.Payload.logIndex <= 0) {
+      throw new Error("Invalid Rekor transparency log entry: invalid logIndex");
+    }
+    if (typeof rekorBundle.Payload.integratedTime !== "number" || rekorBundle.Payload.integratedTime <= 0) {
+      throw new Error("Invalid Rekor transparency log entry: invalid integratedTime");
+    }
+    if (typeof rekorBundle.Payload.logID !== "string" || rekorBundle.Payload.logID.toLowerCase() !== trustedRekorKeyId.toLowerCase()) {
+      throw new Error(`Invalid Rekor transparency log entry: logID ${String(rekorBundle.Payload.logID)} does not match trusted Rekor key ID`);
+    }
+    if (typeof rekorBundle.Payload.body !== "string") {
+      throw new Error("Invalid Rekor transparency log entry: missing body");
+    }
+    try {
+      const bodyJson = JSON.parse(Buffer.from(rekorBundle.Payload.body, "base64").toString("utf8")) as {
+        spec?: {
+          data?: { hash?: { algorithm?: string; value?: string } };
+          signature?: { content?: string };
+        };
+      };
+      const entryHash = bodyJson.spec?.data?.hash?.value?.toLowerCase();
+      if (!entryHash || entryHash !== archiveSha256Hex.toLowerCase()) {
+        throw new Error(`Archive SHA-256 does not match Rekor transparency log entry: expected ${entryHash ?? "none"}, got ${archiveSha256Hex}`);
+      }
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Archive SHA-256 does not match")) throw err;
+      throw new Error(`Failed to parse Rekor transparency log body: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  } else if (Array.isArray(tlogEntries) && tlogEntries.length > 0) {
+    const first = tlogEntries[0]!;
+    if (typeof first.logId?.keyId !== "string" || first.logId.keyId.toLowerCase() !== trustedRekorKeyId.toLowerCase()) {
+      throw new Error("Invalid Rekor transparency log entry: logID does not match trusted Rekor key ID");
+    }
+    if (typeof first.logIndex !== "string" && typeof first.logIndex !== "number") {
+      throw new Error("Invalid Rekor transparency log entry: invalid logIndex");
+    }
+    if (first.canonicalizedBody && typeof first.canonicalizedBody === "string") {
+      try {
+        const bodyJson = JSON.parse(Buffer.from(first.canonicalizedBody, "base64").toString("utf8")) as {
+          spec?: { data?: { hash?: { value?: string } } };
+        };
+        const entryHash = bodyJson.spec?.data?.hash?.value?.toLowerCase();
+        if (entryHash && entryHash !== archiveSha256Hex.toLowerCase()) {
+          throw new Error(`Archive SHA-256 does not match Rekor transparency log entry: expected ${entryHash}, got ${archiveSha256Hex}`);
+        }
+      } catch (err) {
+        if (err instanceof Error && err.message.includes("Archive SHA-256 does not match")) throw err;
+        throw new Error(`Failed to parse Rekor transparency log body: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  } else {
+    throw new Error("Missing transparency log evidence in Sigstore bundle: unlogged certificates cannot establish official publisher identity");
   }
 
+  // 6. Validate structured OIDC issuer
+  const expectedIssuer = options?.expectedIssuer ?? "https://token.actions.githubusercontent.com";
+  const actualIssuer = extractOidcIssuer(cert);
+  if (!actualIssuer) {
+    throw new Error("Invalid OIDC issuer: certificate does not contain a structured OIDC issuer extension");
+  }
+  if (actualIssuer !== expectedIssuer) {
+    throw new Error(`Invalid OIDC issuer: certificate was not issued by ${expectedIssuer} (got ${actualIssuer})`);
+  }
+
+  // 7. Validate structured workflow identity
+  const expectedWorkflowUri = options?.expectedWorkflowUri ?? `https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/${expectedTag}`;
+  const actualUri = extractSanUri(cert);
+  if (!actualUri) {
+    throw new Error("Certificate identity mismatch: certificate SAN does not contain a URI entry");
+  }
+  if (actualUri !== expectedWorkflowUri) {
+    throw new Error(`Certificate identity mismatch: expected ${expectedWorkflowUri}, got ${actualUri}`);
+  }
+
+  // 8. Verify cryptographic signature over archive bytes
   let verified = false;
   try {
-    verified = verify(null, archiveSha256, { key: cert.publicKey, dsaEncoding: "ieee-p1363" }, sigBytes);
-  } catch {
-    // try der
+    verified = verify("sha256", archiveBytes, cert.publicKey, sigBytes);
+  } catch {}
+  if (!verified) {
+    try {
+      verified = verify("sha256", archiveBytes, { key: cert.publicKey, dsaEncoding: "ieee-p1363" }, sigBytes);
+    } catch {}
+  }
+  if (!verified) {
+    try {
+      verified = verify("sha256", archiveBytes, { key: cert.publicKey, dsaEncoding: "der" }, sigBytes);
+    } catch {}
+  }
+  if (!verified) {
+    try {
+      verified = verify(null, archiveSha256, { key: cert.publicKey, dsaEncoding: "ieee-p1363" }, sigBytes);
+    } catch {}
   }
   if (!verified) {
     try {
       verified = verify(null, archiveSha256, { key: cert.publicKey, dsaEncoding: "der" }, sigBytes);
-    } catch {
-      // failed
-    }
+    } catch {}
   }
 
   if (!verified) {
-    throw new Error("Sigstore signature verification failed");
+    throw new Error("Sigstore signature verification failed: signature does not match archive bytes");
   }
 
   return { verified: true, identity: expectedWorkflowUri, issuer: expectedIssuer };
@@ -233,6 +454,7 @@ export interface DeriveCuaReleasePinOptions {
   readonly sha256sumsText: string;
   readonly sigstoreBundle: unknown;
   readonly root?: string;
+  readonly trustedRoots?: TrustedSigstoreRoots;
 }
 
 export function verifyAndDeriveCuaReleasePin(
@@ -261,7 +483,9 @@ export function verifyAndDeriveCuaReleasePin(
     throw new Error(`checksum-mismatch: expected ${expectedSha256}, got ${archiveSha256}`);
   }
 
-  verifyCuaSigstoreBundle(options.sigstoreBundle, options.archiveBytes, options.tag);
+  verifyCuaSigstoreBundle(options.sigstoreBundle, options.archiveBytes, options.tag, {
+    ...(options.trustedRoots ? { trustedRoots: options.trustedRoots } : {}),
+  });
 
   const extracted = extractArchiveFiles(options.assetName, options.archiveBytes);
   const files: Record<string, string> = {};

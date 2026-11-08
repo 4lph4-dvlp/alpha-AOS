@@ -1,20 +1,24 @@
 import assert from "node:assert/strict";
 import { createHash, sign, X509Certificate } from "node:crypto";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { crc32, deflateRawSync, gzipSync } from "node:zlib";
 import {
+  FULCIO_INTERMEDIATE_CERT_PEM,
+  FULCIO_ROOT_CERT_PEM,
+  REKOR_KEY_ID,
   planCuaInstall,
   verifyAndDeriveCuaReleasePin,
   verifyCuaSigstoreBundle,
   verifyOfficialCua,
   type ReviewedCuaReleasePin,
+  type TrustedSigstoreRoots,
 } from "../src/core/computer-use-install.js";
 import { packageRoot } from "../src/core/paths.js";
 
-const TEST_CERT_PEM = `-----BEGIN CERTIFICATE-----
+const TEST_SELF_SIGNED_PEM = `-----BEGIN CERTIFICATE-----
 MIICFDCCAbmgAwIBAgIUKKuUoJAddyo80HBhzN9UftT3tgowCgYIKoZIzj0EAwIw
 HzEdMBsGA1UEAwwUU2lnc3RvcmUgRnVsY2lvIFRlc3QwHhcNMjYxMTA3MTY0MjA1
 WhcNMzYxMTA0MTY0MjA1WjAfMR0wGwYDVQQDDBRTaWdzdG9yZSBGdWxjaW8gVGVz
@@ -29,22 +33,90 @@ BdG+wkEcN/l/4TZtbYlEfUowCgYIKoZIzj0EAwIDSQAwRgIhAIphbFjthAFU4PcY
 eIIqk3khljw=
 -----END CERTIFICATE-----`;
 
-const TEST_KEY_PEM = `-----BEGIN EC PRIVATE KEY-----
+const TEST_SELF_SIGNED_KEY_PEM = `-----BEGIN EC PRIVATE KEY-----
 MHcCAQEEIEdVighMcjzumKbbsf0dVeDbPIeSMb4+REl57bSlJ9xloAoGCCqGSM49
 AwEHoUQDQgAEsrhB+S8fIOsZ9oMTVayrIYfMfeLTr0L5DlubqlS8whjzHd5nqHLz
 tkrQLGx+OPNwU0XVqTIwLih1RrP6Tb/GJw==
 -----END EC PRIVATE KEY-----`;
 
+const TEST_ROOT_CRT_PEM = `-----BEGIN CERTIFICATE-----
+MIIBuTCCAV+gAwIBAgIUQ36S2OyHKvvVTVsG5/iwI4hcrJ8wCgYIKoZIzj0EAwIw
+KjEVMBMGA1UECgwMc2lnc3RvcmUuZGV2MREwDwYDVQQDDAhzaWdzdG9yZTAeFw0y
+NjExMDgwMzI3NDRaFw0zNjExMDUwMzI3NDRaMCoxFTATBgNVBAoMDHNpZ3N0b3Jl
+LmRldjERMA8GA1UEAwwIc2lnc3RvcmUwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNC
+AAQYO7j+ZhnGn4xGXulYv1HmdZGFBNEHA1IYQte5U4osIp99CYHT/muMdiSmz7g2
+rl5fWFhB8fLDWti5zIUNvDS8o2MwYTAPBgNVHRMBAf8EBTADAQH/MA4GA1UdDwEB
+/wQEAwIBhjAdBgNVHQ4EFgQUJrb9H5RsQhm/roYR/mQh5s+3OC4wHwYDVR0jBBgw
+FoAUJrb9H5RsQhm/roYR/mQh5s+3OC4wCgYIKoZIzj0EAwIDSAAwRQIhAPqNUd0W
+mc58fpFz/6BZuWUQQAs7bFtvX+iThdTxkcAFAiBfjr5a9+M/Y5Pwm2C980Nfldlw
+IDYXrhlQkWHKaCEBcQ==
+-----END CERTIFICATE-----`;
+
+const TEST_INTER_CRT_PEM = `-----BEGIN CERTIFICATE-----
+MIIByTCCAW+gAwIBAgIUA1R3o9Zca4rWYQ1D+UsDtc3l+mYwCgYIKoZIzj0EAwIw
+KjEVMBMGA1UECgwMc2lnc3RvcmUuZGV2MREwDwYDVQQDDAhzaWdzdG9yZTAeFw0y
+NjExMDgwMzI3NDVaFw0zNjExMDUwMzI3NDVaMDcxFTATBgNVBAoMDHNpZ3N0b3Jl
+LmRldjEeMBwGA1UEAwwVc2lnc3RvcmUtaW50ZXJtZWRpYXRlMFkwEwYHKoZIzj0C
+AQYIKoZIzj0DAQcDQgAEl+NEmHDQshXpLOL4fnjdNyWoyKJ16V5A5SPrkCMEl5kT
+P6tPcuvq3Dq5Ib39KwwnnDxikxXuu720Jc14BZhnSaNmMGQwEgYDVR0TAQH/BAgw
+BgEB/wIBADAOBgNVHQ8BAf8EBAMCAYYwHQYDVR0OBBYEFI+blmMof9pylKzXFoAA
+eSFENo+IMB8GA1UdIwQYMBaAFCa2/R+UbEIZv66GEf5kIebPtzguMAoGCCqGSM49
+BAMCA0gAMEUCIEvAGz5aMRp39/Xh0dYCYYQTkQVid3AIiCliizdHFP9EAiEAiykI
+tB/bUW0buNSZsZR7+pogISzVLOTunVgHQWPawyA=
+-----END CERTIFICATE-----`;
+
+const TEST_LEAF_CRT_PEM = `-----BEGIN CERTIFICATE-----
+MIICYDCCAgegAwIBAgIUChFRanU2D6/ZGeNTu/E/wCl3NwswCgYIKoZIzj0EAwIw
+NzEVMBMGA1UECgwMc2lnc3RvcmUuZGV2MR4wHAYDVQQDDBVzaWdzdG9yZS1pbnRl
+cm1lZGlhdGUwHhcNMjYxMTA4MDMyNzQ1WhcNMzYxMTA1MDMyNzQ1WjAUMRIwEAYD
+VQQDDAl0ZXN0LWxlYWYwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQ9XhDg0uwA
+dkeIwMK9LC8sEQeIq1h3KcxZq4BEZ815+fLsAoVDf/gq/TtmPCtMgGrCSPhCk/9E
+6WVNGnMlN5R0o4IBEjCCAQ4wDAYDVR0TAQH/BAIwADAOBgNVHQ8BAf8EBAMCB4Aw
+cQYDVR0RBGowaIZmaHR0cHM6Ly9naXRodWIuY29tL3RyeWN1YS9jdWEvLmdpdGh1
+Yi93b3JrZmxvd3MvY2QtcnVzdC1jdWEtZHJpdmVyLnltbEByZWZzL3RhZ3MvY3Vh
+LWRyaXZlci1ycy12MC4zOS4wMDsGCisGAQQBg78wAQEELQwraHR0cHM6Ly90b2tl
+bi5hY3Rpb25zLmdpdGh1YnVzZXJjb250ZW50LmNvbTAdBgNVHQ4EFgQUvpAsZrrw
+wlZ+25BrWwTNCwaCAV0wHwYDVR0jBBgwFoAUj5uWYyh/2nKUrNcWgAB5IUQ2j4gw
+CgYIKoZIzj0EAwIDRwAwRAIgC8KpRCMT6KMb3EsaWYca7QY78lsX2ibfMvE0HC+t
+ZFECIAa50FeYmttU1b7z3T3YHRPOIMk3nn/IzpDexdHqFzIc
+-----END CERTIFICATE-----`;
+
+const TEST_LEAF_KEY_PEM = `-----BEGIN EC PRIVATE KEY-----
+MHcCAQEEIHABS6vCJMb2uYlDL4oiSOHIhx6/FVKa5EaKrDlRuKLRoAoGCCqGSM49
+AwEHoUQDQgAEPV4Q4NLsAHZHiMDCvSwvLBEHiKtYdynMWauARGfNefny7AKFQ3/4
+Kv07ZjwrTIBqwkj4QpP/ROllTRpzJTeUdA==
+-----END EC PRIVATE KEY-----`;
+
+const TEST_REKOR_KEY_ID = "d47b2c399f64dc68fa9f6f58e3567d3aa4b43ae0887ea2bf671086a2cedd380a";
+
+const TEST_TRUSTED_ROOTS: TrustedSigstoreRoots = {
+  rootCertPem: TEST_ROOT_CRT_PEM,
+  intermediateCertPem: TEST_INTER_CRT_PEM,
+  rekorKeyId: TEST_REKOR_KEY_ID,
+};
+
 function createTestSigstoreBundle(
   archiveBytes: Uint8Array,
-  keyPem = TEST_KEY_PEM,
-  certPem = TEST_CERT_PEM,
+  options?: {
+    keyPem?: string;
+    certPem?: string;
+    rekorKeyId?: string;
+    omitRekor?: boolean;
+    tamperedHash?: string;
+    invalidLogIndex?: boolean;
+    invalidIntegratedTime?: boolean;
+  },
 ) {
-  const hash = createHash("sha256").update(archiveBytes).digest();
-  const sig = sign(null, hash, { key: keyPem, dsaEncoding: "ieee-p1363" });
+  const keyPem = options?.keyPem ?? TEST_LEAF_KEY_PEM;
+  const certPem = options?.certPem ?? TEST_LEAF_CRT_PEM;
+  const archiveSha256Hex = createHash("sha256").update(archiveBytes).digest("hex");
+  const sig = sign("sha256", archiveBytes, { key: keyPem, dsaEncoding: "der" });
   const certDer = new X509Certificate(certPem).raw;
-  return {
+
+  const bundle: Record<string, unknown> = {
     mediaType: "application/vnd.dev.sigstore.bundle+json;version=0.1",
+    base64Signature: sig.toString("base64"),
+    cert: Buffer.from(certPem).toString("base64"),
     verificationMaterial: {
       x509CertificateChain: {
         certificates: [{ rawBytes: certDer.toString("base64") }],
@@ -53,11 +125,41 @@ function createTestSigstoreBundle(
     messageSignature: {
       messageDigest: {
         algorithm: "SHA2_256",
-        digest: hash.toString("base64"),
+        digest: createHash("sha256").update(archiveBytes).digest("base64"),
       },
       signature: sig.toString("base64"),
     },
   };
+
+  if (!options?.omitRekor) {
+    const hashValue = options?.tamperedHash ?? archiveSha256Hex;
+    const rekorBody = Buffer.from(
+      JSON.stringify({
+        apiVersion: "0.0.1",
+        kind: "hashedrekord",
+        spec: {
+          data: {
+            hash: {
+              algorithm: "sha256",
+              value: hashValue,
+            },
+          },
+        },
+      }),
+    ).toString("base64");
+
+    bundle.rekorBundle = {
+      SignedEntryTimestamp: "dGVzdC1zZXQ=",
+      Payload: {
+        body: rekorBody,
+        integratedTime: options?.invalidIntegratedTime ? -1 : 1730000000,
+        logIndex: options?.invalidLogIndex ? -1 : 12345,
+        logID: options?.rekorKeyId ?? TEST_REKOR_KEY_ID,
+      },
+    };
+  }
+
+  return bundle;
 }
 
 function createZip(files: Record<string, string | Uint8Array>): Buffer {
@@ -147,32 +249,158 @@ function createTarGz(files: Record<string, string | Uint8Array>): Buffer {
   return gzipSync(Buffer.concat(blocks));
 }
 
-test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects forged bundles (D-13)", () => {
+test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects forged bundles (D-13, G-40-7)", () => {
   const archive = Buffer.from("test-archive-binary-payload");
   const validBundle = createTestSigstoreBundle(archive);
 
-  // 1. Valid bundle verifies
-  const verified = verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.39.0");
+  // 1. Valid bundle verifies with trusted roots
+  const verified = verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.39.0", {
+    trustedRoots: TEST_TRUSTED_ROOTS,
+  });
   assert.equal(verified.verified, true);
   assert.match(verified.identity, /cua-driver-rs-v0\.39\.0/);
 
-  // 2. Mismatched tag/identity rejected
+  // 2. Reject self-signed certificate by default (G-40-7)
+  const selfSignedBundle = createTestSigstoreBundle(archive, {
+    keyPem: TEST_SELF_SIGNED_KEY_PEM,
+    certPem: TEST_SELF_SIGNED_PEM,
+  });
   assert.throws(
-    () => verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.40.0"),
+    () => verifyCuaSigstoreBundle(selfSignedBundle, archive, "cua-driver-rs-v0.39.0"),
+    /Untrusted certificate chain: self-signed certificates cannot establish official publisher identity/,
+  );
+
+  // 3. Reject untrusted certificate chain by default without trusted roots (G-40-7)
+  assert.throws(
+    () => verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.39.0"),
+    /Untrusted certificate chain: certificate was not issued by trusted Sigstore Fulcio CA/,
+  );
+
+  // 4. Missing transparency log evidence rejected (G-40-7)
+  const unloggedBundle = createTestSigstoreBundle(archive, { omitRekor: true });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(unloggedBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Missing transparency log evidence in Sigstore bundle/,
+  );
+
+  // 5. Invalid Rekor logIndex / integratedTime rejected (G-40-7)
+  const badLogIndexBundle = createTestSigstoreBundle(archive, { invalidLogIndex: true });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badLogIndexBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Invalid Rekor transparency log entry: invalid logIndex/,
+  );
+
+  const badTimeBundle = createTestSigstoreBundle(archive, { invalidIntegratedTime: true });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badTimeBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Invalid Rekor transparency log entry: invalid integratedTime/,
+  );
+
+  // 6. Mismatched Rekor log ID rejected (G-40-7)
+  const badRekorIdBundle = createTestSigstoreBundle(archive, {
+    rekorKeyId: "0000000000000000000000000000000000000000000000000000000000000000",
+  });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badRekorIdBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /does not match trusted Rekor key ID/,
+  );
+
+  // 7. Mismatched Rekor hash rejected (G-40-7)
+  const badHashBundle = createTestSigstoreBundle(archive, {
+    tamperedHash: "0000000000000000000000000000000000000000000000000000000000000000",
+  });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badHashBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Archive SHA-256 does not match Rekor transparency log entry/,
+  );
+
+  // 8. Mismatched tag/identity rejected
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.40.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
     /Certificate identity mismatch/,
   );
 
-  // 3. Invalid OIDC issuer rejected
+  // 9. Invalid OIDC issuer rejected
   assert.throws(
-    () => verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.39.0", { expectedIssuer: "https://evil-issuer.com" }),
+    () =>
+      verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.39.0", {
+        expectedIssuer: "https://evil-issuer.com",
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
     /Invalid OIDC issuer/,
   );
 
-  // 4. Altered archive bytes (signature mismatch) rejected
+  // 10. Altered archive bytes (signature / rekor mismatch) rejected
   const tamperedArchive = Buffer.from("tampered-archive-payload");
   assert.throws(
-    () => verifyCuaSigstoreBundle(validBundle, tamperedArchive, "cua-driver-rs-v0.39.0"),
-    /Archive SHA-256 does not match|Sigstore signature verification failed/,
+    () =>
+      verifyCuaSigstoreBundle(validBundle, tamperedArchive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Archive SHA-256 does not match Rekor transparency log entry|Sigstore signature verification failed/,
+  );
+});
+
+test("verifyCuaSigstoreBundle authenticates official Cua 0.38.0 bundle against official Fulcio CA and Rekor log ID (G-40-7)", async () => {
+  const fixturePath = join(packageRoot(), "test", "fixtures", "cua-0.38.0.sigstore.json");
+  const rawFixture = await readFile(fixturePath, "utf8");
+  const bundle = JSON.parse(rawFixture) as {
+    cert: string;
+    rekorBundle: {
+      Payload: {
+        body: string;
+        integratedTime: number;
+        logIndex: number;
+        logID: string;
+      };
+    };
+  };
+
+  // 1. Verify certificate chain against official Fulcio Root / Intermediate CA
+  const certBytes = Buffer.from(bundle.cert, "base64");
+  const leafCert = new X509Certificate(certBytes);
+  const intermediate = new X509Certificate(FULCIO_INTERMEDIATE_CERT_PEM);
+  const root = new X509Certificate(FULCIO_ROOT_CERT_PEM);
+
+  assert.equal(root.verify(root.publicKey), true, "Fulcio Root CA must be self-signed valid");
+  assert.equal(intermediate.verify(root.publicKey), true, "Fulcio Intermediate must be signed by Root CA");
+  assert.equal(leafCert.verify(intermediate.publicKey), true, "Leaf cert must be signed by Fulcio Intermediate");
+  assert.notEqual(leafCert.issuer, leafCert.subject, "Leaf cert must not be self-signed");
+
+  // 2. Verify Rekor log entry in official bundle
+  assert.equal(bundle.rekorBundle.Payload.logID, REKOR_KEY_ID);
+  assert.ok(bundle.rekorBundle.Payload.logIndex > 0);
+  assert.ok(bundle.rekorBundle.Payload.integratedTime > 0);
+  const rekorBody = JSON.parse(Buffer.from(bundle.rekorBundle.Payload.body, "base64").toString("utf8")) as {
+    spec?: { data?: { hash?: { value?: string } } };
+  };
+  assert.equal(
+    rekorBody.spec?.data?.hash?.value,
+    "5edaa74d0afa1b55a9668dbc4f32736507bd2bd4d75b18ca1dc8881bb12402b5",
+  );
+
+  // 3. Passing non-matching archive bytes passes cert chain check and fails specifically on Rekor hash check
+  assert.throws(
+    () => verifyCuaSigstoreBundle(bundle, Buffer.from("non-matching-archive-payload"), "cua-driver-rs-v0.38.0"),
+    /Archive SHA-256 does not match Rekor transparency log entry/,
   );
 });
 
@@ -197,6 +425,7 @@ test("verifyAndDeriveCuaReleasePin parses ZIP archive, checks SHA256SUMS and der
     archiveUrl: `https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.39.0/${assetName}`,
     sha256sumsText,
     sigstoreBundle: bundle,
+    trustedRoots: TEST_TRUSTED_ROOTS,
   });
 
   assert.equal(pin.version, "0.39.0");
@@ -229,6 +458,7 @@ test("verifyAndDeriveCuaReleasePin rejects SHA256SUMS mismatch and path traversa
         archiveUrl: `https://example.com/${assetName}`,
         sha256sumsText: `0000000000000000000000000000000000000000000000000000000000000000  ${assetName}\n`,
         sigstoreBundle: bundle,
+        trustedRoots: TEST_TRUSTED_ROOTS,
       }),
     /checksum-mismatch/,
   );
@@ -250,6 +480,7 @@ test("verifyAndDeriveCuaReleasePin rejects SHA256SUMS mismatch and path traversa
         archiveUrl: `https://example.com/${assetName}`,
         sha256sumsText: `${evilSha256}  ${assetName}\n`,
         sigstoreBundle: evilBundle,
+        trustedRoots: TEST_TRUSTED_ROOTS,
       }),
     /Unsafe archive entry/,
   );
@@ -276,6 +507,7 @@ test("verifyAndDeriveCuaReleasePin parses tar.gz archive on Linux (D-12, D-13)",
     archiveUrl: `https://github.com/trycua/cua/releases/download/cua-driver-rs-v0.39.0/${assetName}`,
     sha256sumsText,
     sigstoreBundle: bundle,
+    trustedRoots: TEST_TRUSTED_ROOTS,
   });
 
   assert.equal(pin.os, "linux");

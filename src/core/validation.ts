@@ -73,7 +73,8 @@ export type ManagedDocumentKind =
    * example `schemas/task-review.schema.json`.
    */
   | "task-agent-output"
-  | "tool-release-record";
+  | "tool-release-record"
+  | "tool-release-lifecycle";
 
 export type ManagedFormat = "json" | "yaml" | "toml";
 
@@ -366,6 +367,7 @@ const OWNED_SUBTREE: Record<ManagedDocumentKind, string | null> = {
   "task-receipt": null,
   "task-agent-output": null,
   "tool-release-record": null,
+  "tool-release-lifecycle": null,
 };
 
 const CURRENT_VERSION = 1;
@@ -373,6 +375,7 @@ const MIGRATABLE_VERSION = 0;
 
 const CORE_SCHEMAS: Record<ManagedDocumentKind, Record<string, unknown>> = {
   "tool-release-record": { not: {} },
+  "tool-release-lifecycle": { not: {} },
   catalog: coreObject(["schemaVersion", "name", "harnesses", "components", "policy"], {
     schemaVersion: { type: "integer" },
     name: { const: "alpha-aos" },

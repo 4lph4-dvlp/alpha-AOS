@@ -17,11 +17,20 @@ import type {
   ToolReleasePreviewItem,
   LocalReleasePlan,
   LocalReleaseApplyResult,
+  AdapterEvaluationResult,
+  ToolAdapterBinding,
+  ToolAdapterSummary,
 } from "../types.js";
 import { MANAGED_TOOL_IDS } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
 import { loadCatalog, loadLock } from "./catalog.js";
 import { collectToolInventory } from "./tool-inventory.js";
+import {
+  listCompatibilityAdapters,
+  summarizeToolAdapters,
+  buildAdapterToolEvidence,
+  deriveAdaptedTargetDigest,
+} from "./compatibility-adapters.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -566,6 +575,9 @@ export function decodeReviewedReleasePlan(token: string): ReviewedReleasePlanPay
       ) {
         throw new Error("Tool binding item missing required fields");
       }
+      if (item.adapters !== undefined && !Array.isArray(item.adapters)) {
+        throw new Error("Tool binding adapters must be an array");
+      }
     }
     return data;
   } catch (error) {
@@ -800,6 +812,23 @@ export async function createLocalReleasePlan(
     const nativeSideEffects = getNativeSideEffects(toolId, osPlatform);
     const recoveryScope = getRecoveryScope(toolId);
 
+    const adapterDescriptors = listCompatibilityAdapters({ toolId });
+    const adapters: ToolAdapterBinding[] = adapterDescriptors.map((d) => ({
+      adapterId: d.id,
+      kind: d.kind,
+      revision: d.revision,
+      status: d.status,
+      toolId: d.toolId,
+      harnesses: d.harnesses,
+      platforms: d.platforms,
+      rationale: d.rationale,
+      applicability: d.applicability,
+      verificationMethod: d.verificationMethod,
+      removalCondition: d.removalCondition,
+      retirement: d.retirement,
+    }));
+    const adaptersSummary = summarizeToolAdapters(toolId, { adapters });
+
     const previewItem: ToolReleasePreviewItem = {
       toolId,
       action,
@@ -817,6 +846,8 @@ export async function createLocalReleasePlan(
       ...(toolId === "cua-driver" && (osPlatform === "linux")
         ? { verificationNote: "Linux binary selected. Upstream Wayland helper and host GUI integration require explicit verification." }
         : {}),
+      adapters,
+      adaptersSummary,
     };
 
     previewItems.push(previewItem);
@@ -835,6 +866,7 @@ export async function createLocalReleasePlan(
         sourceUrl: sourceUrl ?? "",
         platform: osPlatform === "win32" ? "windows" : osPlatform === "darwin" ? "macos" : "linux",
         architecture: osArch,
+        adapters,
       });
     }
   }
@@ -1013,6 +1045,35 @@ export async function revalidateLocalReleasePlan(
       "plan-drift",
       `Plan digest mismatch: token digest ${expectedDigest} does not match provided digest ${options.planDigest}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
     );
+  }
+
+  // Check adapter metadata drift for each tool if adapters were bound in the plan (D-14)
+  for (const tool of payload.tools) {
+    if (tool.adapters !== undefined) {
+      const currentDescriptors = listCompatibilityAdapters({ toolId: tool.toolId });
+      const boundAdapters = tool.adapters;
+      if (boundAdapters.length !== currentDescriptors.length) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Compatibility adapter list drifted for ${tool.toolId}: reviewed ${boundAdapters.length}, current registry has ${currentDescriptors.length}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+      for (const bound of boundAdapters) {
+        const currentDesc = currentDescriptors.find((d) => d.id === bound.adapterId);
+        if (!currentDesc) {
+          throw new ComponentPlanError(
+            "plan-drift",
+            `Compatibility adapter ${bound.adapterId} no longer in registry for ${tool.toolId}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+          );
+        }
+        if (bound.revision !== currentDesc.revision || bound.status !== currentDesc.status) {
+          throw new ComponentPlanError(
+            "plan-drift",
+            `Compatibility adapter ${bound.adapterId} metadata drifted (revision: ${bound.revision} vs ${currentDesc.revision}, status: ${bound.status} vs ${currentDesc.status}). Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+          );
+        }
+      }
+    }
   }
 
   const pkgRoot = resolve(options.packageRoot ?? packageRoot());
@@ -1270,6 +1331,45 @@ export async function applyLocalReleasePlan(
         const safeToolId = tool.toolId.replace(/:/g, "-");
         const rawAlias = tool.toolId === "cua-driver" ? "cua-driver" : MANAGED_TOOL_PACKAGES[tool.toolId];
         const pathAlias = rawAlias.replace(/^@/, "");
+        const baseEvidence = {
+          proofId: `${safeToolId}-integrity`,
+          subject: `${safeToolId}-download`,
+          target: "integrity" as const,
+          method: "sha256",
+          result: "pass" as const,
+          platform: tool.platform,
+          architecture: tool.architecture,
+          harness: null,
+          fingerprint: tool.digest,
+        };
+
+        const adapterEvidences = (tool.adapters ?? []).map((adapter) => {
+          const evaluation: AdapterEvaluationResult = {
+            adapterId: adapter.adapterId,
+            kind: adapter.kind,
+            revision: adapter.revision,
+            status: adapter.status,
+            resolution: adapter.status === "retired" ? "resolved-upstream" : "applied",
+            sourceSha256: tool.digest,
+            targetSha256: adapter.targetSha256 ?? tool.digest,
+            derivationDigest: adapter.derivationDigest ?? deriveAdaptedTargetDigest(
+              adapter.adapterId,
+              adapter.revision,
+              adapter.status,
+              tool.digest,
+              adapter.targetSha256 ?? tool.digest
+            ),
+            verificationResult: "pass",
+            evidenceSummary: adapter.retirement?.evidenceSummary ?? `Adapter ${adapter.adapterId} bound to ${tool.toolId}`,
+            ...(adapter.retirement?.retirementReason ? { retirementReason: adapter.retirement.retirementReason } : {}),
+            ...(adapter.retirement?.verifiedRelease ? { verifiedRelease: adapter.retirement.verifiedRelease } : {}),
+          };
+          return buildAdapterToolEvidence(tool.toolId, evaluation, {
+            platform: tool.platform,
+            architecture: tool.architecture,
+          });
+        });
+
         const result: ToolResult = {
           toolId: tool.toolId,
           requested: {
@@ -1292,19 +1392,7 @@ export async function applyLocalReleasePlan(
             pathAlias,
           },
           verified: null,
-          evidence: [
-            {
-              proofId: `${safeToolId}-integrity`,
-              subject: `${safeToolId}-download`,
-              target: "integrity",
-              method: "sha256",
-              result: "pass",
-              platform: tool.platform,
-              architecture: tool.architecture,
-              harness: null,
-              fingerprint: tool.digest,
-            },
-          ],
+          evidence: [baseEvidence, ...adapterEvidences],
           outcome: "succeeded",
         };
         await appendToolResult(recordPlan, session, result);

@@ -66,11 +66,17 @@ async function createTempFixture(context: test.TestContext) {
 
 const DEFAULT_NPM_RESPONSES = {
   "%40opengsd%2Fgsd-core/latest": { version: "1.19.0", dist: { integrity: "sha512-gsd119==" } },
+  "%40opengsd%2Fgsd-core/1.19.0": { version: "1.19.0", dist: { integrity: "sha512-gsd119==" } },
   "ecc-universal/latest": { version: "2.3.0", dist: { integrity: "sha512-ecc230==" } },
+  "ecc-universal/2.3.0": { version: "2.3.0", dist: { integrity: "sha512-ecc230==" } },
   "%40upstash%2Fcontext7-mcp/latest": { version: "1.1.0", dist: { integrity: "sha512-ctx110==" } },
+  "%40upstash%2Fcontext7-mcp/1.1.0": { version: "1.1.0", dist: { integrity: "sha512-ctx110==" } },
   "exa-mcp-server/latest": { version: "1.2.0", dist: { integrity: "sha512-exa120==" } },
+  "exa-mcp-server/1.2.0": { version: "1.2.0", dist: { integrity: "sha512-exa120==" } },
   "firecrawl-mcp/latest": { version: "1.3.0", dist: { integrity: "sha512-fc130==" } },
+  "firecrawl-mcp/1.3.0": { version: "1.3.0", dist: { integrity: "sha512-fc130==" } },
   "pi-mcp-adapter/latest": { version: "1.0.1", dist: { integrity: "sha512-pi101==" } },
+  "pi-mcp-adapter/1.0.1": { version: "1.0.1", dist: { integrity: "sha512-pi101==" } },
   "repos/trycua/cua/releases": [
     {
       tag_name: "cua-driver-rs-v0.39.0",
@@ -390,7 +396,7 @@ test("applyLocalReleasePlan never invokes /latest endpoint on apply and queries 
     stateRoot: fixture.stateRoot,
     home: fixture.home,
     fetchImpl: mockFetch({
-      "%40opengsd%2Fgsd-core/latest": { version: "1.18.0", dist: { integrity: "sha512-gsd118==" } },
+      "%40opengsd%2Fgsd-core/latest": { version: "1.19.0", dist: { integrity: "sha512-gsd119==" } },
     }),
     platform: "win32",
     architecture: "x64",
@@ -402,10 +408,10 @@ test("applyLocalReleasePlan never invokes /latest endpoint on apply and queries 
     if (url.includes("/latest") || url.includes("releases?")) {
       throw new Error(`Forbidden endpoint called during apply: ${url}`);
     }
-    if (url.includes("%40opengsd%2Fgsd-core/1.18.0") || url.includes("@opengsd/gsd-core/1.18.0")) {
+    if (url.includes("%40opengsd%2Fgsd-core/1.19.0") || url.includes("@opengsd/gsd-core/1.19.0")) {
       return new Response(JSON.stringify({
-        version: "1.18.0",
-        dist: { integrity: "sha512-gsd118==" },
+        version: "1.19.0",
+        dist: { integrity: "sha512-gsd119==" },
       }), { status: 200, headers: { "content-type": "application/json" } });
     }
     return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
@@ -492,7 +498,7 @@ test("applyLocalReleasePlan is a no-op when all tools are current (D-08)", async
     stateRoot: fixture.stateRoot,
     home: fixture.home,
     fetchImpl: mockFetch({
-      "%40opengsd%2Fgsd-core/latest": { version: "1.18.0", dist: { integrity: "sha512-gsd118==" } },
+      "%40opengsd%2Fgsd-core/latest": { version: "1.19.0", dist: { integrity: "sha512-gsd119==" } },
     }),
     platform: "win32",
     architecture: "x64",
@@ -709,9 +715,9 @@ test("revalidateLocalReleasePlan enforces exact-version SHA-512 SRI metadata and
 
 test("synthesizeReleaseStackLock derives ECC skill hashes in memory without disk writes (D-16)", async () => {
   const skillFiles: Record<string, string> = {
-    "package/skills/unified-memory/SKILL.md": "unified-memory mock markdown content\n",
-    "package/skills/documentation-lookup/SKILL.md": "description: old\n# Documentation Lookup (Context7)\n\ndoc lookup content\n",
-    "package/skills/deep-research/SKILL.md": `## MCP Requirements\n\n- **exa**\n- **firecrawl**\n\n## Workflow\n### Step 3: Execute Multi-Source Search\nsearch\n### Step 4: Deep-Read Key Sources\nread\n### Step 5: Synthesize and Write Report\nreport\n## Parallel Research with Subagents\nparallel\n## Quality Rules\nquality\n`,
+    "package/skills/unified-memory/SKILL.md": "---\nname: unified-memory\ndescription: memory\n---\nunified-memory mock markdown content\n",
+    "package/skills/documentation-lookup/SKILL.md": "---\nname: documentation-lookup\ndescription: old\n---\n# Documentation Lookup (Context7)\n\ndoc lookup content\n",
+    "package/skills/deep-research/SKILL.md": "---\nname: deep-research\ndescription: deep research\n---\n## Quick Start\n- **exa**\n- **firecrawl**\n\n## Workflow\n### Step 3: Execute Multi-Source Search\nsearch\n### Step 4: Deep-Read Key Sources\nread\n### Step 5: Synthesize and Write Report\nreport\n## Parallel Research with Subagents\nparallel\n## Quality Rules\nquality\n",
   };
   const tarball = createTarGz(skillFiles);
   const tarballIntegrity = `sha512-${createHash("sha512").update(tarball).digest("base64")}`;
@@ -942,6 +948,122 @@ test("alpha-aos install --apply and update --apply without plan tokens refuse be
     updateOut.includes('Applying update requires both --plan-digest and --reviewed-plan. Run "alpha-aos update" to preview and obtain a reviewed plan.'),
     `update apply output: ${updateOut}`,
   );
+});
+
+test("createLocalReleasePlan binds adapters and revalidateLocalReleasePlan detects adapter drift (D-01, D-02, D-14)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  assert.ok(plan.applyAllowed);
+  assert.ok(plan.reviewedPlanToken);
+  assert.ok(plan.planDigest);
+
+  // Each tool in changedTools must have adapters and adaptersSummary
+  for (const item of plan.changedTools) {
+    assert.ok(Array.isArray(item.adapters));
+    assert.ok(item.adaptersSummary);
+    if (item.toolId === "ecc") {
+      assert.ok(item.adapters.some((a) => a.adapterId === "ecc:deep-research-routing"));
+      assert.ok(item.adapters.some((a) => a.adapterId === "ecc:antigravity-doc-lookup"));
+    }
+  }
+
+  const decoded = decodeReviewedReleasePlan(plan.reviewedPlanToken);
+  for (const tool of decoded.tools) {
+    assert.ok(Array.isArray(tool.adapters));
+  }
+
+  // Drift test: mutate adapter revision in token -> revalidate must reject with plan-drift
+  const mutatedTools: ReviewedToolBinding[] = decoded.tools.map((t) => {
+    if (t.toolId === "ecc" && t.adapters && t.adapters.length > 0) {
+      const tamperedAdapters = t.adapters.map((a) => ({
+        ...a,
+        revision: "tampered-revision-999",
+      }));
+      return { ...t, adapters: tamperedAdapters };
+    }
+    return t;
+  });
+
+  const mutatedPayload: ReviewedReleasePlanPayload = {
+    ...decoded,
+    tools: mutatedTools,
+  };
+  const mutatedToken = encodeReviewedReleasePlan(mutatedPayload);
+  const mutatedDigest = reviewedDigest("local-install-plan", mutatedPayload);
+
+  await assert.rejects(
+    () => revalidateLocalReleasePlan({
+      planDigest: mutatedDigest,
+      reviewedPlanToken: mutatedToken,
+      packageRoot: packageRoot(),
+      stateRoot: fixture.stateRoot,
+      home: fixture.home,
+      fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    }),
+    (error: unknown) => {
+      assert.ok(error instanceof ComponentPlanError);
+      assert.equal(error.code, "plan-drift");
+      assert.ok((error as Error).message.includes("metadata drifted"));
+      return true;
+    },
+  );
+});
+
+test("applyLocalReleasePlan records schema-compliant adapter ToolEvidence into tool-records (D-14, D-15)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  assert.ok(plan.applyAllowed);
+  assert.ok(plan.reviewedPlanToken);
+  assert.ok(plan.planDigest);
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest,
+    reviewedPlanToken: plan.reviewedPlanToken,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  assert.equal(applyResult.applied, true);
+
+  // Verify tool-records store
+  const store = await readToolRecordStore({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+  });
+  assert.equal(store.status, "current");
+  assert.ok(!store.diagnostics.some((d: string) => d.includes("invalid")));
+  assert.ok(store.events.length > 0);
+
+  // Inspect the result event evidence
+  const resultEvent = store.events.find((e) => e.kind === "tool-result" && e.result?.toolId === "gsd");
+  assert.ok(resultEvent);
+  assert.ok(resultEvent.result);
+  assert.ok(resultEvent.result.evidence.length > 0);
+
+  // Must contain adapter proof
+  const adapterEvidence = resultEvent.result.evidence.find((ev) => ev.proofId.endsWith("-adapter"));
+  assert.ok(adapterEvidence, "ToolResult must carry adapter ToolEvidence record");
+  assert.equal(adapterEvidence.subject, "gsd-compatibility");
+  assert.equal(adapterEvidence.result, "pass");
+  assert.ok(adapterEvidence.fingerprint);
+  assert.equal(adapterEvidence.fingerprint.length, 64);
 });
 
 

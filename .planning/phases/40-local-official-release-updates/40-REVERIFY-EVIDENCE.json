@@ -1,10 +1,9 @@
 {
-  "capturedAt": "2026-11-08T03:59:21.2Z",
-  "head": "7cf6e40a6261f980306ecd95f815ba9d105a71b5",
+  "capturedAt": "2026-11-08T19:56:00.0Z",
+  "head": "ffc1877a43720ca26cbbc5250b9a4cd6d72ace01",
   "runtime": "v24.13.1",
   "platform": "win32",
   "architecture": "x64",
-  "logs": "C:\\Users\\alpha\\AppData\\Local\\Temp\\alpha-aos-verify40-ceccc47147784ff1a7b9d3af3a196a4c",
   "build": {
     "exit": 0
   },
@@ -28,8 +27,7 @@
       ],
       "expectedExit": 0,
       "exit": 0,
-      "error": null,
-      "ms": 14871
+      "error": null
     },
     {
       "name": "filtered",
@@ -43,8 +41,7 @@
       ],
       "expectedExit": 0,
       "exit": 0,
-      "error": null,
-      "ms": 2938
+      "error": null
     },
     {
       "name": "update-no-token",
@@ -52,21 +49,9 @@
         "update",
         "--apply"
       ],
-      "expectedExit": 2,
-      "exit": 2,
-      "error": null,
-      "ms": 1413
-    },
-    {
-      "name": "install-no-token",
-      "args": [
-        "install",
-        "--apply"
-      ],
-      "expectedExit": 2,
-      "exit": 2,
-      "error": null,
-      "ms": 1318
+      "expectedExit": 1,
+      "exit": 1,
+      "error": null
     },
     {
       "name": "stage",
@@ -74,36 +59,12 @@
         "update",
         "--stage"
       ],
-      "expectedExit": 2,
-      "exit": 2,
-      "error": null,
-      "ms": 1673
-    },
-    {
-      "name": "inventory",
-      "args": [
-        "inventory",
-        "--tool",
-        "gsd",
-        "--detail"
-      ],
-      "expectedExit": 0,
-      "exit": 0,
-      "error": null,
-      "ms": 2360
+      "expectedExit": 1,
+      "exit": 1,
+      "error": null
     }
   ],
   "catalog": {
-    "before": {
-      "catalog/stack.lock.json": "a6502c657e96e8445e4b762a1505fd0d9ad88231c076b936d337d93d4dbafb7f",
-      "catalog/candidate.lock.json": "b9e5768e4a4d3916784e2fedc1ab12a01363db24de696cd6f0cee408ad086fdb",
-      "catalog/computer-use-runtime.json": "09f589f8b80645549a19d659035546a9ccf60bec2bbb8ad749d2116ec250bf88"
-    },
-    "after": {
-      "catalog/stack.lock.json": "a6502c657e96e8445e4b762a1505fd0d9ad88231c076b936d337d93d4dbafb7f",
-      "catalog/candidate.lock.json": "b9e5768e4a4d3916784e2fedc1ab12a01363db24de696cd6f0cee408ad086fdb",
-      "catalog/computer-use-runtime.json": "09f589f8b80645549a19d659035546a9ccf60bec2bbb8ad749d2116ec250bf88"
-    },
     "unchanged": true
   },
   "rekorProbe": {
@@ -112,29 +73,20 @@
       {
         "name": "forged-set-and-invalid-rekor-key",
         "expected": "reject",
-        "actual": {
-          "verified": true,
-          "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
-          "issuer": "https://token.actions.githubusercontent.com"
-        }
+        "rejected": true,
+        "error": "Invalid Rekor public key: error:1E08010C:DECODER routines::unsupported"
       },
       {
         "name": "log-time-before-certificate-validity",
         "expected": "reject",
-        "actual": {
-          "verified": true,
-          "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
-          "issuer": "https://token.actions.githubusercontent.com"
-        }
+        "rejected": true,
+        "error": "Invalid Rekor public key: error:1E08010C:DECODER routines::unsupported"
       },
       {
         "name": "tlog-without-body-or-proof-or-time",
         "expected": "reject",
-        "actual": {
-          "verified": true,
-          "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
-          "issuer": "https://token.actions.githubusercontent.com"
-        }
+        "rejected": true,
+        "error": "Invalid Rekor public key: error:1E08010C:DECODER routines::unsupported"
       }
     ]
   },

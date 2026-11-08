@@ -1,4 +1,4 @@
-import { createHash, verify, X509Certificate } from "node:crypto";
+import { createHash, createPublicKey, verify, X509Certificate } from "node:crypto";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative } from "node:path";
@@ -229,6 +229,63 @@ function extractSanUri(cert: X509Certificate): string | null {
   return uriEntry ? uriEntry.slice(4) : null;
 }
 
+function canonicalizeRekorPayload(payload: {
+  body: string;
+  integratedTime: number;
+  logID: string;
+  logIndex: number;
+}): string {
+  const keys = (Object.keys(payload) as Array<keyof typeof payload>).sort();
+  return "{" + keys.map((k) => JSON.stringify(k) + ":" + JSON.stringify(payload[k])).join(",") + "}";
+}
+
+function verifyRekorSignature(
+  data: Uint8Array,
+  signatureBase64: string,
+  rekorPublicKeyPem: string,
+): boolean {
+  let sigBytes: Buffer;
+  try {
+    sigBytes = Buffer.from(signatureBase64, "base64");
+  } catch {
+    return false;
+  }
+  try {
+    if (verify("sha256", data, rekorPublicKeyPem, sigBytes)) return true;
+  } catch {}
+  try {
+    if (verify("sha256", data, { key: rekorPublicKeyPem, dsaEncoding: "ieee-p1363" }, sigBytes)) return true;
+  } catch {}
+  try {
+    if (verify("sha256", data, { key: rekorPublicKeyPem, dsaEncoding: "der" }, sigBytes)) return true;
+  } catch {}
+  return false;
+}
+
+function normalizeRekorLogId(id: unknown): string | null {
+  if (typeof id !== "string") return null;
+  const trimmed = id.trim();
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+  try {
+    const buf = Buffer.from(trimmed, "base64");
+    if (buf.length === 32) {
+      return buf.toString("hex").toLowerCase();
+    }
+  } catch {}
+  return null;
+}
+
+function parsePositiveInteger(val: unknown): number | null {
+  if (typeof val === "number" && Number.isSafeInteger(val) && val > 0) return val;
+  if (typeof val === "string" && /^\d+$/.test(val.trim())) {
+    const n = Number(val.trim());
+    if (Number.isSafeInteger(n) && n > 0) return n;
+  }
+  return null;
+}
+
 export function verifyCuaSigstoreBundle(
   bundle: unknown,
   archiveBytes: Uint8Array,
@@ -318,7 +375,24 @@ export function verifyCuaSigstoreBundle(
   const archiveSha256Hex = archiveSha256.toString("hex");
 
   // 5. Authenticate transparency log (Rekor) evidence
-  const trustedRekorKeyId = options?.trustedRoots?.rekorKeyId ?? REKOR_KEY_ID;
+  const rekorPublicKeyPem = options?.trustedRoots?.rekorPublicKeyPem ?? REKOR_PUBLIC_KEY_PEM;
+  try {
+    createPublicKey(rekorPublicKeyPem);
+  } catch (err) {
+    throw new Error(`Invalid Rekor public key: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  let trustedRekorKeyId = options?.trustedRoots?.rekorKeyId;
+  if (!trustedRekorKeyId) {
+    try {
+      const pubKey = createPublicKey(rekorPublicKeyPem);
+      const spki = pubKey.export({ type: "spki", format: "der" });
+      trustedRekorKeyId = createHash("sha256").update(spki).digest("hex");
+    } catch {
+      trustedRekorKeyId = REKOR_KEY_ID;
+    }
+  }
+
   const rekorBundle = bundleObj.rekorBundle as {
     SignedEntryTimestamp?: unknown;
     Payload?: { body?: unknown; integratedTime?: unknown; logIndex?: unknown; logID?: unknown };
@@ -328,7 +402,18 @@ export function verifyCuaSigstoreBundle(
     logIndex?: unknown;
     integratedTime?: unknown;
     canonicalizedBody?: unknown;
+    inclusionPromise?: { signedEntryTimestamp?: unknown };
+    inclusionProof?: {
+      logIndex?: unknown;
+      rootHash?: unknown;
+      treeSize?: unknown;
+      hashes?: unknown;
+      checkpoint?: { envelope?: unknown };
+    };
   }> | undefined;
+
+  let authenticatedBody: string;
+  let authenticatedIntegratedTime: number;
 
   if (rekorBundle) {
     if (!rekorBundle.SignedEntryTimestamp || typeof rekorBundle.SignedEntryTimestamp !== "string") {
@@ -337,57 +422,209 @@ export function verifyCuaSigstoreBundle(
     if (!rekorBundle.Payload || typeof rekorBundle.Payload !== "object") {
       throw new Error("Invalid Rekor transparency log entry: missing Payload");
     }
-    if (typeof rekorBundle.Payload.logIndex !== "number" || rekorBundle.Payload.logIndex <= 0) {
+    const logIndex = parsePositiveInteger(rekorBundle.Payload.logIndex);
+    if (logIndex === null) {
       throw new Error("Invalid Rekor transparency log entry: invalid logIndex");
     }
-    if (typeof rekorBundle.Payload.integratedTime !== "number" || rekorBundle.Payload.integratedTime <= 0) {
+    const integratedTime = parsePositiveInteger(rekorBundle.Payload.integratedTime);
+    if (integratedTime === null) {
       throw new Error("Invalid Rekor transparency log entry: invalid integratedTime");
     }
-    if (typeof rekorBundle.Payload.logID !== "string" || rekorBundle.Payload.logID.toLowerCase() !== trustedRekorKeyId.toLowerCase()) {
+    const normLogId = normalizeRekorLogId(rekorBundle.Payload.logID);
+    if (!normLogId || normLogId !== trustedRekorKeyId.toLowerCase()) {
       throw new Error(`Invalid Rekor transparency log entry: logID ${String(rekorBundle.Payload.logID)} does not match trusted Rekor key ID`);
     }
-    if (typeof rekorBundle.Payload.body !== "string") {
+    if (typeof rekorBundle.Payload.body !== "string" || !rekorBundle.Payload.body) {
       throw new Error("Invalid Rekor transparency log entry: missing body");
     }
-    try {
-      const bodyJson = JSON.parse(Buffer.from(rekorBundle.Payload.body, "base64").toString("utf8")) as {
-        spec?: {
-          data?: { hash?: { algorithm?: string; value?: string } };
-          signature?: { content?: string };
-        };
-      };
-      const entryHash = bodyJson.spec?.data?.hash?.value?.toLowerCase();
-      if (!entryHash || entryHash !== archiveSha256Hex.toLowerCase()) {
-        throw new Error(`Archive SHA-256 does not match Rekor transparency log entry: expected ${entryHash ?? "none"}, got ${archiveSha256Hex}`);
-      }
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("Archive SHA-256 does not match")) throw err;
-      throw new Error(`Failed to parse Rekor transparency log body: ${err instanceof Error ? err.message : String(err)}`);
+
+    const canonicalPayload = canonicalizeRekorPayload({
+      body: rekorBundle.Payload.body,
+      integratedTime,
+      logID: String(rekorBundle.Payload.logID),
+      logIndex,
+    });
+    if (!verifyRekorSignature(Buffer.from(canonicalPayload), rekorBundle.SignedEntryTimestamp, rekorPublicKeyPem)) {
+      throw new Error("Invalid Rekor transparency log entry: SignedEntryTimestamp verification failed");
     }
+
+    authenticatedBody = rekorBundle.Payload.body;
+    authenticatedIntegratedTime = integratedTime;
   } else if (Array.isArray(tlogEntries) && tlogEntries.length > 0) {
     const first = tlogEntries[0]!;
-    if (typeof first.logId?.keyId !== "string" || first.logId.keyId.toLowerCase() !== trustedRekorKeyId.toLowerCase()) {
+    const normLogId = normalizeRekorLogId(first.logId?.keyId);
+    if (!normLogId || normLogId !== trustedRekorKeyId.toLowerCase()) {
       throw new Error("Invalid Rekor transparency log entry: logID does not match trusted Rekor key ID");
     }
-    if (typeof first.logIndex !== "string" && typeof first.logIndex !== "number") {
+    const logIndex = parsePositiveInteger(first.logIndex);
+    if (logIndex === null) {
       throw new Error("Invalid Rekor transparency log entry: invalid logIndex");
     }
-    if (first.canonicalizedBody && typeof first.canonicalizedBody === "string") {
-      try {
-        const bodyJson = JSON.parse(Buffer.from(first.canonicalizedBody, "base64").toString("utf8")) as {
-          spec?: { data?: { hash?: { value?: string } } };
-        };
-        const entryHash = bodyJson.spec?.data?.hash?.value?.toLowerCase();
-        if (entryHash && entryHash !== archiveSha256Hex.toLowerCase()) {
-          throw new Error(`Archive SHA-256 does not match Rekor transparency log entry: expected ${entryHash}, got ${archiveSha256Hex}`);
-        }
-      } catch (err) {
-        if (err instanceof Error && err.message.includes("Archive SHA-256 does not match")) throw err;
-        throw new Error(`Failed to parse Rekor transparency log body: ${err instanceof Error ? err.message : String(err)}`);
+    const integratedTime = parsePositiveInteger(first.integratedTime);
+    if (integratedTime === null) {
+      throw new Error("Invalid Rekor transparency log entry: invalid integratedTime");
+    }
+    if (typeof first.canonicalizedBody !== "string" || !first.canonicalizedBody) {
+      throw new Error("Invalid Rekor transparency log entry: missing canonicalizedBody");
+    }
+
+    if (!first.inclusionPromise && !first.inclusionProof) {
+      throw new Error("Invalid Rekor transparency log entry: missing inclusion evidence");
+    }
+
+    if (first.inclusionPromise) {
+      const set = first.inclusionPromise.signedEntryTimestamp;
+      if (typeof set !== "string" || !set) {
+        throw new Error("Invalid Rekor transparency log entry: missing signedEntryTimestamp in inclusionPromise");
+      }
+      let verified = verifyRekorSignature(
+        Buffer.from(canonicalizeRekorPayload({
+          body: first.canonicalizedBody,
+          integratedTime,
+          logID: normLogId,
+          logIndex,
+        })),
+        set,
+        rekorPublicKeyPem,
+      );
+      if (!verified && typeof first.logId?.keyId === "string") {
+        verified = verifyRekorSignature(
+          Buffer.from(canonicalizeRekorPayload({
+            body: first.canonicalizedBody,
+            integratedTime,
+            logID: first.logId.keyId,
+            logIndex,
+          })),
+          set,
+          rekorPublicKeyPem,
+        );
+      }
+      if (!verified) {
+        throw new Error("Invalid Rekor transparency log entry: signedEntryTimestamp verification failed");
+      }
+    } else if (first.inclusionProof) {
+      const proof = first.inclusionProof;
+      const envelope = proof.checkpoint?.envelope;
+      if (typeof envelope !== "string" || !envelope) {
+        throw new Error("Invalid Rekor transparency log entry: missing checkpoint envelope in inclusionProof");
+      }
+      const lines = envelope.trim().split("\n");
+      const dashIdx = lines.findIndex((l) => l.startsWith("— ") || l.startsWith("- "));
+      if (dashIdx === -1) {
+        throw new Error("Invalid Rekor transparency log entry: invalid checkpoint envelope format");
+      }
+      const checkpointBody = lines.slice(0, dashIdx).join("\n") + "\n";
+      const sigLine = lines[dashIdx]!;
+      const parts = sigLine.replace(/^[—\-]\s+/, "").split(/\s+/);
+      const checkpointSig = parts[1] ?? parts[0];
+      if (!checkpointSig || !verifyRekorSignature(Buffer.from(checkpointBody), checkpointSig, rekorPublicKeyPem)) {
+        throw new Error("Invalid Rekor transparency log entry: checkpoint signature verification failed");
       }
     }
+
+    authenticatedBody = first.canonicalizedBody;
+    authenticatedIntegratedTime = integratedTime;
   } else {
     throw new Error("Missing transparency log evidence in Sigstore bundle: unlogged certificates cannot establish official publisher identity");
+  }
+
+  // Validate authenticated integratedTime against certificate chain validity period
+  const evidenceTimeMs = authenticatedIntegratedTime * 1000;
+  const leafFrom = Date.parse(cert.validFrom);
+  const leafTo = Date.parse(cert.validTo);
+  if (evidenceTimeMs < leafFrom || evidenceTimeMs > leafTo) {
+    throw new Error("Invalid Rekor transparency log entry: integrated time falls outside certificate validity period");
+  }
+  const interFrom = Date.parse(intermediateCert.validFrom);
+  const interTo = Date.parse(intermediateCert.validTo);
+  if (evidenceTimeMs < interFrom || evidenceTimeMs > interTo) {
+    throw new Error("Invalid Rekor transparency log entry: integrated time falls outside intermediate certificate validity period");
+  }
+  const rootFrom = Date.parse(rootCert.validFrom);
+  const rootTo = Date.parse(rootCert.validTo);
+  if (evidenceTimeMs < rootFrom || evidenceTimeMs > rootTo) {
+    throw new Error("Invalid Rekor transparency log entry: integrated time falls outside root certificate validity period");
+  }
+
+  // Parse and validate Rekor body and bind to archive, signature, and certificate
+  let bodyJson: {
+    apiVersion?: string;
+    kind?: string;
+    spec?: {
+      data?: { hash?: { algorithm?: string; value?: string } };
+      signature?: {
+        content?: string;
+        publicKey?: { content?: string };
+      };
+    };
+  };
+  try {
+    bodyJson = JSON.parse(Buffer.from(authenticatedBody, "base64").toString("utf8")) as {
+      apiVersion?: string;
+      kind?: string;
+      spec?: {
+        data?: { hash?: { algorithm?: string; value?: string } };
+        signature?: {
+          content?: string;
+          publicKey?: { content?: string };
+        };
+      };
+    };
+  } catch (err) {
+    throw new Error(`Failed to parse Rekor transparency log body: ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  const hashAlgo = bodyJson.spec?.data?.hash?.algorithm;
+  if (!hashAlgo || hashAlgo.toLowerCase() !== "sha256") {
+    throw new Error(`Invalid Rekor transparency log entry: unsupported hash algorithm ${String(hashAlgo)}`);
+  }
+
+  const entryHash = bodyJson.spec?.data?.hash?.value?.toLowerCase();
+  if (!entryHash || entryHash !== archiveSha256Hex.toLowerCase()) {
+    throw new Error(`Archive SHA-256 does not match Rekor transparency log entry: expected ${entryHash ?? "none"}, got ${archiveSha256Hex}`);
+  }
+
+  const loggedSig = bodyJson.spec?.signature?.content;
+  if (!loggedSig || typeof loggedSig !== "string") {
+    throw new Error("Invalid Rekor transparency log entry: missing signature content");
+  }
+  if (Buffer.from(loggedSig, "base64").compare(sigBytes) !== 0) {
+    throw new Error("Logged signature does not match bundle signature");
+  }
+
+  const loggedCertContent = bodyJson.spec?.signature?.publicKey?.content;
+  if (!loggedCertContent || typeof loggedCertContent !== "string") {
+    throw new Error("Invalid Rekor transparency log entry: missing publicKey content");
+  }
+  let loggedCertBytes: Buffer;
+  try {
+    loggedCertBytes = Buffer.from(loggedCertContent, "base64");
+  } catch {
+    throw new Error("Invalid Rekor transparency log entry: malformed publicKey content");
+  }
+
+  let certMatches = false;
+  try {
+    const loggedCertStr = loggedCertBytes.toString("utf8");
+    const loggedCert = loggedCertStr.includes("-----BEGIN CERTIFICATE-----")
+      ? new X509Certificate(loggedCertStr)
+      : new X509Certificate(loggedCertBytes);
+    if (loggedCert.raw.compare(cert.raw) === 0) {
+      certMatches = true;
+    }
+  } catch {}
+  if (!certMatches) {
+    try {
+      const loggedPubKey = createPublicKey(loggedCertBytes);
+      const loggedSpki = loggedPubKey.export({ type: "spki", format: "der" });
+      const certSpki = cert.publicKey.export({ type: "spki", format: "der" });
+      if (loggedSpki.compare(certSpki) === 0) {
+        certMatches = true;
+      }
+    } catch {}
+  }
+  if (!certMatches) {
+    throw new Error("Logged certificate does not match leaf certificate");
   }
 
   // 6. Validate structured OIDC issuer

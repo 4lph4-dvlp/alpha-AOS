@@ -4,6 +4,7 @@ import {
   discoverAffectedHarnesses,
   buildEvidenceDependencyFingerprint,
   verifyPreparedReleaseCandidate,
+  reconcileEvidenceTiersWithFingerprint,
 } from "../src/core/release-verification.js";
 import { applyLocalReleasePlan, createLocalReleasePlan } from "../src/core/update.js";
 import type {
@@ -324,4 +325,31 @@ test("Task 42-01-01 Integration: applyLocalReleasePlan rejects activation when c
   assert.equal(applyResult.verification[0]?.overallState, "pending");
   assert.ok(applyResult.pendingReasons && applyResult.pendingReasons.length > 0);
   assert.ok(applyResult.nextAction);
+});
+
+test("Task 42-01-02: reconcileEvidenceTiersWithFingerprint reuses cached tiers on match and invalidates on mismatch (D-04)", () => {
+  const fp = "a".repeat(64);
+  const cached = [
+    {
+      tier: "installation" as const,
+      state: "pass" as const,
+      method: "inactive-check",
+      resultDigest: "res1",
+      evaluatedAt: new Date().toISOString(),
+      reason: "passed previously",
+    },
+  ];
+
+  // Matching fingerprint
+  const matchRes = reconcileEvidenceTiersWithFingerprint(fp, fp, cached);
+  assert.equal(matchRes.reused, true);
+  assert.equal(matchRes.tiers.length, 1);
+  assert.match(matchRes.tiers[0]!.reason!, /\[Reused: fingerprint aaaaaaaa\]/);
+  assert.equal(matchRes.invalidatedTiers.length, 0);
+
+  // Mismatched fingerprint
+  const mismatchRes = reconcileEvidenceTiersWithFingerprint(fp, "b".repeat(64), cached);
+  assert.equal(mismatchRes.reused, false);
+  assert.equal(mismatchRes.tiers.length, 0);
+  assert.equal(mismatchRes.invalidatedTiers.length, 4);
 });

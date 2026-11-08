@@ -140,6 +140,37 @@ export function buildEvidenceDependencyFingerprint(options: BuildFingerprintOpti
 }
 
 /**
+ * Reconciles cached evidence tiers against current dependency fingerprint (D-04).
+ * If the fingerprint matches, cached tiers are reused; if changed, invalidates affected tiers.
+ */
+export function reconcileEvidenceTiersWithFingerprint(
+  currentFingerprint: string,
+  previousFingerprint: string | null | undefined,
+  cachedTiers?: readonly ReleaseEvidenceItem[],
+): {
+  reused: boolean;
+  tiers: readonly ReleaseEvidenceItem[];
+  invalidatedTiers: readonly ReleaseEvidenceTier[];
+} {
+  if (!previousFingerprint || previousFingerprint !== currentFingerprint || !cachedTiers || cachedTiers.length === 0) {
+    return {
+      reused: false,
+      tiers: [],
+      invalidatedTiers: ["installation", "discovery", "protocol-schema", "invocation"],
+    };
+  }
+
+  return {
+    reused: true,
+    tiers: cachedTiers.map((t) => ({
+      ...t,
+      reason: t.reason ? `[Reused: fingerprint ${currentFingerprint.slice(0, 8)}] ${t.reason}` : `[Reused: fingerprint ${currentFingerprint.slice(0, 8)}]`,
+    })),
+    invalidatedTiers: [],
+  };
+}
+
+/**
  * Verifies an inactive prepared candidate through four independent tiers (PROOF-01 ~ PROOF-03, D-01 ~ D-06).
  */
 export async function verifyPreparedReleaseCandidate(

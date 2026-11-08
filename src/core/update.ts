@@ -20,6 +20,8 @@ import type {
   AdapterEvaluationResult,
   ToolAdapterBinding,
   ToolAdapterSummary,
+  ReleaseVerificationRequest,
+  ReleaseVerificationResult,
 } from "../types.js";
 import { MANAGED_TOOL_IDS } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
@@ -31,6 +33,10 @@ import {
   buildAdapterToolEvidence,
   deriveAdaptedTargetDigest,
 } from "./compatibility-adapters.js";
+import {
+  verifyPreparedReleaseCandidate,
+  type VerifyCandidateOptions,
+} from "./release-verification.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -1269,6 +1275,8 @@ export async function revalidateLocalReleasePlan(
 
 export interface ApplyLocalReleasePlanOptions extends RevalidateLocalReleasePlanOptions {
   session?: MutationSession;
+  candidateVerificationRequests?: readonly ReleaseVerificationRequest[];
+  candidateVerificationOptions?: VerifyCandidateOptions;
 }
 
 export type { LocalReleaseApplyResult };
@@ -1293,6 +1301,37 @@ export async function applyLocalReleasePlan(
     };
   }
 
+  let verificationResults: ReleaseVerificationResult[] | undefined;
+  if (options.candidateVerificationRequests && options.candidateVerificationRequests.length > 0) {
+    const results: ReleaseVerificationResult[] = [];
+    for (const req of options.candidateVerificationRequests) {
+      const res = await verifyPreparedReleaseCandidate(req, options.candidateVerificationOptions);
+      results.push(res);
+    }
+    verificationResults = results;
+    const notPassing = results.filter((r) => r.overallState !== "pass");
+    if (notPassing.length > 0) {
+      const pendingReasons = notPassing.flatMap((r) => r.pendingReasons);
+      const failureReasons = notPassing.flatMap((r) => r.failureReasons);
+      const nextAction = notPassing.find((r) => r.nextAction)?.nextAction;
+      return {
+        mode: revalidated.payload.mode,
+        applied: false,
+        operationId: null,
+        changedTools: [],
+        unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
+        appliedSteps: [],
+        externalChanges: [],
+        message: pendingReasons.length > 0
+          ? `Candidate verification pending: ${pendingReasons.join("; ")}`
+          : `Candidate verification failed: ${failureReasons.join("; ")}`,
+        verification: results,
+        pendingReasons,
+        ...(nextAction ? { nextAction } : {}),
+      };
+    }
+  }
+
   const operationId = `op-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const occurredAt = new Date().toISOString();
   const requests = revalidated.changedTools.map((t) => ({
@@ -1313,6 +1352,22 @@ export async function applyLocalReleasePlan(
     recordPlan,
     async (session) => {
       await beginToolOperation(recordPlan, session);
+
+      if (options.candidateVerificationOptions?.recheckActualTarget) {
+        const recheckInventory = await collectToolInventory({
+          catalog: revalidated.catalog,
+          lock: revalidated.originalLock,
+          packageRoot: pkgRoot,
+          stateRoot: stRoot,
+          home: options.home ? resolve(options.home) : homedir(),
+        });
+        for (const tool of revalidated.changedTools) {
+          const item = recheckInventory.observations.find((t) => t.toolId === tool.toolId);
+          if (item?.installed?.version !== tool.oldVersion) {
+            throw new ComponentPlanError("plan-drift", `Actual active target for ${tool.toolId} drifted immediately before activation.`);
+          }
+        }
+      }
 
       const inventory = collectInventory(revalidated.catalog);
       const installRes = await applyManagedInstall({
@@ -1411,6 +1466,7 @@ export async function applyLocalReleasePlan(
         appliedSteps: installRes.applied,
         externalChanges: installRes.externalChanges,
         message: `Successfully applied ${revalidated.changedTools.length} tool update(s).`,
+        ...(verificationResults ? { verification: verificationResults } : {}),
       };
     },
     options.session,

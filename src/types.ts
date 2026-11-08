@@ -1134,6 +1134,9 @@ export interface LocalReleaseApplyResult {
   readonly appliedSteps: readonly string[];
   readonly externalChanges: readonly string[];
   readonly message: string;
+  readonly verification?: readonly ReleaseVerificationResult[];
+  readonly pendingReasons?: readonly string[];
+  readonly nextAction?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -1242,5 +1245,118 @@ export interface ToolAdapterSummary {
   readonly policyIds: readonly PolicyInterfaceId[];
   readonly text: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 42: Integration Verification and Recovery (PROOF-01 ~ PROOF-04)
+// ---------------------------------------------------------------------------
+
+export type ReleaseEvidenceTier =
+  | "installation"
+  | "discovery"
+  | "protocol-schema"
+  | "invocation";
+
+export type ReleaseEvidenceState =
+  | "pass"
+  | "pending"
+  | "failed"
+  | "not-run";
+
+export interface ReleaseVerificationRequirement {
+  readonly tier: ReleaseEvidenceTier;
+  readonly required: boolean;
+  readonly state: ReleaseEvidenceState;
+  readonly reason?: string;
+  readonly evaluatedAt?: string;
+  readonly reusedFromFingerprint?: string | null;
+  readonly invalidatedReason?: string | null;
+}
+
+export interface AffectedHarnessBinding {
+  readonly harness: HarnessId;
+  readonly toolId: ManagedToolId;
+  readonly configPath: string;
+  readonly configDigest: string;
+  readonly resolvedExecutionPath: string;
+  readonly inActualUse: boolean;
+  readonly reason: string;
+}
+
+export type CandidatePrepareMode =
+  | "inactive"
+  | "activation-required"
+  | "unsupported";
+
+export interface NativePreparationProof {
+  readonly prepareMode: CandidatePrepareMode;
+  readonly candidateArtifact: string;
+  readonly candidateIntegrity: string;
+  readonly activeIdentityPreserved: boolean;
+  readonly activeAliasDigest: string;
+  readonly activeConfigDigest: string;
+  readonly resolvedExecutionPath: string;
+  readonly positiveProofEstablished: boolean;
+  readonly details?: string;
+}
+
+export interface ReadOnlyInvocationDescriptor {
+  readonly descriptorId: string;
+  readonly revision: string;
+  readonly toolId: ManagedToolId;
+  readonly serverId?: McpServerId;
+  readonly harness: HarnessId;
+  readonly requestClass: "read-only-safe" | "read-only-permissioned" | "mutating";
+  readonly toolName: string;
+  readonly argumentSchema: Record<string, unknown>;
+  readonly credentialTier: "none" | "fixture-sentinel" | "ambient" | "explicit";
+  readonly permissionScope: readonly string[];
+  readonly costClass: "free" | "paid" | "quota-bound";
+  readonly requiresApproval: boolean;
+  readonly actualBoundary: "alpha-aos-proxy" | "direct-upstream" | "native-client";
+  readonly expectedObservation: "ok" | "denied" | "tool-error" | "transport-error";
+  readonly redactionPolicy: "redact-credentials-and-args" | "digest-only";
+}
+
+export interface ReleaseEvidenceItem {
+  readonly tier: ReleaseEvidenceTier;
+  readonly state: ReleaseEvidenceState;
+  readonly method: string;
+  readonly resultDigest: string;
+  readonly evaluatedAt: string;
+  readonly reason?: string;
+  readonly details?: Record<string, unknown>;
+}
+
+export interface ReleaseVerificationRequest {
+  readonly toolId: ManagedToolId;
+  readonly candidateRelease: string;
+  readonly candidateArtifact: string;
+  readonly candidateIntegrity: string;
+  readonly candidateDigest: string;
+  readonly currentVersion: string | null;
+  readonly requestedHarnesses?: readonly HarnessId[];
+  readonly descriptors?: readonly ReadOnlyInvocationDescriptor[];
+  readonly previousEvidenceFingerprint?: string | null;
+  readonly preparationProof?: NativePreparationProof;
+}
+
+export interface ReleaseVerificationResult {
+  readonly toolId: ManagedToolId;
+  readonly candidateRelease: string;
+  readonly overallState: ReleaseEvidenceState;
+  readonly dependencyFingerprint: string;
+  readonly affectedHarnesses: readonly AffectedHarnessBinding[];
+  readonly tiers: readonly ReleaseEvidenceItem[];
+  readonly preparationProof: NativePreparationProof;
+  readonly pendingReasons: readonly string[];
+  readonly failureReasons: readonly string[];
+  readonly nextAction?: string;
+  readonly needsActionDetail?: {
+    readonly unclassifiedProbes?: readonly string[];
+    readonly missingRequirements?: readonly string[];
+    readonly instructions?: string;
+  };
+}
+
 
 

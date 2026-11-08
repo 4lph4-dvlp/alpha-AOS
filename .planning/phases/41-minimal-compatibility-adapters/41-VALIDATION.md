@@ -1,8 +1,8 @@
 ---
 phase: "41"
 slug: "minimal-compatibility-adapters"
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: "2026-11-08"
 ---
@@ -38,9 +38,10 @@ created: "2026-11-08"
 
 | Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 41-01-01 | 01 | 1 | ADAPT-01, ADAPT-02 | T-41-01 | Separates permanent `policy-interface` boundaries from retireable `compatibility-correction` adapters and enforces deterministic derivation digests | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js` | ❌ W0 | ⬜ pending |
-| 41-01-02 | 01 | 1 | ADAPT-02, ADAPT-03, ADAPT-04 | T-41-02, T-41-03 | Enforces 3-stage guidance proof gate, structural ECC/GSD preconditions, `inside()` path containment on hook closures, and pure-fixture retirement | unit + integration | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js dist/test/ecc-skills.test.js dist/test/gsd-compat.test.js` | ❌ W0 | ⬜ pending |
-| 41-02-01 | 02 | 2 | ADAPT-01, ADAPT-04 | T-41-04 | Binds adapter revisions/digests into `ReviewedToolBinding`, `tool-records`, and `inventory`/`install`/`update` previews | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js dist/test/local-release-update.test.js dist/test/tool-inventory-cli.test.js` | ✅ | ⬜ pending |
+| 41-01-01 | 01 | 1 | ADAPT-01, ADAPT-02, ADAPT-03, ADAPT-04 | T-41-01 | Separates permanent `policy-interface` boundaries from retireable `compatibility-correction` adapters, enforces 3-stage guidance proof gate, and derives deterministic digests | unit | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js` | ❌ W0 | ⬜ pending |
+| 41-01-02 | 01 | 1 | ADAPT-02, ADAPT-03, ADAPT-04 | T-41-02, T-41-03 | Enforces structural ECC/GSD preconditions, `inside()` path containment on hook closures, global `alpha-aos-research-routing` deployment, and pure-fixture retirement | unit + integration | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js dist/test/ecc-skills.test.js dist/test/gsd-compat.test.js dist/test/owned-skills.test.js` | ❌ W0 | ⬜ pending |
+| 41-02-01 | 02 | 2 | ADAPT-01, ADAPT-02, ADAPT-04 | T-41-04, T-41-05 | Binds adapter revisions/digests into `ReviewedToolBinding`, `synthesizeReleaseStackLock`, and `tool-records` `ToolEvidence` | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js dist/test/local-release-update.test.js dist/test/tool-record-store.test.js` | ✅ | ⬜ pending |
+| 41-02-02 | 02 | 2 | ADAPT-01, ADAPT-04 | T-41-05, T-41-06 | Exposes concise adapter summaries on `inventory` and full metadata/retirement evidence on `inventory --detail`/`--tool` and `install`/`update` previews | integration | `npm run build && node scripts/run-tests.mjs --files dist/test/compatibility-adapters.test.js dist/test/tool-inventory-cli.test.js dist/test/tool-inventory-compat.test.js dist/test/local-release-update.test.js dist/test/ecc-skills.test.js dist/test/gsd-compat.test.js && npm run check` | ✅ | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 

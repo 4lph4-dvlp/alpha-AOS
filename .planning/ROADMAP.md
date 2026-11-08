@@ -92,7 +92,13 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. Before a rewrite is replaced by separate alpha-AOS guidance, supported native discovery/precedence and intended tool invocation are demonstrated; duplicate or ineffective guidance cannot count as completed migration.
 4. An upstream-resolved correction can be retired with selected-release behavior evidence and a retained retirement reason; necessary corrections are not removed on a guessed version threshold, and runtime AI rewriting is absent.
 
-**Plans:** TBD after roadmap approval.
+**Plans:** 2 plans
+
+**Wave 1**
+- [ ] 41-01-PLAN.md — Authoritative compatibility adapter registry (`compatibility-adapters.ts`), global `alpha-aos-research-routing` deployment & 3-stage guidance gate, minimal structural ECC adapters, and GSD Codex Stop hook relative closure & pure-fixture retirement.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 41-02-PLAN.md — Local derived output hash binding in `update.ts`, `tool-records` adapter evidence persistence, and `inventory` (`--detail`/`--tool`) & `install`/`update` preview adapter metadata surfaces.
 
 ### Phase 42: Integration Verification and Recovery
 

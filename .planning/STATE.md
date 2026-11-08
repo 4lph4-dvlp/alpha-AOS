@@ -3,11 +3,11 @@ gsd_state_version: "1.0"
 milestone: v0.8.0
 current_phase: 40
 current_phase_name: Local Official Release Updates
-status: Phase 40 UAT partial - G-40-9 blocker; live-host verification outstanding
-stopped_at: Phase 40 reverified — G-40-9 and live-host UAT outstanding
-last_updated: "2026-11-08T04:02:45.369Z"
+status: Phase 40 gap closure complete - G-40-9 resolved; ready for verification
+stopped_at: Completed 40-04-PLAN.md (G-40-9 closed)
+last_updated: "2026-11-08T08:06:00.000Z"
 last_activity: 2026-11-08
-last_activity_desc: "Phase 40 reverified: 57 tests pass, G-40-9 found, live host blocked"
+last_activity_desc: "Phase 40 gap closure complete: authenticated Rekor SET and validity binding verified"
 state_head: 89f588c5bd4799a12c0d7e18b71d8dc07934f87f
 progress:
   total_phases: 5
@@ -33,14 +33,16 @@ Sections 35–38 / 16 requirements have native implementation evidence. The outg
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 40 — Local Official Release Updates (UAT partial; G-40-9 open)
+**Current focus:** Phase 40 — Local Official Release Updates (gap closure 40-04 complete)
 
 ## Current Position
 
+Current Plan: 4
+Total Plans in Phase: 4
 Phase: 40 — Local Official Release Updates
-Plan: 3 implemented; 40-04 gap-closure plan pending
-Status: Phase 40 UAT partial - G-40-9 blocker; live-host verification outstanding
-Last activity: 2026-11-08 — Phase 40 reverified: 57 tests pass, G-40-9 found, live host blocked
+Plan: 4 of 4 implemented (40-04 gap closure completed; G-40-9 closed)
+Status: Phase 40 gap closure complete — G-40-9 resolved; ready for verification
+Last activity: 2026-11-08 — Phase 40 gap closure complete: authenticated Rekor SET and validity binding verified
 
 ### Completed Phases
 

@@ -17,8 +17,12 @@ import {
   revalidateLocalReleasePlan,
   synthesizeReleaseStackLock,
 } from "../src/core/update.js";
+import {
+  createManagedInstallOperationPlan,
+  createManagedInstallPlan,
+} from "../src/core/install.js";
 import { ComponentPlanError, reviewedDigest } from "../src/core/component-session.js";
-import { loadLock } from "../src/core/catalog.js";
+import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import { readToolRecordStore } from "../src/core/tool-records.js";
 import {
@@ -510,6 +514,197 @@ test("applyLocalReleasePlan is a no-op when all tools are current (D-08)", async
   assert.equal(result.operationId, null);
   assert.equal(result.changedTools.length, 0);
   assert.match(result.message, /No changes applied/);
+});
+
+test("revalidated mutation scope restricts managed install planning, MCP sync, and canary fixtures (G-40-5)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const savedCodexHome = process.env.CODEX_HOME;
+  process.env.CODEX_HOME = join(fixture.home, ".codex");
+  context.after(() => {
+    if (savedCodexHome !== undefined) process.env.CODEX_HOME = savedCodexHome;
+    else delete process.env.CODEX_HOME;
+  });
+
+  const repoRoot = packageRoot();
+  const catalog = await loadCatalog(repoRoot);
+  const lock = await loadLock(repoRoot);
+
+  const inventory = {
+    schemaVersion: 1 as const,
+    generatedAt: new Date(0).toISOString(),
+    platform: "win32" as NodeJS.Platform,
+    architecture: "x64" as const,
+    tools: {
+      node: { version: "v24.0.0", command: process.execPath },
+      npm: { version: "10.0.0", command: "npm" },
+      git: { version: "2.0.0", command: "git" },
+    },
+    harnesses: [
+      { id: "codex" as const, displayName: "codex", command: "codex", version: null, configRoots: [], detected: true, notes: [] },
+    ],
+  };
+
+  // 1. createManagedInstallPlan with selectedTools: ["mcp:context7"] only plans Context7 MCP
+  const installPlan = await createManagedInstallPlan({
+    root: repoRoot,
+    catalog,
+    lock,
+    inventory,
+    requestedTargets: ["codex"],
+    selectedTools: ["mcp:context7"],
+  });
+
+  const stepIds = installPlan.steps.map((s) => s.id);
+  assert.deepEqual(stepIds, ["mcp:codex"]);
+  assert.equal(installPlan.steps[0]?.component, "mcp");
+
+  // 2. createManagedInstallOperationPlan with selectedTools: ["mcp:context7"]
+  const opPlan = await createManagedInstallOperationPlan({
+    root: repoRoot,
+    catalog,
+    lock,
+    inventory,
+    requestedTargets: ["codex"],
+    stateRoot: fixture.stateRoot,
+    selectedTools: ["mcp:context7"],
+  });
+
+  // Canary fixtures must only run for context7, not exa or firecrawl
+  const canaryServers = opPlan.fixtures.mcpCanary.map((c) => c.server);
+  assert.deepEqual(canaryServers, ["context7"]);
+
+  // MCP component sync plan must only configure context7
+  assert.equal(opPlan.components.mcp.length, 1);
+  assert.deepEqual(opPlan.components.mcp[0]?.selected, ["context7"]);
+  const mcpPackages = opPlan.components.mcp[0]?.packages.map((p) => p.server);
+  assert.deepEqual(mcpPackages, ["context7"]);
+
+  // External steps must not run gsd, ecc runtime, or cua runtime
+  assert.equal(opPlan.external.some((s) => s.id === "gsd:codex"), false);
+  assert.equal(opPlan.external.some((s) => s.id === "ecc:runtime"), false);
+  assert.equal(opPlan.external.some((s) => s.id === "cua:runtime"), false);
+});
+
+test("revalidateLocalReleasePlan enforces exact-version SHA-512 SRI metadata and rejects missing, malformed, or drifted integrity (G-40-8)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const binding: ReviewedToolBinding = {
+    toolId: "mcp:context7",
+    action: "install",
+    oldVersion: null,
+    acceptedVersion: null,
+    release: "4.4.4",
+    artifact: "context7-mcp-4.4.4.tgz",
+    integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==",
+    digest: "d".repeat(64),
+    sourceId: "npm-registry",
+    sourceUrl: "https://registry.npmjs.org/@upstash/context7-mcp/-/context7-mcp-4.4.4.tgz",
+    platform: "windows",
+    architecture: "x64",
+  };
+  const payload: ReviewedReleasePlanPayload = {
+    v: 1,
+    mode: "install",
+    targets: ["codex"],
+    selectedTools: ["mcp:context7"],
+    tools: [binding],
+  };
+  const planDigest = reviewedDigest("local-install-plan", payload);
+  const reviewedPlanToken = encodeReviewedReleasePlan(payload);
+
+  const baseRevalidateOptions = {
+    planDigest,
+    reviewedPlanToken,
+    packageRoot: fixture.packageRoot,
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    platform: "win32" as const,
+    architecture: "x64" as const,
+  };
+
+  // Case 1: Missing dist metadata rejected
+  await assert.rejects(
+    async () => {
+      await revalidateLocalReleasePlan({
+        ...baseRevalidateOptions,
+        fetchImpl: mockFetch({
+          "%40upstash%2Fcontext7-mcp/4.4.4": { version: "4.4.4" }, // missing dist
+        }),
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError && err.code === "plan-drift");
+      assert.match(err.message, /Remote integrity metadata missing or invalid/);
+      return true;
+    },
+  );
+
+  // Case 2: Absent / null / non-string dist.integrity rejected
+  await assert.rejects(
+    async () => {
+      await revalidateLocalReleasePlan({
+        ...baseRevalidateOptions,
+        fetchImpl: mockFetch({
+          "%40upstash%2Fcontext7-mcp/4.4.4": { version: "4.4.4", dist: { integrity: null } },
+        }),
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError && err.code === "plan-drift");
+      assert.match(err.message, /Remote integrity metadata missing or invalid/);
+      return true;
+    },
+  );
+
+  // Case 3: Malformed dist.integrity (not sha512 SRI) rejected
+  await assert.rejects(
+    async () => {
+      await revalidateLocalReleasePlan({
+        ...baseRevalidateOptions,
+        fetchImpl: mockFetch({
+          "%40upstash%2Fcontext7-mcp/4.4.4": { version: "4.4.4", dist: { integrity: "sha256-invalidformat==" } },
+        }),
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError && err.code === "plan-drift");
+      assert.match(err.message, /Remote integrity metadata missing or invalid/);
+      return true;
+    },
+  );
+
+  // Case 4: Drifted dist.integrity (different from reviewed plan) rejected
+  await assert.rejects(
+    async () => {
+      await revalidateLocalReleasePlan({
+        ...baseRevalidateOptions,
+        fetchImpl: mockFetch({
+          "%40upstash%2Fcontext7-mcp/4.4.4": {
+            version: "4.4.4",
+            dist: { integrity: "sha512-differenthash12345678901234567890==" },
+          },
+        }),
+      });
+    },
+    (err: unknown) => {
+      assert.ok(err instanceof ComponentPlanError && err.code === "plan-drift");
+      assert.match(err.message, /integrity drifted/);
+      return true;
+    },
+  );
+
+  // Case 5: Valid matching SHA-512 SRI succeeds revalidation
+  const revalidated = await revalidateLocalReleasePlan({
+    ...baseRevalidateOptions,
+    fetchImpl: mockFetch({
+      "%40upstash%2Fcontext7-mcp/4.4.4": {
+        version: "4.4.4",
+        dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+      },
+    }),
+  });
+  assert.equal(revalidated.changedTools.length, 1);
+  assert.equal(revalidated.changedTools[0]?.toolId, "mcp:context7");
+  assert.equal(revalidated.changedTools[0]?.integrity, binding.integrity);
 });
 
 test("synthesizeReleaseStackLock derives ECC skill hashes in memory without disk writes (D-16)", async () => {

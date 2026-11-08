@@ -1174,7 +1174,17 @@ export async function revalidateLocalReleasePlan(
           `Remote version drifted for ${pkgName}: expected ${tool.release}, got ${String(data.version)}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
         );
       }
-      if (typeof data.dist?.integrity === "string" && data.dist.integrity !== tool.integrity) {
+      if (
+        !data.dist ||
+        typeof data.dist.integrity !== "string" ||
+        !/^sha512-[A-Za-z0-9+/]+=*$/.test(data.dist.integrity)
+      ) {
+        throw new ComponentPlanError(
+          "plan-drift",
+          `Remote integrity metadata missing or invalid for ${pkgName}@${tool.release}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
+        );
+      }
+      if (data.dist.integrity !== tool.integrity) {
         throw new ComponentPlanError(
           "plan-drift",
           `Remote integrity drifted for ${pkgName}@${tool.release}: expected ${tool.integrity}, got ${data.dist.integrity}. Re-run "alpha-aos ${payload.mode}" to generate a fresh preview.`,
@@ -1251,7 +1261,7 @@ export async function applyLocalReleasePlan(
         inventory,
         stateRoot: stRoot,
         session,
-        selectedTools: revalidated.payload.selectedTools,
+        selectedTools: revalidated.changedTools.map((t) => t.toolId),
         requestedTargets: [...revalidated.payload.targets],
         ...(revalidated.cuaPin ? { cuaPin: revalidated.cuaPin } : {}),
       });

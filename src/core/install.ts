@@ -4,7 +4,7 @@ import { applyCodexPolicy, planCodexPolicy, type CodexPolicyOperationPlan } from
 import { readFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import type { HarnessId, Inventory, ManagedToolId, StackCatalog, StackLock } from "../types.js";
+import type { HarnessId, Inventory, ManagedToolId, McpServerId, StackCatalog, StackLock } from "../types.js";
 import {
   applyEccSkillSync,
   globalEccSkillRoot,
@@ -401,6 +401,9 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
   const selection = selectInstallTargets(options.inventory, options.requestedTargets);
   const steps: ManagedInstallStep[] = [];
   const selectedTools = options.selectedTools;
+  const selectedMcpServers = selectedTools
+    ? selectedTools.filter((t): t is `mcp:${McpServerId}` => t.startsWith("mcp:")).map((t) => t.slice(4) as McpServerId)
+    : undefined;
 
   const wantsGsd = !selectedTools || selectedTools.includes("gsd");
   const wantsEcc = !selectedTools || selectedTools.includes("ecc");
@@ -464,7 +467,9 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
     }
   }
 
-  const piPlan = selection.targets.includes("pi") && (wantsMcp || wantsPiBridge) ? await planMcpSync("pi", options.lock) : null;
+  const piPlan = selection.targets.includes("pi") && (wantsMcp || wantsPiBridge)
+    ? await planMcpSync("pi", options.lock, { ...(selectedMcpServers ? { selected: selectedMcpServers } : {}) })
+    : null;
   if (wantsCua) {
     const cua = await planCuaInstall(options.stateRoot, options.root, options.cuaPin);
     steps.push({ id: "cua:runtime", component: "cua-runtime", target: "machine", action: cua.current ? "current" : "install", external: true, note: `Official installer -> ${cua.executable}; native PATH setup; no autostart; version GC disabled; native changes require native rollback; reviewed pin ${cua.pinHash}` });
@@ -482,7 +487,9 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
 
   if (wantsMcp) {
     for (const target of selection.targets) {
-      const plan = await planMcpSync(target, options.lock);
+      const plan = await planMcpSync(target, options.lock, {
+        ...(selectedMcpServers ? { selected: selectedMcpServers } : {}),
+      });
       steps.push({ id: `mcp:${target}`, component: "mcp", target, action: plan.action, external: false, note: plan.configPath });
     }
   }
@@ -710,17 +717,29 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
 
   const changedMcpTargets = new Set(install.steps.filter((step) => step.component === "mcp" && step.action !== "current").map((step) => step.target as HarnessId));
   const mcpCanary: McpFixtureOperationPlan[] = [];
+  const selectedMcpServers = options.selectedTools
+    ? options.selectedTools.filter((t): t is `mcp:${McpServerId}` => t.startsWith("mcp:")).map((t) => t.slice(4) as McpServerId)
+    : undefined;
   if (changedMcpTargets.size > 0) {
     const canary = install.targets.includes(options.catalog.policy.canaryHarness) ? options.catalog.policy.canaryHarness : install.targets[0];
     if (!canary) throw new Error("No MCP canary harness is available");
-    for (const server of mcpServerIds()) {
+    const serversToCanary = (selectedMcpServers && selectedMcpServers.length > 0)
+      ? selectedMcpServers
+      : mcpServerIds();
+    for (const server of serversToCanary) {
       mcpCanary.push(await createMcpFixtureOperationPlan({ server, harness: canary, lock: options.lock, ...reuse(`mcp-canary:${server}`) }));
     }
   }
 
   const mcp: McpOperationPlan[] = [];
-  for (const target of install.targets) {
-    mcp.push(await planMcpOperation(target, options.lock, installStateOptions(options)));
+  const wantsMcp = !options.selectedTools || options.selectedTools.some((t) => t.startsWith("mcp:"));
+  if (wantsMcp) {
+    for (const target of install.targets) {
+      mcp.push(await planMcpOperation(target, options.lock, {
+        ...installStateOptions(options),
+        ...(selectedMcpServers ? { selected: selectedMcpServers } : {}),
+      }));
+    }
   }
 
   const policy = install.targets.includes("claude")
@@ -917,6 +936,9 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
     const freshOwnedSkills: OwnedSkillOperationPlan[] = [];
     const freshEccSkills: EccSkillOperationPlan[] = [];
     const freshMcp: McpOperationPlan[] = [];
+    const selectedMcpServers = options.selectedTools
+      ? options.selectedTools.filter((t): t is `mcp:${McpServerId}` => t.startsWith("mcp:")).map((t) => t.slice(4) as McpServerId)
+      : undefined;
     for (const target of plan.targets) {
       for (const skill of options.catalog.components.ownedSkills) {
         if (!skill.targets.includes(target)) continue;
@@ -926,7 +948,12 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
         stateRoot: reviewed.stateRoot,
         ...(reviewed.fixtureRoots[`ecc-skills:${target}`] === undefined ? {} : { fixtureRoot: reviewed.fixtureRoots[`ecc-skills:${target}`] }),
       }));
-      freshMcp.push(await planMcpOperation(target, options.lock, { stateRoot: reviewed.stateRoot }));
+      if (plan.steps.some((step) => step.component === "mcp")) {
+        freshMcp.push(await planMcpOperation(target, options.lock, {
+          stateRoot: reviewed.stateRoot,
+          ...(selectedMcpServers ? { selected: selectedMcpServers } : {}),
+        }));
+      }
     }
     const freshPolicy = reviewed.components.policy === null
       ? null

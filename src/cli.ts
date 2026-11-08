@@ -973,6 +973,8 @@ async function main(): Promise<void> {
   const { applyClaudeSkillPolicy, planClaudeSkillPolicy } = await import("./core/skill-policy.js");
   const { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } = await import("./core/mcp-proxy.js");
   const { hasVersionChanges, resolveCandidate, writeCandidate, createLocalReleasePlan, applyLocalReleasePlan } = await import("./core/update.js");
+  const { resumeReleaseOperation, cancelReleaseOperation, recoverReleaseOperation, reconcileReleaseOperation } = await import("./core/release-recovery.js");
+  const { readReleaseLifecycle, createReleaseCleanupPlan, applyReleaseCleanupPlan, isLifecycleTerminalKind } = await import("./core/release-lifecycle-store.js");
   const { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } = await import("./core/install.js");
   const { getOfflineStatus } = await import("./core/status.js");
   const { listManagedTransactions, planManagedRollback, rollbackManagedTransaction, RollbackDriftError } = await import("./core/transaction.js");
@@ -992,7 +994,7 @@ async function main(): Promise<void> {
   const { appendJournalEvent, readCheckpoint, readJournalEvents, writeCheckpoint } = await import("./core/task-journal.js");
   const { canaryProof, canaryRow, createCanaryObservationSink, createCanaryRuntime, disposeCanaryRuntime, discoveryRow, EMPTY_BOUND_INPUTS, handoffRow, HARNESS_COMMANDS, loadCanaryCatalog, resolveCapabilityFilter, runCanary, runCanarySweep, runDiscoverySweep, runHandoffCanary, selectCanaries, skippedCanaryRow, SWEEP_HARNESSES } = await import("./core/canary.js");
   const { CAPABILITY_LEDGER_SCHEMA_VERSION, capabilityLedgerPath, harnessMinorKey, readCapabilityLedger, upsertProof, writeCapabilityLedger } = await import("./core/capability-ledger.js");
-  const { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatLocalReleaseApplyResult, formatLocalReleasePreview, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatReleaseSupportMatrixTable, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } = await import("./format.js");
+  const { formatCapabilityReport, formatCrashRepairPlan, formatCrashRepairResult, formatDoctor, formatDriftDiagnostics, formatFinalReviewPreview, formatFinalReviewReport, formatHandoffEvidence, formatInventory, formatIsolationLaunch, formatIsolationPlan, formatLocalReleaseApplyResult, formatLocalReleasePreview, formatReleaseLifecyclePreview, formatReleaseLifecycleResult, formatOfflineStatus, formatPlan, formatProjectApproval, formatProjectApprovalPreview, formatProjectPackSync, formatProjectPlan, formatProjectStatus, formatReleaseSupportMatrixTable, formatSupervisorReport, formatSupportMatrixTable, formatTaskApproval, formatTaskContractPreview, formatTaskPlan, formatTaskResumeReadiness, formatTaskRunReport, formatTaskStartReadiness, formatTaskStatus, formatTreeInspection, formatTreeList, formatTreePreview, formatUninstallPlan, formatUninstallResult, formatUpdate } = await import("./format.js");
   const { buildTaskCapabilityReport } = await import("./core/task-capability-inventory.js");
   const { applyCrashRepair, planCrashRepair } = await import("./core/repair.js");
   const { applyUninstall, planUninstall, SemanticPruneDriftError } = await import("./core/uninstall.js");
@@ -1130,6 +1132,10 @@ async function main(): Promise<void> {
         reviewedPlanToken: reviewedPlan,
       });
       print(result, json, formatLocalReleaseApplyResult(result));
+      if (result.status === "verification-pending") process.exitCode = 3;
+      else if (result.status === "failed-pre-apply" || result.status === "failed-post-apply") process.exitCode = 4;
+      else if (result.status === "recovery-required") process.exitCode = 5;
+      else if (result.status === "accepted") process.exitCode = 0;
       return;
     }
 
@@ -1633,7 +1639,16 @@ async function main(): Promise<void> {
 
   if (command === "update") {
     const parsed = parseClosedFlags(args.slice(1), {
-      valueFlags: ["--tool", "--target", "--plan-digest", "--reviewed-plan"],
+      valueFlags: [
+        "--tool",
+        "--target",
+        "--plan-digest",
+        "--reviewed-plan",
+        "--resume",
+        "--cancel",
+        "--recover",
+        "--cleanup",
+      ],
       booleanFlags: ["--apply", "--check", "--stage", "--json"],
     });
 
@@ -1652,11 +1667,338 @@ async function main(): Promise<void> {
       throw new Error(`Unexpected update argument: ${invalidOperands[0]}`);
     }
 
+    const resumeOpId = parsed.options.get("--resume") as string | undefined;
+    const cancelOpId = parsed.options.get("--cancel") as string | undefined;
+    const recoverOpId = parsed.options.get("--recover") as string | undefined;
+    const cleanupOpId = parsed.options.get("--cleanup") as string | undefined;
+
+    const lifecycleFlags = [
+      resumeOpId ? { flag: "--resume", id: resumeOpId } : null,
+      cancelOpId ? { flag: "--cancel", id: cancelOpId } : null,
+      recoverOpId ? { flag: "--recover", id: recoverOpId } : null,
+      cleanupOpId ? { flag: "--cleanup", id: cleanupOpId } : null,
+    ].filter(Boolean) as Array<{ flag: string; id: string }>;
+
+    if (lifecycleFlags.length > 1) {
+      throw new Error(
+        `Conflicting lifecycle flags: cannot combine ${lifecycleFlags.map((f) => f.flag).join(" and ")}. Choose exactly one lifecycle intent.`,
+      );
+    }
+
     const apply = parsed.options.has("--apply");
     const planDigest = parsed.options.get("--plan-digest");
     const reviewedPlan = parsed.options.get("--reviewed-plan");
     const tools = parseManagedToolList(parsed.options.get("--tool") as string | undefined);
     const targets = parseTargetHarnessList(parsed.options.get("--target") as string | undefined);
+
+    if (lifecycleFlags.length === 1) {
+      if (tools || targets) {
+        throw new Error(
+          `Cannot specify --tool or --target with ${lifecycleFlags[0]!.flag}. Lifecycle operations resume, cancel, recover, or clean up an exact persisted candidate.`,
+        );
+      }
+      const activeLifecycle = lifecycleFlags[0]!;
+      const operationId = activeLifecycle.id;
+      const stateRoot = userStateRoot();
+
+      if (activeLifecycle.flag === "--resume") {
+        const lifecycle = await readReleaseLifecycle({ stateRoot, operationId });
+        if (!lifecycle) {
+          throw new Error(`Cannot find release lifecycle operation '${operationId}'`);
+        }
+        if (isLifecycleTerminalKind(lifecycle.status)) {
+          throw new Error(`Cannot resume: operation '${operationId}' is already in terminal state '${lifecycle.status}'`);
+        }
+
+        const candidateRelease = lifecycle.reviewedRelease.release;
+        const candidateIntegrity = lifecycle.reviewedRelease.integrity;
+        const toolId = lifecycle.toolId;
+        const expectedDigest = createHash("sha256")
+          .update(`resume:${operationId}:${candidateRelease}:${candidateIntegrity}`)
+          .digest("hex");
+        const resumeToken = Buffer.from(
+          JSON.stringify({ v: 1, op: "resume", operationId, planDigest: expectedDigest, release: candidateRelease }),
+          "utf8",
+        ).toString("base64url");
+
+        if (apply) {
+          if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+            throw new Error(
+              `Applying resume requires both --plan-digest and --reviewed-plan. Run "alpha-aos update --resume ${operationId}" to preview and obtain a reviewed plan.`,
+            );
+          }
+          if (planDigest !== expectedDigest) {
+            throw new Error(
+              `Plan digest mismatch: provided digest ${planDigest} does not match expected digest ${expectedDigest}. Re-run "alpha-aos update --resume ${operationId}" to preview.`,
+            );
+          }
+          let parsedToken: any;
+          try {
+            parsedToken = JSON.parse(Buffer.from(reviewedPlan, "base64url").toString("utf8"));
+          } catch {
+            throw new Error(`Invalid reviewed-plan token for resume operation '${operationId}'.`);
+          }
+          if (parsedToken.op !== "resume" || parsedToken.operationId !== operationId || parsedToken.planDigest !== expectedDigest) {
+            throw new Error(`Stale or invalid reviewed-plan token for resume operation '${operationId}'.`);
+          }
+
+          const result = await resumeReleaseOperation({
+            operationId,
+            stateRoot,
+            packageRoot: root,
+          });
+
+          const payload = { operation: "resume", ...result };
+          print(payload, json, formatReleaseLifecycleResult(payload));
+          if (result.status === "verification-pending") process.exitCode = 3;
+          else if (result.status === "failed-pre-apply" || result.status === "failed-post-apply") process.exitCode = 4;
+          else if (result.status === "recovery-required") process.exitCode = 5;
+          else if (result.status === "accepted") process.exitCode = 0;
+          return;
+        }
+
+        const applyCommand = `alpha-aos update --resume ${operationId} --apply --plan-digest ${expectedDigest} --reviewed-plan ${resumeToken}`;
+        const preview = {
+          operation: "resume",
+          operationId,
+          toolId,
+          candidateRelease,
+          status: lifecycle.status,
+          planDigest: expectedDigest,
+          reviewedPlan: resumeToken,
+          applyCommand,
+          affectedHarnesses: ["claude", "codex", "antigravity", "pi", "hermes"],
+          verificationChecks: ["inactive-preparation", "tracer-invocation", "protocol-check", "postcheck-barrier"],
+          costAndPermissions: "Read-only process spawn, zero network mutation during verification",
+          recoveryScope: [toolId, `rollback:${toolId}`],
+          message: `Ready to resume verification of candidate release ${candidateRelease} for tool ${toolId}.`,
+        };
+        print(preview, json, formatReleaseLifecyclePreview(preview));
+        return;
+      }
+
+      if (activeLifecycle.flag === "--cancel") {
+        const lifecycle = await readReleaseLifecycle({ stateRoot, operationId });
+        if (!lifecycle) {
+          throw new Error(`Cannot find release lifecycle operation '${operationId}'`);
+        }
+
+        const expectedDigest = createHash("sha256")
+          .update(`cancel:${operationId}:${lifecycle.status}`)
+          .digest("hex");
+        const cancelToken = Buffer.from(
+          JSON.stringify({ v: 1, op: "cancel", operationId, planDigest: expectedDigest }),
+          "utf8",
+        ).toString("base64url");
+
+        if (apply) {
+          if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+            throw new Error(
+              `Applying cancel requires both --plan-digest and --reviewed-plan. Run "alpha-aos update --cancel ${operationId}" to preview and obtain a reviewed plan.`,
+            );
+          }
+          if (planDigest !== expectedDigest) {
+            throw new Error(
+              `Plan digest mismatch: provided digest ${planDigest} does not match expected digest ${expectedDigest}. Re-run "alpha-aos update --cancel ${operationId}" to preview.`,
+            );
+          }
+          let parsedToken: any;
+          try {
+            parsedToken = JSON.parse(Buffer.from(reviewedPlan, "base64url").toString("utf8"));
+          } catch {
+            throw new Error(`Invalid reviewed-plan token for cancel operation '${operationId}'.`);
+          }
+          if (parsedToken.op !== "cancel" || parsedToken.operationId !== operationId || parsedToken.planDigest !== expectedDigest) {
+            throw new Error(`Stale or invalid reviewed-plan token for cancel operation '${operationId}'.`);
+          }
+
+          const result = await cancelReleaseOperation({
+            operationId,
+            stateRoot,
+            packageRoot: root,
+          });
+
+          const payload = { operation: "cancel", ...result };
+          print(payload, json, formatReleaseLifecycleResult(payload));
+          process.exitCode = 0;
+          return;
+        }
+
+        const applyCommand = `alpha-aos update --cancel ${operationId} --apply --plan-digest ${expectedDigest} --reviewed-plan ${cancelToken}`;
+        const preview = {
+          operation: "cancel",
+          operationId,
+          toolId: lifecycle.toolId,
+          candidateRelease: lifecycle.reviewedRelease.release,
+          status: lifecycle.status,
+          planDigest: expectedDigest,
+          reviewedPlan: cancelToken,
+          applyCommand,
+          message: `Would cancel operation ${operationId}. Active installation, evidence, and downloaded artifacts will be retained.`,
+        };
+        print(preview, json, formatReleaseLifecyclePreview(preview));
+        return;
+      }
+
+      if (activeLifecycle.flag === "--recover") {
+        const lifecycle = await readReleaseLifecycle({ stateRoot, operationId });
+        if (!lifecycle) {
+          throw new Error(`Cannot find release lifecycle operation '${operationId}'`);
+        }
+        const reconciled = await reconcileReleaseOperation({
+          operationId,
+          stateRoot,
+          packageRoot: root,
+        });
+
+        const expectedDigest = createHash("sha256")
+          .update(`recover:${operationId}:${lifecycle.status}`)
+          .digest("hex");
+        const recoverToken = Buffer.from(
+          JSON.stringify({ v: 1, op: "recover", operationId, planDigest: expectedDigest }),
+          "utf8",
+        ).toString("base64url");
+
+        if (apply) {
+          if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+            throw new Error(
+              `Applying recover requires both --plan-digest and --reviewed-plan. Run "alpha-aos update --recover ${operationId}" to preview and obtain a reviewed plan.`,
+            );
+          }
+          if (planDigest !== expectedDigest) {
+            throw new Error(
+              `Plan digest mismatch: provided digest ${planDigest} does not match expected digest ${expectedDigest}. Re-run "alpha-aos update --recover ${operationId}" to preview.`,
+            );
+          }
+          let parsedToken: any;
+          try {
+            parsedToken = JSON.parse(Buffer.from(reviewedPlan, "base64url").toString("utf8"));
+          } catch {
+            throw new Error(`Invalid reviewed-plan token for recover operation '${operationId}'.`);
+          }
+          if (parsedToken.op !== "recover" || parsedToken.operationId !== operationId || parsedToken.planDigest !== expectedDigest) {
+            throw new Error(`Stale or invalid reviewed-plan token for recover operation '${operationId}'.`);
+          }
+
+          const result = await recoverReleaseOperation({
+            operationId,
+            stateRoot,
+            packageRoot: root,
+          });
+
+          const payload = { operation: "recover", ...result };
+          print(payload, json, formatReleaseLifecycleResult(payload));
+          if (result.batchResult?.overallStatus === "recovery-required") {
+            process.exitCode = 5;
+          } else if (result.batchResult?.overallStatus === "recovered-failed") {
+            // D-11: Attempted update remains failed even though native recovery restored previous versions
+            process.exitCode = 4;
+          } else if (!result.recovered) {
+            process.exitCode = 4;
+          } else {
+            process.exitCode = 0;
+          }
+          return;
+        }
+
+        const applyCommand = `alpha-aos update --recover ${operationId} --apply --plan-digest ${expectedDigest} --reviewed-plan ${recoverToken}`;
+        const preview = {
+          operation: "recover",
+          operationId,
+          tools: reconciled.tools,
+          status: lifecycle.status,
+          planDigest: expectedDigest,
+          reviewedPlan: recoverToken,
+          applyCommand,
+          recoveryScope: [lifecycle.toolId, `rollback:${lifecycle.toolId}`],
+          message: `Would recover operation ${operationId} using native release adapters in reverse activation order.`,
+        };
+        print(preview, json, formatReleaseLifecyclePreview(preview));
+        return;
+      }
+
+      if (activeLifecycle.flag === "--cleanup") {
+        const lifecycle = await readReleaseLifecycle({ stateRoot, operationId });
+        if (!lifecycle) {
+          throw new Error(`Cannot find release lifecycle operation '${operationId}'`);
+        }
+
+        const candidateArtifacts: Array<{ path: string; digest: string; sizeBytes?: number; toolId?: ManagedToolId; recoveryImpact?: string }> = [];
+        for (const ev of lifecycle.events) {
+          for (const ref of ev.artifactRefs ?? []) {
+            candidateArtifacts.push({
+              path: ref,
+              digest: lifecycle.reviewedRelease.digest,
+              toolId: lifecycle.toolId,
+              recoveryImpact: `Artifact associated with operation ${operationId}`,
+            });
+          }
+        }
+        const downloadsDir = join(stateRoot, "downloads");
+        try {
+          const dlFiles = await readdir(downloadsDir);
+          for (const f of dlFiles) {
+            candidateArtifacts.push({
+              path: join(downloadsDir, f),
+              digest: "unreferenced",
+              recoveryImpact: "Unreferenced inactive release artifact; prior versions preserved",
+            });
+          }
+        } catch {
+          // ignore if downloads dir does not exist
+        }
+
+        const cleanupPlan = await createReleaseCleanupPlan({
+          stateRoot,
+          packageRoot: root,
+          candidateArtifacts,
+        });
+
+        if (apply) {
+          if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+            throw new Error(
+              `Applying cleanup requires both --plan-digest and --reviewed-plan. Run "alpha-aos update --cleanup ${operationId}" to preview and obtain a reviewed plan.`,
+            );
+          }
+          if (planDigest !== cleanupPlan.planDigest) {
+            throw new Error(
+              `Plan digest mismatch: provided digest ${planDigest} does not match expected digest ${cleanupPlan.planDigest}. Re-run "alpha-aos update --cleanup ${operationId}" to preview.`,
+            );
+          }
+          if (reviewedPlan !== cleanupPlan.reviewedToken) {
+            throw new Error(`Stale or invalid reviewed-plan token for cleanup operation '${operationId}'.`);
+          }
+
+          const result = await applyReleaseCleanupPlan({
+            stateRoot,
+            packageRoot: root,
+            plan: cleanupPlan,
+          });
+
+          const payload = { operation: "cleanup", operationId, ...result };
+          print(payload, json, formatReleaseLifecycleResult(payload));
+          if (result.driftDetected) process.exitCode = 2;
+          else process.exitCode = 0;
+          return;
+        }
+
+        const applyCommand = `alpha-aos update --cleanup ${operationId} --apply --plan-digest ${cleanupPlan.planDigest} --reviewed-plan ${cleanupPlan.reviewedToken}`;
+        const preview = {
+          operation: "cleanup",
+          operationId,
+          toolId: lifecycle.toolId,
+          status: lifecycle.status,
+          planDigest: cleanupPlan.planDigest,
+          reviewedPlan: cleanupPlan.reviewedToken,
+          applyCommand,
+          removableArtifacts: cleanupPlan.removableArtifacts,
+          protectedArtifacts: cleanupPlan.protectedArtifacts,
+          message: `Preview of cleanup for operation ${operationId}. Protected sets will not be deleted.`,
+        };
+        print(preview, json, formatReleaseLifecyclePreview(preview));
+        return;
+      }
+    }
 
     if (apply) {
       if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
@@ -1670,6 +2012,10 @@ async function main(): Promise<void> {
         reviewedPlanToken: reviewedPlan,
       });
       print(result, json, formatLocalReleaseApplyResult(result));
+      if (result.status === "verification-pending") process.exitCode = 3;
+      else if (result.status === "failed-pre-apply" || result.status === "failed-post-apply") process.exitCode = 4;
+      else if (result.status === "recovery-required") process.exitCode = 5;
+      else if (result.status === "accepted") process.exitCode = 0;
       return;
     }
 

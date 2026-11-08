@@ -2391,14 +2391,128 @@ export function formatLocalReleasePreview(plan: LocalReleasePlan): string {
 export function formatLocalReleaseApplyResult(result: LocalReleaseApplyResult): string {
   const lines: string[] = [
     `alpha-AOS local release ${result.mode} complete`,
-    `Status: ${result.applied ? "applied" : "no-op (already current)"}`,
+    `Status: ${result.status ?? (result.applied ? "applied" : "no-op (already current)")}`,
     `Operation ID: ${result.operationId ?? "none"}`,
     `Changed tools: ${result.changedTools.join(", ") || "none"}`,
     `Unchanged tools: ${result.unchangedTools.join(", ") || "none"}`,
     `Applied steps: ${result.appliedSteps.join(", ") || "none"}`,
     `External changes: ${result.externalChanges.join(", ") || "none"}`,
-    result.message,
   ];
+  if (result.nextCommand || result.nextAction) {
+    lines.push(`Next action: ${result.nextCommand ?? result.nextAction}`);
+  }
+  lines.push(result.message);
+  return lines.join("\n");
+}
+
+export function formatReleaseLifecyclePreview(preview: Record<string, any>): string {
+  const lines: string[] = [
+    `alpha-AOS release lifecycle ${preview.operation ?? "control"} preview`,
+    `Operation ID: ${preview.operationId ?? "unknown"}`,
+  ];
+  if (preview.toolId) lines.push(`Tool: ${preview.toolId}`);
+  if (preview.candidateRelease) lines.push(`Candidate release: ${preview.candidateRelease}`);
+  if (preview.status) lines.push(`Status: ${preview.status}`);
+  if (preview.planDigest) lines.push(`Plan digest: ${preview.planDigest}`);
+  if (Array.isArray(preview.affectedHarnesses) && preview.affectedHarnesses.length > 0) {
+    lines.push(`Affected harnesses: ${preview.affectedHarnesses.join(", ")}`);
+  }
+  if (Array.isArray(preview.verificationChecks) && preview.verificationChecks.length > 0) {
+    lines.push(`Verification checks: ${preview.verificationChecks.join(", ")}`);
+  }
+  if (preview.costAndPermissions) {
+    lines.push(`Cost and permissions: ${String(preview.costAndPermissions)}`);
+  }
+  if (Array.isArray(preview.recoveryScope) && preview.recoveryScope.length > 0) {
+    lines.push(`Recovery scope: ${preview.recoveryScope.join(", ")}`);
+  }
+  if (preview.applyCommand) {
+    lines.push("");
+    lines.push("Apply command:");
+    lines.push(`  ${preview.applyCommand}`);
+  }
+  if (Array.isArray(preview.tools)) {
+    lines.push("");
+    lines.push("Tools status:");
+    for (const t of preview.tools as any[]) {
+      lines.push(`  - ${t.toolId}: reviewed=${t.reviewedRelease}, observed=${t.observedIdentity?.version ?? "none"}, state=${t.state}`);
+    }
+  }
+  if (Array.isArray(preview.removableArtifacts)) {
+    lines.push("");
+    lines.push(`Removable artifacts (${preview.removableArtifacts.length}):`);
+    for (const a of (preview.removableArtifacts as any[]).slice(0, 10)) {
+      lines.push(`  - ${a.path} (${a.recoveryImpact ?? "safe to remove"})`);
+    }
+  }
+  if (Array.isArray(preview.protectedArtifacts)) {
+    lines.push("");
+    lines.push(`Protected artifacts (${preview.protectedArtifacts.length}):`);
+    for (const p of (preview.protectedArtifacts as any[]).slice(0, 5)) {
+      lines.push(`  - ${p}`);
+    }
+    if ((preview.protectedArtifacts as any[]).length > 5) {
+      lines.push(`  ... and ${(preview.protectedArtifacts as any[]).length - 5} more`);
+    }
+  }
+  if (preview.message) {
+    lines.push("");
+    lines.push(String(preview.message));
+  }
+  return lines.join("\n");
+}
+
+export function formatReleaseLifecycleResult(result: Record<string, any>): string {
+  const lines: string[] = [
+    `alpha-AOS release lifecycle ${result.operation ?? "operation"} result`,
+    `Operation ID: ${result.operationId ?? "unknown"}`,
+  ];
+  if (result.status) lines.push(`Status: ${result.status}`);
+  if (result.toolId) lines.push(`Tool: ${result.toolId}`);
+  if (result.cancelled !== undefined) {
+    lines.push(`Cancelled: ${result.cancelled}`);
+    lines.push("Active installation: retained");
+    lines.push("Evidence records: retained");
+    lines.push("Downloaded artifacts: retained");
+  }
+  if (result.resumed !== undefined) lines.push(`Resumed: ${result.resumed}`);
+  if (result.recovered !== undefined) lines.push(`Recovered: ${result.recovered}`);
+  if (result.deletedCount !== undefined) lines.push(`Deleted artifacts: ${result.deletedCount}`);
+  if (Array.isArray(result.reusedTiers)) {
+    lines.push(`Reused evidence tiers: ${(result.reusedTiers as string[]).join(", ") || "none"}`);
+  }
+  if (Array.isArray(result.recheckedTiers)) {
+    lines.push(`Rechecked evidence tiers: ${(result.recheckedTiers as string[]).join(", ") || "none"}`);
+  }
+  if (result.observedIdentity && typeof result.observedIdentity === "object") {
+    const oi = result.observedIdentity as any;
+    lines.push(`Observed identity: version=${oi.version ?? "none"}, installationId=${oi.installationId ?? "none"}`);
+    if (oi.pathAlias) lines.push(`Observed path alias: ${oi.pathAlias}`);
+  }
+  if (Array.isArray(result.residualEffects) && result.residualEffects.length > 0) {
+    lines.push(`Residual effects: ${result.residualEffects.join(", ")}`);
+  }
+  if (Array.isArray(result.neededScope) && result.neededScope.length > 0) {
+    lines.push(`Needed scope: ${result.neededScope.join(", ")}`);
+  }
+  if (result.batchResult && typeof result.batchResult === "object") {
+    const br = result.batchResult as any;
+    lines.push(`Batch recovery outcome: ${br.overallStatus}`);
+    for (const tr of br.toolResults ?? []) {
+      lines.push(`  - ${tr.toolId}: ${tr.status} (observed: ${tr.observedIdentity?.version ?? "none"})`);
+      if (Array.isArray(tr.residualEffects) && tr.residualEffects.length > 0) {
+        lines.push(`    Residual effects: ${tr.residualEffects.join(", ")}`);
+      }
+    }
+  }
+  if (result.nextCommand) {
+    lines.push("");
+    lines.push(`Next action: ${result.nextCommand}`);
+  }
+  if (result.message) {
+    lines.push("");
+    lines.push(String(result.message));
+  }
   return lines.join("\n");
 }
 

@@ -183,7 +183,10 @@ export function createDefaultReleaseAdapter(toolId: ManagedToolId): NativeReleas
         residualEffects: [],
       };
     },
-    classifyResidualEffects() {
+    classifyResidualEffects(opts) {
+      if (opts.switched && !opts.recovered) {
+        return [`Unrecovered candidate version active on host for ${toolId}`];
+      }
       return [];
     },
   };
@@ -977,28 +980,29 @@ export async function recoverReleaseOperation(
     };
   }
 
-  const switchedTools: SwitchedToolSpec[] = [];
+  const switchedMap = new Map<ManagedToolId, SwitchedToolSpec>();
   for (const e of lifecycle.events) {
     if (e.kind === "activated" || e.kind === "postcheck-failed") {
-      switchedTools.push({
+      const existing = switchedMap.get(e.toolId);
+      switchedMap.set(e.toolId, {
         toolId: e.toolId,
         candidateRelease: e.reviewedRelease.release,
-        previousRelease: e.lastGoodIdentity?.version ?? null,
+        previousRelease: e.lastGoodIdentity?.version ?? existing?.previousRelease ?? null,
         artifact: e.reviewedRelease.artifact,
         integrity: e.reviewedRelease.integrity,
       });
     }
   }
 
-  if (switchedTools.length === 0) {
-    switchedTools.push({
-      toolId: lifecycle.toolId,
-      candidateRelease: lifecycle.reviewedRelease.release,
-      previousRelease: lifecycle.lastGoodIdentity?.version ?? null,
-      artifact: lifecycle.reviewedRelease.artifact,
-      integrity: lifecycle.reviewedRelease.integrity,
-    });
-  }
+  const switchedTools: SwitchedToolSpec[] = switchedMap.size > 0
+    ? [...switchedMap.values()]
+    : [{
+        toolId: lifecycle.toolId,
+        candidateRelease: lifecycle.reviewedRelease.release,
+        previousRelease: lifecycle.lastGoodIdentity?.version ?? null,
+        artifact: lifecycle.reviewedRelease.artifact,
+        integrity: lifecycle.reviewedRelease.integrity,
+      }];
 
   const approvedRecoveryScope = options.approvedRecoveryScope ?? [
     lifecycle.toolId,
@@ -1018,25 +1022,7 @@ export async function recoverReleaseOperation(
   });
 
   const occurredAt = new Date().toISOString();
-  const lcPlan = await planReleaseLifecycleOperation({
-    stateRoot,
-    packageRoot,
-    operationId: options.operationId,
-    occurredAt,
-    toolId: lifecycle.toolId,
-    reviewedRelease: lifecycle.reviewedRelease,
-  });
-
-  const finalKind = batchResult.overallStatus === "recovered-failed" ? "recovered" : "recovery-failed";
-  await appendReleaseLifecycleEvent(lcPlan, {
-    sequence: lifecycle.events.length + 1,
-    occurredAt,
-    kind: finalKind,
-    toolId: lifecycle.toolId,
-    reviewedRelease: lifecycle.reviewedRelease,
-    overallState: finalKind === "recovered" ? "pass" : "failed",
-    ...(batchResult.residualEffects.length > 0 ? { unrecoveredEffects: batchResult.residualEffects } : {}),
-  });
+  // recoverActivatedBatch already appends recovery lifecycle events for each switched tool
 
   return {
     operationId: options.operationId,

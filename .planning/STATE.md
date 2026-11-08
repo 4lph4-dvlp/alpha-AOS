@@ -4,11 +4,11 @@ milestone: v0.8.0
 current_phase: 40
 current_phase_name: UAT PARTIAL
 status: Phase 40 UAT partial - G-40-9 blocker; live-host verification outstanding
-stopped_at: Phase 40 complete
-last_updated: "2026-11-08T04:02:22.265Z"
+stopped_at: Phase 40 reverified — G-40-9 and live-host UAT outstanding
+last_updated: "2026-11-08T04:02:33.774Z"
 last_activity: 2026-11-08
 last_activity_desc: "Phase 40 reverified: 57 tests pass, G-40-9 found, live host blocked"
-state_head: dc95c3e32acf3b63b6b00039e360fbff0d848de7
+state_head: 1185b7e9a459542e10b00d9fdbd10a9e025f5c97
 progress:
   total_phases: 5
   completed_phases: 2
@@ -469,7 +469,7 @@ Decisions are logged in PROJECT.md Key Decisions table. Recent decisions affecti
 ## Session Continuity
 
 Last session: 2026-11-07T13:51:34.569Z
-Stopped at: Phase 40 context gathered
+Stopped at: Phase 40 reverified — G-40-9 and live-host UAT outstanding
 Resume file: .planning/phases/40-local-official-release-updates/40-CONTEXT.md
 
 ## Operator Next Steps

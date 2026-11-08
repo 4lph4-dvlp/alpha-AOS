@@ -111,7 +111,25 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. A failed pre-apply check leaves the prior working installation active and shows the attempted target and reason; no hidden downgrade or false update success is reported.
 4. A post-apply or interrupted native installation is recovered/reconciled through the adapter's declared mechanism, retaining previous artifacts where required and reporting actual active identity, unrecovered effects and the next bounded recovery action. Owned-file rollback alone is not claimed as full native rollback.
 
-**Plans:** TBD after roadmap approval.
+**Plans:** 0/6 plans complete.
+
+**Wave 1**
+- [ ] 42-01-PLAN.md — Inactive exact-candidate verification tracer through actual configured harness and alpha-AOS proxy/client invocation.
+
+**Wave 2** *(blocked on Wave 1)*
+- [ ] 42-02-PLAN.md — Backward-readable separate lifecycle records with append-only/idempotent evidence and retention state.
+
+**Wave 3** *(blocked on Wave 2)*
+- [ ] 42-03-PLAN.md — All-tool/all-actual-harness activation barrier and invocation-bound atomic acceptance.
+
+**Wave 4** *(blocked on Wave 3)*
+- [ ] 42-04-PLAN.md — Adapter-native reverse recovery, exact prior artifact reacquisition and actual-state reconciliation.
+
+**Wave 5** *(blocked on Wave 4)*
+- [ ] 42-05-PLAN.md — Interruption-first reconciliation plus exact resume/cancel/recover/cleanup service controls.
+
+**Wave 6** *(blocked on Wave 5)*
+- [ ] 42-06-PLAN.md — Lifecycle CLI flags, bound preview/apply, text/JSON parity and stable exit classes.
 
 ### Phase 43: Migration and Consistent Guidance
 
@@ -135,7 +153,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 | 39. Tool Inventory and Local Release Records | 5/5 | Complete    | 2026-11-07 |
 | 40. Local Official Release Updates | 4/4 | Complete    | 2026-11-08 |
 | 41. Minimal Compatibility Adapters | 2/2 | Complete    | 2026-11-09 |
-| 42. Integration Verification and Recovery | 0/TBD | Not started | - |
+| 42. Integration Verification and Recovery | 0/6 | Planned | - |
 | 43. Migration and Consistent Guidance | 0/TBD | Not started | - |
 
 ## Coverage and Delivery Boundaries

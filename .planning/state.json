@@ -21,7 +21,7 @@
     {
       "number": "42",
       "name": "Integration Verification and Recovery",
-      "status": "pending"
+      "status": "in_progress"
     },
     {
       "number": "43",
@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to Phase 42 (plan)",
-    "reason": "Phase 3 of 5 · 100% · complete"
+    "command": "$gsd-execute-phase 42",
+    "label": "Execute Phase 42 (Wave 1: Plan 42-01)",
+    "reason": "Phase 42 planned · 6 plans · ready to execute"
   },
-  "updated_at": "2026-11-08T16:13:46.000Z"
+  "updated_at": "2026-11-09T03:40:00.000Z"
 }

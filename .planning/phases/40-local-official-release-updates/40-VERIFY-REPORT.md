@@ -1,93 +1,83 @@
-# Phase 40 자동 검증 결과와 남은 확인
+# Phase 40 재검증 결과
 
-검증 환경: Windows x64, Node.js v24.13.1, `D:\dev\alpha-AOS` 소스 체크아웃.
-실제 도구 업데이트는 수행하지 않았다. CLI 미리보기는 공식 원격 메타데이터를
-조회했고, 적용·기록·거부 경로는 격리 테스트와 읽기 전용 부정 테스트로 확인했다.
+최종 판정: **보완 필요 — 최종 PASS 아님**.
+검증 기준 커밋: `7cf6e40a6261f980306ecd95f815ba9d105a71b5`.
+환경: Windows x64, Node.js v24.13.1, 2026-11-08.
+사용자 요청에 따라 기존 UAT를 이어서 자동 실행 가능한 검사를 직접 수행했다.
+실제 설치, 하네스 재시작, GUI 권한 변경, 이전 Cua 버전 재활성화는 수행하지 않았다.
 
-## 통과한 항목
+## 직접 확인한 결과
 
-| 확인 | 결과와 범위 |
+| 검사 | 결과 |
 |---|---|
-| 빌드 | `npm run build` 종료 0. TypeScript 컴파일 포함 |
-| 대상 테스트 | 6개 테스트 파일, 40 pass / 0 fail / 0 skip |
-| API coverage 사전 게이트 | 10개 항목, 6 INTEGRATE / 4 OPT-OUT, 통과 |
-| 실제 `update --check` | 종료 0, 네 구역의 변경 계획·미설치 skip·검토 바인딩 명령 표시 |
-| 실제 GSD/Codex 미리보기 필터 | 종료 0, GSD만 표시하고 다른 하네스의 공유 영향도 표시 |
-| 검토 없는 `update --apply`, `install --apply` | 각각 종료 2, 두 검토 인자를 요구하며 거부 |
-| `update --stage` | 종료 2, 폐기 안내 |
-| CLI 전후 catalog 보존 | stack.lock.json / candidate.lock.json / computer-use-runtime.json SHA-256 동일 |
-| 격리 fixture | 무변경 프리뷰, prerelease/불완전 조회 거부, 버전 고정 조회, 로컬 drift 거부, current no-op, 기록의 verified:null 및 accepted 보존 등 기존 테스트 통과 |
+| `npm run build` | PASS, 종료 0 |
+| `npm run check` | PASS, 종료 0 |
+| 관련 테스트 7개 파일 | 57 pass / 0 fail / 0 skip / 0 cancelled, 종료 0 |
+| API coverage 사전 게이트 | PASS, 10개 항목: INTEGRATE 6 / OPT-OUT 4 |
+| 실제 `update --check` | 종료 0, 변경 계획·영향 하네스·부작용·복구 범위·검토 인자 표시 |
+| `update --tool gsd --target codex --check` | 종료 0, GSD만 계획하고 공유 영향 하네스 표시 |
+| 검토 인자 없는 `update --apply`, `install --apply` | 각각 종료 2, 적용 전에 거부 |
+| 폐기된 `update --stage` | 종료 2, 폐기 안내 |
+| `inventory --tool gsd --detail` | 종료 0, 설치 관찰과 버전/검증 미확인을 구분 |
+| CLI 실행 전후 catalog 3개 파일 | SHA-256 동일 |
+| 추가 Rekor 부정 검사 | **FAIL: 거부해야 할 3개 입력 모두 verified:true** |
 
-대상 테스트 재현:
+재현:
 
 ```powershell
 Set-Location D:\dev\alpha-AOS
 npm run build
-node scripts/run-tests.mjs --files dist/test/local-release-update.test.js dist/test/cua-release-update.test.js dist/test/update.test.js dist/test/computer-use-install.test.js dist/test/tool-inventory-cli.test.js dist/test/tool-inventory-compat.test.js
+npm run check
+node scripts/run-tests.mjs --test-timeout=120000 --files dist/test/local-release-update.test.js dist/test/cua-release-update.test.js dist/test/install.test.js dist/test/computer-use-install.test.js dist/test/update.test.js dist/test/tool-inventory-cli.test.js dist/test/tool-inventory-compat.test.js
+node .planning/phases/40-local-official-release-updates/40-REKOR-PROBE.mjs
 ```
 
-## 전체 회귀 실행의 한계와 실패
+현재 마지막 명령의 종료 1은 결함 재현 성공이다. 수정 후에는 세 입력이 모두
+rejected:true이고 종료 0이어야 한다. 원래 테스트 57개 통과와 이 부정 검사의
+실패는 서로 모순되지 않는다. 기존 테스트가 이 조건을 충분히 검사하지 않는다.
 
-`node scripts/run-tests.mjs`도 실행했다. 10분 넘게 실행했으나 최종 요약을
-얻지 못해, PID와 시작 시각을 검증한 이번 실행의 프로세스 트리를 종료했다.
-runner 종료 코드는 1이며 **전체 회귀는 미완료**다. 종료 전후 로그에서 실패 표시
-21개를 관찰했지만 이는 완료된 테스트 실행의 최종 fail 집계가 아니다.
-Windows 별도 프로세스 테스트들과 packed fixture는 실행 완료를 입증하지 못했다.
-종료 직전의 활성 테스트는 시간이 흐르며 바뀌었으므로 특정 테스트의 무한 정지를
-확정한 것은 아니다.
+## 발견한 보완: G-40-9 (blocker)
 
-추가로 원인을 확인한 항목:
+`src/core/computer-use-install.ts`의 `verifyCuaSigstoreBundle`은 Rekor 공개 키로
+SET 서명을 확인하지 않는다. 로그 ID/필드 일부만 검사하고, modern tlog 분기는
+body 없는 항목도 허용하며, 로그 시각과 인증서 유효기간을 대조하지 않는다.
 
-- behavior-policy: 테스트가 invocationPath/stateRoot를 격리하지 않아 현재 저장소의
-  tree-off가 invalid-json 등의 예상 오류보다 먼저 발생한다. 이 환경에서 작은
-  malformed JSON fixture로 tree-off 응답을 재현했다. 제품의 저장소 제외 설정을
-  해제하지 말고 테스트의 호출 위치/상태 격리를 보완해야 한다.
-- computer-use-research: 연구 증거와 catalog의 자산 배열을 deep-equal 비교하는
-  검사에서 installedFiles/installedEntrypoint/installerArchiveSha256 필드 불일치가
-  발생한다. 독립 실행으로도 실패했다.
-- path-literal-guard: test/tool-bindings.test.ts:44의 Windows 고정 경로가 검사에 걸린다.
+격리 재현은 저장소에 이미 있는 공개 테스트 CA/서명 키를 사용한다. 올바른
+테스트 CA 체인과 payload 서명을 주되 다음 입력을 만들었다:
 
-그 밖에 offline status, entry 문서/패키지 증거, task progression 등에서도 실패
-표시가 있었으며 원인은 미진단이다. 비교 기준 checkout 실행은 하지 않았으므로
-이번 구현이 원인인지 기존 실패인지 단정하지 않는다. 전체 실패 이름은
-40-AUTOMATED-EVIDENCE.json의 fullSuite.observedFailureLines에 보존했다.
+1. 임의의 SET 서명과 유효하지 않은 Rekor 공개 키 → verified:true.
+2. 인증서 발급 전인 integratedTime=1 → verified:true.
+3. body, 시각, promise/proof 없는 tlog → verified:true.
 
-전체 회귀 재실행은 동일한 Windows 환경에서 다음 명령으로 가능하다:
+이는 운영 Fulcio 개인 키 위조나 임의 운영 바이너리 설치 성공을 입증한 것이
+아니다. **투명성 로그 인증과 인증된 시각 바인딩이 구현되지 않았음**을 입증한다.
+기존 self-signed 거부는 여전히 통과한다. 그 이전 결함을 재개방하지 않고
+새 gap G-40-9로 분리했다.
 
-```powershell
-node scripts/run-tests.mjs
-```
+추가로 기존의 'official bundle authenticates' 테스트는 CA 체인/로그 필드 검사와
+잘못된 payload 거부를 확인한다. 실제 일치하는 공식 payload의 전체 검증 성공을
+확인하지 않으므로 이를 보완 계획의 필수 양성 검사로 포함했다.
 
-예상 통과 기준은 정상 종료, 최종 fail 0, 취소 없음이다. host 권한/플랫폼 때문에
-실행하지 못한 fixture는 skip 이유를 검토하고 통과와 구분해야 한다.
+수정 계획: `40-04-PLAN.md`. 현재 에이전트가 코드·재현·계획의 대응을 검토했다.
+독립 서브에이전트 검토 및 수정 실행은 수행하지 않았다.
+다음 구현 경로: `$gsd-execute-phase 40 --gaps-only`, 이후 `$gsd-verify-work 40`.
 
-## 재현한 결함
+## 사용자가 실제 환경에서 확인할 항목
 
-| ID | 중요도 | 실제 관찰 | 필요한 보완 |
-|---|---|---|---|
-| G-40-7 | blocker | 자체 서명 테스트 인증서로 임의 payload에 서명한 번들을 `verified:true`로 수락. 인증서는 자기 키로 검증되고 투명성 로그 증거도 없음 | 신뢰 체인·인증된 서명 시점 증거·정확한 issuer/workflow 및 실제 번들 형식 검증. 자체 서명 거부 회귀 테스트 |
-| G-40-5 | major | default preview의 skip-absent MCP 3개가 selectedTools에 남음. Context7-only 계획도 빈 Codex 설정에 Exa/Firecrawl을 포함 | changedTools만 오케스트레이션하고 MCP selected IDs를 계획·fixture·재계획·적용 전체에 전달 |
-| G-40-8 | major | 실제 미리보기 토큰을 재검증하면서 exact-version 응답에 version만 주어도 성공 | dist.integrity 필수·형식·일치 검증 후에만 진행 |
+필요한 이유: 실제 업데이트는 해당 환경에서 생성한 계획을 검토·적용해야 하고,
+하네스 재시작 및 데스크톱 권한/호출, 이전 설치로의 복구를 관찰해야 한다.
+현재 세션에서는 그 작업을 실행하지 않았다. 실제 Cua 적용은 G-40-9 수정과
+음성/양성 회귀 통과 후에 진행한다.
 
-테스트 40개 통과가 이 세 결함의 부재를 의미하지 않는다. 별도 부정 테스트로
-기존 테스트의 사각지대를 확인했다. 근거는 `40-AUTOMATED-EVIDENCE.json`에 보존했다.
-수정 실행 계획은 `40-03-PLAN.md`이며, 아직 실행하지 않았다. 계획은 현재 에이전트가
-진단과 대조해 검토했으며 독립 서브에이전트 검토는 수행하지 않았다.
+### 환경 준비
 
-표시 개선 후보: 설치는 관찰했으나 버전을 확인할 수 없는 GSD/ECC/Cua가
-`Current/Accepted: none`으로 표시됐다. 미설치와 버전 미확인을 구분하는 문구가 필요하다.
+복원 가능한 Windows 11 VM 또는 별도 사용자 환경. Node.js >=24, npm >=10,
+Git, Codex, npm Registry/GitHub 접근이 필요하다. 실제 update를 확인하려면
+구버전 GSD/Cua가 설치되어 있어야 한다. Cua 복구는 이전 정상 버전도 필요하다.
+VM에서는 소스 체크아웃 실제 경로로 아래 Set-Location을 바꾼다.
+ALPHA_AOS_STATE_DIR만 바꾸는 것은 전역 npm/하네스/PATH 격리가 아니다.
 
-## 사람이 실제 환경에서 확인할 항목
-
-현재의 세 결함을 수정하고 회귀 검증한 다음 실제 설치 검증을 진행한다.
-그 전에는 아래 미리보기·조회 명령까지만 실행한다.
-
-환경은 Windows 11의 별도 사용자 또는 복원 가능한 VM이 적합하다. Node.js >=24,
-npm >=10, Git, Codex 등 선택한 하네스, npm Registry/GitHub 네트워크 접근이 필요하다.
-실제 하네스 설정·사용자 PATH·설치 디렉터리를 변경하는 확인이므로 단순히
-ALPHA_AOS_STATE_DIR만 바꾸는 것으로 전체 설치 환경이 격리되지는 않는다.
-
-### 1. 미리보기와 설치 대상 확인
+### GSD 설치·기록·실제 하네스 호출
 
 ```powershell
 Set-Location D:\dev\alpha-AOS
@@ -96,16 +86,16 @@ node dist/src/cli.js inventory --tool gsd --detail
 node dist/src/cli.js update --tool gsd --target codex --check
 ```
 
-예상: 선택한 도구만 계획되며 요청한 Codex와 공유 설치의 다른 영향 범위가
-표시된다. 미설치 도구에는 `install --tool gsd` 안내가 나온다. 미설치 설치를
-확인할 때는 `node dist/src/cli.js install --tool gsd --target codex`로 새 미리보기를
-만든다. 구버전 도구가 있어야 실제 update 경로를 관찰할 수 있다.
+기대: GSD만 계획하고 버전·출처·공유 영향 범위를 표시한다. 미설치라면
+`install --tool gsd` 안내로 거부한다. 미설치 경로를 확인하려면 아래로 미리본다:
 
-### 2. 검토한 변경 적용과 기록
+```powershell
+node dist/src/cli.js install --tool gsd --target codex
+```
 
-결함 수정 후 1번 미리보기가 출력한 적용 명령 전체를 그대로 실행한다.
-`--plan-digest`와 `--reviewed-plan`은 그 환경에서 새로 생성된 값을 사용한다.
-이 보고서의 오래된 토큰을 재사용하지 않는다.
+출력한 계획을 검토한 뒤 **그 환경에서 새로 출력된 적용 명령 전체**를 실행한다.
+`--plan-digest`와 `--reviewed-plan`을 임의 값이나 이 보고서의 과거 값으로 대체하지
+않는다. alpha-aos 실행 파일 대신 `node dist/src/cli.js`를 사용해도 된다.
 
 ```powershell
 node dist/src/cli.js inventory --tool gsd --detail
@@ -114,45 +104,55 @@ node dist/src/cli.js update --tool gsd --target codex --check
 git diff -- catalog/stack.lock.json catalog/candidate.lock.json catalog/computer-use-runtime.json
 ```
 
-예상: 검토한 버전만 설치되고 작업 ID/결과 이력이 남는다. 호스트 호출을
-검증하지 않은 상태는 accepted/verified 완료로 승격되지 않는다. catalog diff는
-없어야 한다. 설치 버전이 실제로 식별되는 환경에서는 재조회가 current여야 한다.
-버전이 unknown으로 남으면 멱등성 통과로 간주하지 말고 별도 관찰 결과로 기록한다.
+기대: 검토한 버전만 설치, 작업 ID/결과 이력 생성, catalog diff 없음.
+실제 호스트 검증 전 verified/accepted 승격 없음. 설치 버전이 식별되면 재미리보기는
+current/변경 없음이어야 한다. 버전 unknown이면 멱등성 PASS로 간주하지 않는다.
+Codex를 종료 후 다시 열고 **별도 테스트 프로젝트**에서 `$gsd-help`를 실행한다.
+기대: 명령이 발견되고 도움말이 정상 출력된다. 결과와 설치 버전/작업 ID를 기록한다.
 
-Codex를 새로 열어 해당 테스트 프로젝트에서 GSD 명령 검색과 읽기 전용
-`$gsd-help`를 실행한다. 예상: 명령이 발견되고 도움말이 정상 표시된다.
-이 단계는 파일 존재 확인보다 실제 하네스 로딩을 확인하는 증거다.
+### Cua 호출·권한·이전 버전 복구
 
-### 3. Cua 실제 호출·권한·복구
-
-복원 가능한 Windows 데스크톱 세션에서 다음을 실행한다.
+G-40-9 수정 검증 후, 복원 가능한 실제 데스크톱 세션에서:
 
 ```powershell
 node dist/src/cli.js inventory --tool cua-driver --detail
 node dist/src/cli.js update --tool cua-driver --target codex --check
 ```
 
-결함 수정 후 검토한 적용 명령을 실행하고 Codex를 재시작한다. GUI 접근을
-명시적으로 허용한 테스트에서 Cua로 데스크톱 상태 조회와 테스트 창의 단순 클릭을
-수행한다. 예상: 권한 요청을 정상 처리하고 올바른 창에서 상태 조회/클릭이 성공한다.
-스크린샷 또는 클릭을 수행하지 않은 상태는 GUI 통합 성공으로 기록하지 않는다.
+새로 표시된 계획과 복구 범위를 검토하고 적용 명령을 실행한다. Codex를 재시작하고
+GUI 접근을 허용한 테스트에서 Cua로 데스크톱 상태/스크린샷 조회와 테스트 창의
+단순 클릭을 수행한다. 기대: 권한 처리가 정상이고 지정 창에서 조회/클릭 성공.
+파일 존재나 CLI 도움말만으로 GUI 통합 PASS를 기록하지 않는다.
 
-이전 정상 버전이 존재하는 환경에서 새 버전 적용 후 그 디렉터리가 보존되는지
-확인하고, 미리보기의 adapter recovery 안내와 공식 설치 도구의 해당 버전 복원
-절차로 이전 버전을 다시 활성화한 뒤 같은 호출을 반복한다. 이전 버전이 없는
-신규 설치는 복구 검증 증거가 될 수 없다. 이 저장소는 여기서 사용할 단일 복구
-명령을 보장하지 않으므로 임의의 junction/PATH 변경 명령을 사용하지 않는다.
+업데이트 전후 `~/.cua-driver/packages/releases/` 목록과 inventory를 비교해 이전
+정상 버전 디렉터리 보존을 확인한다. 계획의 adapter recovery와 공식 설치 도구의
+해당 버전 복원 절차로 이전 버전을 재활성화하고 같은 조회/클릭을 반복한다.
+기대: 이전 바이너리 버전이 실제 활성화되고 호출이 성공한다. 저장소가 보장하는
+단일 복원 명령은 없으므로 임의의 junction/PATH 변경 명령을 제시하지 않는다.
+신규 설치만으로 이전 버전 복구 PASS를 얻을 수는 없다.
 
-macOS 권한과 Linux Wayland는 현재 Windows에서 실증하지 못했다. 지원 범위를
-확인하려면 각 OS의 실제 데스크톱/VM과 해당 아키텍처에서 같은 미리보기·실제
-Cua 호출·이전 버전 복구를 수행하고, macOS 접근성/화면 권한 및 Linux 디스플레이
-세션에서 요청이 정상 처리되는지 기록해야 한다.
+macOS/Linux 네이티브 동작까지 확인하려면 각 OS의 실제 데스크톱/VM에서 같은
+미리보기·적용·상태 조회·클릭·이전 버전 재활성화를 반복한다. macOS는 화면 기록/
+접근성 권한, Linux는 실제 Wayland/X11 세션이 필요하다. Windows의 tar.gz/계획
+fixture 통과를 해당 OS의 실제 호출 성공으로 확대하지 않는다.
 
-## 상태와 근거
+## 상태와 검증 범위
 
-UAT: 8개 중 자동 통과 4, 결함 3, 실제 호스트 확인 blocked 1. `40-UAT.md`는
-partial이며 단계 완료로 승격하지 않았다. 정식 `40-VERIFICATION.md`도 아직 없다.
-SUMMARY들은 커밋 측정 기준점이 없는 legacy 형식이라 커밋 수의 엄밀한 대조는
-불가능하며, 이는 테스트 실패와 별개의 증거 제한이다.
+UAT 9개: **7 PASS / 1 issue / 1 blocked**. 상태 partial, 단계 완료로 승격하지 않음.
+정식 `40-VERIFICATION.md`에는 gaps_found를 기록했다. 기존 STATE의 '완료' 주장은
+이번 결과와 일치하지 않아 현재 상태를 보완 필요로 갱신한다.
 
-상세 터미널 로그 위치는 `40-AUTOMATED-EVIDENCE.json`의 logs 필드에 기록했다.
+전체 회귀는 이번에 재실행하지 않았다. 앞선 전체 실행은 미완료 및 실패 관찰이
+있으며 그 역사적 증거는 `40-AUTOMATED-EVIDENCE.json`에 남아 있다. 새 결과는
+`40-REVERIFY-EVIDENCE.json`이다. 전체 통과를 주장하지 않는다. 필요 시 별도 실행:
+
+```powershell
+node scripts/run-tests.mjs
+```
+
+기대: 최종 fail 0, cancelled 0, 정상 종료. 플랫폼 skip은 이유를 별도로 검토한다.
+기존 실패의 이번 변경 귀속은 비교 기준 실행 없이 단정하지 않는다.
+SUMMARY 3개는 coverage/plan_head_before/after 없는 legacy 형식이며 커밋 수를
+정밀 대조할 수 없다. 이는 증거 제한으로 기록하고 임의의 PASS를 생성하지 않았다.
+웹 UI 산출물/UI-SPEC은 없어 브라우저 시각 UAT는 해당 없음이다.
+'Current/Accepted: none'으로 버전 미확인 설치를 표시하는 문구 개선 후보는 남아 있다.

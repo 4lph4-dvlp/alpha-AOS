@@ -1,0 +1,142 @@
+{
+  "capturedAt": "2026-11-08T03:59:21.2Z",
+  "head": "7cf6e40a6261f980306ecd95f815ba9d105a71b5",
+  "runtime": "v24.13.1",
+  "platform": "win32",
+  "architecture": "x64",
+  "logs": "C:\\Users\\alpha\\AppData\\Local\\Temp\\alpha-aos-verify40-ceccc47147784ff1a7b9d3af3a196a4c",
+  "build": {
+    "exit": 0
+  },
+  "typecheck": {
+    "exit": 0
+  },
+  "targeted": {
+    "files": 7,
+    "passed": 57,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "exit": 0
+  },
+  "cli": [
+    {
+      "name": "preview",
+      "args": [
+        "update",
+        "--check"
+      ],
+      "expectedExit": 0,
+      "exit": 0,
+      "error": null,
+      "ms": 14871
+    },
+    {
+      "name": "filtered",
+      "args": [
+        "update",
+        "--tool",
+        "gsd",
+        "--target",
+        "codex",
+        "--check"
+      ],
+      "expectedExit": 0,
+      "exit": 0,
+      "error": null,
+      "ms": 2938
+    },
+    {
+      "name": "update-no-token",
+      "args": [
+        "update",
+        "--apply"
+      ],
+      "expectedExit": 2,
+      "exit": 2,
+      "error": null,
+      "ms": 1413
+    },
+    {
+      "name": "install-no-token",
+      "args": [
+        "install",
+        "--apply"
+      ],
+      "expectedExit": 2,
+      "exit": 2,
+      "error": null,
+      "ms": 1318
+    },
+    {
+      "name": "stage",
+      "args": [
+        "update",
+        "--stage"
+      ],
+      "expectedExit": 2,
+      "exit": 2,
+      "error": null,
+      "ms": 1673
+    },
+    {
+      "name": "inventory",
+      "args": [
+        "inventory",
+        "--tool",
+        "gsd",
+        "--detail"
+      ],
+      "expectedExit": 0,
+      "exit": 0,
+      "error": null,
+      "ms": 2360
+    }
+  ],
+  "catalog": {
+    "before": {
+      "catalog/stack.lock.json": "a6502c657e96e8445e4b762a1505fd0d9ad88231c076b936d337d93d4dbafb7f",
+      "catalog/candidate.lock.json": "b9e5768e4a4d3916784e2fedc1ab12a01363db24de696cd6f0cee408ad086fdb",
+      "catalog/computer-use-runtime.json": "09f589f8b80645549a19d659035546a9ccf60bec2bbb8ad749d2116ec250bf88"
+    },
+    "after": {
+      "catalog/stack.lock.json": "a6502c657e96e8445e4b762a1505fd0d9ad88231c076b936d337d93d4dbafb7f",
+      "catalog/candidate.lock.json": "b9e5768e4a4d3916784e2fedc1ab12a01363db24de696cd6f0cee408ad086fdb",
+      "catalog/computer-use-runtime.json": "09f589f8b80645549a19d659035546a9ccf60bec2bbb8ad749d2116ec250bf88"
+    },
+    "unchanged": true
+  },
+  "rekorProbe": {
+    "trustScope": "test CA override; production Rekor key ID, no valid Rekor signature",
+    "results": [
+      {
+        "name": "forged-set-and-invalid-rekor-key",
+        "expected": "reject",
+        "actual": {
+          "verified": true,
+          "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
+          "issuer": "https://token.actions.githubusercontent.com"
+        }
+      },
+      {
+        "name": "log-time-before-certificate-validity",
+        "expected": "reject",
+        "actual": {
+          "verified": true,
+          "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
+          "issuer": "https://token.actions.githubusercontent.com"
+        }
+      },
+      {
+        "name": "tlog-without-body-or-proof-or-time",
+        "expected": "reject",
+        "actual": {
+          "verified": true,
+          "identity": "https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/cua-driver-rs-v0.39.0",
+          "issuer": "https://token.actions.githubusercontent.com"
+        }
+      }
+    ]
+  },
+  "fullSuite": "Not rerun; historical incomplete/failure evidence retained in 40-AUTOMATED-EVIDENCE.json"
+}

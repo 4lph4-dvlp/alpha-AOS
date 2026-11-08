@@ -2,13 +2,13 @@
 gsd_state_version: "1.0"
 milestone: v0.8.0
 current_phase: 40
-current_phase_name: Local Official Release Updates
-status: complete
+current_phase_name: UAT PARTIAL
+status: Phase 40 UAT partial - G-40-9 blocker; live-host verification outstanding
 stopped_at: Phase 40 complete
-last_updated: "2026-11-08T02:57:00.000Z"
+last_updated: "2026-11-08T04:02:22.265Z"
 last_activity: 2026-11-08
-last_activity_desc: Phase 40 complete (Plans 40-01 and 40-02 verified)
-state_head: 80c6ddd9fae5e6e30ebfa06a203e053fa0e9323c
+last_activity_desc: "Phase 40 reverified: 57 tests pass, G-40-9 found, live host blocked"
+state_head: dc95c3e32acf3b63b6b00039e360fbff0d848de7
 progress:
   total_phases: 5
   completed_phases: 2
@@ -33,18 +33,18 @@ Sections 35–38 / 16 requirements have native implementation evidence. The outg
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 40 — Local Official Release Updates (COMPLETED)
+**Current focus:** Phase 40 — Local Official Release Updates (UAT partial; G-40-9 open)
 
 ## Current Position
 
-Phase: 40 (Local Official Release Updates) — COMPLETE
-Plan: 2 of 2 completed
-Status: Phase 40 complete, verified with 37 tests
-Last activity: 2026-11-08 — Phase 40 complete (Plans 40-01 and 40-02 verified)
+Phase: 40 (Local Official Release Updates) — UAT PARTIAL
+Plan: 3 implemented; 40-04 gap-closure plan pending
+Status: Phase 40 UAT partial - G-40-9 blocker; live-host verification outstanding
+Last activity: 2026-11-08 — Phase 40 reverified: 57 tests pass, G-40-9 found, live host blocked
 
 ### Completed Phases
 
-- Phase 40: complete (Local Official Release Updates) — 2 plans completed and verified (LOC-02, LOC-03)
+- Phase 40 completion claim withdrawn on 2026-11-08: implementation plans 01–03 exist, but UAT is partial (7 pass / 1 issue / 1 blocked); G-40-9 and live-host verification remain open. Progress counters below are historical implementation metrics, not acceptance evidence.
 - Phase 39: complete (Tool Inventory and Local Release Records) — 5 plans completed and verified (LOC-01, LOC-04)
 - Phase 27: complete (Shared Project Behavior Policy) — 5 plans completed and verified (MODE-01 through MODE-05)
 - Phase 28: complete (Predictable Strict and Flexible Intake) — 6 plans completed and verified (28-01 through 28-06)

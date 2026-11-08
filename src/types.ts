@@ -1073,6 +1073,7 @@ export interface ReviewedToolBinding {
   readonly sourceUrl: string;
   readonly platform: string;
   readonly architecture: string;
+  readonly adapters?: readonly ToolAdapterBinding[];
 }
 
 export interface ReviewedReleasePlanPayload {
@@ -1105,6 +1106,8 @@ export interface ToolReleasePreviewItem {
     readonly message: string;
   };
   readonly verificationNote?: string;
+  readonly adapters?: readonly ToolAdapterBinding[];
+  readonly adaptersSummary?: ToolAdapterSummary;
 }
 
 export interface LocalReleasePlan {
@@ -1132,4 +1135,112 @@ export interface LocalReleaseApplyResult {
   readonly externalChanges: readonly string[];
   readonly message: string;
 }
+
+// ---------------------------------------------------------------------------
+// Phase 41: Minimal Compatibility Adapters (ADAPT-01 ~ ADAPT-04)
+// ---------------------------------------------------------------------------
+
+export type CompatibilityAdapterKind =
+  | "compatibility-correction"
+  | "policy-interface";
+
+export type CompatibilityCorrectionId =
+  | "ecc:deep-research-routing"
+  | "ecc:antigravity-doc-lookup"
+  | "gsd:codex-stop-hook-helpers"
+  | "mcp:pi-bridge"
+  | "gsd:claude-ship-skill";
+
+export type PolicyInterfaceId =
+  | "mcp:firecrawl-policy-proxy"
+  | "policy:claude-skill-overrides"
+  | "policy:codex-execution-guidance"
+  | "mcp:native-config-renderers";
+
+export type CompatibilityAdapterId =
+  | CompatibilityCorrectionId
+  | PolicyInterfaceId;
+
+export type AdapterLifecycleStatus = "active" | "retired";
+
+export type AdapterResolution =
+  | "applied"
+  | "resolved-upstream"
+  | "bypassed-by-proven-guidance";
+
+export interface AdapterRetirementRecord {
+  readonly retirementReason: string;
+  readonly verifiedRelease: string;
+  readonly verificationMethod: string;
+  readonly evidenceSummary: string;
+}
+
+export interface CompatibilityAdapterDescriptor {
+  readonly id: CompatibilityAdapterId;
+  readonly kind: CompatibilityAdapterKind;
+  readonly revision: string;
+  readonly toolId: ManagedToolId;
+  readonly harnesses: readonly HarnessId[];
+  readonly platforms: readonly ("windows" | "macos" | "linux")[];
+  readonly status: AdapterLifecycleStatus;
+  readonly rationale: string;
+  readonly applicability: string;
+  readonly verificationMethod: string;
+  readonly removalCondition: string | null;
+  readonly retirement: AdapterRetirementRecord | null;
+}
+
+export interface ThreeStageGuidanceProof {
+  readonly harness: HarnessId;
+  readonly skillId: string;
+  readonly discovery: boolean;
+  readonly precedence: boolean;
+  readonly invocationReceipt: boolean;
+  readonly evidenceId?: string;
+}
+
+export interface AdapterEvaluationResult {
+  readonly adapterId: CompatibilityAdapterId;
+  readonly kind: CompatibilityAdapterKind;
+  readonly revision: string;
+  readonly status: AdapterLifecycleStatus;
+  readonly resolution: AdapterResolution;
+  readonly sourceSha256: string;
+  readonly targetSha256: string;
+  readonly derivationDigest: string;
+  readonly verificationResult: "pass" | "fail";
+  readonly retirementReason?: string;
+  readonly verifiedRelease?: string;
+  readonly evidenceSummary: string;
+  readonly renderedContent?: string;
+}
+
+export interface ToolAdapterBinding {
+  readonly adapterId: CompatibilityAdapterId;
+  readonly kind: CompatibilityAdapterKind;
+  readonly revision: string;
+  readonly status: AdapterLifecycleStatus;
+  readonly resolution?: AdapterResolution;
+  readonly toolId: ManagedToolId;
+  readonly harnesses: readonly HarnessId[];
+  readonly platforms: readonly ("windows" | "macos" | "linux")[];
+  readonly rationale: string;
+  readonly applicability: string;
+  readonly verificationMethod: string;
+  readonly removalCondition: string | null;
+  readonly retirement: AdapterRetirementRecord | null;
+  readonly derivationDigest?: string;
+  readonly targetSha256?: string;
+}
+
+export interface ToolAdapterSummary {
+  readonly activeCorrectionCount: number;
+  readonly retiredCorrectionCount: number;
+  readonly policyInterfaceCount: number;
+  readonly activeIds: readonly CompatibilityAdapterId[];
+  readonly retiredIds: readonly CompatibilityAdapterId[];
+  readonly policyIds: readonly PolicyInterfaceId[];
+  readonly text: string;
+}
+
 

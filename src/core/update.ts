@@ -48,6 +48,7 @@ import {
   planReleaseLifecycleOperation,
   appendReleaseLifecycleEvent,
 } from "./release-lifecycle-store.js";
+import { recoverActivatedBatch, type NativeReleaseAdapter } from "./release-recovery.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -1302,6 +1303,8 @@ export interface ApplyLocalReleasePlanOptions extends RevalidateLocalReleasePlan
   barrierInputs?: readonly BarrierToolInput[];
   postcheckObservations?: readonly PostcheckObservation[];
   simulatePostcheckFailure?: boolean;
+  recoveryAdapters?: Readonly<Partial<Record<ManagedToolId, NativeReleaseAdapter>>>;
+  simulateRecoveryFailure?: Partial<Record<ManagedToolId, boolean>>;
 }
 
 export type { LocalReleaseApplyResult };
@@ -1643,18 +1646,47 @@ export async function applyLocalReleasePlan(
         // Close finished event with empty transitions! Accepted chain does NOT advance (D-08, T-42-09)
         await finishToolOperation(recordPlan, session, []);
 
-        const toolResults: ToolApplyResultDetail[] = revalidated.changedTools.map((t) => ({
-          toolId: t.toolId,
-          status: "failed",
-          activeIdentity: {
-            installationId: `${t.toolId.replace(/:/g, "-")}-${t.oldVersion ?? "none"}`,
-            version: t.oldVersion ?? "0.0.0",
-          },
-          attemptedIdentity: {
-            installationId: `${t.toolId.replace(/:/g, "-")}-${t.release}`,
-            version: t.release,
-          },
-        }));
+        // Execute batch recovery in reverse order of switched tools (D-09, D-10)
+        const recoveryResult = await recoverActivatedBatch({
+          operationId,
+          stateRoot: stRoot,
+          packageRoot: pkgRoot,
+          ...(options.home ? { home: options.home } : {}),
+          switchedTools: revalidated.changedTools.map((t) => ({
+            toolId: t.toolId,
+            candidateRelease: t.release,
+            previousRelease: t.oldVersion,
+            artifact: t.artifact,
+            integrity: t.integrity,
+          })),
+          approvedRecoveryScope: revalidated.changedTools.flatMap((t) => [
+            t.toolId,
+            `native-recover:${t.toolId}`,
+            `rollback:${t.toolId}`,
+          ]),
+          ...(options.recoveryAdapters ? { adapters: options.recoveryAdapters } : {}),
+          ...(options.simulateRecoveryFailure ? { simulateRecoveryFailure: options.simulateRecoveryFailure } : {}),
+        });
+
+        const toolResults: ToolApplyResultDetail[] = revalidated.changedTools.map((t) => {
+          const tRec = recoveryResult.toolResults.find((r) => r.toolId === t.toolId);
+          return {
+            toolId: t.toolId,
+            status: tRec?.status === "recovered" ? "pass" : "failed",
+            activeIdentity: {
+              installationId: `${t.toolId.replace(/:/g, "-")}-${t.oldVersion ?? "none"}`,
+              version: t.oldVersion ?? "0.0.0",
+            },
+            attemptedIdentity: {
+              installationId: `${t.toolId.replace(/:/g, "-")}-${t.release}`,
+              version: t.release,
+            },
+          };
+        });
+
+        const applyStatus: ReleaseApplyStatus = recoveryResult.overallStatus === "recovered-failed"
+          ? "failed-post-apply"
+          : "recovery-required";
 
         return {
           mode: revalidated.payload.mode,
@@ -1664,12 +1696,13 @@ export async function applyLocalReleasePlan(
           unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
           appliedSteps: installRes.applied,
           externalChanges: installRes.externalChanges,
-          message: `Post-activation verification failed: ${postcheckFailureReason}`,
-          status: "failed-post-apply",
+          message: `Post-activation verification failed: ${postcheckFailureReason}. Recovery status: ${recoveryResult.overallStatus}.`,
+          status: applyStatus,
           toolResults,
           activeIdentity,
           attemptedIdentity,
-          nextCommand: `alpha-aos update --recover --operation ${operationId}`,
+          recoveryResult,
+          nextCommand: recoveryResult.nextCommand ?? `alpha-aos update --recover --operation ${operationId}`,
         };
       }
 

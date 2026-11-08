@@ -1156,6 +1156,7 @@ export interface LocalReleaseApplyResult {
   readonly attemptedIdentity?: Record<string, string | null>;
   readonly nextCommand?: string;
   readonly barrierResult?: ReleaseVerificationBarrierResult;
+  readonly recoveryResult?: BatchRecoveryResult;
   readonly verification?: readonly ReleaseVerificationResult[];
   readonly pendingReasons?: readonly string[];
   readonly nextAction?: string;
@@ -1432,6 +1433,43 @@ export interface EvaluateBarrierOptions {
   readonly tools: readonly BarrierToolInput[];
   readonly requireAllActualHarnessesPass?: boolean | undefined;
 }
+
+export interface ToolRecoveryExecutionResult {
+  readonly toolId: ManagedToolId;
+  readonly status: "recovered" | "recovery-failed" | "recovery-unsupported";
+  readonly nativeResult: {
+    readonly success: boolean;
+    readonly command?: string;
+    readonly exitCode?: number | null;
+    readonly message?: string;
+  };
+  readonly ownedFileResult: {
+    readonly success: boolean;
+    readonly rolledBackFiles: readonly string[];
+  };
+  readonly observedIdentity: {
+    readonly version: string | null;
+    readonly installationId: string | null;
+    readonly matchesPrevious: boolean;
+  };
+  readonly invocationObservation?: {
+    readonly outcome: "ok" | "error" | "not-run";
+    readonly reason?: string;
+  };
+  readonly residualEffects: readonly string[];
+  readonly unknownFields: readonly string[];
+  readonly nextCommand?: string;
+}
+
+export interface BatchRecoveryResult {
+  readonly overallStatus: "recovered-failed" | "recovery-required";
+  readonly toolResults: readonly ToolRecoveryExecutionResult[];
+  readonly reverseOrder: readonly ManagedToolId[];
+  readonly residualEffects: readonly string[];
+  readonly nextCommand?: string;
+  readonly message: string;
+}
+
 
 
 

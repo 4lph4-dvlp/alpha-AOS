@@ -87,11 +87,23 @@ AwEHoUQDQgAEPV4Q4NLsAHZHiMDCvSwvLBEHiKtYdynMWauARGfNefny7AKFQ3/4
 Kv07ZjwrTIBqwkj4QpP/ROllTRpzJTeUdA==
 -----END EC PRIVATE KEY-----`;
 
-const TEST_REKOR_KEY_ID = "d47b2c399f64dc68fa9f6f58e3567d3aa4b43ae0887ea2bf671086a2cedd380a";
+const TEST_REKOR_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEd6ltNs6OY5f4lqqHnzhELS9olabP
+H0lwsruwCg2ltxzU+hx12nASjLm9v1ipxJlYfHYDDMLTyUhBrQq8C3EkhA==
+-----END PUBLIC KEY-----`;
+
+const TEST_REKOR_PRIVATE_KEY_PEM = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg3a3r9d5DLyA7ZlVC
+Kzd1PhOvA9jJeYuR81tCsvkB15qhRANCAAR3qW02zo5jl/iWqoefOEQtL2iVps8f
+SXCyu7AKDaW3HNT6HHXacBKMub2/WKnEmVh8dgMMwtPJSEGtCrwLcSSE
+-----END PRIVATE KEY-----`;
+
+const TEST_REKOR_KEY_ID = "7a3780a44ee4800884c6fc09f634f56c23671399035dddb02e756e4cdeb98874";
 
 const TEST_TRUSTED_ROOTS: TrustedSigstoreRoots = {
   rootCertPem: TEST_ROOT_CRT_PEM,
   intermediateCertPem: TEST_INTER_CRT_PEM,
+  rekorPublicKeyPem: TEST_REKOR_PUBLIC_KEY_PEM,
   rekorKeyId: TEST_REKOR_KEY_ID,
 };
 
@@ -101,17 +113,27 @@ function createTestSigstoreBundle(
     keyPem?: string;
     certPem?: string;
     rekorKeyId?: string;
+    rekorPrivKeyPem?: string;
     omitRekor?: boolean;
     tamperedHash?: string;
+    tamperedSignature?: string;
+    tamperedPubKey?: string;
+    tamperedSet?: boolean;
     invalidLogIndex?: boolean;
     invalidIntegratedTime?: boolean;
+    integratedTime?: number;
+    logIndex?: number;
+    hashAlgorithm?: string;
+    modernTlog?: boolean;
+    omitInclusionEvidence?: boolean;
   },
 ) {
   const keyPem = options?.keyPem ?? TEST_LEAF_KEY_PEM;
   const certPem = options?.certPem ?? TEST_LEAF_CRT_PEM;
+  const certObj = new X509Certificate(certPem);
+  const certDer = certObj.raw;
   const archiveSha256Hex = createHash("sha256").update(archiveBytes).digest("hex");
   const sig = sign("sha256", archiveBytes, { key: keyPem, dsaEncoding: "der" });
-  const certDer = new X509Certificate(certPem).raw;
 
   const bundle: Record<string, unknown> = {
     mediaType: "application/vnd.dev.sigstore.bundle+json;version=0.1",
@@ -133,6 +155,10 @@ function createTestSigstoreBundle(
 
   if (!options?.omitRekor) {
     const hashValue = options?.tamperedHash ?? archiveSha256Hex;
+    const signatureValue = options?.tamperedSignature ?? sig.toString("base64");
+    const pubKeyValue = options?.tamperedPubKey ?? Buffer.from(certPem).toString("base64");
+    const hashAlgo = options?.hashAlgorithm ?? "sha256";
+
     const rekorBody = Buffer.from(
       JSON.stringify({
         apiVersion: "0.0.1",
@@ -140,23 +166,58 @@ function createTestSigstoreBundle(
         spec: {
           data: {
             hash: {
-              algorithm: "sha256",
+              algorithm: hashAlgo,
               value: hashValue,
+            },
+          },
+          signature: {
+            content: signatureValue,
+            publicKey: {
+              content: pubKeyValue,
             },
           },
         },
       }),
     ).toString("base64");
 
-    bundle.rekorBundle = {
-      SignedEntryTimestamp: "dGVzdC1zZXQ=",
-      Payload: {
-        body: rekorBody,
-        integratedTime: options?.invalidIntegratedTime ? -1 : 1730000000,
-        logIndex: options?.invalidLogIndex ? -1 : 12345,
-        logID: options?.rekorKeyId ?? TEST_REKOR_KEY_ID,
-      },
+    const validTime = Math.floor(Date.parse(certObj.validFrom) / 1000) + 60;
+    const integratedTime = options?.invalidIntegratedTime ? 1 : (options?.integratedTime ?? validTime);
+    const logIndex = options?.invalidLogIndex ? -1 : (options?.logIndex ?? 12345);
+    const logID = options?.rekorKeyId ?? TEST_REKOR_KEY_ID;
+
+    const payloadObj = {
+      body: rekorBody,
+      integratedTime,
+      logID,
+      logIndex,
     };
+    const canonicalPayload = "{" + (Object.keys(payloadObj) as Array<keyof typeof payloadObj>).sort().map((k) => JSON.stringify(k) + ":" + JSON.stringify(payloadObj[k])).join(",") + "}";
+    const rekorPrivKey = options?.rekorPrivKeyPem ?? TEST_REKOR_PRIVATE_KEY_PEM;
+    const setSig = options?.tamperedSet
+      ? Buffer.from("forged-rekor-set-signature").toString("base64")
+      : sign("sha256", Buffer.from(canonicalPayload), { key: rekorPrivKey, dsaEncoding: "der" }).toString("base64");
+
+    if (options?.modernTlog) {
+      delete bundle.rekorBundle;
+      const tlogEntry: Record<string, unknown> = {
+        logIndex: String(logIndex),
+        logId: { keyId: logID },
+        integratedTime: String(integratedTime),
+        kindVersion: { kind: "hashedrekord", version: "0.0.1" },
+        canonicalizedBody: rekorBody,
+      };
+      if (!options?.omitInclusionEvidence) {
+        tlogEntry.inclusionPromise = {
+          signedEntryTimestamp: setSig,
+        };
+      }
+      (bundle.verificationMaterial as Record<string, unknown>).tlogEntries = [tlogEntry];
+    } else {
+      bundle.rekorBundle = {
+        SignedEntryTimestamp: setSig,
+        Payload: payloadObj,
+      };
+    }
   }
 
   return bundle;
@@ -249,7 +310,7 @@ function createTarGz(files: Record<string, string | Uint8Array>): Buffer {
   return gzipSync(Buffer.concat(blocks));
 }
 
-test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects forged bundles (D-13, G-40-7)", () => {
+test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects forged bundles (D-13, G-40-7, G-40-9)", () => {
   const archive = Buffer.from("test-archive-binary-payload");
   const validBundle = createTestSigstoreBundle(archive);
 
@@ -259,6 +320,13 @@ test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects fo
   });
   assert.equal(verified.verified, true);
   assert.match(verified.identity, /cua-driver-rs-v0\.39\.0/);
+
+  // 1b. Valid modern tlog bundle verifies with trusted roots
+  const modernBundle = createTestSigstoreBundle(archive, { modernTlog: true });
+  const verifiedModern = verifyCuaSigstoreBundle(modernBundle, archive, "cua-driver-rs-v0.39.0", {
+    trustedRoots: TEST_TRUSTED_ROOTS,
+  });
+  assert.equal(verifiedModern.verified, true);
 
   // 2. Reject self-signed certificate by default (G-40-7)
   const selfSignedBundle = createTestSigstoreBundle(archive, {
@@ -286,6 +354,16 @@ test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects fo
     /Missing transparency log evidence in Sigstore bundle/,
   );
 
+  // 4b. Modern tlog missing inclusion evidence rejected (G-40-9)
+  const noEvidenceModern = createTestSigstoreBundle(archive, { modernTlog: true, omitInclusionEvidence: true });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(noEvidenceModern, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /missing inclusion evidence/,
+  );
+
   // 5. Invalid Rekor logIndex / integratedTime rejected (G-40-7)
   const badLogIndexBundle = createTestSigstoreBundle(archive, { invalidLogIndex: true });
   assert.throws(
@@ -302,7 +380,19 @@ test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects fo
       verifyCuaSigstoreBundle(badTimeBundle, archive, "cua-driver-rs-v0.39.0", {
         trustedRoots: TEST_TRUSTED_ROOTS,
       }),
-    /Invalid Rekor transparency log entry: invalid integratedTime/,
+    /Invalid Rekor transparency log entry: invalid integratedTime|integrated time falls outside certificate validity period/,
+  );
+
+  // 5b. Integrated time outside certificate validity window rejected (G-40-9)
+  const futureTimeBundle = createTestSigstoreBundle(archive, {
+    integratedTime: Math.floor(Date.parse(new X509Certificate(TEST_LEAF_CRT_PEM).validTo) / 1000) + 1000,
+  });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(futureTimeBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /integrated time falls outside certificate validity period/,
   );
 
   // 6. Mismatched Rekor log ID rejected (G-40-7)
@@ -317,6 +407,25 @@ test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects fo
     /does not match trusted Rekor key ID/,
   );
 
+  // 6b. Forged Rekor SET signature rejected (G-40-9)
+  const badSetBundle = createTestSigstoreBundle(archive, { tamperedSet: true });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badSetBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /SignedEntryTimestamp verification failed/,
+  );
+
+  // 6c. Invalid Rekor public key rejected (G-40-9)
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(validBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: { ...TEST_TRUSTED_ROOTS, rekorPublicKeyPem: "deliberately-invalid-public-key" },
+      }),
+    /Invalid Rekor public key/,
+  );
+
   // 7. Mismatched Rekor hash rejected (G-40-7)
   const badHashBundle = createTestSigstoreBundle(archive, {
     tamperedHash: "0000000000000000000000000000000000000000000000000000000000000000",
@@ -327,6 +436,40 @@ test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects fo
         trustedRoots: TEST_TRUSTED_ROOTS,
       }),
     /Archive SHA-256 does not match Rekor transparency log entry/,
+  );
+
+  // 7b. Unsupported hash algorithm rejected (G-40-9)
+  const badAlgoBundle = createTestSigstoreBundle(archive, { hashAlgorithm: "sha1" });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badAlgoBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /unsupported hash algorithm/,
+  );
+
+  // 7c. Mismatched logged signature rejected (G-40-9)
+  const badLoggedSigBundle = createTestSigstoreBundle(archive, {
+    tamperedSignature: Buffer.from("forged-payload-signature").toString("base64"),
+  });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badLoggedSigBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Logged signature does not match bundle signature/,
+  );
+
+  // 7d. Mismatched logged certificate rejected (G-40-9)
+  const badLoggedCertBundle = createTestSigstoreBundle(archive, {
+    tamperedPubKey: Buffer.from(TEST_ROOT_CRT_PEM).toString("base64"),
+  });
+  assert.throws(
+    () =>
+      verifyCuaSigstoreBundle(badLoggedCertBundle, archive, "cua-driver-rs-v0.39.0", {
+        trustedRoots: TEST_TRUSTED_ROOTS,
+      }),
+    /Logged certificate does not match leaf certificate/,
   );
 
   // 8. Mismatched tag/identity rejected
@@ -359,12 +502,13 @@ test("verifyCuaSigstoreBundle validates authentic Sigstore bundle and rejects fo
   );
 });
 
-test("verifyCuaSigstoreBundle authenticates official Cua 0.38.0 bundle against official Fulcio CA and Rekor log ID (G-40-7)", async () => {
+test("verifyCuaSigstoreBundle authenticates official Cua 0.38.0 bundle against official Fulcio CA and Rekor log ID (G-40-7, G-40-9)", async () => {
   const fixturePath = join(packageRoot(), "test", "fixtures", "cua-0.38.0.sigstore.json");
   const rawFixture = await readFile(fixturePath, "utf8");
   const bundle = JSON.parse(rawFixture) as {
     cert: string;
     rekorBundle: {
+      SignedEntryTimestamp: string;
       Payload: {
         body: string;
         integratedTime: number;
@@ -373,6 +517,8 @@ test("verifyCuaSigstoreBundle authenticates official Cua 0.38.0 bundle against o
       };
     };
   };
+  const payloadPath = join(packageRoot(), "docs", "research", "computer-use", "cua-0.38.0-SHA256SUMS");
+  const payloadBytes = await readFile(payloadPath);
 
   // 1. Verify certificate chain against official Fulcio Root / Intermediate CA
   const certBytes = Buffer.from(bundle.cert, "base64");
@@ -394,13 +540,27 @@ test("verifyCuaSigstoreBundle authenticates official Cua 0.38.0 bundle against o
   };
   assert.equal(
     rekorBody.spec?.data?.hash?.value,
-    "5edaa74d0afa1b55a9668dbc4f32736507bd2bd4d75b18ca1dc8881bb12402b5",
+    "a2c338d608ded32fe3e41918cc571a2769a38fc5a1316bab7d14a9b615590645",
   );
 
-  // 3. Passing non-matching archive bytes passes cert chain check and fails specifically on Rekor hash check
+  // 3. Official bundle and its matching payload verify with production roots (no test root overrides)
+  const verified = verifyCuaSigstoreBundle(bundle, payloadBytes, "cua-driver-rs-v0.38.0");
+  assert.equal(verified.verified, true);
+  assert.match(verified.identity, /cua-driver-rs-v0\.38\.0/);
+  assert.equal(verified.issuer, "https://token.actions.githubusercontent.com");
+
+  // 4. Passing non-matching archive bytes fails specifically on Rekor hash check
   assert.throws(
     () => verifyCuaSigstoreBundle(bundle, Buffer.from("non-matching-archive-payload"), "cua-driver-rs-v0.38.0"),
     /Archive SHA-256 does not match Rekor transparency log entry/,
+  );
+
+  // 5. Tampered SET signature on official bundle rejected
+  const tamperedSet = structuredClone(bundle);
+  tamperedSet.rekorBundle.SignedEntryTimestamp = Buffer.from("forged-rekor-set").toString("base64");
+  assert.throws(
+    () => verifyCuaSigstoreBundle(tamperedSet, payloadBytes, "cua-driver-rs-v0.38.0"),
+    /SignedEntryTimestamp verification failed/,
   );
 });
 

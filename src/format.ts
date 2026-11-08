@@ -59,13 +59,54 @@ function table(headers: string[], rows: string[][]): string {
   return [render(headers), render(widths.map((width) => "-".repeat(width))), ...rows.map(render)].join("\n");
 }
 
+function formatToolAdapterDetails(adapters: readonly import("./types.js").ToolAdapterBinding[] | undefined): string {
+  if (!adapters || adapters.length === 0) {
+    return "  Compatibility Adapters: none";
+  }
+  const lines: string[] = ["  Compatibility Adapters & Policy Interfaces:"];
+  for (const a of adapters) {
+    lines.push(
+      `    - ${a.adapterId} (${a.kind}, ${a.status}, revision=${a.revision}):`,
+      `        harnesses: ${a.harnesses.join(", ")}`,
+      `        platforms: ${a.platforms.join(", ")}`,
+      `        rationale: ${a.rationale}`,
+      `        applicability: ${a.applicability}`,
+      `        verificationMethod: ${a.verificationMethod}`,
+      `        removalCondition: ${a.removalCondition ?? "none (permanent policy-interface)"}`,
+    );
+    if (a.retirement) {
+      lines.push(
+        `        retirementReason: ${a.retirement.retirementReason}`,
+        `        verifiedRelease: ${a.retirement.verifiedRelease}`,
+        `        evidenceSummary: ${a.retirement.evidenceSummary}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
 export function formatToolInventory(inventory: import("./core/tool-inventory.js").ToolInventory): string {
   const diagnostics = inventory.records.diagnostics.length ? `\nRecord diagnostics: ${inventory.records.diagnostics.join(", ")}` : "";
-  return [inventory.observations.map((item) => `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}\n  accepted=${item.acceptedIdentity?.version ?? "none"}; latest operation=${item.latestOperation?.operationId ?? "none"}, status=${item.latestOperation?.status ?? "unknown"}, outcome=${item.latestOperation?.outcome ?? "unknown"}\n  proof scopes: ${JSON.stringify(item.proofScopes ?? {})}\n  handoff=${item.handoff?.status ?? "needs-evidence"}${(item.candidates ?? []).map((candidate) => `\n  candidate ${candidate.path}: version=${candidate.version ?? "unknown"}, installation owner=${candidate.installationOwner}`).join("")}${(item.bindings ?? []).map((binding) => `\n  ${binding.harness}: ${binding.status}, candidate=${binding.candidatePath ?? "unknown"}, connection owner=${binding.connectionOwner}, ${binding.reason}`).join("")}${(item.diagnostics ?? []).map((diagnostic) => `\n  ${diagnostic.severity}: ${diagnostic.code}`).join("")}`).join("\n"), ...(inventory.categorySummaries ?? []).map((s) => `${s.category}: ${s.count} (installed=${s.statuses.installed}, absent=${s.statuses.absent}, unknown=${s.statuses.unknown})`), `Records: ${inventory.records.status}${diagnostics}`].filter(Boolean).join("\n");
+  return [
+    inventory.observations.map((item) => {
+      const adaptersLine = item.adaptersSummary ? `\n  adapters: ${item.adaptersSummary.text}` : "";
+      return `${item.toolId}: installation=${item.installation}, installed=${item.installed?.version ?? "unknown"}, selected=${item.selected?.version ?? "unknown"}, integrity=${item.integrity}, integration=${item.integration}\n${item.reason}; ${item.nextAction}\n  accepted=${item.acceptedIdentity?.version ?? "none"}; latest operation=${item.latestOperation?.operationId ?? "none"}, status=${item.latestOperation?.status ?? "unknown"}, outcome=${item.latestOperation?.outcome ?? "unknown"}\n  proof scopes: ${JSON.stringify(item.proofScopes ?? {})}\n  handoff=${item.handoff?.status ?? "needs-evidence"}${adaptersLine}${(item.candidates ?? []).map((candidate) => `\n  candidate ${candidate.path}: version=${candidate.version ?? "unknown"}, installation owner=${candidate.installationOwner}`).join("")}${(item.bindings ?? []).map((binding) => `\n  ${binding.harness}: ${binding.status}, candidate=${binding.candidatePath ?? "unknown"}, connection owner=${binding.connectionOwner}, ${binding.reason}`).join("")}${(item.diagnostics ?? []).map((diagnostic) => `\n  ${diagnostic.severity}: ${diagnostic.code}`).join("")}`;
+    }).join("\n"),
+    ...(inventory.categorySummaries ?? []).map((s) => `${s.category}: ${s.count} (installed=${s.statuses.installed}, absent=${s.statuses.absent}, unknown=${s.statuses.unknown})`),
+    `Records: ${inventory.records.status}${diagnostics}`,
+  ].filter(Boolean).join("\n");
 }
 
 export function formatToolDetail(inventory: import("./core/tool-inventory.js").ToolInventory): string {
-  return [formatToolInventory(inventory), ...inventory.observations.map((item) => `${item.toolId} detail: installed source=${item.installed?.source ?? "unknown"}, selected source=${item.selected?.source ?? "unknown"}; scope=${item.scope ?? "unknown"}; handoff=${JSON.stringify(item.handoff ?? null)}; candidates=${JSON.stringify(item.candidates ?? [])}`), ...(inventory.components ?? []).map((c) => `${c.category} ${c.id}: ${c.status}, version=${c.version ?? "unknown"}; ${c.reason}`), ...inventory.records.events.map((event) => `Evidence: ${JSON.stringify(event)}`)].join("\n");
+  return [
+    formatToolInventory(inventory),
+    ...inventory.observations.map((item) => [
+      `${item.toolId} detail: installed source=${item.installed?.source ?? "unknown"}, selected source=${item.selected?.source ?? "unknown"}; scope=${item.scope ?? "unknown"}; handoff=${JSON.stringify(item.handoff ?? null)}; candidates=${JSON.stringify(item.candidates ?? [])}`,
+      formatToolAdapterDetails(item.adapters),
+    ].join("\n")),
+    ...(inventory.components ?? []).map((c) => `${c.category} ${c.id}: ${c.status}, version=${c.version ?? "unknown"}; ${c.reason}`),
+    ...inventory.records.events.map((event) => `Evidence: ${JSON.stringify(event)}`),
+  ].join("\n");
 }
 
 export function formatToolHistory(history: Awaited<ReturnType<typeof import("./core/tool-records.js").readToolHistory>>): string {
@@ -2293,6 +2334,21 @@ export function formatLocalReleasePreview(plan: LocalReleasePlan): string {
         `     Transactional rollback: ${tool.recoveryScope.transactionalRollback.join(", ") || "none"}`,
         `     Adapter recovery: ${tool.recoveryScope.adapterRecovery.join(", ") || "none"}`,
         `     Unrecovered effects: ${tool.recoveryScope.unrecoveredEffects.join(", ") || "none"}`,
+        `  5. Compatibility Adapters & Policy Interfaces:`,
+        ...(tool.adapters && tool.adapters.length > 0
+          ? tool.adapters.flatMap((a) => [
+              `     - ${a.adapterId} (${a.kind}, ${a.status}, revision=${a.revision}):`,
+              `       Rationale: ${a.rationale}`,
+              `       Applicability: ${a.applicability}`,
+              `       Verification: ${a.verificationMethod}`,
+              `       Removal Condition: ${a.removalCondition ?? "Permanent policy-interface"}`,
+              ...(a.retirement ? [
+                `       Retirement Reason: ${a.retirement.retirementReason}`,
+                `       Verified Release: ${a.retirement.verifiedRelease}`,
+                `       Evidence: ${a.retirement.evidenceSummary}`,
+              ] : []),
+            ])
+          : ["     - None"]),
       );
     }
   }

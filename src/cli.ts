@@ -1095,7 +1095,7 @@ async function main(): Promise<void> {
       inventory.records.events = inventory.records.events.filter((event) => event.result?.toolId === tool || event.results?.some((result) => result.toolId === tool) || event.requests?.some((request) => request.toolId === tool));
     }
     if (!detail) delete inventory.components;
-    print(inventory, json, detail ? formatToolDetail(inventory) : formatToolInventory(inventory));
+    print(inventory, json, (detail || typeof tool === "string") ? formatToolDetail(inventory) : formatToolInventory(inventory));
     return;
   }
 

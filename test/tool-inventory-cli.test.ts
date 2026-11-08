@@ -90,3 +90,101 @@ test("tool inventory observes installed Cua separately from selected pin", async
     await assert.rejects(access(join(root, "state")));
   } finally { await rm(root, { recursive: true, force: true }); }
 });
+
+test("inventory exposes adaptersSummary in default view and full adapter metadata in --detail / --tool (ADAPT-01, ADAPT-02)", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aos-inventory-adapters-"));
+  try {
+    const home = join(root, "home");
+    const local = join(root, "local");
+    const stateRoot = join(root, "state");
+    const env = {
+      ...process.env,
+      HOME: home,
+      USERPROFILE: home,
+      LOCALAPPDATA: local,
+      ALPHA_AOS_STATE_DIR: stateRoot,
+    };
+    const cli = (...args: string[]) =>
+      spawnSync(process.execPath, [resolve("dist/src/cli.js"), "inventory", ...args], {
+        encoding: "utf8",
+        env,
+      });
+
+    // 1. Default inventory text output includes adaptersSummary lines
+    const defaultOut = cli();
+    assert.equal(defaultOut.status, 0);
+    assert.ok(defaultOut.stdout.includes("adapters:"), "Default inventory text must show adapters summary line");
+    assert.ok(defaultOut.stdout.includes("ecc:deep-research-routing@v2"));
+    assert.ok(defaultOut.stdout.includes("ecc:antigravity-doc-lookup@v2"));
+
+    // 2. Default --json output preserves overview.components === undefined and provides adaptersSummary/adapters
+    const jsonOut = cli("--json");
+    assert.equal(jsonOut.status, 0);
+    const parsedJson = JSON.parse(jsonOut.stdout) as {
+      observations: Array<{
+        toolId: string;
+        adaptersSummary?: { activeCorrectionCount: number; retiredCorrectionCount: number; policyInterfaceCount: number; text: string };
+        adapters?: Array<{ adapterId: string; rationale: string; applicability: string }>;
+      }>;
+      components?: unknown;
+    };
+    assert.equal(parsedJson.components, undefined, "Default inventory --json must not expose components");
+    assert.ok(parsedJson.observations.length > 0);
+
+    const eccObs = parsedJson.observations.find((o) => o.toolId === "ecc");
+    assert.ok(eccObs);
+    assert.ok(eccObs.adaptersSummary);
+    assert.equal(eccObs.adaptersSummary.activeCorrectionCount, 2);
+    assert.equal(eccObs.adaptersSummary.policyInterfaceCount, 1);
+    assert.ok(Array.isArray(eccObs.adapters));
+    assert.equal(eccObs.adapters.length, 3);
+    assert.ok(eccObs.adapters.some((a) => a.adapterId === "ecc:deep-research-routing"));
+    assert.ok(eccObs.adapters.some((a) => a.adapterId === "ecc:antigravity-doc-lookup"));
+    assert.ok(eccObs.adapters.some((a) => a.adapterId === "policy:claude-skill-overrides"));
+
+    const cuaObs = parsedJson.observations.find((o) => o.toolId === "cua-driver");
+    assert.ok(cuaObs);
+    assert.ok(cuaObs.adaptersSummary);
+    assert.equal(cuaObs.adaptersSummary.activeCorrectionCount, 0);
+    assert.deepEqual(cuaObs.adapters, []);
+
+    // 3. Detail text output includes Compatibility Adapters & Policy Interfaces and full metadata
+    const detailOut = cli("--detail");
+    assert.equal(detailOut.status, 0);
+    assert.ok(detailOut.stdout.includes("Compatibility Adapters & Policy Interfaces:"));
+    assert.ok(detailOut.stdout.includes("rationale:"));
+    assert.ok(detailOut.stdout.includes("applicability:"));
+    assert.ok(detailOut.stdout.includes("verificationMethod:"));
+    assert.ok(detailOut.stdout.includes("removalCondition:"));
+
+    // 4. Detail --json output includes components
+    const detailJson = cli("--detail", "--json");
+    assert.equal(detailJson.status, 0);
+    const parsedDetailJson = JSON.parse(detailJson.stdout) as {
+      observations: unknown[];
+      components: unknown[];
+    };
+    assert.ok(Array.isArray(parsedDetailJson.components));
+
+    // 5. Explicit --tool ecc outputs adapter details
+    const eccToolOut = cli("--tool", "ecc");
+    assert.equal(eccToolOut.status, 0);
+    assert.ok(eccToolOut.stdout.includes("Compatibility Adapters & Policy Interfaces:"));
+    assert.ok(eccToolOut.stdout.includes("ecc:deep-research-routing"));
+    assert.ok(eccToolOut.stdout.includes("ecc:antigravity-doc-lookup"));
+
+    // 6. Explicit --tool gsd outputs gsd adapter details
+    const gsdToolOut = cli("--tool", "gsd");
+    assert.equal(gsdToolOut.status, 0);
+    assert.ok(gsdToolOut.stdout.includes("gsd:claude-ship-skill"));
+    assert.ok(gsdToolOut.stdout.includes("gsd:codex-stop-hook-helpers"));
+    assert.ok(gsdToolOut.stdout.includes("policy:codex-execution-guidance"));
+
+    // 7. Explicit --tool cua-driver outputs none cleanly
+    const cuaToolOut = cli("--tool", "cua-driver");
+    assert.equal(cuaToolOut.status, 0);
+    assert.ok(cuaToolOut.stdout.includes("Compatibility Adapters: none"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

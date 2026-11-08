@@ -242,20 +242,28 @@ export function summarizeToolAdapters(
   retiredIds.sort((a, b) => a.localeCompare(b));
   policyIds.sort((a, b) => a.localeCompare(b));
 
+  const idWithRev = (id: string) => {
+    const match = bindings.find((b) => ("adapterId" in b ? b.adapterId : b.id) === id);
+    return match ? `${id}@${match.revision}` : id;
+  };
+
   const parts: string[] = [];
   if (activeCorrectionCount > 0 || retiredCorrectionCount > 0) {
+    const activeDetails = activeIds.length > 0 ? ` (${activeIds.map(idWithRev).join(", ")})` : "";
     parts.push(
-      `${activeCorrectionCount} active correction${activeCorrectionCount === 1 ? "" : "s"}`
+      `${activeCorrectionCount} active correction${activeCorrectionCount === 1 ? "" : "s"}${activeDetails}`
     );
     if (retiredCorrectionCount > 0) {
-      parts.push(`${retiredCorrectionCount} retired`);
+      const retiredDetails = retiredIds.length > 0 ? ` (${retiredIds.map(idWithRev).join(", ")})` : "";
+      parts.push(`${retiredCorrectionCount} retired${retiredDetails}`);
     }
   } else {
     parts.push("0 active corrections");
   }
   if (policyInterfaceCount > 0) {
+    const policyDetails = policyIds.length > 0 ? ` (${policyIds.map(idWithRev).join(", ")})` : "";
     parts.push(
-      `${policyInterfaceCount} policy interface${policyInterfaceCount === 1 ? "" : "s"}`
+      `${policyInterfaceCount} policy interface${policyInterfaceCount === 1 ? "" : "s"}${policyDetails}`
     );
   }
 

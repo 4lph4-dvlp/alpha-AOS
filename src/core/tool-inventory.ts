@@ -6,8 +6,9 @@ import { officialCuaPaths } from "./computer-use-install.js";
 import { readToolRecordStore } from "./tool-records.js";
 import { evaluateLegacyHandoff, type LegacyHandoffAssessment } from "./tool-handoff.js";
 import { assessRetainedNpmHandoff } from "./tool-handoff-loader.js";
-import type { StackCatalog, StackLock } from "../types.js";
+import type { StackCatalog, StackLock, ManagedToolId, ToolAdapterBinding, ToolAdapterSummary } from "../types.js";
 import { acceptedToolResults, matchesToolPathAlias } from "./tool-bindings.js";
+import { listCompatibilityAdapters, summarizeToolAdapters } from "./compatibility-adapters.js";
 import { realpath } from "node:fs/promises";
 
 export interface ToolObservation {
@@ -30,6 +31,8 @@ export interface ToolObservation {
   acceptedIdentity?: { installationId: string; version: string; operationId: string } | null;
   latestOperation?: { operationId: string; status: string; version: string | null; outcome: string | null } | null;
   proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string; fingerprintScope?: string; historical?: { discovery: string; integrity: string; protocol: string; invocation: string } };
+  adaptersSummary?: ToolAdapterSummary;
+  adapters?: readonly ToolAdapterBinding[];
 }
 export type ComponentCategory = "alpha-aos-owned-skill" | "bundled-library" | "external-prerequisite" | "harness-application";
 export interface InventoryComponent { category: ComponentCategory; id: string; status: "installed" | "absent" | "unknown"; reason: string; version: string | null }
@@ -215,6 +218,40 @@ export async function collectToolInventory(options: { catalog: StackCatalog; loc
     const active = new Set(item.bindings?.filter((binding) => binding.status === "active").map((binding) => binding.candidatePath));
     item.candidates?.sort((a, b) => Number(active.has(b.path)) - Number(active.has(a.path)) || a.path.localeCompare(b.path));
     item.bindings?.sort((a, b) => a.harness.localeCompare(b.harness) || (a.candidatePath ?? "").localeCompare(b.candidatePath ?? ""));
+
+    const toolId = item.toolId as ManagedToolId;
+    const descriptors = listCompatibilityAdapters({ toolId });
+    const toolAdapters: ToolAdapterBinding[] = descriptors.map((d) => {
+      let derivationDigest: string | undefined;
+      for (const ev of records.events) {
+        if (ev.kind === "tool-result" && ev.result?.toolId === toolId && ev.result.evidence) {
+          const safeToolId = toolId.replace(/:/g, "-");
+          const safeAdapterId = d.id.replace(/:/g, "-");
+          const expectedProofId = `${safeToolId}-${safeAdapterId}-adapter`;
+          const proof = ev.result.evidence.find((p) => p.proofId === expectedProofId || p.proofId === `adapter-${safeAdapterId}`);
+          if (proof) {
+            derivationDigest = proof.fingerprint;
+          }
+        }
+      }
+      return {
+        adapterId: d.id,
+        kind: d.kind,
+        revision: d.revision,
+        status: d.status,
+        toolId: d.toolId,
+        harnesses: d.harnesses,
+        platforms: d.platforms,
+        rationale: d.rationale,
+        applicability: d.applicability,
+        verificationMethod: d.verificationMethod,
+        removalCondition: d.removalCondition,
+        retirement: d.retirement,
+        ...(derivationDigest ? { derivationDigest } : {}),
+      };
+    });
+    item.adapters = toolAdapters;
+    item.adaptersSummary = summarizeToolAdapters(toolId, { adapters: toolAdapters });
   }
   return { observations: orderToolObservations(observations), records, components, categorySummaries };
 }

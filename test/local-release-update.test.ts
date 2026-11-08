@@ -870,6 +870,12 @@ test("formatLocalReleasePreview renders 4-tier structured release preview with c
   assert.ok(formatted.includes("4. Recovery Scope:"));
   assert.ok(formatted.includes("Transactional rollback:"));
   assert.ok(formatted.includes("Adapter recovery:"));
+  assert.ok(formatted.includes("5. Compatibility Adapters & Policy Interfaces:"));
+  assert.ok(formatted.includes("gsd:claude-ship-skill"));
+  assert.ok(formatted.includes("Rationale:"));
+  assert.ok(formatted.includes("Applicability:"));
+  assert.ok(formatted.includes("Verification:"));
+  assert.ok(formatted.includes("Removal Condition:"));
   assert.ok(formatted.includes(`Plan digest: ${plan.planDigest}`));
   assert.ok(formatted.includes(`Reviewed plan token: ${plan.reviewedPlanToken}`));
   assert.ok(formatted.includes(plan.applyCommand!));

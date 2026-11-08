@@ -3,7 +3,7 @@ status: partial
 phase: 40-local-official-release-updates
 source: [40-01-SUMMARY.md, 40-02-SUMMARY.md, 40-03-SUMMARY.md]
 started: 2026-11-07T18:05:59.1541138Z
-updated: 2026-11-08T03:44:00.000Z
+updated: 2026-11-08T04:01:53.393Z
 ---
 
 ## Current Test
@@ -53,11 +53,18 @@ expected: 정확한 버전 재조회 응답의 dist.integrity가 없거나 유�
 result: pass
 source: automated
 
+### 9. Rekor 증거의 암호학적 인증과 인증서 시각 바인딩
+expected: 위조 SET, 인증서 유효기간 밖의 로그 시각, body/포함 증거가 없는 tlog를 변경 전에 거부합니다.
+result: issue
+source: automated
+reported: "40-REKOR-PROBE.mjs: 테스트 CA로 서명한 payload에 위조 SET와 유효하지 않은 Rekor 공개 키를 주어도 verified:true. integratedTime=1 및 body/proof/time 없는 tlog도 verified:true. 운영 Fulcio 키 위조를 입증한 것은 아니며, 로그 인증 검증 누락을 재현함."
+severity: blocker
+
 ## Summary
 
-total: 8
+total: 9
 passed: 7
-issues: 0
+issues: 1
 pending: 0
 skipped: 0
 blocked: 1
@@ -67,6 +74,8 @@ blocked: 1
 - gap_id: G-40-5
   truth: "검토한 변경 도구와 선택한 MCP 서버만 적용한다"
   status: resolved
+  resolved_by: 40-03-PLAN.md
+  resolved_at: 2026-11-08
   severity: major
   test: 5
   reason: "Automated probe: skip-absent IDs remain selected; Context7-only plan includes Exa and Firecrawl"
@@ -77,6 +86,8 @@ blocked: 1
 - gap_id: G-40-7
   truth: "공식 신뢰 체인과 증거가 없는 Cua 서명을 거부한다"
   status: resolved
+  resolved_by: 40-03-PLAN.md
+  resolved_at: 2026-11-08
   severity: blocker
   test: 7
   reason: "Automated probe: self-signed certificate without transparency evidence accepted"
@@ -87,6 +98,8 @@ blocked: 1
 - gap_id: G-40-8
   truth: "누락되거나 변경된 npm integrity를 적용 전에 거부한다"
   status: resolved
+  resolved_by: 40-03-PLAN.md
+  resolved_at: 2026-11-08
   severity: major
   test: 8
   reason: "Automated probe: exact-version metadata without dist.integrity accepted"
@@ -94,3 +107,12 @@ blocked: 1
   artifacts: [src/core/update.ts]
   missing: [mandatory integrity validation, missing and invalid metadata regressions]
   resolution: "revalidateLocalReleasePlan requires data.dist.integrity to be a valid sha512 SRI string and equal tool.integrity, throwing plan-drift on missing dist, absent/null/non-string integrity, malformed integrity, or drifted integrity."
+- gap_id: G-40-9
+  truth: "Rekor 로그 증거와 인증서 유효 시각을 인증한 뒤에만 Cua를 verified로 판정한다"
+  status: failed
+  severity: blocker
+  test: 9
+  reason: "위조 SET, 유효기간 밖 integratedTime, body/proof/time 없는 tlog가 모두 verified:true로 수락됨"
+  root_cause: "verifyCuaSigstoreBundle은 Rekor ID 및 일부 필드만 검사한다. rekorPublicKeyPem으로 SET 서명을 검증하지 않고, tlog 분기는 body를 선택적으로 검사하며, 인증된 integratedTime과 X.509 유효기간을 대조하지 않는다."
+  artifacts: [src/core/computer-use-install.ts, test/cua-release-update.test.ts, 40-REKOR-PROBE.mjs]
+  missing: [cryptographic Rekor evidence verification, certificate time binding, body/signature/certificate binding, complete official positive fixture, negative regressions]

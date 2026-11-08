@@ -25,6 +25,10 @@ export type ReleaseLifecycleEventKind =
   | "recovery-failed"
   | "cancelled";
 
+export function isLifecycleTerminalKind(kind: ReleaseLifecycleEventKind): boolean {
+  return kind === "postcheck-passed" || kind === "cancelled" || kind === "recovered" || kind === "recovery-failed";
+}
+
 export interface ReviewedReleaseRef {
   toolId: ManagedToolId;
   release: string;

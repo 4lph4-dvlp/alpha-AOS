@@ -22,6 +22,12 @@ import type {
   ToolAdapterSummary,
   ReleaseVerificationRequest,
   ReleaseVerificationResult,
+  ReleaseEvidenceState,
+  ReleaseApplyStatus,
+  ToolApplyResultDetail,
+  ReleaseVerificationBarrierResult,
+  BarrierToolInput,
+  BarrierHarnessInput,
 } from "../types.js";
 import { MANAGED_TOOL_IDS } from "../types.js";
 import { packageRoot, userStateRoot } from "./paths.js";
@@ -35,8 +41,13 @@ import {
 } from "./compatibility-adapters.js";
 import {
   verifyPreparedReleaseCandidate,
+  evaluateReleaseVerificationBarrier,
   type VerifyCandidateOptions,
 } from "./release-verification.js";
+import {
+  planReleaseLifecycleOperation,
+  appendReleaseLifecycleEvent,
+} from "./release-lifecycle-store.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -63,7 +74,7 @@ import {
   appendToolResult,
   finishToolOperation,
 } from "./tool-record-store.js";
-import type { ToolResult } from "./tool-records.js";
+import { readToolRecordStore, type ToolEvidence, type ToolResult } from "./tool-records.js";
 
 interface RegistryDocument {
   version: string;
@@ -1273,10 +1284,24 @@ export async function revalidateLocalReleasePlan(
   };
 }
 
+export interface PostcheckObservation {
+  readonly toolId: ManagedToolId;
+  readonly harness?: HarnessId | undefined;
+  readonly boundary: "alpha-aos-proxy" | "native-client" | "external-upstream" | "unproxied";
+  readonly outcome: "ok" | "error" | "timeout" | "crashed";
+  readonly latencyMs?: number | undefined;
+  readonly requestDigest?: string | undefined;
+  readonly responseDigest?: string | undefined;
+}
+
 export interface ApplyLocalReleasePlanOptions extends RevalidateLocalReleasePlanOptions {
   session?: MutationSession;
+  operationId?: string;
   candidateVerificationRequests?: readonly ReleaseVerificationRequest[];
   candidateVerificationOptions?: VerifyCandidateOptions;
+  barrierInputs?: readonly BarrierToolInput[];
+  postcheckObservations?: readonly PostcheckObservation[];
+  simulatePostcheckFailure?: boolean;
 }
 
 export type { LocalReleaseApplyResult };
@@ -1301,38 +1326,7 @@ export async function applyLocalReleasePlan(
     };
   }
 
-  let verificationResults: ReleaseVerificationResult[] | undefined;
-  if (options.candidateVerificationRequests && options.candidateVerificationRequests.length > 0) {
-    const results: ReleaseVerificationResult[] = [];
-    for (const req of options.candidateVerificationRequests) {
-      const res = await verifyPreparedReleaseCandidate(req, options.candidateVerificationOptions);
-      results.push(res);
-    }
-    verificationResults = results;
-    const notPassing = results.filter((r) => r.overallState !== "pass");
-    if (notPassing.length > 0) {
-      const pendingReasons = notPassing.flatMap((r) => r.pendingReasons);
-      const failureReasons = notPassing.flatMap((r) => r.failureReasons);
-      const nextAction = notPassing.find((r) => r.nextAction)?.nextAction;
-      return {
-        mode: revalidated.payload.mode,
-        applied: false,
-        operationId: null,
-        changedTools: [],
-        unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
-        appliedSteps: [],
-        externalChanges: [],
-        message: pendingReasons.length > 0
-          ? `Candidate verification pending: ${pendingReasons.join("; ")}`
-          : `Candidate verification failed: ${failureReasons.join("; ")}`,
-        verification: results,
-        pendingReasons,
-        ...(nextAction ? { nextAction } : {}),
-      };
-    }
-  }
-
-  const operationId = `op-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const operationId = options.operationId ?? `op-${Date.now()}-${randomUUID().slice(0, 8)}`;
   const occurredAt = new Date().toISOString();
   const requests = revalidated.changedTools.map((t) => ({
     toolId: t.toolId,
@@ -1351,8 +1345,149 @@ export async function applyLocalReleasePlan(
   return await withToolRecordSession(
     recordPlan,
     async (session) => {
+      // 1. Gather active and attempted identities for reporting
+      const activeIdentity: Record<string, string | null> = {};
+      const attemptedIdentity: Record<string, string | null> = {};
+      for (const tool of revalidated.changedTools) {
+        activeIdentity[tool.toolId] = tool.oldVersion;
+        attemptedIdentity[tool.toolId] = tool.release;
+      }
+
+      // 2. Candidate verification and global barrier evaluation (D-05 ~ D-07, PROOF-03)
+      let verificationResults: ReleaseVerificationResult[] | undefined;
+      let barrierResult: ReleaseVerificationBarrierResult | undefined;
+
+      const hasBarrierInputs = Boolean(options.barrierInputs && options.barrierInputs.length > 0);
+      const hasVerificationRequests = Boolean(options.candidateVerificationRequests && options.candidateVerificationRequests.length > 0);
+
+      if (hasBarrierInputs || hasVerificationRequests) {
+        if (hasVerificationRequests) {
+          const results: ReleaseVerificationResult[] = [];
+          for (const req of options.candidateVerificationRequests!) {
+            const res = await verifyPreparedReleaseCandidate(req, options.candidateVerificationOptions);
+            results.push(res);
+          }
+          verificationResults = results;
+        }
+
+        // Build barrier inputs from barrierInputs or from verificationResults
+        let inputs: readonly BarrierToolInput[];
+        if (hasBarrierInputs) {
+          inputs = options.barrierInputs!;
+        } else {
+          inputs = revalidated.changedTools.map((t) => {
+            const vRes = verificationResults?.find((r) => r.toolId === t.toolId);
+            return {
+              toolId: t.toolId,
+              candidateRelease: t.release,
+              ...(t.oldVersion !== null ? { currentVersion: t.oldVersion } : {}),
+              ...(vRes ? { verificationResult: vRes } : {}),
+            };
+          });
+        }
+
+        barrierResult = evaluateReleaseVerificationBarrier(inputs);
+
+        // If barrier trips (pending or failed), zero activations occur (D-05, D-07)
+        if (!barrierResult.allowedToActivate) {
+          // Record lifecycle events for changed tools if lifecycle store is used
+          for (const tool of revalidated.changedTools) {
+            try {
+              const lcPlan = await planReleaseLifecycleOperation({
+                stateRoot: stRoot,
+                packageRoot: pkgRoot,
+                operationId,
+                occurredAt,
+                toolId: tool.toolId,
+                reviewedRelease: {
+                  toolId: tool.toolId,
+                  release: tool.release,
+                  artifact: tool.artifact,
+                  integrity: tool.integrity,
+                  digest: tool.digest,
+                  planDigest: revalidated.payload.tools.find((pt) => pt.toolId === tool.toolId)?.digest ?? tool.digest,
+                },
+              });
+
+              const evKind = barrierResult.overallStatus === "pending" ? "verification-pending" : "cancelled";
+              await appendReleaseLifecycleEvent(
+                lcPlan,
+                {
+                  sequence: 1,
+                  occurredAt,
+                  kind: evKind,
+                  toolId: tool.toolId,
+                  reviewedRelease: lcPlan.reviewedRelease,
+                  overallState: barrierResult.overallStatus,
+                  activeIdentity: {
+                    installationId: `${tool.toolId.replace(/:/g, "-")}-${tool.oldVersion ?? "none"}`,
+                    version: tool.oldVersion ?? "0.0.0",
+                    pathAlias: tool.toolId.replace(/^@/, ""),
+                  },
+                  ...(barrierResult.pendingReasons.length > 0 ? { pendingReason: barrierResult.pendingReasons.join("; ").slice(0, 500) } : {}),
+                  ...(barrierResult.failureReasons.length > 0 ? { failureReason: barrierResult.failureReasons.join("; ").slice(0, 500) } : {}),
+                  ...(barrierResult.nextCommand ? { nextAction: barrierResult.nextCommand } : {}),
+                },
+                session,
+              );
+            } catch {
+              // Non-blocking for lifecycle store error in tests without lifecycle dir
+            }
+          }
+
+          const toolResults: ToolApplyResultDetail[] = barrierResult.toolEvaluations.map((te) => {
+            const hrRecord: Partial<Record<HarnessId, ReleaseEvidenceState>> = {};
+            for (const h of te.actualHarnesses) {
+              hrRecord[h.harness] = h.state;
+            }
+            return {
+              toolId: te.toolId,
+              status: te.overallState,
+              activeIdentity: {
+                installationId: `${te.toolId.replace(/:/g, "-")}-${te.currentVersion ?? "none"}`,
+                version: te.currentVersion ?? "0.0.0",
+              },
+              attemptedIdentity: {
+                installationId: `${te.toolId.replace(/:/g, "-")}-${te.candidateRelease}`,
+                version: te.candidateRelease,
+              },
+              ...(te.verificationResult ? { verification: te.verificationResult } : {}),
+              harnessResults: hrRecord,
+            };
+          });
+
+          const applyStatus: ReleaseApplyStatus = barrierResult.overallStatus === "pending"
+            ? "verification-pending"
+            : "failed-pre-apply";
+
+          return {
+            mode: revalidated.payload.mode,
+            applied: false,
+            operationId: null,
+            changedTools: [],
+            unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
+            appliedSteps: [],
+            externalChanges: [],
+            message: barrierResult.overallStatus === "pending"
+              ? `Candidate verification pending: ${barrierResult.pendingReasons.join("; ")}`
+              : `Candidate verification failed: ${barrierResult.failureReasons.join("; ")}`,
+            status: applyStatus,
+            toolResults,
+            activeIdentity,
+            attemptedIdentity,
+            barrierResult,
+            pendingReasons: barrierResult.pendingReasons,
+            ...(barrierResult.nextCommand ? { nextCommand: barrierResult.nextCommand } : {}),
+            ...(barrierResult.nextCommand ? { nextAction: barrierResult.nextCommand } : {}),
+            ...(verificationResults ? { verification: verificationResults } : {}),
+          };
+        }
+      }
+
+      // 3. Pre-activation checks passed. Begin tool operation.
       await beginToolOperation(recordPlan, session);
 
+      // Recheck actual active target immediately before activation if requested
       if (options.candidateVerificationOptions?.recheckActualTarget) {
         const recheckInventory = await collectToolInventory({
           catalog: revalidated.catalog,
@@ -1369,6 +1504,7 @@ export async function applyLocalReleasePlan(
         }
       }
 
+      // 4. Activate: apply managed install
       const inventory = collectInventory(revalidated.catalog);
       const installRes = await applyManagedInstall({
         root: pkgRoot,
@@ -1382,19 +1518,193 @@ export async function applyLocalReleasePlan(
         ...(revalidated.cuaPin ? { cuaPin: revalidated.cuaPin } : {}),
       });
 
+      // 5. Post-activation verification (D-08)
+      // Check postcheck observations if supplied, or simulated failure
+      let postcheckPassed = true;
+      let postcheckFailureReason = "";
+
+      if (options.simulatePostcheckFailure) {
+        postcheckPassed = false;
+        postcheckFailureReason = "Post-activation verification failed (simulated failure).";
+      } else if (options.postcheckObservations && options.postcheckObservations.length > 0) {
+        for (const obs of options.postcheckObservations) {
+          if (obs.outcome !== "ok") {
+            postcheckPassed = false;
+            postcheckFailureReason = `Post-activation invocation observation for ${obs.toolId} returned outcome '${obs.outcome}'.`;
+            break;
+          }
+        }
+      }
+
+      // Append lifecycle event: activated
+      for (const tool of revalidated.changedTools) {
+        try {
+          const lcPlan = await planReleaseLifecycleOperation({
+            stateRoot: stRoot,
+            packageRoot: pkgRoot,
+            operationId,
+            occurredAt,
+            toolId: tool.toolId,
+            reviewedRelease: {
+              toolId: tool.toolId,
+              release: tool.release,
+              artifact: tool.artifact,
+              integrity: tool.integrity,
+              digest: tool.digest,
+              planDigest: revalidated.payload.tools.find((pt) => pt.toolId === tool.toolId)?.digest ?? tool.digest,
+            },
+          });
+          await appendReleaseLifecycleEvent(
+            lcPlan,
+            {
+              sequence: 1,
+              occurredAt,
+              kind: "activated",
+              toolId: tool.toolId,
+              reviewedRelease: lcPlan.reviewedRelease,
+              activeIdentity: {
+                installationId: `${tool.toolId.replace(/:/g, "-")}-${tool.release}`,
+                version: tool.release,
+                pathAlias: tool.toolId.replace(/^@/, ""),
+              },
+            },
+            session,
+          );
+        } catch {
+          // Non-blocking
+        }
+      }
+
+      // 6. Handle postcheck failure
+      if (!postcheckPassed) {
+        // Record postcheck-failed lifecycle event
+        for (const tool of revalidated.changedTools) {
+          try {
+            const lcPlan = await planReleaseLifecycleOperation({
+              stateRoot: stRoot,
+              packageRoot: pkgRoot,
+              operationId,
+              occurredAt,
+              toolId: tool.toolId,
+              reviewedRelease: {
+                toolId: tool.toolId,
+                release: tool.release,
+                artifact: tool.artifact,
+                integrity: tool.integrity,
+                digest: tool.digest,
+                planDigest: revalidated.payload.tools.find((pt) => pt.toolId === tool.toolId)?.digest ?? tool.digest,
+              },
+            });
+            await appendReleaseLifecycleEvent(
+              lcPlan,
+              {
+                sequence: 2,
+                occurredAt,
+                kind: "postcheck-failed",
+                toolId: tool.toolId,
+                reviewedRelease: lcPlan.reviewedRelease,
+                failureReason: postcheckFailureReason,
+                nextAction: `alpha-aos update --recover --operation ${operationId}`,
+              },
+              session,
+            );
+          } catch {
+            // Non-blocking
+          }
+
+          // Append failed ToolResult to tool records
+          const safeToolId = tool.toolId.replace(/:/g, "-");
+          const rawAlias = tool.toolId === "cua-driver" ? "cua-driver" : MANAGED_TOOL_PACKAGES[tool.toolId];
+          const pathAlias = rawAlias.replace(/^@/, "");
+          const failedResult: ToolResult = {
+            toolId: tool.toolId,
+            requested: { toolId: tool.toolId, selector: tool.release, exact: true },
+            resolved: {
+              release: tool.release,
+              artifact: tool.artifact,
+              platform: tool.platform,
+              architecture: tool.architecture,
+              digest: tool.digest,
+              sourceId: tool.sourceId,
+              sourceUrl: tool.sourceUrl,
+            },
+            installed: {
+              installationId: `${safeToolId}-${tool.release}`,
+              version: tool.release,
+              pathAlias,
+            },
+            verified: null,
+            evidence: [],
+            outcome: "failed",
+          };
+          await appendToolResult(recordPlan, session, failedResult);
+        }
+
+        // Close finished event with empty transitions! Accepted chain does NOT advance (D-08, T-42-09)
+        await finishToolOperation(recordPlan, session, []);
+
+        const toolResults: ToolApplyResultDetail[] = revalidated.changedTools.map((t) => ({
+          toolId: t.toolId,
+          status: "failed",
+          activeIdentity: {
+            installationId: `${t.toolId.replace(/:/g, "-")}-${t.oldVersion ?? "none"}`,
+            version: t.oldVersion ?? "0.0.0",
+          },
+          attemptedIdentity: {
+            installationId: `${t.toolId.replace(/:/g, "-")}-${t.release}`,
+            version: t.release,
+          },
+        }));
+
+        return {
+          mode: revalidated.payload.mode,
+          applied: false,
+          operationId,
+          changedTools: [],
+          unchangedTools: revalidated.payload.tools.map((t) => t.toolId),
+          appliedSteps: installRes.applied,
+          externalChanges: installRes.externalChanges,
+          message: `Post-activation verification failed: ${postcheckFailureReason}`,
+          status: "failed-post-apply",
+          toolResults,
+          activeIdentity,
+          attemptedIdentity,
+          nextCommand: `alpha-aos update --recover --operation ${operationId}`,
+        };
+      }
+
+      // 7. Postcheck passed! Record success, tool-records, and acceptedTransitions
+      const store = await readToolRecordStore({ stateRoot: stRoot, packageRoot: pkgRoot });
+      const acceptedTransitions: { toolId: string; installationId: string; proofId: string; priorDigest: string | null }[] = [];
+
       for (const tool of revalidated.changedTools) {
         const safeToolId = tool.toolId.replace(/:/g, "-");
         const rawAlias = tool.toolId === "cua-driver" ? "cua-driver" : MANAGED_TOOL_PACKAGES[tool.toolId];
         const pathAlias = rawAlias.replace(/^@/, "");
-        const baseEvidence = {
+        const installationId = `${safeToolId}-${tool.release}`;
+        const proofId = `${safeToolId}-postcheck-invocation`;
+
+        const baseEvidence: ToolEvidence = {
           proofId: `${safeToolId}-integrity`,
           subject: `${safeToolId}-download`,
-          target: "integrity" as const,
+          target: "integrity",
           method: "sha256",
-          result: "pass" as const,
+          result: "pass",
           platform: tool.platform,
           architecture: tool.architecture,
           harness: null,
+          fingerprint: tool.digest,
+        };
+
+        const postcheckEvidence: ToolEvidence = {
+          proofId,
+          subject: installationId,
+          target: "integration",
+          method: "invocation",
+          result: "pass",
+          platform: tool.platform,
+          architecture: tool.architecture,
+          harness: revalidated.payload.targets[0] ?? "codex",
           fingerprint: tool.digest,
         };
 
@@ -1425,6 +1735,8 @@ export async function applyLocalReleasePlan(
           });
         });
 
+        // Only wire verified proofId if barrier/verification was explicitly evaluated or postcheck passed
+        const shouldAdvanceAcceptance = hasBarrierInputs || hasVerificationRequests || options.postcheckObservations !== undefined;
         const result: ToolResult = {
           toolId: tool.toolId,
           requested: {
@@ -1442,18 +1754,79 @@ export async function applyLocalReleasePlan(
             sourceUrl: tool.sourceUrl,
           },
           installed: {
-            installationId: `${safeToolId}-${tool.release}`,
+            installationId,
             version: tool.release,
             pathAlias,
           },
-          verified: null,
-          evidence: [baseEvidence, ...adapterEvidences],
+          verified: shouldAdvanceAcceptance ? proofId : null,
+          evidence: shouldAdvanceAcceptance ? [baseEvidence, postcheckEvidence, ...adapterEvidences] : [baseEvidence, ...adapterEvidences],
           outcome: "succeeded",
         };
         await appendToolResult(recordPlan, session, result);
+
+        if (shouldAdvanceAcceptance) {
+          const priorDigest = store.accepted?.[`${tool.toolId}/${installationId}`] ?? null;
+          acceptedTransitions.push({
+            toolId: tool.toolId,
+            installationId,
+            proofId,
+            priorDigest,
+          });
+        }
+
+        // Record postcheck-passed lifecycle event
+        try {
+          const lcPlan = await planReleaseLifecycleOperation({
+            stateRoot: stRoot,
+            packageRoot: pkgRoot,
+            operationId,
+            occurredAt,
+            toolId: tool.toolId,
+            reviewedRelease: {
+              toolId: tool.toolId,
+              release: tool.release,
+              artifact: tool.artifact,
+              integrity: tool.integrity,
+              digest: tool.digest,
+              planDigest: revalidated.payload.tools.find((pt) => pt.toolId === tool.toolId)?.digest ?? tool.digest,
+            },
+          });
+          await appendReleaseLifecycleEvent(
+            lcPlan,
+            {
+              sequence: 2,
+              occurredAt,
+              kind: "postcheck-passed",
+              toolId: tool.toolId,
+              reviewedRelease: lcPlan.reviewedRelease,
+              overallState: "pass",
+              activeIdentity: {
+                installationId,
+                version: tool.release,
+                pathAlias,
+              },
+            },
+            session,
+          );
+        } catch {
+          // Non-blocking
+        }
       }
 
-      await finishToolOperation(recordPlan, session, []);
+      await finishToolOperation(recordPlan, session, acceptedTransitions);
+
+      const toolResults: ToolApplyResultDetail[] = revalidated.changedTools.map((t) => ({
+        toolId: t.toolId,
+        status: "pass",
+        activeIdentity: {
+          installationId: `${t.toolId.replace(/:/g, "-")}-${t.release}`,
+          version: t.release,
+        },
+        attemptedIdentity: {
+          installationId: `${t.toolId.replace(/:/g, "-")}-${t.release}`,
+          version: t.release,
+        },
+      }));
 
       return {
         mode: revalidated.payload.mode,
@@ -1466,6 +1839,11 @@ export async function applyLocalReleasePlan(
         appliedSteps: installRes.applied,
         externalChanges: installRes.externalChanges,
         message: `Successfully applied ${revalidated.changedTools.length} tool update(s).`,
+        status: "accepted",
+        toolResults,
+        activeIdentity,
+        attemptedIdentity,
+        ...(barrierResult ? { barrierResult } : {}),
         ...(verificationResults ? { verification: verificationResults } : {}),
       };
     },

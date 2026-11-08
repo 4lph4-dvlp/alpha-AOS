@@ -1125,6 +1125,22 @@ export interface LocalReleasePlan {
   readonly applyCommand: string | null;
 }
 
+export type ReleaseApplyStatus =
+  | "accepted"
+  | "verification-pending"
+  | "failed-pre-apply"
+  | "failed-post-apply"
+  | "recovery-required";
+
+export interface ToolApplyResultDetail {
+  readonly toolId: ManagedToolId;
+  readonly status: ReleaseEvidenceState;
+  readonly activeIdentity?: { installationId: string; version: string } | null;
+  readonly attemptedIdentity?: { installationId: string; version: string } | null;
+  readonly verification?: ReleaseVerificationResult;
+  readonly harnessResults?: Readonly<Partial<Record<HarnessId, ReleaseEvidenceState>>>;
+}
+
 export interface LocalReleaseApplyResult {
   readonly mode: "install" | "update";
   readonly applied: boolean;
@@ -1134,6 +1150,12 @@ export interface LocalReleaseApplyResult {
   readonly appliedSteps: readonly string[];
   readonly externalChanges: readonly string[];
   readonly message: string;
+  readonly status?: ReleaseApplyStatus;
+  readonly toolResults?: readonly ToolApplyResultDetail[];
+  readonly activeIdentity?: Record<string, string | null>;
+  readonly attemptedIdentity?: Record<string, string | null>;
+  readonly nextCommand?: string;
+  readonly barrierResult?: ReleaseVerificationBarrierResult;
   readonly verification?: readonly ReleaseVerificationResult[];
   readonly pendingReasons?: readonly string[];
   readonly nextAction?: string;
@@ -1357,6 +1379,60 @@ export interface ReleaseVerificationResult {
     readonly instructions?: string;
   };
 }
+
+export interface BarrierHarnessResult {
+  readonly harness: HarnessId;
+  readonly inActualUse: boolean;
+  readonly state: ReleaseEvidenceState;
+  readonly reason?: string | undefined;
+}
+
+export interface BarrierToolEvaluation {
+  readonly toolId: ManagedToolId;
+  readonly candidateRelease: string;
+  readonly currentVersion: string | null;
+  readonly overallState: ReleaseEvidenceState;
+  readonly actualHarnesses: readonly BarrierHarnessResult[];
+  readonly verificationResult?: ReleaseVerificationResult | undefined;
+  readonly pendingReasons: readonly string[];
+  readonly failureReasons: readonly string[];
+}
+
+export interface ReleaseVerificationBarrierResult {
+  readonly allowedToActivate: boolean;
+  readonly overallStatus: "pass" | "pending" | "failed";
+  readonly toolEvaluations: readonly BarrierToolEvaluation[];
+  readonly pendingReasons: readonly string[];
+  readonly failureReasons: readonly string[];
+  readonly unconfirmedHarnesses: readonly { toolId: ManagedToolId; harness: HarnessId }[];
+  readonly toolFilterAdvice?: string | undefined;
+  readonly nextCommand?: string | undefined;
+}
+
+export interface BarrierHarnessInput {
+  readonly harness: HarnessId;
+  readonly inActualUse?: boolean | undefined;
+  readonly state?: ReleaseEvidenceState | undefined;
+  readonly reason?: string | undefined;
+}
+
+export interface BarrierToolInput {
+  readonly toolId: ManagedToolId;
+  readonly candidateRelease: string;
+  readonly currentVersion?: string | null | undefined;
+  readonly verificationResult?: ReleaseVerificationResult | undefined;
+  readonly harnessResults?: readonly BarrierHarnessInput[] | undefined;
+  readonly actualHarnesses?: readonly AffectedHarnessBinding[] | undefined;
+  readonly unconfirmedHarnesses?: readonly HarnessId[] | undefined;
+  readonly actualUseMembershipUnknown?: boolean | undefined;
+  readonly unknownMembershipReasons?: readonly string[] | undefined;
+}
+
+export interface EvaluateBarrierOptions {
+  readonly tools: readonly BarrierToolInput[];
+  readonly requireAllActualHarnessesPass?: boolean | undefined;
+}
+
 
 
 

@@ -25,6 +25,7 @@ import { ComponentPlanError, reviewedDigest } from "../src/core/component-sessio
 import { loadCatalog, loadLock } from "../src/core/catalog.js";
 import { packageRoot } from "../src/core/paths.js";
 import { readToolRecordStore } from "../src/core/tool-records.js";
+import { planToolRecordOperation, withToolRecordSession } from "../src/core/tool-record-store.js";
 import {
   formatLocalReleasePreview,
   formatLocalReleaseApplyResult,
@@ -34,6 +35,7 @@ import type {
   ManagedToolId,
   ReviewedReleasePlanPayload,
   ReviewedToolBinding,
+  BarrierToolInput,
 } from "../src/types.js";
 
 function mockFetch(responses: Record<string, unknown>): typeof fetch {
@@ -1071,5 +1073,364 @@ test("applyLocalReleasePlan records schema-compliant adapter ToolEvidence into t
   assert.ok(adapterEvidence.fingerprint);
   assert.equal(adapterEvidence.fingerprint.length, 64);
 });
+
+test("Task 42-03-01 Test 1: shared MCP candidate with 2 actual-use harnesses (Codex pass / Claude pending) blocks activation with 0 calls, retaining old active identity (D-05, D-06)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["mcp:context7"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const barrierInputs: readonly BarrierToolInput[] = [
+    {
+      toolId: "mcp:context7",
+      candidateRelease: "1.1.0",
+      harnessResults: [
+        { harness: "codex", inActualUse: true, state: "pass", reason: "Codex MCP stdio probe passed" },
+        { harness: "claude", inActualUse: true, state: "pending", reason: "Claude desktop reload required" },
+      ],
+    },
+  ];
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    barrierInputs,
+  });
+
+  assert.equal(applyResult.applied, false);
+  assert.equal(applyResult.status, "verification-pending");
+  assert.equal(applyResult.toolResults?.[0]?.toolId, "mcp:context7");
+  assert.equal(applyResult.toolResults?.[0]?.harnessResults?.["codex"], "pass");
+  assert.equal(applyResult.toolResults?.[0]?.harnessResults?.["claude"], "pending");
+  assert.equal(applyResult.activeIdentity?.["mcp:context7"], null);
+  assert.equal(applyResult.attemptedIdentity?.["mcp:context7"], "1.1.0");
+
+  const store = await readToolRecordStore({ stateRoot: fixture.stateRoot, packageRoot: packageRoot() });
+  assert.ok(!store.events.some((e) => e.kind === "finished" && (e.acceptedTransitions?.length ?? 0) > 0));
+});
+
+test("Task 42-03-01 Test 2: shared MCP candidate when all actual harnesses pass activates once and passes postcheck (D-05)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const context7Responses = {
+    ...DEFAULT_NPM_RESPONSES,
+    "%40upstash%2Fcontext7-mcp/latest": {
+      version: "4.4.4",
+      dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+    },
+    "%40upstash%2Fcontext7-mcp/4.4.4": {
+      version: "4.4.4",
+      dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+    },
+  };
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["mcp:context7"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(context7Responses),
+  });
+
+  const barrierInputs: readonly BarrierToolInput[] = [
+    {
+      toolId: "mcp:context7",
+      candidateRelease: "4.4.4",
+      harnessResults: [
+        { harness: "codex", inActualUse: true, state: "pass", reason: "Codex passed" },
+        { harness: "claude", inActualUse: true, state: "pass", reason: "Claude passed" },
+      ],
+    },
+  ];
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(context7Responses),
+    barrierInputs,
+    postcheckObservations: [
+      { toolId: "mcp:context7", harness: "codex", boundary: "alpha-aos-proxy", outcome: "ok" },
+      { toolId: "mcp:context7", harness: "claude", boundary: "alpha-aos-proxy", outcome: "ok" },
+    ],
+  });
+
+  assert.equal(applyResult.applied, true);
+  assert.equal(applyResult.status, "accepted");
+  assert.equal(applyResult.toolResults?.[0]?.status, "pass");
+
+  const store = await readToolRecordStore({ stateRoot: fixture.stateRoot, packageRoot: packageRoot() });
+  const finished = store.events.find((e) => e.kind === "finished");
+  assert.ok(finished);
+  assert.equal(finished.outcome, "succeeded");
+  assert.ok(finished.acceptedTransitions && finished.acceptedTransitions.length > 0);
+  assert.equal(finished.acceptedTransitions[0]?.toolId, "mcp:context7");
+  assert.equal(finished.acceptedTransitions[0]?.installationId, "mcp-context7-4.4.4");
+});
+
+test("Task 42-03-01 Test 3: unknown actual-use membership holds activation in pending with confirmation guidance (D-06)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["mcp:context7"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const barrierInputs: readonly BarrierToolInput[] = [
+    {
+      toolId: "mcp:context7",
+      candidateRelease: "1.1.0",
+      actualUseMembershipUnknown: true,
+      unconfirmedHarnesses: ["claude"],
+    },
+  ];
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    barrierInputs,
+  });
+
+  assert.equal(applyResult.applied, false);
+  assert.equal(applyResult.status, "verification-pending");
+  assert.ok(applyResult.barrierResult?.unconfirmedHarnesses.length! > 0);
+  assert.ok(applyResult.pendingReasons?.some((r) => r.includes("unconfirmed") || r.includes("unknown")));
+});
+
+test("Task 42-03-01 Test 4: concurrent apply attempts are rejected by writer lock before native mutation (PROOF-03/concurrency)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const recordPlan = await planToolRecordOperation({
+    stateRoot: fixture.stateRoot,
+    packageRoot: packageRoot(),
+    operationId: "op-lock-holder-1",
+    occurredAt: new Date().toISOString(),
+    requests: [{ toolId: "gsd", selector: "1.19.0", exact: true }],
+  });
+
+  await withToolRecordSession(recordPlan, async (_session) => {
+    await assert.rejects(
+      async () => {
+        await applyLocalReleasePlan({
+          planDigest: plan.planDigest!,
+          reviewedPlanToken: plan.reviewedPlanToken!,
+          packageRoot: packageRoot(),
+          stateRoot: fixture.stateRoot,
+          home: fixture.home,
+          fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+        });
+      },
+      (err: unknown) => {
+        return err instanceof Error;
+      },
+    );
+  });
+});
+
+test("Task 42-03-02 Test 1: multi-tool batch zero-activation when any tool pending or failed, returns fresh --tool advice (D-07)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd", "mcp:context7"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const barrierInputs: readonly BarrierToolInput[] = [
+    {
+      toolId: "gsd",
+      candidateRelease: "1.19.0",
+      harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+    },
+    {
+      toolId: "mcp:context7",
+      candidateRelease: "1.1.0",
+      harnessResults: [{ harness: "claude", inActualUse: true, state: "pending", reason: "approval needed" }],
+    },
+  ];
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    barrierInputs,
+  });
+
+  assert.equal(applyResult.applied, false);
+  assert.equal(applyResult.status, "verification-pending");
+  assert.equal(applyResult.changedTools.length, 0, "Zero tools activated in multi-tool batch when one pending");
+  assert.ok(applyResult.barrierResult?.toolFilterAdvice?.includes("--tool gsd"));
+  assert.ok(applyResult.barrierResult?.nextCommand?.includes("--tool gsd"));
+});
+
+test("Task 42-03-02 Test 2: all tools pass precheck and postcheck records atomic accepted transitions (D-08)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const context7Responses = {
+    ...DEFAULT_NPM_RESPONSES,
+    "%40upstash%2Fcontext7-mcp/latest": {
+      version: "4.4.4",
+      dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+    },
+    "%40upstash%2Fcontext7-mcp/4.4.4": {
+      version: "4.4.4",
+      dist: { integrity: "sha512-T2DkjhweDnC2mRAclDiTrPG3KI1zYKhhjgY2SMKD9PVrbEaGD8x35VsIOqpwwDc2qiKBvfYCF/jqr+jQMu5PUA==" },
+    },
+  };
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd", "mcp:context7"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(context7Responses),
+  });
+
+  const barrierInputs: readonly BarrierToolInput[] = [
+    {
+      toolId: "gsd",
+      candidateRelease: "1.19.0",
+      harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+    },
+    {
+      toolId: "mcp:context7",
+      candidateRelease: "4.4.4",
+      harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+    },
+  ];
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(context7Responses),
+    barrierInputs,
+    postcheckObservations: [
+      { toolId: "gsd", boundary: "alpha-aos-proxy", outcome: "ok" },
+      { toolId: "mcp:context7", boundary: "alpha-aos-proxy", outcome: "ok" },
+    ],
+  });
+
+  assert.equal(applyResult.applied, true);
+  assert.equal(applyResult.status, "accepted");
+  assert.equal(applyResult.changedTools.length, 2);
+
+  const store = await readToolRecordStore({ stateRoot: fixture.stateRoot, packageRoot: packageRoot() });
+  const finished = store.events.find((e) => e.kind === "finished");
+  assert.ok(finished);
+  assert.equal(finished.outcome, "succeeded");
+  assert.equal(finished.acceptedTransitions?.length, 2);
+  assert.ok(finished.acceptedTransitions?.some((t) => t.toolId === "gsd"));
+  assert.ok(finished.acceptedTransitions?.some((t) => t.toolId === "mcp:context7"));
+});
+
+test("Task 42-03-02 Test 3: pending, failed-pre-apply, failed-post-apply, and accepted are distinct structured statuses (D-08)", async (context) => {
+  const fixture = await createTempFixture(context);
+
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const failPreBarrier: readonly BarrierToolInput[] = [
+    {
+      toolId: "gsd",
+      candidateRelease: "1.19.0",
+      harnessResults: [{ harness: "codex", inActualUse: true, state: "failed", reason: "unsupported architecture" }],
+    },
+  ];
+
+  const preFailResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    barrierInputs: failPreBarrier,
+  });
+
+  assert.equal(preFailResult.applied, false);
+  assert.equal(preFailResult.status, "failed-pre-apply");
+  assert.ok(preFailResult.nextCommand?.includes("--cancel"));
+});
+
+test("Task 42-03-02 Test 4: post-activation failure records failed-post-apply and keeps accepted chain intact (D-08, T-42-09)", async (context) => {
+  const fixture = await createTempFixture(context);
+  const plan = await createLocalReleasePlan({
+    mode: "install",
+    tools: ["gsd"],
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+  });
+
+  const barrierInputs: readonly BarrierToolInput[] = [
+    {
+      toolId: "gsd",
+      candidateRelease: "1.19.0",
+      harnessResults: [{ harness: "codex", inActualUse: true, state: "pass" }],
+    },
+  ];
+
+  const applyResult = await applyLocalReleasePlan({
+    planDigest: plan.planDigest!,
+    reviewedPlanToken: plan.reviewedPlanToken!,
+    packageRoot: packageRoot(),
+    stateRoot: fixture.stateRoot,
+    home: fixture.home,
+    fetchImpl: mockFetch(DEFAULT_NPM_RESPONSES),
+    barrierInputs,
+    simulatePostcheckFailure: true,
+  });
+
+  assert.equal(applyResult.applied, false);
+  assert.equal(applyResult.status, "failed-post-apply");
+  assert.ok(applyResult.nextCommand?.includes("--recover"));
+
+  const store = await readToolRecordStore({ stateRoot: fixture.stateRoot, packageRoot: packageRoot() });
+  const finished = store.events.find((e) => e.kind === "finished");
+  assert.ok(finished);
+  assert.equal(finished.outcome, "failed");
+  assert.deepEqual(finished.acceptedTransitions, []);
+  assert.equal(store.accepted, null);
+});
+
 
 

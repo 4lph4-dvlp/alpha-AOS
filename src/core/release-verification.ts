@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import type {
   AffectedHarnessBinding,
+  BarrierHarnessInput,
+  BarrierHarnessResult,
+  BarrierToolEvaluation,
+  BarrierToolInput,
+  EvaluateBarrierOptions,
   HarnessId,
   ManagedToolId,
   NativePreparationProof,
@@ -8,10 +13,20 @@ import type {
   ReleaseEvidenceItem,
   ReleaseEvidenceState,
   ReleaseEvidenceTier,
+  ReleaseVerificationBarrierResult,
   ReleaseVerificationRequest,
   ReleaseVerificationResult,
   ToolAdapterBinding,
 } from "../types.js";
+
+export type {
+  BarrierHarnessInput,
+  BarrierHarnessResult,
+  BarrierToolEvaluation,
+  BarrierToolInput,
+  EvaluateBarrierOptions,
+  ReleaseVerificationBarrierResult,
+};
 
 export interface DiscoverAffectedHarnessesOptions {
   packageRoot?: string;
@@ -369,5 +384,169 @@ export async function verifyPreparedReleaseCandidate(
       missingRequirements: pendingReasons,
       ...(nextAction ? { instructions: `To continue after fulfilling conditions, run: ${nextAction}` } : {}),
     },
+  };
+}
+
+/**
+ * Evaluates the global verification barrier across all selected tools and actual affected harnesses (D-05 ~ D-07).
+ * Activation is permitted only when all selected tools and all actual-use harnesses pass verification.
+ */
+export function evaluateReleaseVerificationBarrier(
+  input: readonly BarrierToolInput[] | EvaluateBarrierOptions,
+): ReleaseVerificationBarrierResult {
+  const tools: readonly BarrierToolInput[] = Array.isArray(input) ? input : (input as EvaluateBarrierOptions).tools;
+
+  const toolEvaluations: BarrierToolEvaluation[] = [];
+  const allPendingReasons: string[] = [];
+  const allFailureReasons: string[] = [];
+  const allUnconfirmedHarnesses: { toolId: ManagedToolId; harness: HarnessId }[] = [];
+
+  for (const tool of tools) {
+    const toolPendingReasons: string[] = [];
+    const toolFailureReasons: string[] = [];
+    const harnessResults: BarrierHarnessResult[] = [];
+
+    // 1. Process unconfirmed harnesses (D-06: unknown membership holds activation)
+    if (tool.unconfirmedHarnesses && tool.unconfirmedHarnesses.length > 0) {
+      for (const h of tool.unconfirmedHarnesses) {
+        allUnconfirmedHarnesses.push({ toolId: tool.toolId, harness: h });
+        const reason = `Actual-use membership for harness '${h}' is unconfirmed; explicit configuration or verification probe required.`;
+        toolPendingReasons.push(reason);
+      }
+    }
+    if (tool.actualUseMembershipUnknown) {
+      const reasons = tool.unknownMembershipReasons && tool.unknownMembershipReasons.length > 0
+        ? tool.unknownMembershipReasons
+        : [`Actual-use membership for ${tool.toolId} is unknown and cannot be derived from static support tables alone.`];
+      toolPendingReasons.push(...reasons);
+    }
+
+    // 2. Process harness results
+    if (tool.harnessResults && tool.harnessResults.length > 0) {
+      for (const hr of tool.harnessResults) {
+        const inActualUse = hr.inActualUse ?? true;
+        const state = hr.state ?? "pass";
+        const reason = hr.reason ?? (state === "pass" ? `Harness ${hr.harness} verified in actual use.` : `Harness ${hr.harness} verification is ${state}.`);
+        harnessResults.push({
+          harness: hr.harness,
+          inActualUse,
+          state,
+          ...(reason ? { reason } : {}),
+        });
+
+        // Only harnesses in actual use gate the barrier (D-05, D-06)
+        if (inActualUse) {
+          if (state === "failed") {
+            toolFailureReasons.push(`Harness '${hr.harness}' failed verification for ${tool.toolId}: ${reason}`);
+          } else if (state === "pending" || state === "not-run") {
+            toolPendingReasons.push(`Harness '${hr.harness}' pending verification for ${tool.toolId}: ${reason}`);
+          }
+        }
+      }
+    } else if (tool.verificationResult?.affectedHarnesses) {
+      for (const ah of tool.verificationResult.affectedHarnesses) {
+        const inActualUse = ah.inActualUse;
+        const state: ReleaseEvidenceState = inActualUse
+          ? (tool.verificationResult.overallState ?? "pass")
+          : "not-run";
+        const reason = ah.reason;
+        harnessResults.push({
+          harness: ah.harness,
+          inActualUse,
+          state,
+          ...(reason ? { reason } : {}),
+        });
+
+        if (inActualUse) {
+          if (state === "failed") {
+            toolFailureReasons.push(`Harness '${ah.harness}' failed: ${reason}`);
+          } else if (state === "pending" || state === "not-run") {
+            toolPendingReasons.push(`Harness '${ah.harness}' pending: ${reason}`);
+          }
+        }
+      }
+    }
+
+    // 3. Process tool verificationResult overallState
+    if (tool.verificationResult) {
+      if (tool.verificationResult.overallState === "failed") {
+        toolFailureReasons.push(...tool.verificationResult.failureReasons);
+        if (tool.verificationResult.failureReasons.length === 0) {
+          toolFailureReasons.push(`Tool ${tool.toolId} candidate verification failed.`);
+        }
+      } else if (tool.verificationResult.overallState === "pending") {
+        toolPendingReasons.push(...tool.verificationResult.pendingReasons);
+        if (tool.verificationResult.pendingReasons.length === 0) {
+          toolPendingReasons.push(`Tool ${tool.toolId} candidate verification is pending.`);
+        }
+      }
+    }
+
+    // 4. Derive tool overall state
+    let overallState: ReleaseEvidenceState = "pass";
+    if (toolFailureReasons.length > 0) {
+      overallState = "failed";
+    } else if (toolPendingReasons.length > 0) {
+      overallState = "pending";
+    }
+
+    toolEvaluations.push({
+      toolId: tool.toolId,
+      candidateRelease: tool.candidateRelease,
+      currentVersion: tool.currentVersion ?? null,
+      overallState,
+      actualHarnesses: harnessResults,
+      ...(tool.verificationResult ? { verificationResult: tool.verificationResult } : {}),
+      pendingReasons: toolPendingReasons,
+      failureReasons: toolFailureReasons,
+    });
+
+    allPendingReasons.push(...toolPendingReasons);
+    allFailureReasons.push(...toolFailureReasons);
+  }
+
+  // Batch decision across all tools (D-07)
+  const hasFailures = toolEvaluations.some((t) => t.overallState === "failed");
+  const hasPending = toolEvaluations.some((t) => t.overallState === "pending");
+
+  let overallStatus: "pass" | "pending" | "failed" = "pass";
+  let allowedToActivate = true;
+
+  if (hasFailures) {
+    overallStatus = "failed";
+    allowedToActivate = false;
+  } else if (hasPending) {
+    overallStatus = "pending";
+    allowedToActivate = false;
+  }
+
+  // Tool filter advice for partial progress (D-07)
+  let toolFilterAdvice: string | undefined;
+  let nextCommand: string | undefined;
+
+  const passingTools = toolEvaluations.filter((t) => t.overallState === "pass").map((t) => t.toolId);
+  const nonPassingTools = toolEvaluations.filter((t) => t.overallState !== "pass").map((t) => t.toolId);
+
+  if (!allowedToActivate && passingTools.length > 0) {
+    const flags = passingTools.map((id) => `--tool ${id}`).join(" ");
+    toolFilterAdvice = `Partial verification: tool(s) [${passingTools.join(", ")}] passed, but [${nonPassingTools.join(", ")}] did not. To apply only verified tools, request a fresh preview: alpha-aos update --preview ${flags}`;
+    nextCommand = `alpha-aos update --preview ${flags}`;
+  } else if (overallStatus === "pending") {
+    const pendingTools = toolEvaluations.filter((t) => t.overallState === "pending").map((t) => t.toolId);
+    nextCommand = `alpha-aos update --resume ${pendingTools.map((id) => `--tool ${id}`).join(" ")}`;
+  } else if (overallStatus === "failed") {
+    const failingTools = toolEvaluations.filter((t) => t.overallState === "failed").map((t) => t.toolId);
+    nextCommand = `alpha-aos update --cancel ${failingTools.map((id) => `--tool ${id}`).join(" ")}`;
+  }
+
+  return {
+    allowedToActivate,
+    overallStatus,
+    toolEvaluations,
+    pendingReasons: allPendingReasons,
+    failureReasons: allFailureReasons,
+    unconfirmedHarnesses: allUnconfirmedHarnesses,
+    ...(toolFilterAdvice ? { toolFilterAdvice } : {}),
+    ...(nextCommand ? { nextCommand } : {}),
   };
 }

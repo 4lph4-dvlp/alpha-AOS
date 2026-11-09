@@ -26,13 +26,13 @@
     {
       "number": "43",
       "name": "Migration and Consistent Guidance",
-      "status": "in_progress"
+      "status": "complete"
     }
   ],
   "next": {
-    "command": "/gsd-progress --next",
-    "label": "Advance to the next step",
-    "reason": "Phase 5 of 5 · 80% · executing"
+    "command": "/gsd-complete-milestone",
+    "label": "Complete milestone v0.8.0",
+    "reason": "Phase 5 of 5 · 100% · complete"
   },
-  "updated_at": "2026-11-09T02:14:29.031Z"
+  "updated_at": "2026-11-09T03:30:00.000Z"
 }

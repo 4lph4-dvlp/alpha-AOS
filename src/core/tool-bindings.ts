@@ -4,10 +4,21 @@ import { isAbsolute, join, resolve, sep } from "node:path";
 import { globalMcpConfigPath, nativeConfigFormat } from "./mcp.js";
 import { globalGsdConfigRoot } from "./install.js";
 import { globalEccSkillRoot } from "./ecc-skills.js";
+import { packageRoot, userStateRoot } from "./paths.js";
 import { boundedText, parseNativeConfiguration, toolHarnesses, type ToolCandidate, type ToolObserverContext } from "./tool-observers.js";
-import type { HarnessId } from "../types.js";
+import type { HarnessId, ManagedToolId } from "../types.js";
 import type { ToolObservation } from "./tool-inventory.js";
-import { inspectToolRecordJournal, type ToolRecordStore, type ToolRecordEvent, type ToolResult } from "./tool-records.js";
+import { inspectToolRecordJournal, readToolRecordStore, type ToolRecordStore, type ToolRecordEvent, type ToolResult } from "./tool-records.js";
+
+export interface AcceptedToolRecord {
+  toolId: ManagedToolId | string;
+  version: string;
+  installationId: string;
+  pathAlias: string;
+  sourceUrl: string;
+  digest: string;
+  legacy?: import("./tool-handoff.js").LegacyToolEvidence;
+}
 
 export interface ToolBinding { harness: HarnessId; status: "active" | "unresolved" | "unknown"; candidatePath: string | null; connectionOwner: "external" | "alpha-aos" | "unknown"; reason: string; nextAction: string }
 interface BindingIntent { harness: HarnessId; toolId: string; target: string | null; reason: string; connectionOwner?: "alpha-aos" | "unknown" }
@@ -124,3 +135,36 @@ export async function attributeToolInstallations(observations: ToolObservation[]
     item.candidates?.sort((a, b) => Number(active.has(b.path)) - Number(active.has(a.path)) || a.path.localeCompare(b.path));
   }
 }
+
+export async function resolveAcceptedToolRecord(
+  toolId: ManagedToolId | string,
+  options?: { stateRoot?: string; packageRoot?: string },
+): Promise<AcceptedToolRecord> {
+  const stateRoot = options?.stateRoot ?? userStateRoot();
+  const pkgRoot = options?.packageRoot ?? packageRoot();
+  const store = await readToolRecordStore({ stateRoot, packageRoot: pkgRoot });
+  const results = acceptedToolResults(store, toolId);
+  if (results.length === 0) {
+    throw new Error(
+      `No accepted tool record found for ${toolId}. Run 'alpha-aos install' or 'alpha-aos migrate' to initialize or adopt tool records.`,
+    );
+  }
+  const latest = results[results.length - 1]!;
+  const result = latest.result;
+  const version = result.installed?.version ?? result.resolved?.release ?? result.legacy?.release ?? "unknown";
+  const installationId = result.installed?.installationId ?? `${toolId.replace(/:/g, "-")}-${version}`;
+  const pathAlias = result.installed?.pathAlias ?? toolId.replace(/^@/, "");
+  const sourceUrl = result.resolved?.sourceUrl ?? result.legacy?.sourceUrl ?? "";
+  const digest = result.resolved?.digest ?? result.legacy?.artifactDigest ?? "";
+
+  return {
+    toolId,
+    version,
+    installationId,
+    pathAlias,
+    sourceUrl,
+    digest,
+    ...(result.legacy ? { legacy: result.legacy } : {}),
+  };
+}
+

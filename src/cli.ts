@@ -35,6 +35,14 @@ import { createPathAliases } from "./core/paths.js";
 import type { BootstrapKind } from "./core/bootstrap.js";
 import { existsSync, readFileSync } from "node:fs";
 
+import {
+  planMigrationOperation,
+  applyMigrationOperation,
+  parseOwnershipResolution,
+  formatMigrationPreview,
+  formatMigrationApplyResult,
+  checkLegacyMigrationAdvisory,
+} from "./core/migrate.js";
 import type { GateObligationType, HarnessId, IsolationMode, ManagedToolId, McpServerId, PackSource, RedactionContext, UninstallScope } from "./types.js";
 
 const HELP = `alpha-aos
@@ -47,6 +55,7 @@ Usage:
   alpha-aos computer-use doctor|plan|observe|action|mcp|native-mcp|stop|report|replay|retain [--json]
   alpha-aos plan [--json]
   alpha-aos install [--tool <id[,id]>] [--target <harness[,harness]>] [--apply --plan-digest <digest> --reviewed-plan <token>] [--json]
+  alpha-aos migrate [--tool <id[,id]>] [--target <harness[,harness]>] [--resolve-ownership <tool=owner[,tool=owner]>] [--apply --plan-digest <digest> --reviewed-plan <token>] [--json]
   alpha-aos owned-skills sync <id> --target <harness> [--apply] [--json]
   alpha-aos ecc-skills sync --target <harness> [--apply] [--json]
   alpha-aos skill-policy sync --target claude [--apply] [--json]
@@ -1146,6 +1155,50 @@ async function main(): Promise<void> {
       ...(targets ? { targets } : {}),
     });
     print(plan, json, formatLocalReleasePreview(plan));
+    const advisory = await checkLegacyMigrationAdvisory(root, userStateRoot());
+    if (advisory && !json) console.log(`\n${advisory}`);
+    return;
+  }
+
+  if (command === "migrate") {
+    const parsed = parseClosedFlags(args.slice(1), {
+      valueFlags: ["--tool", "--target", "--plan-digest", "--reviewed-plan", "--resolve-ownership"],
+      booleanFlags: ["--apply", "--json"],
+    });
+    if (parsed.operands.length > 0) throw new Error(`Unexpected migrate argument: ${parsed.operands[0]}`);
+
+    const apply = parsed.options.has("--apply");
+    const planDigest = parsed.options.get("--plan-digest");
+    const reviewedPlan = parsed.options.get("--reviewed-plan");
+    const tools = parseManagedToolList(parsed.options.get("--tool") as string | undefined);
+    const targets = parseTargetHarnessList(parsed.options.get("--target") as string | undefined);
+    const resolveOwnership = parseOwnershipResolution(parsed.options.get("--resolve-ownership") as string | undefined);
+
+    if (apply) {
+      if (typeof planDigest !== "string" || typeof reviewedPlan !== "string") {
+        throw new Error(
+          'Applying migrate requires both --plan-digest and --reviewed-plan. Run "alpha-aos migrate" to preview and obtain a reviewed plan.',
+        );
+      }
+      const result = await applyMigrationOperation({
+        packageRoot: root,
+        planDigest,
+        reviewedPlanToken: reviewedPlan,
+        ...(tools ? { tools } : {}),
+        ...(targets ? { targets } : {}),
+        ...(Object.keys(resolveOwnership).length > 0 ? { resolveOwnership } : {}),
+      });
+      print(result, json, formatMigrationApplyResult(result));
+      return;
+    }
+
+    const plan = await planMigrationOperation({
+      packageRoot: root,
+      ...(tools ? { tools } : {}),
+      ...(targets ? { targets } : {}),
+      ...(Object.keys(resolveOwnership).length > 0 ? { resolveOwnership } : {}),
+    });
+    print(plan, json, formatMigrationPreview(plan));
     return;
   }
 
@@ -1633,6 +1686,8 @@ async function main(): Promise<void> {
     const inventory = collectInventory(catalog);
     const findings = await runDoctor(catalog, lock, inventory);
     print(findings, json, formatDoctor(findings));
+    const advisory = await checkLegacyMigrationAdvisory(root, userStateRoot());
+    if (advisory && !json) console.log(`\n${advisory}`);
     if (findings.some((finding) => finding.level === "error")) process.exitCode = 2;
     return;
   }
@@ -2036,6 +2091,8 @@ async function main(): Promise<void> {
     }
 
     print(plan, json, formatLocalReleasePreview(plan));
+    const advisory = await checkLegacyMigrationAdvisory(root, userStateRoot());
+    if (advisory && !json) console.log(`\n${advisory}`);
     return;
   }
 

@@ -143,12 +143,20 @@ export async function resolveAcceptedToolRecord(
   const stateRoot = options?.stateRoot ?? userStateRoot();
   const pkgRoot = options?.packageRoot ?? packageRoot();
   const store = await readToolRecordStore({ stateRoot, packageRoot: pkgRoot });
+
+  if (store.status !== "current" || store.incomplete || !store.accepted || Object.keys(store.accepted).length === 0) {
+    throw new Error(
+      `No accepted tool records found for '${toolId}'. Run 'alpha-aos migrate' to adopt existing installations or 'alpha-aos install' to set up.`,
+    );
+  }
+
   const results = acceptedToolResults(store, toolId);
   if (results.length === 0) {
     throw new Error(
-      `No accepted tool record found for ${toolId}. Run 'alpha-aos install' or 'alpha-aos migrate' to initialize or adopt tool records.`,
+      `No active installed result found for '${toolId}'. Run 'alpha-aos install --tool ${toolId}' or 'alpha-aos migrate' to adopt.`,
     );
   }
+
   const latest = results[results.length - 1]!;
   const result = latest.result;
   const version = result.installed?.version ?? result.resolved?.release ?? result.legacy?.release ?? "unknown";
@@ -167,4 +175,12 @@ export async function resolveAcceptedToolRecord(
     ...(result.legacy ? { legacy: result.legacy } : {}),
   };
 }
+
+export async function assertAcceptedToolRecord(
+  toolId: ManagedToolId | string,
+  options?: { stateRoot?: string; packageRoot?: string },
+): Promise<AcceptedToolRecord> {
+  return await resolveAcceptedToolRecord(toolId, options);
+}
+
 

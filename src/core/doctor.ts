@@ -1,14 +1,20 @@
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readdir, readFile, stat } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 import { parse as parseYaml } from "yaml";
-import type { DoctorFinding, Inventory, StackCatalog, StackLock } from "../types.js";
+import type { DoctorFinding, HarnessId, Inventory, StackCatalog, StackLock } from "../types.js";
 import { codexConfigRoot, smokeTestCodexGsdStopHook } from "./gsd-compat.js";
 import { globalClaudeSettingsPath } from "./skill-policy.js";
 import { ROUTING_CONTRACT_MISMATCH } from "./mcp-proxy.js";
 import { placeholder } from "./redaction.js";
 import { destinationFor, renderOwnedSkill } from "./owned-skills.js";
-import { packageRoot } from "./paths.js";
+import { packageRoot, userStateRoot } from "./paths.js";
+import { globalMcpConfigPath, nativeConfigFormat } from "./mcp.js";
+import { parseNativeConfiguration } from "./tool-observers.js";
+import { readToolRecordStore } from "./tool-records.js";
+import { resolveAcceptedToolRecord } from "./tool-bindings.js";
 
 function sha256(content: Uint8Array): string {
   return createHash("sha256").update(content).digest("hex");
@@ -256,5 +262,168 @@ export async function runDoctor(
       `${ROUTING_CONTRACT_MISMATCH.namesDeniedByPolicy.join(", ")} (denied by alpha-aos policy). ` +
       `The allowlist is unchanged; the routing contract is stated in ${ROUTING_CONTRACT_MISMATCH.reconciledBy}.`,
   });
+
+  const alignmentFindings = await diagnoseToolRecordsAlignment(undefined, root);
+  findings.push(...alignmentFindings);
+
+  return findings;
+}
+
+function extractConfiguredVersion(entry: Record<string, unknown>): string | null {
+  if (typeof entry.version === "string" && entry.version.trim()) {
+    return entry.version.trim();
+  }
+  if (Array.isArray(entry.args)) {
+    for (const arg of entry.args) {
+      if (typeof arg === "string") {
+        const atMatch = arg.match(/@([0-9]+\.[0-9]+(?:\.[0-9A-Za-z_.-]+)?)$/);
+        if (atMatch && atMatch[1]) return atMatch[1];
+      }
+    }
+  }
+  if (typeof entry.command === "string") {
+    const atMatch = entry.command.match(/@([0-9]+\.[0-9]+(?:\.[0-9A-Za-z_.-]+)?)$/);
+    if (atMatch && atMatch[1]) return atMatch[1];
+  }
+  return null;
+}
+
+async function scanHarnessBackups(
+  findings: DoctorFinding[],
+  overrides?: Record<string, string>,
+): Promise<void> {
+  const harnesses: HarnessId[] = overrides
+    ? (Object.keys(overrides) as HarnessId[])
+    : ["claude", "codex", "antigravity", "pi", "hermes"];
+  const checkedDirs = new Set<string>();
+
+  for (const harness of harnesses) {
+    const configPath = overrides?.[harness] ?? globalMcpConfigPath(harness);
+    const dir = dirname(configPath);
+    if (checkedDirs.has(dir) || !existsSync(dir)) continue;
+    checkedDirs.add(dir);
+
+    try {
+      const entries = await readdir(dir, { withFileTypes: true });
+      for (const entry of entries) {
+        if (entry.isFile() && entry.name.includes(".user-backup")) {
+          const backupPath = join(dir, entry.name);
+          try {
+            const content = await readFile(backupPath);
+            findings.push({
+              level: "info",
+              code: "USER_BACKUP_RETAINED",
+              message: `User backup retained at ${backupPath} (${content.length} bytes, readable)`,
+              nextAction: "Review or archive backup files if migration verification is complete.",
+            });
+          } catch (err) {
+            findings.push({
+              level: "warning",
+              code: "USER_BACKUP_UNREADABLE",
+              message: `User backup at ${backupPath} is unreadable: ${err instanceof Error ? err.message : String(err)}`,
+              nextAction: "Check permissions for retained backup file.",
+            });
+          }
+        }
+      }
+    } catch {
+      // Ignore unreadable directory
+    }
+  }
+}
+
+export async function diagnoseToolRecordsAlignment(
+  stateRoot?: string,
+  packageRoot?: string,
+  harnessConfigOverrides?: Record<string, string>,
+): Promise<DoctorFinding[]> {
+  const findings: DoctorFinding[] = [];
+  const resolvedStateRoot = stateRoot ?? userStateRoot();
+  const resolvedPackageRoot = packageRoot ?? (await import("./paths.js")).packageRoot();
+
+  const store = await readToolRecordStore({ stateRoot: resolvedStateRoot, packageRoot: resolvedPackageRoot });
+  if (store.status !== "current" || store.incomplete || !store.accepted || Object.keys(store.accepted).length === 0) {
+    findings.push({
+      level: "warning",
+      code: "TOOL_RECORDS_UNINITIALIZED",
+      message: "Local tool record store is uninitialized or incomplete",
+      nextAction: "Run 'alpha-aos migrate' to adopt existing installations or 'alpha-aos install' to initialize.",
+    });
+    await scanHarnessBackups(findings, harnessConfigOverrides);
+    return findings;
+  }
+
+  findings.push({
+    level: "ok",
+    code: "TOOL_RECORDS_INITIALIZED",
+    message: "Local tool record store is initialized with current records",
+  });
+
+  const harnesses: HarnessId[] = harnessConfigOverrides
+    ? (Object.keys(harnessConfigOverrides) as HarnessId[])
+    : ["claude", "codex", "antigravity", "pi", "hermes"];
+  for (const harness of harnesses) {
+    const configPath = harnessConfigOverrides?.[harness] ?? globalMcpConfigPath(harness);
+    if (!existsSync(configPath)) continue;
+
+    let text: string;
+    try {
+      text = await readFile(configPath, "utf8");
+    } catch {
+      continue;
+    }
+
+    const parsed = parseNativeConfiguration(text, nativeConfigFormat(harness));
+    if (!parsed.ok || !parsed.value || typeof parsed.value !== "object") continue;
+
+    const root = parsed.value as Record<string, unknown>;
+    const mcp = root.mcp as Record<string, unknown> | undefined;
+    const servers = (root.mcpServers ?? root.mcp_servers ?? mcp?.servers) as Record<string, unknown> | undefined;
+    if (!servers || typeof servers !== "object") continue;
+
+    for (const [serverId, serverVal] of Object.entries(servers)) {
+      if (!serverVal || typeof serverVal !== "object") continue;
+      const serverEntry = serverVal as Record<string, unknown>;
+      const toolId = serverId === "cua" ? "cua-driver" : `mcp:${serverId}`;
+
+      let acceptedRecord;
+      try {
+        acceptedRecord = await resolveAcceptedToolRecord(toolId, {
+          stateRoot: resolvedStateRoot,
+          packageRoot: resolvedPackageRoot,
+        });
+      } catch {
+        continue;
+      }
+
+      const configuredVersion = extractConfiguredVersion(serverEntry);
+      if (configuredVersion !== null && configuredVersion !== acceptedRecord.version) {
+        findings.push({
+          level: "warning",
+          code: "TOOL_RECORDS_MISALIGNED",
+          message: `${toolId} configured for ${harness} (${configuredVersion}) differs from accepted record (${acceptedRecord.version})`,
+          nextAction: "Run 'alpha-aos sync' or 'alpha-aos update' to align configuration.",
+        });
+      } else if (configuredVersion !== null && configuredVersion === acceptedRecord.version) {
+        findings.push({
+          level: "ok",
+          code: "TOOL_RECORDS_ALIGNED",
+          message: `${toolId} configured for ${harness} matches accepted record (${acceptedRecord.version})`,
+        });
+      }
+
+      const configuredPath = typeof serverEntry.path === "string" ? serverEntry.path : null;
+      if (configuredPath && acceptedRecord.pathAlias && configuredPath !== acceptedRecord.pathAlias) {
+        findings.push({
+          level: "warning",
+          code: "TOOL_RECORDS_MISALIGNED",
+          message: `${toolId} path configured for ${harness} (${configuredPath}) differs from accepted record (${acceptedRecord.pathAlias})`,
+          nextAction: "Run 'alpha-aos sync' or 'alpha-aos update' to align configuration.",
+        });
+      }
+    }
+  }
+
+  await scanHarnessBackups(findings, harnessConfigOverrides);
   return findings;
 }

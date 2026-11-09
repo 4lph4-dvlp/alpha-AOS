@@ -9,6 +9,7 @@ import { hermesHome } from "../adapters/harnesses.js";
 import type { HarnessId, LockedPackage, McpServerId, StackLock } from "../types.js";
 import { resolveNodePackageCli } from "./process.js";
 import { aliasPath, createPathAliases, packageRoot, userStateRoot } from "./paths.js";
+import { resolveAcceptedToolRecord } from "./tool-bindings.js";
 import { applyFileTransaction } from "./transaction.js";
 import { proveOperationPaths, type OperationPathInput, type OperationPathProofSet } from "./path-boundary.js";
 import type { MutationSession } from "./writer-lock.js";
@@ -599,6 +600,9 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
   configPath?: string;
   selected?: McpServerId[];
   env?: NodeJS.ProcessEnv;
+  stateRoot?: string;
+  packageRoot?: string;
+  failClosedOnMissingRecord?: boolean;
 } = {}): Promise<McpSyncPlan> {
   const configPath = options.configPath ?? globalMcpConfigPath(harness);
   const selected = options.selected ?? serverOrder;
@@ -620,15 +624,32 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
   );
   const expectedHash = managedCurrent ? currentHash : sha256(rendered);
   const locks = lockedServers(lock, selected);
-  const entries = selected.map((id): McpSyncEntry => ({
-    server: id,
-    package: locks[id].package,
-    version: locks[id].version,
-    integrity: locks[id].integrity,
-    credentialEnv: definitions[id].credentialEnv,
-    credentialPresent: Boolean(env[definitions[id].credentialEnv]),
-    credentialRequiredForCalls: definitions[id].credentialRequiredForCalls,
-  }));
+  const resolveOpts = {
+    ...(options.stateRoot !== undefined ? { stateRoot: options.stateRoot } : {}),
+    ...(options.packageRoot !== undefined ? { packageRoot: options.packageRoot } : {}),
+  };
+  const entries: McpSyncEntry[] = [];
+  for (const id of selected) {
+    let version = locks[id].version;
+    const integrity = locks[id].integrity;
+    try {
+      const toolRecord = await resolveAcceptedToolRecord(`mcp:${id}`, resolveOpts);
+      version = toolRecord.version;
+    } catch (err) {
+      if (options.failClosedOnMissingRecord) {
+        throw err;
+      }
+    }
+    entries.push({
+      server: id,
+      package: locks[id].package,
+      version,
+      integrity,
+      credentialEnv: definitions[id].credentialEnv,
+      credentialPresent: Boolean(env[definitions[id].credentialEnv]),
+      credentialRequiredForCalls: definitions[id].credentialRequiredForCalls,
+    });
+  }
   const piBridge = harness === "pi" ? lock.components.mcpBridges?.pi ?? null : null;
   if (harness === "pi" && !piBridge) throw new Error("Stable lock has no Pi MCP bridge");
   let piBridgeCurrent = false;
@@ -650,7 +671,15 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
       ? "The global Antigravity config is shared by GUI, IDE, and CLI; restart those processes after changing user environment variables."
       : "Restart the harness after changing user environment variables.",
   ];
-  const cuaPin = JSON.parse(await readFile(join(packageRoot(), "catalog", "computer-use-runtime.json"), "utf8")) as { version: string };
+  let cuaVersion = "0.38.0";
+  try {
+    const cuaRecord = await resolveAcceptedToolRecord("cua-driver", resolveOpts);
+    cuaVersion = cuaRecord.version;
+  } catch (err) {
+    if (options.failClosedOnMissingRecord) {
+      throw err;
+    }
+  }
   if (harness === "pi") notes.push("Pi requires the separately pinned pi-mcp-adapter package before this config can load.");
   if (entries.some((entry) => entry.credentialRequiredForCalls && !entry.credentialPresent)) notes.push("At least one server can be registered but cannot complete authenticated calls until its required environment variable is set.");
   const plan: McpSyncPlan = {
@@ -660,7 +689,7 @@ export async function planMcpSync(harness: HarnessId, lock: StackLock, options: 
     currentHash,
     expectedHash,
     entries,
-    nativeCua: { version: cuaPin.version, permissionMode: "standard", ...cuaMcpCommand() },
+    nativeCua: { version: cuaVersion, permissionMode: "standard", ...cuaMcpCommand() },
     piBridgeRequired: harness === "pi",
     piBridge,
     piBridgeCurrent,

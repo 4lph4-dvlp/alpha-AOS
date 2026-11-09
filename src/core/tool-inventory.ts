@@ -33,6 +33,7 @@ export interface ToolObservation {
   proofScopes?: { discovery: string; integrity: string; protocol: string; invocation: string; fingerprintScope?: string; historical?: { discovery: string; integrity: string; protocol: string; invocation: string } };
   adaptersSummary?: ToolAdapterSummary;
   adapters?: readonly ToolAdapterBinding[];
+  modifiedTag?: string;
 }
 export type ComponentCategory = "alpha-aos-owned-skill" | "bundled-library" | "external-prerequisite" | "harness-application";
 export interface InventoryComponent { category: ComponentCategory; id: string; status: "installed" | "absent" | "unknown"; reason: string; version: string | null }
@@ -53,7 +54,14 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
   const matching = current ? accepted.filter(({ result }) => matchesToolPathAlias(current.path, result.installed!.pathAlias)) : accepted;
   const chosen = matching.length === 1 ? matching[0] : undefined;
   const acceptedResult = chosen?.result;
-  if (chosen && acceptedResult?.installed) item.acceptedIdentity = { installationId: acceptedResult.installed.installationId, version: acceptedResult.installed.version, operationId: chosen.event.operationId };
+  if (chosen && acceptedResult?.installed) {
+    item.acceptedIdentity = { installationId: acceptedResult.installed.installationId, version: acceptedResult.installed.version, operationId: chosen.event.operationId };
+    if (acceptedResult.legacy?.userModificationEvidence === "modified") {
+      item.modifiedTag = "modified (backup: .user-backup)";
+      item.diagnostics ??= [];
+      item.diagnostics.push({ severity: "info", code: "modified-backup-user-backup" });
+    }
+  }
   const pending = item.installation === "unknown" ? "unknown" : "unverified";
   item.proofScopes = { discovery: pending, integrity: pending, protocol: pending, invocation: pending };
   if (current?.scope) item.proofScopes.fingerprintScope = current.scope;

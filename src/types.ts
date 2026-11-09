@@ -226,6 +226,7 @@ export interface DoctorFinding {
   level: "ok" | "info" | "warning" | "error";
   code: string;
   message: string;
+  nextAction?: string;
 }
 
 export interface ProjectIsolationPolicy {

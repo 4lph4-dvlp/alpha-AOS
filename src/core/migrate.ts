@@ -22,6 +22,7 @@ import {
   type ToolResult,
 } from "./tool-records.js";
 import type { HarnessId, ManagedToolId } from "../types.js";
+import { formatComponentHarnessMatrix, type ComponentHarnessMatrixRow } from "../format.js";
 
 export const MANAGED_MIGRATION_TOOLS: readonly string[] = [
   "gsd",
@@ -88,6 +89,7 @@ export interface MigrationPlan {
   unsupportedCandidates: MigrationCandidate[];
   retainedLockfiles: string[];
   payload: ReviewedMigrationPayload;
+  matrix?: ComponentHarnessMatrixRow[];
 }
 
 export interface MigrationApplyOptions {
@@ -117,6 +119,7 @@ export interface MigrationApplyResult {
   backupsCreated: string[];
   retainedLockfiles: string[];
   message: string;
+  matrix?: ComponentHarnessMatrixRow[];
 }
 
 export function parseOwnershipResolution(
@@ -393,6 +396,21 @@ export async function planMigrationOperation(options: MigrationPlanOptions = {})
 
   const reviewedPlanToken = encodeReviewedMigrationPlan(payload);
 
+  const matrix: ComponentHarnessMatrixRow[] = [];
+  const targetList = requestedTargets.length > 0 ? requestedTargets : ["claude", "codex", "antigravity", "pi", "hermes"];
+  for (const c of classifiedCandidates) {
+    const harnessesForTool = c.target ? [c.target] : targetList;
+    for (const h of harnessesForTool) {
+      matrix.push({
+        toolId: String(c.toolId),
+        harness: h,
+        status: c.status === "ready" || c.status === "modified" ? "retained" : "unverified",
+        sharedConfigImpact: c.userModificationEvidence === "modified" ? "backup (.user-backup)" : "preserved",
+        actionRequired: c.status === "ready" || c.status === "modified" ? "ready to migrate" : "provide evidence/ownership",
+      });
+    }
+  }
+
   return {
     schemaVersion: 1,
     planDigest,
@@ -405,6 +423,7 @@ export async function planMigrationOperation(options: MigrationPlanOptions = {})
     unsupportedCandidates,
     retainedLockfiles,
     payload,
+    matrix,
   };
 }
 
@@ -571,6 +590,20 @@ export async function applyMigrationOperation(options: MigrationApplyOptions): P
 
     await finishToolOperation(recordPlan, session, acceptedTransitions);
 
+    const matrix: ComponentHarnessMatrixRow[] = [];
+    const targetList = decoded.targets && decoded.targets.length > 0 ? (decoded.targets as HarnessId[]) : ["claude", "codex", "antigravity", "pi", "hermes"];
+    for (const tool of migratedTools) {
+      for (const h of targetList) {
+        matrix.push({
+          toolId: String(tool.toolId),
+          harness: h,
+          status: "updated",
+          sharedConfigImpact: tool.backupPath ? "backup created (.user-backup)" : "preserved",
+          actionRequired: "none",
+        });
+      }
+    }
+
     return {
       applied: true,
       operationId,
@@ -579,6 +612,7 @@ export async function applyMigrationOperation(options: MigrationApplyOptions): P
       backupsCreated,
       retainedLockfiles: ["catalog/stack.lock.json", "catalog/computer-use-runtime.json"],
       message: `Successfully migrated ${migratedTools.length} tool(s) to local tool-records.`,
+      matrix,
     };
   });
 }
@@ -601,6 +635,11 @@ export function formatMigrationPreview(plan: MigrationPlan): string {
         lines.push(`    user config: modified (will create .user-backup on apply)`);
       }
     }
+  }
+  if (plan.matrix && plan.matrix.length > 0) {
+    lines.push("");
+    lines.push("Component and Harness Status Matrix:");
+    lines.push(formatComponentHarnessMatrix(plan.matrix));
   }
   if (plan.retainedLockfiles.length > 0) {
     lines.push("");
@@ -627,6 +666,11 @@ export function formatMigrationApplyResult(result: MigrationApplyResult): string
     if (tool.backupPath) {
       lines.push(`    backup: ${tool.backupPath}`);
     }
+  }
+  if (result.matrix && result.matrix.length > 0) {
+    lines.push("");
+    lines.push("Component and Harness Status Matrix:");
+    lines.push(formatComponentHarnessMatrix(result.matrix));
   }
   if (result.backupsCreated.length > 0) {
     lines.push("");

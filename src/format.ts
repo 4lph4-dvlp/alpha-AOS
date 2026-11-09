@@ -59,6 +59,37 @@ function table(headers: string[], rows: string[][]): string {
   return [render(headers), render(widths.map((width) => "-".repeat(width))), ...rows.map(render)].join("\n");
 }
 
+export interface ComponentHarnessMatrixRow {
+  toolId: string;
+  harness: string;
+  status: "retained" | "updated" | "failed" | "recovered" | "unverified";
+  sharedConfigImpact: string;
+  actionRequired: string;
+}
+
+export function matrixStatusBadge(status: ComponentHarnessMatrixRow["status"]): string {
+  switch (status) {
+    case "updated": return "UPDATED [OK]";
+    case "retained": return "RETAINED [SKIP]";
+    case "recovered": return "RECOVERED [ROLLBACK]";
+    case "unverified": return "UNVERIFIED [PENDING]";
+    case "failed": return "FAILED [ERR]";
+  }
+}
+
+export function formatComponentHarnessMatrix(rows: ComponentHarnessMatrixRow[]): string {
+  const headers = ["Tool", "Harness", "Status", "Shared Config Impact", "Action Required"];
+  if (rows.length === 0) return table(headers, []);
+  const tableRows = rows.map((r) => [
+    r.toolId,
+    r.harness,
+    matrixStatusBadge(r.status),
+    r.sharedConfigImpact,
+    r.actionRequired,
+  ]);
+  return table(headers, tableRows);
+}
+
 function formatToolAdapterDetails(adapters: readonly import("./types.js").ToolAdapterBinding[] | undefined): string {
   if (!adapters || adapters.length === 0) {
     return "  Compatibility Adapters: none";
@@ -1215,6 +1246,11 @@ export function formatOfflineStatus(status: OfflineStatus): string {
     `Directory tree policies: ${status.treePoliciesCount}`,
     `Managed state present: ${status.managedStatePresent ? "yes" : "no"}`,
   ];
+  if (status.matrix && status.matrix.length > 0) {
+    lines.push("");
+    lines.push("Component and Harness Status Matrix:");
+    lines.push(formatComponentHarnessMatrix([...status.matrix]));
+  }
   if (status.needsRepair) {
     lines.push("");
     lines.push("STATUS: NEEDS-REPAIR (Run 'alpha-aos repair' to recover from interrupted operation)");

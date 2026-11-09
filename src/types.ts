@@ -28,6 +28,7 @@ export interface OfflineStatus {
   readonly corruptJournals: readonly string[];
   readonly treePoliciesCount: number;
   readonly managedStatePresent: boolean;
+  readonly matrix?: readonly import("./format.js").ComponentHarnessMatrixRow[];
 }
 
 export interface RecoveryReceiptEntry {

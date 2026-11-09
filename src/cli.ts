@@ -116,6 +116,18 @@ Usage:
   alpha-aos tree classify [path] [--json]
   alpha-aos tree inspect [path] [--harness <id>] [--mode <managed|off|sealed>] [--json]
 
+External Tool Updates:
+  alpha-aos update [--tool <id[,id]>] [--target <harness[,harness]>] [--check] [--apply --plan-digest <digest> --reviewed-plan <token>]
+  (Updates managed external tools: Cua, GSD, ECC, MCP servers. Does not update alpha-AOS engine)
+  To adopt legacy tool installations into local tool records:
+    alpha-aos migrate [--tool <id[,id]>] [--target <harness[,harness]>] [--resolve-ownership <mapping>] [--apply --plan-digest <digest> --reviewed-plan <token>]
+
+Engine Deployment (alpha-AOS code):
+  Workstation deployment (personal workstation / local dev):
+    npm run deploy:local
+  Global package deployment (production workstation):
+    npm install -g alpha-aos@latest
+
 Mutation commands are dry-run by default. Live apply and rollback are enabled only
 after the fixture transaction gate passes.
 
@@ -1204,7 +1216,32 @@ async function main(): Promise<void> {
 
   if (command === "status") {
     const status = await getOfflineStatus(userStateRoot(), catalog, lock);
-    print(status, json, formatOfflineStatus(status));
+    let matrix: import("./format.js").ComponentHarnessMatrixRow[] | undefined = undefined;
+    try {
+      const { readToolRecordStore } = await import("./core/tool-records.js");
+      const store = await readToolRecordStore({ stateRoot: userStateRoot(), packageRoot: root });
+      if (store.status === "current" && !store.incomplete && store.accepted && Object.keys(store.accepted).length > 0) {
+        const rows: import("./format.js").ComponentHarnessMatrixRow[] = [];
+        for (const [toolAndId] of Object.entries(store.accepted)) {
+          const [toolId] = toolAndId.split("/");
+          if (!toolId) continue;
+          for (const h of ["claude", "codex", "antigravity", "pi", "hermes"]) {
+            rows.push({
+              toolId,
+              harness: h,
+              status: "retained",
+              sharedConfigImpact: "unaffected",
+              actionRequired: "none",
+            });
+          }
+        }
+        if (rows.length > 0) matrix = rows;
+      }
+    } catch {
+      // Non-blocking
+    }
+    const statusWithMatrix = matrix ? { ...status, matrix } : status;
+    print(statusWithMatrix, json, formatOfflineStatus(statusWithMatrix));
     if (status.needsRepair) process.exitCode = 1;
     return;
   }

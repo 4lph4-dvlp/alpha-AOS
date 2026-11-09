@@ -47,7 +47,7 @@ test("Task 1: resolveAcceptedToolRecord fails closed with helpful guidance when 
         await resolveAcceptedToolRecord("gsd", { stateRoot, packageRoot });
       },
       (err: Error) => {
-        assert.match(err.message, /No accepted tool record found for gsd/);
+        assert.match(err.message, /No accepted tool records? found for '?gsd'?/);
         assert.match(err.message, /alpha-aos install/);
         assert.match(err.message, /alpha-aos migrate/);
         return true;

@@ -26,13 +26,13 @@
     {
       "number": "43",
       "name": "Migration and Consistent Guidance",
-      "status": "pending"
+      "status": "in_progress"
     }
   ],
   "next": {
-    "command": "/gsd-plan-phase 43",
-    "label": "Plan Phase 43",
-    "reason": "Phase 42 complete · Phase 5 of 5 ready for planning"
+    "command": "/gsd-execute-phase 43",
+    "label": "Execute Phase 43",
+    "reason": "Phase 43 planned · 4 plans ready for wave execution"
   },
-  "updated_at": "2026-11-08T21:14:00.000Z"
+  "updated_at": "2026-11-09T02:05:00.000Z"
 }

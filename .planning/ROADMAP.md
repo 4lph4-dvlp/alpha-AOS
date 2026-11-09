@@ -142,7 +142,19 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 3. CLI/skills and English/Korean docs consistently describe install/explicit-update timing, tool updates versus alpha-AOS code updates, and patch-release/local developer deployment for compatibility fixes; scheduled promotion and background/nightly updates stay disabled.
 4. End-to-end outcomes identify the affected component/platform/harness and shared dependency/configuration effects, showing retained/updated/failed/recovered/unverified states without claiming untested parity or completion of old v0.7.0 acceptance.
 
-**Plans:** TBD after roadmap approval.
+**Plans:** 4 plans
+
+**Wave 1**
+- [ ] 43-01-PLAN.md — Legacy tool migration pipeline (`alpha-aos migrate`), non-destructive `.user-backup`, marker boundary preservation, and ambiguous ownership resolution.
+
+**Wave 2** *(blocked on Wave 1)*
+- [ ] 43-02-PLAN.md — Single Source of Truth (`resolveAcceptedToolRecord`), fail-closed consumer migration, and doctor SSOT alignment diagnostics.
+
+**Wave 3** *(blocked on Wave 2)*
+- [ ] 43-03-PLAN.md — Component/harness outcome matrix table formatter and 2-track CLI routing, HELP, and status guidance.
+
+**Wave 4** *(blocked on Wave 3)*
+- [ ] 43-04-PLAN.md — Bilingual migration guides, README 2-track updates, and agent skills synchronization.
 
 ## Progress
 
@@ -154,7 +166,7 @@ Unified Tool Updates & Compatibility moves external-tool release selection from 
 | 40. Local Official Release Updates | 4/4 | Complete    | 2026-11-08 |
 | 41. Minimal Compatibility Adapters | 2/2 | Complete    | 2026-11-09 |
 | 42. Integration Verification and Recovery | 6/6 | Complete    | 2026-11-09 |
-| 43. Migration and Consistent Guidance | 0/TBD | Not started | - |
+| 43. Migration and Consistent Guidance | 0/4 | Planned     | - |
 
 ## Coverage and Delivery Boundaries
 

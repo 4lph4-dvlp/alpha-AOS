@@ -4,6 +4,16 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-10
+
+- **Unified Local Tool Updates (`alpha-aos update`)**: Transitioned external-tool release resolution from remote repository lock promotion to the local workstation lifecycle. Directly resolves latest official npm and Cua releases without requiring alpha-AOS repository write permissions.
+- **Sigstore & Rekor Cryptographic Verification**: Official Cua driver downloads validate Sigstore Cosign/Fulcio certificates and Rekor SignedEntryTimestamp (SET) proofs with strict platform and architecture constraints.
+- **Local Single Source of Truth (`tool-records/v1`)**: Immutable, append-only tool records outside the repository checkout track accepted version identities, source URLs, verified digests, and operation history.
+- **Minimal Structural Compatibility Adapters**: Replaced brittle regex file transformations with authoritative, retireable compatibility adapters (`src/core/compatibility-adapters.ts`) verified by pure-upstream fixtures.
+- **4-Tier Candidate Verification & Reverse Recovery**: Independent evidence tracking across installation, discovery, protocol-schema, and invocation boundaries with a global pre-activation barrier and adapter-native reverse recovery upon failure.
+- **Non-Destructive Migration (`alpha-aos migrate`)**: Seamlessly adopts legacy locked installations into local records while preserving user edits via `.user-backup` files and maintaining unambiguous ownership boundaries.
+- **Bilingual Guidance & 2-Track Model**: Clarified the separation between external tool updates (`alpha-aos update`) and alpha-AOS code deployment (`npm run deploy:local`) across CLI help, diagnostics, and documentation.
+
 ## [0.6.2] - 2026-11-05
 
 - Managed installation reuses unchanged, source/hash-pinned official Cua installers and helpers at an exact release, including native layout and PATH setup. Native installer changes are reported as external and are not automatically rolled back.

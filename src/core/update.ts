@@ -430,9 +430,13 @@ export async function resolveCuaStableRelease(options: {
   for (let page = 1; page <= maxPages; page++) {
     let releases: GitHubRelease[];
     try {
+      const ghAuth = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
       const res = await fetchFn(`https://api.github.com/repos/trycua/cua/releases?per_page=100&page=${page}`, {
         signal: AbortSignal.timeout(10_000),
-        headers: { accept: "application/json" },
+        headers: {
+          accept: "application/json",
+          ...(ghAuth ? { authorization: `Bearer ${ghAuth}` } : {}),
+        },
       });
       if (!res.ok) {
         if (page === 1) {
@@ -1199,11 +1203,15 @@ export async function revalidateLocalReleasePlan(
   for (const tool of changedTools) {
     if (tool.toolId === "cua-driver") {
       const tag = `cua-driver-rs-v${tool.release}`;
+      const ghAuth = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
       const res = await fetchFn(
         `https://api.github.com/repos/trycua/cua/releases/tags/${encodeURIComponent(tag)}`,
         {
           signal: AbortSignal.timeout(10_000),
-          headers: { accept: "application/json" },
+          headers: {
+            accept: "application/json",
+            ...(ghAuth ? { authorization: `Bearer ${ghAuth}` } : {}),
+          },
         },
       );
       if (!res.ok) {

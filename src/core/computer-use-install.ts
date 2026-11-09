@@ -761,6 +761,26 @@ export function verifyAndDeriveCuaReleasePin(
     },
   };
 
+  const installedFiles: Record<string, string> = {};
+  if (options.os === "windows") {
+    installedFiles["cua-driver.exe"] = files["cua-driver.exe"]!;
+    if (files["cua-cursor-theme.exe"]) installedFiles["cua-cursor-theme.exe"] = files["cua-cursor-theme.exe"];
+    if (files["cua-driver-uia.exe"]) installedFiles["cua-driver-uia.exe"] = files["cua-driver-uia.exe"];
+  } else if (options.os === "linux") {
+    installedFiles["cua-driver"] = files["cua-driver"]!;
+    if (files["cua-cursor-theme"]) installedFiles["cua-cursor-theme"] = files["cua-cursor-theme"];
+    for (const [name, hashVal] of Object.entries(files)) {
+      if (name.startsWith("wayland-helper/")) {
+        installedFiles[name] = hashVal;
+      }
+    }
+  } else if (options.os === "macos") {
+    const entrypointHash = files[entrypoint] ?? Object.values(files)[0]!;
+    installedFiles[installedEntrypoint ?? entrypoint] = entrypointHash;
+  } else {
+    installedFiles[entrypoint] = files[entrypoint]!;
+  }
+
   return {
     version: options.version,
     tag: options.tag,
@@ -772,7 +792,7 @@ export function verifyAndDeriveCuaReleasePin(
     entrypoint,
     ...(installedEntrypoint ? { installedEntrypoint } : {}),
     files,
-    installedFiles: files,
+    installedFiles,
     publisherIdentity: `https://github.com/trycua/cua/.github/workflows/cd-rust-cua-driver.yml@refs/tags/${options.tag}`,
     installer,
   };
@@ -887,7 +907,7 @@ export async function planCuaInstall(
       : [join(directory, "install.sh")],
     cwd: directory, timeoutMs: 300_000, maxOutputBytes: 1024 * 1024,
     environment: {
-      optional: ["PATH", "Path", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "TEMP", "TMP", "SHELL"],
+      optional: ["PATH", "SystemRoot", "WINDIR", "COMSPEC", "PATHEXT", "HOME", "USERPROFILE", "LOCALAPPDATA", "APPDATA", "TEMP", "TMP", "SHELL"],
       literal: {
         CUA_DRIVER_RS_VERSION: pin.version, CUA_DRIVER_RS_KEEP_VERSIONS: "2",
         CUA_DRIVER_RS_TELEMETRY_ENABLED: "false", CUA_DRIVER_RS_UPDATE_CHECK: "false",

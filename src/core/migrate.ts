@@ -285,7 +285,7 @@ export async function planMigrationOperation(options: MigrationPlanOptions = {})
 
       let version = "0.0.0";
       let artifactDigest = createHash("sha256").update(`${toolId}-seed`).digest("hex");
-      let artifact = `${toolId}.zip`;
+      let artifact = `${toolId.replace(/:/g, "-")}.zip`;
 
       if (toolId === "cua-driver" && cuaLock) {
         version = typeof cuaLock.version === "string" ? cuaLock.version : "0.38.0";
@@ -331,7 +331,7 @@ export async function planMigrationOperation(options: MigrationPlanOptions = {})
         architecture,
         artifactDigest,
         path: candidatePath,
-        pathAlias: toolId.replace(/^@/, ""),
+        pathAlias: toolId.replace(/:/g, "-").replace(/^@/, ""),
         status: isModified ? "modified" : "ready",
         reason: isModified ? "config-modified" : "legacy-seed-match",
         ownership: "alpha-aos",
@@ -512,12 +512,16 @@ export async function applyMigrationOperation(options: MigrationApplyOptions): P
       const proofId = `${toolId.replace(/:/g, "-")}-migrated`;
       const harness = candidate.target ?? "codex";
 
+      const safeArtifact = candidate.artifact.replace(/:/g, "-");
+      const safePathAlias = (candidate.pathAlias || toolId).replace(/:/g, "-").replace(/^@/, "");
+      const previousIdentity = `${toolId.replace(/:/g, "-")}-${candidate.version}`;
+
       const legacyEvidence: LegacyToolEvidence = {
         toolId,
         sourceId: candidate.sourceId,
         sourceUrl: candidate.sourceUrl,
         release: candidate.version,
-        artifact: candidate.artifact,
+        artifact: safeArtifact,
         platform: candidate.platform,
         architecture: candidate.architecture,
         artifactDigest: candidate.artifactDigest,
@@ -525,7 +529,7 @@ export async function applyMigrationOperation(options: MigrationApplyOptions): P
         verificationRef: "host-verified-signature",
         currentRef: "current-files",
         scope: "managed-tool",
-        previousIdentity: `${toolId}-${candidate.version}`,
+        previousIdentity,
         priorInstallationOwner: candidate.ownership === "external" ? "external" : "alpha-aos",
         priorConnectionOwner: "alpha-aos",
         userModificationEvidence: candidate.userModificationEvidence ?? (candidate.status === "modified" ? "modified" : "unmodified"),
@@ -552,7 +556,7 @@ export async function applyMigrationOperation(options: MigrationApplyOptions): P
         },
         resolved: {
           release: candidate.version,
-          artifact: candidate.artifact,
+          artifact: safeArtifact,
           platform: candidate.platform,
           architecture: candidate.architecture,
           digest: candidate.artifactDigest,
@@ -562,7 +566,7 @@ export async function applyMigrationOperation(options: MigrationApplyOptions): P
         installed: {
           installationId,
           version: candidate.version,
-          pathAlias: candidate.pathAlias || toolId,
+          pathAlias: safePathAlias,
         },
         verified: proofId,
         evidence: [integrationEvidence],

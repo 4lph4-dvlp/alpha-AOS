@@ -1,7 +1,7 @@
 import { open, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { homedir } from "node:os";
-import { delimiter, join, resolve } from "node:path";
+import { delimiter, isAbsolute, join, resolve } from "node:path";
 import { officialCuaPaths } from "./computer-use-install.js";
 import { readToolRecordStore } from "./tool-records.js";
 import { evaluateLegacyHandoff, type LegacyHandoffAssessment } from "./tool-handoff.js";
@@ -51,8 +51,15 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
   item.currentObservation = { installation: item.installation, version: item.installed?.version ?? null, integrity: item.integrity, integration: item.integration, reason: item.reason, nextAction: item.nextAction };
   item.acceptedIdentity = null;
   const accepted = acceptedToolResults(records, item.toolId);
-  const matching = current ? accepted.filter(({ result }) => matchesToolPathAlias(current.path, result.installed!.pathAlias)) : accepted;
-  const chosen = matching.length === 1 ? matching[0] : undefined;
+  const pathMatching = current
+    ? accepted.filter(({ result }) => matchesToolPathAlias(current.path, result.installed!.pathAlias) || (!isAbsolute(result.installed!.pathAlias) && current.identity === result.installed!.pathAlias))
+    : [];
+  const matching = pathMatching.length > 0 ? pathMatching : accepted;
+  const chosen = matching.length === 1
+    ? matching[0]
+    : matching.length > 1
+      ? (matching.find(({ result }) => item.installed?.version && result.installed?.version === item.installed.version) ?? matching[0])
+      : undefined;
   const acceptedResult = chosen?.result;
   if (chosen && acceptedResult?.installed) {
     item.acceptedIdentity = { installationId: acceptedResult.installed.installationId, version: acceptedResult.installed.version, operationId: chosen.event.operationId };
@@ -67,8 +74,10 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
   if (current?.scope) item.proofScopes.fingerprintScope = current.scope;
   const knownVersion = item.installed?.version;
   const identityMatches = knownVersion ? knownVersion === acceptedResult?.installed?.version : item.toolId === "cua-driver" && current?.identity === "cua-driver";
-  if (current && acceptedResult?.installed && acceptedResult.resolved && identityMatches && matchesToolPathAlias(current.path, acceptedResult.installed.pathAlias) && acceptedResult.resolved.release === acceptedResult.installed.version && acceptedResult.resolved.platform === current.platform && acceptedResult.resolved.architecture === current.architecture) {
-    const exactExecutable = item.toolId === "cua-driver" && current.identity === "cua-driver" && current.scope === "executable-file";
+  if (current && acceptedResult?.installed && acceptedResult.resolved && identityMatches) {
+    const aliasMatches = matchesToolPathAlias(current.path, acceptedResult.installed.pathAlias) || (!isAbsolute(acceptedResult.installed.pathAlias) && (current.identity === acceptedResult.installed.pathAlias || !current.identity));
+    if (aliasMatches && acceptedResult.resolved.release === acceptedResult.installed.version && acceptedResult.resolved.platform === current.platform && acceptedResult.resolved.architecture === current.architecture) {
+      const exactExecutable = item.toolId === "cua-driver" && current.identity === "cua-driver" && current.scope === "executable-file";
     const evidence = exactExecutable ? item.proofScopes : { discovery: pending, integrity: pending, protocol: pending, invocation: pending };
     if (!exactExecutable) item.proofScopes.historical = evidence;
     for (const proof of acceptedResult.evidence) {
@@ -85,6 +94,7 @@ export function reconcileToolState(item: ToolObservation, records: ToolInventory
     item.integration = item.proofScopes.invocation as ToolObservation["integration"];
     item.currentObservation.integrity = item.integrity;
     item.currentObservation.integration = item.integration;
+    }
   }
   if (item.acceptedIdentity && item.installed?.version && item.installed.version !== item.acceptedIdentity.version) {
     item.diagnostics ??= [];

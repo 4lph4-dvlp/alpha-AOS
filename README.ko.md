@@ -123,9 +123,10 @@ sh ./scripts/install.sh --apply --target claude,codex
 alpha-aos doctor
 alpha-aos status
 alpha-aos install
+alpha-aos migrate
 ```
 
-모든 선택된 구성 요소가 `CURRENT`로 보고되고 닥터 진단이 통과하면 전역 환경 구성이 완료된 것입니다.
+모든 선택된 구성 요소가 `CURRENT`로 보고되고 닥터 진단이 통과하면 전역 환경 구성이 완료된 것입니다. 과거 정적 락파일 및 기존 설치본 입양 절차는 [마이그레이션 가이드](docs/guides/migration.ko.md)를 참고하세요.
 
 ---
 
@@ -372,91 +373,30 @@ sh ./scripts/update.sh
 sh ./scripts/update.sh --apply
 ```
 
-### 2. CLI를 통한 직접 하네스 동기화 (Reconcile)
+### 2. 2-트랙 업데이트 모델
 
-이미 `alpha-aos` CLI를 설치해 사용 중인 경우 터미널에서 직접 동기화할 수 있습니다:
+alpha-AOS v0.8.0은 외부 관리 도구 릴리스 업데이트와 제어 평면 엔진 배포를 엄격히 분리합니다:
 
-```sh
-# 변경 예정 내역 미리보기 (Dry-run)
-alpha-aos update --check
-
-# 감지된 모든 하네스에 안정 락 최신 버전 일괄 적용
-alpha-aos update --apply
-
-# 또는 특정 하네스만 지정하여 적용
-alpha-aos update --apply --target codex,claude
-```
-
-alpha-AOS는 `git pull --ff-only`를 수행하고 CLI를 재빌드하며, 검증을 통과한 `catalog/stack.lock.json`만 반영합니다. 검증되지 않은 후보 버전(`candidate.lock.json`)은 일반 사용자 머신에 절대 적용되지 않습니다. `update --check`는 npm 레지스트리의 최신 버전을 보여 줍니다. 상태가 `update`로 표시되면 아직 안정 락으로 승격되지 않은 버전이라는 뜻이며, 주간 승격이 반영되기 전까지 `update --apply`로는 설치되지 않습니다.
-
-### 3. 주간 자동 의존성 승격 (Automated Weekly Dependency Promotion)
-
-상위 도구들(GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP 어댑터)의 신규 버전은 사람의 승인 없이 안정 락으로 승격됩니다. 단, 아래 검증 게이트를 모두 통과한 경우에만 승격됩니다:
-
-- **매주 월요일 낮 12시 17분 KST (03:17 UTC)**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml)이 레지스트리 최신 버전을 조회해 무결성을 확인합니다. 바뀐 패키지를 `automation/dependency-candidate` 브랜치의 `catalog/stack.lock.json`에 반영하고(ECC가 바뀌면 스킬 해시도 다시 고정), 그 커밋을 Linux/macOS/Windows 전체 CI와 GSD·ECC·MCP 서버·Pi 브리지 실제 설치 검증으로 확인합니다.
-- **매주 수요일 낮 12시 17분 KST (03:17 UTC)**: [`.github/workflows/auto-promote.yml`](.github/workflows/auto-promote.yml)이 월요일에 검증된 커밋을 최신 `main` 위로 다시 올립니다. 레지스트리를 다시 확인해 그사이 내려갔거나 바뀌었거나 배포된 지 36시간이 안 된 버전은 거부하고, 한 번 더 검증한 뒤 `main`을 그 커밋으로 fast-forward합니다.
-- **실패하면 승격하지 않음**: 어느 단계든 실패하면 워크플로우 실행이 실패로 끝나고 `main`은 그대로 유지되며, GitHub가 실패 알림을 보냅니다. 한 주의 패키지는 함께 승격되므로 하나가 실패하면 그 주 전체가 보류되고, 다음 월요일 실행이 최신 버전으로 다시 시작합니다.
-- **팩 스킬 드리프트 점검**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml)이 **매주 월요일 낮 1시 17분 KST (04:17 UTC)**에 실행되어 카탈로그 팩 스킬의 해시 무결성을 점검합니다.
-- **수동 실행**: 두 워크플로우 모두 GitHub Actions의 `workflow_dispatch`(Run workflow) 버튼으로 언제든 실행할 수 있습니다. 예를 들어 검증 도중 `main`이 바뀌어 수요일 승격이 실패했다면 다시 실행하면 됩니다.
-
-### 4. 검증과 승격을 수동으로 실행하기
-
-주간 주기에는 아무것도 할 필요가 없습니다. 새 버전을 더 빨리 받고 싶거나 실패한 실행을 다시 시도할 때 두 워크플로우를 직접 실행합니다. 순서는 항상 같습니다:
-
-1. **검증** — *Dependency candidate*(월요일 워크플로우)를 실행합니다.
-2. **승격** — 검증이 성공한 뒤 *Dependency auto-promotion*(수요일 워크플로우)을 실행합니다.
-3. **반영** — 내 PC를 `main` 기준으로 업데이트합니다.
-
-2단계에는 두 가지 시간 규칙이 있습니다:
-
-- 최근 7일 안에 성공한 *Dependency candidate* 실행이 검증한 커밋만 승격합니다.
-- 새로 승격되는 모든 버전은 배포된 지 36시간 이상 지나야 합니다. 더 최근 버전이 있으면 *Re-verify promoted packages against the registry* 단계에서 실패하니, 36시간이 지난 뒤 다시 실행하세요.
-
-#### 방법 A: 명령어 (GitHub CLI)
-
-이 저장소에 쓰기 권한이 있는 계정으로 [GitHub CLI](https://cli.github.com/)에 로그인되어 있어야 합니다(`gh auth status`로 확인). 아래 명령은 PowerShell과 POSIX 셸에서 그대로 동작합니다.
+- **트랙 1: 외부 관리 도구 업데이트 (`alpha-aos update` 및 `alpha-aos migrate`)**:
+  - `alpha-aos update`: Cua 드라이버, GSD Core, ECC Universal, MCP 서버 등 외부 관리 도구 릴리스를 점검하고 적용합니다. alpha-AOS 자체 코드는 수정하지 않습니다.
+  - `alpha-aos migrate`: 과거 정적 락파일 및 기존 설치본을 비파괴 `.user-backup` 스냅샷과 함께 불변 로컬 도구 기록(`~/.alpha-aos/tool-records/v1/`)으로 입양합니다.
+  - 자세한 입양, 소유권 해결, 백업 복원 절차는 [마이그레이션 가이드](docs/guides/migration.ko.md)를 참고하세요.
 
 ```sh
-# 0. 안정 락보다 새로운 상위 버전 확인
+# 외부 도구 릴리스 변경 사항 미리보기 (Dry-run)
 alpha-aos update --check
 
-# 1. 검증: 월요일 워크플로우를 실행하고 진행 상황 따라가기 (약 15분)
-gh workflow run dependency-candidate.yml --ref main
-# 새 실행이 목록에 나타나도록 몇 초 기다린 뒤:
-gh run watch "$(gh run list --workflow dependency-candidate.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+# 검토된 계획 다이제스트로 도구 릴리스 적용
+alpha-aos update --apply --plan-digest <DIGEST> --reviewed-plan <TOKEN>
 
-#    모든 job이 통과하고 "verified-candidate" 아티팩트가 있으면 검증 완료입니다.
-#    후보 커밋 메시지에 승격될 버전이 적혀 있습니다:
-git fetch origin automation/dependency-candidate
-git log -1 --format=%s FETCH_HEAD
-
-# 2. 승격: 수요일 워크플로우를 실행하고 따라가기
-gh workflow run auto-promote.yml --ref main
-gh run watch "$(gh run list --workflow auto-promote.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
-
-#    main의 최신 커밋이 "chore(deps): promote ..."이면 승격 완료입니다:
-git fetch origin
-git log -1 --format=%s origin/main
+# 또는 기존 레거시 설치본 입양
+alpha-aos migrate
 ```
 
-1단계의 *Stage promotion commit*이 `No dependency version changes.`를 출력하고 나머지 job을 건너뛰었다면 승격할 것이 없는 상태입니다. 2단계에서 *Verify*와 *Fast-forward main*이 건너뛰어졌다면 반영할 검증 커밋이 없는 것입니다(이미 `main`에 있는 경우 포함).
-
-#### 방법 B: GitHub 웹
-
-1. **검증**
-   - 저장소의 **Actions** 탭을 열고 왼쪽 목록에서 **Dependency candidate**를 선택합니다.
-   - **Run workflow**를 누르고 **Branch: main**을 그대로 둔 채 초록색 **Run workflow** 버튼을 누릅니다.
-   - 새로고침 후 새 실행을 엽니다. 모든 job에 초록 체크가 표시되고 실행 **Summary** 하단의 **Artifacts**에 `verified-candidate`가 있으면 검증 완료입니다. 승격될 버전은 *Stage promotion commit* job 로그에서 확인할 수 있습니다.
-2. **승격**
-   - **Actions**에서 **Dependency auto-promotion**을 선택하고 **Run workflow** → **Branch: main** → **Run workflow**를 누릅니다.
-   - **Fast-forward main**을 포함한 모든 job에 초록 체크가 표시되면 승격 완료입니다. **Code** 탭에서 `main`의 최신 커밋이 `chore(deps): promote ...`로 보입니다.
-3. **실패했을 때**
-   - 빨간 실행을 열고 빨간 표시가 있는 job을 누릅니다. 실패한 단계 이름이 원인을 알려 주며, [실패 원인 표](docs/how-to/promote-dependencies.md#4-when-a-week-is-refused)에 단계별 의미와 대처법이 정리되어 있습니다.
-   - 다시 시도하려면 실행 페이지에서 **Re-run all jobs**를 누르거나 **Run workflow**로 새로 실행합니다.
-
-#### 승격된 버전을 내 PC에 반영하기
-
-`main`에 승격이 반영된 뒤 [1번 항목](#1-저장소-및-전역-cli-갱신-원클릭-부트스트랩-스크립트)의 부트스트랩 업데이트(`.\scripts\update.ps1 -Apply` 또는 `sh ./scripts/update.sh --apply`)를 실행하고, `alpha-aos update --check`에서 모든 행이 `current`인지 확인합니다.
+- **트랙 2: alpha-AOS 엔진 배포**:
+  - **개인 개발 워크스테이션**: `npm run deploy:local` 명령으로 CLI 빌드, 기동 점검, 로컬 링크를 일괄 수행합니다.
+  - **전역 배포 환경**: `npm install -g alpha-aos@latest`를 사용합니다.
+  - *정책 참고*: 모든 업데이트는 사용자가 명시적으로 개시하며, 자동화된 외부 승격 루틴은 완전히 제거되었습니다. 모든 변경은 사용자의 명시적 승인 하에 수행됩니다.
 
 ---
 

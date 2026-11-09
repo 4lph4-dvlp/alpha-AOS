@@ -109,9 +109,10 @@ After applying, restart the affected harnesses (or restart your terminal / IDE),
 alpha-aos doctor
 alpha-aos status
 alpha-aos install
+alpha-aos migrate
 ```
 
-All selected components should report `CURRENT` and health checks should pass.
+All selected components should report `CURRENT` and health checks should pass. For adopting existing legacy installations into local tool records, see the [Migration Guide](docs/guides/migration.md).
 
 ---
 
@@ -375,93 +376,30 @@ sh ./scripts/update.sh
 sh ./scripts/update.sh --apply
 ```
 
-### 2. Direct Harness Reconcile via CLI
+### 2. The 2-Track Update Model
 
-You can also reconcile installed AI harness configurations directly using the CLI:
+alpha-AOS v0.8.0 strictly separates external managed tool updates from control-plane engine deployment:
 
-```sh
-# Preview component changes across detected harnesses
-alpha-aos update --check
-
-# Reconcile all detected harnesses against the stable lock
-alpha-aos update --apply
-
-# Or restrict reconciliation to specific harnesses
-alpha-aos update --apply --target codex,claude
-```
-
-alpha-AOS uses `git pull --ff-only`, rebuilds the CLI, and reconciles only the stable `catalog/stack.lock.json`. Candidate releases (`candidate.lock.json`) are never applied on user workstations. `update --check` shows the registry's latest versions; an `update` status means the version has not been promoted into the stable lock yet, so `update --apply` will not install it until a weekly or administrator-forced promotion lands.
-
-### 3. Automated Weekly Dependency Promotion
-
-Upstream tools (GSD Core, ECC Universal, Context7, Exa, Firecrawl, Pi MCP adapter) normally reach the stable lock through the weekly verification gates:
-
-- **Monday 03:17 UTC (12:17 KST)**: [`.github/workflows/dependency-candidate.yml`](.github/workflows/dependency-candidate.yml) resolves the registry's latest versions, checks their integrity, writes every changed package into `catalog/stack.lock.json` on a run-specific candidate branch (re-pinning ECC skill hashes when ECC moves), and verifies that commit with the full CI suite plus real GSD, ECC, MCP server, and Pi bridge fixtures on Linux, macOS, and Windows.
-- **Wednesday 03:17 UTC (12:17 KST)**: [`.github/workflows/auto-promote.yml`](.github/workflows/auto-promote.yml) takes the commit Monday verified, rebases it onto current `main`, re-checks the registry (a version that was unpublished, altered, or is younger than 36 hours is refused), verifies the rebased commit again, and fast-forwards `main` to exactly that commit.
-- **Refusal is the safe default**: Any failure fails the workflow run, leaves `main` untouched, and triggers GitHub's failure notification. All packages in a week are promoted together, so one failing package holds the whole week back. The next Monday run starts over from the latest registry versions.
-- **Pack Skill Drift Audit**: [`.github/workflows/pack-skill-drift.yml`](.github/workflows/pack-skill-drift.yml) runs weekly **every Monday at 04:17 UTC (13:17 KST)** to verify that catalog pack skills match pinned hashes.
-- **Manual Trigger**: Either workflow can be started at any time with the GitHub Actions `workflow_dispatch` button, for example to retry Wednesday's promotion after `main` moved during verification.
-- **Administrator override**: [`.github/workflows/force-dependency-update.yml`](.github/workflows/force-dependency-update.yml) can explicitly publish current registry versions without the weekly CI, fixture matrix, or cooldown. It requires repository `admin` permission, `FORCE_LATEST`, and an audit reason; registry integrity and ECC hash generation remain required. See the [promotion guide](docs/how-to/promote-dependencies.md#6-administrator-force-update).
-
-### 4. Running Verification and Promotion Manually
-
-You never have to do this for the weekly cycle. Run the two workflows by hand when you want a new upstream version sooner, or to retry after a refused run. The order is always the same:
-
-1. **Verify** — run *Dependency candidate* (the Monday workflow).
-2. **Promote** — run *Dependency auto-promotion* (the Wednesday workflow) after verification succeeded.
-3. **Apply** — update your machine from `main`.
-
-Two timing rules apply to step 2:
-
-- It promotes only a commit that a successful *Dependency candidate* run verified within the last 7 days.
-- Every newly promoted version must have been published at least 36 hours earlier. If one is younger, the run fails at *Re-verify promoted packages against the registry*; run it again after the 36 hours have passed.
-
-#### Option A: Command line (GitHub CLI)
-
-Requires the [GitHub CLI](https://cli.github.com/) logged in with write access to this repository (`gh auth status`). The commands work in PowerShell and POSIX shells.
+- **Track 1: External Managed Tools (`alpha-aos update` & `alpha-aos migrate`)**:
+  - `alpha-aos update`: Checks for and applies updates to external managed tools (Cua driver, GSD core, ECC universal, Context7, Exa, Firecrawl). Does not modify the alpha-AOS control plane code.
+  - `alpha-aos migrate`: Adopts legacy static lockfile installations and pins into immutable local tool records (`~/.alpha-aos/tool-records/v1/`) with non-destructive `.user-backup` snapshotting.
+  - See the [Migration Guide](docs/guides/migration.md) for full step-by-step instructions.
 
 ```sh
-# 0. See which upstream versions are newer than the stable lock
+# Preview external tool updates across detected harnesses
 alpha-aos update --check
 
-# 1. Verify: start the Monday workflow and follow it (about 15 minutes)
-gh workflow run dependency-candidate.yml --ref main
-# wait a few seconds so the new run is listed, then:
-gh run watch "$(gh run list --workflow dependency-candidate.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
+# Apply tool updates across all harnesses with reviewed plan digest
+alpha-aos update --apply --plan-digest <DIGEST> --reviewed-plan <TOKEN>
 
-#    Verified if every job passed and the run lists the "verified-candidate" artifact.
-#    The candidate commit message names the versions it will promote:
-gh run list --workflow dependency-candidate.yml --limit 1 --json databaseId --jq '.[0].databaseId'
-git fetch origin "automation/dependency-candidate-<run-id>"
-git log -1 --format=%s FETCH_HEAD
-
-# 2. Promote: start the Wednesday workflow and follow it
-gh workflow run auto-promote.yml --ref main
-gh run watch "$(gh run list --workflow auto-promote.yml --limit 1 --json databaseId --jq '.[0].databaseId')" --exit-status
-
-#    Promoted if main now ends with "chore(deps): promote ...":
-git fetch origin
-git log -1 --format=%s origin/main
+# Or adopt existing legacy installations
+alpha-aos migrate
 ```
 
-If step 1 prints `No dependency version changes.` in *Stage promotion commit* and skips the other jobs, there is nothing to promote. If step 2 finishes with *Verify* and *Fast-forward main* skipped, there was no verified commit to land (or it is already on `main`).
-
-#### Option B: GitHub web
-
-1. **Verify**
-   - Open the repository's **Actions** tab and select **Dependency candidate** in the left sidebar.
-   - Click **Run workflow**, keep **Branch: main**, and click the green **Run workflow** button.
-   - Refresh and open the new run. It is verified when every job shows a green check and the **Artifacts** section at the bottom of the run's **Summary** lists `verified-candidate`. The *Stage promotion commit* job log names the promoted versions.
-2. **Promote**
-   - In **Actions**, select **Dependency auto-promotion**, then **Run workflow** → **Branch: main** → **Run workflow**.
-   - It is promoted when every job, including **Fast-forward main**, shows a green check. The **Code** tab then shows the latest commit on `main` as `chore(deps): promote ...`.
-3. **When a run fails**
-   - Open the red run and click the job with the red mark. The failing step name tells you why; the [refusal table](docs/how-to/promote-dependencies.md#4-when-a-week-is-refused) explains each step and what to do.
-   - To retry, click **Re-run all jobs** on the run page, or start the workflow again with **Run workflow**.
-
-#### Apply the promoted versions on your machine
-
-After `main` carries the promotion, use the bootstrap update from [section 1](#1-repository--global-cli-update-one-click-bootstrap) (`.\scripts\update.ps1 -Apply` or `sh ./scripts/update.sh --apply`), then confirm with `alpha-aos update --check`: every row should read `current`.
+- **Track 2: alpha-AOS Engine Deployment**:
+  - **Workstation Development**: Run `npm run deploy:local` to build the CLI, verify startup, and link the local checkout directly.
+  - **Global Package**: Run `npm install -g alpha-aos@latest`.
+  - *Policy Note*: All updates are explicit, user-initiated operations; automated external promotion routines are permanently removed. All updates require explicit user review and invocation.
 
 ---
 

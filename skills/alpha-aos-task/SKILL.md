@@ -340,6 +340,12 @@ alpha-AOS provides an integrated capability suite across all supported harnesses
      - ECC Unified Memory vault (`unified-memory` skill / `ecc memory` CLI): Persisting structured handoff context into `.ecc/memory/`.
    - **Rule**: Any critical architectural decision, phase summary, or uncommitted task state must be recorded for continuous recall across harnesses.
 
+4. **Local Tool Records Single Source of Truth (SSOT)**:
+   - Tool and driver versions (Cua driver, GSD core, ECC universal, MCP servers) are resolved strictly from immutable local records under `~/.alpha-aos/tool-records/v1/`.
+   - If accepted tool records are absent or uninitialized, fail closed and direct the user to run `alpha-aos migrate` (to adopt legacy installations) or `alpha-aos install` (for fresh initialization).
+   - Never fall back to static bundled lockfiles or pins.
+   - Non-destructive `.user-backup` files created during migration must be respected and preserved.
+
 ---
 
 ## Safety & Boundary Rules

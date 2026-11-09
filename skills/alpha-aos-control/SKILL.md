@@ -176,6 +176,32 @@ When an operation needs to be undone or an interrupted transaction repaired:
 
 ---
 
+### Domain 6: Legacy Migration & 2-Track Updates
+
+When adopting legacy tool pins or updating components:
+- **Natural Language Triggers (Migration)**:
+  - *"기존 도구 설치 입양해줘 / 마이그레이션해줘"*
+  - *"Adopt legacy tool installations / migrate to local records"*
+  - Preview command:
+    ```bash
+    alpha-aos migrate
+    ```
+  - Apply command (with reviewed digest and token):
+    ```bash
+    alpha-aos migrate --apply --plan-digest <DIGEST> --reviewed-plan <TOKEN>
+    ```
+  - If ambiguous ownership is reported:
+    ```bash
+    alpha-aos migrate --resolve-ownership <tool>=<alpha-aos|external>
+    ```
+
+- **2-Track Policy Guidance**:
+  - `alpha-aos update`: Updates external managed tools (Cua driver, GSD, ECC, MCP servers). Does NOT modify alpha-AOS control-plane engine code.
+  - Engine code deployment: Run `npm run deploy:local` on developer workstations, or `npm install -g alpha-aos@latest` for global packages.
+  - All updates are strictly user-directed operations; automated external promotion routines are permanently removed.
+
+---
+
 ## Safety Invariants & Guardrails
 
 1. **Digest Integrity**: Plan approvals strictly validate the exact 64-character SHA-256 digest. If file drift occurs after planning, re-run `alpha-aos project plan . --json` and present the updated plan before asking for approval.

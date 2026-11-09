@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-complete-milestone",
-    "label": "Complete milestone v0.8.0",
-    "reason": "Phase 5 of 5 · 100% · complete"
+    "command": "/gsd-new-milestone",
+    "label": "Start new milestone",
+    "reason": "Milestone v0.8.0 complete — start next milestone"
   },
-  "updated_at": "2026-11-09T03:30:00.000Z"
+  "updated_at": "2026-11-09T16:54:58.620Z"
 }

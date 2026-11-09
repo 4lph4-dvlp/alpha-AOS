@@ -1,15 +1,12 @@
 ---
 gsd_state_version: "1.0"
 milestone: v0.8.0
-current_phase: 43
-current_phase_name: Migration and Consistent Guidance
-current_plan: 4
-status: complete
+status: Awaiting next milestone
 stopped_at: Phase 43 complete (4 of 4 plans executed and verified)
-last_updated: "2026-11-09T03:30:00.000Z"
-last_activity: 2026-11-09
-last_activity_desc: Phase 43 execution complete (all 4 plans verified)
-state_head: cba334c
+last_updated: "2026-11-09T16:54:58.444Z"
+last_activity: 2026-11-10
+last_activity_desc: Milestone v0.8.0 completed and archived
+state_head: db4e0afc2a55e59e5dffa5fce408da2435cfb141
 progress:
   total_phases: 5
   completed_phases: 5
@@ -17,6 +14,8 @@ progress:
   completed_plans: 21
   percent: 100
 milestone_name: Unified Tool Updates & Compatibility
+current_phase: 43
+current_phase_name: Migration and Consistent Guidance
 ---
 
 # Project State
@@ -34,23 +33,21 @@ Sections 35–38 / 16 requirements have native implementation evidence. The outg
 See: .planning/PROJECT.md (updated 2026-11-06)
 
 **Core value:** A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
-**Current focus:** Phase 43 — Migration and Consistent Guidance
+**Current focus:** Next milestone (v0.8.0 completed and archived)
 
 ## Current Position
 
-Current Plan: 4
-Total Plans in Phase: 4
-Phase: 43 (Migration and Consistent Guidance) — COMPLETE
-Plan: 4 of 4
-Status: Complete Phase 43
-Last activity: 2026-11-09 — Phase 43 execution complete (all 4 plans verified)
+Phase: Milestone v0.8.0 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-11-10 — Milestone v0.8.0 completed and archived
 
 ### Completed Phases
 
 - Phase 43: complete (Migration and Consistent Guidance) — 4 plans completed and verified (MIG-01 through MIG-04)
 - Phase 42: complete (Integration Verification and Recovery) — 6 plans completed and verified (PROOF-01 through PROOF-04)
 - Phase 41: complete (Minimal Compatibility Adapters) — 2 plans completed and verified (ADAPT-01 through ADAPT-04)
-- Phase 40 completion claim withdrawn on 2026-11-08: implementation plans 01–03 exist, but UAT is partial (7 pass / 1 issue / 1 blocked); G-40-9 and live-host verification remain open. Progress counters below are historical implementation metrics, not acceptance evidence.
+- Phase 40: complete (Local Official Release Updates) — 4 plans completed and verified (LOC-02, LOC-03)
 - Phase 39: complete (Tool Inventory and Local Release Records) — 5 plans completed and verified (LOC-01, LOC-04)
 - Phase 27: complete (Shared Project Behavior Policy) — 5 plans completed and verified (MODE-01 through MODE-05)
 - Phase 28: complete (Predictable Strict and Flexible Intake) — 6 plans completed and verified (28-01 through 28-06)
@@ -480,6 +477,5 @@ Resume file: .planning/phases/43-migration-and-consistent-guidance/43-CONTEXT.md
 
 ## Operator Next Steps
 
-- Phase 25 source repair and fixture verification are complete; see its VERIFICATION and final native test receipt.
-- Global installation/release and migration of the original dedicated runner remain separate authorized actions.
-- Oh-My-Circuit remains paused; this repair did not restart or modify it.
+
+- Start the next milestone with /gsd-new-milestone

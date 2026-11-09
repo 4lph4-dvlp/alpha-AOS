@@ -18,7 +18,18 @@ The system manages capability scope as well as installation: broadly useful, low
 
 A user can enter any supported project on any supported operating system and get the same intentional AI-agent workflow, capability boundaries, and safety guarantees without manually rebuilding each harness configuration.
 
-## Current Milestone: v0.8.0 Unified Tool Updates & Compatibility
+## Current State
+
+**Shipped Version:** v0.8.0 Unified Tool Updates & Compatibility (shipped: 2026-11-10)
+
+Users can install and explicitly update managed tools to their latest official releases directly from the local workstation. The common update lifecycle covers npm-managed components and Cua, validates Sigstore Fulcio certificates and Rekor SET cryptographic evidence, minimizes upstream transformations via explicit retireable adapters, enforces 4-tier candidate verification with adapter-native reverse recovery, and provides non-destructive migration (`alpha-aos migrate`) with `.user-backup` files and a 2-track update model.
+
+## Next Milestone Goals
+
+To plan and start the next milestone, run `/gsd-new-milestone`.
+
+<details>
+<summary>Archived Milestone: v0.8.0 Unified Tool Updates & Compatibility</summary>
 
 **Goal:** Users install and explicitly update managed tools to their latest official releases directly from the local workstation, through a common update lifecycle that minimizes upstream modifications and verifies actual integration before accepting an update.
 
@@ -30,16 +41,32 @@ A user can enter any supported project on any supported operating system and get
 - Judge compatibility through actual integration checks rather than blanket refusal of unseen versions; retain the existing working version when checks fail, and provide recovery for failures discovered after apply.
 - Report failures for the affected component/platform/harness combination, and keep compatibility fixes small enough for a patch release or local developer deployment. Updating alpha-AOS code remains separate from updating external tools; runtime AI rewriting is not part of the updater.
 
-**Planning status:** Owner selected latest official releases (1-A), installation/explicit-update triggers (2-A), approved the direction and selected research first on 2026-11-06. [Research](research/SUMMARY.md) is complete for milestone definition; all [16 detailed requirements](REQUIREMENTS.md) were approved on 2026-11-06. The [five-phase roadmap](ROADMAP.md), covering Phases 39-43 and all 16 requirements, was approved on 2026-11-06. Milestone initialization is complete; Phase 39 is next and has not started. This is planning authorization, not authorization to start an autopilot task, install tools, publish or deploy.
+**Completion status:** All 5 phases (39-43), 21 plans, and 16 requirements delivered and verified on 2026-11-10. See [v0.8.0-ROADMAP.md](milestones/v0.8.0-ROADMAP.md) and [v0.8.0-REQUIREMENTS.md](milestones/v0.8.0-REQUIREMENTS.md).
 
-**Outgoing work:** v0.7.0 documents and research are preserved in [the rollover record](milestones/v0.7.0-ROLLOVER.md). Phases 35-38 have implementation evidence, but final live acceptance remains unverified after provider quota exhaustion. Earlier v0.6.0 work remains preserved in [its rollover](milestones/v0.6.0-ROLLOVER.md). Archival does not close either milestone or change package/release versions.
+**Outgoing work:** v0.7.0 documents and research are preserved in [the rollover record](milestones/v0.7.0-ROLLOVER.md). Earlier v0.6.0 work remains preserved in [its rollover](milestones/v0.6.0-ROLLOVER.md).
+
+</details>
 
 ## Requirements
 
 ### Validated
 
 - ✓ Users can inspect installed versions, official sources and management ownership in one inventory (LOC-01) — Phase 39
+- ✓ Installation and explicit tool-update requests resolve latest official releases locally without remote lock promotion (LOC-02) — Phase 40
+- ✓ Before applying updates, users can review exact versions, affected targets, native side effects and recovery scope (LOC-03) — Phase 40
 - ✓ Users can inspect locally recorded exact versions, official sources, verified artifact integrity and applied results for each managed tool (LOC-04) — Phase 39
+- ✓ Users and maintainers can inspect each compatibility correction's rationale, applicability, verification method and removal condition (ADAPT-01) — Phase 41
+- ✓ Tool integration minimizes upstream file/content transformations and prefers official settings and public interfaces (ADAPT-02) — Phase 41
+- ✓ When separate alpha-AOS guidance replaces an upstream transformation, supported harnesses discover guidance and invoke intended routes (ADAPT-03) — Phase 41
+- ✓ Compatibility corrections resolved upstream are removed after selected release behavior is verified, retaining retirement reason and evidence (ADAPT-04) — Phase 41
+- ✓ Newly resolved versions are evaluated through actual integration checks rather than blanket version rejection (PROOF-01) — Phase 42
+- ✓ Users can distinguish installation, tool discovery, schema/protocol verification and successful real invocation (PROOF-02) — Phase 42
+- ✓ Failed pre-apply checks preserve existing working installations and report specific failures without silent downgrade (PROOF-03) — Phase 42
+- ✓ Failures after apply trigger tool-specific recovery and reconciliation, reporting unrecovered effects and actual state (PROOF-04) — Phase 42
+- ✓ Existing stable-lock and Cua-pin installations migrate to local management while preserving user changes and prior provenance (MIG-01) — Phase 43
+- ✓ Installation, native configuration, diagnostics, project isolation and recovery use the same selected local version record (MIG-02) — Phase 43
+- ✓ CLI and bilingual documentation distinguish external-tool updates from alpha-AOS code updates and document 2-track update model (MIG-03) — Phase 43
+- ✓ Users receive component/platform/harness-specific outcomes without misleading universal success or failure claims (MIG-04) — Phase 43
 - ✓ A TypeScript CLI inventories installed harnesses and produces deterministic, dry-run-first installation plans — existing
 - ✓ Stable, integrity-locked GSD Core, ECC runtime/skills, MCP servers, and the Pi MCP bridge can be installed and diagnosed — existing
 - ✓ GSD Core `standard` is installed for Claude Code, Codex, Antigravity, and Pi while Hermes remains a worker rather than a GSD state writer — existing
@@ -64,7 +91,6 @@ Historical keep-green requirement is superseded by the owner's 2026-11-05 person
 
 ### Active
 
-- [ ] Deliver v0.8.0 local latest-release updates and unified tool compatibility management as scoped above; all 16 requirements and the five-phase roadmap are approved; implementation has not started.
 - [ ] Complete live verification of the 16 v0.7.0 requirements through section 38 using native Codex; scoped validation is in docs/reports/autopilot-reliability-v070.md (no publication or global deployment)
 - [ ] Preserve unfinished v0.6.0 Phases 27-34 and recovery evidence without asserting completion; see milestones/v0.6.0-ROLLOVER.md
 - [ ] Preserve outgoing v0.2.0 verification evidence and unresolved release work; the planning rollover is not publication or a new full-suite pass

@@ -1,5 +1,25 @@
 # Milestones
 
+## v0.8.0 Unified Tool Updates & Compatibility (Shipped: 2026-11-10)
+
+**Phases completed:** 5 phases (39-43), 21 plans, 44 tasks
+
+**Closeout type:** clean_closeout
+
+**Milestone Stats:**
+- Timeline: 2026-11-06 → 2026-11-10 (4 days)
+- Git range: `e3a3559` → `db4e0af` (164 files modified/created, +30,607 / -492 LOC)
+- Requirements: 16/16 verified (LOC-01..04, ADAPT-01..04, PROOF-01..04, MIG-01..04)
+
+**Key accomplishments:**
+- **Phase 39 (Tool Inventory and Local Release Records)**: Established local Single Source of Truth (`tool-records/v1`) with path-proven event journals, read-only Cua inventory tracers, and safe append-only state store outside the repository checkout.
+- **Phase 40 (Local Official Release Updates)**: Built direct official release resolvers for npm and Cua without lock promotion, validating Sigstore Fulcio certificates and Rekor SET cryptographic evidence with strict platform/arch filtering.
+- **Phase 41 (Minimal Compatibility Adapters)**: Retired text regex transformations in favor of authoritative explicit adapters (`compatibility-adapters.ts`), public settings, and pure-fixture retirement verification.
+- **Phase 42 (Integration Verification and Recovery)**: Implemented 4-tier candidate verification, pre-activation barriers, atomic acceptance advancement, and adapter-native reverse recovery for safe rollback.
+- **Phase 43 (Migration and Consistent Guidance)**: Delivered non-destructive `alpha-aos migrate` pipeline with `.user-backup`, single source of truth migration across all CLI commands and doctors, bilingual migration documentation, and 2-track update model.
+
+---
+
 ## v0.1.1 CI Green & Dependency Promotion (Shipped: 2026-09-25)
 
 **Phases completed:** 4 phases (10-13), 16 plans, 35 tasks

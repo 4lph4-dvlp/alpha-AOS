@@ -27,6 +27,7 @@
 | `test/tool-bindings-ssot.test.ts` | test / unit | request-response / SSOT | `test/tool-bindings.test.ts` | exact |
 | `test/doctor-migration.test.ts` | test / integration | request-response / diagnostics | `test/tool-inventory-safety.test.ts` | role-match |
 | `test/matrix-format.test.ts` | test / unit | transform / presentation | `test/tool-inventory-cli.test.ts` | role-match |
+| `test/migrate-cli-guidance.test.ts` | test / unit | CLI routing / help check | `test/tool-inventory-cli.test.ts` | role-match |
 | `test/migrate-docs-consistency.test.ts` | test / unit | declarative / parity check | `test/task-entry-docs.test.ts` | exact |
 
 ---

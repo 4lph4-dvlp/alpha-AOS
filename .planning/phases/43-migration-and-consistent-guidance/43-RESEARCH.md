@@ -465,12 +465,13 @@ export function formatComponentHarnessMatrix(rows: ComponentHarnessMatrixRow[]):
 | A2 | `.user-backup` 파일 형식은 `<filename>.<timestamp>.user-backup` 형식을 사용 | Architecture Patterns | 파일명 규칙 변경 시 백업 진단 정규식만 수정하면 됨 (영향 낮음) |
 | A3 | `resolveAcceptedToolRecord`는 `acceptedToolResults`를 래핑하여 단일 활성 레코드를 반환함 | Architecture Patterns | 반환 인터페이스 변경 시 소비자 모듈 호출부 조정 필요 (영향 낮음) |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **레거시 설치에서 서명 체인 파일(`evidence.json`, `artifact.tgz`)이 완전히 없는 brownfield 머신의 입양 처리:**
    - What we know: `tool-handoff-loader.ts`는 `stateRoot/tool-handoff/<toolId>` 디렉터리의 서명 및 아티팩트를 요구한다. [VERIFIED: src/core/tool-handoff-loader.ts:73-85]
    - What's unclear: Phase 39 이전에 설치된 순수 레거시 머신에는 `tool-handoff` 폴더가 없을 수 있다.
    - Recommendation: `evaluateLegacyHandoff`에 `catalog/stack.lock.json`의 해시를 읽기 전용 시드 증거로 공급하여, 파일이 일치하면 `priorInstallationOwner: 'alpha-aos'`, `userModificationEvidence: 'unmodified'`로 인정하고 마이그레이션을 완결한다 (D-04, D-11 부합).
+   - RESOLVED: `evaluateLegacyHandoff` 및 `migrate` 파이프라인에서 `catalog/stack.lock.json`의 잠금 해시를 읽기 전용 시드 증거로 공급하여, 파일이 일치할 경우 `priorInstallationOwner: 'alpha-aos'` 및 `userModificationEvidence: 'unmodified'`로 인정하고 마이그레이션을 원자적으로 완결한다 (D-04, D-11 확정).
 
 ## Environment Availability
 

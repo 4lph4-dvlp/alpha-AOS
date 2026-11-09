@@ -30,9 +30,9 @@
     }
   ],
   "next": {
-    "command": "/gsd-execute-phase 43",
-    "label": "Execute Phase 43",
-    "reason": "Phase 43 planned · 4 plans ready for wave execution"
+    "command": "/gsd-progress --next",
+    "label": "Advance to the next step",
+    "reason": "Phase 5 of 5 · 80% · executing"
   },
-  "updated_at": "2026-11-09T02:05:00.000Z"
+  "updated_at": "2026-11-09T02:14:29.031Z"
 }

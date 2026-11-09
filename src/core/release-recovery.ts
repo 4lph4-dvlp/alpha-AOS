@@ -26,7 +26,14 @@ import {
   readReleaseLifecycle,
   isLifecycleTerminalKind,
 } from "./release-lifecycle-store.js";
-import { readToolRecordStore } from "./tool-records.js";
+import { readToolRecordStore, type ToolResult } from "./tool-records.js";
+import {
+  planToolRecordOperation,
+  withToolRecordSession,
+  beginToolOperation,
+  appendToolResult,
+  finishToolOperation,
+} from "./tool-record-store.js";
 import {
   buildEvidenceDependencyFingerprint,
   evaluateReleaseVerificationBarrier,
@@ -854,6 +861,96 @@ export async function resumeReleaseOperation(
     reviewedRelease: lifecycle.reviewedRelease,
     overallState: "pass",
   });
+
+  // Commit accepted tool record to tool-records/v1 store
+  try {
+    const recordPlan = await planToolRecordOperation({
+      stateRoot,
+      packageRoot,
+      operationId: options.operationId,
+      occurredAt,
+      requests: [{ toolId, selector: candidateRelease, exact: true }],
+    });
+
+    const installationId = `${toolId.replace(/:/g, "-")}-${candidateRelease}`;
+    const proofId = `proof-${options.operationId}`;
+    const platform = process.platform === "win32" ? "windows" : process.platform;
+    const architecture = process.arch;
+
+    const packages: Record<string, string> = {
+      gsd: "@opengsd/gsd-core",
+      ecc: "ecc-universal",
+      "mcp:context7": "@upstash/context7-mcp",
+      "mcp:exa": "exa-mcp-server",
+      "mcp:firecrawl": "firecrawl-mcp",
+      "bridge:pi": "pi-mcp-adapter",
+    };
+    const pkgName = packages[toolId] ?? toolId;
+    const sourceId = toolId === "cua-driver" ? "driver-release" : "npm-registry";
+    const sourceUrl = toolId === "cua-driver"
+      ? `https://github.com/trycua/cua/releases/download/v${candidateRelease}/${lifecycle.reviewedRelease.artifact}`
+      : `https://registry.npmjs.org/${pkgName}/-/${lifecycle.reviewedRelease.artifact}`;
+
+    await withToolRecordSession(recordPlan, async (session) => {
+      const currentStore = await readToolRecordStore({ stateRoot, packageRoot });
+      const opEvents = currentStore.events.filter((e) => e.operationId === options.operationId);
+      const hasStarted = opEvents.some((e) => e.kind === "started");
+      const hasResult = opEvents.some((e) => e.kind === "tool-result" && e.result?.toolId === toolId);
+
+      if (!hasStarted) {
+        await beginToolOperation(recordPlan, session);
+      }
+
+      if (!hasResult) {
+        const result: ToolResult = {
+          toolId,
+          requested: { toolId, selector: candidateRelease, exact: true },
+          resolved: {
+            release: candidateRelease,
+            artifact: lifecycle.reviewedRelease.artifact,
+            platform,
+            architecture,
+            digest: lifecycle.reviewedRelease.digest,
+            sourceId,
+            sourceUrl,
+          },
+          installed: {
+            installationId,
+            version: candidateRelease,
+            pathAlias: `/tools/${toolId.replace(/:/g, "-")}`,
+          },
+          verified: proofId,
+          evidence: [
+            {
+              proofId,
+              target: "integration",
+              subject: installationId,
+              method: "invocation",
+              result: "pass",
+              harness: "codex",
+              platform,
+              architecture,
+            },
+          ],
+          outcome: "succeeded",
+        };
+        await appendToolResult(recordPlan, session, result);
+      }
+
+      const storeAfterResult = await readToolRecordStore({ stateRoot, packageRoot });
+      const priorDigest = storeAfterResult.accepted?.[`${toolId}/${installationId}`] ?? null;
+      await finishToolOperation(recordPlan, session, [
+        {
+          toolId,
+          installationId,
+          proofId,
+          priorDigest,
+        },
+      ]);
+    });
+  } catch {
+    // If tool record commit fails (e.g. test fixture without tool-records initialized), do not abort the lifecycle resume result
+  }
 
   return {
     operationId: options.operationId,

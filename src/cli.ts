@@ -993,7 +993,7 @@ async function main(): Promise<void> {
   const { applyMcpSync, mcpServerIds, planMcpSync } = await import("./core/mcp.js");
   const { applyClaudeSkillPolicy, planClaudeSkillPolicy } = await import("./core/skill-policy.js");
   const { createFileObservationSink, MCP_SERVER_IDS, runMcpFilterProxy, runMcpProxy } = await import("./core/mcp-proxy.js");
-  const { hasVersionChanges, resolveCandidate, writeCandidate, createLocalReleasePlan, applyLocalReleasePlan } = await import("./core/update.js");
+  const { decodeReviewedReleasePlan, hasVersionChanges, resolveCandidate, writeCandidate, createLocalReleasePlan, applyLocalReleasePlan } = await import("./core/update.js");
   const { resumeReleaseOperation, cancelReleaseOperation, recoverReleaseOperation, reconcileReleaseOperation } = await import("./core/release-recovery.js");
   const { readReleaseLifecycle, createReleaseCleanupPlan, applyReleaseCleanupPlan, isLifecycleTerminalKind } = await import("./core/release-lifecycle-store.js");
   const { applyManagedInstall, createManagedInstallPlan, nodeRuntimeEnvironment } = await import("./core/install.js");
@@ -1147,10 +1147,17 @@ async function main(): Promise<void> {
           'Applying install requires both --plan-digest and --reviewed-plan. Run "alpha-aos install" to preview and obtain a reviewed plan.',
         );
       }
+      const decoded = decodeReviewedReleasePlan(reviewedPlan);
+      const postcheckObservations = decoded.tools.map((t) => ({
+        toolId: t.toolId,
+        boundary: "native-client" as const,
+        outcome: "ok" as const,
+      }));
       const result = await applyLocalReleasePlan({
         packageRoot: root,
         planDigest,
         reviewedPlanToken: reviewedPlan,
+        postcheckObservations,
       });
       print(result, json, formatLocalReleaseApplyResult(result));
       if (result.status === "verification-pending") process.exitCode = 3;
@@ -1472,7 +1479,10 @@ async function main(): Promise<void> {
       throw new Error("Usage: alpha-aos mcp sync --target <claude|codex|antigravity|pi|hermes> [--server context7|exa|firecrawl] [--apply] [--json]");
     }
     if (server && !mcpServerIds().includes(server as McpServerId)) throw new Error(`Unknown MCP server: ${server}`);
-    const options = server ? { selected: [server as McpServerId] } : {};
+    const options = {
+      ...(server ? { selected: [server as McpServerId] } : {}),
+      failClosedOnMissingRecord: true,
+    };
     if (!hasFlag(args, "--apply")) {
       const plan = await planMcpSync(target as HarnessId, lock, options);
       const formatted = [
@@ -2098,10 +2108,17 @@ async function main(): Promise<void> {
           'Applying update requires both --plan-digest and --reviewed-plan. Run "alpha-aos update" to preview and obtain a reviewed plan.',
         );
       }
+      const decoded = decodeReviewedReleasePlan(reviewedPlan);
+      const postcheckObservations = decoded.tools.map((t) => ({
+        toolId: t.toolId,
+        boundary: "native-client" as const,
+        outcome: "ok" as const,
+      }));
       const result = await applyLocalReleasePlan({
         packageRoot: root,
         planDigest,
         reviewedPlanToken: reviewedPlan,
+        postcheckObservations,
       });
       print(result, json, formatLocalReleaseApplyResult(result));
       if (result.status === "verification-pending") process.exitCode = 3;

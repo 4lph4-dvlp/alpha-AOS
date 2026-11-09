@@ -128,23 +128,23 @@
         "upstreamWorkflow": "gsd-core/workflows/ship.md"
       },
       "alpha-aos-control": {
-        "sourceSha256": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
+        "sourceSha256": "d40eea97d102fbb321295546f50750f07874484653bfe86cdfc5c14fddc67554",
         "targetSha256": {
-          "claude": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
-          "codex": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
-          "antigravity": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
-          "pi": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84",
-          "hermes": "a66debb56c9ffd5b68e22451a0b88ae8485b97787f512d61a9a4e80aef2ddd84"
+          "claude": "d40eea97d102fbb321295546f50750f07874484653bfe86cdfc5c14fddc67554",
+          "codex": "d40eea97d102fbb321295546f50750f07874484653bfe86cdfc5c14fddc67554",
+          "antigravity": "d40eea97d102fbb321295546f50750f07874484653bfe86cdfc5c14fddc67554",
+          "pi": "d40eea97d102fbb321295546f50750f07874484653bfe86cdfc5c14fddc67554",
+          "hermes": "d40eea97d102fbb321295546f50750f07874484653bfe86cdfc5c14fddc67554"
         }
       },
       "alpha-aos-task": {
-        "sourceSha256": "941ea11baea335842cfc50cd64535ebdfba5bb8940a003a63423aa0d3fd24006",
+        "sourceSha256": "608eac131df2fb47bcc9c50a6d9f9962ac5d5d39b1f911551aef625b4c305ae7",
         "targetSha256": {
-          "claude": "941ea11baea335842cfc50cd64535ebdfba5bb8940a003a63423aa0d3fd24006",
-          "codex": "941ea11baea335842cfc50cd64535ebdfba5bb8940a003a63423aa0d3fd24006",
-          "antigravity": "941ea11baea335842cfc50cd64535ebdfba5bb8940a003a63423aa0d3fd24006",
-          "pi": "941ea11baea335842cfc50cd64535ebdfba5bb8940a003a63423aa0d3fd24006",
-          "hermes": "941ea11baea335842cfc50cd64535ebdfba5bb8940a003a63423aa0d3fd24006"
+          "claude": "608eac131df2fb47bcc9c50a6d9f9962ac5d5d39b1f911551aef625b4c305ae7",
+          "codex": "608eac131df2fb47bcc9c50a6d9f9962ac5d5d39b1f911551aef625b4c305ae7",
+          "antigravity": "608eac131df2fb47bcc9c50a6d9f9962ac5d5d39b1f911551aef625b4c305ae7",
+          "pi": "608eac131df2fb47bcc9c50a6d9f9962ac5d5d39b1f911551aef625b4c305ae7",
+          "hermes": "608eac131df2fb47bcc9c50a6d9f9962ac5d5d39b1f911551aef625b4c305ae7"
         }
       },
       "cli-anything": {

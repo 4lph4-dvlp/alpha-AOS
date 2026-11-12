@@ -375,7 +375,9 @@ sh ./scripts/update.sh --apply
 
 ### 2. 2-트랙 업데이트 모델
 
-alpha-AOS v0.8.0은 외부 관리 도구 릴리스 업데이트와 제어 평면 엔진 배포를 엄격히 분리합니다:
+0.8.1은 다섯 에이전트에 상시 작업 진입 지침을 설치합니다. 기존 환경은 `alpha-aos entry-policy sync --target all --json`으로 미리 보고, 반환된 digest로 적용한 뒤 에이전트를 다시 시작하세요. `doctor`가 누락을 진단합니다. [설치 위치와 복구 절차](docs/task-entry-installation.md)를 참고하세요. 설정 검증은 모델의 지침 준수를 보장하지 않습니다.
+
+alpha-AOS v0.8.1은 외부 관리 도구 릴리스 업데이트와 제어 평면 엔진 배포를 엄격히 분리합니다:
 
 - **트랙 1: 외부 관리 도구 업데이트 (`alpha-aos update` 및 `alpha-aos migrate`)**:
   - `alpha-aos update`: Cua 드라이버, GSD Core, ECC Universal, MCP 서버 등 외부 관리 도구 릴리스를 점검하고 적용합니다. alpha-AOS 자체 코드는 수정하지 않습니다.

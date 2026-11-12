@@ -130,12 +130,16 @@ test("the managed install operation plan enumerates every fixture and component 
   // Every managed component apply is named, with its own complete plan.
   assert.ok(plan.components.gsdCompatibility, "Codex targets plan the GSD hook compatibility sync");
   assert.ok(plan.components.codexPolicy, "Codex targets plan the owned execution guidance");
+  assert.equal(plan.components.entryPolicies.length, 1);
+  assert.equal(plan.components.entryPolicies[0]?.harness, "codex");
+  assert.ok(plan.install.steps.some((step) => step.id === "policy:task-entry:codex"));
   assert.equal(plan.components.codexPolicy.action, "create");
   assert.ok(plan.install.steps.some((step) => step.id === "policy:codex-execution"));
   assert.equal(plan.components.eccSkills.length, 1);
   assert.equal(plan.components.mcp.length, 1);
   assert.equal(plan.components.policy, null, "Claude is not a target, so no policy write is planned");
-  assert.equal(plan.components.ownedSkills.length, 4);
+  assert.equal(plan.components.ownedSkills.length, 5);
+  assert.ok(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-research-routing"));
   assert.ok(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "computer-use"));
   assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-control"), true);
   assert.equal(plan.components.ownedSkills.some((s) => s.target === "codex" && s.sync.id === "alpha-aos-task"), true);

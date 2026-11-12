@@ -10,6 +10,7 @@ import { globalClaudeSettingsPath } from "./skill-policy.js";
 import { ROUTING_CONTRACT_MISMATCH } from "./mcp-proxy.js";
 import { placeholder } from "./redaction.js";
 import { destinationFor, renderOwnedSkill } from "./owned-skills.js";
+import { planEntryPolicy } from "./entry-policy.js";
 import { packageRoot, userStateRoot } from "./paths.js";
 import { globalMcpConfigPath, nativeConfigFormat } from "./mcp.js";
 import { parseNativeConfiguration } from "./tool-observers.js";
@@ -179,7 +180,9 @@ export async function runDoctor(
               }
             } catch (error) {
               const code = (error as NodeJS.ErrnoException).code;
-              if (code !== "ENOENT") {
+              if (code === "ENOENT") {
+                findings.push({ level: "warning", code: `policy.owned-skill.${skill}.${harness.id}`, message: `${skill} is missing for ${harness.displayName}; run owned-skills sync ${skill} --target ${harness.id}` });
+              } else {
                 findings.push({
                   level: "warning",
                   code: `policy.owned-skill.${skill}.${harness.id}`,
@@ -201,13 +204,25 @@ export async function runDoctor(
   for (const harness of inventory.harnesses) {
     if (harness.detected) {
       findings.push({ level: "ok", code: `harness.${harness.id}`, message: `${harness.displayName} detected` });
+      try {
+        const entry = await planEntryPolicy({ harness: harness.id, root });
+        findings.push({
+          level: entry.action === "current" ? "ok" : "warning",
+          code: `policy.task-entry.${harness.id}`,
+          message: entry.action === "current"
+            ? `${harness.displayName} task-entry configuration is current; native session loading and model compliance are not verified`
+            : `${harness.displayName} task-entry guidance is missing or stale; run entry-policy sync --target ${harness.id}`,
+        });
+      } catch {
+        findings.push({ level: "warning", code: `policy.task-entry.${harness.id}`, message: `${harness.displayName} task-entry configuration could not be inspected; review native overrides, ownership markers and file boundaries before entry-policy sync --target ${harness.id}` });
+      }
     } else {
       findings.push({ level: "warning", code: `harness.${harness.id}`, message: `${harness.displayName} not detected on this machine` });
     }
   }
 
   const codexHook = join(codexConfigRoot(), "hooks", "gsd-context-monitor.js");
-  if (existsSync(codexHook)) {
+  if (inventory.harnesses.some((harness) => harness.id === "codex" && harness.detected) && existsSync(codexHook)) {
     const smoke = await smokeTestCodexGsdStopHook();
     findings.push(smoke.ok
       ? { level: "ok", code: "gsd.codex-stop-hook", message: "Codex GSD Stop hook exits silently with valid protocol behavior" }

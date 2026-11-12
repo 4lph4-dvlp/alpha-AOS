@@ -203,7 +203,7 @@ test("stable-lock reconciliation against already-applied stack is idempotent and
       stateRoot: fixture.stateRoot,
       targets: ["codex"],
       fixtures: { gsd: [], eccRuntime: null, eccSkills: [], mcpBridge: null, mcpCanary: [] },
-      components: { gsdCompatibility: null, codexPolicy: null, ownedSkills: [], eccSkills: [], mcp: [], policy: null },
+      components: { gsdCompatibility: null, codexPolicy: null, entryPolicies: [], ownedSkills: [], eccSkills: [], mcp: [], policy: null },
       external: [],
       fixtureRoots: {},
       environmentNames: [],
@@ -249,7 +249,7 @@ test("idempotent repetition produces identical results without accumulating jour
     stateRoot: fixture.stateRoot,
     targets: ["codex"] as const,
     fixtures: { gsd: [], eccRuntime: null, eccSkills: [], mcpBridge: null, mcpCanary: [] },
-    components: { gsdCompatibility: null, codexPolicy: null, ownedSkills: [], eccSkills: [], mcp: [], policy: null },
+    components: { gsdCompatibility: null, codexPolicy: null, entryPolicies: [], ownedSkills: [], eccSkills: [], mcp: [], policy: null },
     external: [],
     fixtureRoots: {},
     environmentNames: [],
@@ -406,6 +406,7 @@ test("MCP plan proofs are re-established after an external installer rewrites th
     lock,
     inventory: createInventory(["codex", "claude"]),
     requestedTargets: ["codex", "claude"],
+    selectedTools: ["gsd", "ecc", "mcp:context7", "mcp:exa", "mcp:firecrawl"],
     stateRoot,
   };
 

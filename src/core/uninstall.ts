@@ -18,6 +18,7 @@ import { globalMcpConfigPath, stripManagedToml } from "./mcp.js";
 import { userStateRoot } from "./paths.js";
 import { createRecoveryReceipt, writeRecoveryReceipt } from "./recovery-receipt.js";
 import { globalClaudeSettingsPath } from "./skill-policy.js";
+import { entryPolicyPath, entryPolicyRoot, stripEntryPolicy } from "./entry-policy.js";
 import { applyFileTransaction, sweepReverseDirectories, type FileWriteOperation } from "./transaction.js";
 
 export class SemanticPruneDriftError extends Error {
@@ -69,6 +70,11 @@ export function pruneCodexAgentsMarkdown(content: string): string {
   }
   const remainder = `${content.slice(0, start)}${content.slice(end + CODEX_END_MARKER.length)}`.trim();
   return remainder ? `${remainder}\n` : "";
+}
+
+function pruneManagedInstructions(content: string): string {
+  const pruned = pruneCodexAgentsMarkdown(stripEntryPolicy(content));
+  return pruned.trim() ? pruned : "";
 }
 
 export function pruneClaudeConfig(
@@ -374,19 +380,18 @@ export async function planUninstall(options: UninstallPlanOptions): Promise<Unin
       }
     }
 
-    if (harness === "codex") {
-      const codexHome = env.CODEX_HOME?.trim() || join(home, ".codex");
-      const agentsPath = join(codexHome, "AGENTS.md");
+    if (harness !== "hermes") {
+      const agentsPath = entryPolicyPath(harness, entryPolicyRoot(harness, env, home));
       if (existsSync(agentsPath)) {
         const content = await readFile(agentsPath, "utf8");
-        const pruned = pruneCodexAgentsMarkdown(content);
+        const pruned = pruneManagedInstructions(content);
         if (pruned !== content) {
           prunePlans.push({
             path: agentsPath,
             format: "markdown",
             existedBefore: true,
             userKeysPreserved: pruned.trim() ? ["user-agents-instructions"] : [],
-            injectedKeysRemoved: ["alpha-AOS:codex-execution"],
+            injectedKeysRemoved: ["alpha-AOS:task-entry", ...(harness === "codex" ? ["alpha-AOS:codex-execution"] : [])],
             action: pruned.trim() ? "prune" : "delete",
             currentHash: sha256(content),
             expectedAfterHash: pruned.trim() ? sha256(pruned) : null,
@@ -514,7 +519,7 @@ export async function applyUninstall(options: {
       const content = await readFile(prunePlan.path, "utf8");
       let pruned = content;
       if (prunePlan.format === "toml") pruned = pruneCodexConfig(content);
-      else if (prunePlan.format === "markdown") pruned = pruneCodexAgentsMarkdown(content);
+      else if (prunePlan.format === "markdown") pruned = pruneManagedInstructions(content);
       else if (prunePlan.format === "yaml") pruned = pruneHermesConfig(content);
       else if (prunePlan.format === "json") {
         if (prunePlan.path.endsWith("settings.json")) pruned = pruneClaudeSettings(content);

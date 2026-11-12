@@ -2,7 +2,7 @@
 
 [English](./task-entry.md) | [한국어](./task-entry.ko.md)
 
-Tell your agent what you want to accomplish. The shared project policy determines how it asks about execution; GSD owns planning, execution state and verification. This guide describes the **0.6.0** source workflow. GitHub publication requires exact-commit three-OS CI and final verification.
+Tell your agent what you want to accomplish. The shared project policy determines how it asks about execution; GSD owns planning, execution state and verification. **0.8.1** installs persistent entry guidance for all five hosts, repairs it with `entry-policy sync`, and diagnoses missing guidance with `doctor`. See [installation and upgrade recovery](task-entry-installation.md). Current delivery targets a personal workstation; full tests and three-OS CI are optional manual checks.
 
 ## 1. Shared Project Modes (`strict` vs `flexible`)
 

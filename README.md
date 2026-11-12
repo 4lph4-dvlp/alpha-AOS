@@ -360,6 +360,8 @@ For the complete 35-cell role & capability support evaluation and verified hando
 
 ## Updating
 
+Version 0.8.1 installs persistent task-entry guidance for all five hosts. Existing installations can preview and repair it with `alpha-aos entry-policy sync --target all --json`; apply the returned digest and restart the hosts. See [native locations and upgrade recovery](docs/task-entry-installation.md). Configuration checks do not establish model compliance.
+
 The updater ensures your system stays on verified, immutable releases:
 
 ### 1. Repository & Global CLI Update (One-Click Bootstrap)
@@ -378,7 +380,7 @@ sh ./scripts/update.sh --apply
 
 ### 2. The 2-Track Update Model
 
-alpha-AOS v0.8.0 strictly separates external managed tool updates from control-plane engine deployment:
+alpha-AOS v0.8.1 strictly separates external managed tool updates from control-plane engine deployment:
 
 - **Track 1: External Managed Tools (`alpha-aos update` & `alpha-aos migrate`)**:
   - `alpha-aos update`: Checks for and applies updates to external managed tools (Cua driver, GSD core, ECC universal, Context7, Exa, Firecrawl). Does not modify the alpha-AOS control plane code.

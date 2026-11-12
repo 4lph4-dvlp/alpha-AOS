@@ -1,9 +1,15 @@
 ---
 name: alpha-aos-task
-description: "Natural-language task entry and autonomous workflow coordinator for alpha-AOS. Automatically triggers on natural task requests, new task intents, or requests for autonomous autopilot execution. Guides the user between ordinary conversational GSD (default) and explicitly requested autonomous autopilot, generates read-only task contract previews, explains exact digest approval and separate start commands, and coordinates task status tracking across Claude Code, Codex, Antigravity, Pi Agent, and Hermes Agent."
+description: "Start new alpha-AOS tasks here before implementation. Inspect project policy and task intake; present six work styles when required. Preserve explicit commands, project opt-outs, and exact autopilot approval/start boundaries."
 ---
 
 # alpha-AOS Natural Task Entry & Autonomous Workflow Coordinator
+
+## Entry Boundary
+
+Honor explicit project/owner opt-outs before this workflow. If a project excludes alpha-AOS, use its native workflow without requiring GSD, intake or task contracts. Otherwise check `alpha-aos tree status . --json` and respect an effective off policy before task intake. An automatic skill load does not override those choices.
+
+Use the actual skill body and shared CLI decisions even when the host lists only skill names. Never invent styles or ask the user to explain an installed skill. Preserve the original user objective, confirmed style and unfinished work after compaction; summary-writing instructions are not replacement user requests. Use exact native tool names and shell-specific paths, and verify the intended artifacts before reporting completion.
 
 ## Objective
 

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { installCua, planCuaInstall, type ReviewedCuaReleasePin } from "./computer-use-install.js";
 import { applyCodexPolicy, planCodexPolicy, type CodexPolicyOperationPlan } from "./codex-policy.js";
+import { applyEntryPolicy, planEntryPolicy, type EntryPolicyOperationPlan } from "./entry-policy.js";
 import { readFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -38,8 +39,10 @@ import { proveOperationPaths, type OperationPathInput, type OperationPathProofSe
 import type { MutationSession } from "./writer-lock.js";
 import {
   assertPlanUnchanged,
+  assertUnchangedSincePlan,
   declaredEnvironmentNames,
   declaredProcessSpec,
+  plannedProof,
   reviewedDigest,
   withComponentSession,
 } from "./component-session.js";
@@ -420,6 +423,10 @@ export async function createManagedInstallPlan(options: ManagedInstallOptions): 
   if (!gsd || !ecc) throw new Error("Stable lock is missing GSD or ECC");
 
   if (wantsGsd) {
+    for (const target of selection.targets) {
+      const plan = await planEntryPolicy({ harness: target, root: options.root, ...installStateOptions(options) });
+      steps.push({ id: `policy:task-entry:${target}`, component: "task-entry-policy", target, action: plan.action, external: false, note: plan.target });
+    }
     for (const target of selection.targets.filter((value): value is GsdFixtureHarness => gsdHarnesses.includes(value as GsdFixtureHarness))) {
       const state = await inspectGsdInstall(target, options.lock);
       steps.push({
@@ -593,6 +600,7 @@ export interface ManagedInstallOperationPlan {
   components: {
     gsdCompatibility: GsdCompatibilityOperationPlan | null;
     codexPolicy: CodexPolicyOperationPlan | null;
+    entryPolicies: readonly EntryPolicyOperationPlan[];
     ownedSkills: readonly OwnedSkillOperationPlan[];
     eccSkills: readonly EccSkillOperationPlan[];
     mcp: readonly McpOperationPlan[];
@@ -700,6 +708,12 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
     : null;
 
   const ownedSkills: OwnedSkillOperationPlan[] = [];
+  const entryPolicies: EntryPolicyOperationPlan[] = [];
+  for (const target of install.targets) {
+    if (install.steps.some((step) => step.id === `policy:task-entry:${target}`)) {
+      entryPolicies.push(await planEntryPolicy({ harness: target, root: options.root, ...installStateOptions(options) }));
+    }
+  }
   const codexPolicy = install.targets.includes("codex")
     ? await planCodexPolicy({ root: options.root, ...installStateOptions(options) })
     : null;
@@ -789,6 +803,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
     components: {
       gsdCompatibility: gsdCompatibility?.digest ?? null,
       codexPolicy: codexPolicy?.digest ?? null,
+      entryPolicies: entryPolicies.map((plan) => plan.digest),
       ownedSkills: ownedSkills.map((plan) => plan.digest),
       eccSkills: eccSkills.map((plan) => plan.digest),
       mcp: mcp.map((plan) => plan.digest),
@@ -812,7 +827,7 @@ export async function createManagedInstallOperationPlan(options: ManagedInstallO
       mcpBridge: mcpBridgeFixture,
       mcpCanary,
     },
-    components: { gsdCompatibility, codexPolicy, ownedSkills, eccSkills, mcp, policy },
+    components: { gsdCompatibility, codexPolicy, entryPolicies, ownedSkills, eccSkills, mcp, policy },
     external,
     fixtureRoots,
     environmentNames,
@@ -1007,6 +1022,14 @@ export async function applyManagedInstall(options: ManagedInstallApplyOptions): 
     if (freshPolicy && plan.steps.some((step) => step.id === "policy:claude-ecc")) {
       const result = await applyClaudeSkillPolicy({ plan: freshPolicy, session });
       remember("policy:claude-ecc", result.operationId, dirname(globalClaudeSettingsPath()));
+    }
+    // Codex guidance and Hermes MCP sync share these native files. Merge the
+    // entry block after their authorized writes, preserving their new bytes.
+    for (const component of reviewed.components.entryPolicies) {
+      await assertUnchangedSincePlan(component, plannedProof(component, "source", component.source));
+      const fresh = await planEntryPolicy(component);
+      const result = await applyEntryPolicy({ ...component, plan: fresh, session });
+      remember(`policy:task-entry:${component.harness}`, result.operationId, component.configRoot);
     }
 
     return { plan: await createManagedInstallPlan(options), applied, current, operationIds, externalChanges };

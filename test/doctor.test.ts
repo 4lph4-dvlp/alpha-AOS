@@ -10,6 +10,21 @@ import { runDoctor } from "../src/core/doctor.js";
 import { packageRoot } from "../src/core/paths.js";
 import type { Inventory, StackLock } from "../src/types.js";
 
+test.beforeEach(async (context) => {
+  assert.ok("after" in context);
+  const sandbox = await mkdtemp(join(tmpdir(), "alpha-aos-doctor-hosts-"));
+  const variables = ["CLAUDE_CONFIG_DIR", "CODEX_HOME", "ANTIGRAVITY_CONFIG_DIR", "PI_CODING_AGENT_DIR", "HERMES_HOME", "ALPHA_AOS_STATE_DIR"];
+  const saved = variables.map((name) => [name, process.env[name]] as const);
+  for (const name of variables) process.env[name] = join(sandbox, name.toLowerCase());
+  context.after(async () => {
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    await rm(sandbox, { recursive: true, force: true });
+  });
+});
+
 function createInventory(): Inventory {
   return {
     schemaVersion: 1,
@@ -38,6 +53,7 @@ async function createDoctorPackageFixture(context: test.TestContext): Promise<{ 
   await cp(join(realRoot, "catalog"), join(root, "catalog"), { recursive: true });
   await cp(join(realRoot, "skills"), join(root, "skills"), { recursive: true });
   await cp(join(realRoot, "schemas"), join(root, "schemas"), { recursive: true });
+  await cp(join(realRoot, "docs"), join(root, "docs"), { recursive: true });
   return { root };
 }
 

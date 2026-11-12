@@ -4,6 +4,13 @@ All notable changes to alpha-AOS are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-12
+
+- Install and reconcile persistent task-entry guidance for Claude Code, Codex, Antigravity (agy), Pi, and Hermes independently of skill listing descriptions. Respect owner opt-outs, strict/flexible intake, six canonical styles and existing approval boundaries.
+- Add `entry-policy sync --target <harness|all>` with read-only previews, exact-digest apply, drift checks, transactional snapshots, rollback and preservation of user instructions. Use native Hermes skill auto-loading without replacing SOUL.md or depending on MCP installation.
+- Diagnose missing/stale task-entry guidance, native instruction overrides and missing deployed owned skills. Configuration checks explicitly do not claim native session loading or model compliance.
+- Remove managed instruction blocks during uninstall while preserving user content. Shorten the task skill discovery description and document native instruction locations and upgrade recovery.
+
 ## [0.8.0] - 2026-11-10
 
 - **Unified Local Tool Updates (`alpha-aos update`)**: Transitioned external-tool release resolution from remote repository lock promotion to the local workstation lifecycle. Directly resolves latest official npm and Cua releases without requiring alpha-AOS repository write permissions.

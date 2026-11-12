@@ -20,7 +20,9 @@ const styles = [
 test("task entry guides and README keep bilingual section, style and scenario parity", async () => {
   for (const path of [...guides, ...readmes]) {
     const text = await readFile(join(root, path), "utf8");
-    assert.equal([...text.matchAll(/^## /gmu)].length, guides.includes(path) ? 8 : 10, path);
+    const sectionCount = [...text.matchAll(/^## /gmu)].length;
+    if (guides.includes(path)) assert.equal(sectionCount, 8, path);
+    else assert.ok(sectionCount >= 10, path);
     assert.equal([...text.matchAll(/^\s*```/gmu)].length % 2, 0, `unbalanced fence: ${path}`);
     let previous = -1;
     for (const [label, id] of styles) {
@@ -40,6 +42,8 @@ test("task entry guides and README keep bilingual section, style and scenario pa
       assert.ok(text.includes("alpha-aos-task"));
     }
   }
+  const readmeSections = await Promise.all(readmes.map(async (path) => [...(await readFile(join(root, path), "utf8")).matchAll(/^## /gmu)].length));
+  assert.equal(readmeSections[0], readmeSections[1], "README section parity");
 });
 
 test("task entry documents link to existing files and contain no private host paths", async () => {
@@ -58,12 +62,19 @@ test("task entry documents link to existing files and contain no private host pa
   }
 });
 
-test("task entry package contract requires 14 artifacts, preserves matrix and version", async () => {
+test("task entry package contract preserves historical artifacts, matrix and release-version consistency", async () => {
   const url = pathToFileURL(join(root, "scripts/audit-tarball.mjs")).href;
   const audit = await import(url) as { REQUIRED_V060_ENTRIES: string[] };
   assert.equal(audit.REQUIRED_V060_ENTRIES.length, 14);
   for (const path of audit.REQUIRED_V060_ENTRIES) assert.ok(existsSync(join(root, path)), path);
-  assert.equal(JSON.parse(await readFile(join(root, "package.json"), "utf8")).version, "0.6.0");
+  const version = JSON.parse(await readFile(join(root, "package.json"), "utf8")).version;
+  const packageLock = JSON.parse(await readFile(join(root, "package-lock.json"), "utf8"));
+  assert.match(version, /^\d+\.\d+\.\d+$/u);
+  assert.equal(packageLock.version, version);
+  assert.equal(packageLock.packages[""].version, version);
+  for (const path of guides) assert.ok((await readFile(join(root, path), "utf8")).includes(version));
+  assert.ok(existsSync(join(root, "docs/task-entry-policy.md")));
+  assert.ok(existsSync(join(root, "docs/task-entry-installation.md")));
   const diff = spawnSync("git", ["diff", "--", "docs/SUPPORT_MATRIX.md"], { cwd: root, encoding: "utf8", windowsHide: true });
   assert.equal(diff.status, 0);
   assert.equal(diff.stdout, "");

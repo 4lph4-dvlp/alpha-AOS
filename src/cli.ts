@@ -60,6 +60,7 @@ Usage:
   alpha-aos ecc-skills sync --target <harness> [--apply] [--json]
   alpha-aos skill-policy sync --target claude [--apply] [--json]
   alpha-aos codex-policy sync [--apply] [--json]
+  alpha-aos entry-policy sync --target <harness|all> [--apply --plan-digest <digest>] [--json]
   alpha-aos gsd-context <execute-phase|execute-plan|quick> [--step <name> | --from <line> --lines <count>] [--json]
   alpha-aos mcp sync --target <harness> [--server context7|exa|firecrawl] [--apply] [--json]
   alpha-aos update [--tool <id[,id]>] [--target <harness[,harness]>] [--check] [--apply --plan-digest <digest> --reviewed-plan <token>] [--json]
@@ -1425,6 +1426,45 @@ async function main(): Promise<void> {
       ...(lines === null ? {} : { lines: Number(lines) }),
     });
     print(result, true, "");
+    return;
+  }
+
+  if (command === "entry-policy") {
+    if (args[1] !== "sync") throw new Error("Usage: alpha-aos entry-policy sync --target <harness|all> [--apply --plan-digest <digest>] [--json]");
+    const parsed = parseClosedFlags(args.slice(2), { valueFlags: ["--target", "--plan-digest"], booleanFlags: ["--apply", "--json"] });
+    if (parsed.operands.length) throw new Error("entry-policy sync does not accept positional operands");
+    const target = parsed.options.get("--target");
+    const targets: HarnessId[] = ["claude", "codex", "antigravity", "pi", "hermes"];
+    if (target !== "all" && !targets.includes(target as HarnessId)) throw new Error("entry-policy sync requires --target claude|codex|antigravity|pi|hermes|all");
+    const { planEntryPolicy, applyEntryPolicy } = await import("./core/entry-policy.js");
+    const { reviewedDigest } = await import("./core/component-session.js");
+    const { rollbackFileTransaction } = await import("./core/transaction.js");
+    const plans = await Promise.all((target === "all" ? targets : [target as HarnessId]).map((harness) => planEntryPolicy({ harness, root })));
+    const digest = reviewedDigest("task-entry-policy-batch", plans.map((plan) => plan.digest));
+    if (!hasFlag(args, "--apply")) {
+      print({ digest, plans, nativeSessionVerified: false }, json, [
+        "alpha-AOS task-entry guidance (native configuration; model compliance is not enforced)",
+        ...plans.map((plan) => `${plan.harness}: ${plan.action} -> ${plan.target}`),
+        `Reviewed digest: ${digest}`, "Dry-run only. Apply with --apply --plan-digest <digest>, then restart or refresh the hosts.",
+      ].join("\n"));
+    } else {
+      if (parsed.options.get("--plan-digest") !== digest) throw new Error(`entry-policy sync --apply requires the reviewed --plan-digest ${digest}`);
+      const results: Awaited<ReturnType<typeof applyEntryPolicy>>[] = [];
+      try {
+        for (const plan of plans) results.push(await applyEntryPolicy({ ...plan, plan }));
+      } catch (error) {
+        const failures: string[] = [];
+        for (const result of [...results].reverse()) {
+          if (result.operationId) {
+            try { await rollbackFileTransaction(result.plan.stateRoot, result.operationId, [result.plan.configRoot]); }
+            catch { failures.push(result.plan.harness); }
+          }
+        }
+        if (failures.length) throw new Error(`Task-entry sync failed; rollback needs attention for ${failures.join(", ")}`);
+        throw error;
+      }
+      print({ digest, results, nativeSessionVerified: false }, json, "Task-entry guidance synchronized. Restart or refresh each host and inspect its loaded context.");
+    }
     return;
   }
 
